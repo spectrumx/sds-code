@@ -4,13 +4,12 @@ How To - Project Documentation
 Get Started
 ----------------------------------------------------------------------
 
-Documentation can be written as rst files in `sds_gateway/docs`.
+Documentation can be written as `rst` files in `sds_gateway/docs`.
 
 
-To build and serve docs, use the commands::
+To build and serve docs, use the command::
 
-    docker compose -f docker-compose.local.yml up docs
-
+    docker compose -f compose.local.yaml up docs
 
 
 Changes to files in `docs/_source` will be picked up and reloaded automatically.

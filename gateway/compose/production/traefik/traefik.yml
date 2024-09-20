@@ -86,5 +86,5 @@ http:
 providers:
     # https://doc.traefik.io/traefik/master/providers/file/
     file:
-        filename: /etc/traefik/traefik.yml
+        filename: /etc/traefik/traefik.yaml
         watch: true

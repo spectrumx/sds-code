@@ -3,10 +3,13 @@
 .github
 .gitignore
 .gitlab-ci.yml
+.gitlab-ci.yaml
 .idea
 .pre-commit-config.yaml
 .readthedocs.yml
+.readthedocs.yaml
 .travis.yml
+.travis.yaml
 venv
 .git
 .envs/

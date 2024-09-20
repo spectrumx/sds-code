@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1091
 
 ### Remove a database backup.
 ###
@@ -6,18 +7,15 @@
 ###     <1> filename of a backup to remove.
 ###
 ### Usage:
-###     $ docker-compose -f <environment>.yml (exec |run --rm) postgres rmbackup <1>
-
+###     $ docker compose -f <environment>.yaml (exec |run --rm) postgres rmbackup <1>
 
 set -o errexit
 set -o pipefail
 set -o nounset
 
-
-working_dir="$(dirname ${0})"
+working_dir="$(dirname "${0}")"
 source "${working_dir}/_sourced/constants.sh"
 source "${working_dir}/_sourced/messages.sh"
-
 
 if [[ -z ${1+x} ]]; then
     message_error "Backup filename is not specified yet it is a required parameter. Make sure you provide one and try again."
