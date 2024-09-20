@@ -9,12 +9,21 @@ Control plane, metadata management, and web interface for SDS
 
 ### Installation
 
+System dependencies
+
 ```bash
+# dev bindings for python and postgres
 sudo apt install python3-dev libpq-dev # on ubuntu
 sudo dnf install python3-devel postgresql-devel # on RHEL
+
+# get psql, createdb, etc.
+sudo apt install postgresql-client # for psql
+sudo dnf install postgresql # for psql
 ```
 
-`pip` can be used, but the easiest and fastest way is to use `uv` ([installing `uv`](https://docs.astral.sh/uv/getting-started/installation/)):
+Python dependencies
+
+`pip` can be used, but the easiest and fastest way is to use `uv` ([installing `uv`](https://docs.astral.sh/uv/getting-started/installation/)). If you still want to use `pip`, consider the compatible and faster alternative `uv pip` (e.g. `alias pip=uv pip`).
 
 ```bash
 uv sync --frozen --extra local
@@ -26,6 +35,12 @@ uv sync --frozen --extra local
 > When using `uv`, all base, local, and production dependencies are described in the `pyproject.toml` file.
 >
 > If you're using `pip`, refer to the `requirements/` directory.
+
+Install pre-commit hooks to automatically run linters, formatters, etc. before committing:
+
+```bash
+uv run pre-commit install
+```
 
 ## Deployment
 

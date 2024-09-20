@@ -2,11 +2,11 @@
 
 The SDK is the primary form that clients interact with SDS: either directly by installing the Python package from PyPI, or indirectly by using the SDS Web UI or the Visualization Component.
 
--   [SDK](#sdk)
-    -   [Installation](#installation)
-    -   [Usage](#usage)
-    -   [Supported Python Versions](#supported-python-versions)
-    -   [Design Goals](#design-goals)
++ [SDK](#sdk)
+    + [Installation](#installation)
+    + [Usage](#usage)
+    + [Supported Python Versions](#supported-python-versions)
+    + [Design Goals](#design-goals)
 
 ## Installation
 

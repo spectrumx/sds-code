@@ -54,37 +54,21 @@
         ]
         production = ["django-anymail[mailgun]>=12.0", "gunicorn>=23.0.0", "psycopg[c]>=3.2.2"]
 
-# ==== pytest ====
+# ==== TESTING ====
 [tool.pytest.ini_options]
     addopts      = "--ds=config.settings.test --reuse-db --import-mode=importlib"
     minversion   = "6.0"
     python_files = ["tests.py", "test_*.py"]
 
-# ==== Coverage ====
 [tool.coverage.run]
     include = ["sds_gateway/**"]
     omit    = ["*/migrations/*", "*/tests/*"]
     plugins = ["django_coverage_plugin"]
 
-# ==== mypy ====
-[tool.mypy]
-    check_untyped_defs     = true
-    ignore_missing_imports = true
-    plugins                = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
-    python_version         = "3.12"
-    warn_redundant_casts   = true
-    warn_unused_configs    = true
-    warn_unused_ignores    = true
-
-    [[tool.mypy.overrides]]
-        # Django migrations should not produce any errors:
-        ignore_errors = true
-        module        = "*.migrations.*"
-
+# ==== LINTING AND FORMATTING ====
 [tool.django-stubs]
     django_settings_module = "config.settings.test"
 
-# ==== djLint ====
 [tool.djlint]
     blank_line_after_tag = "load,extends"
     close_void_tags      = true
@@ -102,6 +86,20 @@
 
     [tool.djlint.js]
         indent_size = 4
+
+[tool.mypy]
+    check_untyped_defs     = true
+    ignore_missing_imports = true
+    plugins                = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+    python_version         = "3.12"
+    warn_redundant_casts   = true
+    warn_unused_configs    = true
+    warn_unused_ignores    = true
+
+    [[tool.mypy.overrides]]
+        # Django migrations should not produce any errors:
+        ignore_errors = true
+        module        = "*.migrations.*"
 
 [tool.ruff]
     # Exclude a variety of commonly ignored directories.
@@ -147,60 +145,64 @@
             # https://github.com/astral-sh/ruff/issues/7871
         ]
         select = [
-            "F",
-            "E",
-            "W",
-            "C90",
-            "I",
-            "N",
-            "UP",
-            "YTT",
-            # "ANN", # flake8-annotations: we should support this in the future but 100+ errors atm
-            "ASYNC",
-            "S",
-            "BLE",
-            "FBT",
-            "B",
-            "A",
-            "COM",
-            "C4",
-            "DTZ",
-            "T10",
-            "DJ",
-            "EM",
-            "EXE",
-            "FA",
-            'ISC',
-            "ICN",
-            "G",
-            'INP',
-            'PIE',
-            "T20",
-            'PYI',
-            'PT',
-            "Q",
-            "RSE",
-            "RET",
-            "SLF",
-            "SLOT",
-            "SIM",
-            "TID",
-            "TCH",
-            "INT",
-            # "ARG", # Unused function argument
-            "PTH",
-            "ERA",
-            "PD",
-            "PGH",
-            "PL",
-            "TRY",
-            "FLY",
-            # "NPY",
-            # "AIR",
-            "PERF",
-            # "FURB",
-            # "LOG",
-            "RUF",
+            # RULE SETS: https://docs.astral.sh/ruff/rules/
+            "F",     # Pyflakes
+            "E",     # Pycodestyle errors
+            "W",     # Pycodestyle warnings
+            "C90",   # Cyclomatic complexity
+            "I",     # Isort (import order)
+            "N",     # PEP-8 Naming
+            "UP",    # PyUpgrade (modernize code)
+            "YTT",   # flake8-2020 (modernize code)
+            "ASYNC", # flake8-async
+            "S",     # flake8-bandit (security)
+            "BLE",   # flake8-blind-except
+            "FBT",   # flake8-boolean-trap
+            "B",     # flake8-bugbear (common errors)
+            "A",     # flake8-builtins
+            "COM",   # flake8-commas
+            "C4",    # flake8-comprehensions
+            "DTZ",   # flake8-date-time-zones
+            "T10",   # flake8-debugger
+            "DJ",    # flake8-django
+            "EM",    # flake8-errmsg
+            "EXE",   # flake8-executable
+            "FA",    # flake8-flask
+            'ISC',   # flake8-implicit-str-concat
+            "ICN",   # flake8-import-conventions
+            "LOG",   # flake8-logging
+            "G",     # flake8-logging-format
+            'INP',   # flake8-no-pep-420
+            'PIE',   # flake8-pie (misc lints)
+            "T20",   # flake8-print
+            'PYI',   # flake8-pyi (type hints)
+            'PT',    # flake8-pytest-style
+            "Q",     # flake8-quotes
+            "RSE",   # flake8-raise
+            "RET",   # flake8-return
+            "SLF",   # flake8-self
+            "SLOT",  # flake8-slot
+            "SIM",   # flake8-simplify
+            "TID",   # flake8-tidy-imports
+            "TCH",   # flake8-type-checking
+            "INT",   # flake8-gettext
+            "PTH",   # flake8-use-pathlib
+            "ERA",   # eradicate
+            "PD",    # pandas-vet
+            "PGH",   # pygrep-hooks
+            "PL",    # pylint
+            "R",     # refactor
+            "TRY",   # tryceratops (try/except)
+            "FLY",   # flynt (f-string)
+            "PERF",  # perflint (performance)
+            "FURB",  # refurb (refactorings for older code)
+            "RUF",   # ruff-specific rules
+            "AIR",   # airflow
+            # "ANN",  # flake8-annotations (type annotations; 100+ errors atm from cookiecutter-django)
+            # "ARG",  # unused function argument
+            # "DOC",  # docstrings
+            # "FAST", # fastapi
+            # "NPY",  # numpy-specific (unused)
         ]
         # Allow fix for all enabled rules (when `--fix`) is provided.
         fixable   = ["ALL"]

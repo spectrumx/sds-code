@@ -1,2 +1,5 @@
 # we're using djlint for django templates instead
 **/templates/**/*.html
+
+# using markdownlint for markdown files
+*.md
