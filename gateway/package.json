@@ -1,0 +1,41 @@
+{
+    "name": "sds_gateway",
+    "version": "0.0.1",
+    "devDependencies": {
+        "@babel/core": "^7.25.2",
+        "@babel/preset-env": "^7.25.4",
+        "@popperjs/core": "^2.11.8",
+        "autoprefixer": "^10.4.20",
+        "babel-loader": "^9.2.1",
+        "bootstrap": "^5.3.3",
+        "css-loader": "^6.5.1",
+        "mini-css-extract-plugin": "^2.9.1",
+        "node-sass-tilde-importer": "^1.0.2",
+        "pixrem": "^5.0.0",
+        "postcss": "^8.4.47",
+        "postcss-loader": "^8.1.1",
+        "postcss-preset-env": "^9.0.0",
+        "sass": "^1.79.2",
+        "sass-loader": "^14.0.0",
+        "webpack": "^5.94.0",
+        "webpack-bundle-tracker": "^3.1.1",
+        "webpack-cli": "^5.1.4",
+        "webpack-dev-server": "^5.1.0",
+        "webpack-merge": "^5.8.0"
+    },
+    "engines": {
+        "node": "20"
+    },
+    "browserslist": [
+        "last 2 versions"
+    ],
+    "babel": {
+        "presets": [
+            "@babel/preset-env"
+        ]
+    },
+    "scripts": {
+        "dev": "webpack serve --config webpack/dev.config.js",
+        "build": "webpack --config webpack/prod.config.js"
+    }
+}

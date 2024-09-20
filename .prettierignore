@@ -1,0 +1,2 @@
+# we're using djlint for django templates instead
+**/templates/**/*.html

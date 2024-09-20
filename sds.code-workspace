@@ -1,0 +1,87 @@
+{
+    "extensions": {
+        "recommendations": [
+            "batisteo.vscode-django",
+            "charliermarsh.ruff",
+            "codeandstuff.package-json-upgrade",
+            "DavidAnson.vscode-markdownlint",
+            "ms-python.python",
+            "redhat.vscode-yaml",
+            "richie5um2.vscode-sort-json",
+            "streetsidesoftware.code-spell-checker",
+            "tamasfe.even-better-toml",
+            "timonwong.shellcheck",
+            "usernamehw.errorlens",
+            "yzhang.markdown-all-in-one",
+        ],
+    },
+    "folders": [
+        {
+            "name": "sds-root",
+            "path": ".",
+        },
+        {
+            "name": "gateway",
+            "path": "./gateway",
+        },
+        {
+            "name": "sdk",
+            "path": "./sdk",
+        },
+    ],
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "echo hello",
+                "command": "echo hello",
+                "type": "shell",
+                "args": [],
+                "problemMatcher": ["$tsc"],
+                "presentation": {
+                    "reveal": "always",
+                },
+                "group": "build",
+            },
+        ],
+    },
+    "settings": {
+        "[python]": {
+            "editor.codeActionsOnSave": {
+                "source.fixAll.ruff": "explicit",
+            },
+            "editor.defaultFormatter": "charliermarsh.ruff",
+            "editor.formatOnSave": true,
+        },
+        "[yaml]": {
+            "editor.autoIndent": "keep",
+            "editor.defaultFormatter": "redhat.vscode-yaml",
+            "editor.insertSpaces": true,
+            "editor.tabSize": 4,
+        },
+        "editor.indentSize": 4,
+        "evenBetterToml.formatter.alignComments": true,
+        "evenBetterToml.formatter.alignEntries": true,
+        "evenBetterToml.formatter.allowedBlankLines": 2,
+        "evenBetterToml.formatter.arrayTrailingComma": true,
+        "evenBetterToml.formatter.columnWidth": 119,
+        "evenBetterToml.formatter.indentEntries": true,
+        "evenBetterToml.formatter.indentString": "    ",
+        "evenBetterToml.formatter.indentTables": true,
+        "evenBetterToml.formatter.inlineTableExpand": true,
+        "evenBetterToml.formatter.reorderArrays": false,
+        "evenBetterToml.formatter.reorderKeys": true,
+        "evenBetterToml.formatter.trailingNewline": true,
+        "evenBetterToml.schema.cache.diskExpiration": 15,
+        "evenBetterToml.schema.cache.memoryExpiration": 10,
+        "evenBetterToml.schema.links": true,
+        "python.analysis.autoFormatStrings": true,
+        "python.analysis.enablePytestSupport": true,
+        "python.analysis.importFormat": "absolute",
+        "python.analysis.indexing": true,
+        "python.analysis.typeCheckingMode": "standard",
+        "ruff.fixAll": true,
+        "ruff.configuration": "gateway/pyproject.toml",
+    },
+}
+// "ruff.configuration": null

@@ -23,5 +23,5 @@ Clients may use the SDK to authenticate, to push and pull data from SDS, and to 
 
 ## More docs
 
-+ [Gateway](./gateway/README.md)
-+ [SDK](./sdk/README.md)
+-   [Gateway](./gateway/README.md)
+-   [SDK](./sdk/README.md)
