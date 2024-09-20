@@ -1,0 +1,7 @@
+[project]
+    dependencies    = []
+    description     = "SDK for the SpectrumX Data System"
+    name            = "sds-sdk"
+    readme          = "README.md"
+    requires-python = ">=3.12"
+    version         = "0.1.0"
