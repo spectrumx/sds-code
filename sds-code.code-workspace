@@ -17,15 +17,15 @@
     },
     "folders": [
         {
-            "name": "sds-root",
+            "name": "sds-code-root",
             "path": ".",
         },
         {
-            "name": "gateway",
+            "name": "sds-gateway",
             "path": "./gateway",
         },
         {
-            "name": "sdk",
+            "name": "sds-sdk",
             "path": "./sdk",
         },
     ],

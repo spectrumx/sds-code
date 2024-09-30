@@ -5,6 +5,8 @@ The SDK is the primary form that clients interact with SDS: either directly by i
 + [SDK](#sdk)
     + [Installation](#installation)
     + [Usage](#usage)
+    + [Asset types](#asset-types)
+    + [SDK Methods](#sdk-methods)
     + [Supported Python Versions](#supported-python-versions)
     + [Design Goals](#design-goals)
 
@@ -78,7 +80,46 @@ pip install spectrumx-sdk
             overwrite=False,
             verbose=True,
         )
+
+    # fetch a dataset by its ID
+    dataset = Dataset.get(sds, dataset_id="dataset-id")
     ```
+
+## Asset types
+
+The SDK provides classes for the following asset types:
+
+| Asset Type   | Description                                                                                                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `File`       | Represents a file that was uploaded to SDS. It may be one of a variety of formats allowed. It is the smallest addressable unit in SDS.                                            |
+| `Directory`  | A directory is a unique attribute of a file in the form of a path and does not match how files are stored on the server. It is merely used to arrange files on the client side.\* |
+| `Capture`    | Special type of file that refers to an RF capture and is indexed and searchable. Uses the same ID as the file it represents.                                                      |
+| `Dataset`    | Logical grouping of files in the SDS with metadata and a unique identifier. Ideal for sharing collections of files.                                                               |
+| `Experiment` | Logical grouping of zero or more datasets, captures, and files. It is a logical grouping of datasets and captures.                                                                |
+
++ \* There are many benefits of treating directories as attributes (assume `<path>` equals to `<directory>/<filename>`):
+    1. **Separation of concerns:** SDS and clients have different goals when it comes to file organization. Directories as attributes let users organize their files in ways that make sense to them without affecting SDS.
+    2. **Update performance:** when users change their file trees and tell the SDK "re-upload" them, all the SDK has to do is detect the files moved, then issue the proper commands for the server to update those attributes. This prevents same content re-upload and updating database attributes is also faster than moving files.
+    3. **Access performance:** querying rows from a database is faster than traversing a file system when listing files and directories. Directory attributes can be sorted, cached, indexed, and filtered efficiently. Storing these files in a file system _as well as_ creating their database entries would lead to multiple sources of truth and potential inconsistencies over time.
+    4. **Reliability:** in case of interruption, a move operation is harder to recover from than an attribute update; the latter is also easier to model as an atomic database transaction and give immediate feedback to the user.
+    5. **No empty directories:** a path (and its directory) only exists if there is a file "in" it.
+    6. **Orthogonal soft deletions:** the directory attribute can be preserved in the case of deletions, making "un-deletions" faster and more reliable.
+    7. **File versioning for free:** if a new file has the same path as an existing one, the server will store both by their checksums and the SDK can indicate there are multiple versions available when listing by path.
+    8. **File duplication:** if a file the server already has is re-uploaded, the SDK can avoid the extraneous data transfer and an additional "file" row can be created pointing to an already existing file on the server's disk.
+
+## SDK Methods
+
+| Method             | Asset                             | Kind    | Description                                                        |
+| ------------------ | --------------------------------- | ------- | ------------------------------------------------------------------ |
+| `sds.authenticate` | Client                            | -       | Authenticates the client with the SDS server.                      |
+| `sds.datasets`     | Dataset                           | Listing | Returns an iterator for datasets available to the current user.    |
+| `sds.captures`     | Capture                           | Listing | Returns an iterator for captures available to the current user.    |
+| `sds.directories`  | Directory                         | Listing | Returns an iterator for directories available to the current user. |
+| `sds.upload`       | Capture, Dataset, File, Directory | Create  | Uploads the asset to the SDS.                                      |
+| `sds.download`     | Capture, Dataset, File, Directory | Read    | Downloads the asset from the SDS.                                  |
+| `sds.search`       | Capture, Dataset, Directory       | Listing | Searches for assets based on filters.                              |
+| `asset.update`     | Capture, Dataset, File, Directory | Update  | Updates the asset's metadata.                                      |
+| `asset.delete`     | Capture, Dataset, File, Directory | Delete  | Marks the asset for deletion.                                      |
 
 ## Supported Python Versions
 
