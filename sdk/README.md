@@ -109,17 +109,18 @@ The SDK provides classes for the following asset types:
 
 ## SDK Methods
 
-| Method             | Asset                             | Kind    | Description                                                        |
-| ------------------ | --------------------------------- | ------- | ------------------------------------------------------------------ |
-| `sds.authenticate` | Client                            | -       | Authenticates the client with the SDS server.                      |
-| `sds.datasets`     | Dataset                           | Listing | Returns an iterator for datasets available to the current user.    |
-| `sds.captures`     | Capture                           | Listing | Returns an iterator for captures available to the current user.    |
-| `sds.directories`  | Directory                         | Listing | Returns an iterator for directories available to the current user. |
-| `sds.upload`       | Capture, Dataset, File, Directory | Create  | Uploads the asset to the SDS.                                      |
-| `sds.download`     | Capture, Dataset, File, Directory | Read    | Downloads the asset from the SDS.                                  |
-| `sds.search`       | Capture, Dataset, Directory       | Listing | Searches for assets based on filters.                              |
-| `asset.update`     | Capture, Dataset, File, Directory | Update  | Updates the asset's metadata.                                      |
-| `asset.delete`     | Capture, Dataset, File, Directory | Delete  | Marks the asset for deletion.                                      |
+| Method             | Asset                             | Action Group | Description                                                        |
+| ------------------ | --------------------------------- | ------------ | ------------------------------------------------------------------ |
+| `sds.authenticate` | Client                            | -            | Authenticates the client with SDS.                                 |
+| `sds.files`        | File                              | Listing      | Returns an iterator for files available to the current user.       |
+| `sds.datasets`     | Dataset                           | Listing      | Returns an iterator for datasets available to the current user.    |
+| `sds.captures`     | Capture                           | Listing      | Returns an iterator for captures available to the current user.    |
+| `sds.experiments`  | Experiment                        | Listing      | Returns an iterator for experiments available to the current user. |
+| `sds.upload`       | Capture, Dataset, File, Directory | Create       | Uploads the asset to SDS.                                          |
+| `sds.download`     | Capture, Dataset, File, Directory | Read         | Downloads the asset from SDS.                                      |
+| `sds.search`       | Capture, Dataset, Directory       | Listing      | Searches for assets based on filters.                              |
+| `<asset>.update`   | Capture, Dataset, File, Directory | Update       | Updates the asset's metadata.                                      |
+| `<asset>.delete`   | Capture, Dataset, File, Directory | Delete       | Marks the asset for deletion.                                      |
 
 ## Supported Python Versions
 
