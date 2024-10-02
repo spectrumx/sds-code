@@ -20,7 +20,17 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   # dependencies for building Python packages
   build-essential \
   # psycopg dependencies
-  libpq-dev
+  libpq-dev \
+  # curl for installing Rust
+  curl
+
+# Install Rust and Cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . $HOME/.cargo/env && \
+    echo 'export PATH=$HOME/.cargo/bin:$PATH' >> $HOME/.bashrc
+
+# Ensure Rust and Cargo are available in the PATH
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Requirements are installed here to ensure they will be cached.
 COPY ./requirements .

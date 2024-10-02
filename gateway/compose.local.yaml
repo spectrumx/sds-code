@@ -2,6 +2,10 @@ volumes:
     sds_gateway_local_postgres_data: {}
     sds_gateway_local_postgres_data_backups: {}
     sds_gateway_local_redis_data: {}
+    minio_files: {}
+
+networks:
+    sds_gateway_minio_local:
 
 services:
     django: &django
@@ -13,14 +17,32 @@ services:
         depends_on:
             - postgres
             - redis
+            - minio
         volumes:
             - .:/app:z
         env_file:
             - ./.envs/local/django.env
+            - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
         ports:
             - "8000:8000"
         command: /start
+        networks:
+            - sds_gateway_minio_local
+
+    minio:
+        container_name: sds_gateway_local_minio
+        image: minio/minio:latest
+        ports:
+            - "9000:9000"
+            - "9001:9001"
+        env_file:
+            - ./.envs/local/minio.env
+        volumes:
+            - minio_files:/files
+        command: server /files --console-address ":9001"
+        networks:
+            - sds_gateway_minio_local
 
     postgres:
         build:
@@ -33,6 +55,8 @@ services:
             - sds_gateway_local_postgres_data_backups:/backups
         env_file:
             - ./.envs/local/postgres.env
+        networks:
+            - sds_gateway_minio_local
 
     redis:
         image: docker.io/redis:6
