@@ -11,6 +11,7 @@ uvicorn[standard]==0.30.3  # https://github.com/encode/uvicorn
 uvicorn-worker==0.2.0  # https://github.com/Kludex/uvicorn-worker
 boto3==1.35.30  # https://github.com/boto/boto3
 blake3==0.4.1  #https://github.com/oconnor663/blake3-py
+opensearch-py==2.7.1 #https://github.com/opensearch-project/opensearch-py
 
 # Django
 # ------------------------------------------------------------------------------

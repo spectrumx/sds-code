@@ -1,15 +1,15 @@
 # Description: This file contains the models for the API methods.
+import datetime
 import uuid
-from datetime import datetime
 
 from blake3 import blake3
 from django.conf import settings
 from django.db import models
 
 
-# helper functions
-def unix_epoch_time():
-    return datetime(1970, 1, 1, tzinfo=datetime.UTC)
+def default_expiration_date():
+    # 2 years from now
+    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=730)
 
 
 class BaseModel(models.Model):
@@ -49,15 +49,19 @@ class File(BaseModel):
 
     file = models.FileField(upload_to="files/")
     name = models.CharField(max_length=255, blank=True)
-    directory = models.CharField(max_length=2048)
+    directory = models.CharField(max_length=2048, default="files/")
     media_type = models.CharField(max_length=255, default="application/x-hdf5")
     permissions = models.CharField(max_length=255, default="rwxrwxrwx")
     size = models.IntegerField(blank=True)
     sum_blake3 = models.CharField(max_length=64, blank=True)
+    expiration_date = models.DateTimeField(default=default_expiration_date)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(blank=True, null=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         blank=True,
         null=True,
+        related_name="files",
         on_delete=models.SET_NULL,
     )
     bucket_name = models.CharField(
@@ -68,6 +72,14 @@ class File(BaseModel):
         "Dataset",
         blank=True,
         null=True,
+        related_name="files",
+        on_delete=models.SET_NULL,
+    )
+    drf_capture = models.ForeignKey(
+        "Capture",
+        blank=True,
+        null=True,
+        related_name="files",
         on_delete=models.SET_NULL,
     )
 
@@ -93,101 +105,28 @@ class File(BaseModel):
         return checksum.hexdigest()
 
 
-class Capture(File):
+class Capture(BaseModel):
     """
     Model to define captures (specific file type) uploaded through the API.
 
     Attributes:
-        unix_time_code: IntegerField - The Unix time code of the capture.
-        sequence_num: IntegerField - The sequence number of the capture.
-        init_utc_timestamp: DateTimeField - The initial UTC timestamp of the capture.
-        computer_time: DateTimeField - The computer time of the capture.
-        metadata: ForeignKey - The metadata associated with the capture.
-    """
-
-    unix_time_code = models.IntegerField()
-    sequence_num = models.IntegerField()
-    init_utc_timestamp = models.DateTimeField()
-    computer_time = models.DateTimeField()
-    metadata = models.ForeignKey(
-        "CaptureMetadata",
-        blank=True,
-        null=True,
-        on_delete=models.SET_NULL,
-    )
-
-
-class CaptureMetadata(BaseModel):
-    """
-    Model to define metadata associated with a capture.
-
-    Attributes:
-        capture_type: CharField - The type of capture (ex: digital_rf, sig_mf).
-        date_captured: DateTimeField - The date the capture was taken.
         channel: CharField - The channel the capture was taken on.
-        bound_start: IntegerField - The start bound of the capture (unix seconds).
-        bound_end: IntegerField - The end bound of the capture (unix seconds).
-        H5Tget_class: IntegerField - The class of the H5T.
-        H5Tget_size: IntegerField - The size of the H5T.
-        H5Tget_order: IntegerField - The order of the H5T.
-        H5Tget_precision: IntegerField - The precision of the H5T.
-        H5Tget_offset: IntegerField - The offset of the H5T.
-        subdir_cadence_secs: IntegerField - The cadence of the subdirectory in seconds.
-        file_cadence_millisecs: IntegerField - The cadence of the file in milliseconds.
-        sample_rate_numerator: IntegerField - The numerator of the sample rate.
-        sample_rate_denominator: IntegerField - The denominator of the sample rate.
-        samples_per_second: IntegerField - The samples per second.
-        is_complex: BooleanField - Whether the capture is complex.
-        is_continuous: BooleanField - Whether the capture is continuous.
-        epoch: DateTimeField - The linux epoch.
-        digital_rf_time_description: CharField - The time description of digital_rf.
-        digital_rf_version: CharField - The version of digital_rf.
-        center_freq: IntegerField - The center frequency of the capture.
-        span: IntegerField - The span of the capture.
-        gain: FloatField - The gain of the capture.
-        resolution_bandwidth: IntegerField - The resolution bandwidth of the capture.
-        antenna: CharField - The antenna used in the capture.
-        indoor_outdoor: CharField - Whether the capture was taken indoors or outdoors.
-        antenna_direction: FloatField - The direction of the antenna.
-        custom_attrs: JSONField - Custom attributes of the capture.
+        date_captured: DateTimeField - The date the capture was taken.
     """
 
     CAPTURE_TYPE_CHOICES = [
-        ("digital_rf", "Digital RF"),
-        ("sig_mf", "SigMF"),
+        ("drf", "Digital RF"),
     ]
 
-    capture_type = models.CharField(max_length=20, choices=CAPTURE_TYPE_CHOICES)
-    date_captured = models.DateTimeField()
-    channel = models.CharField(max_length=255)
-    bound_start = models.IntegerField()
-    bound_end = models.IntegerField()
-    H5Tget_class = models.IntegerField()
-    H5Tget_size = models.IntegerField()
-    H5Tget_order = models.IntegerField()
-    H5Tget_precision = models.IntegerField()
-    H5Tget_offset = models.IntegerField()
-    subdir_cadence_secs = models.IntegerField()
-    file_cadence_millisecs = models.IntegerField()
-    sample_rate_numerator = models.IntegerField()
-    sample_rate_denominator = models.IntegerField()
-    samples_per_second = models.IntegerField()
-    is_complex = models.BooleanField()
-    is_continuous = models.BooleanField()
-    epoch = models.DateTimeField(default=unix_epoch_time)
-    digital_rf_time_description = models.CharField(max_length=255)
-    digital_rf_version = models.CharField(max_length=255)
-    center_freq = models.IntegerField()
-    span = models.IntegerField()
-    gain = models.FloatField()
-    resolution_bandwidth = models.IntegerField()
-    antenna = models.CharField(max_length=255)
-    indoor_outdoor = models.CharField(max_length=255)
-    antenna_direction = models.FloatField()
-    custom_attrs = models.JSONField()
+    channel = models.CharField(max_length=255, blank=True)
+    capture_type = models.CharField(
+        max_length=255,
+        choices=CAPTURE_TYPE_CHOICES,
+        default="drf",
+    )
 
     def __str__(self):
-        return f"Metadata for {self.channel} channel on {self.date_captured} from {self.bound_start} to {self.bound_end} ({self.capture_type})"  # noqa: E501
+        return f"{self.capture_type} capture for channel {self.channel} added on {self.created_at}"  # noqa: E501
 
 
 class Dataset(BaseModel):
