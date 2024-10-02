@@ -6,7 +6,29 @@ from typing import Any
 
 import environ
 
+env = environ.Env()
+
 BASE_DIR: Path = Path(__file__).resolve(strict=True).parent.parent.parent
+
+# MinIO configuration
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="minioadmin")
+AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="miniopassword")
+AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="spectrumx")
+AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default="http://localhost:9000")
+AWS_S3_REGION_NAME = "us-east-1"
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_S3_FILE_OVERWRITE = False
+AWS_DEFAULT_ACL = None
+
 # sds_gateway/
 APPS_DIR: Path = BASE_DIR / "sds_gateway"
 env = environ.Env()
@@ -70,6 +92,7 @@ DJANGO_APPS: list[str] = [
     # "django.contrib.humanize", # Handy template tags
     "django.contrib.admin",
     "django.forms",
+    "storages",
 ]
 THIRD_PARTY_APPS: list[str] = [
     "crispy_forms",
@@ -88,6 +111,7 @@ THIRD_PARTY_APPS: list[str] = [
 
 LOCAL_APPS: list[str] = [
     "sds_gateway.users",
+    "sds_gateway.api_methods",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
