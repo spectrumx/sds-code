@@ -111,7 +111,7 @@ class Capture(BaseModel):
 
     Attributes:
         channel: CharField - The channel the capture was taken on.
-        date_captured: DateTimeField - The date the capture was taken.
+        capture_type: CharField - The type of capture (ex: Digital RF).
     """
 
     CAPTURE_TYPE_CHOICES = [
