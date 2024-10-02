@@ -6,6 +6,7 @@ volumes:
 
 networks:
     sds_gateway_minio_local:
+    opensearch-net:
 
 services:
     django: &django
@@ -24,11 +25,13 @@ services:
             - ./.envs/local/django.env
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
+            - ./.envs/local/opensearch.env
         ports:
             - "8000:8000"
         command: /start
         networks:
             - sds_gateway_minio_local
+            - opensearch-net
 
     minio:
         container_name: sds_gateway_local_minio
@@ -43,6 +46,20 @@ services:
         command: server /files --console-address ":9001"
         networks:
             - sds_gateway_minio_local
+
+    opensearch:
+        image: opensearchproject/opensearch:latest
+        container_name: opensearch
+        env_file:
+            - ./.envs/local/opensearch.env
+        ulimits:
+            memlock:
+                soft: -1
+                hard: -1
+        ports:
+            - "9200:9200"
+        networks:
+            - opensearch-net
 
     postgres:
         build:
