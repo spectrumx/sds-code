@@ -1,0 +1,5 @@
+cluster.name: "local-cluster"
+network.host: localhost
+discovery.type: single-node
+cluster.initial_master_nodes: ["opensearch"]
+plugins.security.disabled: true
