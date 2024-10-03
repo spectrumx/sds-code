@@ -1,5 +1,6 @@
 # Description: This file contains the models for the API methods.
 import datetime
+import json
 import uuid
 
 from blake3 import blake3
@@ -15,11 +16,6 @@ def default_expiration_date():
 class BaseModel(models.Model):
     """
     Superclass for all models in the API methods app.
-
-    Attributes:
-        uuid: UUIDField - The UUID of the object.
-        created_at: DateTimeField - The date and time the object was created.
-        updated_at: DateTimeField - The date and time the object was last updated.
     """
 
     uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -33,25 +29,13 @@ class BaseModel(models.Model):
 class File(BaseModel):
     """
     Model to define files uploaded through the API.
-
-    Attributes:
-        file: FileField - The file uploaded.
-        name: CharField - The name of the file.
-        directory: CharField - The directory the file is stored in (tracked by DB only).
-        media_type: CharField - The media type of the file (former MIME type).
-        permissions: CharField - The permissions of the file (ex: rwxrwxrwx).
-        size: IntegerField - The size of the file (in bytes).
-        sum_sha256: CharField - The SHA256 checksum of the file.
-        owner: ForeignKey - The user that owns the file.
-        bucket_name: CharField - The name of the MinIO bucket the file is stored in.
-        dataset: ForeignKey - The dataset the file belongs to (optional).
     """
 
     file = models.FileField(upload_to="files/")
     name = models.CharField(max_length=255, blank=True)
     directory = models.CharField(max_length=2048, default="files/")
-    media_type = models.CharField(max_length=255, default="application/x-hdf5")
-    permissions = models.CharField(max_length=255, default="rwxrwxrwx")
+    media_type = models.CharField(max_length=255, blank=True)
+    permissions = models.CharField(max_length=9, default="rw-r--r--")
     size = models.IntegerField(blank=True)
     sum_blake3 = models.CharField(max_length=64, blank=True)
     expiration_date = models.DateTimeField(default=default_expiration_date)
@@ -62,7 +46,7 @@ class File(BaseModel):
         blank=True,
         null=True,
         related_name="files",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,  # prevents users from being deleted if they own files (delete the files first). # noqa: E501
     )
     bucket_name = models.CharField(
         max_length=255,
@@ -75,7 +59,7 @@ class File(BaseModel):
         related_name="files",
         on_delete=models.SET_NULL,
     )
-    drf_capture = models.ForeignKey(
+    capture = models.ForeignKey(
         "Capture",
         blank=True,
         null=True,
@@ -84,7 +68,7 @@ class File(BaseModel):
     )
 
     def __str__(self):
-        return f"{self.directory}/{self.name}"
+        return f"{self.directory}{self.name}"
 
     def save(self, *args, **kwargs):
         self.size = self.file.size
@@ -108,10 +92,6 @@ class File(BaseModel):
 class Capture(BaseModel):
     """
     Model to define captures (specific file type) uploaded through the API.
-
-    Attributes:
-        channel: CharField - The channel the capture was taken on.
-        capture_type: CharField - The type of capture (ex: Digital RF).
     """
 
     CAPTURE_TYPE_CHOICES = [
@@ -124,6 +104,7 @@ class Capture(BaseModel):
         choices=CAPTURE_TYPE_CHOICES,
         default="drf",
     )
+    index_name = models.CharField(max_length=255, blank=True)
 
     def __str__(self):
         return f"{self.capture_type} capture for channel {self.channel} added on {self.created_at}"  # noqa: E501
@@ -133,39 +114,50 @@ class Dataset(BaseModel):
     """
     Model for datasets defined and created through the API.
 
-    Attributes:
-        name: CharField - The name of the dataset, required.
-        abstract: TextField - The abstract of the publication, optional.
-        description: TextField - A short description of the dataset, optional.
-        doi: CharField - The DOI of the dataset, optional.
-        authors: ManyToManyField - The authors of the dataset.
-        license: CharField - The license of the dataset.
-        keywords: CharField - The keywords of the dataset.
-        institutions: CharField - The institutions associated with the dataset.
-        release_date: DateTimeField - The date the dataset was released.
-        repository: URLField - The repository of the dataset.
-        version: CharField - The version of the dataset.
-        website: URLField - The website of the dataset.
-        provenance: JSONField - The provenance of the dataset.
-        citation: JSONField - The citation of the dataset.
-        other: JSONField - Other information about the
+    Schema Definition: https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/abstractions/dataset/README.md
     """
 
-    name = models.CharField(max_length=255)
+    list_fields = ["authors", "keywords", "institutions"]
+
+    name = models.CharField(max_length=255, blank=False, default=None)
     abstract = models.TextField(blank=True)
     description = models.TextField(blank=True)
     doi = models.CharField(max_length=255, blank=True)
-    authors = models.ManyToManyField(settings.AUTH_USER_MODEL)
+    authors = models.TextField(blank=True)
     license = models.CharField(max_length=255, blank=True)
-    keywords = models.CharField(max_length=255, blank=True)
-    institutions = models.CharField(max_length=255, blank=True)
-    release_date = models.DateTimeField(blank=True)
+    keywords = models.TextField(blank=True)
+    institutions = models.TextField(blank=True)
+    release_date = models.DateField(blank=True, null=True)
     repository = models.URLField(blank=True)
     version = models.CharField(max_length=255, blank=True)
     website = models.URLField(blank=True)
-    provenance = models.JSONField(blank=True)
-    citation = models.JSONField(blank=True)
-    other = models.JSONField(blank=True)
+    provenance = models.JSONField(blank=True, null=True)
+    citation = models.JSONField(blank=True, null=True)
+    other = models.JSONField(blank=True, null=True)
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Serialize the list fields to a JSON string before saving
+        for field in self.list_fields:
+            field_value = getattr(self, field)
+            if field_value:
+                if isinstance(getattr(self, field), list):
+                    setattr(self, field, json.dumps(getattr(self, field)))
+                else:
+                    # raise ValueError exception if a list field is not in list format
+                    msg = f"A field you are trying to populate ('{field}') must be a list, but you provided a value of type: {type(field_value).__name__}. For your convenience, the list fields in this table include: {self.list_fields!s}."  # noqa: E501
+                    raise ValueError(msg)
+
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+
+        # Deserialize the JSON strings back to lists
+        for field in cls.list_fields:
+            if getattr(instance, field):
+                setattr(instance, field, json.loads(getattr(instance, field)))
+        return instance

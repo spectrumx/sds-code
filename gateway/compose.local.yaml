@@ -3,6 +3,7 @@ volumes:
     sds_gateway_local_postgres_data_backups: {}
     sds_gateway_local_redis_data: {}
     minio_files: {}
+    opensearch-data: {}
 
 networks:
     sds_gateway_minio_local:
@@ -34,22 +35,32 @@ services:
             - opensearch-net
 
     minio:
-        container_name: sds_gateway_local_minio
+        # minio uses rolling upgrades that are non-disruptive, so we can target latest
+        # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
+        # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
         image: minio/minio:latest
+        container_name: sds_gateway_local_minio
+        volumes:
+            - minio_files:/files
         ports:
             - "9000:9000"
             - "9001:9001"
         env_file:
             - ./.envs/local/minio.env
-        volumes:
-            - minio_files:/files
         command: server /files --console-address ":9001"
         networks:
             - sds_gateway_minio_local
 
     opensearch:
-        image: opensearchproject/opensearch:latest
-        container_name: opensearch
+        # opensearch upgrades follow semver - let's target a major version
+        # https://opensearch.org/docs/latest/install-and-configure/upgrade-opensearch/index/
+        # release notes
+        # https://opensearch.org/docs/latest/version-history/
+        image: opensearchproject/opensearch:2
+        container_name: sds_gateway_local_opensearch
+        volumes:
+            - opensearch-data:/usr/share/opensearch/data
+            - ./opensearch.local.yaml:/usr/share/opensearch/config/opensearch.yml
         env_file:
             - ./.envs/local/opensearch.env
         ulimits:
@@ -58,6 +69,7 @@ services:
                 hard: -1
         ports:
             - "9200:9200"
+            - "9600:9600"
         networks:
             - opensearch-net
 
@@ -78,7 +90,6 @@ services:
     redis:
         image: docker.io/redis:6
         container_name: sds_gateway_local_redis
-
         volumes:
             - sds_gateway_local_redis_data:/data
 
