@@ -117,6 +117,47 @@ wheels = [
 ]
 
 [[package]]
+name = "blake3"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/8d/43eafa8a785547c33b611068ffd6d914f5c5f96637d5b453abc556f095a0/blake3-0.4.1.tar.gz", hash = "sha256:0625c8679203d5a1d30f859696a3fd75b2f50587984690adab839ef112f4c043", size = 117686 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/f8/c5e6c5749aab2d84c177e8d86792aed8adaad023bfd045abfc6f053cdd57/blake3-0.4.1-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:fb98f18bc5e218ff1134acb3b9f0e3588ad5e6f38b7279cce4559c8ae9d780e6", size = 343905 },
+    { url = "https://files.pythonhosted.org/packages/e0/8f/184105e1a84ac108cfec8702307b588cb123e1a203e8538e8c3e9b0320da/blake3-0.4.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:fe31163eb08fc3f82a2325e90cea88f2d7ad0265314a03de716f906b2a43be96", size = 329112 },
+    { url = "https://files.pythonhosted.org/packages/ec/c6/8f6717fbea55ec9eb21543aa6d8e1bd904d6d2dcc886b555aa3d3f450ba7/blake3-0.4.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a51f48ec21706a22b4954fc17da72bd177d82d22ee434da0c5dc3aafeef5b8d3", size = 1275086 },
+    { url = "https://files.pythonhosted.org/packages/81/d2/7d5c71b78fbbef88b723d9af1bd647fe756ca0f8880a27f2ad5a7b97af55/blake3-0.4.1-cp312-none-win32.whl", hash = "sha256:510fd32d207ef2e28df3597847d5044117d110b0e549b2e467afa30a9f3ab7ee", size = 226815 },
+    { url = "https://files.pythonhosted.org/packages/fb/67/3fca4d812b3334fa1c9415fd7f10ceea32b0e9e29797d179af87ed94581c/blake3-0.4.1-cp312-none-win_amd64.whl", hash = "sha256:2a08eeb324da701b212f348e91ba5d2708c0a596bd6691207f2504f4f771644c", size = 210124 },
+]
+
+[[package]]
+name = "boto3"
+version = "1.35.33"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "botocore" },
+    { name = "jmespath" },
+    { name = "s3transfer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/3a/c990871544d997fc28e5d34854f64e954a694ebd899c7388e9e850117b6d/boto3-1.35.33.tar.gz", hash = "sha256:d206e8295e856ded7c8fab086784dc17863ed9d735458145c2ef5b25604aef69", size = 110976 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/95/c6/bed1ae3d149970190f9a08daeb8b41cb36598f2347bbb42a71efd8d2b710/boto3-1.35.33-py3-none-any.whl", hash = "sha256:4064e95d4035d4d3dd4eb59eaa5908d14d194b512d1dc1d271647b0c661fbdbb", size = 139140 },
+]
+
+[[package]]
+name = "botocore"
+version = "1.35.33"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jmespath" },
+    { name = "python-dateutil" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d6/2e/89ea4e0bb085932e26b393b6bd7a558602fdb3aaf4c74364105715308287/botocore-1.35.33.tar.gz", hash = "sha256:b149940c59aa318e020191c9e5644361b2371e77d0346a3819728b49d3fa2e4e", size = 12798323 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/ea/2f32a9b79ca18a169f69cedd531f477dc0099233a10a03eb4163bdbdd2a5/botocore-1.35.33-py3-none-any.whl", hash = "sha256:b7b1ed59a224616912c7546fa19ffd542c745818179ee0640a8a00b155bcd9cd", size = 12587124 },
+]
+
+[[package]]
 name = "celery"
 version = "5.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -509,6 +550,23 @@ wheels = [
 ]
 
 [[package]]
+name = "django-storages"
+version = "1.14.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/88/77b5ede11147941dece064bd80ac618f6a4b91b4c9d5d305a2660014941e/django-storages-1.14.4.tar.gz", hash = "sha256:69aca94d26e6714d14ad63f33d13619e697508ee33ede184e462ed766dc2a73f", size = 83496 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e0/69/a4b2f2dfa51fd18fd898e10cc41d73a30965da7cb3b683f1375b1dc3dd5c/django_storages-1.14.4-py3-none-any.whl", hash = "sha256:d61930acb4a25e3aebebc6addaf946a3b1df31c803a6bf1af2f31c9047febaa3", size = 31809 },
+]
+
+[package.optional-dependencies]
+boto3 = [
+    { name = "boto3" },
+]
+
+[[package]]
 name = "django-stubs"
 version = "5.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -650,6 +708,14 @@ name = "editorconfig"
 version = "0.12.4"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/3d/85/7b5c2fac7fdc37d959fab714b13b9acb75884490dcc0e8b1dc5e64105084/EditorConfig-0.12.4.tar.gz", hash = "sha256:24857fa1793917dd9ccf0c7810a07e05404ce9b823521c7dce22a4fb5d125f80", size = 13278 }
+
+[[package]]
+name = "events"
+version = "0.5"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/ed/e47dec0626edd468c84c04d97769e7ab4ea6457b7f54dcb3f72b17fcd876/Events-0.5-py3-none-any.whl", hash = "sha256:a7286af378ba3e46640ac9825156c93bdba7502174dd696090fdfcd4d80a1abd", size = 6758 },
+]
 
 [[package]]
 name = "executing"
@@ -883,6 +949,15 @@ wheels = [
 ]
 
 [[package]]
+name = "jmespath"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/2a/e867e8531cf3e36b41201936b7fa7ba7b5702dbef42922193f05c8976cd6/jmespath-1.0.1.tar.gz", hash = "sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe", size = 25843 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/31/b4/b9b800c45527aadd64d5b442f9b932b00648617eb5d63d2c7a6587b7cafc/jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980", size = 20256 },
+]
+
+[[package]]
 name = "jsbeautifier"
 version = "1.15.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1006,6 +1081,22 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/43/16/fc88b08840de0e0a72a2f9d8c6bae36be573e475a6326ae854bcc549fc45/nodeenv-1.9.1.tar.gz", hash = "sha256:6ec12890a2dab7946721edbfbcd91f3319c6ccc9aec47be7c7e6b7011ee6645f", size = 47437 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d2/1d/1b658dbd2b9fa9c4c9f32accbfc0205d532c8c6194dc0f2a4c0428e7128a/nodeenv-1.9.1-py2.py3-none-any.whl", hash = "sha256:ba11c9782d29c27c70ffbdda2d7415098754709be8a7056d79a737cd901155c9", size = 22314 },
+]
+
+[[package]]
+name = "opensearch-py"
+version = "2.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "events" },
+    { name = "python-dateutil" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c4/ca/5be52de5c69ecd327c16f3fc0dba82b7ffda5bbd0c0e215bdf23a4d12b12/opensearch_py-2.7.1.tar.gz", hash = "sha256:67ab76e9373669bc71da417096df59827c08369ac3795d5438c9a8be21cbd759", size = 226630 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/80/8f/db678ae203d761922a73920215ea53a79faf3bb1ec6aa9511f809c8e234c/opensearch_py-2.7.1-py3-none-any.whl", hash = "sha256:5417650eba98a1c7648e502207cebf3a12beab623ffe0ebbf55f9b1b4b6e44e9", size = 325380 },
 ]
 
 [[package]]
@@ -1439,11 +1530,24 @@ wheels = [
 ]
 
 [[package]]
+name = "s3transfer"
+version = "0.10.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "botocore" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cb/67/94c6730ee4c34505b14d94040e2f31edf144c230b6b49e971b4f25ff8fab/s3transfer-0.10.2.tar.gz", hash = "sha256:0711534e9356d3cc692fdde846b4a1e4b0cb6519971860796e6bc4c7aea00ef6", size = 144095 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3c/4a/b221409913760d26cf4498b7b1741d510c82d3ad38381984a3ddc135ec66/s3transfer-0.10.2-py3-none-any.whl", hash = "sha256:eca1c20de70a39daee580aef4986996620f365c4e0fda6a86100231d62f1bf69", size = 82716 },
+]
+
+[[package]]
 name = "sds-gateway"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "argon2-cffi" },
+    { name = "blake3" },
     { name = "celery" },
     { name = "crispy-bootstrap5" },
     { name = "django" },
@@ -1454,11 +1558,13 @@ dependencies = [
     { name = "django-environ" },
     { name = "django-model-utils" },
     { name = "django-redis" },
+    { name = "django-storages", extra = ["boto3"] },
     { name = "django-webpack-loader" },
     { name = "djangorestframework" },
     { name = "drf-spectacular" },
     { name = "flower" },
     { name = "hiredis" },
+    { name = "opensearch-py" },
     { name = "pillow" },
     { name = "python-slugify" },
     { name = "redis" },
@@ -1499,6 +1605,7 @@ production = [
 [package.metadata]
 requires-dist = [
     { name = "argon2-cffi", specifier = ">=23.1.0" },
+    { name = "blake3", specifier = ">=0.4.1" },
     { name = "celery", specifier = ">=5.4.0" },
     { name = "coverage", marker = "extra == 'local'", specifier = ">=7.6.1" },
     { name = "crispy-bootstrap5", specifier = ">=2024.2" },
@@ -1514,6 +1621,7 @@ requires-dist = [
     { name = "django-extensions", marker = "extra == 'local'", specifier = ">=3.2.3" },
     { name = "django-model-utils", specifier = ">=5.0.0" },
     { name = "django-redis", specifier = ">=5.4.0" },
+    { name = "django-storages", extras = ["boto3"], specifier = ">=1.14.4" },
     { name = "django-stubs", extras = ["compatible-mypy"], marker = "extra == 'local'", specifier = ">=5.0.4" },
     { name = "django-webpack-loader", specifier = ">=3.1.1" },
     { name = "djangorestframework", specifier = ">=3.15.2" },
@@ -1526,6 +1634,7 @@ requires-dist = [
     { name = "hiredis", specifier = ">=3.0.0" },
     { name = "ipdb", marker = "extra == 'local'", specifier = ">=0.13.13" },
     { name = "mypy", marker = "extra == 'local'", specifier = ">=1.11.2" },
+    { name = "opensearch-py", specifier = ">=2.7.1" },
     { name = "pillow", specifier = ">=10.4.0" },
     { name = "pre-commit", marker = "extra == 'local'", specifier = ">=3.8.0" },
     { name = "psycopg", extras = ["c"], marker = "extra == 'local'", specifier = ">=3.2.2" },
