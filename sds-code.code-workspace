@@ -81,7 +81,7 @@
         "python.analysis.indexing": true,
         "python.analysis.typeCheckingMode": "standard",
         "ruff.fixAll": true,
-        "ruff.configuration": "gateway/pyproject.toml",
+        "ruff.nativeServer": "off", // prefer the venv installation that is closer to pre-commit hooks
     },
 }
 // "ruff.configuration": null
