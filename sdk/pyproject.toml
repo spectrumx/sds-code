@@ -1,5 +1,9 @@
 [project]
-    dependencies    = ["loguru>=0.7.2", "spectrumx"]
+    dependencies    = [
+    "loguru>=0.7.2",
+    "pytz>=2024.2",
+    "spectrumx",
+]
     description     = "Usage examples for the SpectrumX Data System SDK"
     name            = "spectrumx-usage"
     readme          = "README.md"
@@ -184,7 +188,10 @@
         force-single-line = true
 
 [tool.uv]
-    dev-dependencies = ["pytest>=8.3.3"]
+    dev-dependencies = [
+    "pytest>=8.3.3",
+    "ruff>=0.6.9",
+]
 
     [tool.uv.workspace]
         members = ["spectrumx"]
