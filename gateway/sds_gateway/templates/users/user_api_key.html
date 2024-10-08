@@ -20,6 +20,14 @@
         Your key expires at: <strong>{{ expires_at }}</strong>
     </p>
     <p>When expired, you will be prompted to generate a new key.</p>
+    {% if not api_key|is_string %}
+        <p>If you have lost your key, generate a new one below.</p>
+        <form method="post" action="{% url 'users:generate_api_key' %}">
+            {% csrf_token %}
+            <input type="hidden" name="delete" value="true" />
+            <button type="submit">Generate API Key</button>
+        </form>
+    {% endif %}
 {% else %}
     {% if expired %}
         <p>Your API Key has expired. Generate a new key below.</p>
