@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   build-essential \
   # psycopg dependencies
   libpq-dev \
+  # digital_rf dependencies
+  pkg-config \
+  libhdf5-dev \
   # curl for installing Rust
   curl
 

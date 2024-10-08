@@ -10,7 +10,9 @@ flower==2.0.1  # https://github.com/mher/flower
 uvicorn[standard]==0.30.3  # https://github.com/encode/uvicorn
 uvicorn-worker==0.2.0  # https://github.com/Kludex/uvicorn-worker
 blake3==0.4.1  #https://github.com/oconnor663/blake3-py
-opensearch-py==2.7.1 #https://github.com/opensearch-project/opensearch-py
+opensearch-py==2.7.1 # https://github.com/opensearch-project/opensearch-py
+digital-rf==2.6.9  #
+numpy==1.26.0  #
 
 # Django
 # ------------------------------------------------------------------------------
@@ -24,6 +26,7 @@ django-redis==5.4.0  # https://github.com/jazzband/django-redis
 django-storages[boto3]==1.14.4  # https://github.com/jschneier/django-storages
 # Django REST Framework
 djangorestframework==3.15.2  # https://github.com/encode/django-rest-framework
+djangorestframework-api-key==3.*  # https://github.com/florimondmanca/djangorestframework-api-key
 django-cors-headers==4.4.0  # https://github.com/adamchainz/django-cors-headers
 # DRF-spectacular for api documentation
 drf-spectacular==0.27.2  # https://github.com/tfranzel/drf-spectacular

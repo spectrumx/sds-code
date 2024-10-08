@@ -108,6 +108,7 @@ THIRD_PARTY_APPS: list[str] = [
     "django_celery_beat",
     "rest_framework",
     "rest_framework.authtoken",
+    "rest_framework_api_key",
     "corsheaders",
     "drf_spectacular",
     "webpack_loader",
