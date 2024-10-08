@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}
+    Generate API Key
+{% endblock title %}
+{% block content %}
+    <h1>Generate API Key</h1>
+    {% if api_key and not expired %}
+        {% if api_key|is_string %}
+            <p>
+                Your API Key: <strong>{{ api_key }}</strong>
+            </p>
+            <p>Keep this key safe and secure. You will not be able to view it again.</p>
+        </br />
+    {% endif %}
+    <p>
+        Your key expires at: <strong>{{ expires_at }}</strong>
+    </p>
+    <p>When expired, you will be prompted to generate a new key.</p>
+{% else %}
+    {% if expired %}
+        <p>Your API Key has expired. Generate a new key below.</p>
+    {% else %}
+        <p>You do not have an API Key. Generate one.</p>
+    {% endif %}
+    <form method="post" action="{% url 'users:generate_api_key' %}">
+        {% csrf_token %}
+        <input type="hidden"
+               name="delete"
+               value="{% if expired %}true{% else %}false{% endif %}" />
+        <button type="submit">Generate API Key</button>
+    </form>
+{% endif %}
+{% endblock content %}

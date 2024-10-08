@@ -1,12 +1,17 @@
+import datetime
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
+from django.shortcuts import render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
+from django.views import View
 from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import UpdateView
 
 from sds_gateway.users.models import User
+from sds_gateway.users.models import UserAPIKey
 
 
 class UserDetailView(LoginRequiredMixin, DetailView):
@@ -43,3 +48,60 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
 
 
 user_redirect_view = UserRedirectView.as_view()
+
+
+class GenerateAPIKeyView(LoginRequiredMixin, View):
+    template_name = "users/user_api_key.html"
+
+    def get(self, request, *args, **kwargs):
+        # check if API key expired
+        api_key = UserAPIKey.objects.get_from_user(request.user)
+        if api_key is None:
+            return render(
+                request,
+                self.template_name,
+                {
+                    "api_key": False,
+                    "expires_at": None,
+                    "expired": False,
+                },
+            )
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "api_key": True,  # return True if API key exists
+                "expires_at": api_key.expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
+                "expired": api_key.expiry_date < datetime.datetime.now(datetime.UTC),
+            },
+        )
+
+    def post(self, request, *args, **kwargs):
+        # Calculate the expiration date (1 week from now)
+        expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1)
+        delete = request.POST.get("delete")
+
+        if delete == "true":
+            # Delete the API key if it exists
+            api_key = UserAPIKey.objects.get_from_user(request.user)
+            api_key.delete()
+
+        # Create an API key for the user
+        api_key, key = UserAPIKey.objects.create_key(
+            name=request.user.email,
+            user=request.user,
+            expiry_date=expires_at,
+        )
+        return render(
+            request,
+            self.template_name,
+            {
+                "api_key": key,  # key only returned when API key is created
+                "expires_at": expires_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "expired": False,
+            },
+        )
+
+
+user_generate_api_key_view = GenerateAPIKeyView.as_view()
