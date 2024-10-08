@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import UserManager as DjangoUserManager
+from rest_framework_api_key.models import APIKeyManager
 
 if TYPE_CHECKING:
     from .models import User  # noqa: F401
@@ -40,3 +41,13 @@ class UserManager(DjangoUserManager["User"]):
             raise ValueError(msg)
 
         return self._create_user(email, password, **extra_fields)
+
+
+class APIKeyUserManager(APIKeyManager):
+    """Custom manager for the APIKey model."""
+
+    def get_from_user(self, user):
+        try:
+            return self.get(user=user)
+        except self.model.DoesNotExist:
+            return None
