@@ -68,13 +68,25 @@ class GatewayClient:
         self,
         method: HTTPMethods,
         endpoint: Endpoints,
+        asset_id: None | str = None,
         timeout: None | int = None,
         **kwargs,
     ) -> requests.Response:
-        """Makes a request to the SDS API."""
+        """Makes a request to the SDS API.
+
+        Args:
+            method:     The HTTP method to use.
+            endpoint:   The endpoint to target.
+            asset_id:   The asset ID to target.
+            timeout:    The timeout for the request.
+            **kwargs:   Additional keyword arguments for the request e.g. URL params.
+        Returns:
+            The response from the request.
+        """
         url_path = Path(API_PATH) / API_TARGET_VERSION / endpoint
+        if asset_id is not None:
+            url_path /= asset_id
         url = f"{self.base_url}{url_path}"
-        log.error(url)
         if timeout is None:
             timeout = self.timeout
         return requests.request(
@@ -105,7 +117,7 @@ class GatewayClient:
         response = self._request(
             method=HTTPMethods.GET,
             endpoint=Endpoints.FILES,
-            params={"uuid": uuid},
+            asset_id=uuid,
         )
         status = HTTPStatus(response.status_code)
         if status.is_success:
