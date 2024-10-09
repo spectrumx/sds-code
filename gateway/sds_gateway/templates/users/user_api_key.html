@@ -21,11 +21,10 @@
     </p>
     <p>When expired, you will be prompted to generate a new key.</p>
     {% if not api_key|is_string %}
-        <p>If you have lost your key, generate a new one below.</p>
+        <p>If you have lost your API key, you may generate a new one below (this will invalidate the current key).</p>
         <form method="post" action="{% url 'users:generate_api_key' %}">
             {% csrf_token %}
-            <input type="hidden" name="delete" value="true" />
-            <button type="submit">Generate API Key</button>
+            <button type="submit">Invalidate Existing Key and Generate New One</button>
         </form>
     {% endif %}
 {% else %}
@@ -36,9 +35,6 @@
     {% endif %}
     <form method="post" action="{% url 'users:generate_api_key' %}">
         {% csrf_token %}
-        <input type="hidden"
-               name="delete"
-               value="{% if expired %}true{% else %}false{% endif %}" />
         <button type="submit">Generate API Key</button>
     </form>
 {% endif %}
