@@ -3,7 +3,6 @@
 from datetime import date
 from datetime import datetime
 
-from loguru import logger as log
 from pydantic import UUID4
 from pydantic import BaseModel
 
@@ -51,7 +50,6 @@ class File(SDSModel):
         """Converts human-readable permissions to chmod properties."""
         utils.validate_file_permission_string(self.permissions)
         one_hot = "".join(["0" if flag == "-" else "1" for flag in self.permissions])
-        log.critical(one_hot)
         perm_num = int(one_hot, base=2)
         max_permission_num = 0o777
         assert 0 <= perm_num <= max_permission_num, "Invalid permission number"

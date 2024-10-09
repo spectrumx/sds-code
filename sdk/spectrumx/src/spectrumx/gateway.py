@@ -2,12 +2,16 @@
 
 from enum import StrEnum
 from http import HTTPStatus
+from pathlib import Path
 
 import requests
 from loguru import logger as log
 
 from .errors import AuthError
 from .errors import FileError
+
+API_PATH: str = "/api/"
+API_TARGET_VERSION: str = "v1"
 
 
 class Endpoints(StrEnum):
@@ -68,7 +72,9 @@ class GatewayClient:
         **kwargs,
     ) -> requests.Response:
         """Makes a request to the SDS API."""
-        url = f"{self.base_url}{endpoint}"
+        url_path = Path(API_PATH) / API_TARGET_VERSION / endpoint
+        url = f"{self.base_url}{url_path}"
+        log.error(url)
         if timeout is None:
             timeout = self.timeout
         return requests.request(
@@ -89,7 +95,6 @@ class GatewayClient:
         assert self._api_key is not None, "API key is required for authentication."
         response = self._request(method=HTTPMethods.GET, endpoint=Endpoints.AUTH)
         status = HTTPStatus(response.status_code)
-        log.critical(status)
         if status.is_success:
             return
         msg = f"Authentication failed: {response.text}"

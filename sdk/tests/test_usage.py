@@ -6,7 +6,6 @@ Tests for the high-level usage of SpectrumX client.
 import uuid as uuidlib
 
 import pytest
-from loguru import logger as log
 from responses import RequestsMock
 
 from spectrumx import Client
@@ -47,7 +46,6 @@ def test_authentication_401_fails(client: Client, responses: RequestsMock) -> No
 def test_get_file_by_id(client: Client, responses) -> None:
     """Given a file ID, the client must return the file."""
     uuid = uuidlib.uuid4()
-    log.critical(uuid)
     url: str = client.base_url + Endpoints.FILES
     url += f"?uuid={uuid.hex}"
     responses.get(
