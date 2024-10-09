@@ -61,7 +61,7 @@ class GatewayClient:
     def _headers(self) -> dict[str, str]:
         """Returns the headers for the request."""
         return {
-            "Authorization": f"Bearer {self._api_key}",
+            "Authorization": f"Api-Key {self._api_key}",
         }
 
     def _request(
