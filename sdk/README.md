@@ -1,16 +1,26 @@
-# SDK
+# SpectrumX Data System (SDS) SDK
+
+![PyPI - Version](https://img.shields.io/pypi/v/spectrumx)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/spectrumx)
+![Pepy Total Downloads](https://img.shields.io/pepy/dt/spectrumx)
+[![Action | Upload Python Package](https://github.com/spectrumx/sds-code/actions/workflows/python-publish.yaml/badge.svg)](https://github.com/spectrumx/sds-code/actions/workflows/python-publish.yaml)
 
 The SDK is the primary form that clients interact with SDS: either directly by installing the Python package from PyPI, or indirectly by using the SDS Web UI or the Visualization Component.
 
-+ [SDK](#sdk)
-    + [Installation](#installation)
-    + [Usage](#usage)
-    + [Asset types](#asset-types)
-    + [SDK Methods](#sdk-methods)
-    + [Supported Python Versions](#supported-python-versions)
-    + [Design Goals](#design-goals)
++ [SpectrumX Data System (SDS) SDK](#spectrumx-data-system-sds-sdk)
+    + [Usage Guide](#usage-guide)
+        + [Installation](#installation)
+        + [Usage](#usage)
+        + [Asset types](#asset-types)
+        + [SDK Methods](#sdk-methods)
+        + [Supported Python Versions](#supported-python-versions)
+    + [SDK Development](#sdk-development)
+        + [Design Goals](#design-goals)
+        + [Testing](#testing)
 
-## Installation
+## Usage Guide
+
+### Installation
 
 ```bash
 pip install spectrumx-sdk
@@ -18,7 +28,7 @@ pip install spectrumx-sdk
 # conda install spectrumx-sdk
 ```
 
-## Usage
+### Usage
 
 1. In a file named `.env`, enter the `secret_token` provided to you:
 
@@ -85,7 +95,7 @@ pip install spectrumx-sdk
     dataset = Dataset.get(sds, dataset_id="dataset-id")
     ```
 
-## Asset types
+### Asset types
 
 The SDK provides classes for the following asset types:
 
@@ -107,7 +117,7 @@ The SDK provides classes for the following asset types:
     7. **File versioning for free:** if a new file has the same path as an existing one, the server will store both by their checksums and the SDK can indicate there are multiple versions available when listing by path.
     8. **File duplication:** if a file the server already has is re-uploaded, the SDK can avoid the extraneous data transfer and an additional "file" row can be created pointing to an already existing file on the server's disk.
 
-## SDK Methods
+### SDK Methods
 
 | Method             | Asset                             | Action Group | Description                                                        |
 | ------------------ | --------------------------------- | ------------ | ------------------------------------------------------------------ |
@@ -122,11 +132,13 @@ The SDK provides classes for the following asset types:
 | `<asset>.update`   | Capture, Dataset, File, Directory | Update       | Updates the asset's metadata.                                      |
 | `<asset>.delete`   | Capture, Dataset, File, Directory | Delete       | Marks the asset for deletion.                                      |
 
-## Supported Python Versions
+### Supported Python Versions
 
 Maintaining older Python versions has a cost. The SpectrumX SDK aims to support the 2 most recent stable versions of Python at any given time, dropping support to Python versions 3 years after their initial release, in accordance to the [Scientific Python Ecosystem Coordination recommendation](https://scientific-python.org/specs/spec-0000/). With our first release being after Python 3.13 stable is out, the plan is to support Python versions 3.13 and 3.12 at launch. This may be revisited as the project matures.
 
-## Design Goals
+## SDK Development
+
+### Design Goals
 
 For a stable "v1" release and in no particular order:
 
@@ -165,3 +177,21 @@ For a stable "v1" release and in no particular order:
 8. **Data content and space management**
 
     User feedback should be provided when the user is about to exceed their storage quota. The SDK should also provide a way to check the user's storage usage and quota. The SDK should skip forbidden file extensions and MIME types automatically and warn the user about them. Both quota limits and content types are enforced at the server level, the SDK merely provides a more user-friendly and contextual interface.
+
+### Testing
+
+```bash
+uv sync --dev
+
+# simple tests execution
+uv run pytest -v
+
+# running a specific test
+uv run pytest -v tests/test_usage.py::test_authentication_200_succeeds
+
+# running similar tests (substring match)
+uv run pytest -v -k test_authentication
+
+# verbose with colored log messages
+uv run pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
+```
