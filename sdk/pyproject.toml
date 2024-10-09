@@ -184,7 +184,11 @@
         force-single-line = true
 
 [tool.uv]
-    dev-dependencies = ["pytest>=8.3.3", "ruff>=0.6.9"]
+    dev-dependencies = [
+    "pytest-responses>=0.5.1",
+    "pytest>=8.3.3",
+    "ruff>=0.6.9",
+]
 
     [tool.uv.workspace]
         members = ["spectrumx"]
