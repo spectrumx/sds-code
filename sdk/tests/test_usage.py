@@ -46,8 +46,7 @@ def test_authentication_401_fails(client: Client, responses: RequestsMock) -> No
 def test_get_file_by_id(client: Client, responses) -> None:
     """Given a file ID, the client must return the file."""
     uuid = uuidlib.uuid4()
-    url: str = client.base_url + Endpoints.FILES
-    url += f"?uuid={uuid.hex}"
+    url: str = client.base_url + Endpoints.FILES + f"/{uuid.hex}"
     responses.get(
         url=url,
         status=200,
