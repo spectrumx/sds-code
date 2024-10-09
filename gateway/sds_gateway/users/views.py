@@ -80,12 +80,11 @@ class GenerateAPIKeyView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         # Calculate the expiration date (1 week from now)
         expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1)
-        delete = request.POST.get("delete")
 
-        if delete == "true":
-            # Delete the API key if it exists
-            api_key = UserAPIKey.objects.get_from_user(request.user)
-            api_key.delete()
+        # Delete the API key if it exists
+        existing_api_key = UserAPIKey.objects.get_from_user(request.user)
+        if existing_api_key:
+            existing_api_key.delete()
 
         # Create an API key for the user
         api_key, key = UserAPIKey.objects.create_key(
