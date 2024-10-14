@@ -35,12 +35,18 @@ if settings.DEBUG:
 # API URLS
 urlpatterns += [
     # API base url
-    path("api/", include("config.api_router")),
+    path(f"api/{settings.API_VERSION}/", include("config.api_router")),
+    # redirect api/latest/ to api/<API_VERSION>/
+    path("api/latest/", include("config.api_router")),
     # DRF auth token
-    path("api/auth-token/", obtain_auth_token),
-    path("api/schema/", SpectacularAPIView.as_view(), name="api-schema"),
+    path(f"api/{settings.API_VERSION}/auth-token/", obtain_auth_token),
     path(
-        "api/docs/",
+        f"api/{settings.API_VERSION}/schema/",
+        SpectacularAPIView.as_view(),
+        name="api-schema",
+    ),
+    path(
+        f"api/{settings.API_VERSION}/docs/",
         SpectacularSwaggerView.as_view(url_name="api-schema"),
         name="api-docs",
     ),
