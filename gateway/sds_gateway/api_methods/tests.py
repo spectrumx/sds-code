@@ -14,7 +14,7 @@ from sds_gateway.api_methods.serializers.file_serializers import FilePostSeriali
 User = get_user_model()
 
 
-class FileUploadTestCase(APITestCase):
+class FileTestCases(APITestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create(
