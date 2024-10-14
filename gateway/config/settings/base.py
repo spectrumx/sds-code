@@ -371,6 +371,7 @@ SOCIALACCOUNT_FORMS: dict[str, str] = {
 REST_FRAMEWORK: dict[str, str | tuple[str, ...]] = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
         "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
@@ -388,7 +389,7 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
     "DESCRIPTION": "Documentation of API endpoints of SpectrumX Data System Gateway",
     "VERSION": "1.0.0",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
-    "SCHEMA_PATH_PREFIX": "/api/",
+    "SCHEMA_PATH_PREFIX": f"/api/{API_VERSION}",
 }
 # django-webpack-loader
 # ------------------------------------------------------------------------------

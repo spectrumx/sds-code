@@ -74,21 +74,13 @@ class File(BaseModel):
     def __str__(self) -> str:
         return f"{self.directory}{self.name}"
 
-    def save(self, *args, **kwargs) -> None:
-        self.size = self.file.size
-
-        if not self.name:
-            self.name = self.file.name
-
-        if not self.sum_blake3:
-            self.sum_blake3 = self.calculate_checksum()
-            self.file.name = self.sum_blake3
-
-        super().save(*args, **kwargs)
-
-    def calculate_checksum(self) -> str:
+    def calculate_checksum(self, file_obj=None):
         checksum = Blake3()  # pylint: disable=not-callable
-        for chunk in self.file.chunks():
+        file = self.file
+        if file_obj:
+            file = file_obj
+
+        for chunk in file.chunks():
             checksum.update(chunk)
         return checksum.hexdigest()
 
