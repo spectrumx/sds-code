@@ -29,22 +29,6 @@
             "path": "./sdk",
         },
     ],
-    "tasks": {
-        "version": "2.0.0",
-        "tasks": [
-            {
-                "label": "echo hello",
-                "command": "echo hello",
-                "type": "shell",
-                "args": [],
-                "problemMatcher": ["$tsc"],
-                "presentation": {
-                    "reveal": "always",
-                },
-                "group": "build",
-            },
-        ],
-    },
     "settings": {
         "[python]": {
             "editor.codeActionsOnSave": {
@@ -80,8 +64,25 @@
         "python.analysis.importFormat": "absolute",
         "python.analysis.indexing": true,
         "python.analysis.typeCheckingMode": "standard",
+        "python.testing.pytestEnabled": true,
         "ruff.fixAll": true,
         "ruff.nativeServer": "off", // prefer the venv installation that is closer to pre-commit hooks
+    },
+    "tasks": {
+        "tasks": [
+            {
+                "args": [],
+                "command": "echo hello",
+                "group": "build",
+                "label": "echo hello",
+                "presentation": {
+                    "reveal": "always",
+                },
+                "problemMatcher": ["$tsc"],
+                "type": "shell",
+            },
+        ],
+        "version": "2.0.0",
     },
 }
 // "ruff.configuration": null
