@@ -1,0 +1,61 @@
+name: sds-sdk-checks
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches: [main]
+        types:
+            - ready_for_review
+
+jobs:
+    # Run pre-commit checks on all files using the project's python version
+    pre-commit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
+              # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Install pre-commit
+              run: uv tool install pre-commit
+
+            - name: Cache pre-commit hooks
+              id: cache-pre-commit
+              uses: actions/cache@v4
+              # https://github.com/actions/cache/blob/main/examples.md#python---pip
+              with:
+                  key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+                  path: ~/.cache/pre-commit/
+
+            - name: Install hooks
+              run: pre-commit install --install-hooks
+
+            - name: Run pre-commit
+              run: pre-commit run --all-files
+
+    # Run tests against multiple Python versions using tox
+    coverage:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                python-version: ["3.11", "3.12", "3.13"]
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
+              # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Set up Python ${{ matrix.python-version }}
+              run: uv python install ${{ matrix.python-version }}
+
+            - name: Install tox and any other packages
+              run: uv tool install tox --with tox-uv
+
+            - name: Run tox
+              run: tox run --verbose -e coverage
