@@ -1,4 +1,4 @@
-name: sds-sdk-checks
+name: sdk-checks
 
 on:
     push:
