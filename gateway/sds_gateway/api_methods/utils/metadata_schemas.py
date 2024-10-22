@@ -2,115 +2,136 @@
 drf_capture_metadata_schema = {
     "properties": {
         "H5Tget_class": {
-            "type": "integer",
+            "type": int,
             "description": "The result of the H5Tget_class function.",
         },
         "H5Tget_size": {
-            "type": "integer",
+            "type": int,
             "description": "The result of the H5Tget_size function.",
         },
         "H5Tget_order": {
-            "type": "integer",
+            "type": int,
             "description": "The result of the H5Tget_order function.",
         },
         "H5Tget_precision": {
-            "type": "integer",
+            "type": int,
             "description": "The result of the H5Tget_precision function.",
         },
         "H5Tget_offset": {
-            "type": "integer",
+            "type": int,
             "description": "The result of the H5Tget_offset function.",
         },
         "subdir_cadence_secs": {
-            "type": "integer",
+            "type": int,
             "description": "The cadence of the subdirectory in seconds.",
         },
         "file_cadence_millisecs": {
-            "type": "integer",
+            "type": int,
             "description": "The cadence of the file in milliseconds.",
         },
         "sample_rate_numerator": {
-            "type": "integer",
+            "type": int,
             "description": "The numerator of the sample rate.",
         },
         "sample_rate_denominator": {
-            "type": "integer",
+            "type": int,
             "description": "The denominator of the sample rate.",
         },
         "samples_per_second": {
-            "type": "integer",
+            "type": int,
             "description": "The samples per second.",
         },
         "is_complex": {
-            "type": "boolean",
+            "type": bool,
             "description": "Whether the capture is complex.",
         },
         "is_continuous": {
-            "type": "boolean",
+            "type": bool,
             "description": "Whether the capture is continuous.",
         },
         "epoch": {
-            "type": "string",
+            "type": str,
             "format": "date-time",
             "description": "The linux epoch.",
         },
         "digital_rf_time_description": {
-            "type": "string",
+            "type": str,
             "description": "The time description of digital_rf.",
         },
         "digital_rf_version": {
-            "type": "string",
+            "type": str,
             "description": "The version of digital_rf.",
         },
         "sequence_num": {
-            "type": "integer",
+            "type": int,
             "description": "running number from start of acquisition.",
         },
         "init_utc_timestamp": {
-            "type": "integer",
+            "type": int,
             "description": "UTC timestamp of each restart of the recorder; needed if leap seconds correction applied.",
         },
         "computer_time": {
-            "type": "integer",
+            "type": int,
             "description": "Computer time at creation of individual RF file (unix time).",
         },
         "uuid_str": {
-            "type": "string",
+            "type": str,
             "description": "UUID of the capture; set independently at each restart of the recorder.",
         },
         "center_freq": {
-            "type": "integer",
+            "type": int,
             "description": "The center frequency of the capture.",
         },
         "span": {
-            "type": "integer",
+            "type": int,
             "description": "The span of the capture.",
         },
         "gain": {
-            "type": "number",
-            "format": "float",
+            "type": float,
             "description": "The gain of the capture.",
         },
         "resolution_bandwidth": {
-            "type": "integer",
+            "type": int,
             "description": "The resolution bandwidth of the capture.",
         },
         "antenna": {
-            "type": "string",
+            "type": str,
             "description": "The antenna used in the capture.",
         },
         "indoor_outdoor": {
-            "type": "string",
+            "type": str,
             "description": "Whether the capture was taken indoors or outdoors.",
         },
         "antenna_direction": {
-            "type": "number",
-            "format": "float",
+            "type": float,
             "description": "The direction of the antenna.",
         },
         "custom_attrs": {
-            "type": "object",
+            "type": object,
             "description": "Custom attributes of the capture.",
+        },
+    },
+    "index_mapping": {
+        "sample_rate_numerator": {
+            "type": "integer",
+        },
+        "sample_rate_denominator": {
+            "type": "integer",
+        },
+        "samples_per_second": {
+            "type": "integer",
+        },
+        "center_freq": {
+            "type": "integer",
+        },
+        "span": {
+            "type": "integer",
+        },
+        "gain": {
+            "type": "float",
+        },
+        "resolution_bandwidth": {
+            "type": "integer",
         },
     },
     "required": [
