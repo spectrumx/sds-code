@@ -344,7 +344,7 @@ ACCOUNT_USERNAME_REQUIRED: bool = False
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_USER_MODEL_USERNAME_FIELD: str | None = None
 # https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_EMAIL_VERIFICATION: str = "mandatory"
+ACCOUNT_EMAIL_VERIFICATION: str = "none"
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER: str = "sds_gateway.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html
@@ -393,3 +393,20 @@ WEBPACK_LOADER: dict[str, dict[str, Any]] = {
 }
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+# Auth0 Stuff
+# Auth0 Configuration
+SOCIALACCOUNT_PROVIDERS = {
+    "auth0": {
+        "AUTH0_URL": env("AUTH0_DOMAIN"),
+        "OAUTH_PKCE_ENABLED": True,
+        "SCOPE": [
+            "openid",
+            "profile",
+            "email",
+        ],
+    }
+}
+
+# Add 'allauth.socialaccount.providers.auth0' to INSTALLED_APPS
+INSTALLED_APPS += ["allauth.socialaccount.providers.auth0"]
