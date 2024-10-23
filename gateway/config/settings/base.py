@@ -24,6 +24,10 @@ OPENSEARCH_HOST: str = env.str("OPENSEARCH_HOST", default="localhost")
 OPENSEARCH_PORT: str = env.str("OPENSEARCH_PORT", default="9200")
 OPENSEARCH_USER: str = env.str("OPENSEARCH_USER", default="admin")
 OPENSEARCH_PASSWORD: str = env.str("OPENSEARCH_PASSWORD", default="admin")
+OPENSEARCH_INITIAL_ADMIN_PASSWORD: str = env.str(
+    "OPENSEARCH_INITIAL_ADMIN_PASSWORD",
+    default="admin",
+)
 
 # MinIO configuration
 STORAGES = {
@@ -34,13 +38,15 @@ STORAGES = {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
+MINIO_ENDPOINT_URL = env.str("MINIO_ENDPOINT_URL", default="minio:9000")
+MINIO_STORAGE_USE_HTTPS = env.bool("MINIO_STORAGE_USE_HTTPS", default=False)
 
 AWS_ACCESS_KEY_ID: str = env.str("AWS_ACCESS_KEY_ID", default="minioadmin")
 AWS_SECRET_ACCESS_KEY: str = env.str("AWS_SECRET_ACCESS_KEY", default="miniopassword")
 AWS_STORAGE_BUCKET_NAME: str = env.str("AWS_STORAGE_BUCKET_NAME", default="spectrumx")
 AWS_S3_ENDPOINT_URL: str = env.str(
     "AWS_S3_ENDPOINT_URL",
-    default="http://localhost:9000",
+    default="http://minio:9000",
 )
 AWS_S3_REGION_NAME: str = "us-east-1"
 AWS_S3_SIGNATURE_VERSION: str = "s3v4"

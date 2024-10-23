@@ -19,7 +19,7 @@ def create_drf_index(client, index_name):
                 "properties": {
                     "channel": {"type": "keyword"},
                     "capture_type": {"type": "keyword"},
-                    "created_at": {"type": "datetime"},
+                    "created_at": {"type": "date"},
                     "metadata": {
                         "type": "object",
                         "properties": drf_capture_metadata_schema["index_mapping"],
