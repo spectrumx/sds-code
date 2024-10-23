@@ -24,6 +24,7 @@
         "flower>=2.0.1",
         "hiredis>=3.0.0",
         "loguru>=0.7.2",
+        "minio>=7.2.9",
         "numpy~=1.26", # upgrade to numpy v2 when digital-rf (from PyPI) supports it
         "opensearch-py>=2.7.1",
         "pillow>=11.0.0",

@@ -9,11 +9,12 @@ django-celery-beat==2.6.0  # https://github.com/celery/django-celery-beat
 flower==2.0.1  # https://github.com/mher/flower
 uvicorn[standard]==0.30.3  # https://github.com/encode/uvicorn
 uvicorn-worker==0.2.0  # https://github.com/Kludex/uvicorn-worker
-blake3==0.4.1  #https://github.com/oconnor663/blake3-py
+blake3==0.4.1  # https://github.com/oconnor663/blake3-py
 opensearch-py==2.7.1 # https://github.com/opensearch-project/opensearch-py
 digital-rf==2.6.9  #
 numpy==1.26.0  #
 loguru==0.7.2
+minio==7.2.9 # https://github.com/minio/minio-py
 
 # Django
 # ------------------------------------------------------------------------------
