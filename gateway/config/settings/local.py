@@ -1,4 +1,8 @@
+"""Setting overrides for local development."""
 # ruff: noqa: F405
+# pyright: reportArgumentType=false
+# django-environ has no type hints
+
 from .base import *  # noqa: F403 pylint: disable=wildcard-import,unused-wildcard-import
 from .base import INSTALLED_APPS
 from .base import MIDDLEWARE
@@ -8,14 +12,14 @@ from .base import env
 # GENERAL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#debug
-DEBUG = True
+DEBUG: bool = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
-SECRET_KEY = env(
+SECRET_KEY: str = env(
     "DJANGO_SECRET_KEY",
     default="7SGPiDXuHen3CinEGQ4GjOnzHVgcS28Mpbf6zTuHWJtELgpo1FyWs25IeaCR5Sfn",
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = [
+ALLOWED_HOSTS: list[str] = [
     "localhost",
     "0.0.0.0",
     "127.0.0.1",
@@ -24,7 +28,7 @@ ALLOWED_HOSTS = [
 # CACHES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#caches
-CACHES = {
+CACHES: dict[str, Any] = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "",
@@ -34,7 +38,7 @@ CACHES = {
 # EMAIL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
-EMAIL_BACKEND = env(
+EMAIL_BACKEND: str = env(
     "DJANGO_EMAIL_BACKEND",
     default="django.core.mail.backends.console.EmailBackend",
 )
@@ -42,15 +46,15 @@ EMAIL_BACKEND = env(
 # WhiteNoise
 # ------------------------------------------------------------------------------
 # http://whitenoise.evans.io/en/latest/django.html#using-whitenoise-in-development
-INSTALLED_APPS = ["whitenoise.runserver_nostatic", *INSTALLED_APPS]
+INSTALLED_APPS: list[str] = ["whitenoise.runserver_nostatic", *INSTALLED_APPS]
 
 
 # django-debug-toolbar
 # ------------------------------------------------------------------------------
 # https://django-debug-toolbar.readthedocs.io/en/latest/installation.html#prerequisites
-INSTALLED_APPS += ["debug_toolbar"]
+INSTALLED_APPS.extend(["debug_toolbar"])
 # https://django-debug-toolbar.readthedocs.io/en/latest/installation.html#middleware
-MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
+MIDDLEWARE.extend(["debug_toolbar.middleware.DebugToolbarMiddleware"])
 # https://django-debug-toolbar.readthedocs.io/en/latest/configuration.html#debug-toolbar-config
 DEBUG_TOOLBAR_CONFIG: dict[str, Any] = {
     "DISABLE_PANELS": [
@@ -62,12 +66,12 @@ DEBUG_TOOLBAR_CONFIG: dict[str, Any] = {
     "SHOW_TEMPLATE_CONTEXT": True,
 }
 # https://django-debug-toolbar.readthedocs.io/en/latest/installation.html#internal-ips
-INTERNAL_IPS = ["127.0.0.1", "10.0.2.2"]
+INTERNAL_IPS: list[str] = ["127.0.0.1", "10.0.2.2"]
 if env("USE_DOCKER") == "yes":
     import socket
 
     hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
-    INTERNAL_IPS += [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
+    INTERNAL_IPS.extend([".".join(ip.split(".")[:-1] + ["1"]) for ip in ips])
     try:
         _, _, ips = socket.gethostbyname_ex("node")
         INTERNAL_IPS.extend(ips)
@@ -78,7 +82,7 @@ if env("USE_DOCKER") == "yes":
 # django-extensions
 # ------------------------------------------------------------------------------
 # https://django-extensions.readthedocs.io/en/latest/installation_instructions.html#configuration
-INSTALLED_APPS += ["django_extensions"]
+INSTALLED_APPS.extend(["django_extensions"])
 # Celery
 # ------------------------------------------------------------------------------
 
@@ -87,5 +91,4 @@ CELERY_TASK_EAGER_PROPAGATES: bool = True
 # django-webpack-loader
 # ------------------------------------------------------------------------------
 WEBPACK_LOADER["DEFAULT"]["CACHE"] = not DEBUG
-# Your stuff...
 # ------------------------------------------------------------------------------

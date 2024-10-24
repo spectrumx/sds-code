@@ -1,19 +1,27 @@
-# ruff: noqa: ERA001, E501
 """Base settings to build other settings files upon."""
+# ruff: noqa: ERA001, E501
+# pyright: reportArgumentType=false
+# django-environ has no type hints and the project seems stale for over a year:
+#   Track https://github.com/joke2k/django-environ/issues/533
 
 from pathlib import Path
 from typing import Any
 
+import django_stubs_ext
 import environ
+
+# Better type hinting for Django models
+# https://github.com/sbdchd/django-types
+django_stubs_ext.monkeypatch()
 
 env = environ.Env()
 
 BASE_DIR: Path = Path(__file__).resolve(strict=True).parent.parent.parent
 
-OPENSEARCH_HOST = env.str("OPENSEARCH_HOST", default="localhost")
-OPENSEARCH_PORT = env.str("OPENSEARCH_PORT", default="9200")
-OPENSEARCH_USER = env.str("OPENSEARCH_USER", default="admin")
-OPENSEARCH_PASSWORD = env.str("OPENSEARCH_PASSWORD", default="admin")
+OPENSEARCH_HOST: str = env.str("OPENSEARCH_HOST", default="localhost")
+OPENSEARCH_PORT: str = env.str("OPENSEARCH_PORT", default="9200")
+OPENSEARCH_USER: str = env.str("OPENSEARCH_USER", default="admin")
+OPENSEARCH_PASSWORD: str = env.str("OPENSEARCH_PASSWORD", default="admin")
 
 # MinIO configuration
 STORAGES = {
@@ -25,19 +33,22 @@ STORAGES = {
     },
 }
 
-AWS_ACCESS_KEY_ID = env.str("AWS_ACCESS_KEY_ID", default="minioadmin")
-AWS_SECRET_ACCESS_KEY = env.str("AWS_SECRET_ACCESS_KEY", default="miniopassword")
-AWS_STORAGE_BUCKET_NAME = env.str("AWS_STORAGE_BUCKET_NAME", default="spectrumx")
-AWS_S3_ENDPOINT_URL = env.str("AWS_S3_ENDPOINT_URL", default="http://localhost:9000")
-AWS_S3_REGION_NAME = "us-east-1"
-AWS_S3_SIGNATURE_VERSION = "s3v4"
-AWS_S3_FILE_OVERWRITE = False
-AWS_DEFAULT_ACL = None
+AWS_ACCESS_KEY_ID: str = env.str("AWS_ACCESS_KEY_ID", default="minioadmin")
+AWS_SECRET_ACCESS_KEY: str = env.str("AWS_SECRET_ACCESS_KEY", default="miniopassword")
+AWS_STORAGE_BUCKET_NAME: str = env.str("AWS_STORAGE_BUCKET_NAME", default="spectrumx")
+AWS_S3_ENDPOINT_URL: str = env.str(
+    "AWS_S3_ENDPOINT_URL",
+    default="http://localhost:9000",
+)
+AWS_S3_REGION_NAME: str = "us-east-1"
+AWS_S3_SIGNATURE_VERSION: str = "s3v4"
+AWS_S3_FILE_OVERWRITE: bool = False
+AWS_DEFAULT_ACL: str | None = None
 
 # sds_gateway/
 APPS_DIR: Path = BASE_DIR / "sds_gateway"
 
-READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
+READ_DOT_ENV_FILE: bool = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
 if READ_DOT_ENV_FILE:
     # OS environment variables take precedence over variables from .env
     env.read_env(str(BASE_DIR / ".env"))
@@ -263,14 +274,14 @@ EMAIL_TIMEOUT: int = 5
 # Django Admin URL.
 ADMIN_URL: str = "admin/"
 # https://docs.djangoproject.com/en/dev/ref/settings/#admins
-ADMINS: list[tuple] = [
+ADMINS: list[tuple[str, ...]] = [
     (
         """Center for Research Computing | University of Notre Dame""",
         "crcsupport@nd.edu",
     ),
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#managers
-MANAGERS: list[tuple] = ADMINS
+MANAGERS: list[tuple[str, ...]] = ADMINS
 # https://cookiecutter-django.readthedocs.io/en/latest/settings.html#other-environment-settings
 # Force the `admin` sign in process to go through the `django-allauth` workflow
 DJANGO_ADMIN_FORCE_ALLAUTH: bool = env.bool("DJANGO_ADMIN_FORCE_ALLAUTH", default=False)
@@ -321,10 +332,8 @@ CELERY_TASK_SERIALIZER: str = "json"
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-result_serializer
 CELERY_RESULT_SERIALIZER: str = "json"
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-time-limit
-# TODO: set to whatever value is adequate in your circumstances
 CELERY_TASK_TIME_LIMIT: int = 5 * 60
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-soft-time-limit
-# TODO: set to whatever value is adequate in your circumstances
 CELERY_TASK_SOFT_TIME_LIMIT: int = 60
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#beat-scheduler
 CELERY_BEAT_SCHEDULER: str = "django_celery_beat.schedulers:DatabaseScheduler"
@@ -359,7 +368,7 @@ SOCIALACCOUNT_FORMS: dict[str, str] = {
 # django-rest-framework
 # -------------------------------------------------------------------------------
 # django-rest-framework - https://www.django-rest-framework.org/api-guide/settings/
-REST_FRAMEWORK: dict[str, str | tuple] = {
+REST_FRAMEWORK: dict[str, str | tuple[str, ...]] = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
@@ -391,7 +400,6 @@ WEBPACK_LOADER: dict[str, dict[str, Any]] = {
         "IGNORE": [r".+\.hot-update.js", r".+\.map"],
     },
 }
-# Your stuff...
 # ------------------------------------------------------------------------------
 
 # Auth0 Stuff
@@ -405,7 +413,7 @@ SOCIALACCOUNT_PROVIDERS = {
             "profile",
             "email",
         ],
-    }
+    },
 }
 
 # Add 'allauth.socialaccount.providers.auth0' to INSTALLED_APPS

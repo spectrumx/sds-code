@@ -1,14 +1,16 @@
-# Description: This file contains the models for the API methods.
+"""Describes the models for the API methods."""
+
 import datetime
 import json
 import uuid
 
-from blake3 import blake3
+from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
 from django.db import models
 
 
-def default_expiration_date():
+def default_expiration_date() -> datetime.datetime:
+    """Returns the default expiration date for a file."""
     # 2 years from now
     return datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=730)
 
@@ -22,7 +24,9 @@ class BaseModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
+        """Allows this class to be abstract."""
+
         abstract = True
 
 
@@ -67,10 +71,10 @@ class File(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.directory}{self.name}"
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         self.size = self.file.size
 
         if not self.name:
@@ -82,8 +86,8 @@ class File(BaseModel):
 
         super().save(*args, **kwargs)
 
-    def calculate_checksum(self):
-        checksum = blake3()
+    def calculate_checksum(self) -> str:
+        checksum = Blake3()  # pylint: disable=not-callable
         for chunk in self.file.chunks():
             checksum.update(chunk)
         return checksum.hexdigest()
@@ -135,10 +139,10 @@ class Dataset(BaseModel):
     citation = models.JSONField(blank=True, null=True)
     other = models.JSONField(blank=True, null=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         # Serialize the list fields to a JSON string before saving
         for field in self.list_fields:
             field_value = getattr(self, field)
