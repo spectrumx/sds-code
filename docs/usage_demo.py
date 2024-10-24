@@ -1,3 +1,10 @@
+"""Usage example of the SpectrumX client."""
+
+# Disabling QA checks for this file until the client is implemented
+# type: ignore
+# pyright: reportAttributeAccessIssue=false, reportMissingImports=false
+# pylint: disable=import-error
+
 import datetime
 from pathlib import Path
 
