@@ -26,24 +26,22 @@ Clients may use the SDK to authenticate, to push and pull data from SDS, and to 
 + [Gateway](./gateway/README.md)
 + [SDK](./sdk/README.md)
 
-
 ## Auth0
 
 1. Add the following to the `.envs/local/django.env` file:
 
-```txt
-AUTH0_DOMAIN=https://[DOMAIN].us.auth0.com
-```
+    ```txt
+    AUTH0_DOMAIN=https://[DOMAIN].us.auth0.com
+    ```
 
 2. Add a `Social Application` in the Django Admin for Auth0
 
-- Provider: `Auth0`
-- Provider ID: `auth0`
-- Name: `SpectrumX Auth0 Provider`
-- Client ID: `[CLIENT_ID]`
-- Secret: `[SECRET]`
-- Key: `auth0`
-- Sites: `[CONFIGURED SITE]` (localhost:8000, etc.)
-
+    + Provider: `Auth0`
+    + Provider ID: `auth0`
+    + Name: `SpectrumX Auth0 Provider`
+    + Client ID: `[CLIENT_ID]`
+    + Secret: `[SECRET]`
+    + Key: `auth0`
+    + Sites: `[CONFIGURED SITE]` (localhost:8000, etc.)
 
 3. Login through the social application by visiting the login page at `/accounts/auth0/login`
