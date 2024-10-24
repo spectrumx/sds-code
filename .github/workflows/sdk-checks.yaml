@@ -1,14 +1,19 @@
+# Workflow to run pre-commit checks and tests against multiple Python versions
+# GitHub Action Workflow validator: https://rhysd.github.io/actionlint/
 name: sdk-checks
 
 on:
+    workflow_dispatch:
+        # To manually trigger the workflow
+        # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch
     push:
         branches:
             - main
-              master
+            - master
     pull_request:
         branches:
             - main
-              master
+            - master
         types:
             - ready_for_review
 
