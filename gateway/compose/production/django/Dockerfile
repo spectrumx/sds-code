@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   build-essential \
   # psycopg dependencies
   libpq-dev \
+  # digital_rf dependencies
+  pkg-config \
+  libhdf5-dev \
   # curl for installing Rust
   curl
 
@@ -62,6 +65,11 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   libpq-dev \
   # Translations dependencies
   gettext \
+  # digital_rf dependencies
+  hdf5-tools \
+  python3-h5py \
+  libhdf5-dev \
+  libhdf5-serial-dev \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
