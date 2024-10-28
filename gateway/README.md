@@ -44,6 +44,13 @@ uv run pre-commit install
 
 ## Deployment
 
-### Docker
+```bash
+rsync -aP ./.envs/example ./.envs/local
+# manually set the secrets in .envs/local/*.env files
+```
 
-TBD
+Docker deployment recommended:
+
+```bash
+docker compose -f compose.local.yaml up
+```
