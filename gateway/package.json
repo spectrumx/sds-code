@@ -12,16 +12,16 @@
 		"mini-css-extract-plugin": "^2.9.1",
 		"node-sass-tilde-importer": "^1.0.2",
 		"pixrem": "^5.0.0",
-		"postcss": "^8.4.47",
 		"postcss-loader": "^8.1.1",
 		"postcss-preset-env": "^9.0.0",
-		"sass": "^1.79.2",
+		"postcss": "^8.4.47",
 		"sass-loader": "^14.0.0",
-		"webpack": "^5.94.0",
+		"sass": "^1.79.2",
 		"webpack-bundle-tracker": "^3.1.1",
 		"webpack-cli": "^5.1.4",
 		"webpack-dev-server": "^5.1.0",
-		"webpack-merge": "^5.8.0"
+		"webpack-merge": "^5.8.0",
+		"webpack": "^5.94.0"
 	},
 	"engines": {
 		"node": "20"
@@ -30,8 +30,13 @@
 	"babel": {
 		"presets": ["@babel/preset-env"]
 	},
+	"parser": "babel-eslint",
+	"parserOptions": {
+		"sourceType": "module",
+		"allowImportExportEverywhere": true
+	},
 	"scripts": {
-		"dev": "webpack serve --config webpack/dev.config.js",
+		"dev": "webpack --config webpack/dev.config.js; webpack serve --config webpack/dev.config.js",
 		"build": "webpack --config webpack/prod.config.js"
 	}
 }
