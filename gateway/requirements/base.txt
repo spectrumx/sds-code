@@ -13,6 +13,7 @@ blake3==0.4.1  #https://github.com/oconnor663/blake3-py
 opensearch-py==2.7.1 # https://github.com/opensearch-project/opensearch-py
 digital-rf==2.6.9  #
 numpy==1.26.0  #
+loguru==0.7.2
 
 # Django
 # ------------------------------------------------------------------------------

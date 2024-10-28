@@ -54,3 +54,20 @@ Docker deployment recommended:
 ```bash
 docker compose -f compose.local.yaml up
 ```
+
+After the `docker compose up` command, generate static files:
+
+```bash
+docker exec -it sds_gateway_local_node bash -c 'webpack --config webpack/dev.config.js'
+# check this location for the generated files:
+tree sds_gateway/static/webpack_bundles/
+# or
+http://localhost:3000/webpack-dev-server
+```
+
+Make Django migrations and run them:
+
+```bash
+docker exec -it sds_gateway_local_django python manage.py makemigrations
+docker exec -it sds_gateway_local_django python manage.py migrate
+```

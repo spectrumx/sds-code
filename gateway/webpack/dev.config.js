@@ -1,7 +1,7 @@
-import { merge } from "webpack-merge";
-import commonConfig from "./common.config";
+const { merge } = require("webpack-merge");
+const commonConfig = require("./common.config");
 
-export default merge(commonConfig, {
+module.exports = merge(commonConfig, {
 	mode: "development",
 	devtool: "inline-source-map",
 	devServer: {
@@ -9,7 +9,7 @@ export default merge(commonConfig, {
 		proxy: [
 			{
 				context: ["/"],
-				target: "http://django:8000",
+				target: "http://localhost:8000",
 			},
 		],
 		client: {
