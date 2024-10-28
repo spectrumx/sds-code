@@ -29,6 +29,7 @@ jobs:
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Install pre-commit
+              working-directory: ./sdk
               run: uv tool install pre-commit
 
             - name: Cache pre-commit hooks
@@ -40,9 +41,11 @@ jobs:
                   path: ~/.cache/pre-commit/
 
             - name: Install hooks
+              working-directory: ./sdk
               run: pre-commit install --install-hooks
 
             - name: Run pre-commit
+              working-directory: ./sdk
               run: pre-commit run --all-files
 
     # Run tests against multiple Python versions using tox
@@ -60,10 +63,13 @@ jobs:
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Set up Python ${{ matrix.python-version }}
+              working-directory: ./sdk
               run: uv python install ${{ matrix.python-version }}
 
             - name: Install tox and any other packages
+              working-directory: ./sdk
               run: uv tool install tox --with tox-uv
 
             - name: Run tox
+              working-directory: ./sdk
               run: tox run --verbose -e coverage
