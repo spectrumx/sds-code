@@ -7,6 +7,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.models import File
@@ -24,6 +25,7 @@ class FileViewSet(ViewSet):
         responses={
             201: FilePostSerializer,
             400: "Bad Request",
+            409: "Conflict",
         },
         description="Upload a file to the server.",
         summary="Upload File",
@@ -47,7 +49,12 @@ class FileViewSet(ViewSet):
         summary="Retrieve File",
     )
     def retrieve(self, request, pk=None):
-        file = get_object_or_404(File, pk=pk, owner=request.user)
+        file = get_object_or_404(
+            File,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
         serializer = FileGetSerializer(file, many=False)
         return Response(serializer.data)
 
@@ -101,7 +108,17 @@ class FileViewSet(ViewSet):
         summary="Update File",
     )
     def update(self, request, pk=None):
-        file = get_object_or_404(File, pk=pk, owner=request.user)
+        file = get_object_or_404(File, pk=pk, owner=request.user, is_deleted=False)
+
+        directory = request.data.get("directory", None)
+        if directory and not directory.startswith(f"/files/{request.user.email}"):
+            return Response(
+                {
+                    "detail": f"The directory must include the user file path: /files/{request.user.email}/",  # noqa: E501
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = FilePostSerializer(file, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -118,10 +135,64 @@ class FileViewSet(ViewSet):
         summary="Delete File",
     )
     def destroy(self, request, pk=None):
-        file = get_object_or_404(File, pk=pk, owner=request.user)
+        file = get_object_or_404(
+            File,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
         file.is_deleted = True
         file.deleted_at = datetime.datetime.now(datetime.UTC)
         file.save()
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CheckFileContentsExistView(APIView):
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=FilePostSerializer,
+        responses={
+            200: FilePostSerializer.check_file_conditions,
+            400: "Bad Request",
+        },
+        description="Check if the file contents exist on the server.",
+        summary="Check File Contents Exist",
+    )
+    def post(self, request):
+        user = request.user
+        file = request.FILES["file"]
+        if not file:
+            return Response(
+                {"detail": "No file provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        directory = request.data.get("directory", None)
+        if not directory:
+            return Response(
+                {"detail": "No directory provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not directory.startswith(f"/files/{request.user.email}"):
+            directory = f"/files/{request.user.email}/{directory}/"
+            request.data["directory"] = directory
+
+        name = file.name
+        checksum = File().calculate_checksum(file)
+        serializer = FilePostSerializer()
+        conditions = serializer.check_file_conditions(
+            user,
+            directory,
+            name,
+            checksum,
+            request.data,
+        )
+        return Response(conditions, status=status.HTTP_200_OK)
+
+
+check_contents_exist = CheckFileContentsExistView.as_view()

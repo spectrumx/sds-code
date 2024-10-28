@@ -22,13 +22,13 @@ class FileTestCases(APITestCase):
             password="testpassword",  # noqa: S106
         )
         # Create a test file object
-        uploaded_file = SimpleUploadedFile(
+        self.file_obj = SimpleUploadedFile(
             "testfile.txt",
             b"file_content",
             content_type="text/plain",
         )
         file_data = {
-            "file": uploaded_file,
+            "file": self.file_obj,
             "directory": "test_directory",
             "media_type": "text/plain",
         }
@@ -40,7 +40,8 @@ class FileTestCases(APITestCase):
         self.file = serializer.save()
 
         self.client.force_authenticate(user=self.user)
-        self.url = reverse("api:files-list")
+        self.list_url = reverse("api:files-list")
+        self.detail_url = reverse("api:files-detail", args=[self.file.uuid])
 
     def test_create_file(self):
         with Path("testfile.txt").open("w") as file:
@@ -52,7 +53,7 @@ class FileTestCases(APITestCase):
                 "directory": "test_directory",
                 "media_type": "text/plain",
             }
-            response = self.client.post(self.url, data, format="multipart")
+            response = self.client.post(self.list_url, data, format="multipart")
 
         assert response.status_code == status.HTTP_201_CREATED
 
@@ -62,33 +63,28 @@ class FileTestCases(APITestCase):
 
     def test_retrieve_latest_file(self):
         response = self.client.get(
-            reverse("api:files-list"),
+            self.list_url,
             {"path": self.file.directory},
         )
         assert response.status_code == status.HTTP_200_OK
 
     def test_update_file(self):
-        with Path("testfile_update.txt").open("w") as file:
-            file.write("This is a changed test file.")
-
-        with Path("testfile_update.txt").open("rb") as file:
-            data = {
-                "file": file,
-                "directory": "test_directory",
-                "media_type": "text/plain",
-            }
-            response = self.client.put(
-                reverse("api:files-detail", args=[self.file.uuid]),
-                data,
-                format="multipart",
-            )
+        data = {
+            "name": "file_update.txt",
+            "directory": f"/files/{self.user.email}/test_directory_2",
+            "media_type": "text/plain",
+        }
+        response = self.client.put(
+            self.detail_url,
+            data,
+            format="multipart",
+        )
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["name"] == "testfile_update.txt"
-        assert response.data["size"] != self.file.size
-        assert response.data["sum_blake3"] != self.file.sum_blake3
+        assert response.data["name"] == "file_update.txt"
+        assert "test_directory_2" in response.data["directory"]
 
     def test_delete_file(self):
         response = self.client.delete(
-            reverse("api:files-detail", args=[self.file.uuid]),
+            self.detail_url,
         )
         assert response.status_code == status.HTTP_204_NO_CONTENT
