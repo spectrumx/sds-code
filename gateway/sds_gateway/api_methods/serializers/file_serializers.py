@@ -38,7 +38,8 @@ class FilePostSerializer(serializers.ModelSerializer):
             "size",
             "sum_blake3",
         ]
-        read_only_fields = ["uuid", "size", "sum_blake3"]
+        read_only_fields = ["uuid"]
+        user_mutable_fields = ["name", "directory", "media_type", "permissions"]
 
     def create(self, validated_data):
         # Set the owner to the request user
@@ -49,37 +50,101 @@ class FilePostSerializer(serializers.ModelSerializer):
         if "media_type" not in validated_data:
             validated_data["media_type"] = ""
 
+        checksum = File().calculate_checksum(validated_data["file"])
+
+        files_exists_in_tree = File.objects.filter(
+            sum_blake3=checksum,
+            directory=validated_data["directory"],
+            name=validated_data["file"].name,
+        ).exists()
+
+        existing_file_instance = File.objects.filter(
+            sum_blake3=checksum,
+        ).first()
+
+        if files_exists_in_tree:
+            # return a 409 Conflict status code if the file already exists
+            raise serializers.ValidationError(
+                {
+                    "detail": "File with checksum already exists in the tree, run PATCH instead.",  # noqa: E501
+                },
+                code=409,
+            )
+
+        validated_data["sum_blake3"] = checksum
+        if existing_file_instance:
+            validated_data["file"] = existing_file_instance.file
+            validated_data["size"] = existing_file_instance.size
+            validated_data["name"] = existing_file_instance.name
+        else:
+            validated_data["size"] = validated_data["file"].size
+            validated_data["name"] = validated_data["file"].name
+            validated_data["file"].name = validated_data["sum_blake3"]
         file_instance = File(**validated_data)
-        file_instance.size = file_instance.file.size
-        file_instance.name = file_instance.file.name
-        file_instance.sum_blake3 = file_instance.calculate_checksum()
-        file_instance.file.name = file_instance.sum_blake3
 
         file_instance.save()
         return file_instance
 
     def update(self, instance, validated_data):
-        for attr, value in validated_data.items():
-            if attr != "file":
-                setattr(instance, attr, value)
+        mutable_data = {
+            key: value
+            for key, value in validated_data.items()
+            if key in self.Meta.user_mutable_fields
+        }
 
-        if "file" in validated_data:
-            new_file = validated_data["file"]
+        # remove media type from mutable data if the instance.media_type is not ""
+        if instance.media_type != "" and "media_type" in mutable_data:
+            mutable_data.pop("media_type")
 
-            # Calculate the checksum before deleting the old file
-            checksum = instance.calculate_checksum(new_file)
+        for attr, value in mutable_data.items():
+            setattr(instance, attr, value)
 
-            # Delete the old file
-            instance.file.delete(save=False)
-
-            # Assign the new file
-            instance.file = new_file
-
-            # Update the instance attributes
-            instance.size = instance.file.size
-            instance.name = instance.file.name
-            instance.sum_blake3 = checksum
-            instance.file.name = checksum
-
-        instance.save()
         return instance
+
+    def check_file_conditions(
+        self,
+        user,
+        directory,
+        name,
+        checksum,
+        request_data,
+    ):
+        # Check if file contents exist under this user
+        file_contents_exist_for_user = File.objects.filter(
+            owner=user,
+            sum_blake3=checksum,
+        ).exists()
+
+        # Check if combination of file directory, name, and checksum already exists under this user # noqa: E501
+        file_exists_in_tree = File.objects.filter(
+            directory=directory,
+            name=name,
+            sum_blake3=checksum,
+        ).exists()
+
+        # Check if any of the attributes provided differ from the user-mutable ones in the database # noqa: E501
+        instance = File.objects.filter(
+            owner=user,
+            directory=directory,
+            name=name,
+            sum_blake3=checksum,
+        ).first()
+        user_mutable_attributes_differ = False
+        if instance:
+            for attr in self.Meta.user_mutable_fields:
+                # Skip media_type if the instance.media_type is not ""
+                if attr == "media_type" and instance.media_type != "":
+                    pass
+
+                if (
+                    attr in request_data
+                    and getattr(instance, attr) != request_data[attr]
+                ):
+                    user_mutable_attributes_differ = True
+                    break
+
+        return {
+            "file_contents_exist_for_user": file_contents_exist_for_user,
+            "file_exists_in_tree": file_exists_in_tree,
+            "user_mutable_attributes_differ": user_mutable_attributes_differ,
+        }
