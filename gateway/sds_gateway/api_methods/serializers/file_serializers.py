@@ -52,7 +52,7 @@ class FilePostSerializer(serializers.ModelSerializer):
 
         checksum = File().calculate_checksum(validated_data["file"])
 
-        files_exists_in_tree = File.objects.filter(
+        file_exists_in_tree = File.objects.filter(
             sum_blake3=checksum,
             directory=validated_data["directory"],
             name=validated_data["file"].name,
@@ -62,7 +62,7 @@ class FilePostSerializer(serializers.ModelSerializer):
             sum_blake3=checksum,
         ).first()
 
-        if files_exists_in_tree:
+        if file_exists_in_tree:
             # return a 409 Conflict status code if the file already exists
             raise serializers.ValidationError(
                 {

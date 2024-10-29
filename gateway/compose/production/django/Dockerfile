@@ -63,6 +63,11 @@ RUN addgroup --system django \
 RUN apt-get update && apt-get install --no-install-recommends -y \
   # psycopg dependencies
   libpq-dev \
+  # digital_rf dependencies
+  hdf5-tools \
+  python3-h5py \
+  libhdf5-dev \
+  libhdf5-serial-dev \
   # Translations dependencies
   gettext \
   # digital_rf dependencies
