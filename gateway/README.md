@@ -44,14 +44,19 @@ uv run pre-commit install
 
 ## Local deploy
 
-1. Set secrets
+1. Set secrets:
 
     ```bash
     rsync -aP ./.envs/example ./.envs/local
     # manually set the secrets in .envs/local/*.env files
     ```
 
-2. Deploy with Docker (recommended)
+    > [!NOTE]
+    > In `minio.env`, `AWS_SECRET_ACCESS_KEY == MINIO_ROOT_PASSWORD`;
+    >
+    > In `django.env`, to generate the `API_KEY` get it running first, then navigate to [localhost:8000/users/generate-api-key](http://localhost:8000/users/generate-api-key). Copy the generated key to that file. The key is not stored in the database, so you will only see it at creation time.
+
+2. Deploy with Docker (recommended):
 
     ```bash
     docker compose -f compose.local.yaml up
