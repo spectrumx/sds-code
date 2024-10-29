@@ -90,7 +90,7 @@ drf_capture_metadata_schema = {
             "type": float,
             "description": "The gain of the capture.",
         },
-        "resolution_bandwidth": {
+        "bandwidth": {
             "type": int,
             "description": "The resolution bandwidth of the capture.",
         },
@@ -130,7 +130,7 @@ drf_capture_metadata_schema = {
         "gain": {
             "type": "float",
         },
-        "resolution_bandwidth": {
+        "bandwidth": {
             "type": "integer",
         },
     },

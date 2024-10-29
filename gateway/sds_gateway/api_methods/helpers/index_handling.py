@@ -53,11 +53,41 @@ def index_capture_metadata(capture, metadata):
         }
 
         # Index the document in OpenSearch
-        client.index(index=capture.index_name, id=capture.uuid, body=document)
-
+        client.index(
+            index=capture.index_name,
+            id=capture.uuid,
+            body=document,
+        )
+        msg = (
+            f"Metadata for capture '{capture.uuid}' indexed in '{capture.index_name}'."
+        )
+        logger.info(msg)
     except ConnectionError as e:
         # Log the error
         msg = f"Failed to connect to OpenSearch: {e}"
+        logger.exception(msg)
+        # Handle the error (e.g., retry, raise an exception, etc.)
+        raise
+
+
+def retrieve_indexed_metadata(capture):
+    try:
+        client = get_opensearch_client()
+
+        # Retrieve the indexed document
+        response = client.get(index=capture.index_name, id=capture.uuid)
+
+        # Retrieve the metadata from the indexed document
+        return response["_source"]["metadata"]
+    except ConnectionError as e:
+        # Log the error
+        msg = f"Failed to connect to OpenSearch: {e}"
+        logger.exception(msg)
+        # Handle the error (e.g., retry, raise an exception, etc.)
+        raise
+    except Exception as e:
+        # Log the error
+        msg = f"Failed to retrieve indexed metadata for capture '{capture.uuid}': {e}"
         logger.exception(msg)
         # Handle the error (e.g., retry, raise an exception, etc.)
         raise
