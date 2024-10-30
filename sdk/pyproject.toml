@@ -1,10 +1,5 @@
 [project]
-    dependencies    = [
-    "loguru>=0.7.2",
-    "pydantic>=2.9.2",
-    "python-dotenv>=1.0.1",
-    "pytz>=2024.2",
-]
+    dependencies    = ["loguru>=0.7.2", "pydantic>=2.9.2", "python-dotenv>=1.0.1", "pytz>=2024.2"]
     description     = "SpectrumX Data System SDK"
     name            = "spectrumx"
     readme          = "README.md"
@@ -102,9 +97,11 @@
 
     [tool.ruff.lint]
         ignore = [
+            "COM812", # disabled following ruff's recommendation
+            "ISC001", # disabled following ruff's recommendation
+            "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
             "S101",   # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
             "S104",   # Possible binding to all interfaces
-            "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
             "SIM102", # sometimes it's better to nest
             "UP038",  # Checks for uses of isinstance/issubclass that take a tuple
             # of types for comparison.

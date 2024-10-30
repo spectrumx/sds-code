@@ -43,7 +43,9 @@ repos:
       hooks:
           # Linter
           - id: ruff
-            args: [--fix, --exit-non-zero-on-fix]
+            args:
+                # we have to pick one config between gateway and sdk...
+                [--fix, --exit-non-zero-on-fix, --config, "sdk/pyproject.toml"]
           # Formatter
           - id: ruff-format
 

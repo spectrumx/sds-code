@@ -1,12 +1,12 @@
 SHELL=/bin/bash
 
-PYTHON_VERSION=3.13
+PYTHON_VERSION ?= 3.13
 
 all: install test
 
 # SETUP
 install:
-	uv run pre-commit install --install-hooks
+	uvx pre-commit install --install-hooks
 	uv sync --dev --frozen
 
 # GITHUB ACTIONS
@@ -22,9 +22,9 @@ test:
 		--cov-config=pyproject.toml \
 		--cov-report=term-missing:skip-covered \
 		--cov-report=html \
-		--cov-report=html:tests/htmlcov
+		--cov-report=html:tests/htmlcov \
 		--cov-report=annotate \
-		--cov-fail-under=75
+		--cov-fail-under=75 \
 		tests
 test-verbose:
 	uv run -p $(PYTHON_VERSION) pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
@@ -46,7 +46,7 @@ clean:
 # UPDATE
 update:
 	uv sync --upgrade
-	uv run pre-commit autoupdate
+	uvx pre-commit autoupdate
 
 # PUBLISH
 publish:

@@ -8,7 +8,6 @@ import datetime
 from pathlib import Path
 
 from loguru import logger as log
-
 from spectrumx import Client
 from spectrumx.models import Capture
 from spectrumx.models import Dataset

@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from spectrumx.client import SDSConfig
 
 

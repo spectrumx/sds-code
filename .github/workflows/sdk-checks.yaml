@@ -53,7 +53,7 @@ jobs:
         runs-on: ubuntu-latest
         strategy:
             matrix:
-                python-version: ["3.11", "3.12", "3.13"]
+                python-version: ["3.12", "3.13"]
 
         steps:
             - uses: actions/checkout@v4
@@ -70,6 +70,6 @@ jobs:
               working-directory: ./sdk
               run: uv tool install tox --with tox-uv
 
-            - name: Run tox
+            - name: Run test
               working-directory: ./sdk
-              run: tox run --verbose -e coverage
+              run: make test PYTHON_VERSION=${{ matrix.python-version }}

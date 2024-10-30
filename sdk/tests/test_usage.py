@@ -7,7 +7,6 @@ import uuid as uuidlib
 
 import pytest
 from responses import RequestsMock
-
 from spectrumx import Client
 from spectrumx.errors import AuthError
 from spectrumx.gateway import Endpoints
