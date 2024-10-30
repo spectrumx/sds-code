@@ -7,10 +7,14 @@ on:
         # To manually trigger the workflow
         # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch
     push:
+        paths:
+            - sdk/**
         branches:
             - main
             - master
     pull_request:
+        paths:
+            - sdk/**
         branches:
             - main
             - master
@@ -42,11 +46,11 @@ jobs:
 
             - name: Install hooks
               working-directory: ./sdk
-              run: pre-commit install --install-hooks
+              run: uv run pre-commit install --install-hooks
 
             - name: Run pre-commit
               working-directory: ./sdk
-              run: pre-commit run --all-files
+              run: uv run pre-commit run --all-files
 
     # Run tests against multiple Python versions using tox
     coverage:
