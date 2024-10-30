@@ -101,6 +101,13 @@ class Capture(BaseModel):
         default="drf",
     )
     index_name = models.CharField(max_length=255, blank=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        null=True,
+        related_name="captures",
+        on_delete=models.PROTECT,
+    )
 
     def __str__(self):
         return f"{self.capture_type} capture for channel {self.channel} added on {self.created_at}"  # noqa: E501
@@ -116,6 +123,13 @@ class Dataset(BaseModel):
     list_fields = ["authors", "keywords", "institutions"]
 
     name = models.CharField(max_length=255, blank=False, default=None)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        null=True,
+        related_name="datasets",
+        on_delete=models.PROTECT,
+    )
     abstract = models.TextField(blank=True)
     description = models.TextField(blank=True)
     doi = models.CharField(max_length=255, blank=True)
