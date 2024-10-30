@@ -1,17 +1,9 @@
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
-
-User = get_user_model()
-
-
-class UserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["id", "email", "name"]
+from sds_gateway.api_methods.serializers.user_serializer import UserSerializer
 
 
 class FileGetSerializer(serializers.ModelSerializer):
