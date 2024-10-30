@@ -3,97 +3,25 @@
 ![PyPI - Version](https://img.shields.io/pypi/v/spectrumx)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/spectrumx)
 ![Pepy Total Downloads](https://img.shields.io/pepy/dt/spectrumx)
-[![Action | Upload Python Package](https://github.com/spectrumx/sds-code/actions/workflows/python-publish.yaml/badge.svg)](https://github.com/spectrumx/sds-code/actions/workflows/python-publish.yaml)
+[![SDK Code Quality Checks](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml/badge.svg)](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml)
 
 The SDK is the primary form that clients interact with SDS: either directly by installing the Python package from PyPI, or indirectly by using the SDS Web UI or the Visualization Component.
 
 + [SpectrumX Data System (SDS) SDK](#spectrumx-data-system-sds-sdk)
-    + [Usage Guide](#usage-guide)
-        + [Installation](#installation)
-        + [Usage](#usage)
+        + [Usage Guide](#usage-guide)
         + [Asset types](#asset-types)
         + [SDK Methods](#sdk-methods)
         + [Supported Python Versions](#supported-python-versions)
     + [SDK Development](#sdk-development)
-        + [Design Goals](#design-goals)
+        + [Make targets](#make-targets)
         + [Testing](#testing)
+        + [Design Goals](#design-goals)
 
 ## Usage Guide
 
-### Installation
+See [usage guide](./docs/usage-guide.md) for information on how to install and use the SDK.
 
-```bash
-pip install spectrumx-sdk
-# uv add spectrumx-sdk
-# conda install spectrumx-sdk
-```
-
-### Usage
-
-1. In a file named `.env`, enter the `secret_token` provided to you:
-
-    ```ini
-    SDS_SECRET_TOKEN=your-secret-token-no-quotes
-    ```
-
-    OR set the environment variable `SDS_SECRET_TOKEN` to your secret token.
-
-    ```bash
-    # the env var takes precedence over the .env file
-    export SDS_SECRET=your-secret-token
-    ```
-
-2. Then, in your Python script or Jupyter notebook:
-
-    ```python
-    from spectrumx_sdk import Client
-    from spectrumx_sdk.models import Capture, Dataset
-    from pathlib import Path
-
-    sds = Client(
-        host="sds.crc.nd.edu"
-    )
-
-    # authenticate using either the token from
-    # the .env file or the env variable
-    sds.authenticate()
-
-    # get list of datasets available
-    print("Dataset name | Dataset ID")
-    for dataset in sds.datasets():
-        print(f"{dataset.name} | {dataset.id}")
-
-    # download a dataset to a local directory
-    local_downloads = Path("datasets")
-    most_recent_dataset: Dataset = sds.datasets()[0]
-    most_recent_dataset.download_assets(
-        to=local_downloads, # download to this location + dataset_name
-        overwrite=False,    # do not overwrite existing files (default)
-        verbose=True,       # shows a progress bar (default)
-    )
-
-    # search for capture files between two frequencies and dates
-    # a "capture" represents a file in the SDS in a known format, such
-    # as a Digital RF archive or SigMF file.
-    start_time = datetime.datetime(2024, 1, 1, 0, 0, 0)
-    end_time = datetime.datetime(2024, 1, 2, 0, 0, 0)
-    captures = sds.search(
-        asset_type=Capture,
-        center_freq_range=(3e9, 5e9), # between 3 and 5 GHz
-        capture_time_range=(start_time, end_time),
-        # additional arguments work as "and" filters
-    )
-    for capture in captures:
-        print(capture.id)
-        capture.download(
-            to=local_downloads / "search_results",
-            overwrite=False,
-            verbose=True,
-        )
-
-    # fetch a dataset by its ID
-    dataset = Dataset.get(sds, dataset_id="dataset-id")
-    ```
+## Features
 
 ### Asset types
 
@@ -138,6 +66,67 @@ Maintaining older Python versions has a cost. The SpectrumX SDK aims to support 
 
 ## SDK Development
 
+### Make targets
+
+```bash
+make
+# equivalent to make install test
+
+make install
+# runs uv sync
+
+make test-all
+# runs tox for all supported python versions
+
+make test
+# runs pytest on most recent python version
+
+make test-verbose
+# runs pylint on most recent python version with extra verbosity and log capture
+
+make serve-coverage
+# serves coverage report on localhost:8000
+
+make gact
+# runs GitHub Actions locally with gh-act
+#
+# >>> WARNING: if the secrets file has a valid API key,
+#   this target will actually publish the package to PyPI.
+#
+# Install with:     gh extension install nektos/gh-act
+# or see            https://github.com/nektos/act
+
+make clean
+# removes all venv, tox, cache, and generated files
+
+make update
+# updates uv and pre-commit hooks
+
+make publish
+# publishes the package to PyPI
+#
+# >>> WARNING: if the secrets file has a valid API key,
+#   this target will actually publish the package to PyPI.
+```
+
+### Testing
+
+```bash
+uv sync --dev
+
+# simple tests execution (similar to `make test`)
+uv run pytest -v
+
+# running a specific test
+uv run pytest -v tests/test_usage.py::test_authentication_200_succeeds
+
+# running similar tests (substring match)
+uv run pytest -v -k test_authentication
+
+# verbose with colored log messages (similar to `make test-verbose`)
+uv run pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
+```
+
 ### Design Goals
 
 For a stable "v1" release and in no particular order:
@@ -177,21 +166,3 @@ For a stable "v1" release and in no particular order:
 8. **Data content and space management**
 
     User feedback should be provided when the user is about to exceed their storage quota. The SDK should also provide a way to check the user's storage usage and quota. The SDK should skip forbidden file extensions and MIME types automatically and warn the user about them. Both quota limits and content types are enforced at the server level, the SDK merely provides a more user-friendly and contextual interface.
-
-### Testing
-
-```bash
-uv sync --dev
-
-# simple tests execution
-uv run pytest -v
-
-# running a specific test
-uv run pytest -v tests/test_usage.py::test_authentication_200_succeeds
-
-# running similar tests (substring match)
-uv run pytest -v -k test_authentication
-
-# verbose with colored log messages
-uv run pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
-```
