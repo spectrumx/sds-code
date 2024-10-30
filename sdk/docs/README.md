@@ -1,4 +1,16 @@
-# Usage Guide
+# SpectrumX Data System | SDK
+
+![PyPI - Version](https://img.shields.io/pypi/v/spectrumx)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/spectrumx)
+![Pepy Total Downloads](https://img.shields.io/pepy/dt/spectrumx)
+[![SDK Code Quality Checks](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml/badge.svg)](<https://github.com/spectrumx/sds-code/actions/workflows/>
+sdk-checks.yaml)
+
++ [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)
+    + [Installation](#installation)
+    + [Basic Usage](#basic-usage)
+    + [Error Handling](#error-handling)
+    + [Full example (not implemented)](#full-example-not-implemented)
 
 The Spectrum Data Store (SDS) SDK is a Python package that provides a simple interface for interacting with the SDS Gateway. The SDK is designed to be easy to use and to provide a high-level interface for common tasks, such as uploading and downloading files, searching for files, and managing RF datasets.
 
