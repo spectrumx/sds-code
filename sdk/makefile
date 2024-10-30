@@ -12,9 +12,12 @@ install:
 # GITHUB ACTIONS
 gact:
 	# install gh-act with:
-	# gh extension install nektos/gh-act
+	# 	gh extension install nektos/gh-act
+	git_root=$$(git rev-parse --show-toplevel);
+	echo Running GitHub Actions locally for "${git_root}";
+	cd "$$git_root"
 	gh act \
-		--workflows "$(git rev-parse --show-toplevel)"/.github/workflows \
+		--workflows "$$git_root"/.github/workflows \
 		--secret-file config/secrets.env
 
 # TESTS
@@ -25,7 +28,6 @@ test:
 		--cov-report=term-missing:skip-covered \
 		--cov-report=html \
 		--cov-report=html:tests/htmlcov \
-		--cov-report=annotate \
 		--cov-fail-under=75 \
 		tests
 test-verbose:
@@ -43,6 +45,7 @@ clean:
 		.tox .coverage \
 		.pytest_cache .python-version .cache dist \
 		.venv .eggs .eggs/ \
+		./**/*.py.cover \
 		*.egg-info *.egg-info/
 
 # UPDATE
@@ -50,12 +53,21 @@ update:
 	uv sync --upgrade
 	uvx pre-commit autoupdate
 
+build:
+	uv build
+	echo -e "\n\t\033[32mBuilt package:\033[0m\n"
+	tar -tvf dist/*.tar.gz
+	echo -e "\n\t\033[34mTo publish it, run 'make publish'.\033[0m\n\n"
+
 # PUBLISH
 publish:
+	@if [ ! -d dist ]; then \
+		echo "Run 'make build' first."; \
+		exit 1; \
+	fi
 	@if [ ! -f config/secrets.env ]; then \
 		echo "Error: config/secrets.env does not exist."; \
 		exit 1; \
 	fi
 	export UV_PUBLISH_TOKEN=$$(grep PYPI_API_TOKEN config/secrets.env | cut -d '=' -f2)
-	uv build
 	uv publish

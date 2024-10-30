@@ -1,10 +1,26 @@
 [project]
     dependencies    = ["loguru>=0.7.2", "pydantic>=2.9.2", "python-dotenv>=1.0.1", "pytz>=2024.2"]
     description     = "SpectrumX Data System SDK"
+    license         = "MIT"
     name            = "spectrumx"
-    readme          = "README.md"
+    readme          = "./docs/README.md"
     requires-python = ">=3.12"
     version         = "0.1.0"
+
+    # https://pypi.org/classifiers/
+    classifiers = [
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: Unix",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Topic :: Scientific/Engineering :: Physics",
+        "Topic :: Terminals",
+        "Typing :: Typed",
+    ]
 
 [tool.pylint.messages_control]
     # https://pylint.readthedocs.io/en/stable/user_guide/messages/index.html
@@ -225,9 +241,27 @@
     build-backend = "hatchling.build"
     requires      = ["hatchling"]
 
-[tool.hatch.build.targets.sdist]
-    # https://hatch.pypa.io/latest/config/build/
-    exclude = [".github", "*.env*", "*secret*", "config/"]
+[tool.hatch]
 
-[tool.hatch.build.targets.wheel]
-    packages = ["src/spectrumx"]
+    [tool.hatch.build]
+        directory = "dist"
+
+        [tool.hatch.build.targets.sdist]
+            exclude = [
+                ".coverage",
+                ".github",
+                ".vscode",
+                "*.env*",
+                "*secret*",
+                "config/",
+                "tests/htmlcov",
+                "tests/coverage",
+                "docs/dev-*",
+                "README.md",      # docs/README.md is used instead
+            ]
+            ignore-vcs = true
+            include = ["src/spectrumx/**.py", "/docs/", "/tests/"]
+
+        [tool.hatch.build.targets.wheel]
+            packages = ["src/spectrumx"]
+            # https://hatch.pypa.io/latest/config/build/
