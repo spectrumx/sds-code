@@ -1,5 +1,6 @@
 """Client for the SpectrumX Data System."""
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 
@@ -31,9 +32,12 @@ class SDSConfig:
     def _load_config(self) -> None:
         """Load the configuration."""
         if not self._env_file.exists():
-            log.warning(f"Environment file not found: {self._env_file}")
+            msg = f"Environment file not found: {self._env_file}"
+            log.warning(msg)  # for sdk developers
+            logging.warning(msg)  # for users
             return
-        log.debug(f"SDS_Config: loading environment file: {self._env_file}")
+        msg = f"SDS_Config: loading environment file: {self._env_file}"
+        log.debug(msg)
 
         for key, sensitive_value in dotenv.dotenv_values(self._env_file).items():
             normalized_key: str = key.lower().replace("-", "_").replace(" ", "_")

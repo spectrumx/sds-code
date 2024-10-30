@@ -17,6 +17,10 @@ class AuthError(SDSError):
     """Issue with user authentication against SDS."""
 
 
+class NetworkError(SDSError):
+    """Issue with the client connection to the SDS service."""
+
+
 class ServiceError(SDSError):
     """Issue with the SDS service."""
 

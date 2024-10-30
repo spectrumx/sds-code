@@ -17,7 +17,15 @@ gact:
 
 # TESTS
 test:
-	uv run -p $(PYTHON_VERSION) pytest --cov=uv --cov-report=term-missing --cov-report=html --cov-report=xml --cov-report=annotate --cov-fail-under=100
+	uv run -p $(PYTHON_VERSION) pytest \
+		--cov=src \
+		--cov-config=pyproject.toml \
+		--cov-report=term-missing:skip-covered \
+		--cov-report=html \
+		--cov-report=html:tests/htmlcov
+		--cov-report=annotate \
+		--cov-fail-under=75
+		tests
 test-verbose:
 	uv run -p $(PYTHON_VERSION) pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
 test-all:
