@@ -11,10 +11,10 @@ The Spectrum Data Store (SDS) SDK is a Python package that provides a simple int
 ## Installation
 
 ```bash
-uv add spectrumx-sdk
+uv add spectrumx
 # or one of:
-#   pip install spectrumx-sdk
-#   conda install spectrumx-sdk
+#   pip install spectrumx
+#   conda install spectrumx
 #   ...
 ```
 
