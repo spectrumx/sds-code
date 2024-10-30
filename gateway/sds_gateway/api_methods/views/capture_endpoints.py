@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from pathlib import PurePosixPath
 
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
@@ -43,7 +44,7 @@ class CaptureViewSet(viewsets.ViewSet):
         top_level_dir = request.data.get("top_level_dir", "")
 
         # Ensure the top_level_dir is not a relative path
-        if ".." in top_level_dir:
+        if not PurePosixPath(top_level_dir).is_absolute():
             msg = "Relative paths are not allowed."
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -52,7 +53,7 @@ class CaptureViewSet(viewsets.ViewSet):
 
         # Ensure the resolved path is within the user's files directory
         user_files_dir = Path(f"/files/{request.user.email}").resolve(strict=False)
-        if not str(resolved_top_level_dir).startswith(str(user_files_dir)):
+        if not resolved_top_level_dir.is_relative_to(user_files_dir):
             msg = f"The top_level_dir must be in the user's files directory: /files/{request.user.email}"  # noqa: E501
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
