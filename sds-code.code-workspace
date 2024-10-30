@@ -1,88 +1,89 @@
 {
-    "extensions": {
-        "recommendations": [
-            "batisteo.vscode-django",
-            "charliermarsh.ruff",
-            "codeandstuff.package-json-upgrade",
-            "DavidAnson.vscode-markdownlint",
-            "ms-python.python",
-            "redhat.vscode-yaml",
-            "richie5um2.vscode-sort-json",
-            "streetsidesoftware.code-spell-checker",
-            "tamasfe.even-better-toml",
-            "timonwong.shellcheck",
-            "usernamehw.errorlens",
-            "yzhang.markdown-all-in-one",
-        ],
-    },
-    "folders": [
-        {
-            "name": "sds-code-root",
-            "path": ".",
-        },
-        {
-            "name": "sds-gateway",
-            "path": "./gateway",
-        },
-        {
-            "name": "sds-sdk",
-            "path": "./sdk",
-        },
-    ],
-    "settings": {
-        "[python]": {
-            "editor.codeActionsOnSave": {
-                "source.fixAll.ruff": "explicit",
-            },
-            "editor.defaultFormatter": "charliermarsh.ruff",
-            "editor.formatOnSave": true,
-        },
-        "[yaml]": {
-            "editor.autoIndent": "keep",
-            "editor.defaultFormatter": "redhat.vscode-yaml",
-            "editor.insertSpaces": true,
-            "editor.tabSize": 4,
-        },
-        "editor.indentSize": 4,
-        "evenBetterToml.formatter.alignComments": true,
-        "evenBetterToml.formatter.alignEntries": true,
-        "evenBetterToml.formatter.allowedBlankLines": 2,
-        "evenBetterToml.formatter.arrayTrailingComma": true,
-        "evenBetterToml.formatter.columnWidth": 119,
-        "evenBetterToml.formatter.indentEntries": true,
-        "evenBetterToml.formatter.indentString": "    ",
-        "evenBetterToml.formatter.indentTables": true,
-        "evenBetterToml.formatter.inlineTableExpand": true,
-        "evenBetterToml.formatter.reorderArrays": false,
-        "evenBetterToml.formatter.reorderKeys": true,
-        "evenBetterToml.formatter.trailingNewline": true,
-        "evenBetterToml.schema.cache.diskExpiration": 15,
-        "evenBetterToml.schema.cache.memoryExpiration": 10,
-        "evenBetterToml.schema.links": true,
-        "python.analysis.autoFormatStrings": true,
-        "python.analysis.enablePytestSupport": true,
-        "python.analysis.importFormat": "absolute",
-        "python.analysis.indexing": true,
-        "python.analysis.typeCheckingMode": "standard",
-        "python.testing.pytestEnabled": true,
-        "ruff.fixAll": true,
-        "ruff.nativeServer": "off", // prefer the venv installation that is closer to pre-commit hooks
-    },
-    "tasks": {
-        "tasks": [
-            {
-                "args": [],
-                "command": "echo hello",
-                "group": "build",
-                "label": "echo hello",
-                "presentation": {
-                    "reveal": "always",
-                },
-                "problemMatcher": ["$tsc"],
-                "type": "shell",
-            },
-        ],
-        "version": "2.0.0",
-    },
+	"extensions": {
+		"recommendations": [
+			"batisteo.vscode-django",
+			"charliermarsh.ruff",
+			"codeandstuff.package-json-upgrade",
+			"DavidAnson.vscode-markdownlint",
+			"ms-python.python",
+			"redhat.vscode-yaml",
+			"richie5um2.vscode-sort-json",
+			"streetsidesoftware.code-spell-checker",
+			"tamasfe.even-better-toml",
+			"timonwong.shellcheck",
+			"usernamehw.errorlens",
+			"yzhang.markdown-all-in-one"
+		]
+	},
+	"folders": [
+		{
+			"name": "sds-code-root",
+			"path": "."
+		},
+		{
+			"name": "sds-gateway",
+			"path": "./gateway"
+		},
+		{
+			"name": "sds-sdk",
+			"path": "./sdk"
+		}
+	],
+	"settings": {
+		"[python]": {
+			"editor.codeActionsOnSave": {
+				"source.fixAll.ruff": "explicit"
+			},
+			"editor.defaultFormatter": "charliermarsh.ruff",
+			"editor.formatOnSave": true
+		},
+		"[yaml]": {
+			"editor.autoIndent": "keep",
+			"editor.defaultFormatter": "redhat.vscode-yaml",
+			"editor.insertSpaces": true,
+			"editor.tabSize": 4
+		},
+		"editor.indentSize": 4,
+		"evenBetterToml.formatter.alignComments": true,
+		"evenBetterToml.formatter.alignEntries": true,
+		"evenBetterToml.formatter.allowedBlankLines": 2,
+		"evenBetterToml.formatter.arrayTrailingComma": true,
+		"evenBetterToml.formatter.columnWidth": 119,
+		"evenBetterToml.formatter.indentEntries": true,
+		"evenBetterToml.formatter.indentString": "    ",
+		"evenBetterToml.formatter.indentTables": true,
+		"evenBetterToml.formatter.inlineTableExpand": true,
+		"evenBetterToml.formatter.reorderArrays": false,
+		"evenBetterToml.formatter.reorderKeys": true,
+		"evenBetterToml.formatter.trailingNewline": true,
+		"evenBetterToml.schema.cache.diskExpiration": 15,
+		"evenBetterToml.schema.cache.memoryExpiration": 10,
+		"evenBetterToml.schema.links": true,
+		"python.analysis.autoFormatStrings": true,
+		"python.analysis.enablePytestSupport": true,
+		"python.analysis.importFormat": "absolute",
+		"python.analysis.indexing": true,
+		"python.analysis.typeCheckingMode": "standard",
+		"python.testing.cwd": "${workspaceFolder}/tests",
+		"python.testing.pytestEnabled": true,
+		"ruff.fixAll": true,
+		"ruff.nativeServer": "off" // prefer the venv's ruff: closer to pre-commit hooks version
+	},
+	"tasks": {
+		"tasks": [
+			{
+				"args": [],
+				"command": "echo hello",
+				"group": "build",
+				"label": "echo hello",
+				"presentation": {
+					"reveal": "always"
+				},
+				"problemMatcher": ["$tsc"],
+				"type": "shell"
+			}
+		],
+		"version": "2.0.0"
+	}
 }
 // "ruff.configuration": null
