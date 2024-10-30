@@ -13,7 +13,9 @@ install:
 gact:
 	# install gh-act with:
 	# gh extension install nektos/gh-act
-	gh act --workflows .github/workflows --secret-file config/secrets.env
+	gh act \
+		--workflows "$(git rev-parse --show-toplevel)"/.github/workflows \
+		--secret-file config/secrets.env
 
 # TESTS
 test:
