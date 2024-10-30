@@ -1,4 +1,4 @@
-# SpectrumX Data System (SDS) SDK
+# SpectrumX Data System | SDK
 
 ![PyPI - Version](https://img.shields.io/pypi/v/spectrumx)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/spectrumx)
@@ -6,7 +6,7 @@
 [![SDK Code Quality Checks](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml/badge.svg)](<https://github.com/spectrumx/sds-code/actions/workflows/>
 sdk-checks.yaml)
 
-+ [SpectrumX Data System (SDS) SDK](#spectrumx-data-system-sds-sdk)
++ [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)
     + [Usage Guide](#usage-guide)
     + [SDK Development](#sdk-development)
         + [Make targets](#make-targets)
@@ -16,7 +16,7 @@ The SDK is the primary form that clients interact with SDS: either directly by i
 
 ## Usage Guide
 
-See [users' readme](./docs/README.md) for information on how to install and use the SDK.
+This is the development README. See [users' readme](./docs/README.md) for a guide on how to install and use the SDK.
 
 ## SDK Development
 
