@@ -107,10 +107,11 @@ drf_capture_metadata_schema = {
             "description": "The direction of the antenna.",
         },
         "custom_attrs": {
-            "type": object,
+            "type": dict,
             "description": "Custom attributes of the capture.",
         },
     },
+    # fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
     "index_mapping": {
         "sample_rate_numerator": {
             "type": "integer",

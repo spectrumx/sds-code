@@ -1,13 +1,15 @@
 import logging
 
-from sds_gateway.api_methods.utils.metadata_schemas import drf_capture_metadata_schema
+from sds_gateway.api_methods.utils.metadata_schemas import (
+    capture_metadata_fields_by_type as md_props_by_type,
+)
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 
-def create_drf_index(client, index_name):
+def create_index(client, index_name, capture_type):
     try:
         # Define the index settings and mappings
         index_body = {
@@ -22,7 +24,7 @@ def create_drf_index(client, index_name):
                     "created_at": {"type": "date"},
                     "metadata": {
                         "type": "object",
-                        "properties": drf_capture_metadata_schema["index_mapping"],
+                        "properties": md_props_by_type[capture_type]["index_mapping"],
                     },
                 },
             },
@@ -42,7 +44,7 @@ def index_capture_metadata(capture, metadata):
 
         # Create the index if it does not exist
         if not client.indices.exists(index=capture.index_name):
-            create_drf_index(client, capture.index_name)
+            create_index(client, capture.index_name, capture.capture_type)
 
         # Combine capture fields and additional fields
         document = {

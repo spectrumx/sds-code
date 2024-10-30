@@ -7,15 +7,18 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 
 
-def reconstruct_tree(temp_dir, top_level_dir):
+def reconstruct_tree(temp_dir, top_level_dir, owner):
     minio_client = get_minio_client()
     files_to_connect = []
     tmp_dir_path = str(Path(temp_dir) / top_level_dir)
 
     # Loop through File entries in the database
-    for file_entry in File.objects.filter(directory__icontains=top_level_dir):
+    for file_entry in File.objects.filter(
+        directory__startswith=top_level_dir,
+        owner=owner,
+    ):
         # Add the file to the list of files to connect
-        files_to_connect.append(file_entry.uuid)
+        files_to_connect.append(file_entry)
 
         # Construct the local file path
         local_file_path = Path(temp_dir) / file_entry.directory / file_entry.name
