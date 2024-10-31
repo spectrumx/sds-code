@@ -1,7 +1,8 @@
 SHELL=/bin/bash
 
 PYTHON_VERSION ?= 3.13
-SUPPORTED_PYTHON_VERSIONS = 3.12 3.13
+SUPPORTED_PYTHON_VERSIONS := 3.12 3.13
+GIT_ROOT := $(shell git rev-parse --show-toplevel;)
 
 all: install test
 
@@ -14,11 +15,10 @@ install:
 gact:
 	# install gh-act with:
 	# 	gh extension install nektos/gh-act
-	git_root=$$(git rev-parse --show-toplevel);
-	echo Running GitHub Actions locally for "${git_root}";
-	cd "$$git_root"
+	echo Running GitHub Actions locally for "$(GIT_ROOT)";
+	cd "$(GIT_ROOT)" && \
 	gh act \
-		--workflows "$$git_root"/.github/workflows \
+		--workflows "$(GIT_ROOT)/.github/workflows" \
 		--secret-file config/secrets.env
 
 # TESTS
