@@ -1,6 +1,7 @@
 SHELL=/bin/bash
 
 PYTHON_VERSION ?= 3.13
+SUPPORTED_PYTHON_VERSIONS = 3.12 3.13
 
 all: install test
 
@@ -33,8 +34,9 @@ test:
 test-verbose:
 	uv run -p $(PYTHON_VERSION) pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
 test-all:
-	uv run -p $(PYTHON_VERSION) tox run -e "python${PYTHON_VERSION}"
-	uv run -p $(PYTHON_VERSION) tox run -e "python${PYTHON_VERSION}"
+	for version in $(SUPPORTED_PYTHON_VERSIONS); do \
+		$(MAKE) test PYTHON_VERSION=$$version; \
+	done
 
 serve-coverage:
 	python -m http.server 8000 -d tests/htmlcov

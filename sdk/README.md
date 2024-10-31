@@ -30,7 +30,7 @@ make install
 # runs uv sync
 
 make test-all
-# runs tox for all supported python versions
+# runs tests for all supported python versions
 
 make test
 # runs pytest on most recent python version
