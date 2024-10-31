@@ -5,14 +5,13 @@ import uuid
 from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
-from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import dotenv
 from loguru import logger as log
 
+from spectrumx import ops
 from spectrumx.models import File
 from spectrumx.models import SDSModel
 
@@ -104,7 +103,7 @@ class SDSConfig:
         env_config = {**env_file_config, **env_cli_config}
 
         # clean and set the configuration loaded
-        cleaned_config: list[Attr] = clean_config(name_lookup, env_config)
+        cleaned_config: list[Attr] = _clean_config(name_lookup, env_config)
         for attr in cleaned_config:
             setattr(
                 self,
@@ -181,12 +180,12 @@ class Client:
 
     @property
     def dry_run(self) -> bool:
-        """Dry run mode enabled."""
+        """When in dry run mode, no SDS requests are made and files are not written."""
         return self._config.dry_run
 
     @dry_run.setter
     def dry_run(self, value: bool) -> None:
-        """Set dry run mode."""
+        """Sets the dry run mode."""
         self._config.dry_run = value
 
     @property
@@ -203,35 +202,67 @@ class Client:
             self._gateway.authenticate()
         self.is_authenticated = True
 
-    def get_file(self, file_id: str) -> File:
-        """Get a file by its ID."""
-        if self.dry_run:
-            log_user("Dry run enabled: get file by ID")
-            tz = datetime.now().astimezone().tzinfo
-            created_at = datetime.now(tz=tz)
-            updated_at = created_at
-            expiration_date = datetime.now(tz=tz) + timedelta(days=30)
+    def get_file(self, file_uuid: uuid.UUID | str) -> File:
+        """Get a file instance by its ID. Only metadata is downloaded from SDS.
 
-            uuid_from_str = uuid.UUID(file_id)
-            return File(
-                uuid=uuid_from_str,
-                name="file.txt",
-                media_type="text/plain",
-                size=888,
-                directory="./sds-files/dry-run/",
-                permissions="rw-rw-r--",
-                created_at=created_at,
-                updated_at=updated_at,
-                expiration_date=expiration_date.date(),
+        Args:
+            file_uuid: The UUID of the file to retrieve.
+        Returns:
+            The file instance, or a sample file if in dry run mode.
+        """
+
+        uuid_to_set: uuid.UUID = (
+            uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
+        )
+
+        if not self.dry_run:
+            file_bytes = self._gateway.get_file_by_id(uuid=uuid_to_set.hex)
+            return File.model_validate_json(file_bytes)
+
+        log_user("Dry run enabled: a sample file is being returned instead")
+        return ops.files.generate_sample_file(uuid_to_set)
+
+    def upload_file(
+        self, file_path: File | Path | str, sds_dir: Path | str = "/"
+    ) -> File:
+        """Uploads a file to SDS.
+
+        Args:
+            file_path:  The local path of the file to upload.
+            sds_dir:    The virtual directory on SDS to upload the file to, \
+                        where '/' is the user root.
+        Returns:
+            The file instance with updated attributes, or a sample when in dry run.
+        """
+        # validate inputs
+        if not isinstance(file_path, (File, Path, str)):  # pragma: no cover
+            msg = (
+                "file_path must be a Path, str, or "
+                f"File instance, not {type(file_path)}"
             )
-        response = self._gateway.get_file_by_id(uuid=file_id)
-        return File.model_validate_json(response)
+            raise TypeError(msg)
+        file_path = Path(file_path) if isinstance(file_path, str) else file_path
+        sds_dir = Path(sds_dir) if isinstance(sds_dir, str) else sds_dir
+
+        # construct the file instance
+        file_instance = (
+            file_path
+            if isinstance(file_path, File)
+            else ops.files.construct_file(file_path, sds_dir=sds_dir)
+        )
+
+        # upload the file instance or just return it (dry run)
+        if self.dry_run:
+            log_user(f"Dry run enabled: skipping upload of {file_path}")
+            return file_instance
+        file_contents = self._gateway.upload_file(file_instance=file_instance)
+        return File.model_validate_json(file_contents)
 
     def __str__(self) -> str:
         return f"Client(host={self.host})"
 
 
-def clean_config(name_lookup, env_config) -> list[Attr]:
+def _clean_config(name_lookup, env_config) -> list[Attr]:
     """Cleans the configuration to match known attributes."""
     cleaned_config: list[Attr] = []
     for key, sensitive_value in env_config.items():

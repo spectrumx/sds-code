@@ -1,3 +1,5 @@
+"""Utility functions for the SpectrumX SDK."""
+
 import logging
 
 from loguru import logger as log
