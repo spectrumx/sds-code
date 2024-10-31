@@ -21,6 +21,11 @@ gact:
 		--workflows "$(GIT_ROOT)/.github/workflows" \
 		--secret-file config/secrets.env
 
+pyright:
+	echo Running Pyright locally for "$(GIT_ROOT)";
+	cd "$(GIT_ROOT)" && \
+	gh act --workflows /home/lbarbosa/projects/spx/sds-code/.github/workflows --job pyright
+
 # TESTS
 test:
 	uv run -p $(PYTHON_VERSION) pytest \
