@@ -24,7 +24,7 @@ gact:
 pyright:
 	echo Running Pyright locally for "$(GIT_ROOT)";
 	cd "$(GIT_ROOT)" && \
-	gh act --workflows /home/lbarbosa/projects/spx/sds-code/.github/workflows --job pyright
+	gh act --workflows "$(GIT_ROOT)/.github/workflows" --job pyright
 
 # TESTS
 test:
