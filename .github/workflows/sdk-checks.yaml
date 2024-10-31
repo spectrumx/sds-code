@@ -57,6 +57,26 @@ jobs:
               # stable python version that meets project requirements.
               run: uv run pre-commit run --all-files
 
+    # Run static analysis with pyright
+    #   - Install the pylance extension for VS Code to have these warnings in the editor
+    pyright:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
+
+            - name: Install packages
+              working-directory: ./sdk
+              run: uv sync --frozen --dev
+
+            - uses: jakebailey/pyright-action@v2
+              with:
+                  pylance-version: latest-release
+                  working-directory: ./sdk
+                  python-path: ./.venv/bin/python
+
     # Run tests against multiple Python versions using tox
     coverage:
         runs-on: ubuntu-latest

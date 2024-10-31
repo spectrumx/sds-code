@@ -20,6 +20,11 @@ repos:
           - id: check-docstring-first
           - id: detect-private-key
 
+    # uncomment for debugging: it lists all files that would be checked
+    # - repo: meta
+    #   hooks:
+    #       - id: identity
+
     # Biome is a (much) faster alternative to prettier. The following hook ids are available:
     #   biome-ci        Check formatting, check if imports are organized, and lints
     #   biome-check     Format, organize imports, lint, and apply safe fixes to the committed files
@@ -42,12 +47,23 @@ repos:
       rev: v0.7.1
       hooks:
           # Linter
-          - id: ruff
+          - id: ruff # runs ruff check --force-exclude
             args:
                 # we have to pick one config between gateway and sdk...
-                [--fix, --exit-non-zero-on-fix, --config, "sdk/pyproject.toml"]
+                [
+                    --verbose, # for debugging
+                    # --show-files, # for debugging
+                    # --show-fixes, # for debugging
+                    --no-cache,
+                    --fix,
+                    --exit-non-zero-on-fix,
+                    --config,
+                    "sdk/pyproject.toml",
+                    # --show-settings, # for debugging
+                ]
           # Formatter
-          - id: ruff-format
+          - id: ruff-format # runs ruff format --force-exclude
+            args: [--config, "sdk/pyproject.toml"]
 
     - repo: https://github.com/Riverside-Healthcare/djLint
       rev: v1.35.3
