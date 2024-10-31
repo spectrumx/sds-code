@@ -59,15 +59,17 @@
 		"evenBetterToml.schema.cache.diskExpiration": 15,
 		"evenBetterToml.schema.cache.memoryExpiration": 10,
 		"evenBetterToml.schema.links": true,
+		"pylint.enabled": false,
 		"python.analysis.autoFormatStrings": true,
 		"python.analysis.enablePytestSupport": true,
 		"python.analysis.importFormat": "absolute",
 		"python.analysis.indexing": true,
 		"python.analysis.typeCheckingMode": "standard",
+		"python.languageServer": "Pylance",
 		"python.testing.cwd": "${workspaceFolder}/tests",
 		"python.testing.pytestEnabled": true,
 		"ruff.fixAll": true,
-		"ruff.nativeServer": "off" // prefer the venv's ruff: closer to pre-commit hooks version
+		"ruff.nativeServer": "off"
 	},
 	"tasks": {
 		"tasks": [

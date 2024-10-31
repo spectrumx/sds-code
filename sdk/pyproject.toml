@@ -22,12 +22,14 @@
         "Typing :: Typed",
     ]
 
-[tool.pylint.messages_control]
-    # https://pylint.readthedocs.io/en/stable/user_guide/messages/index.html
-    disable = [
-        "R0903", # too few public methods
-        "E1136", # unsubscriptable object (when working with django-types)
-    ]
+[tool.pylint]
+
+    [tool.pylint.messages_control]
+        # https://pylint.readthedocs.io/en/stable/user_guide/messages/index.html
+        disable = [
+            "R0903", # too few public methods
+            "E1136", # unsubscriptable object (when working with django-types)
+        ]
 
 [tool.pyright]
     # https://github.com/microsoft/pyright/blob/main/docs/configuration.md
@@ -60,7 +62,7 @@
         "**/tmp/**",
         "**/venv/**",
     ]
-    include = [".", "src", "sm_web_app"]
+    include = [".", "src", "src/spectrumx"]
     # Pylint rule list:
     # https://pylint.readthedocs.io/en/stable/user_guide/checkers/features.html
     lint.ignore = [
@@ -68,6 +70,7 @@
         "R0903", # too few public methods
     ]
     pythonPlatform = "Linux"
+    pythonVersion = "3.13"
     # "none", "warning", "information", or "error"
     reportMissingTypeArgument = "information"
     reportPrivateUsage        = "information"
@@ -101,18 +104,22 @@
         "buck-out",
         "build",
         "dist",
-        "node_modules",
-        "venv",
         "*/migrations/*.py",
+        "docs/",
+        "node_modules",
         "staticfiles/*",
+        "venv",
     ]
-    # Same as Django: https://github.com/cookiecutter/cookiecutter-django/issues/4792.
-    indent-width   = 4
-    line-length    = 88
-    target-version = "py312"
+    include = ["**/*.py", "sdk/", "sdk/src/"]
+    indent-width = 4
+    line-length = 88 # Same as Django: https://github.com/cookiecutter/cookiecutter-django/issues/4792
+    # IMPORTANT: in src, use paths from the root of the repository (starting with /)
+    src            = ["/gateway/", "/sdk/", "/sdk/src/"]
+    target-version = "py313"
 
     [tool.ruff.lint]
         ignore = [
+            # https://docs.astral.sh/ruff/settings/#lint_ignore
             "COM812", # disabled following ruff's recommendation
             "ISC001", # disabled following ruff's recommendation
             "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
@@ -121,10 +128,11 @@
             "SIM102", # sometimes it's better to nest
             "UP038",  # Checks for uses of isinstance/issubclass that take a tuple
             # of types for comparison.
-            # Deactivated because it can make the code slow:
+            # UP038 deactivated because it can make the code slow:
             # https://github.com/astral-sh/ruff/issues/7871
         ]
         select = [
+            # https://docs.astral.sh/ruff/settings/#lint_select
             # RULE SETS: https://docs.astral.sh/ruff/rules/
             "F",     # Pyflakes
             "E",     # Pycodestyle errors
