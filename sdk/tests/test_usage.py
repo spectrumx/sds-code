@@ -63,3 +63,23 @@ def test_get_file_by_id(client: Client, responses: RequestsMock) -> None:
     )
     file_sample = client.get_file(file_id=uuid.hex)
     assert file_sample.uuid == uuid
+
+
+def test_dry_mode_enabled(client: Client, responses: RequestsMock) -> None:
+    """When in dry mode, the client must not make any requests."""
+
+    class DryModeAssertionError(AssertionError):
+        """Raised in test when a request is made in dry run mode."""
+
+    responses.assert_all_requests_are_fired = False
+    responses.add_callback(
+        responses.GET,
+        url=client.base_url + "/auth",
+        callback=lambda _: DryModeAssertionError(
+            "No requests must be made in dry run mode"
+        ),
+    )
+    assert client.dry_run is False, "Dry run must be disabled"
+    client.dry_run = True
+    assert client.dry_run is True, "Dry run must be enabled"
+    client.authenticate()

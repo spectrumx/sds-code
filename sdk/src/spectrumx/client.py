@@ -1,9 +1,12 @@
 """Client for the SpectrumX Data System."""
 
 import logging
+import uuid
 from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +17,8 @@ from spectrumx.models import File
 from spectrumx.models import SDSModel
 
 from .gateway import GatewayClient
+from .utils import into_human_bool
+from .utils import log_user
 
 SDSModelT = type[SDSModel]
 AttrValueT = str | int | float | bool
@@ -32,9 +37,11 @@ class SDSConfig:
     """Configuration for the SpectrumX Data System."""
 
     api_key: str = ""
+    dry_run: bool = False
     timeout: int = 30
-    _env_file: Path
+
     _active_config: list[Attr]
+    _env_file: Path
 
     def __init__(
         self,
@@ -45,8 +52,8 @@ class SDSConfig:
     ) -> None:
         """Initialize the configuration.
         Args:
-            env_file:   Path to the environment file.
-            env_config: Configuration from the CLI.
+            env_file:   Path to the environment file to load the config from.
+            env_config: Overrides for the environment file.
             verbose:    Show which config files are loaded and which attributes are set.
         """
         base_dir = Path.cwd()
@@ -88,6 +95,7 @@ class SDSConfig:
         name_lookup = {
             "sds_secret_token": Attr(attr_name="api_key"),
             "http_timeout": Attr(attr_name="timeout", cast_fn=int),
+            "dry_run": Attr(attr_name="dry_run", cast_fn=into_human_bool),
         }
 
         # merge file and cli configs
@@ -144,6 +152,8 @@ class Client:
 
     host: str
     is_authenticated: bool
+    verbose: bool = False
+
     _gateway: GatewayClient
     _config: SDSConfig
 
@@ -153,15 +163,31 @@ class Client:
         *,
         env_file: Path | None = None,
         env_config: Mapping[str, Any] | None = None,
+        verbose: bool = False,
     ) -> None:
         self.host = host
         self.is_authenticated = False
-        self._config = SDSConfig(env_file=env_file, env_config=env_config)
+        self.verbose = verbose
+        self._config = SDSConfig(
+            env_file=env_file,
+            env_config=env_config,
+            verbose=self.verbose,
+        )
         self._gateway = GatewayClient(
             host=self.host,
             api_key=self._config.api_key,
             timeout=self._config.timeout,
         )
+
+    @property
+    def dry_run(self) -> bool:
+        """Dry run mode enabled."""
+        return self._config.dry_run
+
+    @dry_run.setter
+    def dry_run(self, value: bool) -> None:
+        """Set dry run mode."""
+        self._config.dry_run = value
 
     @property
     def base_url(self) -> str:
@@ -170,11 +196,34 @@ class Client:
 
     def authenticate(self) -> None:
         """Authenticate the client."""
-        self._gateway.authenticate()
+        if self.dry_run:
+            log_user("Dry run enabled: authenticated")
+        else:
+            log.error("Dry run not enabled: authenticating")
+            self._gateway.authenticate()
         self.is_authenticated = True
 
     def get_file(self, file_id: str) -> File:
         """Get a file by its ID."""
+        if self.dry_run:
+            log_user("Dry run enabled: get file by ID")
+            tz = datetime.now().astimezone().tzinfo
+            created_at = datetime.now(tz=tz)
+            updated_at = created_at
+            expiration_date = datetime.now(tz=tz) + timedelta(days=30)
+
+            uuid_from_str = uuid.UUID(file_id)
+            return File(
+                uuid=uuid_from_str,
+                name="file.txt",
+                media_type="text/plain",
+                size=888,
+                directory="./sds-files/dry-run/",
+                permissions="rw-rw-r--",
+                created_at=created_at,
+                updated_at=updated_at,
+                expiration_date=expiration_date.date(),
+            )
         response = self._gateway.get_file_by_id(uuid=file_id)
         return File.model_validate_json(response)
 

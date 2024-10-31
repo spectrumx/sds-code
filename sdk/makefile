@@ -63,7 +63,7 @@ update:
 build:
 	uv build
 	echo -e "\n\t\033[32mBuilt package:\033[0m\n"
-	tar -tvf dist/*.tar.gz
+	tar -tvf dist/*.tar.gz | sort -k6
 	echo -e "\n\t\033[34mTo publish it, run 'make publish'.\033[0m\n\n"
 
 # PUBLISH
