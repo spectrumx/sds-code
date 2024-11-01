@@ -1,6 +1,7 @@
 """Client for the SpectrumX Data System."""
 
 import logging
+import os
 import time
 import uuid
 from collections.abc import Callable
@@ -195,6 +196,13 @@ class Client:
     @dry_run.setter
     def dry_run(self, value: bool) -> None:
         """Sets the dry run mode."""
+        # if in test environment, allow setting dry run mode
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            msg = "Test env: allowing setting of dry-run."
+            log.warning(msg)
+            self._config.dry_run = value
+            return
+
         # TODO: update this function before the next release
         msg = (
             "Only dry-run mode is available for this early version of the SDK.\n"
@@ -220,6 +228,9 @@ class Client:
 
     def get_file(self, file_uuid: uuid.UUID | str) -> File:
         """Get a file instance by its ID. Only metadata is downloaded from SDS.
+
+        Note this does not download the file contents from the server. File
+            instances still need to be .download()ed to create a local copy.
 
         Args:
             file_uuid: The UUID of the file to retrieve.
@@ -314,7 +325,7 @@ class Client:
             uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
         )
         if self.dry_run:
-            time.sleep(0.5)
+            time.sleep(0.05)
             return ops.files.generate_sample_file(uuid_to_set)
 
         assert not self.dry_run, "Internal error: expected dry run to be disabled."
