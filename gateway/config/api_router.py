@@ -2,7 +2,6 @@ from django.conf import settings
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 from rest_framework.routers import SimpleRouter
-
 from sds_gateway.api_methods.views.auth_endpoints import ValidateAuthViewSet
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
 from sds_gateway.api_methods.views.file_endpoints import FileViewSet

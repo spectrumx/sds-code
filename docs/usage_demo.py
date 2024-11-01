@@ -9,7 +9,8 @@ import datetime
 from pathlib import Path
 
 from spectrumx import Client
-from spectrumx.models import Capture, Dataset
+from spectrumx.models import Capture
+from spectrumx.models import Dataset
 
 sds = Client(host="sds.crc.nd.edu")
 
