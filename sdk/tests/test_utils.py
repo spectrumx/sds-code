@@ -1,7 +1,6 @@
 """Tests for the utils module."""
 
 import pytest
-
 from spectrumx import utils
 
 

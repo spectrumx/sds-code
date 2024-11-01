@@ -7,10 +7,16 @@ on:
         # To manually trigger the workflow
         # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch
     push:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - sdk/**
         branches:
             - main
             - master
     pull_request:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - sdk/**
         branches:
             - main
             - master
@@ -42,18 +48,21 @@ jobs:
 
             - name: Install hooks
               working-directory: ./sdk
-              run: pre-commit install --install-hooks
+              run: uv run pre-commit install --install-hooks
 
             - name: Run pre-commit
               working-directory: ./sdk
-              run: pre-commit run --all-files
+              # make sure default_language_version in .pre-commit-config.yaml
+              # matches the one installed with uv, which is the most recent
+              # stable python version that meets project requirements.
+              run: uv run pre-commit run --all-files
 
     # Run tests against multiple Python versions using tox
     coverage:
         runs-on: ubuntu-latest
         strategy:
             matrix:
-                python-version: ["3.11", "3.12", "3.13"]
+                python-version: ["3.12", "3.13"]
 
         steps:
             - uses: actions/checkout@v4
@@ -66,10 +75,7 @@ jobs:
               working-directory: ./sdk
               run: uv python install ${{ matrix.python-version }}
 
-            - name: Install tox and any other packages
+            - name: Run test
               working-directory: ./sdk
-              run: uv tool install tox --with tox-uv
-
-            - name: Run tox
-              working-directory: ./sdk
-              run: tox run --verbose -e coverage
+              # the uv command invoked by make will take care of project dependencies
+              run: make test PYTHON_VERSION=${{ matrix.python-version }}

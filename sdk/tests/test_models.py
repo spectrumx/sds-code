@@ -10,7 +10,6 @@ from typing import Any
 
 import pytest
 from pytz import timezone
-
 from spectrumx.models import File
 
 
