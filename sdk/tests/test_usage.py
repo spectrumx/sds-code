@@ -140,7 +140,7 @@ def test_dry_run_upload_file(
     assert client.dry_run is True, "Dry run must be enabled when testing."
     file_sample = client.upload_file(
         file_path=temp_file_with_text_contents,
-        sds_dir=Path("/my/upload/location"),
+        sds_path=Path("/my/upload/location"),
     )
     assert (
         file_sample.is_sample is False

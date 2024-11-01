@@ -49,7 +49,6 @@ uv add spectrumx
 
     ```python
     from spectrumx import Client
-    from spectrumx.models import File
     from pathlib import Path
 
     # NOTE: the SDS client-server interaction is stateless, so it is
@@ -61,6 +60,9 @@ uv add spectrumx
         # env_file=".env"     # default
     )
 
+    # when in dry-run, no changes are made to the SDS or the local filesystem
+    sds.dry_run = True
+
     # authenticate using either the token from
     # the .env file or the env variable
     sds.authenticate()
@@ -69,18 +71,18 @@ uv add spectrumx
     reference_name: str = "my_spectrum_capture"
     local_dir: Path = Path(reference_name)
     sds.upload(
-        local_dir,                  # may be a single file or a directory
-        sds_root=reference_name,    # files will be created under this virtual directory
-        verbose=True,               # shows a progress bar (default)
+        local_dir,  # may be a single file or a directory
+        sds_path=reference_name,  # files will be created under this virtual directory
+        verbose=True,  # shows a progress bar (default)
     )
 
     # download all files in a directory from the SDS
     local_downloads: Path = Path("sds-downloads")
     sds.download(
-        sds_root=reference_name,    # files will be downloaded from this virtual directory
-        to=local_downloads,         # download to this location; will be created if needed
-        overwrite=False,            # do not overwrite local existing files (default)
-        verbose=True,               # shows a progress bar (default)
+        sds_path=reference_name,  # files will be downloaded from this virtual directory
+        to=local_downloads,  # download to this location; will be created if needed
+        overwrite=False,  # do not overwrite local existing files (default)
+        verbose=True,  # shows a progress bar (default)
     )
     ```
 

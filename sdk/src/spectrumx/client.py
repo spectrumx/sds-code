@@ -1,6 +1,7 @@
 """Client for the SpectrumX Data System."""
 
 import logging
+import time
 import uuid
 from collections.abc import Callable
 from collections.abc import Mapping
@@ -11,13 +12,16 @@ from typing import Any
 import dotenv
 from loguru import logger as log
 
+import spectrumx
 from spectrumx import ops
+from spectrumx import utils
 from spectrumx.models import File
 from spectrumx.models import SDSModel
 
 from .gateway import GatewayClient
 from .utils import into_human_bool
 from .utils import log_user
+from .utils import log_user_warning
 
 SDSModelT = type[SDSModel]
 AttrValueT = str | int | float | bool
@@ -36,7 +40,7 @@ class SDSConfig:
     """Configuration for the SpectrumX Data System."""
 
     api_key: str = ""
-    dry_run: bool = False
+    dry_run: bool = True  # safer default
     timeout: int = 30
 
     _active_config: list[Attr]
@@ -80,14 +84,12 @@ class SDSConfig:
         """Load the configuration."""
         if not self._env_file.exists():
             msg = f"Environment file missing: {self._env_file}"
-            log.warning(msg)  # for sdk developers
-            logging.warning(msg)  # for users
+            log_user_warning(msg)
             return []
 
         if verbose:
             msg = f"SDS_Config: found environment file: {self._env_file}"
-            log.debug(msg)  # for sdk developers
-            logging.debug(msg)  # for users
+            log_user(msg)
 
         # 'name_lookup' allows decoupling for env file names and
         #   object attribute names for refactoring code; use lower case.
@@ -177,6 +179,13 @@ class Client:
             api_key=self._config.api_key,
             timeout=self._config.timeout,
         )
+        if spectrumx.__version__.startswith("0.1."):
+            log_user_warning(
+                "This version of the SDK is in early development. "
+                "Expect breaking changes in the future."
+            )
+        if self.dry_run:
+            log_user("Dry run enabled: no SDS requests will be made or files written")
 
     @property
     def dry_run(self) -> bool:
@@ -186,7 +195,14 @@ class Client:
     @dry_run.setter
     def dry_run(self, value: bool) -> None:
         """Sets the dry run mode."""
-        self._config.dry_run = value
+        # TODO: update this function before the next release
+        msg = (
+            "Only dry-run mode is available for this early version of the SDK.\n"
+            "Make sure you're running the latest version. "
+            f"Current version: {spectrumx.__version__}"
+        )
+        log_user_warning(msg)
+        self._config.dry_run = True
 
     @property
     def base_url(self) -> str:
@@ -223,7 +239,7 @@ class Client:
         return ops.files.generate_sample_file(uuid_to_set)
 
     def upload_file(
-        self, file_path: File | Path | str, sds_dir: Path | str = "/"
+        self, file_path: File | Path | str, sds_path: Path | str = "/"
     ) -> File:
         """Uploads a file to SDS.
 
@@ -242,13 +258,13 @@ class Client:
             )
             raise TypeError(msg)
         file_path = Path(file_path) if isinstance(file_path, str) else file_path
-        sds_dir = Path(sds_dir) if isinstance(sds_dir, str) else sds_dir
+        sds_path = Path(sds_path) if isinstance(sds_path, str) else sds_path
 
         # construct the file instance
         file_instance = (
             file_path
             if isinstance(file_path, File)
-            else ops.files.construct_file(file_path, sds_dir=sds_dir)
+            else ops.files.construct_file(file_path, sds_path=sds_path)
         )
 
         # upload the file instance or just return it (dry run)
@@ -257,6 +273,107 @@ class Client:
             return file_instance
         file_contents = self._gateway.upload_file(file_instance=file_instance)
         return File.model_validate_json(file_contents)
+
+    def upload(
+        self,
+        local_path: Path | str,
+        *,
+        sds_path: Path | str = "/",
+        verbose: bool = True,
+    ) -> None:
+        """Uploads a file or directory to SDS.
+
+        Args:
+            local_path: The local path of the file or directory to upload.
+            sds_path:   The virtual directory on SDS to upload the file to, \
+                            where '/' is the user root.
+            verbose:    Show a progress bar.
+        """
+        local_path = Path(local_path) if isinstance(local_path, str) else local_path
+        valid_files = ops.files.get_valid_files(local_path)
+        prog_bar = utils.prog_bar(valid_files, desc="Uploading", disable=not verbose)
+        for file_path in prog_bar:
+            self.upload_file(file_path, sds_path=sds_path)
+
+    def download_file(self, file_uuid: uuid.UUID | str, to: Path | str) -> File:
+        """Downloads a file from SDS.
+
+        Args:
+            file_uuid:  The UUID of the file to download.
+            to:         The local path to save the downloaded file to.
+        Returns:
+            The file instance with updated attributes, or a sample when in dry run.
+        """
+        # validate inputs
+        if not isinstance(to, (Path, str)):
+            msg = f"to must be a Path or str, not {type(to)}"
+            raise TypeError(msg)
+        to = Path(to) if isinstance(to, str) else to
+        # download
+        uuid_to_set: uuid.UUID = (
+            uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
+        )
+        if self.dry_run:
+            time.sleep(0.5)
+            return ops.files.generate_sample_file(uuid_to_set)
+
+        assert not self.dry_run, "Internal error: expected dry run to be disabled."
+        file_bytes = self._gateway.download_file(uuid=uuid_to_set.hex)
+        file_instance = File.model_validate_json(file_bytes)
+        file_instance.local_path = to
+        file_instance.save()
+        return file_instance
+
+    def download(
+        self,
+        sds_path: Path | str,
+        to: Path | str,
+        *,
+        overwrite: bool = False,
+        verbose: bool = True,
+    ) -> None:
+        """Downloads files from SDS.
+
+        Args:
+            sds_path:   The virtual directory on SDS to download files from.
+            to:         The local path to save the downloaded files to.
+            overwrite:  Whether to overwrite existing local files.
+            verbose:    Show a progress bar.
+        """
+        sds_path = Path(sds_path) if isinstance(sds_path, str) else sds_path
+        to = Path(to) if isinstance(to, str) else to
+
+        if not to.exists():
+            if self.dry_run:
+                log_user(f"Dry run: would create the directory '{to}'")
+            else:
+                to.mkdir(parents=True)
+
+        if self.dry_run:
+            log_user(
+                "Called download() in dry run mode: "
+                "files are made-up and not written to disk."
+            )
+            uuids = [uuid.uuid4() for _ in range(10)]
+            files_to_download = [ops.files.generate_sample_file(uuid) for uuid in uuids]
+            log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
+        else:
+            files_to_download = self._gateway.list_files(sds_path)
+            if verbose:
+                log_user(f"Discovered {len(files_to_download)} files")
+
+        prog_bar = utils.prog_bar(
+            files_to_download, desc="Downloading", disable=not verbose
+        )
+
+        for file_info in prog_bar:
+            prefix = "Dry-run: simulating download:" if self.dry_run else "Downloading:"
+            prog_bar.set_description(f"{prefix} '{file_info.name}'")
+            local_file_path = to / file_info.name
+            if local_file_path.exists() and not overwrite:
+                log_user(f"Skipping existing file: {local_file_path}")
+                continue
+            self.download_file(file_info.uuid, to=local_file_path)
 
     def __str__(self) -> str:
         return f"Client(host={self.host})"

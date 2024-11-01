@@ -1,5 +1,11 @@
 [project]
-    dependencies    = ["loguru>=0.7.2", "pydantic>=2.9.2", "python-dotenv>=1.0.1", "pytz>=2024.2"]
+    dependencies    = [
+    "loguru>=0.7.2",
+    "pydantic>=2.9.2",
+    "python-dotenv>=1.0.1",
+    "pytz>=2024.2",
+    "tqdm>=4.66.6",
+]
     description     = "SpectrumX Data System SDK"
     license         = "MIT"
     name            = "spectrumx"

@@ -2,11 +2,13 @@
 
 import mimetypes
 import uuid
+from collections.abc import Generator
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
 
 from spectrumx.models import File
+from spectrumx.utils import log_user
 
 _tz = datetime.now().astimezone().tzinfo
 
@@ -44,7 +46,7 @@ def get_file_updated_at(file_path: Path) -> datetime:
     return datetime.fromtimestamp(file_path.stat().st_mtime, tz=_tz)
 
 
-def construct_file(file_path: Path, sds_dir: Path) -> File:
+def construct_file(file_path: Path, sds_path: Path) -> File:
     """Constructs a file instance from a local file."""
     file_path = Path(file_path)
     if not file_path.exists():
@@ -55,12 +57,48 @@ def construct_file(file_path: Path, sds_dir: Path) -> File:
         expiration_date=None,
         local_path=file_path,
         size=file_path.stat().st_size,
-        directory=sds_dir,
+        directory=sds_path,
         media_type=get_file_media_type(file_path),
         created_at=get_file_created_at(file_path),
         updated_at=get_file_updated_at(file_path),
         permissions=get_file_permissions(file_path),
     )
+
+
+def is_valid_file(file_path: Path) -> bool:
+    """Returns True if the path is a valid file.
+    A similar check is also performed at the server side.
+    """
+    file_mime = get_file_media_type(file_path)
+    disallowed_mimes = [
+        "application/octet-stream",  # generic binary
+        "application/x-msdownload",  # .exe
+        "application/x-msdos-program",  # .com
+        "application/x-msi",  # .msi
+    ]
+    is_valid_mime = file_mime not in disallowed_mimes
+    return file_path.is_file() and file_path.stat().st_size > 0 and is_valid_mime
+
+
+def get_valid_files(
+    local_path: Path, *, warn_skipped: bool = False
+) -> Generator[File, None, None]:
+    """Yields valid SDS files in the given directory.
+
+    Args:
+        local_path: The path to the directory.
+    Yields:
+        File instances.
+    """
+    for file_path in local_path.iterdir():
+        if not is_valid_file(file_path):
+            if warn_skipped:
+                log_user(f"Skipping {file_path}; invalid file for SDS")
+            continue
+        try:
+            yield construct_file(file_path, local_path)
+        except FileNotFoundError:
+            continue
 
 
 def generate_sample_file(uuid_to_set: uuid.UUID) -> File:
@@ -69,10 +107,11 @@ def generate_sample_file(uuid_to_set: uuid.UUID) -> File:
     created_at = datetime.now(tz=tz)
     updated_at = created_at
     expiration_date = datetime.now(tz=tz) + timedelta(days=30)
+    trailing_uuid_hex = uuid_to_set.hex[-6:]
 
     sample_file = File(
         uuid=uuid_to_set,
-        name="dry-run-file.txt",
+        name=f"dry-run-{trailing_uuid_hex}.txt",
         media_type="text/plain",
         size=888,
         directory=Path("./sds-files/dry-run/"),
@@ -80,7 +119,7 @@ def generate_sample_file(uuid_to_set: uuid.UUID) -> File:
         created_at=created_at,
         updated_at=updated_at,
         expiration_date=expiration_date.date(),
-        is_sample=True,
+        is_sample=True,  # always True for sample files
     )
     assert (
         sample_file.is_sample is True  # pyright: ignore[reportPrivateUsage]
