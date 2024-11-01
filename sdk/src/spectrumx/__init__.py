@@ -38,8 +38,8 @@ def main() -> None:  # pragma: no cover
 def enable_logging() -> None:
     """Enables loguru logger."""
     with contextlib.suppress(NameError):
-        log.enable(LIB_NAME)
-    log.info(f"Enabled logging for '{LIB_NAME}'")
+        log.enable(LIB_NAME)  # pyright: ignore[reportPossiblyUnboundVariable]
+        log.info(f"Enabled logging for '{LIB_NAME}'")  # pyright: ignore[reportPossiblyUnboundVariable]
 
 
 __all__ = [

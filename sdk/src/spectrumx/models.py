@@ -2,6 +2,7 @@
 
 from datetime import date
 from datetime import datetime
+from pathlib import Path
 
 from pydantic import UUID4
 from pydantic import BaseModel
@@ -19,26 +20,33 @@ class File(SDSModel):
     """A file in SDS.
 
     Attributes:
-        uuid:               The unique identifier of the file.
-
+        # shared attributes with SDS
+        uuid:               The unique identifier of the file in SDS.
         created_at:         The timestamp when the file was created.
         directory:          The path to the file, relative to the user storage in SDS.
-        expiration_date:    The date when the file will be deleted.
+        expiration_date:    The date when the file will be marked for deletion from SDS.
         media_type:         The MIME type of the file.
         name:               The user-defined name for this file.
         permissions:        The permissions for the file.
         size:               The size of the file in bytes.
         updated_at:         The timestamp when the file was last updated.
+
+        # local attributes:
+        is_sample:          Sample files are not written to disk (used in dry-run mode).
+        local_path:         The path to the file on the local filesystem.
     """
 
     created_at: datetime
-    directory: str
-    expiration_date: date
+    directory: Path
+    expiration_date: date | None
     media_type: str
     name: str
     permissions: str
     size: int
     updated_at: datetime
+
+    is_sample: bool = False
+    local_path: Path | None = None
 
     @property
     def path(self) -> str:

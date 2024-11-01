@@ -5,7 +5,9 @@ from http import HTTPStatus
 from pathlib import Path
 
 import requests
-from loguru import logger as log
+
+from spectrumx import ops
+from spectrumx.models import File
 
 from .errors import AuthError
 from .errors import FileError
@@ -113,15 +115,35 @@ class GatewayClient:
         raise AuthError(msg)
 
     def get_file_by_id(self, uuid: str) -> bytes:
-        """Retrieves a file from the SDS API."""
+        """Retrieves a file from the SDS API.
+
+        Args:
+            uuid: The UUID of the file to retrieve as a hex string.
+        Returns:
+            The file content.
+        """
         response = self._request(
             method=HTTPMethods.GET,
             endpoint=Endpoints.FILES,
             asset_id=uuid,
         )
-        status = HTTPStatus(response.status_code)
-        if status.is_success:
+        ops.network.success_or_raise(response, FileError)
+        return response.content
+
+    def upload_file(self, file_instance: File) -> bytes:
+        """Uploads a local file to the SDS API.
+
+        Args:
+            file_instance: The file to upload, as a models.File instance.
+        """
+        if file_instance.local_path is None:
+            msg = "Attempting to upload a remote file. Download it first."
+            raise FileError(msg)
+        with file_instance.local_path.open("rb") as file_ptr:
+            response = self._request(
+                method=HTTPMethods.POST,
+                endpoint=Endpoints.FILES,
+                files={"file": file_ptr},
+            )
+            ops.network.success_or_raise(response, FileError)
             return response.content
-        msg = f"Failed to retrieve file: {response.text}"
-        log.error(msg)
-        raise FileError(msg)

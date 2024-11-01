@@ -21,6 +21,11 @@ gact:
 		--workflows "$(GIT_ROOT)/.github/workflows" \
 		--secret-file config/secrets.env
 
+pyright:
+	echo Running Pyright locally for "$(GIT_ROOT)";
+	cd "$(GIT_ROOT)" && \
+	gh act --workflows "$(GIT_ROOT)/.github/workflows" --job pyright
+
 # TESTS
 test:
 	uv run -p $(PYTHON_VERSION) pytest \
@@ -58,7 +63,7 @@ update:
 build:
 	uv build
 	echo -e "\n\t\033[32mBuilt package:\033[0m\n"
-	tar -tvf dist/*.tar.gz
+	tar -tvf dist/*.tar.gz | sort -k6
 	echo -e "\n\t\033[34mTo publish it, run 'make publish'.\033[0m\n\n"
 
 # PUBLISH

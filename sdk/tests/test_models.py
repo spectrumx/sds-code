@@ -19,7 +19,7 @@ def file_properties() -> dict[str, Any]:
     tz = timezone("UTC")
     return {
         "name": "test_file",
-        "directory": "/my/files/are/here",
+        "directory": Path("/my/files/are/here"),
         "media_type": "text/plain",
         "permissions": "-w-rw-r--",
         "size": 111_222_333,
