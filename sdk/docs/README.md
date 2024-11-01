@@ -56,15 +56,16 @@ uv add spectrumx
     #   locations simultaneously, as they may overrule each other
     #   and cause loss of data.
     sds = Client(
-        host="sds.crc.nd.edu"
-        # env_file=".env"     # default
+        host="sds.crc.nd.edu",
+        # env_file=Path(".env"),  # default
+        # env_config={"SDS_SECRET_TOKEN": "my-custom-token"},  # overrides
     )
 
     # when in dry-run, no changes are made to the SDS or the local filesystem
     sds.dry_run = True
 
     # authenticate using either the token from
-    # the .env file or the env variable
+    # the .env file or in the config passed in
     sds.authenticate()
 
     # upload all files in a directory to the SDS
@@ -162,7 +163,7 @@ sds = Client(
 )
 
 # authenticate using either the token from
-# the .env file or the env variable
+# the .env file or in the config passed in
 sds.authenticate()
 
 # get list of datasets available

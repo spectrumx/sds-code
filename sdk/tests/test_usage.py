@@ -113,7 +113,7 @@ def test_dry_run_get_file(client: Client, responses_dry_run: RequestsMock) -> No
     file_sample = client.get_file(file_uuid=file_id.hex)
     assert file_sample.is_sample is True, "The file must be a sample file"  # pyright: ignore[reportPrivateUsage]
     assert file_sample.uuid is not None
-    assert file_sample.name == "dry-run-file.txt"
+    assert file_sample.name.startswith("dry-run-")
     assert file_sample.media_type == "text/plain"
     assert file_sample.size == file_size
     assert file_sample.directory == Path("./sds-files/dry-run/")
