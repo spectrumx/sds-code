@@ -47,7 +47,7 @@ def test_load_config_file_found(caplog: pytest.LogCaptureFixture) -> None:
 def test_load_config_from_args(sample_config: dict[str, Any]) -> None:
     """Ensures loading config from arguments works."""
 
-    config = SDSConfig(env_config=sample_config)
+    config = SDSConfig(env_file=Path(".env.example"), env_config=sample_config)
 
     assert config.api_key == sample_config["SDS_SECRET_TOKEN"]
     assert config.timeout == sample_config["HTTP_TIMEOUT"]
@@ -60,7 +60,7 @@ def test_show_config_does_not_expose_api_key(
 ) -> None:
     """Makes sure the API key is not exposed by show_config()."""
 
-    config = SDSConfig(env_config=sample_config)
+    config = SDSConfig(env_file=Path(".env.example"), env_config=sample_config)
     config.show_config()
 
     # this all_outputs approach should work for both `make test` and `make test-verbose`
@@ -79,7 +79,7 @@ def test_warning_for_unrecognized_config(
     unknown_attr = "UNRECOGNIZED_CONFIG"
     sample_config[unknown_attr] = "value"
     caplog.set_level(LogLevels.WARNING)
-    SDSConfig(env_config=sample_config)
+    SDSConfig(env_file=Path(".env.example"), env_config=sample_config)
 
     assert "not recognized" in caplog.text.lower()
     assert unknown_attr in caplog.text
