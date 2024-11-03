@@ -51,7 +51,7 @@ repos:
             args:
                 # we have to pick one config between gateway and sdk...
                 [
-                    --verbose, # for debugging
+                    # --verbose, # for debugging
                     # --show-files, # for debugging
                     # --show-fixes, # for debugging
                     --no-cache,
