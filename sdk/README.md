@@ -8,8 +8,11 @@
 + [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)
     + [Usage Guide](#usage-guide)
     + [SDK Development](#sdk-development)
-        + [Make targets](#make-targets)
-        + [More Testing](#more-testing)
+        + [Testing](#testing)
+        + [Code Quality](#code-quality)
+        + [CI/CD](#cicd)
+        + [Maintenance](#maintenance)
+        + [More testing options](#more-testing-options)
 
 The SDK is the primary form that clients interact with SDS: either directly by installing the Python package from PyPI, or indirectly by using the SDS Web UI or the Visualization Component.
 
@@ -19,7 +22,7 @@ This is the development README. See [users' readme](./docs/README.md) for a guid
 
 ## SDK Development
 
-### Make targets
+### Testing
 
 ```bash
 make
@@ -28,18 +31,32 @@ make
 make install
 # runs uv sync
 
-make test-all
-# runs tests for all supported python versions
-
 make test
 # runs pytest on most recent python version
 
 make test-verbose
-# runs pylint on most recent python version with extra verbosity and log capture
+# runs pytest on most recent python version with extra verbosity and log capture
+
+make test-all
+# runs tests for all supported python versions using the highest and lowest versions of dependencies
 
 make serve-coverage
 # serves coverage report on localhost:8000
+```
 
+### Code Quality
+
+```bash
+make pyright
+# runs pyright for static type checking
+
+make pre-commit
+# runs pre-commit hooks on all files
+```
+
+### CI/CD
+
+```bash
 make gact
 # runs GitHub Actions locally with gh-act
 #
@@ -48,12 +65,6 @@ make gact
 #
 # Install with:     gh extension install nektos/gh-act
 # or see            https://github.com/nektos/act
-
-make clean
-# removes all venv, tox, cache, and generated files
-
-make update
-# updates uv and pre-commit hooks
 
 make build
 # builds the package to dist/ and previews it
@@ -65,19 +76,27 @@ make publish
 #   this target will actually publish the package to PyPI.
 ```
 
-### More Testing
+### Maintenance
 
 ```bash
-uv sync --dev
+make clean
+# removes all venv, tox, cache, and generated files
 
+make update
+# updates dependencies with uv and the pre-commit hooks
+```
+
+### More testing options
+
+```bash
 # simple tests execution (similar to `make test`)
 uv run pytest -v
 
-# running a specific test
-uv run pytest -v tests/test_usage.py::test_authentication_200_succeeds
-
 # running similar tests (substring match)
 uv run pytest -v -k test_authentication
+
+# running a specific test
+uv run pytest -v tests/test_usage.py::test_authentication_200_succeeds
 
 # verbose with colored log messages (similar to `make test-verbose`)
 uv run pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
