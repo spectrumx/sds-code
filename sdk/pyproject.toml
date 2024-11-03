@@ -1,5 +1,5 @@
 [project]
-    dependencies    = ["loguru>=0.7.2", "pydantic>=2.9.2", "python-dotenv>=1.0.1", "tqdm>=4.66.6"]
+    dependencies    = ["loguru>=0.7.2", "pydantic>=2.9.2", "python-dotenv>=1.0.1", "requests>=2.32.3", "tqdm>=4.66.6"]
     description     = "SpectrumX Data System SDK"
     license         = "MIT"
     name            = "spectrumx"
@@ -21,6 +21,16 @@
         "Topic :: Terminals",
         "Typing :: Typed",
     ]
+
+# deptry detects unused and missing dependencies.
+[tool.deptry]
+
+    extend_exclude = ["docs/"]
+
+    [tool.deptry.per_rule_ignores]
+        # https://deptry.com/usage/#per-rule-ignores
+        DEP003 = ["spectrumx"]
+        DEP004 = ["rich"]
 
 [tool.pylint]
 
