@@ -76,5 +76,5 @@ publish:
 		echo "Error: config/secrets.env does not exist."; \
 		exit 1; \
 	fi
-	export UV_PUBLISH_TOKEN=$$(grep PYPI_API_TOKEN config/secrets.env | cut -d '=' -f2)
+	export UV_PUBLISH_TOKEN=$$(grep PYPI_API_TOKEN config/secrets.env | cut -d '=' -f2); \
 	uv publish

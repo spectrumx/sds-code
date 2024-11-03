@@ -6,11 +6,10 @@ from pathlib import Path
 
 import requests
 
-from spectrumx import ops
-from spectrumx.models import File
-
 from .errors import AuthError
 from .errors import FileError
+from .models import File
+from .ops import network
 
 API_PATH: str = "/api/"
 API_TARGET_VERSION: str = "v1"
@@ -19,12 +18,12 @@ API_TARGET_VERSION: str = "v1"
 class Endpoints(StrEnum):
     """Contains the endpoints for the SDS Gateway API."""
 
-    AUTH = "/auth"  # GET; simple "200 OK" if the API key is valid
-    FILES = "/assets/files"  # GET, POST, DELETE
-    CAPTURES = "/assets/captures"  # GET, POST, DELETE, PUT
-    DATASETS = "/assets/datasets"  # GET, POST, DELETE, PUT
-    EXPERIMENTS = "/assets/experiments"  # GET, POST, DELETE, PUT
-    SEARCH = "/search"  # POST (needs to send a JSON payload)
+    AUTH = "/auth"
+    FILES = "/assets/files"
+    CAPTURES = "/assets/captures"
+    DATASETS = "/assets/datasets"
+    EXPERIMENTS = "/assets/experiments"
+    SEARCH = "/search"
 
 
 class HTTPMethods(StrEnum):
@@ -127,7 +126,7 @@ class GatewayClient:
             endpoint=Endpoints.FILES,
             asset_id=uuid,
         )
-        ops.network.success_or_raise(response, FileError)
+        network.success_or_raise(response, FileError)
         return response.content
 
     def upload_file(self, file_instance: File) -> bytes:
@@ -145,5 +144,5 @@ class GatewayClient:
                 endpoint=Endpoints.FILES,
                 files={"file": file_ptr},
             )
-            ops.network.success_or_raise(response, FileError)
+            network.success_or_raise(response, FileError)
             return response.content
