@@ -1,0 +1,36 @@
+# Workflow to see how (and if) these tests run on different platforms
+# GitHub Action Workflow validator: https://rhysd.github.io/actionlint/
+name: cross-platform-tests
+
+on:
+    workflow_dispatch: # to manually trigger the workflow
+
+jobs:
+    # Run tests against multiple Python versions using tox
+    coverage:
+        runs-on: ${{ matrix.platform }}
+        strategy:
+            matrix:
+                python-version: ["3.12", "3.13"]
+                platform: [ubuntu-latest, windows-latest, macos-latest]
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
+              # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Set up Python ${{ matrix.python-version }}
+              working-directory: ./sdk
+              run: uv python install ${{ matrix.python-version }}
+
+            - name: Install make on Windows
+              if: matrix.platform == 'windows-latest'
+              working-directory: ./sdk
+              run: choco install make
+
+            - name: Run test
+              working-directory: ./sdk
+              # the uv command invoked by make will take care of project dependencies
+              run: make test PYTHON_VERSION=${{ matrix.python-version }}
