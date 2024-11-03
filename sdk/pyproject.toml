@@ -1,17 +1,11 @@
 [project]
-    dependencies    = [
-    "loguru>=0.7.2",
-    "pydantic>=2.9.2",
-    "python-dotenv>=1.0.1",
-    "pytz>=2024.2",
-    "tqdm>=4.66.6",
-]
+    dependencies    = ["loguru>=0.7.2", "pydantic>=2.9.2", "python-dotenv>=1.0.1", "tqdm>=4.66.6"]
     description     = "SpectrumX Data System SDK"
     license         = "MIT"
     name            = "spectrumx"
     readme          = "./docs/README.md"
     requires-python = ">=3.12,<3.14"
-    version         = "0.1.0"
+    version         = "0.1.2"
 
     # https://pypi.org/classifiers/
     classifiers = [
@@ -61,6 +55,7 @@
         "**/dataset/**",
         "**/datasets/**",
         "**/dist/**",
+        "**/docs/**",
         "**/node_modules/**",
         "**/outputs/**",
         "**/previews/**",
@@ -242,7 +237,15 @@
 
 # ====== UV
 [tool.uv]
-    dev-dependencies = ["pytest-cov>=5.0.0", "pytest-responses>=0.5.1", "pytest>=8.3.3", "rich>=13.9.2", "ruff>=0.7.0"]
+    dev-dependencies = [
+        "deptry>=0.20.0",
+        "pytest-cov>=5.0.0",
+        "pytest-responses>=0.5.1",
+        "pytest>=8.3.3",
+        "pytz>=2024.2",
+        "rich>=13.9.4",
+        "ruff>=0.7.2",
+    ]
 
     [tool.uv.workspace]
         members = ["spectrumx"]
@@ -274,7 +277,7 @@
                 "README.md",      # docs/README.md is used instead
             ]
             ignore-vcs = true
-            include = ["src/spectrumx/**.py", "/docs/", "/tests/"]
+            include = ["src/spectrumx/**/*.py", "/docs/", "/tests/"]
 
         [tool.hatch.build.targets.wheel]
             packages = ["src/spectrumx"]

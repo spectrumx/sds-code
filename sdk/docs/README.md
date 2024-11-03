@@ -3,8 +3,6 @@
 ![PyPI - Version](https://img.shields.io/pypi/v/spectrumx)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/spectrumx)
 ![Pepy Total Downloads](https://img.shields.io/pepy/dt/spectrumx)
-[![SDK Code Quality Checks](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml/badge.svg)](<https://github.com/spectrumx/sds-code/actions/workflows/>
-sdk-checks.yaml)
 
 + [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)
     + [Installation](#installation)
@@ -12,13 +10,13 @@ sdk-checks.yaml)
     + [Error Handling](#error-handling)
     + [Full example (not implemented)](#full-example-not-implemented)
 
-The Spectrum Data Store (SDS) SDK is a Python package that provides a simple interface for interacting with the SDS Gateway. The SDK is designed to be easy to use and to provide a high-level interface for common tasks, such as uploading and downloading files, searching for files, and managing RF datasets.
+The Spectrum Data System (SDS) SDK is a Python package that provides a simple interface for interacting with the SDS Gateway. The SDK is designed to be easy to use and to provide a high-level interface for common tasks, such as uploading and downloading files, searching for files, and managing RF datasets.
 
 > [!NOTE]
 >
 > **SDS is not meant for personal files or as a backup tool.** Files may be rejected by the Gateway when uploaded, or deleted without warning. Do not upload sensitive, personally identifiable, confidential information, or any file that you do not have permission to share. Do not upload binary executables.
 >
-> If you own data in `sds.crc.nd.edu` that needs to be permanently deleted, please reach out to the team, as SDS may retain uploaded data for a period of time after deletion.
+> If you own data in `https://sds.crc.nd.edu` that needs to be permanently deleted, please reach out to the team, as SDS may retain uploaded data for a period of time after deletion.
 
 ## Installation
 
@@ -45,7 +43,7 @@ uv add spectrumx
     export SDS_SECRET_TOKEN=your-secret-token
     ```
 
-2. Then, in your Python script or Jupyter notebook:
+2. Then, in your Python script or Jupyter notebook. [See `examples/basic-usage.py`](./examples/basic-usage.py) for the full script.:
 
     ```python
     from spectrumx import Client

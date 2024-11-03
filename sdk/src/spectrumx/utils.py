@@ -61,7 +61,7 @@ def into_human_bool(value: str) -> bool:
 T = TypeVar("T")
 
 
-def prog_bar(iterable: Iterable[T], *args, **kwargs) -> tqdm:  # pyright: ignore[reportMissingTypeArgument]
+def get_prog_bar(iterable: Iterable[T], *args, **kwargs) -> tqdm:  # pyright: ignore[reportMissingTypeArgument]
     """SDS standard progress bar."""
     default_options = {
         "unit": "files",

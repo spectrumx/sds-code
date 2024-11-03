@@ -13,13 +13,12 @@ from typing import Any
 import dotenv
 from loguru import logger as log
 
-import spectrumx
-from spectrumx import ops
-from spectrumx import utils
-from spectrumx.models import File
-from spectrumx.models import SDSModel
-
+from . import __version__
 from .gateway import GatewayClient
+from .models import File
+from .models import SDSModel
+from .ops import files
+from .utils import get_prog_bar
 from .utils import into_human_bool
 from .utils import log_user
 from .utils import log_user_warning
@@ -180,7 +179,7 @@ class Client:
             api_key=self._config.api_key,
             timeout=self._config.timeout,
         )
-        if spectrumx.__version__.startswith("0.1."):
+        if __version__.startswith("0.1."):
             log_user_warning(
                 "This version of the SDK is in early development. "
                 "Expect breaking changes in the future."
@@ -207,7 +206,7 @@ class Client:
         msg = (
             "Only dry-run mode is available for this early version of the SDK.\n"
             "Make sure you're running the latest version. "
-            f"Current version: {spectrumx.__version__}"
+            f"Current version: {__version__}"
         )
         log_user_warning(msg)
         self._config.dry_run = True
@@ -247,7 +246,7 @@ class Client:
             return File.model_validate_json(file_bytes)
 
         log_user("Dry run enabled: a sample file is being returned instead")
-        return ops.files.generate_sample_file(uuid_to_set)
+        return files.generate_sample_file(uuid_to_set)
 
     def upload_file(
         self, file_path: File | Path | str, sds_path: Path | str = "/"
@@ -275,7 +274,7 @@ class Client:
         file_instance = (
             file_path
             if isinstance(file_path, File)
-            else ops.files.construct_file(file_path, sds_path=sds_path)
+            else files.construct_file(file_path, sds_path=sds_path)
         )
 
         # upload the file instance or just return it (dry run)
@@ -301,8 +300,8 @@ class Client:
             verbose:    Show a progress bar.
         """
         local_path = Path(local_path) if isinstance(local_path, str) else local_path
-        valid_files = ops.files.get_valid_files(local_path)
-        prog_bar = utils.prog_bar(valid_files, desc="Uploading", disable=not verbose)
+        valid_files = files.get_valid_files(local_path)
+        prog_bar = get_prog_bar(valid_files, desc="Uploading", disable=not verbose)
         for file_path in prog_bar:
             self.upload_file(file_path, sds_path=sds_path)
 
@@ -326,7 +325,7 @@ class Client:
         )
         if self.dry_run:
             time.sleep(0.05)
-            return ops.files.generate_sample_file(uuid_to_set)
+            return files.generate_sample_file(uuid_to_set)
 
         assert not self.dry_run, "Internal error: expected dry run to be disabled."
         file_bytes = self._gateway.download_file(uuid=uuid_to_set.hex)
@@ -366,14 +365,14 @@ class Client:
                 "files are made-up and not written to disk."
             )
             uuids = [uuid.uuid4() for _ in range(10)]
-            files_to_download = [ops.files.generate_sample_file(uuid) for uuid in uuids]
+            files_to_download = [files.generate_sample_file(uuid) for uuid in uuids]
             log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
         else:
             files_to_download = self._gateway.list_files(sds_path)
             if verbose:
                 log_user(f"Discovered {len(files_to_download)} files")
 
-        prog_bar = utils.prog_bar(
+        prog_bar = get_prog_bar(
             files_to_download, desc="Downloading", disable=not verbose
         )
 
