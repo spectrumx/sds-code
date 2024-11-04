@@ -92,7 +92,7 @@ The SDK provides context-aware exceptions that can be caught and handled in your
 Authentication:
 
 ```py
-from spectrumx import AuthError
+from spectrumx import AuthError, NetworkError
 
 # ...
 try:
