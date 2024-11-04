@@ -72,7 +72,7 @@ clean:
 # UPDATE
 update:
 	uv sync --upgrade
-	uvx pre-commit autoupdate
+	uv run pre-commit autoupdate
 
 build:
 	uv build
