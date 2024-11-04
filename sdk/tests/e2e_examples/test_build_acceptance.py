@@ -1,7 +1,14 @@
-"""Test examples in the users' README."""
+"""Smoke tests for build acceptance, including basic usage of the SDK.
+
+This file is intended to be a standalone script which only dependency is the
+`spectrumx` package itself. It is used as a smoke test between the package
+build and publishing.
+"""
 # ruff: noqa: ERA001
 
 from pathlib import Path
+from random import randint
+from random import random
 
 from spectrumx import Client
 from spectrumx import enable_logging
@@ -37,9 +44,22 @@ def test_basic_usage() -> None:
     # the .env file or in the config passed in
     sds.authenticate()
 
-    # upload all files in a directory to the SDS
+    # local_dir has your own local files that will be uploaded to the SDS
     reference_name: str = "my_spectrum_capture"
     local_dir: Path = Path(reference_name)
+
+    # or, if the directory doesn't exist, let's create some fake data
+    if not local_dir.exists():
+        local_dir.mkdir(exist_ok=True)
+        num_files = 10
+        for file_idx in range(num_files):
+            num_lines = randint(10, 100)  # noqa: S311
+            file_name = f"capture_{file_idx}.csv"
+            with (local_dir / file_name).open(mode="w", encoding="utf-8") as file_ptr:
+                fake_nums = [random() for _ in range(num_lines)]  # noqa: S311
+                file_ptr.write("\n".join(map(str, fake_nums)))
+
+    # upload all files in a directory to the SDS
     sds.upload(
         local_dir,  # may be a single file or a directory
         sds_path=reference_name,  # files will be created under this virtual directory
