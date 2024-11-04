@@ -115,5 +115,4 @@ jobs:
                   path: ./sdk/dist
 
             - name: Publish package
-              # https://github.com/marketplace/actions/pypi-publish
-              uses: pypa/gh-action-pypi-publish@release/v1
+              run: uv publish --trusted-publishing always
