@@ -41,6 +41,14 @@ drf_capture_metadata_schema = {
             "type": int,
             "description": "The samples per second.",
         },
+        "start_bound": {
+            "type": int,
+            "description": "The start time (unix timestamp) of a capture.",
+        },
+        "end_bound": {
+            "type": int,
+            "description": "The end time (unix timestamp) of a capture.",
+        },
         "is_complex": {
             "type": bool,
             "description": "Whether the capture is complex.",
@@ -51,7 +59,6 @@ drf_capture_metadata_schema = {
         },
         "epoch": {
             "type": str,
-            "format": "date-time",
             "description": "The linux epoch.",
         },
         "digital_rf_time_description": {
@@ -122,6 +129,12 @@ drf_capture_metadata_schema = {
         "samples_per_second": {
             "type": "integer",
         },
+        "start_bound": {
+            "type": "integer",
+        },
+        "end_bound": {
+            "type": "integer",
+        },
         "center_freq": {
             "type": "integer",
         },
@@ -146,6 +159,8 @@ drf_capture_metadata_schema = {
         "sample_rate_numerator",
         "sample_rate_denominator",
         "samples_per_second",
+        "start_bound",
+        "end_bound",
         "is_complex",
         "is_continuous",
         "epoch",

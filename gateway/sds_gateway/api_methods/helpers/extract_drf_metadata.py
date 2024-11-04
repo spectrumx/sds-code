@@ -46,6 +46,10 @@ def read_metadata_by_channel(data_path, channel_name):
     # get properties
     drf_properties = rf_reader.get_properties(channel_name, bounds.start)
 
+    # add bounds to properties, convert to unix timestamp
+    drf_properties["start_bound"] = bounds.start / drf_properties["samples_per_second"]
+    drf_properties["end_bound"] = bounds.end / drf_properties["samples_per_second"]
+
     # initialize the digital metadata reader
     md_reader = rf_reader.get_digital_metadata(channel_name)
     dmd_properties = md_reader.read_flatdict(

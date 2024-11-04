@@ -100,6 +100,7 @@ class Capture(BaseModel):
         choices=CAPTURE_TYPE_CHOICES,
         default="drf",
     )
+    top_level_dir = models.CharField(max_length=2048, blank=True)
     index_name = models.CharField(max_length=255, blank=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
