@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}
+    {{ file.name }}
+{% endblock title %}
+{% block content %}
+    <div>
+        <a href="{% url 'users:file_list' %}?page=1"
+           class="btn btn-primary mt-3">Back to File List</a>
+        <h2 class="mt-3 mb-3">Detailed properties for file: {{ file.name }}</h2>
+    </div>
+    <ul class="list-group mb-3">
+        {% for key, value in file.items %}
+            {% if key not in skip_fields %}
+                <li class="list-group-item">
+                    <div class="row">
+                        <div class="col-3">
+                            <strong>{{ key }}</strong>
+                        </div>
+                        {% if key == "owner" %}
+                            <div class="col-9">{{ request.user.name }}</div>
+                        {% elif key == "permissions" %}
+                            <div class="col-9">{{ value|human_readable_permissions }}</div>
+                        {% elif key == "capture" or key == "dataset" %}
+                            <div class="col-9">
+                                {% if value %}
+                                    {{ value.uuid }}
+                                {% else %}
+                                    No {{ key }} associated with this file.
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="col-9">{{ value }}</div>
+                        {% endif %}
+                    </div>
+                </li>
+            {% endif %}
+        {% endfor %}
+    </ul>
+{% endblock content %}
