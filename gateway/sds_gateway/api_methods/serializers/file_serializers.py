@@ -1,13 +1,16 @@
+from pathlib import Path
+from pathlib import PurePosixPath
+
 from rest_framework import serializers
 
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
-from sds_gateway.api_methods.serializers.user_serializer import UserSerializer
+from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 
 
 class FileGetSerializer(serializers.ModelSerializer):
-    owner = UserSerializer()
+    owner = UserGetSerializer()
     dataset = DatasetGetSerializer()
     capture = CaptureGetSerializer()
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
@@ -38,9 +41,31 @@ class FilePostSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Set the owner to the request user
         validated_data["owner"] = self.context["request_user"]
-        validated_data["directory"] = (
-            f"/files/{validated_data['owner'].email}/{validated_data["directory"]}/"
-        )
+        user_files_dir = f"/files/{validated_data['owner'].email}"
+
+        # Ensure directory is not a relative path
+        if not PurePosixPath(validated_data["directory"]).is_absolute():
+            raise serializers.ValidationError(
+                {"detail": "Relative paths are not allowed."},
+                code=400,
+            )
+
+        # Prepend the user's files directory to the directory
+        validated_data["directory"] = f"{user_files_dir}{validated_data["directory"]}/"
+
+        # Resolve the directory to an absolute path
+        resolved_dir = Path(validated_data["directory"]).resolve(strict=False)
+
+        # Ensure the resolved path is within the user's files directory
+        resolved_user_files_dir = Path(user_files_dir).resolve(strict=False)
+        if not resolved_dir.is_relative_to(resolved_user_files_dir):
+            raise serializers.ValidationError(
+                {
+                    "detail": f"The provided directory must be in the user's files directory: {user_files_dir}",  # noqa: E501
+                },
+                code=400,
+            )
+
         if "media_type" not in validated_data:
             validated_data["media_type"] = ""
 
@@ -142,3 +167,9 @@ class FilePostSerializer(serializers.ModelSerializer):
             "file_exists_in_tree": file_exists_in_tree,
             "user_mutable_attributes_differ": user_mutable_attributes_differ,
         }
+
+
+class FileCheckResponseSerializer(serializers.Serializer):
+    file_contents_exist_for_user = serializers.BooleanField()
+    file_exists_in_tree = serializers.BooleanField()
+    user_mutable_attributes_differ = serializers.BooleanField()
