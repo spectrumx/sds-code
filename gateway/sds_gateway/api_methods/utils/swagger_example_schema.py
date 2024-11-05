@@ -117,3 +117,8 @@ file_put_request_example_schema = {
     "media_type": "application/x-hdf5",
     "permissions": "rw-rw-r--",
 }
+
+file_contents_check_request_example_schema = {
+    "file": example_file_obj,
+    "directory": "/files/user@example.com/path/to/file",
+}

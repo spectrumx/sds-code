@@ -159,7 +159,7 @@ class FileViewSet(ViewSet):
         examples=[
             OpenApiExample(
                 "Example File Put Request",
-                summary="File Request Body",
+                summary="File Put Request Body",
                 description="This is an example of a file put request body.",
                 value=example_schema.file_put_request_example_schema,
                 request_only=True,
@@ -242,6 +242,15 @@ class CheckFileContentsExistView(APIView):
             200: FileCheckResponseSerializer,
             400: OpenApiResponse(description="Bad Request"),
         },
+        examples=[
+            OpenApiExample(
+                "Example File Contents Check Request",
+                summary="File Contents Check Request Body",
+                description="This is an example of a file contents check request body.",
+                value=example_schema.file_contents_check_request_example_schema,
+                request_only=True,
+            ),
+        ],
         description="Check if the file contents exist on the server.",
         summary="Check File Contents Exist",
     )
