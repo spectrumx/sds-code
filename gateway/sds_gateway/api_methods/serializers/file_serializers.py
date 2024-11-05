@@ -10,6 +10,8 @@ class FileGetSerializer(serializers.ModelSerializer):
     owner = UserSerializer()
     dataset = DatasetGetSerializer()
     capture = CaptureGetSerializer()
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
     class Meta:
         model = File

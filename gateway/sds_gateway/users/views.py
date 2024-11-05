@@ -2,6 +2,7 @@ import datetime
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
+from django.core.paginator import Paginator
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -10,6 +11,8 @@ from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import UpdateView
 
+from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 
@@ -104,3 +107,51 @@ class GenerateAPIKeyView(LoginRequiredMixin, View):
 
 
 user_generate_api_key_view = GenerateAPIKeyView.as_view()
+
+
+class ListFilesView(LoginRequiredMixin, View):
+    template_name = "users/file_list.html"
+
+    def get(self, request, *args, **kwargs):
+        files = request.user.files.filter(
+            is_deleted=False,
+        )
+        serializer = FileGetSerializer(files, many=True)
+
+        paginator = Paginator(serializer.data, 10)
+        page_number = request.GET.get("page")
+        page_obj = paginator.get_page(page_number)
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "page_obj": page_obj,
+            },
+        )
+
+
+user_file_list_view = ListFilesView.as_view()
+
+
+class FileDetailView(LoginRequiredMixin, DetailView):
+    model = File
+    slug_field = "uuid"
+    slug_url_kwarg = "uuid"
+    template_name = "users/file_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        file = self.get_object()
+        serializer = FileGetSerializer(file)
+        context["file"] = serializer.data
+        context["skip_fields"] = [
+            "file",
+            "name",
+            "is_deleted",
+            "deleted_at",
+        ]
+        return context
+
+
+user_file_detail_view = FileDetailView.as_view()

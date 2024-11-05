@@ -65,6 +65,9 @@
                                         <a class="nav-link" href="{% url 'users:generate_api_key' %}">{% translate "My API Key" %}</a>
                                     </li>
                                     <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:file_list' %}?page=1">{% translate "My Files" %}</a>
+                                    </li>
+                                    <li class="nav-item">
                                         {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
                                         <a class="nav-link" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
                                     </li>
@@ -76,9 +79,10 @@
                                         </li>
                                     {% endif %}
                                     <li class="nav-item">
-                                        {# URL provided by
-                                django-allauth/account/urls.py #}
-                                        <a id="log-in-link" class="nav-link" href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
+                                        {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
+                                        <a id="log-in-nav-link"
+                                           class="nav-link"
+                                           href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
                                     </li>
                                 {% endif %}
                             </ul>
@@ -108,7 +112,17 @@
                             Here you can also generate API keys to interact with SDS via our
                             <a href="https://pypi.org/project/spectrumx" target="_blank">Python SDK</a>.
                         </p>
-                        {% if not request.user.is_authenticated %}
+                        <br />
+                        {% if request.user.is_authenticated %}
+                            <p>
+                                Welcome, <b>{{ request.user.name }}</b>!
+                            </p>
+                            <p>
+                                You can create/update your API Key or view/edit your user profile details using the links in the navigation bar above.
+                                You can also view the API documentation at the link below.
+                            </p>
+                            <a class="btn btn-primary" href="{% url 'api-docs' %}" target="_blank">API Documentation</a>
+                        {% else %}
                             <a id="log-in-link"
                                class="btn btn-primary"
                                href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
