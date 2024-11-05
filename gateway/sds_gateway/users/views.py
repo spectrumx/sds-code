@@ -13,6 +13,7 @@ from django.views.generic import UpdateView
 
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.users.mixins import ApprovedUserRequiredMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 
@@ -53,7 +54,7 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
 user_redirect_view = UserRedirectView.as_view()
 
 
-class GenerateAPIKeyView(LoginRequiredMixin, View):
+class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
     template_name = "users/user_api_key.html"
 
     def get(self, request, *args, **kwargs):

@@ -22,6 +22,13 @@ class User(AbstractUser):
     last_name = None  # type: ignore[assignment]
     email = models.EmailField(_("email address"), unique=True)
     username = None  # type: ignore[assignment]
+    is_approved = models.BooleanField(
+        _("Approved"),
+        default=False,
+        help_text=_(
+            "Designates whether this user has been approved to use the API by an Admin.",  # noqa: E501
+        ),
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
