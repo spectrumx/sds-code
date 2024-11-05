@@ -1,4 +1,5 @@
 import datetime
+from pathlib import Path
 
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
@@ -185,13 +186,17 @@ class FileViewSet(ViewSet):
         file = get_object_or_404(File, pk=pk, owner=request.user, is_deleted=False)
 
         directory = request.data.get("directory", None)
-        if directory and not directory.startswith(f"/files/{request.user.email}"):
-            return Response(
-                {
-                    "detail": f"The directory must include the user file path: /files/{request.user.email}/",  # noqa: E501
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        user_files_dir = f"/files/{request.user.email}"
+
+        if directory:
+            # Resolve the top_level_dir to an absolute path
+            resolved_dir = Path(directory).resolve(strict=False)
+
+            # Ensure the resolved path is within the user's files directory
+            user_files_dir = Path(user_files_dir).resolve(strict=False)
+            if not resolved_dir.is_relative_to(user_files_dir):
+                msg = f"The provided directory must be in the user's files directory: {user_files_dir}"  # noqa: E501
+                return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = FilePostSerializer(file, data=request.data, partial=True)
         if serializer.is_valid():
@@ -257,6 +262,7 @@ class CheckFileContentsExistView(APIView):
     def post(self, request):
         user = request.user
         file = request.FILES["file"]
+        user_files_dir = f"/files/{user.email}"
         if not file:
             return Response(
                 {"detail": "No file provided."},
@@ -270,9 +276,14 @@ class CheckFileContentsExistView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if not directory.startswith(f"/files/{request.user.email}"):
-            directory = f"/files/{request.user.email}/{directory}/"
-            request.data["directory"] = directory
+        # Resolve the top_level_dir to an absolute path
+        resolved_dir = Path(directory).resolve(strict=False)
+
+        # Ensure the resolved path is within the user's files directory
+        user_files_dir = Path(user_files_dir).resolve(strict=False)
+        if not resolved_dir.is_relative_to(user_files_dir):
+            msg = f"The provided directory must be in the user's files directory: {user_files_dir}"  # noqa: E501
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
         name = file.name
         checksum = File().calculate_checksum(file)
