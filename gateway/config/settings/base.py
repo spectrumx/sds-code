@@ -378,9 +378,10 @@ SOCIALACCOUNT_FORMS: dict[str, str] = {
 # django-rest-framework - https://www.django-rest-framework.org/api-guide/settings/
 REST_FRAMEWORK: dict[str, str | tuple[str, ...]] = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.BasicAuthentication",
         "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+        "sds_gateway.api_methods.authentication.APIKeyAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -396,7 +397,13 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
     "TITLE": "SpectrumX Data System Gateway API",
     "DESCRIPTION": "Documentation of API endpoints of SpectrumX Data System Gateway",
     "VERSION": "1.0.0",
-    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
+    "SERVE_INCLUDE_SCHEMA": False,
+    "POSTPROCESSING_HOOKS": [
+        "sds_gateway.api_methods.utils.spectacular_hooks.remove_irrelevant_auth_schemes",
+    ],
+    "SERVE_PERMISSIONS": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],  # Allow only authenticated users to access the schema
     "SCHEMA_PATH_PREFIX": f"/api/{API_VERSION}",
 }
 # django-webpack-loader
