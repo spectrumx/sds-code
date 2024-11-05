@@ -3,17 +3,21 @@ from pathlib import Path
 from pathlib import PurePosixPath
 
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import OpenApiExample
+from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
+from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
 )
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
-from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import destroy_tree
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.models import Capture
@@ -21,7 +25,6 @@ from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSe
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
-from sds_gateway.api_methods.views.auth_endpoints import APIKeyAuthentication
 
 
 class CaptureViewSet(viewsets.ViewSet):
@@ -32,8 +35,24 @@ class CaptureViewSet(viewsets.ViewSet):
         request=CapturePostSerializer,
         responses={
             201: CapturePostSerializer,
-            400: "Bad Request",
+            400: OpenApiResponse(description="Bad Request"),
         },
+        examples=[
+            OpenApiExample(
+                "Example Capture Request",
+                summary="Capture Request Body",
+                description="This is an example of a capture request body.",
+                value=example_schema.capture_request_example_schema,
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Example Capture Response",
+                summary="Capture Response Body",
+                description="This is an example of a capture response body.",
+                value=example_schema.capture_response_example_schema,
+                response_only=True,
+            ),
+        ],
         description="Create a capture object, connect files to the capture, and index its metadata.",  # noqa: E501
         summary="Create Capture",
     )
@@ -91,10 +110,28 @@ class CaptureViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Capture UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
         responses={
-            200: {"capture": CaptureGetSerializer, "metadata": dict},
-            404: "Not Found",
+            200: CaptureGetSerializer,
+            404: OpenApiResponse(description="Not Found"),
         },
+        examples=[
+            OpenApiExample(
+                "Example Capture Response",
+                summary="Capture Response Body",
+                description="This is an example of a capture response body.",
+                value=example_schema.capture_response_example_schema,
+                response_only=True,
+            ),
+        ],
         description="Retrieve a capture object and its indexed metadata.",
         summary="Retrieve Capture",
     )
@@ -105,5 +142,4 @@ class CaptureViewSet(viewsets.ViewSet):
             owner=request.user,
         )
         serializer = CaptureGetSerializer(capture, many=False)
-        metadata = retrieve_indexed_metadata(capture)
-        return Response({"capture": serializer.data, "metadata": metadata})
+        return Response(serializer.data)
