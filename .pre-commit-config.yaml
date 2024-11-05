@@ -44,14 +44,14 @@ repos:
 
     # Run the Ruff linter.
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.7.1
+      rev: v0.7.2
       hooks:
           # Linter
           - id: ruff # runs ruff check --force-exclude
             args:
                 # we have to pick one config between gateway and sdk...
                 [
-                    --verbose, # for debugging
+                    # --verbose, # for debugging
                     # --show-files, # for debugging
                     # --show-fixes, # for debugging
                     --no-cache,
@@ -66,7 +66,7 @@ repos:
             args: [--config, "sdk/pyproject.toml"]
 
     - repo: https://github.com/Riverside-Healthcare/djLint
-      rev: v1.35.3
+      rev: v1.36.0
       hooks:
           - id: djlint-reformat-django
           - id: djlint-django

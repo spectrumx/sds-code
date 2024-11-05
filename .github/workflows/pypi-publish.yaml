@@ -1,0 +1,118 @@
+# This workflow will upload a Python Package using Twine when a release is created
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
+
+name: Upload Python Package
+
+on:
+    workflow_dispatch: # Manually trigger the workflow from the Actions tab
+    release:
+        types: [published]
+    push:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - sdk/**
+        branches:
+            - main
+            - master
+        tags:
+            - "v*.*.*"
+
+permissions:
+    # 'read' to access the list of commits
+    contents: read
+
+jobs:
+    build:
+        strategy:
+            matrix:
+                platform: [ubuntu-latest]
+        runs-on: ${{ matrix.platform }}
+        name: uv-build
+        steps:
+            # https://github.com/actions/checkout
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            # https://github.com/actions/setup-python
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.x"
+
+            # https://github.com/astral-sh/setup-uv
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
+              with:
+                  # The version of uv to install
+                  version: latest # optional, default is latest
+                  # The checksum of the uv version to install
+                  # checksum: # optional
+                  # Used to increase the rate limit when retrieving versions and downloading uv.
+                  github-token: ${{ github.token }} # optional, default is ${{ github.token }}
+                  # Enable caching of the uv cache
+                  enable-cache: false # optional, default is false
+                  # Glob pattern to match files relative to the repository root to control the cache.
+                  # cache-dependency-glob: # optional, default is **/uv.lock
+                  # Suffix for the cache key
+                  # cache-suffix: # optional
+                  # Local path to store the cache.
+                  # cache-local-path: # optional
+                  # Custom path to set UV_TOOL_DIR to.
+                  # tool-dir: # optional
+                  # Custom path to set UV_TOOL_BIN_DIR to.
+                  # tool-bin-dir: # optional
+
+            - name: Install dependencies for testing
+              working-directory: ./sdk
+              run: uv sync --frozen --link-mode=copy --dev
+
+            - name: Check missing or unused dependencies with deptry
+              working-directory: ./sdk
+              run: uv run deptry .
+
+            - name: Test package
+              # test everything, as we don't know if the
+              # sdk-checks ran on this commit being released
+              working-directory: ./sdk
+              run: make test-all
+
+            - name: Install dependencies for releasing
+              working-directory: ./sdk
+              run: uv sync --frozen --link-mode=copy --no-dev
+
+            - name: Build package
+              working-directory: ./sdk
+              run: uv build --link-mode=copy
+
+            - name: Build acceptance test
+              # tests the actual package built, to catch errors in the build
+              # configuration and make sure the published package is usable
+              working-directory: ./sdk
+              run: uv run --isolated --no-project -p 3.13 --with dist/*.tar.gz tests/e2e_examples/test_build_acceptance.py
+
+            - name: Store artifact
+              # https://github.com/actions/upload-artifact?tab=readme-ov-file#inputs
+              uses: actions/upload-artifact@main
+              with:
+                  name: dist
+                  path: ./sdk/dist
+                  if-no-files-found: error
+
+    deploy:
+        runs-on: ubuntu-latest
+        name: pypi-deploy
+        needs: build
+        environment: pypi
+        permissions:
+            # A 'write' permission is mandatory for trusted publishing
+            id-token: write
+        steps:
+            - name: Download artifact
+              # https://github.com/actions/download-artifact?tab=readme-ov-file#inputs
+              uses: actions/download-artifact@main
+              with:
+                  name: dist
+                  path: ./sdk/dist
+
+            - name: Publish package
+              run: uv publish --trusted-publishing always

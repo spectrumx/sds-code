@@ -1,11 +1,18 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.serializers.user_serializer import UserSerializer
+from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 
 
 class CaptureGetSerializer(serializers.ModelSerializer):
-    owner = UserSerializer()
+    owner = UserGetSerializer()
+    metadata = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField)
+    def get_metadata(self, obj):
+        return retrieve_indexed_metadata(obj)
 
     class Meta:
         model = Capture
@@ -13,14 +20,14 @@ class CaptureGetSerializer(serializers.ModelSerializer):
 
 
 class CapturePostSerializer(serializers.ModelSerializer):
+    owner = UserGetSerializer()
+    metadata = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DictField)
+    def get_metadata(self, obj):
+        return retrieve_indexed_metadata(obj)
+
     class Meta:
         model = Capture
-        fields = [
-            "uuid",
-            "top_level_dir",
-            "channel",
-            "capture_type",
-            "index_name",
-            "owner",
-        ]
-        read_only_fields = ["uuid"]
+        fields = "__all__"
+        read_only_fields = ["uuid", "metadata", "created_at", "updated_at"]

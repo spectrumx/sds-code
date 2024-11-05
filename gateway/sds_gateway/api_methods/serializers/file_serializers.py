@@ -6,13 +6,15 @@ from rest_framework import serializers
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
-from sds_gateway.api_methods.serializers.user_serializer import UserSerializer
+from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 
 
 class FileGetSerializer(serializers.ModelSerializer):
-    owner = UserSerializer()
+    owner = UserGetSerializer()
     dataset = DatasetGetSerializer()
     capture = CaptureGetSerializer()
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
     class Meta:
         model = File
@@ -165,3 +167,9 @@ class FilePostSerializer(serializers.ModelSerializer):
             "file_exists_in_tree": file_exists_in_tree,
             "user_mutable_attributes_differ": user_mutable_attributes_differ,
         }
+
+
+class FileCheckResponseSerializer(serializers.Serializer):
+    file_contents_exist_for_user = serializers.BooleanField()
+    file_exists_in_tree = serializers.BooleanField()
+    user_mutable_attributes_differ = serializers.BooleanField()

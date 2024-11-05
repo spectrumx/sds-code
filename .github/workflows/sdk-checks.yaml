@@ -78,12 +78,13 @@ jobs:
                   working-directory: ./sdk
                   python-path: ./.venv/bin/python
 
-    # Run tests against multiple Python versions using tox
+    # Run tests against multiple Python versions
     coverage:
-        runs-on: ubuntu-latest
+        runs-on: ${{ matrix.platform }}
         strategy:
             matrix:
                 python-version: ["3.12", "3.13"]
+                platform: [ubuntu-latest]
 
         steps:
             - uses: actions/checkout@v4

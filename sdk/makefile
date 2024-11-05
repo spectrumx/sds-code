@@ -4,12 +4,14 @@ PYTHON_VERSION ?= 3.13
 SUPPORTED_PYTHON_VERSIONS := 3.12 3.13
 GIT_ROOT := $(shell git rev-parse --show-toplevel;)
 
+.PHONY: all install gact pyright pre-commit test test-lowest test-verbose test-all serve-coverage clean update build publish
+
 all: install test
 
 # SETUP
 install:
-	uvx pre-commit install --install-hooks
 	uv sync --dev --frozen
+	uv run pre-commit install --install-hooks
 
 # GITHUB ACTIONS
 gact:
@@ -21,14 +23,18 @@ gact:
 		--workflows "$(GIT_ROOT)/.github/workflows" \
 		--secret-file config/secrets.env
 
+# CODE QUALITY
 pyright:
 	echo Running Pyright locally for "$(GIT_ROOT)";
 	cd "$(GIT_ROOT)" && \
 	gh act --workflows "$(GIT_ROOT)/.github/workflows" --job pyright
 
+pre-commit:
+	uv run --dev pre-commit run --all-files
+
 # TESTS
 test:
-	uv run -p $(PYTHON_VERSION) pytest \
+	uv run --resolution highest -p $(PYTHON_VERSION) pytest \
 		--cov=src \
 		--cov-config=pyproject.toml \
 		--cov-report=term-missing:skip-covered \
@@ -36,12 +42,24 @@ test:
 		--cov-report=html:tests/htmlcov \
 		--cov-fail-under=75 \
 		tests
+
+test-lowest:
+	# Run tests against the lowest versions of dependencies to ensure compatibility
+	uv run --resolution lowest-direct -p $(PYTHON_VERSION) pytest tests
+
 test-verbose:
-	uv run -p $(PYTHON_VERSION) pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
+	uv run --resolution highest -p $(PYTHON_VERSION) pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
+
 test-all:
+	echo -e "\n\t\033[34mRunning tests against the highest dep versions and generating reports\033[0m\n"
+	$(MAKE) test
+	echo -e "\n\t\033[34mRunning tests against the lowest dep versions vs. all supported python versions\033[0m\n"
 	for version in $(SUPPORTED_PYTHON_VERSIONS); do \
-		$(MAKE) test PYTHON_VERSION=$$version; \
+		echo -e "\n\t\033[34mRunning lower bound tests against Python $$version\033[0m\n"; \
+		$(MAKE) test-lowest PYTHON_VERSION=$$version; \
 	done
+	echo -e "\n\t\033[34mRestoring highest dep versions\033[0m\n"
+	uv sync --resolution highest --dev
 
 serve-coverage:
 	python -m http.server 8000 -d tests/htmlcov
@@ -58,10 +76,14 @@ clean:
 # UPDATE
 update:
 	uv sync --upgrade
-	uvx pre-commit autoupdate
+	uv run pre-commit autoupdate
 
 build:
 	uv build
+	echo -e "\n\t\033[32mRunning smoke tests on the built package\033[0m\n"
+	uv run --isolated --no-project -p $(PYTHON_VERSION) --with dist/*.tar.gz tests/e2e_examples/test_build_acceptance.py
+	# clean-up generated files
+	rm my_spectrum_capture/capture_*.csv && rmdir my_spectrum_capture
 	echo -e "\n\t\033[32mBuilt package:\033[0m\n"
 	tar -tvf dist/*.tar.gz | sort -k6
 	echo -e "\n\t\033[34mTo publish it, run 'make publish'.\033[0m\n\n"
@@ -76,5 +98,5 @@ publish:
 		echo "Error: config/secrets.env does not exist."; \
 		exit 1; \
 	fi
-	export UV_PUBLISH_TOKEN=$$(grep PYPI_API_TOKEN config/secrets.env | cut -d '=' -f2)
+	export UV_PUBLISH_TOKEN=$$(grep PYPI_API_TOKEN config/secrets.env | cut -d '=' -f2); \
 	uv publish

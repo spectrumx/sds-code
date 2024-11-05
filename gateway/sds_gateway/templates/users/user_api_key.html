@@ -24,7 +24,7 @@
         <p>If you have lost your API key, you may generate a new one below (this will invalidate the current key).</p>
         <form method="post" action="{% url 'users:generate_api_key' %}">
             {% csrf_token %}
-            <button class="btn danger" type="submit">Invalidate Existing Key and Generate New One</button>
+            <button class="btn btn-danger" type="submit">Invalidate Existing Key and Generate New One</button>
         </form>
     {% endif %}
 {% else %}
@@ -35,7 +35,7 @@
     {% endif %}
     <form method="post" action="{% url 'users:generate_api_key' %}">
         {% csrf_token %}
-        <button type="submit">Generate API Key</button>
+        <button class="btn btn-primary" type="submit">Generate API Key</button>
     </form>
 {% endif %}
 {% endblock content %}
