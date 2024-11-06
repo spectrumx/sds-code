@@ -34,7 +34,7 @@ class CaptureViewSet(viewsets.ViewSet):
     @extend_schema(
         request=CapturePostSerializer,
         responses={
-            201: CapturePostSerializer,
+            201: CaptureGetSerializer,
             400: OpenApiResponse(description="Bad Request"),
         },
         examples=[
@@ -77,16 +77,16 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
         request.data["owner"] = request.user.id
-        serializer = CapturePostSerializer(
+        post_serializer = CapturePostSerializer(
             data=request.data,
         )
-        if serializer.is_valid():
-            serializer.save()
+        if post_serializer.is_valid():
+            post_serializer.save()
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(post_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         # get capture object from serializer
-        capture_data = dict(serializer.data)
+        capture_data = dict(post_serializer.data)
         capture = Capture.objects.get(
             uuid=capture_data["uuid"],
             owner=request.user,
@@ -107,7 +107,9 @@ class CaptureViewSet(viewsets.ViewSet):
             index_capture_metadata(capture, validated_metadata)
             destroy_tree(temp_dir)
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        get_serializer = CaptureGetSerializer(capture)
+
+        return Response(get_serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         parameters=[

@@ -20,14 +20,14 @@ class CaptureGetSerializer(serializers.ModelSerializer):
 
 
 class CapturePostSerializer(serializers.ModelSerializer):
-    owner = UserGetSerializer()
-    metadata = serializers.SerializerMethodField()
-
-    @extend_schema_field(serializers.DictField)
-    def get_metadata(self, obj):
-        return retrieve_indexed_metadata(obj)
-
     class Meta:
         model = Capture
-        fields = "__all__"
-        read_only_fields = ["uuid", "metadata", "created_at", "updated_at"]
+        fields = [
+            "uuid",
+            "channel",
+            "capture_type",
+            "top_level_dir",
+            "index_name",
+            "owner",
+        ]
+        read_only_fields = ["uuid"]
