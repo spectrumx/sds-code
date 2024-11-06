@@ -1,5 +1,7 @@
 import logging
 
+from opensearchpy import NotFoundError
+
 from sds_gateway.api_methods.utils.metadata_schemas import (
     capture_metadata_fields_by_type as md_props_by_type,
 )
@@ -81,6 +83,12 @@ def retrieve_indexed_metadata(capture):
 
         # Retrieve the metadata from the indexed document
         return response["_source"]["metadata"]
+    except NotFoundError:
+        # Log the error
+        msg = f"Document not found in OpenSearch for capture '{capture.uuid}'"
+        logger.warning(msg)
+        # Return an empty dictionary
+        return {}
     except ConnectionError as e:
         # Log the error
         msg = f"Failed to connect to OpenSearch: {e}"
