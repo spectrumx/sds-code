@@ -1,0 +1,137 @@
+# Traefik configuration file
+# https://github.com/traefik/traefik/blob/master/traefik.sample.toml
+
+[global]
+    checkNewVersion    = true
+    sendAnonymousUsage = false
+
+# https://doc.traefik.io/traefik/operations/dashboard/
+[api]
+    # curl --insecure https://localhost/dashboard/
+    dashboard = true
+    insecure  = true
+
+[accesslog]
+    addInternals = true
+
+    [accesslog.filters]
+        minDuration   = "10ms"
+        retryAttempts = true
+        # statusCodes   = ["200", "300-302"] # prod
+        statusCodes = ["200", "300-302", "400-404", "500-504"] # dev
+
+[log]
+    level = "TRACE"
+
+[tls]
+
+    [[tls.certificates]]
+        certFile = "/etc/traefik/certs/public_key.crt"
+        keyFile  = "/etc/traefik/certs/private_key.pem"
+        stores   = ["default"]
+
+    [tls.options]
+
+        [tls.options.default]
+            minVersion = "VersionTLS12"
+
+[tls.stores]
+    [tls.stores.default]
+        [tls.stores.default.defaultCertificate]
+            certFile = "/etc/traefik/certs/public_key.crt"
+            keyFile  = "/etc/traefik/certs/private_key.pem"
+
+[entryPoints]
+
+    # https://doc.traefik.io/traefik/routing/entrypoints/
+
+    [entryPoints.web]
+        address = ":80"
+        [entryPoints.web.http.redirections.entryPoint]
+            to = "web-secure"
+
+[entryPoints.web-secure]
+    address   = ":443"
+    asDefault = true
+    [entryPoints.web-secure.http2]
+        maxConcurrentStreams = 250
+    [entryPoints.web-secure.http3]
+
+[entryPoints.flower]
+    address = ":5555"
+
+    # [certificatesResolvers.letsencrypt.acme]
+    #     email   = "crcsupport@nd.edu"
+    #     storage = "/etc/traefik/acme/acme.json"
+    #     [certificatesResolvers.letsencrypt.acme.httpChallenge]
+    #         entryPoint = "web"
+
+[http.routers]
+
+    [http.routers.traefik-api]
+        middlewares = ["auth"]
+        rule        = "Host(`sds.crc.nd.edu`) && ( PathPrefix(`/api`) || PathPrefix(`/dashboard`) )"
+        service     = "api@internal"
+        # [http.routers.traefik-api.tls]
+
+    [http.routers.sds-gateway-app]
+        entryPoints = ["web", "web-secure"]
+        # entryPoints = ["web-secure"]
+        middlewares = ["csrf"]
+        rule        = "Host(`localhost`) || Host(`sds.crc.nd.edu`)"
+        service     = "sds-gateway-app"
+        [http.routers.sds-gateway-app.tls]
+            #     certResolver = "letsencrypt"
+
+[http.routers.sds-gateway-static]
+    entryPoints = ["web", "web-secure"]
+    rule        = "( Host(`localhost`) || Host(`sds.crc.nd.edu`) ) && PathPrefix(`/static/`)"
+    service     = "sds-gateway-static"
+    [http.routers.sds-gateway-static.tls]
+
+[http.routers.flower-secure-router]
+    entryPoints = ["flower"]
+    rule        = "Host(`localhost`) || Host(`sds.crc.nd.edu`)"
+    service     = "flower"
+    [http.routers.flower-secure-router.tls]
+        #     certResolver = "letsencrypt"
+
+[http.routers.whoami]
+    entryPoints = ["web", "web-secure"]
+    # entryPoints = ["web-secure"]
+    rule    = "Host(`localhost`) || Host(`whoami.sds.crc.nd.edu`)"
+    service = "whoami"
+    [http.routers.whoami.tls]
+        #     certResolver = "letsencrypt"
+
+[http.middlewares]
+
+    [http.middlewares.csrf]
+
+        [http.middlewares.csrf.headers]
+            hostsProxyHeaders = ["X-CSRFToken"]
+
+[http.middlewares.auth]
+
+    [http.middlewares.auth.basicAuth]
+        # $ htpasswd -nb admin password
+        # curl -u admin:password http://localhost/dashboard/
+        users = ["lparzianello:$apr1$zzpAkP4X$HC/W3QTtu15ann2LQyc.c/"]
+
+[http.services]
+
+    [[http.services.sds-gateway-app.loadBalancer.servers]]
+        url = "http://sds-gateway-app:5000" # compose service name, in same network
+
+    [[http.services.sds-gateway-static.loadBalancer.servers]]
+        url = "http://nginx:80"
+
+    [[http.services.flower.loadBalancer.servers]]
+        url = "http://flower:5555"
+
+    [[http.services.whoami.loadBalancer.servers]]
+        url = "http://whoami:2001"
+
+[providers.file]
+    filename = "/etc/traefik/traefik.toml"
+    watch    = true

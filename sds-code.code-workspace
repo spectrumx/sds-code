@@ -27,7 +27,11 @@
 		{
 			"name": "sds-sdk",
 			"path": "./sdk"
-		}
+		},
+		{
+			"name": "network",
+			"path": "./network"
+		},
 	],
 	"settings": {
 		"[python]": {
