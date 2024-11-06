@@ -11,8 +11,10 @@ def get_opensearch_client():
             settings.OPENSEARCH_USER,
             settings.OPENSEARCH_INITIAL_ADMIN_PASSWORD,
         ),
-        use_ssl=False,
+        use_ssl=settings.OPENSEARCH_USE_SSL,
         verify_certs=False,
         ssl_show_warn=False,
         connection_class=RequestsHttpConnection,
+        client_cert=settings.OPENSEARCH_CLIENT_CERT,
+        client_key=settings.OPENSEARCH_CLIENT_KEY,
     )
