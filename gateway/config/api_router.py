@@ -19,7 +19,7 @@ app_name = "api"
 urlpatterns = [
     *router.urls,
     path(
-        "assets/files/check_contents_exist/",
+        "assets/utils/check_contents_exist/",
         check_contents_exist,
         name="check_contents_exist",
     ),
