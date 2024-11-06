@@ -11,6 +11,13 @@
 
 ## Staging deployment
 
+### Generate Traefik dashboard credentials
+
+```bash
+# sudo dnf install httpd-tools
+htpasswd -nB your-user-name >> traefik/credentials.htpasswd
+```
+
 ### Override DNS resolution
 
 Overriding the DNS in our staging machine let us use the same configuration file between staging and production environment.

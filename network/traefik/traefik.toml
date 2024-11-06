@@ -60,49 +60,51 @@
 [entryPoints.flower]
     address = ":5555"
 
-    # [certificatesResolvers.letsencrypt.acme]
-    #     email   = "crcsupport@nd.edu"
-    #     storage = "/etc/traefik/acme/acme.json"
-    #     [certificatesResolvers.letsencrypt.acme.httpChallenge]
-    #         entryPoint = "web"
+[certificatesResolvers]
+    [certificatesResolvers.letsencrypt]
+        [certificatesResolvers.letsencrypt.acme]
+            email   = "crcsupport@nd.edu"
+            storage = "/etc/traefik/acme/acme.json" # in traefik v3 this file doesn't need to be created manually
+            [certificatesResolvers.letsencrypt.acme.httpChallenge]
+                entryPoint = "web"
 
 [http.routers]
 
     [http.routers.traefik-api]
         middlewares = ["auth"]
-        rule        = "Host(`sds.crc.nd.edu`) && ( PathPrefix(`/api`) || PathPrefix(`/dashboard`) )"
+        rule        = "Host(`sds.crc.nd.edu`) && ( PathPrefix(`/api/`) || PathPrefix(`/dashboard/`) )"
         service     = "api@internal"
         [http.routers.traefik-api.tls]
+            certResolver = "letsencrypt"
 
-    [http.routers.sds-gateway-app]
-        entryPoints = ["web", "web-secure"]
-        # entryPoints = ["web-secure"]
-        middlewares = ["csrf"]
-        rule        = "Host(`localhost`) || Host(`sds.crc.nd.edu`)"
-        service     = "sds-gateway-app"
-        [http.routers.sds-gateway-app.tls]
-            #     certResolver = "letsencrypt"
+    # [http.routers.sds-gateway-app]
+    #     entryPoints = ["web", "web-secure"]
+    #     # entryPoints = ["web-secure"]
+    #     middlewares = ["csrf"]
+    #     rule        = "Host(`sds.crc.nd.edu`)"
+    #     service     = "sds-gateway-app"
+    #     [http.routers.sds-gateway-app.tls]
+    #         certResolver = "letsencrypt"
 
-[http.routers.sds-gateway-static]
-    entryPoints = ["web", "web-secure"]
-    rule        = "( Host(`localhost`) || Host(`sds.crc.nd.edu`) ) && PathPrefix(`/static/`)"
-    service     = "sds-gateway-static"
-    [http.routers.sds-gateway-static.tls]
+# [http.routers.sds-gateway-static]
+#     entryPoints = ["web", "web-secure"]
+#     rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/static/`)"
+#     service     = "sds-gateway-static"
+#     [http.routers.sds-gateway-static.tls]
 
 [http.routers.flower-secure-router]
     entryPoints = ["flower"]
-    rule        = "Host(`localhost`) || Host(`sds.crc.nd.edu`)"
+    rule        = "Host(`sds.crc.nd.edu`)"
     service     = "flower"
     [http.routers.flower-secure-router.tls]
-        #     certResolver = "letsencrypt"
+        certResolver = "letsencrypt"
 
-[http.routers.whoami]
-    entryPoints = ["web", "web-secure"]
-    # entryPoints = ["web-secure"]
-    rule    = "Host(`localhost`) || Host(`whoami.sds.crc.nd.edu`)"
-    service = "whoami"
-    [http.routers.whoami.tls]
-        #     certResolver = "letsencrypt"
+# [http.routers.whoami]
+#     entryPoints = ["web", "web-secure"]
+#     rule    = "Host(`sds.crc.nd.edu`)"
+#     service = "whoami"
+#     [http.routers.whoami.tls]
+#         certResolver = "letsencrypt"
 
 [http.middlewares]
 
@@ -114,9 +116,12 @@
 [http.middlewares.auth]
 
     [http.middlewares.auth.basicAuth]
-        # $ htpasswd -nb admin password
-        # curl -u admin:password http://localhost/dashboard/
-        users = ["lparzianello:$apr1$zzpAkP4X$HC/W3QTtu15ann2LQyc.c/"]
+        # Generate the credentials file:
+        #     $ htpasswd -nB your-user-name >> traefik/credentials.htpasswd
+        # Try it out:
+        #     $ e.g. curl -u your-user-name:your-password http://your-sds-hostname/dashboard/
+        # https://doc.traefik.io/traefik/middlewares/http/basicauth/#usersfile
+        usersFile = "/etc/traefik/dashboard/credentials.htpasswd"
 
 [http.services]
 
