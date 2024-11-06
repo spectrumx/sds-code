@@ -1,0 +1,17 @@
+cluster.name: "opensearch-cluster"
+node.name: "opensearch-node"
+network.host: 0.0.0.0
+http.port: 9200
+discovery.type: single-node
+
+# Security Settings
+plugins.security.ssl.transport.pemcert_filepath: /usr/share/opensearch/config/certs/opensearch.crt
+plugins.security.ssl.transport.pemkey_filepath: /usr/share/opensearch/config/certs/opensearch.key
+plugins.security.ssl.transport.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/opensearch.crt
+plugins.security.ssl.http.enabled: true
+plugins.security.ssl.http.pemcert_filepath: /usr/share/opensearch/config/certs/opensearch.crt
+plugins.security.ssl.http.pemkey_filepath: /usr/share/opensearch/config/certs/opensearch.key
+plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/opensearch.crt
+plugins.security.allow_unsafe_democertificates: false
+plugins.security.authcz.admin_dn:
+    - CN=sds.crc.nd.edu,OU=CRC,O=University of Notre Dame,L=South Bend,C=US

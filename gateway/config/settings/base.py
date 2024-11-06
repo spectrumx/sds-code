@@ -28,6 +28,9 @@ OPENSEARCH_INITIAL_ADMIN_PASSWORD: str = env.str(
     "OPENSEARCH_INITIAL_ADMIN_PASSWORD",
     default="admin",
 )
+OPENSEARCH_USE_SSL: bool = env.bool("OPENSEARCH_USE_SSL", default=False)
+OPENSEARCH_CLIENT_CERT: str = env.str("OPENSEARCH_CLIENT_CERT", default=None)
+OPENSEARCH_CLIENT_KEY: str = env.str("OPENSEARCH_CLIENT_KEY", default=None)
 
 # MinIO configuration
 STORAGES = {
