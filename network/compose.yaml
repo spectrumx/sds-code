@@ -15,6 +15,10 @@ services:
               target: /etc/traefik/traefik.toml
               type: bind
               read_only: true
+            - source: ./traefik/credentials.htpasswd
+              target: /etc/traefik/dashboard/credentials.htpasswd
+              type: bind
+              read_only: true
         networks:
             - sds-network
         expose:
@@ -45,13 +49,13 @@ services:
 
     # whoami service to test traefik reachability
     # curl --insecure https://whoami.sds.crc.nd.edu
-    # whoami:
-    #     image: traefik/whoami
-    #     command:
-    #         - --port=2001   # must match port in traefik.toml
-    #         # - --name=sds-01
-    #     networks:
-    #         - sds-network
+    whoami:
+        image: traefik/whoami
+        command:
+            - --port=2001   # must match port in traefik.toml
+            # - --name=sds-01
+        networks:
+            - sds-network
 
 networks:
     sds-network:
