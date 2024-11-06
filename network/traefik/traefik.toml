@@ -9,7 +9,7 @@
 [api]
     # curl --insecure https://localhost/dashboard/
     dashboard = true
-    insecure  = true
+    # insecure  = true
 
 [accesslog]
     addInternals = true
@@ -72,7 +72,7 @@
         middlewares = ["auth"]
         rule        = "Host(`sds.crc.nd.edu`) && ( PathPrefix(`/api`) || PathPrefix(`/dashboard`) )"
         service     = "api@internal"
-        # [http.routers.traefik-api.tls]
+        [http.routers.traefik-api.tls]
 
     [http.routers.sds-gateway-app]
         entryPoints = ["web", "web-secure"]
