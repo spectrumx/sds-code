@@ -3,11 +3,11 @@ volumes:
     sds_gateway_local_postgres_data_backups: {}
     sds_gateway_local_redis_data: {}
     minio_files: {}
-    opensearch-data: {}
+    opensearch_data: {}
 
 networks:
-    sds_gateway_minio_local:
-    opensearch-net:
+    sds-gateway-minio-local-net:
+    sds-gateway-opensearch-local-net:
 
 services:
     django: &django
@@ -31,8 +31,8 @@ services:
             - "8000:8000"
         command: /start
         networks:
-            - sds_gateway_minio_local
-            - opensearch-net
+            - sds-gateway-minio-local-net
+            - sds-gateway-opensearch-local-net
 
     minio:
         # minio uses rolling upgrades that are non-disruptive, so we can target latest
@@ -49,7 +49,7 @@ services:
             - ./.envs/local/minio.env
         command: server /files --console-address ":9001"
         networks:
-            - sds_gateway_minio_local
+            - sds-gateway-minio-local-net
 
     opensearch:
         # opensearch upgrades follow semver - let's target a major version
@@ -59,7 +59,7 @@ services:
         image: opensearchproject/opensearch:2
         container_name: sds_gateway_local_opensearch
         volumes:
-            - opensearch-data:/usr/share/opensearch/data
+            - opensearch_data:/usr/share/opensearch/data
             - ./opensearch.local.yaml:/usr/share/opensearch/config/opensearch.yml
         env_file:
             - ./.envs/local/opensearch.env
@@ -71,7 +71,7 @@ services:
             - "9200:9200"
             - "9600:9600"
         networks:
-            - opensearch-net
+            - sds-gateway-opensearch-local-net
 
     postgres:
         build:
@@ -85,7 +85,7 @@ services:
         env_file:
             - ./.envs/local/postgres.env
         networks:
-            - sds_gateway_minio_local
+            - sds-gateway-minio-local-net
 
     redis:
         image: docker.io/redis:6
