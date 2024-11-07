@@ -88,3 +88,20 @@ uv run pre-commit install
     Open the web interface at [localhost:8000](http://localhost:8000). You can create regular users bt signing up there.
 
     You can sign in with the superuser credentials at [localhost:8000/admin](http://localhost:8000/admin) to access the admin interface.
+
+6. Run tests:
+
+    ```bash
+    docker exec -it sds-gateway-app python manage.py test
+    ```
+
+    Tests that run:
+    * `test_authenticate`
+    * `test_create_file`
+    * `test_retrieve_file`
+    * `test_retrieve_latest_file`
+    * `test_update_file`
+    * `test_delete_file`
+    * `test_file_contents_check`
+    * `test_minio_health_check`
+    * `test_opensearch_health_check`
