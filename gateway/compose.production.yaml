@@ -24,9 +24,12 @@ services:
         depends_on:
             - postgres
             - redis
+            - minio
         env_file:
             - ./.envs/production/django.env
+            - ./.envs/production/minio.env
             - ./.envs/production/postgres.env
+            - ./.envs/production/opensearch.env
         command: /start
         networks:
             - sds-gateway-opensearch-prod-net
@@ -82,6 +85,8 @@ services:
             - production_postgres_data_backups:/backups
         env_file:
             - ./.envs/production/postgres.env
+        networks:
+            - sds-gateway-minio-prod-net
 
     redis:
         image: docker.io/redis:6

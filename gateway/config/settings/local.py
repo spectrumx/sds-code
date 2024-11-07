@@ -3,11 +3,17 @@
 # pyright: reportArgumentType=false
 # django-environ has no type hints
 
+import django_stubs_ext
+
 from .base import *  # noqa: F403 pylint: disable=wildcard-import,unused-wildcard-import
 from .base import INSTALLED_APPS
 from .base import MIDDLEWARE
 from .base import WEBPACK_LOADER
 from .base import env
+
+# Better type hinting for Django models
+# https://github.com/sbdchd/django-types
+django_stubs_ext.monkeypatch()
 
 # GENERAL
 # ------------------------------------------------------------------------------

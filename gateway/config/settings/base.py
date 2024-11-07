@@ -7,12 +7,7 @@
 from pathlib import Path
 from typing import Any
 
-import django_stubs_ext
 import environ
-
-# Better type hinting for Django models
-# https://github.com/sbdchd/django-types
-django_stubs_ext.monkeypatch()
 
 env = environ.Env()
 
@@ -29,8 +24,8 @@ OPENSEARCH_INITIAL_ADMIN_PASSWORD: str = env.str(
     default="admin",
 )
 OPENSEARCH_USE_SSL: bool = env.bool("OPENSEARCH_USE_SSL", default=False)
-OPENSEARCH_CLIENT_CERT: str = env.str("OPENSEARCH_CLIENT_CERT", default=None)
-OPENSEARCH_CLIENT_KEY: str = env.str("OPENSEARCH_CLIENT_KEY", default=None)
+OPENSEARCH_VERIFY_CERTS: bool = env.bool("OPENSEARCH_VERIFY_CERTS", default=False)
+OPENSEARCH_CA_CERTS: str = env.str("OPENSEARCH_CA_CERTS", default=None)
 
 # MinIO configuration
 STORAGES = {
