@@ -60,3 +60,4 @@ services:
 networks:
     sds-network:
         driver: bridge
+        name: sds-network

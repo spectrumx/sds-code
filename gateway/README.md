@@ -71,14 +71,14 @@ uv run pre-commit install
 3. Make Django migrations and run them:
 
     ```bash
-    docker exec -it sds_gateway_local_django python manage.py makemigrations
-    docker exec -it sds_gateway_local_django python manage.py migrate
+    docker exec -it sds-gateway-app python manage.py makemigrations
+    docker exec -it sds-gateway-app python manage.py migrate
     ```
 
 4. Create the first superuser:
 
     ```bash
-    docker exec -it sds_gateway_local_django python manage.py createsuperuser
+    docker exec -it sds-gateway-app python manage.py createsuperuser
     # or
     # docker compose -f compose.local.yaml exec django python manage.py createsuperuser
     ```
@@ -89,20 +89,25 @@ uv run pre-commit install
 
     You can sign in with the superuser credentials at [localhost:8000/admin](http://localhost:8000/admin) to access the admin interface.
 
-6. Run tests:
+6. Create the MinIO bucket:
+
+    Go to [localhost:9000](http://localhost:9001) and create a bucket named `spectrumx` with the credentials in `minio.env`.
+
+7. Run the test suite:
 
     ```bash
     docker exec -it sds-gateway-app python manage.py test
     ```
 
     Tests that run:
-    * `test_authenticate`
-    * `test_create_file`
-    * `test_retrieve_file`
-    * `test_retrieve_latest_file`
-    * `test_update_file`
-    * `test_delete_file`
-    * `test_file_contents_check`
+
+    + `test_authenticate`
+    + `test_create_file`
+    + `test_retrieve_file`
+    + `test_retrieve_latest_file`
+    + `test_update_file`
+    + `test_delete_file`
+    + `test_file_contents_check`
     * `test_download_file`
-    * `test_minio_health_check`
-    * `test_opensearch_health_check`
+    + `test_minio_health_check`
+    + `test_opensearch_health_check`

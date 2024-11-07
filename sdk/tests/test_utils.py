@@ -57,6 +57,8 @@ def test_permission_string_valid() -> None:
 def test_into_bool_truthy() -> None:
     """Makes sure truthy values are converted to True."""
     truthy_values = [
+        True,
+        1,
         "true",
         "True",
         "TrUe",
@@ -76,6 +78,8 @@ def test_into_bool_truthy() -> None:
 def test_into_bool_falsey() -> None:
     """Makes sure falsey values are converted to False."""
     falsey_values = [
+        False,
+        0,
         "false",
         "False",
         "FalSe",

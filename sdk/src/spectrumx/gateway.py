@@ -1,18 +1,27 @@
 """Lower level module for interaction with the SpectrumX Data System."""
 
+import os
 from enum import StrEnum
 from http import HTTPStatus
 from pathlib import Path
 
 import requests
+from loguru import logger as log
 
 from .errors import AuthError
 from .errors import FileError
 from .models import File
 from .ops import network
+from .utils import log_user_warning
 
 API_PATH: str = "/api/"
 API_TARGET_VERSION: str = "v1"
+
+
+def is_test_env() -> bool:
+    """Returns whether the current environment is a test environment."""
+    env_var = os.getenv("PYTEST_CURRENT_TEST", default=None)
+    return env_var is not None
 
 
 class Endpoints(StrEnum):
@@ -42,27 +51,39 @@ class GatewayClient:
     port: int
     protocol: str
     timeout: int
+    verbose: bool = False
 
     _api_key: str
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
+        *,
         host: str,
         api_key: str,
-        port: int = 443,
-        protocol: str = "https",
+        port: int | None = None,
+        protocol: str | None = None,
         timeout: int = 30,
+        verbose: bool = False,
     ) -> None:
         self.host = host
-        self.port = port
-        self.protocol = protocol
+
+        fallback_protocol = "http" if host == "localhost" else "https"
+        self.protocol = protocol if protocol is not None else fallback_protocol
+
+        fallback_port = 80 if self.protocol == "http" else 443
+        self.port = port if port is not None else fallback_port
+
         self.timeout = timeout
+        self.verbose = verbose
         self._api_key = api_key
 
     def _headers(self) -> dict[str, str]:
         """Returns the headers for the request."""
+        if not self._api_key:
+            msg = "API key not set. Check your env config."
+            log_user_warning(msg)
         return {
-            "Authorization": f"Api-Key {self._api_key}",
+            "Authorization": f"Api-Key: {self._api_key}",
         }
 
     def _request(
@@ -84,17 +105,22 @@ class GatewayClient:
         Returns:
             The response from the request.
         """
-        url_path = Path(API_PATH) / API_TARGET_VERSION / endpoint
+        assert API_TARGET_VERSION.startswith("v"), "API version must start with 'v'."
+        url_path = Path(f"{API_PATH}/{API_TARGET_VERSION}/{endpoint}")
         if asset_id is not None:
             url_path /= asset_id
-        url = f"{self.base_url}{url_path}"
-        if timeout is None:
-            timeout = self.timeout
+        url = f"{self.base_url}{url_path}/"
+        timeout = self.timeout if timeout is None else timeout
+        is_verify = not is_test_env()
+        headers = self._headers()
+        if self.verbose:
+            log.debug(f"Gateway req: {method} {url}")
         return requests.request(
             method=method,
             url=url,
-            headers=self._headers(),
+            headers=headers,
             timeout=timeout,
+            verify=is_verify,
             **kwargs,
         )
 
@@ -103,11 +129,17 @@ class GatewayClient:
         """Returns the base URL for the SDS API."""
         return f"{self.protocol}://{self.host}:{self.port}"
 
+    @property
+    def base_url_no_port(self) -> str:
+        """Returns the base URL for the SDS API, without the port."""
+        return f"{self.protocol}://{self.host}"
+
     def authenticate(self) -> None:
         """Authenticates the client with the SDS API."""
         assert self._api_key is not None, "API key is required for authentication."
         response = self._request(method=HTTPMethods.GET, endpoint=Endpoints.AUTH)
         status = HTTPStatus(response.status_code)
+        log.debug(f"Authentication response: {status}")
         if status.is_success:
             return
         msg = f"Authentication failed: {response.text}"

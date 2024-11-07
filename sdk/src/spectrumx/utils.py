@@ -54,7 +54,9 @@ def log_user_error(msg: str) -> None:
 
 
 def into_human_bool(value: str) -> bool:
-    """Converts a string to a boolean value."""
+    """Converts a string to a boolean value, defaulting to False when invalid."""
+    if isinstance(value, bool):
+        return value
     return value.lower() in {"t", "true", "1", "y", "yes", "on", "enabled"}
 
 

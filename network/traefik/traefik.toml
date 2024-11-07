@@ -72,19 +72,18 @@
 
     [http.routers.traefik-api]
         middlewares = ["auth"]
-        rule        = "Host(`sds.crc.nd.edu`) && ( PathPrefix(`/api/`) || PathPrefix(`/dashboard/`) )"
+        rule        = "Host(`sds.crc.nd.edu`) && ( PathPrefix(`/dashboard/`) )"
         service     = "api@internal"
         [http.routers.traefik-api.tls]
             certResolver = "letsencrypt"
 
-    # [http.routers.sds-gateway-app]
-    #     entryPoints = ["web", "web-secure"]
-    #     # entryPoints = ["web-secure"]
-    #     middlewares = ["csrf"]
-    #     rule        = "Host(`sds.crc.nd.edu`)"
-    #     service     = "sds-gateway-app"
-    #     [http.routers.sds-gateway-app.tls]
-    #         certResolver = "letsencrypt"
+    [http.routers.sds-gateway-app]
+        entryPoints = ["web", "web-secure"]
+        middlewares = ["csrf"]
+        rule        = "Host(`sds.crc.nd.edu`)"
+        service     = "sds-gateway-app"
+        [http.routers.sds-gateway-app.tls]
+            certResolver = "letsencrypt"
 
 # [http.routers.sds-gateway-static]
 #     entryPoints = ["web", "web-secure"]
@@ -126,7 +125,7 @@
 [http.services]
 
     [[http.services.sds-gateway-app.loadBalancer.servers]]
-        url = "http://sds-gateway-app:5000" # compose service name, in same network
+        url = "http://sds-gateway-app:8000" # compose service name, in same network
 
     [[http.services.sds-gateway-static.loadBalancer.servers]]
         url = "http://nginx:80"
