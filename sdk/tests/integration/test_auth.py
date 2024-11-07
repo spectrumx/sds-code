@@ -4,25 +4,29 @@ Use the integration_client fixture for these tests.
 """
 
 import pytest
-from responses import RequestsMock
 from spectrumx import Client
 from spectrumx.errors import AuthError
 
 
-@pytest.mark.withoutresponses
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    [
+        [
+            "https://sds.crc.nd.edu:443/api/v1/auth",
+            "http://localhost:80/api/v1/auth",
+        ]
+    ],
+    # tell pytest to pass the parameters to the fixture, \
+    #   instead of the test function directly:
+    indirect=True,
+)
 def test_authentication_200_succeeds(
-    integration_client: Client, responses: RequestsMock
+    integration_client: Client,
 ) -> None:
     """Given a successful auth response, the client must be authenticated."""
-
-    # setting up
-    responses.reset()
-    urls_to_bypass_responses = [
-        "https://sds.crc.nd.edu:443/api/v1/auth",
-        "http://localhost:80/api/v1/auth",
-    ]
-    for url in urls_to_bypass_responses:
-        responses.add_passthru(prefix=url)
 
     # auth test
     try:
@@ -35,6 +39,3 @@ def test_authentication_200_succeeds(
             f" {err}"
         )
         pytest.fail(msg)
-
-    # teardown
-    responses.reset()

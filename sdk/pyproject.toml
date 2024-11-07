@@ -245,6 +245,11 @@
             "@(abc\\.)?abstractmethod",
         ]
 
+# ====== Pytest
+[tool.pytest]
+    [tool.pytest.ini_options]
+        markers = ["integration: marks a test as an integration test"]
+
 # ====== UV
 [tool.uv]
     dev-dependencies = [

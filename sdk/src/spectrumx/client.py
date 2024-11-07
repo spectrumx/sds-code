@@ -206,10 +206,11 @@ class Client:
         """Sets the dry run mode."""
 
         self._config.dry_run = bool(value)
-        if self._config.dry_run:
-            msg = "Dry-run enabled: no SDS requests will be made or files written."
-        else:
-            msg = "Dry-run disabled: modifications are now possible."
+        msg = (
+            "Dry-run enabled: no SDS requests will be made or files written."
+            if self._config.dry_run
+            else "Dry-run DISABLED: modifications are now possible."
+        )
         log_user_warning(msg)
 
     @property
