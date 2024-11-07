@@ -1,5 +1,9 @@
+"""File operations endpoints for the SDS Gateway API."""
+
 import datetime
+import logging
 from pathlib import Path
+from typing import cast
 
 from django.conf import settings
 from django.http import HttpResponse
@@ -12,6 +16,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
@@ -25,6 +30,7 @@ from sds_gateway.api_methods.serializers.file_serializers import (
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
+from sds_gateway.users.models import User
 
 
 class FileViewSet(ViewSet):
@@ -57,14 +63,41 @@ class FileViewSet(ViewSet):
         description="Upload a file to the server.",
         summary="Upload File",
     )
-    def create(self, request, *args, **kwargs):
+    def create(self, request, *args, **kwargs) -> Response:
+        """Receives a file from the user request and saves it to the server."""
+
         serializer = FilePostSerializer(
             data=request.data,
             context={"request_user": request.user},
         )
-        if serializer.is_valid():
+        attrs_to_return = [
+            "uuid",
+            "name",
+            "directory",
+            "media_type",
+            "size",
+            "sum_blake3",
+            "created_at",
+            "updated_at",
+            "permissions",
+            "expiration_date",
+        ]
+        logging.debug("Validating file upload: %s", serializer)
+        user_dir = f"/files/{request.user.email}"
+        if serializer.is_valid(raise_exception=True):
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            logging.debug("New file uploaded: %s", serializer["uuid"])
+            returned_object = {}
+            for key, value in serializer.data.items():
+                if key not in attrs_to_return:
+                    continue
+                if key == "directory":
+                    # return path with user_dir as the "root"
+                    rel_path = str(Path(value).relative_to(user_dir))
+                    returned_object[key] = str(Path("/" + rel_path))
+                else:
+                    returned_object[key] = value
+            return Response(returned_object, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
@@ -326,17 +359,23 @@ class CheckFileContentsExistView(APIView):
         description="Check if the file contents exist on the server.",
         summary="Check File Contents Exist",
     )
-    def post(self, request):
-        user = request.user
-        file = request.FILES["file"]
+    def post(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        file_content = request.FILES["file"]
+        file_metadata = request.data.get("metadata", None)
         user_files_dir = f"/files/{user.email}"
-        if not file:
+        if not file_content:
             return Response(
-                {"detail": "No file provided."},
+                {"detail": "No file content provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not file_metadata:
+            return Response(
+                {"detail": "No file metadata provided."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        directory = request.data.get("directory", None)
+        directory = file_metadata.get("directory", None)
         if not directory:
             return Response(
                 {"detail": "No directory provided."},
@@ -352,15 +391,15 @@ class CheckFileContentsExistView(APIView):
             msg = f"The provided directory must be in the user's files directory: {user_files_dir}"  # noqa: E501
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
-        name = file.name
-        checksum = File().calculate_checksum(file)
+        name = file_content.name
+        checksum = File().calculate_checksum(file_content)
         serializer = FilePostSerializer()
-        conditions = serializer.check_file_conditions(
-            user,
-            directory,
-            name,
-            checksum,
-            request.data,
+        conditions = serializer.check_file_contents_exist(
+            user=user,
+            directory=directory,
+            name=name,
+            blake3_sum=checksum,
+            request_data=request.data,
         )
         return Response(conditions, status=status.HTTP_200_OK)
 

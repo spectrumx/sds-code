@@ -170,11 +170,19 @@ class GatewayClient:
         if file_instance.local_path is None:
             msg = "Attempting to upload a remote file. Download it first."
             raise FileError(msg)
+
+        payload = {
+            "directory": str(file_instance.directory),
+            "media_type": file_instance.media_type,
+        }
         with file_instance.local_path.open("rb") as file_ptr:
             response = self._request(
                 method=HTTPMethods.POST,
                 endpoint=Endpoints.FILES,
-                files={"file": file_ptr},
+                data=payload,
+                files={
+                    "file": file_ptr,  # request.data['file']
+                },
             )
             network.success_or_raise(response, FileError)
             return response.content

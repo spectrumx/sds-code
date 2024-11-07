@@ -1,3 +1,7 @@
+"""User and UserAPIKey models for the Gateway."""
+
+from typing import cast
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -17,11 +21,11 @@ class User(AbstractUser):
     """
 
     # First and last name do not cover name patterns around the globe
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
     name = models.CharField(_("Name of User"), blank=True, max_length=255)
-    first_name = None  # type: ignore[assignment]
-    last_name = None  # type: ignore[assignment]
-    email = models.EmailField(_("email address"), unique=True)
-    username = None  # type: ignore[assignment]
+    email = models.EmailField(_("Email address"), unique=True)
     is_approved = models.BooleanField(
         _("Approved"),
         default=False,
@@ -46,5 +50,8 @@ class User(AbstractUser):
 
 
 class UserAPIKey(AbstractAPIKey):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = cast(
+        User,
+        models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE),
+    )
     objects = APIKeyUserManager()

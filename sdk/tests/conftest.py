@@ -8,11 +8,13 @@ try:
 except ImportError:
     pass
 
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
 import pytest
 from spectrumx import enable_logging
+from spectrumx.utils import get_random_line
 
 enable_logging()
 
@@ -31,9 +33,43 @@ def temp_file_empty(tmp_path: Path) -> Path:
     return file_path
 
 
+def file_content_generator(
+    num_lines: int = 100, chars_per_line: int = 80
+) -> Generator[str, None, None]:
+    """Generator for file content."""
+    for _current_line in range(num_lines):
+        random_line = get_random_line(chars_per_line)
+        yield f"{random_line}\n"
+
+
 @pytest.fixture
 def temp_file_with_text_contents(tmp_path: Path) -> Path:
     """Fixture for a file with contents."""
     file_path = tmp_path / "test_file.txt"
-    file_path.write_text("start\n" + "Test file contents. " * 201 + "\nend")
+    # generate random string to change checksums every time
+    with file_path.open("w", encoding="utf-8") as file_handle:
+        for line in file_content_generator():
+            file_handle.write(line)
     return file_path
+
+
+@pytest.fixture
+def temp_file_tree(
+    tmp_path: Path,
+    num_dirs: int = 4,
+    num_files_per_dir: int = 4,
+) -> Path:
+    """Fixture to create a temporary directory with files in subdirs."""
+
+    total_files = num_dirs * num_files_per_dir
+
+    for dir_idx in range(num_dirs):
+        subdir = tmp_path / f"subdir_{dir_idx}"
+        subdir.mkdir()
+        for file_sub_idx in range(num_files_per_dir):
+            file_path = subdir / f"test_file_{file_sub_idx}.txt"
+            with file_path.open("w", encoding="utf-8") as file_handle:
+                for line in file_content_generator():
+                    file_handle.write(line)
+    assert len(list(tmp_path.rglob("*.txt"))) == total_files
+    return tmp_path

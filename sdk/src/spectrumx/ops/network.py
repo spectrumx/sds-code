@@ -15,10 +15,16 @@ def success_or_raise(
     status = HTTPStatus(response.status_code)
     if status.is_success:
         return
+
+    try:
+        error_details = response.json().get("detail")
+    except requests.exceptions.JSONDecodeError:
+        error_details = response.text
+
     if status in {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}:
-        raise errors.AuthError(message=response.text)
+        raise errors.AuthError(message=error_details)
     if status.is_client_error:
-        raise ContextException(message=response.text)
+        raise ContextException(message=error_details)
     if status.is_server_error:
-        raise errors.ServiceError(message=response.text)
-    raise errors.SDSError(message=response.text)
+        raise errors.ServiceError(message=error_details)
+    raise errors.SDSError(message=error_details)

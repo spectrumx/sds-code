@@ -9,10 +9,10 @@ from django.conf import settings
 from django.db import models
 
 
-def default_expiration_date() -> datetime.datetime:
+def default_expiration_date() -> datetime.date:
     """Returns the default expiration date for a file."""
     # 2 years from now
-    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=730)
+    return (datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=730)).date()
 
 
 class BaseModel(models.Model):
@@ -35,16 +35,16 @@ class File(BaseModel):
     Model to define files uploaded through the API.
     """
 
-    file = models.FileField(upload_to="files/")
-    name = models.CharField(max_length=255, blank=True)
+    deleted_at = models.DateTimeField(blank=True, null=True)
     directory = models.CharField(max_length=2048, default="files/")
+    expiration_date = models.DateField(default=default_expiration_date)
+    file = models.FileField(upload_to="files/")
+    is_deleted = models.BooleanField(default=False)
     media_type = models.CharField(max_length=255, blank=True)
+    name = models.CharField(max_length=255, blank=True)
     permissions = models.CharField(max_length=9, default="rw-r--r--")
     size = models.IntegerField(blank=True)
     sum_blake3 = models.CharField(max_length=64, blank=True)
-    expiration_date = models.DateTimeField(default=default_expiration_date)
-    is_deleted = models.BooleanField(default=False)
-    deleted_at = models.DateTimeField(blank=True, null=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         blank=True,

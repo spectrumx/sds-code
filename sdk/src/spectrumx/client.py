@@ -13,6 +13,9 @@ from typing import Any
 import dotenv
 from loguru import logger as log
 
+from spectrumx.errors import Result
+from spectrumx.errors import SDSError
+
 from . import __version__
 from .gateway import GatewayClient
 from .models import File
@@ -21,6 +24,7 @@ from .ops import files
 from .utils import get_prog_bar
 from .utils import into_human_bool
 from .utils import log_user
+from .utils import log_user_error
 from .utils import log_user_warning
 
 SDSModelT = type[SDSModel]
@@ -288,8 +292,12 @@ class Client:
         if self.dry_run:
             log_user(f"Dry run enabled: skipping upload of {file_path}")
             return file_instance
-        file_contents = self._gateway.upload_file(file_instance=file_instance)
-        return File.model_validate_json(file_contents)
+        file_created_response = self._gateway.upload_file(file_instance=file_instance)
+        uploaded_file = File.model_validate_json(file_created_response)
+        # update uploaded file with local knowledge
+        uploaded_file.local_path = file_instance.local_path
+
+        return uploaded_file
 
     def upload(
         self,
@@ -297,7 +305,7 @@ class Client:
         *,
         sds_path: Path | str = "/",
         verbose: bool = True,
-    ) -> None:
+    ) -> list[Result]:
         """Uploads a file or directory to SDS.
 
         Args:
@@ -309,8 +317,15 @@ class Client:
         local_path = Path(local_path) if isinstance(local_path, str) else local_path
         valid_files = files.get_valid_files(local_path)
         prog_bar = get_prog_bar(valid_files, desc="Uploading", disable=not verbose)
+        upload_results: list[Result] = []
         for file_path in prog_bar:
-            self.upload_file(file_path, sds_path=sds_path)
+            try:
+                result = Result(value=self.upload_file(file_path, sds_path=sds_path))
+            except SDSError as err:
+                log_user_error(f"Upload failed: {err}")
+                result = Result(exception=err)
+            upload_results.append(result)
+        return upload_results
 
     def download_file(self, file_uuid: uuid.UUID | str, to: Path | str) -> File:
         """Downloads a file from SDS.

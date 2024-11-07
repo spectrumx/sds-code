@@ -6,6 +6,7 @@ Use the integration_client fixture for these tests.
 import pytest
 from spectrumx import Client
 from spectrumx.errors import AuthError
+from spectrumx.gateway import API_TARGET_VERSION
 
 
 @pytest.mark.integration
@@ -15,8 +16,8 @@ from spectrumx.errors import AuthError
     "_without_responses",
     [
         [
-            "https://sds.crc.nd.edu:443/api/v1/auth",
-            "http://localhost:80/api/v1/auth",
+            f"https://sds.crc.nd.edu:443/api/{API_TARGET_VERSION}/auth",
+            f"http://localhost:80/api/{API_TARGET_VERSION}/auth",
         ]
     ],
     # tell pytest to pass the parameters to the fixture, \
