@@ -1,6 +1,8 @@
 import datetime
 from pathlib import Path
 
+from django.conf import settings
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample
@@ -8,6 +10,7 @@ from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -21,6 +24,7 @@ from sds_gateway.api_methods.serializers.file_serializers import (
 )
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
+from sds_gateway.api_methods.utils.minio_client import get_minio_client
 
 
 class FileViewSet(ViewSet):
@@ -235,6 +239,52 @@ class FileViewSet(ViewSet):
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get"], url_path="download")
+    def download_file(self, request, pk=None):
+        file = get_object_or_404(
+            File,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        client = get_minio_client()
+
+        minio_response = None
+        try:
+            # Get the file content from MinIO
+            minio_response = client.get_object(
+                settings.AWS_STORAGE_BUCKET_NAME,
+                file.file.name,
+            )
+
+            # Read the file content into memory
+            file_content = minio_response.read()
+
+            # Serve the file content as a response
+            http_response = HttpResponse(
+                file_content,
+                content_type="application/octet-stream",
+            )
+            http_response["Content-Disposition"] = f'attachment; filename="{file.name}"'
+        except client.exceptions.NoSuchKey as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except client.exceptions.ResponseError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        else:
+            return http_response
+        finally:
+            # if there was a response, close it and release the connection
+            if minio_response:
+                minio_response.close()
+                minio_response.release_conn()
 
 
 class CheckFileContentsExistView(APIView):
