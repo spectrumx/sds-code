@@ -58,6 +58,14 @@ uv run pre-commit install
 
 2. Deploy with Docker (recommended):
 
+    Either create an `sds-network-local` network manually, or run the [Traefik service](../network/compose.yaml) that creates it:
+
+    ```bash
+    docker network create sds-network-local --driver=bridge --name=sds-network-local
+    ```
+
+    Then, run the services:
+
     ```bash
     docker compose -f compose.local.yaml up
     ```
@@ -108,6 +116,6 @@ uv run pre-commit install
     + `test_update_file`
     + `test_delete_file`
     + `test_file_contents_check`
-    * `test_download_file`
+    + `test_download_file`
     + `test_minio_health_check`
     + `test_opensearch_health_check`
