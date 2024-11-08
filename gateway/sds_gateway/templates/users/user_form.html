@@ -6,15 +6,21 @@
     {{ user.name }}
 {% endblock title %}
 {% block content %}
-    <h1>{{ user.name }}</h1>
-    <form class="form-horizontal"
-          method="post"
-          action="{% url 'users:update' %}">
-        {% csrf_token %} {{ form|crispy }}
-        <div class="control-group">
-            <div class="controls">
-                <button type="submit" class="btn btn-primary">Update</button>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
+                <h1>{{ user.name }}</h1>
+                <form class="form-horizontal"
+                      method="post"
+                      action="{% url 'users:update' %}">
+                    {% csrf_token %} {{ form|crispy }}
+                    <div class="control-group">
+                        <div class="controls">
+                            <button type="submit" class="btn btn-primary">Update</button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
-    </form>
+    </div>
 {% endblock content %}

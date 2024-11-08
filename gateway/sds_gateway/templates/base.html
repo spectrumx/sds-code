@@ -3,13 +3,14 @@
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
-<html lang="{{ LANGUAGE_CODE }}">
+<html lang="{{ LANGUAGE_CODE }}" data-bs-theme="dark">
     <head>
         <meta charset="utf-8" />
         <meta http-equiv="x-ua-compatible" content="ie=edge" />
         <title>
             {% block title %}
                 SpectrumX Data System Gateway
+                <pre><small>alpha</small></pre>
             {% endblock title %}
         </title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -33,10 +34,10 @@
             {% render_bundle 'project' 'js' attrs='defer' %}
         {% endblock javascript %}
     </head>
-    <body class="{% block bodyclass %}{% endblock bodyclass %}">
+    <body class="{% block bodyclass %}{% endblock bodyclass %}" id="body">
         {% block body %}
             <div class="mb-1">
-                <nav class="navbar navbar-expand-md navbar-light bg-light">
+                <nav class="navbar navbar-expand-md">
                     <div class="container-fluid">
                         <button class="navbar-toggler navbar-toggler-right"
                                 type="button"
@@ -49,37 +50,44 @@
                         </button>
                         <a class="navbar-brand" href="{% url 'home' %}">SpectrumX Data System Gateway</a>
                         <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                            {% comment %} left navbar {% endcomment %}
                             <ul class="navbar-nav mr-auto">
-                                <li class="nav-item active">
-                                    <a class="nav-link" href="{% url 'home' %}">Home
-                                        <span class="visually-hidden">(current)</span></a>
-                                </li>
                                 <li class="nav-item">
                                     <a class="nav-link" href="{% url 'about' %}">About</a>
                                 </li>
                                 {% if request.user.is_authenticated %}
                                     <li class="nav-item">
-                                        <a class="nav-link" href="{% url 'users:detail' request.user.pk %}">{% translate "My Profile" %}</a>
-                                    </li>
-                                    {% if request.user.is_approved %}
-                                        <li class="nav-item">
-                                            <a class="nav-link" href="{% url 'users:generate_api_key' %}">{% translate "My API Key" %}</a>
-                                        </li>
-                                    {% endif %}
-                                    <li class="nav-item">
                                         <a class="nav-link" href="{% url 'users:file_list' %}?page=1">{% translate "My Files" %}</a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                            {% comment %} right navbar {% endcomment %}
+                            <ul class="navbar-nav ms-auto">
+                                {% if request.user.is_authenticated %}
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:detail' request.user.pk %}">
+                                            {% if request.user.name %}
+                                                {{ request.user.name }}
+                                            {% else %}
+                                                {{ request.user.email }}
+                                            {% endif %}
+                                        </a>
+                                    </li>
+                                    <li class="nav-item"
+                                        {% if not request.user.is_approved %}title="{% translate 'Contact administrator for account approval to generate API keys.' %}"{% endif %}>
+                                        <a class="nav-link {% if not request.user.is_approved %}disabled{% endif %}"
+                                           href="{% url 'users:generate_api_key' %}">{% translate "API Key" %}</a>
                                     </li>
                                     <li class="nav-item">
                                         {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
-                                        <a class="nav-link" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
+                                        <form id="signout" method="post" action="{% url 'account_logout' %}">
+                                            {% csrf_token %}
+                                            <a href="#"
+                                               class="nav-link btn btn-link"
+                                               onclick="document.getElementById('signout').submit();">{% translate "Sign Out" %}</a>
+                                        </form>
                                     </li>
                                 {% else %}
-                                    {% if ACCOUNT_ALLOW_REGISTRATION %}
-                                        <li class="nav-item">
-                                            {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
-                                            <a id="sign-up-link" class="nav-link" href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
-                                        </li>
-                                    {% endif %}
                                     <li class="nav-item">
                                         {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
                                         <a id="log-in-nav-link"
@@ -92,7 +100,7 @@
                     </div>
                 </nav>
             </div>
-            <div class="container">
+            <div class="py-4 container">
                 {% if messages %}
                     {% for message in messages %}
                         <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
@@ -109,26 +117,6 @@
                         <p>
                             The <b>SpectrumX Data System (SDS)</b> is a data management and retrieval platform for radio-frequency experiments.
                         </p>
-                        <p>
-                            This is the SDS Gateway, a web interface in the making for user-friendly data retrieval.
-                            Here you can also generate API keys to interact with SDS via our
-                            <a href="https://pypi.org/project/spectrumx" target="_blank">Python SDK</a>.
-                        </p>
-                        <br />
-                        {% if request.user.is_authenticated %}
-                            <p>
-                                Welcome, <b>{{ request.user.name }}</b>!
-                            </p>
-                            <p>
-                                You can create/update your API Key or view/edit your user profile details using the links in the navigation bar above.
-                                You can also view the API documentation at the link below.
-                            </p>
-                            <a class="btn btn-primary" href="{% url 'api-docs' %}" target="_blank">API Documentation</a>
-                        {% else %}
-                            <a id="log-in-link"
-                               class="btn btn-primary"
-                               href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
-                        {% endif %}
                     {% endblock content %}
                 {% endblock main %}
             </div>
@@ -137,14 +125,96 @@
         {% block modal %}
         {% endblock modal %}
         {% block inline_javascript %}
-            {% comment %} Script tags with only code, no src (defer by default). To run
-            with a "defer" so that you run inline code:
-            <script>
-                window.addEventListener("DOMContentLoaded", () => {
-                    /* Run whatever you want */
-                });
+            {% comment %} avoids showing a partially loaded page {% endcomment %}
+            <script type="text/javascript">
+                window.onload = function() {
+                    setTimeout(function() {
+                        document.getElementById("body").style.display = "";
+                    }, 200);
+                }
             </script>
-            {% endcomment %}
+            <script>
+                /*!
+                 * Color mode toggler for Bootstrap's docs (https://getbootstrap.com/)
+                 * Copyright 2011-2024 The Bootstrap Authors
+                 * Licensed under the Creative Commons Attribution 3.0 Unported License.
+                 */
+
+                (() => {
+                    'use strict'
+
+                    const getStoredTheme = () => localStorage.getItem('theme')
+                    const setStoredTheme = theme => localStorage.setItem('theme', theme)
+
+                    const getPreferredTheme = () => {
+                        const storedTheme = getStoredTheme()
+                        if (storedTheme) {
+                            return storedTheme
+                        }
+
+                        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+                    }
+
+                    const setTheme = theme => {
+                        if (theme === 'auto') {
+                            document.documentElement.setAttribute('data-bs-theme', (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+                        } else {
+                            document.documentElement.setAttribute('data-bs-theme', theme)
+                        }
+                    }
+
+                    setTheme(getPreferredTheme())
+
+                    const showActiveTheme = (theme, focus = false) => {
+                        const themeSwitcher = document.querySelector('#bd-theme')
+
+                        if (!themeSwitcher) {
+                            return
+                        }
+
+                        const themeSwitcherText = document.querySelector('#bd-theme-text')
+                        const activeThemeIcon = document.querySelector('.theme-icon-active use')
+                        const btnToActive = document.querySelector(`[data-bs-theme-value="${theme}"]`)
+                        const svgOfActiveBtn = btnToActive.querySelector('svg use').getAttribute('href')
+
+                        document.querySelectorAll('[data-bs-theme-value]').forEach(element => {
+                            element.classList.remove('active')
+                            element.setAttribute('aria-pressed', 'false')
+                        })
+
+                        btnToActive.classList.add('active')
+                        btnToActive.setAttribute('aria-pressed', 'true')
+                        activeThemeIcon.setAttribute('href', svgOfActiveBtn)
+                        const themeSwitcherLabel = `${themeSwitcherText.textContent} (${btnToActive.dataset.bsThemeValue})`
+                        themeSwitcher.setAttribute('aria-label', themeSwitcherLabel)
+
+                        if (focus) {
+                            themeSwitcher.focus()
+                        }
+                    }
+
+                    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                        const storedTheme = getStoredTheme()
+                        if (storedTheme !== 'light' && storedTheme !== 'dark') {
+                            setTheme(getPreferredTheme())
+                        }
+                    })
+
+                    window.addEventListener('DOMContentLoaded', () => {
+                        showActiveTheme(getPreferredTheme())
+
+                        document.querySelectorAll('[data-bs-theme-value]')
+                            .forEach(toggle => {
+                                toggle.addEventListener('click', () => {
+                                    const theme = toggle.getAttribute('data-bs-theme-value')
+                                    setStoredTheme(theme)
+                                    setTheme(theme)
+                                    showActiveTheme(theme, true)
+                                })
+                            })
+                    })
+                })()
+            </script>
         {% endblock inline_javascript %}
     </body>
 </html>
