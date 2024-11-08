@@ -35,6 +35,8 @@ CACHES = {
     },
 }
 
+# ⚠️ Setting overrides for PRODUCTION
+
 # SECURITY
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-proxy-ssl-header
@@ -67,6 +69,8 @@ SECURE_CONTENT_TYPE_NOSNIFF: bool = env.bool(
     default=True,
 )
 
+# ⚠️ Setting overrides for PRODUCTION
+
 # STATIC & MEDIA
 # ------------------------
 STORAGES = {
@@ -93,6 +97,8 @@ EMAIL_SUBJECT_PREFIX: str = env(
     default="[SpectrumX Data System Gateway] ",
 )
 
+# ⚠️ Setting overrides for PRODUCTION
+
 # ADMIN
 # ------------------------------------------------------------------------------
 # Django Admin URL regex.
@@ -112,6 +118,7 @@ ANYMAIL: dict[str, str] = {
     "MAILGUN_API_URL": env("MAILGUN_API_URL", default="https://api.mailgun.net/v3"),
 }
 
+# ⚠️ Setting overrides for PRODUCTION
 
 # LOGGING
 # ------------------------------------------------------------------------------
@@ -157,6 +164,8 @@ LOGGING: dict[str, Any] = {
         },
     },
 }
+
+# ⚠️ Setting overrides for PRODUCTION
 
 # django-rest-framework
 # -------------------------------------------------------------------------------

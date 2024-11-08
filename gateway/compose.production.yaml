@@ -1,3 +1,9 @@
+# ⚠️ PRODUCTION COMPOSE FILE ⚠️
+# Make sure images, container names, and other assets start with "sds-gateway-prod-"
+#   to underline its importance and avoid accidents.
+# Also try to keep it as close to the production
+#   file as possible to simplify the deployment process.
+
 volumes:
     # for safety, all gateway production volumes start with "sds-gateway-prod-"
     sds-gateway-prod-postgres-data: {}
@@ -16,16 +22,14 @@ networks:
     sds-network-prod:
         external: true
 
-# Also make sure images, container names, and other assets start with "sds-gateway-prod-"
-
 services:
 
-    sds-gateway-app: &sds-gateway-app
+    sds-gateway-prod-app:
         build:
             context: .
             dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-app-prod
-        container_name: sds-gateway-app-prod
+        image: sds-gateway-prod-app
+        container_name: sds-gateway-prod-app
         tty: true
         depends_on:
             - postgres
@@ -51,18 +55,18 @@ services:
         image: docker.io/nginx:1-alpine
         container_name: sds-gateway-prod-nginx
         volumes:
-            - source : ./nginx/nginx-default.conf
+            - source : ./compose/production/nginx/nginx-default.conf
               target: /etc/nginx/conf.d/default.conf
               type: bind
               read_only: true
             # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
             # - source: ./nginx/data  # TODO: point to built static files
-            - source: ../gateway/sds_gateway/static  # TODO: point to built static files
+            - source: sds_gateway/static  # TODO: point to built static files
               target: /usr/share/nginx/static
               type: bind
               read_only: true
         networks:
-            - sds-network
+            - sds-network-prod
 
     minio:
         # main file storage for sds

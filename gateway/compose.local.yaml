@@ -1,3 +1,9 @@
+# LOCAL COMPOSE FILE
+# Make sure images, container names, and other assets start with "sds-gateway-local-"
+#   to underline its importance and avoid accidents.
+# Also try to keep it as close to the production
+#   file as possible to simplify the deployment process.
+
 volumes:
     # for safety, all local volumes start with "sds-gateway-local-"
     sds-gateway-local-postgres-data: {}
@@ -16,16 +22,14 @@ networks:
     sds-network-local:
         external: true
 
-# Also make sure images, container names, and other assets start with "sds-gateway-local-"
-
 services:
 
-    sds-gateway-app: &sds-gateway-app
+    sds-gateway-local-app:
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
-        image: sds-gateway-app
-        container_name: sds-gateway-app
+        image: sds-gateway-local-app
+        container_name: sds-gateway-local-app
         tty: true
         depends_on:
             - minio
@@ -63,7 +67,7 @@ services:
               type: bind
               read_only: true
         networks:
-            - sds-network
+            - sds-network-local
 
     minio:
         # main file storage for sds
@@ -138,7 +142,7 @@ services:
         image: sds-gateway-local-node
         container_name: sds-gateway-local-node
         depends_on:
-            - sds-gateway-app
+            - sds-gateway-local-app
         volumes:
             - .:/app:z
             # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html

@@ -29,7 +29,7 @@ ALLOWED_HOSTS: list[str] = [
     "localhost",
     "0.0.0.0",
     "127.0.0.1",
-    "sds.crc.nd.edu",  # to test with traefik; change your /etc/hosts file
+    "sds-dev.crc.nd.edu",  # to test with traefik; change your /etc/hosts file
 ]
 
 # CACHES
