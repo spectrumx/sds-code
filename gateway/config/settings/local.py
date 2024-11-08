@@ -1,5 +1,5 @@
 """Setting overrides for local development."""
-# ruff: noqa: F405
+# ruff: noqa: F405, ERA001
 # pyright: reportArgumentType=false
 # django-environ has no type hints
 
@@ -94,7 +94,7 @@ INSTALLED_APPS.extend(["django_extensions"])
 # ------------------------------------------------------------------------------
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
-CELERY_TASK_EAGER_PROPAGATES: bool = True
+# CELERY_TASK_EAGER_PROPAGATES: bool = True
 # django-webpack-loader
 # ------------------------------------------------------------------------------
 WEBPACK_LOADER["DEFAULT"]["CACHE"] = not DEBUG
