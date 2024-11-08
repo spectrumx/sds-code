@@ -47,7 +47,7 @@ uv run pre-commit install
 1. Set secrets:
 
     ```bash
-    rsync -aP ./.envs/example ./.envs/local
+    rsync -aP ./.envs/example/ ./.envs/local
     # manually set the secrets in .envs/local/*.env files
     ```
 
