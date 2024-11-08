@@ -48,6 +48,7 @@ class FileTestCases(APITestCase):
         self.list_url = reverse("api:files-list")
         self.detail_url = reverse("api:files-detail", args=[self.file.uuid])
         self.contents_check_url = reverse("api:check_contents_exist")
+        self.download_url = reverse("api:files-download", args=[self.file.uuid])
 
     def tearDown(self):
         # Delete the test file if it exists
@@ -115,9 +116,7 @@ class FileTestCases(APITestCase):
         assert "user_mutable_attributes_differ" in response.data
 
     def test_download_file(self):
-        response = self.client.get(
-            reverse("api:files-download", args=[self.file.uuid]),
-        )
+        response = self.client.get(self.download_url)
         assert response.status_code == status.HTTP_200_OK
         assert (
             response["Content-Disposition"]

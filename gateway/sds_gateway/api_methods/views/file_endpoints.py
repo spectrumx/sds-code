@@ -240,7 +240,7 @@ class FileViewSet(ViewSet):
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=True, methods=["get"], url_path="download")
+    @action(detail=True, methods=["get"], url_path="download", url_name="download")
     def download_file(self, request, pk=None):
         file = get_object_or_404(
             File,
@@ -265,7 +265,7 @@ class FileViewSet(ViewSet):
             # Serve the file content as a response
             http_response = HttpResponse(
                 file_content,
-                content_type="application/octet-stream",
+                content_type=file.media_type,
             )
             http_response["Content-Disposition"] = f'attachment; filename="{file.name}"'
         except client.exceptions.NoSuchKey as e:
