@@ -4,10 +4,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.resolve()
-PRODUCTION_DOTENVS_DIR = BASE_DIR / ".envs" / ".production"
+PRODUCTION_DOTENVS_DIR = BASE_DIR / ".envs" / "production"
 PRODUCTION_DOTENV_FILES = [
-    PRODUCTION_DOTENVS_DIR / ".django",
-    PRODUCTION_DOTENVS_DIR / ".postgres",
+    PRODUCTION_DOTENVS_DIR / "django",
+    PRODUCTION_DOTENVS_DIR / "postgres",
 ]
 DOTENV_FILE = BASE_DIR / ".env"
 

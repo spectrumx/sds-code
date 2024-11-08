@@ -17,8 +17,8 @@ sudo apt install python3-dev libpq-dev # on ubuntu
 sudo dnf install python3-devel postgresql-devel # on RHEL
 
 # get psql, createdb, etc.
-sudo apt install postgresql-client # for psql
-sudo dnf install postgresql # for psql
+sudo apt install postgresql-client
+sudo dnf install postgresql
 ```
 
 Python dependencies
@@ -79,14 +79,14 @@ uv run pre-commit install
 3. Make Django migrations and run them:
 
     ```bash
-    docker exec -it sds-gateway-app python manage.py makemigrations
-    docker exec -it sds-gateway-app python manage.py migrate
+    docker exec -it sds-gateway-local-app python manage.py makemigrations
+    docker exec -it sds-gateway-local-app python manage.py migrate
     ```
 
 4. Create the first superuser:
 
     ```bash
-    docker exec -it sds-gateway-app python manage.py createsuperuser
+    docker exec -it sds-gateway-local-app python manage.py createsuperuser
     # or
     # docker compose -f compose.local.yaml exec django python manage.py createsuperuser
     ```
@@ -104,7 +104,7 @@ uv run pre-commit install
 7. Run the test suite:
 
     ```bash
-    docker exec -it sds-gateway-app python manage.py test
+    docker exec -it sds-gateway-local-app python manage.py test
     ```
 
     Tests that run:
