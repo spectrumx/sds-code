@@ -61,7 +61,7 @@
         address = ":80"
         [entryPoints.web.http.redirections.entryPoint]
             # redirect all HTTP traffic to HTTPS
-            # to = "web-secure"
+            to = "web-secure"
 
 [entryPoints.web-secure]
     address   = ":443"
@@ -96,25 +96,25 @@
     middlewares = ["csrf"]
     rule        = "Host(`sds-dev.crc.nd.edu`)"
     service     = "sds-gateway-local-app"
-    # [http.routers.sds-gateway-app-local.tls]
-    # certResolver = "letsencrypt"
+    [http.routers.sds-gateway-local-app.tls]
+        certResolver = "letsencrypt"
 
 # ⚠️ PROD router
-[http.routers.sds-gateway-app-prod]
+[http.routers.sds-gateway-prod-app]
     entryPoints = ["web", "web-secure"]
     middlewares = ["csrf"]
     rule        = "Host(`sds.crc.nd.edu`)"
-    service     = "sds-gateway-app"
-    [http.routers.sds-gateway-app-prod.tls]
+    service     = "sds-gateway-prod-app"
+    [http.routers.sds-gateway-prod-app.tls]
         certResolver = "letsencrypt"
 
-        # LOCAL router for static files
-        # [http.routers.sds-gateway-local-nginx]
-        #     entryPoints = ["web", "web-secure"]
-        #     rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
-        #     service     = "sds-gateway-local-nginx"
-        #     [http.routers.sds-gateway-local-nginx.tls]
-        #         certResolver = "letsencrypt"
+# LOCAL router for static files
+[http.routers.sds-gateway-local-nginx]
+    entryPoints = ["web", "web-secure"]
+    rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
+    service     = "sds-gateway-local-nginx"
+    [http.routers.sds-gateway-local-nginx.tls]
+        certResolver = "letsencrypt"
 
 # ⚠️ PROD router for static files
 [http.routers.sds-gateway-prod-nginx]
@@ -155,13 +155,17 @@
 
     # These must match the compose service name and port
 
+    # ------------- WEB APP SERVERS
+
     # LOCAL service
     [[http.services.sds-gateway-local-app.loadBalancer.servers]]
         url = "http://sds-gateway-local-app:8000"
 
     # ⚠️ PROD service
     [[http.services.sds-gateway-prod-app.loadBalancer.servers]]
-        url = "http://sds-gateway-app-prod:18000"
+        url = "http://sds-gateway-prod-app:18000"
+
+        # ------------- STATIC SERVERS
 
     # LOCAL service
     [[http.services.sds-gateway-local-nginx.loadBalancer.servers]]
@@ -170,6 +174,8 @@
     # ⚠️ PROD service
     [[http.services.sds-gateway-prod-nginx.loadBalancer.servers]]
         url = "http://sds-gateway-prod-nginx:80"
+
+        # ------------- NETWORK STACK / DEBUGGING
 
     # Network stack service
     [[http.services.whoami.loadBalancer.servers]]
