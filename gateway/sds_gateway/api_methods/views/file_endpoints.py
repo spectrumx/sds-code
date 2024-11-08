@@ -240,6 +240,23 @@ class FileViewSet(ViewSet):
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="File UUID",
+                required=True,
+                type=str,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="HTTP File Response"),
+            404: OpenApiResponse(description="Not Found"),
+            500: OpenApiResponse(description="Internal Server Error"),
+        },
+        description="Download a file from the server.",
+        summary="Download File",
+    )
     @action(detail=True, methods=["get"], url_path="download", url_name="download")
     def download_file(self, request, pk=None):
         file = get_object_or_404(
