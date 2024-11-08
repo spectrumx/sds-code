@@ -113,3 +113,15 @@ class FileTestCases(APITestCase):
         assert "file_contents_exist_for_user" in response.data
         assert "file_exists_in_tree" in response.data
         assert "user_mutable_attributes_differ" in response.data
+
+    def test_download_file(self):
+        response = self.client.get(
+            reverse("api:files-download", args=[self.file.uuid]),
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert (
+            response["Content-Disposition"]
+            == f'attachment; filename="{self.file.name}"'
+        )
+        assert response["Content-Type"] == self.file.media_type
+        assert response.content == self.file.file.read()
