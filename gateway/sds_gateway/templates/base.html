@@ -10,7 +10,6 @@
         <title>
             {% block title %}
                 SpectrumX Data System Gateway
-                <pre><small>alpha</small></pre>
             {% endblock title %}
         </title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -52,7 +51,7 @@
                                 aria-label="Toggle navigation">
                             <span class="navbar-toggler-icon"></span>
                         </button>
-                        <a class="navbar-brand" href="{% url 'home' %}">SpectrumX Data System Gateway</a>
+                        <a class="navbar-brand" href="{% url 'home' %}">SDS Gateway <span class="alpha-tag"><small>alpha</small></span></a>
                         <div class="collapse navbar-collapse" id="navbarSupportedContent">
                             {% comment %} left navbar {% endcomment %}
                             <ul class="navbar-nav mr-auto">
