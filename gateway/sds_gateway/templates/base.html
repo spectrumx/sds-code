@@ -34,7 +34,11 @@
             {% render_bundle 'project' 'js' attrs='defer' %}
         {% endblock javascript %}
     </head>
-    <body class="{% block bodyclass %}{% endblock bodyclass %}" id="body">
+    {# djlint:off H021 #}
+    <body class="{% block bodyclass %}{% endblock bodyclass %}"
+          id="body"
+          style="display: none">
+        {# djlint:on #}
         {% block body %}
             <div class="mb-1">
                 <nav class="navbar navbar-expand-md">
@@ -130,6 +134,7 @@
                 window.onload = function() {
                     setTimeout(function() {
                         document.getElementById("body").style.display = "";
+                        console.log("Page loaded");
                     }, 200);
                 }
             </script>

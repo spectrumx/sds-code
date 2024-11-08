@@ -35,11 +35,6 @@ $red: #b94a48;
     color: $red;
 }
 
-body {
-    display:none;
-    // javascript shows the body after a few ms to avoid flickering
-}
-
 .provider-list {
     list-style-type: none;
     padding-left: 0;
