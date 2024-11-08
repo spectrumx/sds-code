@@ -34,3 +34,33 @@ $red: #b94a48;
     border-color: $dark-pink;
     color: $red;
 }
+
+body {
+    display:none;
+    // javascript shows the body after a few ms to avoid flickering
+}
+
+.provider-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.api-key-text {
+    font-size: 1.2em;
+    font-family: monospace;
+}
+
+h2 {
+    margin-top: 1em;
+    border-bottom: 0.5px solid #ccc7;
+    padding-bottom: 0.3em;
+    margin-bottom: 0.7em;
+}
+
+a {
+    text-decoration: none;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}

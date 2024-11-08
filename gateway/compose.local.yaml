@@ -19,6 +19,7 @@ services:
             dockerfile: ./compose/local/django/Dockerfile
         image: sds-gateway-app
         container_name: sds-gateway-app
+        tty: true
         depends_on:
             - postgres
             - redis
@@ -124,6 +125,7 @@ services:
         # uncomment the ports field if not deploying traefik
         # ports:
         #     - "5555:5555"
+        ports: []
         command: /start-flower
 
     node:
