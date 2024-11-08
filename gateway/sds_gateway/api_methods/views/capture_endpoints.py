@@ -1,6 +1,6 @@
 import tempfile
 from pathlib import Path
-from pathlib import PurePosixPath
+from typing import cast
 
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample
@@ -25,6 +25,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSe
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
+from sds_gateway.users.models import User
 
 
 class CaptureViewSet(viewsets.ViewSet):
@@ -60,23 +61,24 @@ class CaptureViewSet(viewsets.ViewSet):
         # channel whose data/metadata to capture
         channel = request.data.get("channel", None)
         # path to directory that contains the channel dirs
-        top_level_dir = request.data.get("top_level_dir", "")
+        requested_top_level_dir = Path(request.data.get("top_level_dir", ""))
+        requester = cast(User, request.user)
 
         # Ensure the top_level_dir is not a relative path
-        if not PurePosixPath(top_level_dir).is_absolute():
+        if not requested_top_level_dir.is_absolute():
             msg = "Relative paths are not allowed."
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
         # Resolve the top_level_dir to an absolute path
-        resolved_top_level_dir = Path(top_level_dir).resolve(strict=False)
+        resolved_top_level_dir = requested_top_level_dir.resolve(strict=False)
 
         # Ensure the resolved path is within the user's files directory
-        user_files_dir = Path(f"/files/{request.user.email}").resolve(strict=False)
+        user_files_dir = Path(f"/files/{requester.email}").resolve(strict=False)
         if not resolved_top_level_dir.is_relative_to(user_files_dir):
-            msg = f"The top_level_dir must be in the user's files directory: /files/{request.user.email}"  # noqa: E501
+            msg = f"The top_level_dir must be in the user's files directory: /files/{requester.email}"  # noqa: E501
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
-        request.data["owner"] = request.user.id
+        request.data["owner"] = requester.id
         serializer = CapturePostSerializer(
             data=request.data,
         )
@@ -89,19 +91,19 @@ class CaptureViewSet(viewsets.ViewSet):
         capture_data = dict(serializer.data)
         capture = Capture.objects.get(
             uuid=capture_data["uuid"],
-            owner=request.user,
+            owner=requester,
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             tmp_dir_path, files_to_connect = reconstruct_tree(
-                temp_dir,
-                top_level_dir,
-                request.user,
+                target_dir=Path(temp_dir),
+                top_level_dir=requested_top_level_dir,
+                owner=requester,
             )
 
-            for file in files_to_connect:
-                file.capture = capture
-                file.save()
+            for cur_file in files_to_connect:
+                cur_file.capture = capture
+                cur_file.save()
 
             validated_metadata = validate_metadata_by_channel(tmp_dir_path, channel)
             index_capture_metadata(capture, validated_metadata)

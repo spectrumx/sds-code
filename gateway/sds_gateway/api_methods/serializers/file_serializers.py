@@ -23,9 +23,29 @@ class FileGetSerializer(serializers.ModelSerializer[File]):
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
+    # add @property-ies as read-only fields
+    user_directory = serializers.CharField(read_only=True)
+
     class Meta:
         model = File
-        fields = "__all__"
+        fields = (
+            "bucket_name",
+            "capture",
+            "created_at",
+            "dataset",
+            "directory",
+            "expiration_date",
+            "file",
+            "media_type",
+            "name",
+            "owner",
+            "permissions",
+            "size",
+            "sum_blake3",
+            "updated_at",
+            "user_directory",
+            "uuid",
+        )
 
 
 class FilePostSerializer(serializers.ModelSerializer[File]):

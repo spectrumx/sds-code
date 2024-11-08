@@ -3,16 +3,17 @@
 import datetime
 import json
 import uuid
+from pathlib import Path
 
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
 from django.db import models
 
 
-def default_expiration_date() -> datetime.date:
+def default_expiration_date() -> datetime.datetime:
     """Returns the default expiration date for a file."""
     # 2 years from now
-    return (datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=730)).date()
+    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=730)
 
 
 class BaseModel(models.Model):
@@ -37,7 +38,7 @@ class File(BaseModel):
 
     deleted_at = models.DateTimeField(blank=True, null=True)
     directory = models.CharField(max_length=2048, default="files/")
-    expiration_date = models.DateField(default=default_expiration_date)
+    expiration_date = models.DateTimeField(default=default_expiration_date)
     file = models.FileField(upload_to="files/")
     is_deleted = models.BooleanField(default=False)
     media_type = models.CharField(max_length=255, blank=True)
@@ -74,7 +75,14 @@ class File(BaseModel):
     def __str__(self) -> str:
         return f"{self.directory}{self.name}"
 
-    def calculate_checksum(self, file_obj=None):
+    @property
+    def user_directory(self) -> str:
+        """Returns the path relative to the user root on SDS."""
+        # TODO: make this the default ".directory" behavior after the workshop
+        return str(Path(*self.directory.parts[2:]))
+
+    def calculate_checksum(self, file_obj=None) -> str:
+        """Calculates the BLAKE3 checksum of the file."""
         checksum = Blake3()  # pylint: disable=not-callable
         file = self.file
         if file_obj:
@@ -138,7 +146,7 @@ class Dataset(BaseModel):
     license = models.CharField(max_length=255, blank=True)
     keywords = models.TextField(blank=True)
     institutions = models.TextField(blank=True)
-    release_date = models.DateField(blank=True, null=True)
+    release_date = models.DateTimeField(blank=True, null=True)
     repository = models.URLField(blank=True)
     version = models.CharField(max_length=255, blank=True)
     website = models.URLField(blank=True)

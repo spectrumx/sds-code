@@ -28,6 +28,10 @@ def human_readable_permissions(perm_string):
     other_perms = perm_string[6:9]
 
     def parse_perms(perms):
-        return ", ".join([perm_map[char] for char in perms if char in perm_map])
+        return "+".join([perm_map[char] for char in perms if char in perm_map])
 
-    return f"User: {parse_perms(user_perms)}, Group: {parse_perms(group_perms)}, Others: {parse_perms(other_perms)}"  # noqa: E501
+    return (
+        f"User: {parse_perms(user_perms)} | "
+        f"Group: {parse_perms(group_perms)} | "
+        f"Others: {parse_perms(other_perms)}"
+    )
