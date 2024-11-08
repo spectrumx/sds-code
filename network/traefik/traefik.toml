@@ -61,7 +61,7 @@
         address = ":80"
         [entryPoints.web.http.redirections.entryPoint]
             # redirect all HTTP traffic to HTTPS
-            to = "web-secure"
+            # to = "web-secure"
 
 [entryPoints.web-secure]
     address   = ":443"
@@ -96,7 +96,7 @@
     middlewares = ["csrf"]
     rule        = "Host(`sds-dev.crc.nd.edu`)"
     service     = "sds-gateway-local-app"
-[http.routers.sds-gateway-app-local.tls]
+    # [http.routers.sds-gateway-app-local.tls]
     # certResolver = "letsencrypt"
 
 # ⚠️ PROD router
