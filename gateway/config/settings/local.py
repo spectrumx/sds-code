@@ -29,6 +29,7 @@ ALLOWED_HOSTS: list[str] = [
     "localhost",
     "0.0.0.0",
     "127.0.0.1",
+    "sds-gateway-local-app",  # internal docker name
     "sds-dev.crc.nd.edu",  # to test with traefik; change your /etc/hosts file
 ]
 

@@ -97,7 +97,7 @@
     rule        = "Host(`sds-dev.crc.nd.edu`)"
     service     = "sds-gateway-local-app"
 [http.routers.sds-gateway-app-local.tls]
-    certResolver = "letsencrypt"
+    # certResolver = "letsencrypt"
 
 # ⚠️ PROD router
 [http.routers.sds-gateway-app-prod]
@@ -108,13 +108,13 @@
     [http.routers.sds-gateway-app-prod.tls]
         certResolver = "letsencrypt"
 
-# LOCAL router for static files
-[http.routers.sds-gateway-local-nginx]
-    entryPoints = ["web", "web-secure"]
-    rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
-    service     = "sds-gateway-local-nginx"
-    [http.routers.sds-gateway-local-nginx.tls]
-        certResolver = "letsencrypt"
+        # LOCAL router for static files
+        # [http.routers.sds-gateway-local-nginx]
+        #     entryPoints = ["web", "web-secure"]
+        #     rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
+        #     service     = "sds-gateway-local-nginx"
+        #     [http.routers.sds-gateway-local-nginx.tls]
+        #         certResolver = "letsencrypt"
 
 # ⚠️ PROD router for static files
 [http.routers.sds-gateway-prod-nginx]
