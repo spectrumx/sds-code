@@ -1,4 +1,7 @@
-# Traefik configuration file
+# ⚠️ PRODUCTION CONFIG FILE ⚠️
+# Saved changes are live immediately
+
+# Traefik configuration file. Sample at:
 # https://github.com/traefik/traefik/blob/master/traefik.sample.toml
 
 [global]
