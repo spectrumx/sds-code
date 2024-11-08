@@ -317,10 +317,10 @@ LOGGING: dict[str, Any] = {
 
 # Celery
 # ------------------------------------------------------------------------------
-if USE_TZ:
-    # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-timezone
-    CELERY_TIMEZONE: str = TIME_ZONE
-
+# if USE_TZ:
+#     # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-timezone
+#     CELERY_TIMEZONE: str = TIME_ZONE
+#
 # # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-broker_url
 # CELERY_BROKER_URL: str = env("CELERY_BROKER_URL")
 # # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-result_backend
