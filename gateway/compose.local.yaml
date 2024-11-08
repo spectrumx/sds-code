@@ -114,7 +114,8 @@ services:
         # main database for the gateway app
         build:
             context: .
-            dockerfile: ./compose/local/postgres/Dockerfile
+            dockerfile: ./compose/production/postgres/Dockerfile
+            # this dockerfile is used for both local and prod
         image: sds-gateway-local-postgres
         container_name: sds-gateway-local-postgres
         volumes:
