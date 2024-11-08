@@ -97,7 +97,7 @@ services:
         container_name: sds-gateway-local-opensearch
         volumes:
             - sds-gateway-local-opensearch-data:/usr/share/opensearch/data
-            - ./opensearch.local.yaml:/usr/share/opensearch/config/opensearch.yml
+            - ./compose/local/opensearch/opensearch.yaml:/usr/share/opensearch/config/opensearch.yml
         env_file:
             - ./.envs/local/opensearch.env
         ulimits:

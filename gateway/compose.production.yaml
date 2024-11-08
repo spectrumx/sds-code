@@ -96,7 +96,7 @@ services:
         container_name: sds-gateway-prod-opensearch
         volumes:
             - sds-gateway-prod-opensearch-data:/usr/share/opensearch/data
-            - ./opensearch.production.yaml:/usr/share/opensearch/config/opensearch.yml
+            - ./compose/production/opensearch/opensearch.yaml:/usr/share/opensearch/config/opensearch.yml
             - ./opensearch/data/certs:/usr/share/opensearch/config/certs
         env_file:
             - ./.envs/production/opensearch.env
