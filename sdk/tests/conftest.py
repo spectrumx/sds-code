@@ -28,7 +28,7 @@ def sample_config() -> dict[str, Any]:
 @pytest.fixture
 def temp_file_empty(tmp_path: Path) -> Path:
     """Fixture to create a temporary file for testing."""
-    file_path = tmp_path / "test_file.txt"
+    file_path = tmp_path / "empty_test_file.txt"
     file_path.touch()
     return file_path
 
@@ -45,11 +45,12 @@ def file_content_generator(
 @pytest.fixture
 def temp_file_with_text_contents(tmp_path: Path) -> Path:
     """Fixture for a file with contents."""
-    file_path = tmp_path / "test_file.txt"
+    file_path = (
+        tmp_path / f"test_file_{get_random_line(6, include_punctuation=False)}.txt"
+    )
     # generate random string to change checksums every time
     with file_path.open("w", encoding="utf-8") as file_handle:
-        for line in file_content_generator():
-            file_handle.write(line)
+        file_handle.writelines(file_content_generator())
     return file_path
 
 
@@ -69,7 +70,6 @@ def temp_file_tree(
         for file_sub_idx in range(num_files_per_dir):
             file_path = subdir / f"test_file_{file_sub_idx}.txt"
             with file_path.open("w", encoding="utf-8") as file_handle:
-                for line in file_content_generator():
-                    file_handle.write(line)
+                file_handle.writelines(file_content_generator())
     assert len(list(tmp_path.rglob("*.txt"))) == total_files
     return tmp_path

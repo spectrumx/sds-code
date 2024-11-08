@@ -64,8 +64,10 @@ def test_bulk_file_upload(integration_client: Client, temp_file_tree: Path) -> N
     results = integration_client.upload(
         local_path=temp_file_tree,
         sds_path=Path("/test-tree") / random_subdir_name,
+        verbose=True,
     )
+    log.info(f"Uploaded {len(results)} files.")
     for upload_result in results:
         if upload_result:
             continue
-        pytest.fail("File upload failed: {upload_result}")
+        pytest.fail(f"File upload failed: {upload_result}")

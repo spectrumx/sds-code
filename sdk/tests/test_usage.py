@@ -4,7 +4,6 @@ Tests for the high-level usage of SpectrumX client.
 
 # pylint: disable=redefined-outer-name
 import uuid as uuidlib
-from datetime import date
 from datetime import datetime
 from pathlib import Path
 
@@ -86,14 +85,14 @@ def test_get_file_by_id(client: Client, responses: RequestsMock) -> None:
         url=url,
         status=200,
         json={
-            "created_at": "2021-10-01T12:00:00",
+            "created_at": "2021-10-01T12:00:00Z",
             "directory": "/my/files/are/here/",
-            "expiration_date": "2021-10-01",
+            "expiration_date": "2021-10-01T12:12:00Z",
             "media_type": "text/plain",
             "name": "file.txt",
             "permissions": "rw-rw-r--",
             "size": 321,
-            "updated_at": "2021-10-01T12:00:00",
+            "updated_at": "2021-10-01T12:00:00Z",
             "uuid": uuid.hex,
         },
     )
@@ -126,8 +125,10 @@ def test_file_get_returns_valid(
     assert file_sample.permissions == "rw-rw-r--"
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
-    assert isinstance(file_sample.expiration_date, date)
-    assert file_sample.expiration_date > file_sample.created_at.date()
+    assert isinstance(
+        file_sample.expiration_date, datetime
+    ), "Expiration date should be a datetime"
+    assert file_sample.expiration_date > file_sample.created_at
 
 
 def test_file_upload(client: Client, temp_file_with_text_contents: Path) -> None:

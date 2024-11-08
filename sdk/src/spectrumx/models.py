@@ -1,6 +1,5 @@
 """Data models for the SpectrumX Data System SDK."""
 
-from datetime import date
 from datetime import datetime
 from pathlib import Path
 
@@ -39,7 +38,7 @@ class File(SDSModel):
 
     created_at: datetime
     directory: Path
-    expiration_date: date | None
+    expiration_date: datetime | None
     media_type: str
     name: str
     permissions: str

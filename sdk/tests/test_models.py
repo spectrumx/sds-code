@@ -2,13 +2,13 @@
 
 # pylint: disable=redefined-outer-name
 
-from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
+from pytz import UTC
 from pytz import timezone
 from spectrumx.models import File
 
@@ -25,7 +25,7 @@ def file_properties() -> dict[str, Any]:
         "size": 111_222_333,
         "created_at": datetime.now(tz=tz) - timedelta(days=14),
         "updated_at": datetime.now(tz=tz),
-        "expiration_date": date.today() + timedelta(days=366),  # noqa: DTZ011
+        "expiration_date": datetime.now(tz=UTC) + timedelta(days=366),
     }
 
 

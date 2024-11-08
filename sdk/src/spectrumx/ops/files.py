@@ -65,9 +65,13 @@ def construct_file(file_path: Path, sds_path: Path) -> File:
     )
 
 
-def is_valid_file(file_path: Path) -> bool:
+def is_valid_file(file_path: Path) -> tuple[bool, list[str]]:
     """Returns True if the path is a valid file.
     A similar check is also performed at the server side.
+
+    Returns:
+        True/False whether the file is valid.
+        Reasons for invalidity otherwise.
     """
     file_mime = get_file_media_type(file_path)
     disallowed_mimes = [
@@ -77,7 +81,17 @@ def is_valid_file(file_path: Path) -> bool:
         "application/x-msi",  # .msi
     ]
     is_valid_mime = file_mime not in disallowed_mimes
-    return file_path.is_file() and file_path.stat().st_size > 0 and is_valid_mime
+    reasons: list[str] = []
+    if not is_valid_mime:
+        reasons.append(f"Invalid MIME type: {file_mime}")
+    if not file_path.is_file():
+        reasons.append("Not a file")
+    if file_path.stat().st_size == 0:
+        reasons.append("Empty file")
+    final_decision = (
+        file_path.is_file() and file_path.stat().st_size > 0 and is_valid_mime
+    )
+    return final_decision, reasons
 
 
 def get_valid_files(
@@ -90,10 +104,14 @@ def get_valid_files(
     Yields:
         File instances.
     """
-    for file_path in local_path.iterdir():
-        if not is_valid_file(file_path):
+    recursive_file_list = local_path.rglob("*")
+    for file_path in recursive_file_list:
+        if not file_path.is_file():
+            continue
+        is_valid, reasons = is_valid_file(file_path)
+        if not is_valid:
             if warn_skipped:
-                log_user(f"Skipping {file_path}; invalid file for SDS")
+                log_user(f"Skipping {file_path}: {', '.join(reasons)}")
             continue
         try:
             yield construct_file(file_path, local_path)
@@ -118,7 +136,7 @@ def generate_sample_file(uuid_to_set: uuid.UUID) -> File:
         permissions="rw-rw-r--",
         created_at=created_at,
         updated_at=updated_at,
-        expiration_date=expiration_date.date(),
+        expiration_date=expiration_date,
         is_sample=True,  # always True for sample files
     )
     assert (

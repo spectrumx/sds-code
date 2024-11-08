@@ -315,7 +315,7 @@ class Client:
             verbose:    Show a progress bar.
         """
         local_path = Path(local_path) if isinstance(local_path, str) else local_path
-        valid_files = files.get_valid_files(local_path)
+        valid_files = files.get_valid_files(local_path, warn_skipped=True)
         prog_bar = get_prog_bar(valid_files, desc="Uploading", disable=not verbose)
         upload_results: list[Result] = []
         for file_path in prog_bar:
