@@ -1,15 +1,22 @@
 volumes:
-    sds_gateway_local_postgres_data: {}
-    sds_gateway_local_postgres_data_backups: {}
-    sds_gateway_local_redis_data: {}
-    minio_files: {}
-    opensearch_data: {}
+    # for safety, all local volumes start with "sds-gateway-local-"
+    sds-gateway-local-postgres-data: {}
+    sds-gateway-local-postgres-data-backups: {}
+    # sds-gateway-prod-app-media: {}    # used in prod only
+    sds-gateway-local-redis-data: {}
+    sds-gateway-local-minio-files: {}
+    sds-gateway-local-opensearch-data: {}
 
 networks:
-    sds-gateway-minio-local-net:
-    sds-gateway-opensearch-local-net:
-    sds-network:
+    # for safety, all gateway local networks start with "sds-gateway-local-"
+    sds-gateway-local-minio-net:
+        driver: bridge
+    sds-gateway-local-opensearch-net:
+        driver: bridge
+    sds-network-local:
         external: true
+
+# Also make sure images, container names, and other assets start with "sds-gateway-local-"
 
 services:
 
@@ -21,32 +28,34 @@ services:
         container_name: sds-gateway-app
         tty: true
         depends_on:
+            - minio
+            - opensearch
             - postgres
             - redis
-            - minio
         volumes:
-            - .:/app:z
+            - .:/app:z  # bind mount used in local for hot reloading; prod uses built assets
         env_file:
             - ./.envs/local/django.env
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         ports:
-            - "8000:8000"
+            - "8000:8000" # make sure this port matches traefik's config, if used
         command: /start
         networks:
-            - sds-gateway-minio-local-net
-            - sds-gateway-opensearch-local-net
-            - sds-network
+            - sds-gateway-local-minio-net
+            - sds-gateway-local-opensearch-net
+            - sds-network-local
 
     minio:
+        # main file storage for sds
         # minio uses rolling upgrades that are non-disruptive, so we can target latest
         # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
         # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
         image: minio/minio:latest
-        container_name: sds_gateway_local_minio
+        container_name: sds-gateway-local-minio
         volumes:
-            - minio_files:/files
+            - sds-gateway-local-minio-files:/files
         ports:
             - "9000:9000"
             - "9001:9001"
@@ -54,17 +63,18 @@ services:
             - ./.envs/local/minio.env
         command: server /files --console-address ":9001"
         networks:
-            - sds-gateway-minio-local-net
+            - sds-gateway-local-minio-net
 
     opensearch:
+        # used for indexing and searching documents
         # opensearch upgrades follow semver - let's target a major version
         # https://opensearch.org/docs/latest/install-and-configure/upgrade-opensearch/index/
         # release notes
         # https://opensearch.org/docs/latest/version-history/
         image: opensearchproject/opensearch:2
-        container_name: sds_gateway_local_opensearch
+        container_name: sds-gateway-local-opensearch
         volumes:
-            - opensearch_data:/usr/share/opensearch/data
+            - sds-gateway-local-opensearch-data:/usr/share/opensearch/data
             - ./opensearch.local.yaml:/usr/share/opensearch/config/opensearch.yml
         env_file:
             - ./.envs/local/opensearch.env
@@ -76,64 +86,39 @@ services:
             - "9200:9200"
             - "9600:9600"
         networks:
-            - sds-gateway-opensearch-local-net
+            - sds-gateway-local-opensearch-net
 
     postgres:
+        # main database for the gateway app
         build:
             context: .
-            dockerfile: ./compose/production/postgres/Dockerfile
-        image: sds_gateway_production_postgres
-        container_name: sds_gateway_local_postgres
+            dockerfile: ./compose/local/postgres/Dockerfile
+        image: sds-gateway-local-postgres
+        container_name: sds-gateway-local-postgres
         volumes:
-            - sds_gateway_local_postgres_data:/var/lib/postgresql/data
-            - sds_gateway_local_postgres_data_backups:/backups
+            - sds-gateway-local-postgres-data:/var/lib/postgresql/data
+            - sds-gateway-local-postgres-data-backups:/backups
         env_file:
             - ./.envs/local/postgres.env
         networks:
-            - sds-gateway-minio-local-net
+            - sds-gateway-local-minio-net
 
     redis:
+        # used as caching layer for the gateway app
         image: docker.io/redis:6
-        container_name: sds_gateway_local_redis
+        container_name: sds-gateway-local-redis
         volumes:
-            - sds_gateway_local_redis_data:/data
+            - sds-gateway-local-redis-data:/data
 
-    celeryworker:
-        <<: *sds-gateway-app
-        image: sds_gateway_local_celeryworker
-        container_name: sds_gateway_local_celeryworker
-        depends_on:
-            - redis
-            - postgres
-        ports: []
-        command: /start-celeryworker
-
-    celerybeat:
-        <<: *sds-gateway-app
-        image: sds_gateway_local_celerybeat
-        container_name: sds_gateway_local_celerybeat
-        depends_on:
-            - redis
-            - postgres
-        ports: []
-        command: /start-celerybeat
-
-    flower:
-        <<: *sds-gateway-app
-        image: sds_gateway_local_flower
-        container_name: sds_gateway_local_flower
-        # uncomment the ports field if not deploying traefik
-        # ports:
-        #     - "5555:5555"
-        ports: []
-        command: /start-flower
-
+    # ==========================
+    # local development services
     node:
+        # used for frontend development and hot reloading
         build:
             context: .
             dockerfile: ./compose/local/node/Dockerfile
-        image: sds_gateway_local_node
-        container_name: sds_gateway_local_node
+        image: sds-gateway-local-node
+        container_name: sds-gateway-local-node
         depends_on:
             - sds-gateway-app
         volumes:
