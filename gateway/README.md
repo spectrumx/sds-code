@@ -103,5 +103,6 @@ uv run pre-commit install
     * `test_update_file`
     * `test_delete_file`
     * `test_file_contents_check`
+    * `test_download_file`
     * `test_minio_health_check`
     * `test_opensearch_health_check`
