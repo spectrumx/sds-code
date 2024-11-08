@@ -51,9 +51,11 @@ services:
 networks:
 
     # services in the same network are visible to each other
+
+    # LOCAL
     sds-network-local:
-        driver: bridge
         name: sds-network-local
+
+    # ⚠️ PROD
     sds-network-prod:
-        driver: bridge
-        name: sds-network-local
+        name: sds-network-prod
