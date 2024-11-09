@@ -38,6 +38,7 @@ services:
             - redis
         volumes:
             - .:/app:z  # bind mount used in local for hot reloading; prod uses built assets
+            # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/local/django.env
             - ./.envs/local/minio.env
@@ -61,8 +62,8 @@ services:
               type: bind
               read_only: true
             # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
-            # - source: ./nginx/data  # TODO: point to built static files
-            - source: sds_gateway/static  # TODO: point to built static files
+            # - This path in app is: ./staticfiles/:/app/staticfiles/:z
+            - source: ./staticfiles/  # TODO: point to built static files
               target: /usr/share/nginx/static
               type: bind
               read_only: true
