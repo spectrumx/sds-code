@@ -6,12 +6,13 @@
 
 volumes:
     # for safety, all gateway production volumes start with "sds-gateway-prod-"
-    sds-gateway-prod-postgres-data: {}
-    sds-gateway-prod-postgres-data-backups: {}
     sds-gateway-prod-app-media: {}
-    sds-gateway-prod-redis-data: {}
     sds-gateway-prod-minio-files: {}
     sds-gateway-prod-opensearch-data: {}
+    sds-gateway-prod-postgres-data-backups: {}
+    sds-gateway-prod-postgres-data: {}
+    sds-gateway-prod-redis-data: {}
+    sds-gateway-prod-static: {}
 
 networks:
     # for safety, all gateway production networks start with "sds-gateway-prod-"
@@ -37,7 +38,10 @@ services:
             - minio
         volumes:
             - sds-gateway-prod-app-media:/app/sds_gateway/media # used in prod only
-            - ./staticfiles/:/app/staticfiles/:z
+            - source: sds-gateway-prod-static
+              target: /app/staticfiles/
+              type: volume
+              read_only: false
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
@@ -62,9 +66,9 @@ services:
               read_only: true
             # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
             # - This path in app is: ./staticfiles/:/app/staticfiles/:z
-            - source: ./staticfiles/  # TODO: point to built static files
-              target: /usr/share/nginx/static
-              type: bind
+            - source: sds-gateway-prod-static
+              target: /usr/share/nginx/static/
+              type: volume
               read_only: true
         networks:
             - sds-network-prod

@@ -6,12 +6,12 @@
 
 volumes:
     # for safety, all local volumes start with "sds-gateway-local-"
-    sds-gateway-local-postgres-data: {}
-    sds-gateway-local-postgres-data-backups: {}
     # sds-gateway-prod-app-media: {}    # used in prod only
-    sds-gateway-local-redis-data: {}
     sds-gateway-local-minio-files: {}
     sds-gateway-local-opensearch-data: {}
+    sds-gateway-local-postgres-data-backups: {}
+    sds-gateway-local-postgres-data: {}
+    sds-gateway-local-redis-data: {}
 
 networks:
     # for safety, all gateway local networks start with "sds-gateway-local-"
