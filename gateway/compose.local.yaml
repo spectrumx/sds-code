@@ -62,8 +62,8 @@ services:
               type: bind
               read_only: true
             # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
-            # - This path in app is: ./staticfiles/:/app/staticfiles/:z
-            - source: ./staticfiles/  # TODO: point to built static files
+            # this location is only used in local; prod uses 'staticfiles/'
+            - source: ./sds_gateway/static/
               target: /usr/share/nginx/static
               type: bind
               read_only: true
