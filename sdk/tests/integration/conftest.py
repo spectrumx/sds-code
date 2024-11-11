@@ -2,6 +2,7 @@
 
 # better traceback formatting with rich, if available
 import os
+import random
 from collections.abc import Generator
 from pathlib import Path
 
@@ -93,8 +94,10 @@ def random_bytes_generator(
 
 @pytest.fixture
 @pytest.mark.slow
-def temp_large_binary_file(tmp_path: Path, target_size_mb: int = 2048) -> Path:
+def temp_large_binary_file(tmp_path: Path, target_size_mb: int | None = None) -> Path:
     """Fixture to create a temporary large binary file."""
+    if target_size_mb is None:
+        target_size_mb = random.randint(10, 20)  # noqa: S311
     large_binary_file = tmp_path / "large_binary_file"
     byte_generator = random_bytes_generator(1024 * 1024 * target_size_mb)
     with large_binary_file.open("wb") as f_ptr:

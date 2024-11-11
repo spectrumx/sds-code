@@ -86,6 +86,23 @@ class GatewayClient:
             "Authorization": f"Api-Key: {self._api_key}",
         }
 
+    def get_default_payload(
+        self, *, endpoint: Endpoints, asset_id: None | str = None
+    ) -> dict[str, str | dict[str, str] | bool]:
+        assert API_TARGET_VERSION.startswith("v"), "API version must start with 'v'."
+        url_path = Path(f"{API_PATH}/{API_TARGET_VERSION}/{endpoint}")
+        if asset_id is not None:
+            url_path /= asset_id
+        url = f"{self.base_url}{url_path}/"
+
+        is_verify = not is_test_env()
+        headers = self._headers()
+        return {
+            "url": url,
+            "headers": headers,
+            "verify": is_verify,
+        }
+
     def _request(
         self,
         method: HTTPMethods,
@@ -105,24 +122,37 @@ class GatewayClient:
         Returns:
             The response from the request.
         """
-        assert API_TARGET_VERSION.startswith("v"), "API version must start with 'v'."
-        url_path = Path(f"{API_PATH}/{API_TARGET_VERSION}/{endpoint}")
-        if asset_id is not None:
-            url_path /= asset_id
-        url = f"{self.base_url}{url_path}/"
-        timeout = self.timeout if timeout is None else timeout
-        is_verify = not is_test_env()
-        headers = self._headers()
+
+        payload = self.get_default_payload(endpoint=endpoint, asset_id=asset_id)
+
         if self.verbose:
-            log.debug(f"Gateway req: {method} {url}")
+            log.debug(f"Gateway req: {method} {payload["url"]}")
         return requests.request(
+            timeout=self.timeout if timeout is None else timeout,
             method=method,
-            url=url,
-            headers=headers,
-            timeout=timeout,
-            verify=is_verify,
+            **payload,
             **kwargs,
         )
+
+    def _request_stream(
+        self,
+        method: HTTPMethods,
+        endpoint: Endpoints,
+        asset_id: None | str = None,
+        timeout: None | int = None,
+        **kwargs,
+    ) -> requests.Response:
+        """Makes a request to the SDS API, streaming the response.
+
+        Args:
+            method:     The HTTP method to use.
+            endpoint:   The endpoint to target.
+            asset_id:   The asset ID to target.
+            timeout:    The timeout for the request.
+            **kwargs:   Additional keyword arguments for the request e.g. URL params.
+        Returns:
+            The response from the request.
+        """
 
     @property
     def base_url(self) -> str:
