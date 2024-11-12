@@ -37,11 +37,18 @@ services:
             - redis
             - minio
         volumes:
-            - sds-gateway-prod-app-media:/app/sds_gateway/media # used in prod only
+            - source: sds-gateway-prod-app-media
+              target: /app/sds_gateway/media
+              type: volume
+              read_only: false
+              bind:
+                selinux: z
             - source: sds-gateway-prod-static
               target: /app/staticfiles/
               type: volume
               read_only: false
+              bind:
+                selinux: z
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env

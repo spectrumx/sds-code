@@ -6,7 +6,7 @@ cd opensearch/data/certs
 
 # Root CA
 openssl genrsa -out root-ca-key.pem 2048
-openssl req -new -x509 -sha256 -key root-ca-key.pem -subj "/C=US/ST=INDIANA/L=SOUTH BEND/O=UNIVERSITY OF NOTRE DAME/OU=CRC/CN=sds.crc.nd.edu" -out root-ca.pem -days 730
+openssl req -new -x509 -sha256 -key root-ca-key.pem -subj "/C=US/ST=INDIANA/L=SOUTH BEND/O=UNIVERSITY OF NOTRE DAME/OU=CRC/CN=sds-gateway-prod-opensearch" -out root-ca.pem -days 730
 
 # Admin cert
 openssl genrsa -out admin-key-temp.pem 2048
@@ -17,15 +17,15 @@ openssl x509 -req -in admin.csr -CA root-ca.pem -CAkey root-ca-key.pem -CAcreate
 # Opensearch cert
 openssl genrsa -out opensearch-key-temp.pem 2048
 openssl pkcs8 -inform PEM -outform PEM -in opensearch-key-temp.pem -topk8 -nocrypt -v1 PBE-SHA1-3DES -out opensearch-key.pem
-openssl req -new -key opensearch-key.pem -subj "/C=US/ST=INDIANA/L=SOUTH BEND/O=UNIVERSITY OF NOTRE DAME/OU=CRC/CN=sds.crc.nd.edu" -out opensearch.csr
-echo 'subjectAltName=DNS:sds.crc.nd.edu' > opensearch.ext
+openssl req -new -key opensearch-key.pem -subj "/C=US/ST=INDIANA/L=SOUTH BEND/O=UNIVERSITY OF NOTRE DAME/OU=CRC/CN=sds-gateway-prod-opensearch" -out opensearch.csr
+echo 'subjectAltName=DNS:sds-gateway-prod-opensearch' > opensearch.ext
 openssl x509 -req -in opensearch.csr -CA root-ca.pem -CAkey root-ca-key.pem -CAcreateserial -sha256 -out opensearch.pem -days 730 -extfile opensearch.ext
 
 # Django cert
 openssl genrsa -out django-key-temp.pem 2048
 openssl pkcs8 -inform PEM -outform PEM -in django-key-temp.pem -topk8 -nocrypt -v1 PBE-SHA1-3DES -out django-key.pem
-openssl req -new -key django-key.pem -subj "/C=US/ST=INDIANA/L=SOUTH BEND/O=UNIVERSITY OF NOTRE DAME/OU=CRC/CN=sds.crc.nd.edu" -out django.csr
-echo 'subjectAltName=DNS:sds.crc.nd.edu' > django.ext
+openssl req -new -key django-key.pem -subj "/C=US/ST=INDIANA/L=SOUTH BEND/O=UNIVERSITY OF NOTRE DAME/OU=CRC/CN=sds-gateway-prod-opensearch" -out django.csr
+echo 'subjectAltName=DNS:sds-gateway-prod-opensearch' > django.ext
 openssl x509 -req -in django.csr -CA root-ca.pem -CAkey root-ca-key.pem -CAcreateserial -sha256 -out django.pem -days 730 -extfile django.ext
 
 # Cleanup
