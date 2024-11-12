@@ -78,7 +78,7 @@ class CaptureViewSet(viewsets.ViewSet):
             msg = f"The top_level_dir must be in the user's files directory: /files/{requester.email}"  # noqa: E501
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
-        request.data["owner"] = request.user.id
+        request.data["owner"] = requester.id
         post_serializer = CapturePostSerializer(
             data=request.data,
         )
