@@ -1,8 +1,11 @@
 import datetime
+from typing import cast
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import Paginator
+from django.db.models.query import QuerySet as Queryset
+from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -113,20 +116,20 @@ user_generate_api_key_view = GenerateAPIKeyView.as_view()
 class ListFilesView(LoginRequiredMixin, View):
     template_name = "users/file_list.html"
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs) -> HttpResponse:
         files = request.user.files.filter(
             is_deleted=False,
-        )
+        ).order_by("-created_at")
         serializer = FileGetSerializer(files, many=True)
 
-        paginator = Paginator(serializer.data, 10)
+        paginator = Paginator(serializer.data, per_page=30)
         page_number = request.GET.get("page")
         page_obj = paginator.get_page(page_number)
 
         return render(
             request,
-            self.template_name,
-            {
+            template_name=self.template_name,
+            context={
                 "page_obj": page_obj,
             },
         )
@@ -141,16 +144,23 @@ class FileDetailView(LoginRequiredMixin, DetailView):
     slug_url_kwarg = "uuid"
     template_name = "users/file_detail.html"
 
+    def get_queryset(self) -> Queryset[File]:
+        return self.request.user.files.filter(is_deleted=False).all()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        file = self.get_object()
-        serializer = FileGetSerializer(file)
+        target_file = cast(File, self.get_object())
+        if target_file is None:
+            return context
+        serializer = FileGetSerializer(target_file)
+        context["returning_page"] = self.request.GET.get("returning_page", default=1)
         context["file"] = serializer.data
         context["skip_fields"] = [
-            "file",
-            "name",
-            "is_deleted",
+            "bucket_name",
             "deleted_at",
+            "file",
+            "is_deleted",
+            "name",
         ]
         return context
 

@@ -13,6 +13,9 @@ from typing import Any
 import dotenv
 from loguru import logger as log
 
+from spectrumx.errors import Result
+from spectrumx.errors import SDSError
+
 from . import __version__
 from .gateway import GatewayClient
 from .models import File
@@ -21,6 +24,7 @@ from .ops import files
 from .utils import get_prog_bar
 from .utils import into_human_bool
 from .utils import log_user
+from .utils import log_user_error
 from .utils import log_user_warning
 
 SDSModelT = type[SDSModel]
@@ -85,7 +89,6 @@ class SDSConfig:
         if not self._env_file.exists():
             msg = f"Environment file missing: {self._env_file}"
             log_user_warning(msg)
-            return []
 
         if verbose:
             msg = f"SDS_Config: found environment file: {self._env_file}"
@@ -99,10 +102,19 @@ class SDSConfig:
             "dry_run": Attr(attr_name="dry_run", cast_fn=into_human_bool),
         }
 
-        # merge file and cli configs
+        # get variables from running env
+        env_vars = {
+            "SDS_SECRET_TOKEN": os.getenv("SDS_SECRET_TOKEN", default=None),
+        }
+        env_vars = {k: v for k, v in env_vars.items() if v is not None}
+        log.debug(f"SDS_Config: from env: {env_vars}")
+
+        # merge file, cli, and env vars configs
+        if not self._env_file.exists() and self._env_file.name != ".env":
+            log_user_warning(f"Custom env file not found: {self._env_file}")
         env_file_config = dotenv.dotenv_values(self._env_file, verbose=verbose)
         env_cli_config = env_cli_config or {}
-        env_config = {**env_file_config, **env_cli_config}
+        env_config = {**env_file_config, **env_cli_config, **env_vars}
 
         # clean and set the configuration loaded
         cleaned_config: list[Attr] = _clean_config(name_lookup, env_config)
@@ -178,6 +190,7 @@ class Client:
             host=self.host,
             api_key=self._config.api_key,
             timeout=self._config.timeout,
+            verbose=self.verbose,
         )
         if __version__.startswith("0.1."):
             log_user_warning(
@@ -195,33 +208,31 @@ class Client:
     @dry_run.setter
     def dry_run(self, value: bool) -> None:
         """Sets the dry run mode."""
-        # if in test environment, allow setting dry run mode
-        if "PYTEST_CURRENT_TEST" in os.environ:
-            msg = "Test env: allowing setting of dry-run."
-            log.warning(msg)
-            self._config.dry_run = value
-            return
 
-        # TODO: update this function before the next release
+        self._config.dry_run = bool(value)
         msg = (
-            "Only dry-run mode is available for this early version of the SDK.\n"
-            "Make sure you're running the latest version. "
-            f"Current version: {__version__}"
+            "Dry-run enabled: no SDS requests will be made or files written."
+            if self._config.dry_run
+            else "Dry-run DISABLED: modifications are now possible."
         )
         log_user_warning(msg)
-        self._config.dry_run = True
 
     @property
     def base_url(self) -> str:
         """Base URL for the client."""
         return self._gateway.base_url
 
+    @property
+    def base_url_no_port(self) -> str:
+        """Base URL without the port."""
+        return self._gateway.base_url_no_port
+
     def authenticate(self) -> None:
         """Authenticate the client."""
         if self.dry_run:
             log_user("Dry run enabled: authenticated")
         else:
-            log.error("Dry run not enabled: authenticating")
+            log.warning("Dry run DISABLED: authenticating")
             self._gateway.authenticate()
         self.is_authenticated = True
 
@@ -281,8 +292,12 @@ class Client:
         if self.dry_run:
             log_user(f"Dry run enabled: skipping upload of {file_path}")
             return file_instance
-        file_contents = self._gateway.upload_file(file_instance=file_instance)
-        return File.model_validate_json(file_contents)
+        file_created_response = self._gateway.upload_file(file_instance=file_instance)
+        uploaded_file = File.model_validate_json(file_created_response)
+        # update uploaded file with local knowledge
+        uploaded_file.local_path = file_instance.local_path
+
+        return uploaded_file
 
     def upload(
         self,
@@ -290,7 +305,7 @@ class Client:
         *,
         sds_path: Path | str = "/",
         verbose: bool = True,
-    ) -> None:
+    ) -> list[Result]:
         """Uploads a file or directory to SDS.
 
         Args:
@@ -300,10 +315,17 @@ class Client:
             verbose:    Show a progress bar.
         """
         local_path = Path(local_path) if isinstance(local_path, str) else local_path
-        valid_files = files.get_valid_files(local_path)
+        valid_files = files.get_valid_files(local_path, warn_skipped=True)
         prog_bar = get_prog_bar(valid_files, desc="Uploading", disable=not verbose)
+        upload_results: list[Result] = []
         for file_path in prog_bar:
-            self.upload_file(file_path, sds_path=sds_path)
+            try:
+                result = Result(value=self.upload_file(file_path, sds_path=sds_path))
+            except SDSError as err:
+                log_user_error(f"Upload failed: {err}")
+                result = Result(exception=err)
+            upload_results.append(result)
+        return upload_results
 
     def download_file(self, file_uuid: uuid.UUID | str, to: Path | str) -> File:
         """Downloads a file from SDS.

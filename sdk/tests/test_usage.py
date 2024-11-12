@@ -4,15 +4,15 @@ Tests for the high-level usage of SpectrumX client.
 
 # pylint: disable=redefined-outer-name
 import uuid as uuidlib
-from datetime import date
 from datetime import datetime
 from pathlib import Path
 
 import pytest
+from loguru import logger as log
 from responses import RequestsMock
 from spectrumx import Client
 from spectrumx.errors import AuthError
-from spectrumx.gateway import Endpoints
+from spectrumx.gateway import API_TARGET_VERSION
 
 
 # --------
@@ -31,17 +31,29 @@ def responses_dry_run(responses: RequestsMock) -> RequestsMock:
     return responses
 
 
+def get_auth_endpoint(client: Client) -> str:
+    """Returns the endpoint for the auth API, with trailing slash."""
+    return client.base_url + f"/api/{API_TARGET_VERSION}/auth/"
+
+
+def get_files_endpoint(client: Client) -> str:
+    """Returns the endpoint for the files API, with trailing slash."""
+    return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/"
+
+
 # ------------------------
 # TESTS FOR AUTHENTICATION
 # ------------------------
 def test_authentication_200_succeeds(client: Client, responses: RequestsMock) -> None:
     """Given a successful auth response, the client must be authenticated."""
     responses.get(
-        client.base_url + "/auth",
+        get_auth_endpoint(client),
         body="{}",
         status=200,
         content_type="application/json",
     )
+    # list registered URLs
+    log.error(responses.calls)
     # disable the dry run mode for this,
     # since we're testing the actual request
     client.dry_run = False
@@ -52,7 +64,7 @@ def test_authentication_200_succeeds(client: Client, responses: RequestsMock) ->
 def test_authentication_401_fails(client: Client, responses: RequestsMock) -> None:
     """Given a failed auth response, the client must raise AuthError."""
     responses.get(
-        client.base_url + "/auth",
+        get_auth_endpoint(client),
         body="{}",
         status=401,
         content_type="application/json",
@@ -68,19 +80,19 @@ def test_authentication_401_fails(client: Client, responses: RequestsMock) -> No
 def test_get_file_by_id(client: Client, responses: RequestsMock) -> None:
     """Given a file ID, the client must return the file."""
     uuid = uuidlib.uuid4()
-    url: str = client.base_url + Endpoints.FILES + f"/{uuid.hex}"
+    url: str = get_files_endpoint(client) + f"{uuid.hex}/"
     responses.get(
         url=url,
         status=200,
         json={
-            "created_at": "2021-10-01T12:00:00",
+            "created_at": "2021-10-01T12:00:00Z",
             "directory": "/my/files/are/here/",
-            "expiration_date": "2021-10-01",
+            "expiration_date": "2021-10-01T12:12:00Z",
             "media_type": "text/plain",
             "name": "file.txt",
             "permissions": "rw-rw-r--",
             "size": 321,
-            "updated_at": "2021-10-01T12:00:00",
+            "updated_at": "2021-10-01T12:00:00Z",
             "uuid": uuid.hex,
         },
     )
@@ -113,8 +125,10 @@ def test_file_get_returns_valid(
     assert file_sample.permissions == "rw-rw-r--"
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
-    assert isinstance(file_sample.expiration_date, date)
-    assert file_sample.expiration_date > file_sample.created_at.date()
+    assert isinstance(
+        file_sample.expiration_date, datetime
+    ), "Expiration date should be a datetime"
+    assert file_sample.expiration_date > file_sample.created_at
 
 
 def test_file_upload(client: Client, temp_file_with_text_contents: Path) -> None:
@@ -178,7 +192,7 @@ def test_dry_auth_does_not_request(
     """When in dry mode, the client must not make any requests."""
     responses_dry_run.add_callback(
         responses_dry_run.GET,
-        url=client.base_url + "/auth",
+        url=get_auth_endpoint(client),
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),
@@ -194,7 +208,7 @@ def test_dry_file_upload_does_not_request(
     """When in dry run mode, the upload method must not make any requests."""
     responses_dry_run.add_callback(
         responses_dry_run.POST,
-        url=client.base_url + Endpoints.FILES,
+        url=get_files_endpoint(client),
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),
@@ -216,7 +230,7 @@ def test_dry_file_get_does_not_request(
 
     responses_dry_run.add_callback(
         responses_dry_run.GET,
-        url=client.base_url + Endpoints.FILES + f"/{file_id.hex}",
+        url=get_files_endpoint(client) + f"{file_id.hex}/",
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),

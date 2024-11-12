@@ -16,7 +16,7 @@
         "django-redis>=5.4.0",
         "django-storages[boto3]>=1.14.4",
         "django-webpack-loader>=3.1.1",
-        "django~=4.2", # Upgrade from 4.2 LTS -> 5.2 LTS when available
+        "django~=4.2",                           # Upgrade from 4.2 LTS -> 5.2 LTS when available
         "djangorestframework-api-key>=3.0.0",
         "djangorestframework>=3.15.2",
         "drf-spectacular>=0.27.2",
@@ -25,7 +25,7 @@
         "hiredis>=3.0.0",
         "loguru>=0.7.2",
         "minio>=7.2.9",
-        "numpy~=1.26", # upgrade to numpy v2 when digital-rf (from PyPI) supports it
+        "numpy~=1.26",                           # upgrade to numpy v2 when digital-rf (from PyPI) supports it
         "opensearch-py>=2.7.1",
         "pillow>=11.0.0",
         "python-slugify>=8.0.4",
@@ -34,7 +34,7 @@
         "uvicorn>=0.32.0",
         "whitenoise>=6.7.0",
         "h5py>=3.12.1",
-]
+    ]
     description = "Gateway for SpectrumX Data System"
     name = "sds_gateway"
     requires-python = ">=3.12"
@@ -46,7 +46,7 @@
             "django-coverage-plugin>=3.1.0",
             "django-debug-toolbar>=4.4.6",
             "django-extensions>=3.2.3",
-            "django-stubs[compatible-mypy]>=5.1.0",
+            "django-stubs-ext>=5.1.0",
             "django-types>=0.19.1",
             "djangorestframework-stubs[compatible-mypy]>=3.15.1",
             "djlint>=1.35.2",
@@ -414,7 +414,8 @@
     # Reports:
     #   https://github.com/microsoft/pyright/blob/main/docs/configuration.md#type-check-diagnostics-settings
     # place ignored rules here
-    reportAttributeAccessIssue = false # too many false positives with Django models
+    reportAttributeAccessIssue         = false # too many false positives with Django models
+    reportIncompatibleVariableOverride = false # false positives with Meta classes in Django
 
 [tool.ruff]
     # Exclude a variety of commonly ignored directories.

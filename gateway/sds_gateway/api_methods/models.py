@@ -3,6 +3,7 @@
 import datetime
 import json
 import uuid
+from pathlib import Path
 
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
@@ -35,16 +36,16 @@ class File(BaseModel):
     Model to define files uploaded through the API.
     """
 
-    file = models.FileField(upload_to="files/")
-    name = models.CharField(max_length=255, blank=True)
+    deleted_at = models.DateTimeField(blank=True, null=True)
     directory = models.CharField(max_length=2048, default="files/")
+    expiration_date = models.DateTimeField(default=default_expiration_date)
+    file = models.FileField(upload_to="files/")
+    is_deleted = models.BooleanField(default=False)
     media_type = models.CharField(max_length=255, blank=True)
+    name = models.CharField(max_length=255, blank=True)
     permissions = models.CharField(max_length=9, default="rw-r--r--")
     size = models.IntegerField(blank=True)
     sum_blake3 = models.CharField(max_length=64, blank=True)
-    expiration_date = models.DateTimeField(default=default_expiration_date)
-    is_deleted = models.BooleanField(default=False)
-    deleted_at = models.DateTimeField(blank=True, null=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         blank=True,
@@ -74,7 +75,14 @@ class File(BaseModel):
     def __str__(self) -> str:
         return f"{self.directory}{self.name}"
 
-    def calculate_checksum(self, file_obj=None):
+    @property
+    def user_directory(self) -> str:
+        """Returns the path relative to the user root on SDS."""
+        # TODO: make this the default ".directory" behavior after the workshop
+        return str(Path(*self.directory.parts[2:]))
+
+    def calculate_checksum(self, file_obj=None) -> str:
+        """Calculates the BLAKE3 checksum of the file."""
         checksum = Blake3()  # pylint: disable=not-callable
         file = self.file
         if file_obj:
@@ -138,7 +146,7 @@ class Dataset(BaseModel):
     license = models.CharField(max_length=255, blank=True)
     keywords = models.TextField(blank=True)
     institutions = models.TextField(blank=True)
-    release_date = models.DateField(blank=True, null=True)
+    release_date = models.DateTimeField(blank=True, null=True)
     repository = models.URLField(blank=True)
     version = models.CharField(max_length=255, blank=True)
     website = models.URLField(blank=True)

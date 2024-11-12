@@ -7,7 +7,6 @@
 {% endblock title %}
 {% block content %}
     <h2>Your Files</h2>
-    <p>Below is a list of files that you ({{ request.user.name }}) have uploaded to the SpectrumX Data System.</p>
     <table class="table table-striped table-hover">
         <thead>
             <tr>
@@ -19,7 +18,8 @@
         </thead>
         <tbody>
             {% for file in page_obj %}
-                <tr onclick="window.location.href='{% url 'users:file_detail' file.uuid %}'">
+                <tr class="cursor-pointer"
+                    onclick="window.location.href='{% url 'users:file_detail' file.uuid %}?returning_page={{ page_obj.number }}'">
                     <td>{{ file.name }}</td>
                     <td>{{ file.media_type }}</td>
                     <td>{{ file.size|filesizeformat }}</td>

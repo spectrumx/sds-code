@@ -17,8 +17,8 @@ sudo apt install python3-dev libpq-dev # on ubuntu
 sudo dnf install python3-devel postgresql-devel # on RHEL
 
 # get psql, createdb, etc.
-sudo apt install postgresql-client # for psql
-sudo dnf install postgresql # for psql
+sudo apt install postgresql-client
+sudo dnf install postgresql
 ```
 
 Python dependencies
@@ -47,7 +47,7 @@ uv run pre-commit install
 1. Set secrets:
 
     ```bash
-    rsync -aP ./.envs/example ./.envs/local
+    rsync -aP ./.envs/example/ ./.envs/local
     # manually set the secrets in .envs/local/*.env files
     ```
 
@@ -57,6 +57,14 @@ uv run pre-commit install
     > In `django.env`, to generate the `API_KEY` get it running first, then navigate to [localhost:8000/users/generate-api-key](http://localhost:8000/users/generate-api-key). Copy the generated key to that file. The key is not stored in the database, so you will only see it at creation time.
 
 2. Deploy with Docker (recommended):
+
+    Either create an `sds-network-local` network manually, or run the [Traefik service](../network/compose.yaml) that creates it:
+
+    ```bash
+    docker network create sds-network-local --driver=bridge --name=sds-network-local
+    ```
+
+    Then, run the services:
 
     ```bash
     docker compose -f compose.local.yaml up
@@ -71,14 +79,14 @@ uv run pre-commit install
 3. Make Django migrations and run them:
 
     ```bash
-    docker exec -it sds_gateway_local_django python manage.py makemigrations
-    docker exec -it sds_gateway_local_django python manage.py migrate
+    docker exec -it sds-gateway-local-app python manage.py makemigrations
+    docker exec -it sds-gateway-local-app python manage.py migrate
     ```
 
 4. Create the first superuser:
 
     ```bash
-    docker exec -it sds_gateway_local_django python manage.py createsuperuser
+    docker exec -it sds-gateway-local-app python manage.py createsuperuser
     # or
     # docker compose -f compose.local.yaml exec django python manage.py createsuperuser
     ```
@@ -89,20 +97,25 @@ uv run pre-commit install
 
     You can sign in with the superuser credentials at [localhost:8000/admin](http://localhost:8000/admin) to access the admin interface.
 
-6. Run tests:
+6. Create the MinIO bucket:
+
+    Go to [localhost:9000](http://localhost:9001) and create a bucket named `spectrumx` with the credentials in `minio.env`.
+
+7. Run the test suite:
 
     ```bash
-    docker exec -it sds-gateway-app python manage.py test
+    docker exec -it sds-gateway-local-app python manage.py test
     ```
 
     Tests that run:
-    * `test_authenticate`
-    * `test_create_file`
-    * `test_retrieve_file`
-    * `test_retrieve_latest_file`
-    * `test_update_file`
-    * `test_delete_file`
-    * `test_file_contents_check`
-    * `test_download_file`
-    * `test_minio_health_check`
-    * `test_opensearch_health_check`
+
+    + `test_authenticate`
+    + `test_create_file`
+    + `test_retrieve_file`
+    + `test_retrieve_latest_file`
+    + `test_update_file`
+    + `test_delete_file`
+    + `test_file_contents_check`
+    + `test_download_file`
+    + `test_minio_health_check`
+    + `test_opensearch_health_check`

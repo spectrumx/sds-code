@@ -34,3 +34,38 @@ $red: #b94a48;
     border-color: $dark-pink;
     color: $red;
 }
+
+.provider-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.api-key-text {
+    font-size: 1.2em;
+    font-family: monospace;
+}
+
+.alpha-tag {
+    background-color: #fa4;
+    color: #000;
+    border-radius: 0.3em;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.8em;
+    margin-left: 0.5em;
+    padding: 0.2em 0.5em;
+}
+
+h2 {
+    margin-top: 1em;
+    border-bottom: 0.5px solid #ccc7;
+    padding-bottom: 0.3em;
+    margin-bottom: 0.7em;
+}
+
+a {
+    text-decoration: none;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}

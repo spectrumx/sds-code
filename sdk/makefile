@@ -3,8 +3,11 @@ SHELL=/bin/bash
 PYTHON_VERSION ?= 3.13
 SUPPORTED_PYTHON_VERSIONS := 3.12 3.13
 GIT_ROOT := $(shell git rev-parse --show-toplevel;)
+TEST_MARKER_DEFAULT := not integration
+TEST_MARKER_INTEGRATION := integration
 
-.PHONY: all install gact pyright pre-commit test test-lowest test-verbose test-all serve-coverage clean update build publish
+.PHONY: all install gact pyright pre-commit test test-lowest test-verbose test-all test-integration \
+	test-integration-verbose serve-coverage clean update build publish
 
 all: install test
 
@@ -35,6 +38,7 @@ pre-commit:
 # TESTS
 test:
 	uv run --resolution highest -p $(PYTHON_VERSION) pytest \
+		-m '$(TEST_MARKER_DEFAULT)' \
 		--cov=src \
 		--cov-config=pyproject.toml \
 		--cov-report=term-missing:skip-covered \
@@ -45,10 +49,34 @@ test:
 
 test-lowest:
 	# Run tests against the lowest versions of dependencies to ensure compatibility
-	uv run --resolution lowest-direct -p $(PYTHON_VERSION) pytest tests
+	uv run --resolution lowest-direct -p $(PYTHON_VERSION) pytest \
+		-m "$(TEST_MARKER_DEFAULT)" \
+		tests
 
 test-verbose:
-	uv run --resolution highest -p $(PYTHON_VERSION) pytest -vvv --show-capture=stdout -o log_cli=true --log-cli-level=DEBUG --capture=no
+	uv run --resolution highest -p $(PYTHON_VERSION) pytest \
+		-vvv \
+		-m "$(TEST_MARKER_DEFAULT)" \
+		--show-capture=stdout \
+		-o log_cli=true \
+		--log-cli-level=DEBUG \
+		--capture=no
+
+test-integration:
+	echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"; \
+	echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
+	uv run --resolution highest -p $(PYTHON_VERSION) pytest \
+		-m "$(TEST_MARKER_INTEGRATION)" \
+		tests
+
+test-integration-verbose:
+	echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"; \
+	echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
+	uv run --resolution highest -p $(PYTHON_VERSION) pytest \
+		-m "$(TEST_MARKER_INTEGRATION)" \
+		-vvv \
+		--capture=no \
+		tests
 
 test-all:
 	echo -e "\n\t\033[34mRunning tests against the highest dep versions and generating reports\033[0m\n"

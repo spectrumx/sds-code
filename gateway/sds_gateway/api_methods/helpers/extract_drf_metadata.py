@@ -1,7 +1,10 @@
+import contextlib
 import logging
 import typing
+from pathlib import Path
 
 import digital_rf as drf
+from digital_rf.digital_metadata import DigitalMetadataReader
 
 from sds_gateway.api_methods.utils.metadata_schemas import drf_capture_metadata_schema
 
@@ -27,35 +30,51 @@ class Bounds(typing.NamedTuple):
         return self.size
 
 
-def key_in_dict_partial(key, dictionary):
-    """Check if a key is a partial match in the dictionary keys and return the full key."""  # noqa: E501
-    for dict_key in dictionary:
+def key_in_dict_partial(
+    key: str,
+    dict_keys: typing.Iterable[str],
+) -> str | None:
+    """Checks if a key is a partial match in any of the dict keys passed.
+
+    Returns:
+        The matched key if a partial match is found, None otherwise.
+    """
+    for dict_key in dict_keys:
         if key in dict_key:
-            return True, dict_key
-    return False, None
+            return dict_key
+    return None
 
 
-def read_metadata_by_channel(data_path, channel_name):
+def read_metadata_by_channel(data_path: Path, channel_name: str):
     """Reads Digital RF metadata file."""
 
-    rf_reader = drf.DigitalRFReader(data_path)
+    rf_reader = drf.DigitalRFReader(str(data_path))
     bounds_raw = rf_reader.get_bounds(channel_name)
     bounds_raw = typing.cast(tuple[int, int], bounds_raw)
     bounds = Bounds(start=bounds_raw[0], end=bounds_raw[1])
 
     # get properties
-    drf_properties = rf_reader.get_properties(channel_name, bounds.start)
+    drf_properties = typing.cast(
+        dict[str, typing.Any],
+        rf_reader.get_properties(channel_name, bounds.start),
+    )
 
     # add bounds to properties, convert to unix timestamp
     drf_properties["start_bound"] = bounds.start / drf_properties["samples_per_second"]
     drf_properties["end_bound"] = bounds.end / drf_properties["samples_per_second"]
 
     # initialize the digital metadata reader
-    md_reader = rf_reader.get_digital_metadata(channel_name)
+    md_reader = typing.cast(
+        DigitalMetadataReader,
+        rf_reader.get_digital_metadata(channel_name),
+    )
     dmd_properties = md_reader.read_flatdict(
         start_sample=bounds.start,
         method="ffill",
     )
+    if not isinstance(dmd_properties, dict):
+        msg = "Expected dmd_properties to be a dictionary"
+        raise TypeError(msg)
 
     # Merge the flattened dictionaries
     return {
@@ -64,44 +83,94 @@ def read_metadata_by_channel(data_path, channel_name):
     }
 
 
-def validate_metadata_by_channel(data_path, channel_name):
+def validate_metadata_by_channel(
+    data_path: Path,
+    channel_name: str,
+) -> dict[str, typing.Any]:
+    """Validates the metadata for a given channel."""
     # use the drf_capture_metadata_schema to validate the metadata
-    validated_properties = {}
+    validated_props = {}
     props_by_channel = read_metadata_by_channel(data_path, channel_name)
-    properties_to_validate = list(props_by_channel.keys())
+    props_pending_validation = list(props_by_channel.keys())
     required_props = drf_capture_metadata_schema["required"]
 
     for key, value in drf_capture_metadata_schema["properties"].items():
-        # check for partial match of key in schema (partial because some expected keys are nested) # noqa: E501
-        partial_key_match, matched_key = key_in_dict_partial(key, props_by_channel)
-        if partial_key_match:
-            validated_properties[key] = props_by_channel[matched_key]
-            properties_to_validate.remove(matched_key)
-            # check value types and convert if necessary
-            if not isinstance(validated_properties[key], value["type"]):
-                if value["type"] is int:
-                    try:
-                        validated_properties[key] = int(validated_properties[key])
-                    except ValueError:
-                        msg = f"Could not convert '{key}' to int."
-                        logging.warning(msg)
-                if value["type"] is bool:
-                    try:
-                        validated_properties[key] = bool(validated_properties[key])
-                    except ValueError:
-                        msg = f"Could not convert '{key}' to bool."
-                        logging.warning(msg)
+        # check for partial match of key in schema (some expected keys are nested)
+        matched_key = key_in_dict_partial(
+            key,
+            dict_keys=props_by_channel.keys(),
+        )
+        if matched_key:
+            original_value = props_by_channel[matched_key]
+            props_pending_validation.remove(matched_key)
 
-        if key in required_props and key not in validated_properties:
+            # already in the correct type, skip
+            target_type = value["type"]
+            if isinstance(original_value, target_type):
+                continue
+
+            converted_or_none = convert_or_warn(
+                name=key,
+                value=original_value,
+                target_type=target_type,
+                should_raise=False,
+            )
+            if converted_or_none is not None:
+                validated_props[key] = converted_or_none
+
+        if key in required_props and key not in validated_props:
             msg = f"Missing expected property '{key}' in metadata."
             logging.warning(msg)
 
-    if len(properties_to_validate) > 0:
-        msg = f"Unexpected properties found in metadata: {properties_to_validate}. These will be added to a custom_attrs field."  # noqa: E501
+    if len(props_pending_validation) > 0:
+        msg = f"Unexpected properties found in metadata: {props_pending_validation}. These will be added to a custom_attrs field."  # noqa: E501
         logging.info(msg)
         # add the unexpected properties to a custom_attrs field
-        validated_properties["custom_attrs"] = {
-            k: props_by_channel[k] for k in properties_to_validate
+        validated_props["custom_attrs"] = {
+            k: props_by_channel[k] for k in props_pending_validation
         }
 
-    return validated_properties
+    return validated_props
+
+
+T = typing.TypeVar("T", int, bool)
+
+
+def convert_or_warn(
+    *,
+    value: typing.Any,
+    target_type: type[T],
+    cast_fn: typing.Callable[[T], T] | None = None,
+    name: str = "",
+    should_raise: bool = False,
+) -> T | None:
+    """Converts the passed value to the desired type.
+
+    Args:
+        value:          The value to convert.
+        target_type:    The type to convert the value to.
+        cast_fn:        The function to use for casting the value. \
+                        If None, target_type is called.
+        name:           The name of the value for logging purposes.
+        should_raise:   Whether to raise a ValueError if the conversion fails.
+    Returns:
+        The converted value if successful, None otherwise.
+    Raises:
+        ValueError: If the conversion fails and should_raise is True.
+    """
+    converted_value = None
+    with contextlib.suppress(ValueError):
+        if callable(cast_fn):
+            converted_value = cast_fn(value)
+        elif callable(target_type):
+            converted_value = target_type(value)
+        else:  # pragma: no cover
+            msg = f"Type {type(value)} of '{name}' does not have a conversion method."
+            logging.warning(msg)
+    if not isinstance(converted_value, target_type):
+        msg = f"Could not convert '{name}={value}' to type {cast_fn}."
+        logging.warning(msg)
+        if should_raise:
+            raise ValueError(msg)
+        return None
+    return converted_value

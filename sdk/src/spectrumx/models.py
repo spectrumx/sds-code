@@ -1,6 +1,5 @@
 """Data models for the SpectrumX Data System SDK."""
 
-from datetime import date
 from datetime import datetime
 from pathlib import Path
 
@@ -21,7 +20,6 @@ class File(SDSModel):
 
     Attributes:
         # shared attributes with SDS
-        uuid:               The unique identifier of the file in SDS.
         created_at:         The timestamp when the file was created.
         directory:          The path to the file, relative to the user storage in SDS.
         expiration_date:    The date when the file will be marked for deletion from SDS.
@@ -29,7 +27,9 @@ class File(SDSModel):
         name:               The user-defined name for this file.
         permissions:        The permissions for the file.
         size:               The size of the file in bytes.
+        sum_blake3:         The BLAKE3 checksum of the file.
         updated_at:         The timestamp when the file was last updated.
+        uuid:               The unique identifier of the file in SDS.
 
         # local attributes:
         is_sample:          Sample files are not written to disk (used in dry-run mode).
@@ -38,7 +38,7 @@ class File(SDSModel):
 
     created_at: datetime
     directory: Path
-    expiration_date: date | None
+    expiration_date: datetime | None
     media_type: str
     name: str
     permissions: str
@@ -52,6 +52,21 @@ class File(SDSModel):
     def path(self) -> str:
         """Returns the path to the file, relative to the owner's root on SDS."""
         return f"{self.directory}/{self.name}"
+
+    @property
+    def sum_blake3(self) -> str | None:
+        """Calculates the BLAKE3 checksum of the file.
+
+        Returns:
+            The BLAKE3 checksum of the file, or None if the file is not available.
+        """
+        if (
+            self.local_path is None
+            or self.local_path.is_dir()
+            or not self.local_path.exists()
+        ):
+            return None
+        return utils.sum_blake3(self.local_path)
 
     @property
     def chmod_props(self) -> str:

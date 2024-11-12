@@ -1,5 +1,5 @@
 """Setting overrides for local development."""
-# ruff: noqa: F405
+# ruff: noqa: F405, ERA001
 # pyright: reportArgumentType=false
 # django-environ has no type hints
 
@@ -29,6 +29,8 @@ ALLOWED_HOSTS: list[str] = [
     "localhost",
     "0.0.0.0",
     "127.0.0.1",
+    "sds-gateway-local-app",  # internal docker name
+    "sds-dev.crc.nd.edu",  # to test with traefik; change your /etc/hosts file
 ]
 
 # CACHES
@@ -93,7 +95,7 @@ INSTALLED_APPS.extend(["django_extensions"])
 # ------------------------------------------------------------------------------
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
-CELERY_TASK_EAGER_PROPAGATES: bool = True
+# CELERY_TASK_EAGER_PROPAGATES: bool = True
 # django-webpack-loader
 # ------------------------------------------------------------------------------
 WEBPACK_LOADER["DEFAULT"]["CACHE"] = not DEBUG

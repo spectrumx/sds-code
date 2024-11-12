@@ -1,9 +1,13 @@
 """Utility functions for the SpectrumX SDK."""
 
 import logging
+import random
+import string
 from collections.abc import Iterable
+from pathlib import Path
 from typing import TypeVar
 
+from blake3 import blake3 as Blake3  # noqa: N812
 from loguru import logger as log
 from tqdm import auto as auto_tqdm
 from tqdm import tqdm
@@ -54,8 +58,38 @@ def log_user_error(msg: str) -> None:
 
 
 def into_human_bool(value: str) -> bool:
-    """Converts a string to a boolean value."""
-    return value.lower() in {"t", "true", "1", "y", "yes", "on", "enabled"}
+    """Converts a string to a boolean value, defaulting to False when invalid."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    if isinstance(value, str):
+        return value.lower() in {"t", "true", "1", "y", "yes", "on", "enabled"}
+    return False
+
+
+def get_random_line(length: int, *, include_punctuation: bool = True) -> str:
+    """Generates a random string of a given length."""
+    char_choices = (
+        [*string.ascii_letters, *string.digits, *string.punctuation]
+        if include_punctuation
+        else [*string.ascii_letters, *string.digits]
+    )
+    return "".join(
+        [
+            random.choice(char_choices)  # noqa: S311
+            for _ in range(length)
+        ]
+    )
+
+
+def sum_blake3(file_path: Path) -> str:
+    """Calculates the BLAKE3 checksum of a file."""
+    checksum = Blake3()
+    with file_path.open("rb") as file:
+        for chunk in iter(lambda: file.read(4096), b""):
+            checksum.update(chunk)
+    return checksum.hexdigest()
 
 
 T = TypeVar("T")

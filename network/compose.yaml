@@ -3,49 +3,40 @@ services:
     traefik:
         image: docker.io/traefik:3
         volumes:
+
+            # ACME certificates from Let's Encrypt
             - source: ./traefik/data/acme
               target: /etc/traefik/acme
               type: bind
               read_only: false
+
+            # user (self-signed or custom) certificates
             - source: ./traefik/data/certs
               target: /etc/traefik/certs
               type: bind
               read_only: true
+
+            # traefik live-reloads this configuration file on changes
             - source: ./traefik/traefik.toml
               target: /etc/traefik/traefik.toml
               type: bind
               read_only: true
+
             - source: ./traefik/credentials.htpasswd
               target: /etc/traefik/dashboard/credentials.htpasswd
               type: bind
               read_only: true
+
         networks:
-            - sds-network
+            - sds-network-local
+            - sds-network-prod
         expose:
-            - "80" # nginx, whoami, gateway
-            - "443" # nginx, whoami, gateway
-            - "5555" # flower
+            - "80"  # redirects to https at 443 - see traefik.toml
+            - "443"
         ports:
+            # these allow traefik to listen on all interfaces
             - "0.0.0.0:80:80"
             - "0.0.0.0:443:443"
-            - "0.0.0.0:5555:5555"
-
-    # nginx serves the static files generated for the gateway
-    nginx:
-        image: docker.io/nginx:1-alpine
-        volumes:
-            - source : ./nginx/nginx-default.conf
-              target: /etc/nginx/conf.d/default.conf
-              type: bind
-              read_only: true
-            # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
-            # - source: ./nginx/data  # TODO: point to built static files
-            - source: ../gateway/sds_gateway/static  # TODO: point to built static files
-              target: /usr/share/nginx/static
-              type: bind
-              read_only: true
-        networks:
-            - sds-network
 
     # whoami service to test traefik reachability
     # curl --insecure https://whoami.sds.crc.nd.edu
@@ -55,8 +46,16 @@ services:
             - --port=2001   # must match port in traefik.toml
             # - --name=sds-01
         networks:
-            - sds-network
+            - sds-network-local
 
 networks:
-    sds-network:
-        driver: bridge
+
+    # services in the same network are visible to each other
+
+    # LOCAL
+    sds-network-local:
+        name: sds-network-local
+
+    # ⚠️ PROD
+    sds-network-prod:
+        name: sds-network-prod

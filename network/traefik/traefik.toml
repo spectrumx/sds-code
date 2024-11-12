@@ -1,4 +1,7 @@
-# Traefik configuration file
+# ⚠️ PRODUCTION CONFIG FILE ⚠️
+# Saved changes are live immediately
+
+# Traefik configuration file. Sample at:
 # https://github.com/traefik/traefik/blob/master/traefik.sample.toml
 
 [global]
@@ -7,9 +10,14 @@
 
 # https://doc.traefik.io/traefik/operations/dashboard/
 [api]
-    # curl --insecure https://localhost/dashboard/
+    # e.g. curl --insecure https://localhost/dashboard/
     dashboard = true
     # insecure  = true
+
+[providers.file]
+    # this file must be mounted by docker - see the compose file
+    filename = "/etc/traefik/traefik.toml"
+    watch    = true
 
 [accesslog]
     addInternals = true
@@ -17,11 +25,11 @@
     [accesslog.filters]
         minDuration   = "10ms"
         retryAttempts = true
-        # statusCodes   = ["200", "300-302"] # prod
+        # statusCodes   = ["200", "300-302"] # switch to this if the one below is too verbose
         statusCodes = ["200", "300-302", "400-404", "500-504"] # dev
 
 [log]
-    level = "TRACE"
+    level = "DEBUG"
 
 [tls]
 
@@ -36,6 +44,10 @@
             minVersion = "VersionTLS12"
 
 [tls.stores]
+    # these self-signed certs will be used by default if let's encrypt
+    #   fails due to e.g. the domain not being publicly reachable.
+    # you might need --insecure flag in curl; and to manually bypass
+    #   the browser's security warning if this is the case.
     [tls.stores.default]
         [tls.stores.default.defaultCertificate]
             certFile = "/etc/traefik/certs/public_key.crt"
@@ -48,6 +60,7 @@
     [entryPoints.web]
         address = ":80"
         [entryPoints.web.http.redirections.entryPoint]
+            # redirect all HTTP traffic to HTTPS
             to = "web-secure"
 
 [entryPoints.web-secure]
@@ -56,9 +69,6 @@
     [entryPoints.web-secure.http2]
         maxConcurrentStreams = 250
     [entryPoints.web-secure.http3]
-
-[entryPoints.flower]
-    address = ":5555"
 
 [certificatesResolvers]
     [certificatesResolvers.letsencrypt]
@@ -70,41 +80,57 @@
 
 [http.routers]
 
+    # Traefik dashboard will be served, behind authentication, at
+    # https://sds-dev.crc.nd.edu/dashboard/
+    # (trailing slash is important when accessing it)
     [http.routers.traefik-api]
         middlewares = ["auth"]
-        rule        = "Host(`sds.crc.nd.edu`) && ( PathPrefix(`/api/`) || PathPrefix(`/dashboard/`) )"
+        rule        = "Host(`sds-dev.crc.nd.edu`) && ( PathPrefix(`/dashboard/`) )"
         service     = "api@internal"
         [http.routers.traefik-api.tls]
             certResolver = "letsencrypt"
 
-    # [http.routers.sds-gateway-app]
-    #     entryPoints = ["web", "web-secure"]
-    #     # entryPoints = ["web-secure"]
-    #     middlewares = ["csrf"]
-    #     rule        = "Host(`sds.crc.nd.edu`)"
-    #     service     = "sds-gateway-app"
-    #     [http.routers.sds-gateway-app.tls]
-    #         certResolver = "letsencrypt"
-
-# [http.routers.sds-gateway-static]
-#     entryPoints = ["web", "web-secure"]
-#     rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/static/`)"
-#     service     = "sds-gateway-static"
-#     [http.routers.sds-gateway-static.tls]
-
-[http.routers.flower-secure-router]
-    entryPoints = ["flower"]
-    rule        = "Host(`sds.crc.nd.edu`)"
-    service     = "flower"
-    [http.routers.flower-secure-router.tls]
+# LOCAL router
+[http.routers.sds-gateway-local-app]
+    entryPoints = ["web", "web-secure"]
+    middlewares = ["csrf"]
+    rule        = "Host(`sds-dev.crc.nd.edu`)"
+    service     = "sds-gateway-local-app"
+    [http.routers.sds-gateway-local-app.tls]
         certResolver = "letsencrypt"
 
-# [http.routers.whoami]
-#     entryPoints = ["web", "web-secure"]
-#     rule    = "Host(`sds.crc.nd.edu`)"
-#     service = "whoami"
-#     [http.routers.whoami.tls]
-#         certResolver = "letsencrypt"
+# ⚠️ PROD router
+[http.routers.sds-gateway-prod-app]
+    entryPoints = ["web", "web-secure"]
+    middlewares = ["csrf"]
+    rule        = "Host(`sds.crc.nd.edu`)"
+    service     = "sds-gateway-prod-app"
+    [http.routers.sds-gateway-prod-app.tls]
+        certResolver = "letsencrypt"
+
+# LOCAL router for static files
+[http.routers.sds-gateway-local-nginx]
+    entryPoints = ["web", "web-secure"]
+    rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
+    service     = "sds-gateway-local-nginx"
+    [http.routers.sds-gateway-local-nginx.tls]
+        certResolver = "letsencrypt"
+
+# ⚠️ PROD router for static files
+[http.routers.sds-gateway-prod-nginx]
+    entryPoints = ["web", "web-secure"]
+    rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/static/`)"
+    service     = "sds-gateway-prod-nginx"
+    [http.routers.sds-gateway-prod-nginx.tls]
+        certResolver = "letsencrypt"
+
+        # "whoami" service to debug Traefik
+        # [http.routers.whoami]
+        #     entryPoints = ["web", "web-secure"]
+        #     rule    = "Host(`sds-dev.crc.nd.edu`)"
+        #     service = "whoami"
+        #     [http.routers.whoami.tls]
+        #         certResolver = "letsencrypt"
 
 [http.middlewares]
 
@@ -115,8 +141,10 @@
 
 [http.middlewares.auth]
 
+    # This is a basic auth for the Traefik dashboard
+
     [http.middlewares.auth.basicAuth]
-        # Generate the credentials file:
+        # Generate the credentials file with bcrypt hashes for the users:
         #     $ htpasswd -nB your-user-name >> traefik/credentials.htpasswd
         # Try it out:
         #     $ e.g. curl -u your-user-name:your-password http://your-sds-hostname/dashboard/
@@ -125,18 +153,30 @@
 
 [http.services]
 
-    [[http.services.sds-gateway-app.loadBalancer.servers]]
-        url = "http://sds-gateway-app:5000" # compose service name, in same network
+    # These must match the compose service name and port
 
-    [[http.services.sds-gateway-static.loadBalancer.servers]]
-        url = "http://nginx:80"
+    # ------------- WEB APP SERVERS
 
-    [[http.services.flower.loadBalancer.servers]]
-        url = "http://flower:5555"
+    # LOCAL service
+    [[http.services.sds-gateway-local-app.loadBalancer.servers]]
+        url = "http://sds-gateway-local-app:8000"
 
+    # ⚠️ PROD service
+    [[http.services.sds-gateway-prod-app.loadBalancer.servers]]
+        url = "http://sds-gateway-prod-app:18000"
+
+        # ------------- STATIC SERVERS
+
+    # LOCAL service
+    [[http.services.sds-gateway-local-nginx.loadBalancer.servers]]
+        url = "http://sds-gateway-local-nginx:80"
+
+    # ⚠️ PROD service
+    [[http.services.sds-gateway-prod-nginx.loadBalancer.servers]]
+        url = "http://sds-gateway-prod-nginx:80"
+
+        # ------------- NETWORK STACK / DEBUGGING
+
+    # Network stack service
     [[http.services.whoami.loadBalancer.servers]]
         url = "http://whoami:2001"
-
-[providers.file]
-    filename = "/etc/traefik/traefik.toml"
-    watch    = true

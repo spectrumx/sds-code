@@ -1,5 +1,5 @@
 """⚠️ Setting overrides for PRODUCTION ⚠️"""
-# ruff: noqa: F405
+# ruff: noqa: F405, ERA001, E501
 # pyright: reportArgumentType=false
 # django-environ has no type hints
 
@@ -11,10 +11,18 @@ from .base import env
 
 # GENERAL
 # ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#debug
+# DEBUG: bool = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
 SECRET_KEY: str = env("DJANGO_SECRET_KEY")
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS: list[str] = env.list("DJANGO_ALLOWED_HOSTS", default=["sds.crc.nd.edu"])
+ALLOWED_HOSTS: list[str] = env.list(
+    "DJANGO_ALLOWED_HOSTS",
+    default=[
+        "sds-gateway-prod-app",  # internal docker name
+        "sds.crc.nd.edu",
+    ],
+)
 
 # DATABASES
 # ------------------------------------------------------------------------------
@@ -34,6 +42,8 @@ CACHES = {
         },
     },
 }
+
+# ⚠️ Setting overrides for PRODUCTION
 
 # SECURITY
 # ------------------------------------------------------------------------------
@@ -67,6 +77,8 @@ SECURE_CONTENT_TYPE_NOSNIFF: bool = env.bool(
     default=True,
 )
 
+# ⚠️ Setting overrides for PRODUCTION
+
 # STATIC & MEDIA
 # ------------------------
 STORAGES = {
@@ -93,6 +105,8 @@ EMAIL_SUBJECT_PREFIX: str = env(
     default="[SpectrumX Data System Gateway] ",
 )
 
+# ⚠️ Setting overrides for PRODUCTION
+
 # ADMIN
 # ------------------------------------------------------------------------------
 # Django Admin URL regex.
@@ -112,6 +126,7 @@ ANYMAIL: dict[str, str] = {
     "MAILGUN_API_URL": env("MAILGUN_API_URL", default="https://api.mailgun.net/v3"),
 }
 
+# ⚠️ Setting overrides for PRODUCTION
 
 # LOGGING
 # ------------------------------------------------------------------------------
@@ -143,7 +158,7 @@ LOGGING: dict[str, Any] = {
             "formatter": "verbose",
         },
     },
-    "root": {"level": "INFO", "handlers": ["console"]},
+    "root": {"level": "DEBUG", "handlers": ["console"]},
     "loggers": {
         "django.request": {
             "handlers": ["mail_admins"],
@@ -157,6 +172,8 @@ LOGGING: dict[str, Any] = {
         },
     },
 }
+
+# ⚠️ Setting overrides for PRODUCTION
 
 # django-rest-framework
 # -------------------------------------------------------------------------------

@@ -9,7 +9,8 @@
     + [SDK Usage Guide](#sdk-usage-guide)
     + [System dependencies](#system-dependencies)
     + [SDK Development](#sdk-development)
-        + [Testing](#testing)
+        + [Local Testing](#local-testing)
+        + [Integration Testing](#integration-testing)
         + [Code Quality](#code-quality)
         + [CI/CD](#cicd)
         + [Maintenance](#maintenance)
@@ -36,7 +37,7 @@ Everything else is installed by `uv` in the virtual environment whenever a `uv s
 
 GitHub Actions automate code quality checks, testing, and package publishing. See the [makefile](./makefile) and the [GitHub Actions workflows](../.github/workflows/) for specific details.
 
-### Testing
+### Local Testing
 
 ```bash
 make
@@ -57,6 +58,36 @@ make test-all
 
 make serve-coverage
 # serves the coverage report on localhost:8000 - run one of the test targets first
+```
+
+### Integration Testing
+
+Integration tests need more setup. You need to deploy the Gateway and Network components, create a test user, and set up the integration test environment:
+
+1. Follow the Network setup instructions in the [Network README](../network/README.md);
+    1. Adjust TLS according to your setup;
+    2. Modify your local DNS resolution if you'd like to simulate requests to a custom domain;
+2. Follow the Gateway instructions in the [Gateway README](../gateway/README.md); In summary:
+    1. Deploy the Docker Compose stack;
+    2. Create a MinIO user and bucket with same credentials as in `minio.env`;
+3. Create a test user and API key:
+    1. Create a Gateway superuser and a regular user (they may be the same);
+    2. Enable their `is_approved` flag in the [admin panel](http://localhost:8000/admin);
+    3. With the flag enabled, login as that user and create an API key for them;
+    4. Copy / save the key.
+4. Integration test setup:
+    1. Create `tests/integration/integration.env` from its example counterpart
+    2. Set the api key to the one created.
+    3. Run the `make test-integration` target.
+
+Then you can run the integration tests:
+
+```bash
+make test-integration
+# runs integration tests with pytest
+
+make test-integration-verbose
+# like make test-integration, but with extra verbosity and log capture
 ```
 
 ### Code Quality

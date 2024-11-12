@@ -1,41 +1,64 @@
 {% extends 'base.html' %}
 
 {% load static %}
+{% load static i18n %}
 {% load custom_filters %}
 
 {% block title %}
     Generate API Key
 {% endblock title %}
 {% block content %}
-    <h1>Generate API Key</h1>
-    {% if api_key and not expired %}
-        {% if api_key|is_string %}
-            <p>
-                Your API Key: <strong>{{ api_key }}</strong>
-            </p>
-            <p>Keep this key safe and secure. You will not be able to view it again.</p>
-        </br />
-    {% endif %}
-    <p>
-        Your key expires at: <strong>{{ expires_at }}</strong>
-    </p>
-    <p>When expired, you will be prompted to generate a new key.</p>
-    {% if not api_key|is_string %}
-        <p>If you have lost your API key, you may generate a new one below (this will invalidate the current key).</p>
-        <form method="post" action="{% url 'users:generate_api_key' %}">
-            {% csrf_token %}
-            <button class="btn btn-danger" type="submit">Invalidate Existing Key and Generate New One</button>
-        </form>
-    {% endif %}
-{% else %}
-    {% if expired %}
-        <p>Your API Key has expired. Generate a new key below.</p>
-    {% else %}
-        <p>You do not have an API Key. Generate one.</p>
-    {% endif %}
-    <form method="post" action="{% url 'users:generate_api_key' %}">
-        {% csrf_token %}
-        <button class="btn btn-primary" type="submit">Generate API Key</button>
-    </form>
-{% endif %}
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
+                <h2>Generate an API Key</h2>
+                {% if api_key and not expired %}
+                    {% if api_key|is_string %}
+                        <p>Your new API Key:</p>
+                        <div class="d-inline-block bg-body-secondary p-3 rounded border">
+                            <pre class="api-key-text"><strong>{{ api_key }}</strong></pre>
+                        </div>
+                        <p class="text-danger">Keep this key safe and secure. You will not be able to view it again.</p>
+                    </br />
+                {% endif %}
+                <p>
+                    Your key expires at: <strong>{{ expires_at }}</strong>
+                </p>
+                <p>When expired, you will be prompted to generate a new key.</p>
+                {% if not api_key|is_string %}
+                    <p>If you have lost your API key, you may generate a new one below (this will invalidate the current key).</p>
+                    <form method="post" action="{% url 'users:generate_api_key' %}">
+                        {% csrf_token %}
+                        <button class="btn btn-danger" type="submit">Invalidate Existing Key and Generate New One</button>
+                    </form>
+                {% endif %}
+            {% else %}
+                {% if expired %}
+                    <p>Your API Key has expired. Generate a new key below.</p>
+                {% else %}
+                    <p>You do not have an API Key. Generate one.</p>
+                {% endif %}
+                <form method="post" action="{% url 'users:generate_api_key' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-primary" type="submit">Generate API Key</button>
+                </form>
+            {% endif %}
+            <div class="mt-4">
+                <h2>{% translate "Resources" %}</h2>
+                <ul class="list-unstyled">
+                    <li class="mb-3">
+                        <p>{% translate "Writing a Python program?" %}</p>
+                        <a class="btn btn-info"
+                           href="https://pypi.org/project/spectrumx/"
+                           target="_blank">{% translate "SpectrumX SDK in PyPI" %}</a>
+                    </li>
+                    <li class="mb-3">
+                        <p>{% translate "Or try the lower-level API for the SDS Gateway:" %}</p>
+                        <a class="btn btn-info" href="{% url 'api-docs' %}" target="_blank">{% translate "API Documentation" %}</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock content %}

@@ -2,7 +2,7 @@ from django.conf import settings
 from minio import Minio
 
 
-def get_minio_client():
+def get_minio_client() -> Minio:
     # Initialize MinIO client
     return Minio(
         settings.MINIO_ENDPOINT_URL,

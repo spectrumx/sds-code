@@ -1,4 +1,5 @@
 #!/bin/bash
+# Entrypoint for sds-gateway-app service in production
 
 set -o errexit
 set -o pipefail
