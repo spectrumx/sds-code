@@ -5,17 +5,13 @@ name: Upload Python Package
 
 on:
     workflow_dispatch: # Manually trigger the workflow from the Actions tab
-    release:
-        types: [published]
+    # a release is created automatically after the tag is pushed
     push:
         paths:
             # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
             - sdk/**
-        branches:
-            - main
-            - master
         tags:
-            - "v*.*.*"
+            - "v[0-9]+.[0-9]+.[0-9]+" # this excludes tags like v1.0.0-rc1 or v1.0.0-beta1
 
 permissions:
     # 'read' to access the list of commits
@@ -98,21 +94,53 @@ jobs:
                   path: ./sdk/dist
                   if-no-files-found: error
 
-    deploy:
+    github-release:
         runs-on: ubuntu-latest
-        name: pypi-deploy
+        name: github-release
         needs: build
-        environment: pypi
-        permissions:
-            # A 'write' permission is mandatory for trusted publishing
-            id-token: write
         steps:
-            - name: Download artifact
+            - name: Download artifact for GH release
               # https://github.com/actions/download-artifact?tab=readme-ov-file#inputs
               uses: actions/download-artifact@main
               with:
                   name: dist
                   path: ./sdk/dist
+
+            - name: Automatic GitHub release
+              # https://github.com/marketplace/actions/automatic-releases
+              # generates a `@latest` release on github with automatic changelog
+              uses: "marvinpinto/action-automatic-releases@latest"
+              with:
+                  repo_token: "${{ secrets.GITHUB_TOKEN }}"
+                  prerelease: false
+                  files: |
+                      sdk/dist/*.tar.gz
+                      sdk/dist/*.whl
+
+    pypi-release:
+        runs-on: ubuntu-latest
+        name: pypi-release
+        needs: [build, github-release]
+        environment: pypi
+        permissions:
+            # A 'write' permission is mandatory for trusted publishing
+            id-token: write
+        steps:
+            - name: Download artifact for PyPI deploy
+              # https://github.com/actions/download-artifact?tab=readme-ov-file#inputs
+              uses: actions/download-artifact@main
+              with:
+                  name: dist
+                  path: ./sdk/dist
+
+            # https://github.com/astral-sh/setup-uv
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
+              with:
+                  version: latest # optional, default is latest
+                  # used to increase the rate limit when retrieving versions and downloading uv.
+                  github-token: ${{ github.token }} # optional, default is ${{ github.token }}
+                  enable-cache: false # optional, default is false
 
             - name: Publish package
               run: uv publish --trusted-publishing always
