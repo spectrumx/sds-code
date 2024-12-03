@@ -90,8 +90,8 @@ services:
         volumes:
             - sds-gateway-prod-minio-files:/files
         ports:
-            - "9000:9000"
-            - "9001:9001"
+            - "19000:9000"
+            - "19001:9001"
         env_file:
             - ./.envs/production/minio.env
         command: server /files --console-address ":9001"
@@ -112,13 +112,14 @@ services:
             - ./opensearch/data/certs:/usr/share/opensearch/config/certs
         env_file:
             - ./.envs/production/opensearch.env
+        command: sleep 3600
         ulimits:
             memlock:
                 soft: -1
                 hard: -1
         ports:
-            - "9200:9200"
-            - "9600:9600"
+            - "19200:9200"
+            - "19600:9600"
         networks:
             - sds-gateway-prod-opensearch-net
 
