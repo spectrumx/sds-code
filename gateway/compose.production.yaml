@@ -100,11 +100,12 @@ services:
 
     opensearch:
         # used for indexing and searching documents
-        # opensearch upgrades follow semver - let's target a major version
-        # https://opensearch.org/docs/latest/install-and-configure/upgrade-opensearch/index/
-        # release notes
-        # https://opensearch.org/docs/latest/version-history/
-        image: opensearchproject/opensearch:2
+        build:
+            context: .
+            dockerfile: ./compose/production/opensearch/Dockerfile
+            args:
+                UID: ${UID}
+                GID: ${GID}
         container_name: sds-gateway-prod-opensearch
         volumes:
             - sds-gateway-prod-opensearch-data:/usr/share/opensearch/data
@@ -112,7 +113,6 @@ services:
             - ./opensearch/data/certs:/usr/share/opensearch/config/certs
         env_file:
             - ./.envs/production/opensearch.env
-        command: sleep 3600
         ulimits:
             memlock:
                 soft: -1
