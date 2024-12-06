@@ -9,6 +9,9 @@ FROM docker.io/opensearchproject/opensearch:2
 ARG UID
 ARG HOSTUSER=opensearch
 
+# if UID is not set, fail the build
+RUN test -n "${UID}" || (echo "UID is not set: pass it when building the image" && false)
+
 USER root
 
 # change uid of opensearch user to UID
