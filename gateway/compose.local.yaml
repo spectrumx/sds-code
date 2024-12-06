@@ -90,11 +90,12 @@ services:
 
     opensearch:
         # used for indexing and searching documents
-        # opensearch upgrades follow semver - let's target a major version
-        # https://opensearch.org/docs/latest/install-and-configure/upgrade-opensearch/index/
-        # release notes
-        # https://opensearch.org/docs/latest/version-history/
-        image: opensearchproject/opensearch:2
+        build:
+            context: .
+            dockerfile: ./compose/production/opensearch/Dockerfile
+            args:
+                UID: ${UID}
+                GID: ${GID}
         container_name: sds-gateway-local-opensearch
         volumes:
             - sds-gateway-local-opensearch-data:/usr/share/opensearch/data
