@@ -193,6 +193,12 @@ Keep this in mind, however:
     opensearch/generate_certs.sh
     ```
 
+    Set stricter permissions to config
+
+    ```bash
+    chmod -v 600 compose/*/opensearch/opensearch.yaml
+    ```
+
     Build the opensearch service with the right env vars to avoid permission errors in `opensearch`:
 
     ```bash
