@@ -1,13 +1,17 @@
-# SpectrumX Data System Gateway
+# SpectrumX Data System | Gateway
 
-Control plane, metadata management, and web interface for SDS
+Metadata management and web interface for SDS.
 
 [![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-## Development
++ [SpectrumX Data System | Gateway](#spectrumx-data-system--gateway)
+    + [Development environment](#development-environment)
+    + [Local deploy](#local-deploy)
+    + [Debugging tips](#debugging-tips)
+    + [Production deploy](#production-deploy)
 
-### Installation
+## Development environment
 
 System dependencies
 
@@ -43,6 +47,12 @@ uv run pre-commit install
 ```
 
 ## Local deploy
+
+The project is divided into two configuration modes: `local` and `prod`/`production`.
+The `local` mode has better responsiveness thanks to bind mounts, easier debugging, and shorter restart times.
+The production mode focuses on performance with caching, minified assets; and security with enforced HTTPS and separate secrets.
+
+For the local deploy:
 
 1. Set secrets:
 
@@ -87,19 +97,17 @@ uv run pre-commit install
 
     ```bash
     docker exec -it sds-gateway-local-app python manage.py createsuperuser
-    # or
-    # docker compose -f compose.local.yaml exec django python manage.py createsuperuser
     ```
 
 5. Access the web interface:
 
-    Open the web interface at [localhost:8000](http://localhost:8000). You can create regular users bt signing up there.
+    Open the web interface at [localhost:8000](http://localhost:8000). You can create regular users by signing up there.
 
     You can sign in with the superuser credentials at [localhost:8000/admin](http://localhost:8000/admin) to access the admin interface.
 
 6. Create the MinIO bucket:
 
-    Go to [localhost:9000](http://localhost:9001) and create a bucket named `spectrumx` with the credentials in `minio.env`.
+    Go to [localhost:9001](http://localhost:9001) and create a bucket named `spectrumx` with the credentials set in `minio.env`.
 
 7. Run the test suite:
 
@@ -119,3 +127,139 @@ uv run pre-commit install
     + `test_download_file`
     + `test_minio_health_check`
     + `test_opensearch_health_check`
+
+## Debugging tips
+
++ Where are my static files served from?
+    + See [localhost:3000/webpack-dev-server](http://localhost:3000/webpack-dev-server).
++ What is the URL to X / how to see my routing table?
+    + `docker exec -it sds-gateway-local-app python manage.py show_urls`.
+    + `show_urls` is provided by `django-extensions` and currently doesn't run in production mode.
+
+## Production deploy
+
+> [!TIP]
+>
+> The production deploy uses the same host ports as the local one, just prefixed with `1`: (`8000` → `18000`).
+>
+> This means you can deploy both on the same machine e.g. dev/test/QA/staging and production as "local" and "prod"
+> respectively. This works as they also use different docker container, network, volume, and image names.
+> Traefik may be configured to route e.g. `sds.example.com` and `sds-dev.example.com` to the respective
+> the prod and local services respectively, using different container names and ports.
+
+Keep this in mind, however:
+
+> [!CAUTION]
+>
+> Due to the bind mounts of the local deploy, it's still recommended to use different copies of the
+> source code between a local and production deploy, even if they are on the same machine.
+>
+
+1. **Set secrets**:
+
+    ```bash
+    rsync -aP ./.envs/example/ ./.envs/production
+    # manually set the secrets in .envs/production/*.env files
+    ```
+
+    > [!NOTE]
+    >
+    > Follow these steps to set the secrets:
+
+    + Set most secrets, passwords, tokens, etc. to random values. You can use the following one-liner and adjust the length as needed:
+
+        ```bash
+        echo $(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 64)
+        ```
+
+    + In `minio.env`, **`AWS_SECRET_ACCESS_KEY` must be equal to `MINIO_ROOT_PASSWORD`**;
+    + In `django.env`, the **`DJANGO_ADMIN_URL` must end with a slash `/`**.
+    + In `django.env`, to generate the `API_KEY` get it running first, then navigate to [localhost:18000/users/generate-api-key](http://localhost:18000/users/generate-api-key) (or this path under your own domain).
+        + **Copy the generated key to that env file**. The key is not stored in the database, so you will only see it at creation time.
+    + In `django.env`, configure OAuth in Auth0's dashboard and **set the `CLIENT_ID` and `CLIENT_SECRET`** accordingly.
+    + In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user, password, and database name** in that file.
+
+2. **Deploy** with Docker (recommended):
+
+    Either create an `sds-network-prod` network manually, or run the [Traefik service](../network/compose.yaml) that creates it:
+
+    ```bash
+    docker network create sds-network-prod --driver=bridge --name=sds-network-prod
+    ```
+
+    Build the opensearch service with the right env vars to avoid permission errors in `opensearch`:
+
+    ```bash
+    # edit `opensearch.env` with the UID and GID of the host
+    "${EDITOR:nano}" .envs/production/opensearch.env
+
+    # build the modified opensearch image
+    dc --env-file .envs/production/opensearch.env -f compose.production.yaml build opensearch
+    ```
+
+    Then, run the services:
+
+    ```bash
+    docker compose -f compose.production.yaml up
+    ```
+
+    > [!TIP]
+    >
+    > When restarting, **don't forget to re-build it**, as this deploy doesn't use a bind mount to the source code:
+    >
+    > ```bash
+    > export COMPOSE_FILE=compose.production.yaml; docker compose build && docker compose down; docker compose up -d; docker compose logs -f
+    > # tip: save this command for repeated use (alias) as you get everything set up
+    > ```
+
+3. Make Django **migrations** and run them:
+
+    Optionally, just run them in case you have a staging deploy and would like to test new migrations first.
+
+    ```bash
+    docker exec -it sds-gateway-prod-app bash -c "python manage.py makemigrations && python manage.py migrate"
+    ```
+
+4. Create the first **superuser**:
+
+    ```bash
+    docker exec -it sds-gateway-prod-app python manage.py createsuperuser
+
+    # if you forget or lose the superuser password, you can reset it with:
+    docker exec -it sds-gateway-prod-app python manage.py changepassword <email>
+    ```
+
+5. Try the **web interface** and **admin panel**:
+
+    Open the web interface at [localhost:18000](http://localhost:18000). You can create regular users by signing up there.
+
+    You can sign in with the superuser credentials at `localhost:18000/<admin path set in django.env>` to access the admin interface.
+
+6. Create the **MinIO bucket**:
+
+    Go to [localhost:19001](http://localhost:19001) and create a bucket named `spectrumx`
+    with the credentials set in `.envs/production/minio.env`.
+
+7. Set correct **permissions for the media volume**:
+
+    The app container uses a different pair of UID and GID than the host machine, which
+    prevents the app from writing to the media volume when users upload files. To fix
+    this, run the following command:
+
+    ```bash
+    # check the uid and gid assigned to the app container
+    docker exec -it sds-gateway-prod-app id
+
+    # change the ownership of the media volume to those values
+    docker exec -it -u 0 sds-gateway-prod-app chown -R 100:101 /app/sds_gateway/media/
+    ```
+
+8. Run the **test** suite:
+
+    ```bash
+    docker exec -it sds-gateway-prod-app python manage.py test
+    ```
+
+9. Don't forget to **approve users** to allow them to create API keys.
+
+    You can do this by logging in as a superuser in the admin panel and enabling the `is_approved` flag in the user's entry.
