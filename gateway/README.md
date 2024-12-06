@@ -187,6 +187,12 @@ Keep this in mind, however:
     docker network create sds-network-prod --driver=bridge --name=sds-network-prod
     ```
 
+    Generate the opensearch certificates:
+
+    ```bash
+    opensearch/generate_certs.sh
+    ```
+
     Build the opensearch service with the right env vars to avoid permission errors in `opensearch`:
 
     ```bash
@@ -254,12 +260,22 @@ Keep this in mind, however:
     docker exec -it -u 0 sds-gateway-prod-app chown -R 100:101 /app/sds_gateway/media/
     ```
 
-8. Run the **test** suite:
+8. Opensearch adjustments
+
+    ```bash
+    docker exec -it sds-gateway-prod-opensearch plugins/opensearch-security/tools/securityadmin.sh \
+        -cd config/opensearch-security/ -icl -nhnv \
+        -cacert config/certs/root-ca.pem \
+        -cert config/certs/admin.pem \
+        -key config/certs/admin-key.pem
+    ```
+
+9. Run the **test** suite:
 
     ```bash
     docker exec -it sds-gateway-prod-app python manage.py test
     ```
 
-9. Don't forget to **approve users** to allow them to create API keys.
+10. Don't forget to **approve users** to allow them to create API keys.
 
     You can do this by logging in as a superuser in the admin panel and enabling the `is_approved` flag in the user's entry.
