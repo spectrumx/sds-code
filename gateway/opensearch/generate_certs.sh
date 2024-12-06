@@ -90,6 +90,11 @@ function cleanup_current_dir() {
 
 }
 
+function fix_permissions() {
+    chmod 700 "$DIR_HOST_CERTS"
+    chmod 600 "$DIR_HOST_CERTS"/*
+}
+
 function main() {
     pre_conditions || exit 1
     cd "$DIR_HOST_CERTS_TEMP" || exit 1
@@ -97,6 +102,7 @@ function main() {
     cleanup_current_dir
     cd "$DIR_RETURN" || exit 0
     replace_certs
+    fix_permissions
 }
 
 main
