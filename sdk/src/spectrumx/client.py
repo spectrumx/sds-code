@@ -2,6 +2,7 @@
 
 import logging
 import os
+import tempfile
 import time
 import uuid
 from collections.abc import Callable
@@ -258,6 +259,39 @@ class Client:
 
         log_user("Dry run enabled: a sample file is being returned instead")
         return files.generate_sample_file(uuid_to_set)
+
+    def download_file_contents(
+        self, file_uuid: uuid.UUID | str, target_path: Path | None = None
+    ) -> Path:
+        """Downloads the contents of a file from SDS to a location on disk.
+
+        If target_path is not provided, a temporary file is created.
+        When provided, the parent of target_path will be created if it does not exist.
+
+        Args:
+            file_uuid:      The UUID of the file to download from SDS.
+            target_path:    The local path to save the downloaded file to.
+        Returns:
+            The local path to the downloaded file.
+        """
+        if target_path is None:
+            _file_ptr, file_name = tempfile.mkstemp()
+            _file_ptr.close()
+            target_path = Path(file_name)
+        target_path = Path(target_path) if isinstance(target_path, str) else target_path
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        uuid_to_set: uuid.UUID = (
+            uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
+        )
+        if not self.dry_run:
+            with target_path.open(mode="wb") as file_ptr:
+                for chunk in self._gateway.get_file_contents_by_id(
+                    uuid=uuid_to_set.hex
+                ):
+                    file_ptr.write(chunk)
+        else:
+            log_user(f"Dry run enabled: file would be saved as {target_path}")
+        return target_path
 
     def upload_file(
         self, file_path: File | Path | str, sds_path: Path | str = "/"
