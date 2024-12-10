@@ -275,8 +275,8 @@ class Client:
             The local path to the downloaded file.
         """
         if target_path is None:
-            _file_ptr, file_name = tempfile.mkstemp()
-            _file_ptr.close()
+            file_desc, file_name = tempfile.mkstemp()
+            os.close(file_desc)
             target_path = Path(file_name)
         target_path = Path(target_path) if isinstance(target_path, str) else target_path
         target_path.parent.mkdir(parents=True, exist_ok=True)
