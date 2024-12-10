@@ -206,11 +206,7 @@ class DryModeAssertionError(AssertionError):
 
 
 def test_dry_run_setter(client: Client) -> None:
-    """Makes sure setter works.
-
-    NOTE: Test behavior of this setter might differ from actual \
-        one in early releases. See notes in the setter code.
-    """
+    """Makes sure setter works, preventing unintended changes."""
     client.dry_run = False
     assert client.dry_run is False, "Dry-run setter failed."
     client.dry_run = True
