@@ -1,9 +1,11 @@
 """Lower level module for interaction with the SpectrumX Data System."""
 
 import os
+from collections.abc import Iterator
 from enum import StrEnum
 from http import HTTPStatus
 from pathlib import Path
+from typing import Any
 
 import requests
 from loguru import logger as log
@@ -29,6 +31,7 @@ class Endpoints(StrEnum):
 
     AUTH = "/auth"
     FILES = "/assets/files"
+    FILE_DOWNLOAD = "/assets/files/{uuid}/download"
     CAPTURES = "/assets/captures"
     DATASETS = "/assets/datasets"
     EXPERIMENTS = "/assets/experiments"
@@ -55,7 +58,7 @@ class GatewayClient:
 
     _api_key: str
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         host: str,
@@ -87,10 +90,21 @@ class GatewayClient:
         }
 
     def get_default_payload(
-        self, *, endpoint: Endpoints, asset_id: None | str = None
+        self,
+        *,
+        endpoint: Endpoints,
+        asset_id: None | str = None,
+        endpoint_args: None | dict[str, Any] = None,
     ) -> dict[str, str | dict[str, str] | bool]:
+        endpoint_fmt = (
+            endpoint.value.format(**endpoint_args) if endpoint_args else endpoint.value
+        )
+        if "{" in endpoint_fmt:
+            msg = f"Endpoint '{endpoint}' has missing arguments in '{endpoint_args}'"
+            raise ValueError(msg)
+
         assert API_TARGET_VERSION.startswith("v"), "API version must start with 'v'."
-        url_path = Path(f"{API_PATH}/{API_TARGET_VERSION}/{endpoint}")
+        url_path = Path(f"{API_PATH}/{API_TARGET_VERSION}/{endpoint_fmt}")
         if asset_id is not None:
             url_path /= asset_id
         url = f"{self.base_url}{url_path}/"
@@ -107,8 +121,11 @@ class GatewayClient:
         self,
         method: HTTPMethods,
         endpoint: Endpoints,
+        *,
         asset_id: None | str = None,
         timeout: None | int = None,
+        stream: bool = False,
+        endpoint_args: None | dict[str, Any] = None,
         **kwargs,
     ) -> requests.Response:
         """Makes a request to the SDS API.
@@ -118,41 +135,24 @@ class GatewayClient:
             endpoint:   The endpoint to target.
             asset_id:   The asset ID to target.
             timeout:    The timeout for the request.
+            stream:     Streams the response if True.
+            url_args:   URL arguments for the request.
             **kwargs:   Additional keyword arguments for the request e.g. URL params.
         Returns:
             The response from the request.
         """
-
-        payload = self.get_default_payload(endpoint=endpoint, asset_id=asset_id)
-
+        payload = self.get_default_payload(
+            endpoint=endpoint, asset_id=asset_id, endpoint_args=endpoint_args
+        )
         if self.verbose:
             log.debug(f"Gateway req: {method} {payload["url"]}")
         return requests.request(
             timeout=self.timeout if timeout is None else timeout,
             method=method,
+            stream=stream,
             **payload,
             **kwargs,
         )
-
-    def _request_stream(
-        self,
-        method: HTTPMethods,
-        endpoint: Endpoints,
-        asset_id: None | str = None,
-        timeout: None | int = None,
-        **kwargs,
-    ) -> requests.Response:
-        """Makes a request to the SDS API, streaming the response.
-
-        Args:
-            method:     The HTTP method to use.
-            endpoint:   The endpoint to target.
-            asset_id:   The asset ID to target.
-            timeout:    The timeout for the request.
-            **kwargs:   Additional keyword arguments for the request e.g. URL params.
-        Returns:
-            The response from the request.
-        """
 
     @property
     def base_url(self) -> str:
@@ -176,7 +176,7 @@ class GatewayClient:
         raise AuthError(msg)
 
     def get_file_by_id(self, uuid: str) -> bytes:
-        """Retrieves a file from the SDS API.
+        """Retrieves a file metadata from the SDS API. Not its contents.
 
         Args:
             uuid: The UUID of the file to retrieve as a hex string.
@@ -190,6 +190,27 @@ class GatewayClient:
         )
         network.success_or_raise(response, FileError)
         return response.content
+
+    def get_file_contents_by_id(self, uuid: str) -> Iterator[bytes]:
+        """Retrieves file contents from the SDS API.
+
+        Args:
+            uuid: The UUID of the file to retrieve as a hex string.
+        Returns:
+            The file contents as a byte stream.
+        """
+        chunk_size: int = 8192
+        with self._request(
+            asset_id=None,  # uuid is passed as an endpoint_args
+            endpoint_args={"uuid": uuid},
+            endpoint=Endpoints.FILE_DOWNLOAD,
+            method=HTTPMethods.GET,
+            stream=True,
+        ) as stream:
+            network.success_or_raise(stream, ContextException=FileError)
+            for chunk in stream.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    yield chunk
 
     def upload_file(self, file_instance: File) -> bytes:
         """Uploads a local file to the SDS API.
@@ -208,11 +229,12 @@ class GatewayClient:
         with file_instance.local_path.open("rb") as file_ptr:
             response = self._request(
                 method=HTTPMethods.POST,
-                endpoint=Endpoints.FILES,
+                endpoint=Endpoints.FILE_DOWNLOAD,
                 data=payload,
+                endpoint_args={"uuid": file_instance.uuid},
                 files={
                     "file": file_ptr,  # request.data['file']
                 },
             )
-            network.success_or_raise(response, FileError)
+            network.success_or_raise(response, ContextException=FileError)
             return response.content

@@ -41,6 +41,13 @@ def get_files_endpoint(client: Client) -> str:
     return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/"
 
 
+def download_file_endpoint(client: Client, file_id: str) -> str:
+    """Returns the endpoint for downloading a file."""
+    return (
+        client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/download/"
+    )
+
+
 # ------------------------
 # TESTS FOR AUTHENTICATION
 # ------------------------
@@ -162,6 +169,35 @@ def test_file_upload(client: Client, temp_file_with_text_contents: Path) -> None
     ), "Local files should not have an expiration date"
 
 
+def test_download_file_contents(client: Client, responses: RequestsMock) -> None:
+    """The download_file_contents method must return the file contents."""
+    client.dry_run = False  # calls are mocked, but we want to test the actual requests
+
+    # file properties
+    file_id = uuidlib.uuid4()
+    long_file_contents = (
+        "File start\n" + "Sample file contents - " * 1000 + "\nFile end"
+    )
+    num_bytes = len(long_file_contents.encode("utf-8"))
+
+    # mock the file download endpoint
+    responses.get(
+        download_file_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=long_file_contents,
+    )
+
+    # run the test
+    downloaded_file = client.download_file_contents(file_uuid=file_id.hex)
+    assert downloaded_file.exists(), "File was not downloaded to returned path"
+    assert downloaded_file.is_file(), "Returned path must be a file"
+    assert downloaded_file.stat().st_size == num_bytes, (
+        f"File size must match. Got {num_bytes} B, "
+        f"expected {downloaded_file.stat().st_size} B"
+    )
+    downloaded_file.unlink(missing_ok=False)
+
+
 # ----------------------
 # TESTS FOR DRY-RUN MODE
 # ----------------------
@@ -169,7 +205,7 @@ class DryModeAssertionError(AssertionError):
     """Raised in test when a request is made in dry run mode."""
 
 
-def test_dry_run_setter(client: Client, responses_dry_run: RequestsMock) -> None:
+def test_dry_run_setter(client: Client) -> None:
     """Makes sure setter works.
 
     NOTE: Test behavior of this setter might differ from actual \
