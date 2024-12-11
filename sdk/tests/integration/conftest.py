@@ -83,9 +83,10 @@ def integration_client() -> Client:
     integration_config = {
         "DRY_RUN": False,  # disable dry run for integration tests
         "HTTP_TIMEOUT": 30,
+        "SDS_HOST": "sds-dev.crc.nd.edu",
     }
     _integration_client = Client(
-        host="sds.crc.nd.edu",
+        host="sds-dev.crc.nd.edu",
         env_config=integration_config,
         env_file=Path("tests")
         / "integration"
