@@ -57,12 +57,16 @@ def temp_file_with_text_contents(tmp_path: Path) -> Generator[Path]:
 @pytest.fixture
 @pytest.mark.slow
 def temp_large_binary_file(
+    request: pytest.FixtureRequest,
     tmp_path: Path,
-    target_size_mb: int | None = None,
 ) -> Generator[Path]:
     """Fixture to create a temporary large binary file."""
+    target_size_mb = (
+        request.param.get("size_mb", None) if hasattr(request, "param") else None
+    )
     if target_size_mb is None:
         target_size_mb = random.randint(10, 20)  # noqa: S311
+    log.warning(f"Creating a large binary file of {target_size_mb:,} MB.")
     large_binary_file = tmp_path / "large_binary_file"
     byte_generator = random_bytes_generator(1024 * 1024 * target_size_mb)
     with large_binary_file.open("wb") as f_ptr:

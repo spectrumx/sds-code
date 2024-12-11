@@ -80,14 +80,22 @@ def test_bulk_file_upload(integration_client: Client, temp_file_tree: Path) -> N
     "_without_responses",
     [
         [
-            f"https://sds.crc.nd.edu:443/api/{API_TARGET_VERSION}/assets/files",
-            f"http://localhost:80/api/{API_TARGET_VERSION}/assets/files",
+            f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+            for hostname_and_port in passthru_hostnames
         ]
     ],
     indirect=True,
 )
-@pytest.mark.usefixtures("_run_number")
-@pytest.mark.parametrize("_run_number", range(10))
+@pytest.mark.parametrize(
+    "temp_large_binary_file",
+    [
+        {"size_mb": 10},  # 10 MB
+        {"size_mb": 100},  # 100 MB
+        # {"size_mb": 1_000},  # 1 GB       # noqa: ERA001
+        # {"size_mb": 10_000},  # 10 GB     # noqa: ERA001
+    ],
+    indirect=True,
+)
 def test_large_file_upload(
     integration_client: Client,
     temp_large_binary_file: Path,
