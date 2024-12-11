@@ -195,7 +195,46 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
         f"File size must match. Got {num_bytes} B, "
         f"expected {downloaded_file.stat().st_size} B"
     )
+
+    # cleanup
     downloaded_file.unlink(missing_ok=False)
+
+
+def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
+    """The download method must respect the given path, creating any parent dirs."""
+    client.dry_run = False  # calls are mocked, but we want to test the actual requests
+
+    # file properties
+    file_id = uuidlib.uuid4()
+    file_contents = "File start\n" + "Sample file contents" + "\nFile end"
+    num_bytes = len(file_contents.encode("utf-8"))
+    random_str = uuidlib.uuid4().hex
+    parent_dir = Path(tempfile.gettempdir()) / random_str
+    expected_path = parent_dir / "downloaded-file.txt"
+
+    # mock the file download endpoint
+    responses.get(
+        download_file_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=file_contents,
+    )
+
+    # run the test
+    assert parent_dir.exists() is False, "Parent dir must not exist before test"
+    downloaded_path = client.download_file_contents(
+        file_uuid=file_id.hex, target_path=expected_path
+    )
+    assert downloaded_path == expected_path, "Returned path must match the given path"
+    assert expected_path.exists(), "File was not downloaded to given path"
+    assert expected_path.is_file(), "Given path must be a file"
+    assert expected_path.stat().st_size == num_bytes, (
+        f"File size must match. Got {num_bytes} B, "
+        f"expected {expected_path.stat().st_size} B"
+    )
+
+    # cleanup
+    expected_path.unlink(missing_ok=False)
+    parent_dir.rmdir()
 
 
 # ----------------------
