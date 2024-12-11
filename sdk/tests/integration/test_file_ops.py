@@ -10,6 +10,8 @@ from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.ops.files import construct_file
 from spectrumx.utils import get_random_line
 
+from tests.integration.conftest import passthru_hostnames
+
 BLAKE3_HEX_LEN: int = 64
 
 
@@ -20,8 +22,8 @@ BLAKE3_HEX_LEN: int = 64
     "_without_responses",
     [
         [
-            f"https://sds.crc.nd.edu:443/api/{API_TARGET_VERSION}/assets/files",
-            f"http://localhost:80/api/{API_TARGET_VERSION}/assets/files",
+            f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+            for hostname_and_port in passthru_hostnames
         ]
     ],
     indirect=True,
@@ -52,8 +54,8 @@ def test_single_file_upload(
     "_without_responses",
     [
         [
-            f"https://sds.crc.nd.edu:443/api/{API_TARGET_VERSION}/assets/files",
-            f"http://localhost:80/api/{API_TARGET_VERSION}/assets/files",
+            f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+            for hostname_and_port in passthru_hostnames
         ]
     ],
     indirect=True,

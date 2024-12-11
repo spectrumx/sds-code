@@ -8,6 +8,8 @@ from spectrumx import Client
 from spectrumx.errors import AuthError
 from spectrumx.gateway import API_TARGET_VERSION
 
+from tests.integration.conftest import passthru_hostnames
+
 
 @pytest.mark.integration
 @pytest.mark.usefixtures("_integration_setup_teardown")
@@ -16,8 +18,8 @@ from spectrumx.gateway import API_TARGET_VERSION
     "_without_responses",
     [
         [
-            f"https://sds.crc.nd.edu:443/api/{API_TARGET_VERSION}/auth",
-            f"http://localhost:80/api/{API_TARGET_VERSION}/auth",
+            f"{hostname_and_port}/api/{API_TARGET_VERSION}/auth"
+            for hostname_and_port in passthru_hostnames
         ]
     ],
     # tell pytest to pass the parameters to the fixture, \

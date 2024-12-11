@@ -9,6 +9,21 @@ from loguru import logger as log
 from responses import RequestsMock
 from spectrumx.client import Client
 
+# add more hostnames here to bypass `responses` when running integration tests.
+# these servers will receive the actual requests from integration tests:
+passthru_hostnames = [
+    "http://localhost:80",
+    "https://sds-dev.crc.nd.edu:443",
+    # "https://sds-staging.example.com:443",    # add your instance here  # noqa: ERA001
+    #
+    # To change the host used in these tests, see integration.env.example in this dir.
+    #
+    # Note: running integration tests against sds.crc.nd.edu is not recommended;
+    #   but you may redirect requests to this name to a different machine by
+    #   changing your local /etc/hosts first. This is useful if you're also
+    #   testing your Traefik config, for example.
+]
+
 
 @pytest.fixture
 def _integration_setup_teardown() -> Generator[None]:
