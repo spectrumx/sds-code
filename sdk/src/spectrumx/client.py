@@ -41,9 +41,32 @@ class Attr:
     cast_fn: Callable[[str], AttrValueT] | None = None
 
 
+@dataclass
+class DeprecatedOption:
+    """Deprecated option for the SDS configuration."""
+
+    deprecated_name: str
+    new_name: str | None = None
+    deprecation_version: str | None = None
+    removal_version: str | None = None
+    reason: str | None = None
+    _user_warning: str | None = None
+
+    @property
+    def user_warning(self) -> str:
+        """Gets the user warning."""
+        warning = ""
+        warning += f"Option '{self.deprecated_name}' is deprecated and will be removed"
+        warning += f" in v{self.removal_version}." if self.removal_version else "."
+        warning += f" Use '{self.new_name}' instead." if self.new_name else ""
+        warning += f" {self.reason}" if self.reason else ""
+        return warning
+
+
 class SDSConfig:
     """Configuration for the SpectrumX Data System."""
 
+    sds_host: None | str = None
     api_key: str = ""
     dry_run: bool = True  # safer default
     timeout: int = 30
@@ -95,12 +118,14 @@ class SDSConfig:
             msg = f"SDS_Config: found environment file: {self._env_file}"
             log_user(msg)
 
-        # 'name_lookup' allows decoupling for env file names and
-        #   object attribute names for refactoring code; use lower case.
+        # 'name_lookup' allows decoupling env file names from attribute
+        #   names in the object; used for refactoring code without breaking
+        #   user configuration files. Use lower case.
         name_lookup = {
-            "sds_secret_token": Attr(attr_name="api_key"),
-            "http_timeout": Attr(attr_name="timeout", cast_fn=int),
             "dry_run": Attr(attr_name="dry_run", cast_fn=into_human_bool),
+            "http_timeout": Attr(attr_name="http_timeout", cast_fn=int),
+            "sds_host": Attr(attr_name="sds_host"),
+            "sds_secret_token": Attr(attr_name="api_key"),
         }
 
         # get variables from running env
@@ -118,21 +143,25 @@ class SDSConfig:
         env_config = {**env_file_config, **env_cli_config, **env_vars}
 
         # clean and set the configuration loaded
-        cleaned_config: list[Attr] = _clean_config(name_lookup, env_config)
-        for attr in cleaned_config:
-            setattr(
-                self,
-                attr.attr_name,
-                attr.value,
-            )
-            log_redacted(attr.attr_name, attr.value)
+        cleaned_config: list[Attr] = _clean_config(
+            name_lookup=name_lookup, env_config=env_config
+        )
 
-        # validate attributes / show user warnings
-        if not self.api_key:
-            log.error(
-                "SDS_Config: API key not set. Check your environment"
-                " file has an SDS_SECRET_TOKEN set."
-            )
+        # `deprecated_names` allows gracefully phasing out settings in future SDK
+        # releases. Names are case-insensitive, but listed as uppercase for warnings
+        # After `removal_version` is released, its entry may be removed from this list.
+        deprecated_opts: list[DeprecatedOption] = [
+            DeprecatedOption(
+                deprecated_name="TIMEOUT",
+                new_name="HTTP_TIMEOUT",
+                deprecation_version="0.1.2",
+                removal_version="0.2.0",
+            ),
+        ]
+        # warn about deprecated options when found
+        for dep_opt in deprecated_opts:
+            if dep_opt.deprecated_name.lower() in env_config:
+                log_user_warning(dep_opt.user_warning)
 
         return cleaned_config
 
@@ -142,7 +171,7 @@ def log_redacted(
     value: str,
     log_fn: Callable[[str], None] = logging.info,
 ) -> None:
-    """Redacts the value if the key looks sensitive."""
+    """Logs but redacts value if the key hints to a sensitive content, as passwords."""
     std_length: int = 4
     lower_case_hints = {
         "key",
@@ -445,7 +474,10 @@ class Client:
         return f"Client(host={self.host})"
 
 
-def _clean_config(name_lookup, env_config) -> list[Attr]:
+def _clean_config(
+    name_lookup: dict[str, Attr],
+    env_config: Mapping[str, Any],
+) -> list[Attr]:
     """Cleans the configuration to match known attributes."""
     cleaned_config: list[Attr] = []
     for key, sensitive_value in env_config.items():
