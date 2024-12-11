@@ -79,21 +79,22 @@ class SDSConfig:
         *,
         env_file: Path | None = None,
         env_config: Mapping[str, Any] | None = None,
+        sds_host: None | str = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the configuration.
         Args:
             env_file:   Path to the environment file to load the config from.
             env_config: Overrides for the environment file.
+            host:       The host to connect to (the config file has priority over this).
             verbose:    Show which config files are loaded and which attributes are set.
         """
         base_dir = Path.cwd()
         self._env_file = Path(env_file) if env_file else Path(".env")
         if not self._env_file.is_absolute():
             self._env_file = base_dir / self._env_file
-        self._active_config = self._load_config(
-            env_cli_config=env_config, verbose=verbose
-        )
+        clean_config = self._load_config(env_cli_config=env_config, verbose=verbose)
+        self._set_config(clean_config)
 
     def show_config(self, log_fn: Callable[[str], None] = print) -> None:
         """Show the active configuration."""
@@ -101,7 +102,30 @@ class SDSConfig:
         log.debug(header)  # for sdk developers
         log_fn(header)  # for users
         for attr in self._active_config:
-            log_redacted(attr.attr_name, str(attr.attr_value), log_fn=log_fn)
+            log_redacted(
+                key=attr.attr_name,
+                value=str(attr.attr_value),
+                log_fn=log_fn,
+            )
+
+    def _set_config(self, clean_config: list[Attr]) -> None:
+        """Sets the instance attributes."""
+        for attr in clean_config:
+            setattr(
+                self,
+                attr.attr_name,
+                attr.value,
+            )
+            log_redacted(key=attr.attr_name, value=attr.value)
+
+        # validate attributes / show user warnings
+        if not self.api_key:
+            log.error(
+                "SDS_Config: API key not set. Check your environment"
+                " file has an SDS_SECRET_TOKEN set."
+            )
+
+        self._active_config = clean_config
 
     def _load_config(
         self,
@@ -202,7 +226,7 @@ class Client:
 
     def __init__(
         self,
-        host: str,
+        host: None | str,
         *,
         env_file: Path | None = None,
         env_config: Mapping[str, Any] | None = None,
@@ -214,8 +238,11 @@ class Client:
         self._config = SDSConfig(
             env_file=env_file,
             env_config=env_config,
+            sds_host=host,
             verbose=self.verbose,
         )
+
+        # initialize the gateway
         self._gateway = GatewayClient(
             host=self.host,
             api_key=self._config.api_key,
