@@ -226,15 +226,22 @@ class GatewayClient:
             "directory": str(file_instance.directory),
             "media_type": file_instance.media_type,
         }
-        with file_instance.local_path.open("rb") as file_ptr:
-            response = self._request(
+        all_chunks: bytes = b""
+        with (
+            file_instance.local_path.open("rb") as file_ptr,
+            self._request(
                 method=HTTPMethods.POST,
-                endpoint=Endpoints.FILE_DOWNLOAD,
+                endpoint=Endpoints.FILES,
                 data=payload,
-                endpoint_args={"uuid": file_instance.uuid},
+                stream=True,
                 files={
-                    "file": file_ptr,  # request.data['file']
+                    "file": file_ptr,  # request.data['file'] on the server
                 },
-            )
-            network.success_or_raise(response, ContextException=FileError)
-            return response.content
+            ) as stream,
+        ):
+            network.success_or_raise(stream, ContextException=FileError)
+            for chunk in stream.iter_content(chunk_size=8192):
+                if chunk:
+                    all_chunks += chunk
+
+        return all_chunks
