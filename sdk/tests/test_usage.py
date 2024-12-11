@@ -3,6 +3,7 @@ Tests for the high-level usage of SpectrumX client.
 """
 
 # pylint: disable=redefined-outer-name
+import tempfile
 import uuid as uuidlib
 from datetime import datetime
 from pathlib import Path
@@ -138,7 +139,9 @@ def test_file_get_returns_valid(
     assert file_sample.expiration_date > file_sample.created_at
 
 
-def test_file_upload(client: Client, temp_file_with_text_contents: Path) -> None:
+def test_file_upload_returns_file(
+    client: Client, temp_file_with_text_contents: Path
+) -> None:
     """The upload_file method must return a valid File instance."""
     test_file_size = temp_file_with_text_contents.stat().st_size
     client.dry_run = True
@@ -169,8 +172,47 @@ def test_file_upload(client: Client, temp_file_with_text_contents: Path) -> None
     ), "Local files should not have an expiration date"
 
 
+def test_large_file_upload_mocked(
+    client: Client, responses: RequestsMock, temp_large_binary_file: Path
+) -> None:
+    """Test the upload_file method with mocked responses."""
+    file_id = uuidlib.uuid4()
+    file_size = temp_large_binary_file.stat().st_size
+    client.dry_run = False  # calls are mocked, but we want to test the actual requests
+    mocked_json = {
+        "uuid": file_id.hex,
+        "name": temp_large_binary_file.name,
+        "media_type": "text/plain",
+        "size": file_size,
+        "directory": "/my/custom/sds/location",
+        "permissions": "rw-r--r--",
+        "created_at": "2024-12-01T12:00:00Z",
+        "updated_at": "2024-12-01T12:00:00Z",
+        "expiration_date": "2026-12-01T12:00:00Z",
+    }
+    responses.add(
+        method=responses.POST,
+        url=get_files_endpoint(client),
+        status=201,
+        json=mocked_json,
+    )
+    # run the test
+    file_sample = client.upload_file(
+        file_path=temp_large_binary_file,
+        sds_path=Path(mocked_json["directory"]),
+    )
+    assert file_sample.uuid == file_id, "UUID not as mocked."
+    assert file_sample.name == mocked_json["name"]
+    assert file_sample.media_type == mocked_json["media_type"]
+    assert file_sample.size == file_size
+    assert file_sample.directory == Path(mocked_json["directory"])
+    assert file_sample.permissions == mocked_json["permissions"]
+    assert isinstance(file_sample.created_at, datetime)
+    assert isinstance(file_sample.updated_at, datetime)
+
+
 def test_download_file_contents(client: Client, responses: RequestsMock) -> None:
-    """The download_file_contents method must return the file contents."""
+    """The download_file_contents method must create a file with the file contents."""
     client.dry_run = False  # calls are mocked, but we want to test the actual requests
 
     # file properties
