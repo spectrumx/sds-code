@@ -397,7 +397,7 @@
         "**/tmp/**",
         "**/venv/**",
     ]
-    include = [".", "src", "sm_web_app"]
+    include = [".", "tests", "sds_gateway"]
     # Pylint rule list:
     # https://pylint.readthedocs.io/en/stable/user_guide/checkers/features.html
     lint.ignore = [
