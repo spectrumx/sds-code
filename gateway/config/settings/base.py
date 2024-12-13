@@ -239,6 +239,7 @@ TEMPLATES: list[dict[str, Any]] = [
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
                 "sds_gateway.users.context_processors.allauth_settings",
+                "sds_gateway.context_processors.system_notifications",
             ],
         },
     },
