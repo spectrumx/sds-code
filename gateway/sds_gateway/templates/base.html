@@ -107,13 +107,7 @@
                 {% comment %} system-wide notifications {% endcomment %}
                 {% if system_notifications %}
                     {% for notification in system_notifications %}
-                        <div class="alert alert-dismissible alert-{{ notification.level }}">
-                            {{ notification.message }}
-                            <button type="button"
-                                    class="btn-close"
-                                    data-bs-dismiss="alert"
-                                    aria-label="Close"></button>
-                        </div>
+                        <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
                     {% endfor %}
                 {% endif %}
                 {% if messages %}
