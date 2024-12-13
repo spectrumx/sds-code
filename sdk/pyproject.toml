@@ -257,9 +257,27 @@
         ]
 
 # ====== Pytest
+# ==== TESTING ====
 [tool.pytest]
+
     [tool.pytest.ini_options]
-        markers = ["integration: marks a test as an integration test"]
+        # pytest
+        #   https://docs.pytest.org/en/stable/reference/reference.html#confval-addopts
+        # pytest-cov
+        #   https://pytest-cov.readthedocs.io/en/latest/config.html
+        # more verbose:
+        # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
+        # less verbose:
+        addopts              = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --tb=short"
+        console_output_style = "progress"
+        log_auto_indent      = true
+        log_cli              = true
+        log_cli_level        = "WARN"
+        log_date_format      = "%Y-%m-%d %H:%M:%S"
+        markers              = ["integration: marks a test as an integration test"]
+        minversion           = "8.0"
+        testpaths            = ["tests"]
+        verbosity_test_cases = 2
 
 # ====== UV
 [tool.uv]
