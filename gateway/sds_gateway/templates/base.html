@@ -104,6 +104,18 @@
                 </nav>
             </div>
             <div class="py-4 container">
+                {% comment %} system-wide notifications {% endcomment %}
+                {% if system_notifications %}
+                    {% for notification in system_notifications %}
+                        <div class="alert alert-dismissible alert-{{ notification.level }}">
+                            {{ notification.message }}
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="alert"
+                                    aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
                 {% if messages %}
                     {% for message in messages %}
                         <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
