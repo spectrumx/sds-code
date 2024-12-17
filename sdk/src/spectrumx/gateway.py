@@ -1,7 +1,9 @@
 """Lower level module for interaction with the SpectrumX Data System."""
 
 import os
+import uuid
 from collections.abc import Iterator
+from dataclasses import dataclass
 from enum import StrEnum
 from http import HTTPStatus
 from pathlib import Path
@@ -30,11 +32,12 @@ class Endpoints(StrEnum):
     """Contains the endpoints for the SDS Gateway API."""
 
     AUTH = "/auth"
-    FILES = "/assets/files"
-    FILE_DOWNLOAD = "/assets/files/{uuid}/download"
     CAPTURES = "/assets/captures"
     DATASETS = "/assets/datasets"
     EXPERIMENTS = "/assets/experiments"
+    FILE_CONTENTS_CHECK = "/assets/utils/check_contents_exist"
+    FILE_DOWNLOAD = "/assets/files/{uuid}/download"
+    FILES = "/assets/files"
     SEARCH = "/search"
 
 
@@ -45,6 +48,14 @@ class HTTPMethods(StrEnum):
     POST = "POST"
     DELETE = "DELETE"
     PUT = "PUT"
+
+
+@dataclass
+class FileContentsCheck:
+    file_contents_exist_for_user: bool
+    file_exists_in_tree: bool
+    user_mutable_attributes_differ: bool
+    asset_id: uuid.UUID | None = None
 
 
 class GatewayClient:
@@ -212,6 +223,29 @@ class GatewayClient:
                 if chunk:
                     yield chunk
 
+    def check_file_contents_exist(self, file_instance: File) -> FileContentsCheck:
+        """Checks if the file contents exist on the SDS API.
+
+        Args:
+            uuid: The UUID of the file to check as a hex string.
+        Returns:
+            FileContentsCheck
+        """
+        payload = {
+            "directory": str(file_instance.directory),
+            "media_type": file_instance.media_type,
+            "name": file_instance.name,
+            "sum_blake3": file_instance.sum_blake3,
+            "permissions": file_instance.permissions,
+        }
+        response = self._request(
+            method=HTTPMethods.POST,
+            endpoint=Endpoints.FILE_CONTENTS_CHECK,
+            data=payload,
+        )
+        network.success_or_raise(response=response, ContextException=FileError)
+        return FileContentsCheck(**response.json())
+
     def upload_file(self, file_instance: File) -> bytes:
         """Uploads a local file to the SDS API.
 
@@ -239,9 +273,65 @@ class GatewayClient:
                 },
             ) as stream,
         ):
-            network.success_or_raise(stream, ContextException=FileError)
+            network.success_or_raise(response=stream, ContextException=FileError)
             for chunk in stream.iter_content(chunk_size=8192):
                 if chunk:
                     all_chunks += chunk
 
         return all_chunks
+
+    def update_file_metadata(self, file_instance: File) -> bytes:
+        """UPDATES a file metadata to the SDS API.
+
+        Args:
+            file_instance:  The file to update, as a models.File instance.
+        Returns:
+            The response content from SDS Gateway.
+        """
+        payload = {
+            "directory": str(file_instance.directory),
+            "media_type": file_instance.media_type,
+            "name": file_instance.name,
+            "permissions": file_instance.permissions,
+            "sum_blake3": file_instance.sum_blake3,
+        }
+        assert (
+            file_instance.uuid is not None
+        ), "File UUID is required for metadata update."
+        response = self._request(
+            asset_id=file_instance.uuid.hex,
+            data=payload,
+            endpoint=Endpoints.FILES,
+            method=HTTPMethods.PUT,
+        )
+        network.success_or_raise(response=response, ContextException=FileError)
+        return response.content
+
+    def upload_metadata_only(
+        self, file_instance: File, sibling_uuid: uuid.UUID
+    ) -> bytes:
+        """UPLOADS a file metadata to the SDS API.
+
+        Useful when a sibling file with the same content exists.
+
+        Args:
+            file_instance: The file to upload, as a models.File instance.
+            sibling_uuid:  The UUID of the sibling file.
+        Returns:
+            The response content from SDS Gateway.
+        """
+        payload = {
+            "directory": str(file_instance.directory),
+            "media_type": file_instance.media_type,
+            "name": file_instance.name,
+            "permissions": file_instance.permissions,
+            "sum_blake3": file_instance.sum_blake3,
+            "sibling_uuid": sibling_uuid.hex,
+        }
+        response = self._request(
+            method=HTTPMethods.POST,
+            endpoint=Endpoints.FILES,
+            data=payload,
+        )
+        network.success_or_raise(response=response, ContextException=FileError)
+        return response.content

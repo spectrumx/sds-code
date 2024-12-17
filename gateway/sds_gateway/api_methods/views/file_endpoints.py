@@ -7,6 +7,7 @@ from typing import cast
 
 from django.conf import settings
 from django.http import HttpResponse
+from django.http.request import QueryDict
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample
@@ -360,46 +361,80 @@ class CheckFileContentsExistView(APIView):
         summary="Check File Contents Exist",
     )
     def post(self, request: Request) -> Response:
-        user = cast(User, request.user)
-        file_content = request.FILES["file"]
-        file_metadata = request.data.get("metadata", None)
-        user_files_dir = f"/files/{user.email}"
-        if not file_content:
-            return Response(
-                {"detail": "No file content provided."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not file_metadata:
-            return Response(
-                {"detail": "No file metadata provided."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        """Checks if the file contents in request metadata exist on the server.
 
-        directory = file_metadata.get("directory", None)
-        if not directory:
+        Used o prevent unnecessary file uploads when the file contents already exist.
+
+        Response flags:
+            file_exists_in_tree: True when the file checksum, directory, and name
+                match an existing file in the user's files directory. Meaning any
+                upload or update is unnecessary.
+            file_contents_exist_for_user: True when the user has a file with the
+                same checksum, regardless of directory or name. Meaning content
+                upload is unnecessary.
+            user_mutable_attributes_differ: True when the file doesn't exist, or the
+                matching file's attributes (e.g. media_type, permissions) differ
+                from the request metadata. Meaning a metadata update is necessary.
+
+        Example request data:
+            {
+                "metadata": {
+                    "directory": "/path/to/file",
+                    "name": "file.h5",
+                    "sum_blake3": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                }
+            }
+        Example response:
+            {
+                "file_exists_in_tree": False,
+                "file_contents_exist_for_user": True,
+                "user_mutable_attributes_differ": False,
+            }
+        """
+        user = cast(User, request.user)
+        request_data = cast(QueryDict, request.data)
+
+        file_dir_from_client = request_data.get("directory")
+        if not file_dir_from_client:
             return Response(
                 {"detail": "No directory provided."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Resolve the top_level_dir to an absolute path
-        resolved_dir = Path(directory).resolve(strict=False)
+        checksum_from_client = request_data.get("sum_blake3")
+        if not checksum_from_client:
+            return Response(
+                {"detail": "No checksum provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Ensure the resolved path is within the user's files directory
-        user_files_dir = Path(user_files_dir).resolve(strict=False)
-        if not resolved_dir.is_relative_to(user_files_dir):
-            msg = f"The provided directory must be in the user's files directory: {user_files_dir}"  # noqa: E501
+        file_name_from_client = request_data.get("name")
+        if not file_name_from_client:
+            return Response(
+                {"detail": "No file name provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ensure the resolved path is within the user's files directory
+        user_root_dir = Path("/files/") / user.email
+        if Path(file_dir_from_client).is_absolute():
+            file_dir_from_client = Path(f"./{file_dir_from_client}")
+        user_relative_dir = user_root_dir / file_dir_from_client
+        resolved_dir = Path(user_relative_dir).resolve(strict=False)
+        if not resolved_dir.is_relative_to(user_root_dir):
+            msg = (
+                "The provided directory must be in the user's files directory: "
+                f"'{file_dir_from_client}' should be under '{user_root_dir}'"
+            )
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
-        name = file_content.name
-        checksum = File().calculate_checksum(file_content)
         serializer = FilePostSerializer()
         conditions = serializer.check_file_contents_exist(
-            user=user,
-            directory=directory,
-            name=name,
-            blake3_sum=checksum,
+            blake3_sum=checksum_from_client,
+            directory=str(file_dir_from_client),
+            name=file_name_from_client,
             request_data=request.data,
+            user=user,
         )
         return Response(conditions, status=status.HTTP_200_OK)
 

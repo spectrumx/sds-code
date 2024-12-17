@@ -8,6 +8,8 @@ import uuid
 from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import Enum
+from enum import auto
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +63,15 @@ class DeprecatedOption:
         warning += f" Use '{self.new_name}' instead." if self.new_name else ""
         warning += f" {self.reason}" if self.reason else ""
         return warning
+
+
+class FileUploadMode(Enum):
+    """Modes for uploading files to SDS."""
+
+    SKIP = auto()  # no upload or update needed
+    UPDATE_METADATA = auto()  # no file contents, update an existing file entry
+    UPLOAD_CONTENTS_AND_METADATA = auto()  # upload everything
+    UPLOAD_METADATA_ONLY = auto()  # no file contents, create a new file entry
 
 
 class SDSConfig:
@@ -378,16 +389,109 @@ class Client:
             else files.construct_file(file_path, sds_path=sds_path)
         )
 
+        # check whether sds already has this file for this user
+        upload_mode, asset_id = self._get_upload_mode_and_asset(
+            file_instance=file_instance
+        )
+
         # upload the file instance or just return it (dry run)
         if self.dry_run:
             log_user(f"Dry run enabled: skipping upload of {file_path}")
             return file_instance
-        file_created_response = self._gateway.upload_file(file_instance=file_instance)
-        uploaded_file = File.model_validate_json(file_created_response)
-        # update uploaded file with local knowledge
-        uploaded_file.local_path = file_instance.local_path
 
-        return uploaded_file
+        match upload_mode:
+            case FileUploadMode.SKIP:
+                log_user(f"Skipping upload of existing '{file_path}'")
+                return file_instance
+            case FileUploadMode.UPDATE_METADATA:
+                log_user(f"Uploading metadata for {file_path}")
+                return self._update_metadata_only(file_instance)
+            case FileUploadMode.UPLOAD_CONTENTS_AND_METADATA:
+                log_user(f"Uploading {file_path}")
+                file_created_response = self._gateway.upload_file(
+                    file_instance=file_instance
+                )
+                uploaded_file = File.model_validate_json(file_created_response)
+                uploaded_file.local_path = file_instance.local_path
+                return uploaded_file
+            case FileUploadMode.UPLOAD_METADATA_ONLY:
+                log_user(f"Uploading metadata for {file_path}")
+                return self._upload_metadata_only(file_instance)
+
+    def _update_metadata_only(self, file_instance: File) -> File:
+        """UPDATES an existing file instance with new metadata.
+
+        Useful when the files is already instantiated in SDS and the file contents
+            did not change: only the metadata needs to be updated.
+
+        Args:
+            file_instance:  The file instance with new metadata to update.
+        Returns:
+            The file instance with updated attributes.
+        """
+        if self.dry_run:
+            log_user("Dry run enabled: updating metadata only")
+            return file_instance
+
+        assert not self.dry_run, "Internal error: expected dry run to be disabled."
+        file_response = self._gateway.update_file_metadata(file_instance=file_instance)
+        return File.model_validate_json(file_response)
+
+    def _upload_metadata_only(
+        self, file_instance: File, sibling_uuid: uuid.UUID
+    ) -> File:
+        """UPLOADS a new file instance to SDS, skipping the file contents.
+
+        Useful when there are identical files in different locations: only their
+            metadata needs to be uploaded to SDS. There must be a sibling file
+            with the right contents, under the same user, already in SDS for this
+            method to succeed.
+
+        Args:
+            file_instance:  The file instance with new metadata.
+            sibling_uuid:   The UUID of the file which contents are identical to.
+        Returns:
+            The file instance with updated attributes.
+        """
+        if self.dry_run:
+            log_user("Dry run enabled: uploading metadata only")
+            return file_instance
+
+        assert not self.dry_run, "Internal error: expected dry run to be disabled."
+        file_response = self._gateway.upload_metadata_only(
+            file_instance=file_instance, sibling_uuid=sibling_uuid
+        )
+        return File.model_validate_json(file_response)
+
+    def _get_upload_mode_and_asset(
+        self, file_instance: File
+    ) -> tuple[FileUploadMode, uuid.UUID | None]:
+        """Determines how to upload a file into SDS.
+
+        Returns:
+            The mode to upload the file in. Modes are:
+                FileUploadMode.SKIP
+                FileUploadMode.UPLOAD_METADATA_ONLY
+                FileUploadMode.UPLOAD_CONTENTS_AND_METADATA
+            Asset ID: The asset ID of the file in SDS, if it exists.
+        """
+        # always assume upload is needed in dry-run, since we can't contact the server
+        if self.dry_run:
+            return (
+                FileUploadMode.UPLOAD_CONTENTS_AND_METADATA,
+                None,
+            )
+
+        file_contents_check = self._gateway.check_file_contents_exist(
+            file_instance=file_instance
+        )
+        asset_id = file_contents_check.asset_id
+
+        if file_contents_check.file_exists_in_tree:
+            return FileUploadMode.SKIP, asset_id
+        if file_contents_check.file_contents_exist_for_user:
+            return FileUploadMode.UPLOAD_METADATA_ONLY, asset_id
+        return FileUploadMode.UPLOAD_CONTENTS_AND_METADATA, asset_id
 
     def upload(
         self,
