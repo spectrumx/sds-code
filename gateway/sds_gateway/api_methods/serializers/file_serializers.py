@@ -1,9 +1,11 @@
 """File serializers for the SDS Gateway API methods."""
 
 import logging
+import uuid
 from pathlib import Path
 from pathlib import PurePosixPath
 
+from loguru import logger as log
 from rest_framework import serializers
 
 from sds_gateway.api_methods.models import File
@@ -132,6 +134,13 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
         if "media_type" not in validated_data:
             validated_data["media_type"] = ""
 
+        # TODO: allow sibling_uuid to be passed to avoid duplicate uploads:
+        # 1. If sibling_uuid is passed, check if this uuid exists under the user
+        # 2. If it doesn't, fail. Otherwise:
+        # 3. Use the sibling's file and checksum;
+        # 4. Set remaining fields to match the request data;
+        # 5. Save to DB, return the instance as usual.
+
         checksum = File().calculate_checksum(validated_data["file"])
 
         file_exists_in_tree = File.objects.filter(
@@ -186,55 +195,78 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
 
     def check_file_contents_exist(
         self,
-        user: User,
+        *,
+        blake3_sum: str,
         directory: str,
         name: str,
-        blake3_sum: str,
         request_data: dict[str, str],
-    ) -> dict[str, bool]:
+        user: User,
+    ) -> dict[str, bool | uuid.UUID | None]:
         """Checks if SDS already has the contents of this file.
 
         Args:
-            user:           The requesting user.
+            blake3_sum:     The blake3 checksum of the file contents.
             directory:      The virtual directory of the file in SDS.
             name:           The name of the file.
-            blake3_sum:     The blake3 checksum of the file contents.
             request_data:   The request data.
+            user:           The requesting user.
         Returns:
             A dictionary with the following flags:
                 - file_contents_exist_for_user: True / False.
                 - file_exists_in_tree: True / False.
                 - user_mutable_attributes_differ: True / False.
+                - asset_id: The ID of the file that is an exact match,
+                    the closest match, or None. In this order of availability.
+                    The closest match's UUID may be used as a sibling_uuid.
         """
         identical_user_owned_file = File.objects.filter(
             owner=user,
             sum_blake3=blake3_sum,
         )
         file_contents_exist_for_user = identical_user_owned_file.exists()
-        existing_file = identical_user_owned_file.filter(
+        asset = (
+            identical_user_owned_file.first() if file_contents_exist_for_user else None
+        )
+
+        # TODO: refactor this block to a helper function so all dirs are standardized
+        user_root = Path("/") / "files" / user.email
+        if not Path(directory).is_relative_to(user_root):
+            directory = f"{user_root}/{directory}/"
+            # can't use / operator above: need to force a str concatenation
+        # make sure path ends in a slash
+        directory = directory.rstrip("/") + "/"
+
+        log.info(f"Checking file contents for user in directory: {directory}")
+        identical_file = identical_user_owned_file.filter(
             directory=directory,
             name=name,
         ).first()
 
-        if existing_file is None:
+        if identical_file is None:
             # attrs always differ when the file doesn't exist
             user_mutable_attributes_differ = True
         else:
             # check mutable attributes between existing file and request data
             user_mutable_attributes_differ = False
+            # we can narrow down the asset to an exact match
+            asset = identical_file
+            # these attrs were already checked in query
+            skipped_attrs = ["name", "directory"]
             for attr in self.Meta.user_mutable_fields:
-                if (
-                    attr in request_data
-                    and getattr(existing_file, attr) != request_data[attr]
-                ):
+                if attr in skipped_attrs or attr not in request_data:
+                    continue
+                if getattr(identical_file, attr) != request_data[attr]:
                     user_mutable_attributes_differ = True
                     break
 
-        return {
+        payload = {
+            "file_exists_in_tree": identical_file is not None,
             "file_contents_exist_for_user": file_contents_exist_for_user,
-            "file_exists_in_tree": existing_file is not None,
             "user_mutable_attributes_differ": user_mutable_attributes_differ,
+            "asset_id": asset.uuid if asset else None,
         }
+        log.info(payload)
+        return payload
 
 
 class FileCheckResponseSerializer(serializers.Serializer[File]):

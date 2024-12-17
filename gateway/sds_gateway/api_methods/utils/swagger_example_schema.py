@@ -119,6 +119,9 @@ file_put_request_example_schema = {
 }
 
 file_contents_check_request_example_schema = {
-    "file": example_file_obj,
-    "directory": "/files/user@example.com/path/to/file",
+    "directory": "/path/to/file",
+    "media_type": "application/x-hdf5",
+    "name": "file.h5",
+    "permissions": "rw-r--r--",
+    "sum_blake3": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
 }
