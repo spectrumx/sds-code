@@ -246,8 +246,10 @@ class GatewayClient:
         network.success_or_raise(response=response, ContextException=FileError)
         return FileContentsCheck(**response.json())
 
-    def upload_file(self, file_instance: File) -> bytes:
+    def upload_new_file(self, file_instance: File) -> bytes:
         """Uploads a local file to the SDS API.
+
+        Uploads file contents and metadata.
 
         Args:
             file_instance: The file to upload, as a models.File instance.
@@ -280,8 +282,38 @@ class GatewayClient:
 
         return all_chunks
 
-    def update_file_metadata(self, file_instance: File) -> bytes:
-        """UPDATES a file metadata to the SDS API.
+    def upload_new_file_metadata_only(
+        self, file_instance: File, sibling_uuid: uuid.UUID
+    ) -> bytes:
+        """UPLOADS a new file to the SDS API without its contents.
+
+        Useful when a sibling file with the same content
+            exists, so its upload can be skipped.
+
+        Args:
+            file_instance: The file to upload, as a models.File instance.
+            sibling_uuid:  The UUID of the sibling file.
+        Returns:
+            The response content from SDS Gateway.
+        """
+        payload = {
+            "directory": str(file_instance.directory),
+            "media_type": file_instance.media_type,
+            "name": file_instance.name,
+            "permissions": file_instance.permissions,
+            "sum_blake3": file_instance.sum_blake3,
+            "sibling_uuid": sibling_uuid.hex,
+        }
+        response = self._request(
+            method=HTTPMethods.POST,
+            endpoint=Endpoints.FILES,
+            data=payload,
+        )
+        network.success_or_raise(response=response, ContextException=FileError)
+        return response.content
+
+    def update_existing_file_metadata(self, file_instance: File) -> bytes:
+        """UPDATES an existing file's metadata to the SDS API.
 
         Args:
             file_instance:  The file to update, as a models.File instance.
@@ -303,35 +335,6 @@ class GatewayClient:
             data=payload,
             endpoint=Endpoints.FILES,
             method=HTTPMethods.PUT,
-        )
-        network.success_or_raise(response=response, ContextException=FileError)
-        return response.content
-
-    def upload_metadata_only(
-        self, file_instance: File, sibling_uuid: uuid.UUID
-    ) -> bytes:
-        """UPLOADS a file metadata to the SDS API.
-
-        Useful when a sibling file with the same content exists.
-
-        Args:
-            file_instance: The file to upload, as a models.File instance.
-            sibling_uuid:  The UUID of the sibling file.
-        Returns:
-            The response content from SDS Gateway.
-        """
-        payload = {
-            "directory": str(file_instance.directory),
-            "media_type": file_instance.media_type,
-            "name": file_instance.name,
-            "permissions": file_instance.permissions,
-            "sum_blake3": file_instance.sum_blake3,
-            "sibling_uuid": sibling_uuid.hex,
-        }
-        response = self._request(
-            method=HTTPMethods.POST,
-            endpoint=Endpoints.FILES,
-            data=payload,
         )
         network.success_or_raise(response=response, ContextException=FileError)
         return response.content

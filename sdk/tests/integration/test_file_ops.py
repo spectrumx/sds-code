@@ -275,4 +275,6 @@ def test_file_content_check_name_changed(
     )
 
 
-# def test_file_content_check_directory_changed(
+# def test_file_upload_mode_skip(
+# def test_file_upload_mode_contents_and_metadata(
+# def test_file_upload_mode_metadata_only(
