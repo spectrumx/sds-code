@@ -26,11 +26,11 @@ def system_notifications(_request: HttpRequest) -> dict[str, list[Notification]]
     notifications = [
         Notification(
             user_message="SDS is scheduled for maintenance on "
-            "January 11, 2025 from 7AM to 11AM ET and it might be "
+            "Friday, January 10, 2025 from 7 AM to 1 PM ET and it might be "
             "unavailable during this time period.",
             admin_message="Scheduled CRC maintenance.",
             level="warning",
-            expires_on=datetime(2025, 1, 11, 11, 0, 0, tzinfo=eastern),
+            expires_on=datetime(2025, 1, 10, 13, 0, 0, tzinfo=eastern),
         ),
     ]
 
