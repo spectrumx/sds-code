@@ -90,7 +90,7 @@ test-all:
 	uv sync --resolution highest --dev
 
 serve-coverage:
-	python -m http.server 8000 -d tests/htmlcov
+	python -m http.server 1313 -d tests/htmlcov
 
 # CLEANUP
 clean:

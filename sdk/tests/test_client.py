@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from spectrumx.client import SDSConfig
+from spectrumx.client import (
+    SDSConfig,
+    _cfg_name_lookup,  # pyright: ignore[reportPrivateUsage]
+)
 
 
 class LogLevels(IntEnum):
@@ -49,8 +52,17 @@ def test_load_config_from_args(sample_config: dict[str, Any]) -> None:
 
     config = SDSConfig(env_file=Path(".env.example"), env_config=sample_config)
 
-    assert config.api_key == sample_config["SDS_SECRET_TOKEN"]
-    assert config.timeout == sample_config["HTTP_TIMEOUT"]
+    for key, value in sample_config.items():
+        norm_key = (
+            _cfg_name_lookup[key.lower()].attr_name
+            if key.lower() in _cfg_name_lookup
+            else key.lower()
+        )
+        expected_value = value
+        actual_value = getattr(config, norm_key)
+        assert (
+            expected_value == actual_value
+        ), f"Expected {expected_value}, got {actual_value}"
 
 
 def test_show_config_does_not_expose_api_key(

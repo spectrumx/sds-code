@@ -42,6 +42,14 @@ def get_files_endpoint(client: Client) -> str:
     return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/"
 
 
+def get_content_check_endpoint(client: Client) -> str:
+    """Returns the endpoint for the content check API."""
+    return (
+        client.base_url
+        + f"/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist/"
+    )
+
+
 def download_file_endpoint(client: Client, file_id: str) -> str:
     """Returns the endpoint for downloading a file."""
     return (
@@ -179,7 +187,18 @@ def test_large_file_upload_mocked(
     file_id = uuidlib.uuid4()
     file_size = temp_large_binary_file.stat().st_size
     client.dry_run = False  # calls are mocked, but we want to test the actual requests
-    mocked_json = {
+    mocked_file_content_check_json = {
+        "file_contents_exist_for_user": False,
+        "file_exists_in_tree": False,
+        "user_mutable_attributes_differ": True,
+    }
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json=mocked_file_content_check_json,
+    )
+    mocked_upload_json = {
         "uuid": file_id.hex,
         "name": temp_large_binary_file.name,
         "media_type": "text/plain",
@@ -194,19 +213,19 @@ def test_large_file_upload_mocked(
         method=responses.POST,
         url=get_files_endpoint(client),
         status=201,
-        json=mocked_json,
+        json=mocked_upload_json,
     )
     # run the test
     file_sample = client.upload_file(
         file_path=temp_large_binary_file,
-        sds_path=Path(mocked_json["directory"]),
+        sds_path=Path(mocked_upload_json["directory"]),
     )
     assert file_sample.uuid == file_id, "UUID not as mocked."
-    assert file_sample.name == mocked_json["name"]
-    assert file_sample.media_type == mocked_json["media_type"]
+    assert file_sample.name == mocked_upload_json["name"]
+    assert file_sample.media_type == mocked_upload_json["media_type"]
     assert file_sample.size == file_size
-    assert file_sample.directory == Path(mocked_json["directory"])
-    assert file_sample.permissions == mocked_json["permissions"]
+    assert file_sample.directory == Path(mocked_upload_json["directory"])
+    assert file_sample.permissions == mocked_upload_json["permissions"]
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
 

@@ -2,9 +2,9 @@
 
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from pydantic import UUID4
-from pydantic import BaseModel
+from pydantic import UUID4, BaseModel
 
 from . import utils
 
@@ -48,10 +48,15 @@ class File(SDSModel):
     is_sample: bool = False
     local_path: Path | None = None
 
+    def model_post_init(self, __context: Any, /) -> None:
+        """Post-initialization steps."""
+        if not self.directory.is_absolute():
+            self.directory = Path("/") / self.directory
+
     @property
-    def path(self) -> str:
+    def path(self) -> Path:
         """Returns the path to the file, relative to the owner's root on SDS."""
-        return f"{self.directory}/{self.name}"
+        return self.directory / self.name
 
     @property
     def sum_blake3(self) -> str | None:

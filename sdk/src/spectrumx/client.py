@@ -5,30 +5,28 @@ import os
 import tempfile
 import time
 import uuid
-from collections.abc import Callable
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from enum import Enum
-from enum import auto
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
 import dotenv
 from loguru import logger as log
 
-from spectrumx.errors import Result
-from spectrumx.errors import SDSError
+from spectrumx.errors import Result, SDSError
 
 from . import __version__
 from .gateway import GatewayClient
-from .models import File
-from .models import SDSModel
+from .models import File, SDSModel
 from .ops import files
-from .utils import get_prog_bar
-from .utils import into_human_bool
-from .utils import log_user
-from .utils import log_user_error
-from .utils import log_user_warning
+from .utils import (
+    get_prog_bar,
+    into_human_bool,
+    log_user,
+    log_user_error,
+    log_user_warning,
+)
 
 SDSModelT = type[SDSModel]
 AttrValueT = str | int | float | bool
@@ -41,6 +39,18 @@ class Attr:
     attr_name: str
     attr_value: AttrValueT | None = None
     cast_fn: Callable[[str], AttrValueT] | None = None
+
+
+# '_cfg_name_lookup' maps config names to attribute names (internal).
+#   This allows decoupling env file names from attribute
+#   names in the object; used for refactoring code without
+#   breaking user configuration files. Use lower case.
+_cfg_name_lookup = {
+    "dry_run": Attr(attr_name="dry_run", cast_fn=into_human_bool),
+    "http_timeout": Attr(attr_name="http_timeout", cast_fn=int),
+    "sds_host": Attr(attr_name="sds_host"),
+    "sds_secret_token": Attr(attr_name="api_key"),
+}
 
 
 @dataclass
@@ -154,16 +164,6 @@ class SDSConfig:
             msg = f"SDS_Config: found environment file: {self._env_file}"
             log_user(msg)
 
-        # 'name_lookup' allows decoupling env file names from attribute
-        #   names in the object; used for refactoring code without breaking
-        #   user configuration files. Use lower case.
-        name_lookup = {
-            "dry_run": Attr(attr_name="dry_run", cast_fn=into_human_bool),
-            "http_timeout": Attr(attr_name="http_timeout", cast_fn=int),
-            "sds_host": Attr(attr_name="sds_host"),
-            "sds_secret_token": Attr(attr_name="api_key"),
-        }
-
         # get variables from running env
         env_vars = {
             "SDS_SECRET_TOKEN": os.getenv("SDS_SECRET_TOKEN", default=None),
@@ -180,7 +180,7 @@ class SDSConfig:
 
         # clean and set the configuration loaded
         cleaned_config: list[Attr] = _clean_config(
-            name_lookup=name_lookup, env_config=env_config
+            name_lookup=_cfg_name_lookup, env_config=env_config
         )
 
         # `deprecated_names` allows gracefully phasing out settings in future SDK

@@ -9,7 +9,7 @@ from spectrumx import errors
 
 def success_or_raise(
     response: requests.Response,
-    ContextException: type[errors.SDSError],  # noqa: N803
+    ContextException: type[errors.SDSError] = errors.SDSError,  # noqa: N803
 ) -> None:
     """Checks a response is successful, raising a contextual error if not."""
     status = HTTPStatus(response.status_code)

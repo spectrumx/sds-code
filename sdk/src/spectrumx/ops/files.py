@@ -3,12 +3,11 @@
 import mimetypes
 import uuid
 from collections.abc import Generator
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from spectrumx.models import File
-from spectrumx.utils import log_user
+from spectrumx.utils import log_user, log_user_warning
 
 _tz = datetime.now().astimezone().tzinfo
 
@@ -94,9 +93,7 @@ def is_valid_file(file_path: Path) -> tuple[bool, list[str]]:
     return final_decision, reasons
 
 
-def get_valid_files(
-    local_path: Path, *, warn_skipped: bool = False
-) -> Generator[File, None, None]:
+def get_valid_files(local_path: Path, *, warn_skipped: bool = False) -> Generator[File]:
     """Yields valid SDS files in the given directory.
 
     Args:
@@ -105,18 +102,32 @@ def get_valid_files(
         File instances.
     """
     recursive_file_list = local_path.rglob("*")
+    successful_files = 0
+    ignored_files = 0
     for file_path in recursive_file_list:
         if not file_path.is_file():
             continue
         is_valid, reasons = is_valid_file(file_path)
         if not is_valid:
+            ignored_files += 1
             if warn_skipped:
-                log_user(f"Skipping {file_path}: {', '.join(reasons)}")
+                log_user_warning(f"Skipping {file_path}: {', '.join(reasons)}")
             continue
         try:
-            yield construct_file(file_path, local_path)
+            successful_files += 1
+            local_rel_path = file_path.relative_to(local_path).parent
+            yield construct_file(file_path, sds_path=local_rel_path)
         except FileNotFoundError:
             continue
+    log_user(
+        f"Discovered {successful_files:,}/{successful_files + ignored_files:,} "
+        "valid files"
+    )
+    if warn_skipped:
+        if ignored_files:
+            log_user_warning(f"Ignored {ignored_files} invalid files in '{local_path}'")
+        else:
+            log_user(f"No invalid files found in '{local_path}'")
 
 
 def generate_sample_file(uuid_to_set: uuid.UUID) -> File:
