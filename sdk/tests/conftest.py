@@ -28,7 +28,11 @@ enable_logging()
 @pytest.fixture
 def sample_config() -> dict[str, Any]:
     """Fixture to create a sample configuration."""
-    return {"SDS_SECRET_TOKEN": "12345", "HTTP_TIMEOUT": 42}
+    return {
+        "SDS_SECRET_TOKEN": "12345",
+        "HTTP_TIMEOUT": 42,
+        "SDS_HOST": "sds-test.example.com",
+    }
 
 
 @pytest.fixture
@@ -89,7 +93,7 @@ def temp_file_tree(
     _total_num_files = num_dirs * num_files_per_dir
     _all_created_files: list[Path] = []
     _all_created_dirs: list[Path] = []
-    extension: str = ".txt"
+    extension: str = "txt"
 
     for dir_idx in range(num_dirs):
         subdir = tmp_path / f"subdir_{dir_idx}"

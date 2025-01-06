@@ -12,8 +12,7 @@ from typing import Any
 import requests
 from loguru import logger as log
 
-from .errors import AuthError
-from .errors import FileError
+from .errors import AuthError, FileError
 from .models import File
 from .ops import network
 from .utils import log_user_warning
@@ -69,7 +68,7 @@ class GatewayClient:
 
     _api_key: str
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         host: str,
@@ -128,7 +127,7 @@ class GatewayClient:
             "verify": is_verify,
         }
 
-    def _request(
+    def _request(  # noqa: PLR0913
         self,
         method: HTTPMethods,
         endpoint: Endpoints,

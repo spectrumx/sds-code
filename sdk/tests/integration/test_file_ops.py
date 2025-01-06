@@ -3,17 +3,78 @@
 import time
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from loguru import logger as log
 from spectrumx.client import Client
 from spectrumx.gateway import API_TARGET_VERSION
-from spectrumx.ops.files import construct_file
+from spectrumx.ops.files import construct_file, get_valid_files, is_valid_file
 from spectrumx.utils import get_random_line
 
 from tests.integration.conftest import passthru_hostnames
 
 BLAKE3_HEX_LEN: int = 64
+
+
+def test_is_valid_file_allowed(temp_file_with_text_contents) -> None:
+    """Test the file validation function."""
+    allowed_mime_types = [
+        "application/json",
+        "application/pdf",
+        "application/x-hdf5",
+        "application/xml",
+        "image/gif",
+        "image/jpeg",
+        "image/png",
+        "image/svg+xml",
+        "text/csv",
+        "text/plain",
+    ]
+    # mock get_file_media_type
+    for mime_type in allowed_mime_types:
+        with patch("spectrumx.ops.files.get_file_media_type", return_value=mime_type):
+            is_valid, reasons = is_valid_file(temp_file_with_text_contents)
+            assert is_valid, f"File with MIME type {mime_type} should be allowed."
+            assert reasons == [], "No reasons should be given for valid files."
+
+
+def test_is_valid_file_disallowed(temp_file_with_text_contents) -> None:
+    """Test the file validation function."""
+    disallowed_mime_types = [
+        "application/octet-stream",  # generic binary
+        "application/x-msdownload",  # .exe
+        "application/x-msdos-program",  # .com
+        "application/x-msi",  # .msi
+    ]
+    # mock get_file_media_type
+    for mime_type in disallowed_mime_types:
+        with patch("spectrumx.ops.files.get_file_media_type", return_value=mime_type):
+            is_valid, reasons = is_valid_file(temp_file_with_text_contents)
+            assert (
+                not is_valid
+            ), f"File with MIME type {mime_type} should be disallowed."
+            assert reasons, "Reasons should be given for disallowed files."
+
+
+def test_get_valid_files(temp_file_tree: Path) -> None:
+    """Test get_valid_files yields files matching glob."""
+
+    all_file_paths = {path for path in temp_file_tree.rglob("*") if path.is_file()}
+    assert all_file_paths, "No files found: can't run test."
+    valid_file_instances = list(get_valid_files(temp_file_tree, warn_skipped=True))
+    assert valid_file_instances, "No valid files found."
+
+    # normalize paths to be relative to the temp_file_tree
+    valid_file_paths = {
+        temp_file_tree / file_instance.path for file_instance in valid_file_instances
+    }
+
+    # all test files should be valid and match the local path
+    invalid_file_paths = all_file_paths - valid_file_paths
+    assert (
+        invalid_file_paths == set()
+    ), f"All files should be valid. Invalid paths: {invalid_file_paths}"
 
 
 @pytest.mark.integration
@@ -23,8 +84,14 @@ BLAKE3_HEX_LEN: int = 64
     "_without_responses",
     [
         [
-            f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-            for hostname_and_port in passthru_hostnames
+            *[  # file content checks
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file uploads
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+                for hostname_and_port in passthru_hostnames
+            ],
         ]
     ],
     indirect=True,
@@ -55,8 +122,14 @@ def test_single_file_upload(
     "_without_responses",
     [
         [
-            f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-            for hostname_and_port in passthru_hostnames
+            *[  # file content checks
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file uploads
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+                for hostname_and_port in passthru_hostnames
+            ],
         ]
     ],
     indirect=True,
@@ -83,8 +156,14 @@ def test_bulk_file_upload(integration_client: Client, temp_file_tree: Path) -> N
     "_without_responses",
     [
         [
-            f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-            for hostname_and_port in passthru_hostnames
+            *[  # file content checks
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file uploads
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+                for hostname_and_port in passthru_hostnames
+            ],
         ]
     ],
     indirect=True,

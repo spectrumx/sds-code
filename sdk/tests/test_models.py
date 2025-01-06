@@ -2,14 +2,12 @@
 
 # pylint: disable=redefined-outer-name
 
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
-from pytz import UTC
-from pytz import timezone
+from pytz import UTC, timezone
 from spectrumx.models import File
 
 
@@ -45,9 +43,7 @@ def test_file_path(file_properties: dict[str, Any]) -> None:
     new_file = File(
         **file_properties,
     )
-    assert new_file.path == str(
-        Path(file_properties["directory"]) / file_properties["name"],
-    )
+    assert new_file.path == Path(file_properties["directory"]) / file_properties["name"]
 
 
 def test_chmod_props(file_properties: dict[str, Any]) -> None:

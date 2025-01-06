@@ -54,33 +54,30 @@
         "*.proto",
         "*.pyc",
         "**/__pycache__",
-        "**/.cache/**",
-        "**/.dvc/**",
-        "**/.git/**",
-        "**/.git/objects/**",
-        "**/.git/subtree-cache/**",
-        "**/.ipynb_checkpoints/**",
-        "**/.neptune/**",
-        "**/.ruff_cache/**",
-        "**/.tox/**",
-        "**/.trash/**",
-        "**/.venv/**",
-        "**/build/**",
-        "**/cache/**",
-        "**/data/**",
-        "**/datalakes/**",
-        "**/dataset/**",
-        "**/datasets/**",
-        "**/dist/**",
-        "**/docs/**",
-        "**/node_modules/**",
-        "**/outputs/**",
-        "**/previews/**",
-        "**/temp/**",
-        "**/tmp/**",
-        "**/venv/**",
+        "**/.cache/",
+        "**/.dvc/",
+        "**/.git/",
+        "**/.ipynb_checkpoints/",
+        "**/.neptune/",
+        "**/.ruff_cache/",
+        "**/.tox/",
+        "**/.trash/",
+        "**/.venv/",
+        "**/build/",
+        "**/cache/",
+        "**/data/",
+        "**/datalakes/",
+        "**/dataset/",
+        "**/datasets/",
+        "**/dist/",
+        "**/node_modules/",
+        "**/outputs/",
+        "**/previews/",
+        "**/temp/",
+        "**/tmp/",
+        "**/venv/",
     ]
-    include = [".", "src", "src/spectrumx"]
+    include = [".", "src", "src/spectrumx", "docs"]
     # Pylint rule list:
     # https://pylint.readthedocs.io/en/stable/user_guide/checkers/features.html
     lint.ignore = [
@@ -219,18 +216,18 @@
         # Allow unused variables when underscore-prefixed.
         dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
+        # [tool.ruff.lint.isort]
+        #     force-single-line = true
+
+        # [tool.ruff.lint.pylint]
+        #     # Controls PLR0913
+        #     max-args = 9
+
     [tool.ruff.format]
         indent-style              = "space"
         line-ending               = "auto"
         quote-style               = "double"
         skip-magic-trailing-comma = false
-
-    [tool.ruff.lint.isort]
-        force-single-line = true
-
-    [tool.ruff.lint.pylint]
-        # Controls PLR0913
-        max-args = 9
 
 [tool.coverage]
 
