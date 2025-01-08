@@ -171,6 +171,7 @@ class FileViewSet(ViewSet):
                 {"detail": "Path parameter is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
         # get the most recent file
         most_recent_file = (
             File.objects.filter(
@@ -181,8 +182,14 @@ class FileViewSet(ViewSet):
             .order_by("-created_at")
             .first()
         )
-        serializer = FileGetSerializer(most_recent_file, many=False)
 
+        if not most_recent_file:
+            return Response(
+                {"detail": "No file found at the specified path."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = FileGetSerializer(most_recent_file, many=False)
         return Response(serializer.data)
 
     @extend_schema(

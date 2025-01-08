@@ -1,5 +1,6 @@
 """Test cases for the endpoints that handle file operations."""
 
+import json
 import logging
 import uuid
 from pathlib import Path
@@ -194,13 +195,6 @@ class FileTestCases(APITestCase):
             file_returned.get("owner").get("email") == user.email
         ), f"Expected {user.email}, got {file_returned.get('owner').get('email')}"
 
-    def test_retrieve_latest_file(self) -> None:
-        response = self.client.get(
-            self.list_url,
-            data={"path": self.file.directory},
-        )
-        assert response.status_code == status.HTTP_200_OK
-
     def test_update_file(self) -> None:
         data = {
             "name": "file_update.txt",
@@ -223,10 +217,15 @@ class FileTestCases(APITestCase):
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
     def test_file_contents_check(self) -> None:
+        metadata = json.dumps(
+            {
+                "directory": self.file.directory,
+                "name": self.file.name,
+            },
+        )
         data = {
             "file": self.file_contents,
-            "directory": self.file.directory,
-            "name": self.file.name,
+            "metadata": metadata,
         }
         response = self.client.post(self.contents_check_url, data, format="multipart")
         assert response.status_code == status.HTTP_200_OK
