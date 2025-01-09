@@ -387,11 +387,9 @@ class CheckFileContentsExistView(APIView):
 
         Example request data:
             {
-                "metadata": {
-                    "directory": "/path/to/file",
-                    "name": "file.h5",
-                    "sum_blake3": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                }
+                "directory": "/path/to/file",
+                "name": "file.h5",
+                "sum_blake3": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
             }
         Example response:
             {
