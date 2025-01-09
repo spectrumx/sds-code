@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{ title }}</title>
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/swagger-ui@5.10.0/dist/swagger-ui.css"
+              integrity="sha256-IgNmYaATqY6z6AuD6hvz9XN0OyeAc94gsTa+lK8ka1Y="
+              crossorigin="anonymous" />
+        <style>
+            @media (prefers-color-scheme: dark) {
+
+                :root {
+                    --bg-color: rgb(5, 9, 29);
+                    --primary-color: rgb(177, 185, 195);
+                    --secondary-color: rgb(163, 190, 227);
+                    --highlight-bg-color: transparent;
+                    --highlight-border-color: #1e293b;
+                    --button-bg-color: rgb(7, 35, 44);
+                    --button-text-color: rgb(193, 198, 203);
+                    --button-text-color-inverse: rgb(7, 35, 44);
+                    --method-bg-color: transparent;
+                    --method-bg-color-get: rgb(31, 53, 92);
+                    --method-bg-color-post: rgb(31, 92, 71);
+                    --method-bg-color-put: rgb(92, 86, 31);
+                    --method-bg-color-patch: rgb(84, 33, 101);
+                    --method-bg-color-delete: rgb(92, 31, 31);
+                    --cancel-border-color: #b91c1c;
+                    --success-color: #4ade80;
+                    --select-bg-color: transparent --copy-button-bg-color: transparent --servers-bg-color: transparent --execute-button-bg-color: transparent
+                }
+
+                body {
+                    background-color: var(--bg-color);
+                    color-scheme: dark;
+                }
+
+                * {
+                    color: var(--primary-color);
+                }
+
+                .execute {
+                    color: var(--bg-color) !important;
+                    background-color: var(--success-color) !important;
+                    border: transparent 1px solid !important;
+                }
+
+                .btn-clear,
+                .btn-clear:hover {
+                    color: var(--primary-color);
+                    border: transparent 1px solid;
+                }
+
+                .btn-clear:hover {
+                    border: transparent 1px solid;
+                }
+
+                .swagger-ui .opblock.opblock-get .opblock-summary-method {
+                    background-color: var(--method-bg-color-get);
+                }
+
+                .swagger-ui .opblock.opblock-post .opblock-summary-method {
+                    background-color: var(--method-bg-color-post);
+                }
+
+                .swagger-ui .opblock.opblock-put .opblock-summary-method {
+                    background-color: var(--method-bg-color-put);
+                }
+
+                .swagger-ui .opblock.opblock-patch .opblock-summary-method {
+                    background-color: var(--method-bg-color-patch);
+                }
+
+                .swagger-ui .opblock.opblock-delete .opblock-summary-method {
+                    background-color: var(--method-bg-color-delete);
+                }
+
+                .opblock-summary-method {
+                    background-color: var(--method-bg-color);
+                    font-weight: 800;
+                }
+
+                .opblock-summary-description {
+                    color: var(--secondary-color) !important;
+                }
+
+                .opblock-section-header {
+                    background-color: var(--highlight-bg-color) !important;
+                }
+
+                p,
+                td,
+                .tabitem {
+                    color: var(--secondary-color) !important;
+                }
+
+                h1,
+                h2,
+                h3,
+                h4,
+                h5,
+                h6,
+                h7 .active {
+                    color: var(--primary-color) !important;
+                }
+
+                pre .highlight-code,
+                .microlight {
+                    background-color: var(--highlight-bg-color) !important;
+                    border: var(--highlight-border-color) solid 1px;
+                }
+
+                .try-out__btn {
+                    color: var(--button-text-color-inverse) !important;
+                    background-color: var(--success-color) !important;
+                    border: transparent 1px solid !important;
+                }
+
+                .cancel {
+                    color: var(--primary-color) !important;
+                    background-color: var(--highlight-bg-color) !important;
+                    border-color: var(--secondary-color) !important;
+                }
+
+                .download-contents {
+                    background-color: var(--button-bg-color) !important;
+                    color: var(--primary-color);
+                }
+
+                .copy-to-clipboard {
+                    background-color: var(--copy-button-bg-color) !important;
+                    color: var(--button-text-color);
+                }
+
+                .highlight-code .copy-to-clipboard {
+                    background-color: var(--button-bg-color) !important;
+                    color: var(--button-text-color);
+                }
+
+                .servers {
+                    background-color: var(--servers-bg-color) !important;
+                }
+
+                .response-control-media-type__accept-message {
+                    color: var(--success-color) !important;
+                }
+
+                .title small {
+                    background-color: var(--bg-color) !important;
+                }
+
+                .arrow {
+                    fill: var(--primary-color) !important;
+                }
+
+                select {
+                    background-color: var(--select-bg-color) !important;
+                    color: var(--primary-color) !important;
+                    border-color: var(--highlight-border-color) !important;
+                }
+
+                .opblock-summary-control {
+                    outline: none !important;
+                }
+
+                .model-box .json-schema-2020-12__title,
+                .json-schema-2020-12-expand-deep-button {
+                    color: var(--secondary-color) !important;
+                }
+
+                .json-schema-2020-12__attribute--primary {
+                    color: var(--primary-color) !important;
+                }
+
+                .swagger-ui {
+                    background-color: var(--bg-color);
+                }
+
+                .swagger-ui .microlight {
+                    background-color: var(--bg-color);
+                }
+
+                .swagger-ui .scheme-container {
+                    background-color: var(--bg-color);
+                }
+
+                .swagger-ui .dialog-ux .modal-ux {
+                    background-color: var(--bg-color);
+                }
+
+                .swagger-ui input[disabled],
+                .swagger-ui input[disabled]:hover {
+                    background-color: var(--bg-color);
+                }
+
+                .swagger-ui input[type="email"],
+                .swagger-ui input[type="file"],
+                .swagger-ui input[type="password"],
+                .swagger-ui input[type="search"],
+                .swagger-ui input[type="text"],
+                .swagger-ui textarea {
+                    background-color: var(--bg-color);
+                }
+
+                .swagger-ui .btn {
+                    background-color: var(--button-bg-color);
+                    color: var(--button-text-color);
+                }
+
+            }
+        </style>
+    </head>
+    <body>
+        <div id="swagger-ui"></div>
+        <script src="https://cdn.jsdelivr.net/npm/swagger-ui@5.10.0/dist/swagger-ui-bundle.js"
+                integrity="sha256-i050FsZ0MSwm3mVMv7IhpfCdK90RKaXPS/EmiWxv8vc="
+                crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/swagger-ui@5.10.0/dist/swagger-ui-standalone-preset.js"
+                integrity="sha256-IGoJVXW7MRyeZOsKceWVePAShfVpJhnYhDhOQp+Yi38="
+                crossorigin="anonymous"></script>
+        <script>
+            // Initialize Swagger UI
+            window.onload = function() {
+                const ui = SwaggerUIBundle({
+                    url: "/api/v1/schema", // Provide the URL to your OpenAPI spec file
+                    dom_id: '#swagger-ui',
+                    /*
+                                    deepLinking: true,
+                                    presets: [
+                                        SwaggerUIBundle.presets.apis,
+                                        SwaggerUIStandalonePreset
+                                    ],
+                                    layout: "BaseLayout"
+                    */
+                });
+                window.ui = ui;
+            };
+        </script>
+    </body>
+</html>
