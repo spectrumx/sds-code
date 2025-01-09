@@ -10,10 +10,12 @@ from django.http import HttpResponse
 from django.http.request import QueryDict
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiExample
-from drf_spectacular.utils import OpenApiParameter
-from drf_spectacular.utils import OpenApiResponse
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+)
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -27,9 +29,9 @@ from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import (
     FileCheckResponseSerializer,
+    FileGetSerializer,
+    FilePostSerializer,
 )
-from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
-from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
 
@@ -440,7 +442,7 @@ class CheckFileContentsExistView(APIView):
             blake3_sum=checksum_from_client,
             directory=str(file_dir_from_client),
             name=file_name_from_client,
-            request_data=request.data,
+            request_data=request_data,
             user=user,
         )
         return Response(conditions, status=status.HTTP_200_OK)
