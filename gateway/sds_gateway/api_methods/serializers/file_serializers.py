@@ -2,9 +2,9 @@
 
 import logging
 import uuid
-from pathlib import Path
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
+from django.http import QueryDict
 from loguru import logger as log
 from rest_framework import serializers
 
@@ -199,7 +199,7 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
         blake3_sum: str,
         directory: str,
         name: str,
-        request_data: dict[str, str],
+        request_data: QueryDict,
         user: User,
     ) -> dict[str, bool | uuid.UUID | None]:
         """Checks if SDS already has the contents of this file.

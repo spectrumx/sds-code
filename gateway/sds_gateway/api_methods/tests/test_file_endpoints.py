@@ -1,6 +1,5 @@
 """Test cases for the endpoints that handle file operations."""
 
-import json
 import logging
 import uuid
 from pathlib import Path
@@ -10,8 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 from rest_framework_api_key.models import AbstractAPIKey
 
 from sds_gateway.api_methods.models import File
@@ -217,17 +215,16 @@ class FileTestCases(APITestCase):
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
     def test_file_contents_check(self) -> None:
-        metadata = json.dumps(
-            {
-                "directory": self.file.directory,
-                "name": self.file.name,
-            },
-        )
-        data = {
-            "file": self.file_contents,
-            "metadata": metadata,
+        metadata = {
+            "directory": self.file.directory,
+            "name": self.file.name,
+            "sum_blake3": File().calculate_checksum(self.file_contents),
         }
-        response = self.client.post(self.contents_check_url, data, format="multipart")
+        response = self.client.post(
+            self.contents_check_url,
+            metadata,
+            format="multipart",
+        )
         assert response.status_code == status.HTTP_200_OK
         assert "file_contents_exist_for_user" in response.data
         assert "file_exists_in_tree" in response.data
