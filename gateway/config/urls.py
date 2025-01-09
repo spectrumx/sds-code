@@ -2,12 +2,10 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from django.urls import include
-from django.urls import path
+from django.urls import include, path
 from django.views import defaults as default_views
 from django.views.generic import TemplateView
-from drf_spectacular.views import SpectacularAPIView
-from drf_spectacular.views import SpectacularSwaggerView
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from loguru import logger as log
 from rest_framework.authtoken.views import obtain_auth_token
 
@@ -47,7 +45,10 @@ urlpatterns += [
     ),
     path(
         f"api/{settings.API_VERSION}/docs/",
-        SpectacularSwaggerView.as_view(url_name="api-schema"),
+        SpectacularSwaggerView.as_view(
+            template_name="swagger-ui.html",
+            url_name="api-schema",
+        ),
         name="api-docs",
     ),
 ]
