@@ -6,18 +6,21 @@ from pathlib import Path
 from typing import cast
 
 from django.conf import settings
+from django.db.models import CharField
+from django.db.models import F as FExpression  # noqa: N811
+from django.db.models import Value as WrappedValue
+from django.db.models.functions import Concat
 from django.http import HttpResponse
 from django.http.request import QueryDict
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (
-    OpenApiExample,
-    OpenApiParameter,
-    OpenApiResponse,
-    extend_schema,
-)
+from drf_spectacular.utils import OpenApiExample
+from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiResponse
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -29,11 +32,17 @@ from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import (
     FileCheckResponseSerializer,
-    FileGetSerializer,
-    FilePostSerializer,
 )
+from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
+
+
+class FilePagination(PageNumberPagination):
+    page_size = 30
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class FileViewSet(ViewSet):
@@ -51,23 +60,20 @@ class FileViewSet(ViewSet):
             OpenApiExample(
                 "Example File Post Request",
                 summary="File Request Body",
-                description="This is an example of a file post request body.",
                 value=example_schema.file_post_request_example_schema,
                 request_only=True,
             ),
             OpenApiExample(
                 "Example File Post Response",
                 summary="File Post Response Body",
-                description="This is an example of a file post response body.",
                 value=example_schema.file_post_response_example_schema,
                 response_only=True,
             ),
         ],
-        description="Upload a file to the server.",
         summary="Upload File",
     )
-    def create(self, request, *args, **kwargs) -> Response:
-        """Receives a file from the user request and saves it to the server."""
+    def create(self, request: Request) -> Response:
+        """Uploads a file to the server."""
 
         serializer = FilePostSerializer(
             data=request.data,
@@ -122,21 +128,26 @@ class FileViewSet(ViewSet):
                 "Example File Get Response",
                 summary="File Get Response Body",
                 description="This is an example of a file get response body.",
-                value=example_schema.file_get_response_example_schema,
+                value=example_schema.file_list_response_example_schema,
                 response_only=True,
             ),
         ],
         description="Retrieve a file from the server.",
         summary="Retrieve File",
     )
-    def retrieve(self, request, pk=None):
-        file = get_object_or_404(
+    def retrieve(self, request: Request, pk: str | None = None) -> Response:
+        if pk is None:
+            return Response(
+                {"detail": "File UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_file = get_object_or_404(
             File,
             pk=pk,
             owner=request.user,
             is_deleted=False,
         )
-        serializer = FileGetSerializer(file, many=False)
+        serializer = FileGetSerializer(target_file, many=False)
         return Response(serializer.data)
 
     @extend_schema(
@@ -146,53 +157,119 @@ class FileViewSet(ViewSet):
         },
         examples=[
             OpenApiExample(
-                "Example File Get Response",
-                summary="File Get Response Body",
-                description="This is an example of a file get response body.",
-                value=example_schema.file_get_response_example_schema,
+                "Example of File Listing Response",
+                summary="File Listing Response Body",
+                value=example_schema.file_list_response_example_schema,
                 response_only=True,
             ),
         ],
-        description="Retrieve the most recent file uploaded by the user.",
-        summary="Retrieve Most Recent File",
+        summary="Lists files",
         parameters=[
             OpenApiParameter(
                 name="path",
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                required=True,
-                description="The directory path to retrieve latest file from.",
+                required=False,
+                description=(
+                    "The first part of the path to retrieve files from, "
+                    "or an exact file match (directory + name)."
+                ),
+            ),
+            OpenApiParameter(
+                name="page",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Page number for pagination.",
+                default=1,
+            ),
+            OpenApiParameter(
+                name="page_size",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Number of items per page.",
+                default=FilePagination.page_size,
             ),
         ],
     )
-    def list(self, request):
-        # get query params included in request and filter queryset
-        path = request.GET.get("path")
-        if not path:
+    def list(self, request: Request) -> Response:
+        """
+        Lists all files owned by the user. When `path` is passed, it filters all
+            files matching that subdirectory. If `path` is an exact file path
+            (directory + name) with multiple matches (versions), it will retrieve the
+            most recent one that matches that path. Wildcards are not yet supported.
+        """
+        unsafe_path = request.GET.get("path", "/").strip()
+        basename = Path(unsafe_path).name
+
+        user_rel_path = sanitize_path_rel_to_user(
+            unsafe_path=unsafe_path,
+            request=request,
+        )
+        if user_rel_path is None:
             return Response(
-                {"detail": "Path parameter is required."},
+                {"detail": "The provided path must be in the user's files directory."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # get the most recent file
-        most_recent_file = (
-            File.objects.filter(
-                owner=request.user,
-                is_deleted=False,
-                directory=path,
-            )
-            .order_by("-created_at")
-            .first()
+        all_valid_user_owned_files = File.objects.filter(
+            owner=request.user,
+            is_deleted=False,
         )
 
-        if not most_recent_file:
-            return Response(
-                {"detail": "No file found at the specified path."},
-                status=status.HTTP_404_NOT_FOUND,
+        # if we could extract a basename, try an exact match first
+        if basename:
+            inferred_user_rel_path = user_rel_path.parent
+            exact_match = (
+                all_valid_user_owned_files.filter(
+                    name=basename,
+                    directory=str(inferred_user_rel_path) + "/",
+                )
+                .order_by("-created_at")
+                .first()
+            )
+            if exact_match:
+                serializer = FileGetSerializer(exact_match, many=False)
+                return Response(serializer.data)
+            logging.debug(
+                "No exact match found for %s and name %s",
+                str(inferred_user_rel_path),
+                basename,
             )
 
-        serializer = FileGetSerializer(most_recent_file, many=False)
-        return Response(serializer.data)
+        # try matching `directory`, ignoring `name`
+        files_matching_dir = all_valid_user_owned_files.filter(
+            directory__startswith=str(user_rel_path),
+        )
+
+        files_matching_dir = files_matching_dir.annotate(
+            path=Concat(
+                FExpression("directory"),
+                WrappedValue("/"),
+                FExpression("name"),
+                output_field=CharField(),
+            ),
+        )
+
+        # get the latest file for each directory + name combination
+        latest_files = files_matching_dir.order_by("path", "-created_at").distinct(
+            "path",
+        )
+
+        paginator = FilePagination()
+        paginated_files = paginator.paginate_queryset(latest_files, request=request)
+        serializer = FileGetSerializer(paginated_files, many=True)
+
+        logging.debug(
+            "Matched %d / %d files for path %s - returning %d",
+            latest_files.count(),
+            all_valid_user_owned_files.count(),
+            str(user_rel_path),
+            len(serializer.data),
+        )
+
+        return paginator.get_paginated_response(serializer.data)
 
     @extend_schema(
         parameters=[
@@ -229,8 +306,19 @@ class FileViewSet(ViewSet):
         description="Update a file on the server.",
         summary="Update File",
     )
-    def update(self, request, pk=None):
-        file = get_object_or_404(File, pk=pk, owner=request.user, is_deleted=False)
+    def update(self, request: Request, pk: str | None = None) -> Response:
+        """Updates a file (metadata-only) on the server."""
+        if pk is None:
+            return Response(
+                {"detail": "File UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_file = get_object_or_404(
+            File,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
 
         directory = request.data.get("directory", None)
         user_files_dir = f"/files/{request.user.email}"
@@ -245,7 +333,7 @@ class FileViewSet(ViewSet):
                 msg = f"The provided directory must be in the user's files directory: {user_files_dir}"  # noqa: E501
                 return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = FilePostSerializer(file, data=request.data, partial=True)
+        serializer = FilePostSerializer(target_file, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -269,16 +357,22 @@ class FileViewSet(ViewSet):
         description="Delete a file from the server.",
         summary="Delete File",
     )
-    def destroy(self, request, pk=None):
-        file = get_object_or_404(
+    def destroy(self, request: Request, pk: str | None = None) -> Response:
+        """Soft deletes a file from the server."""
+        if pk is None:
+            return Response(
+                {"detail": "File UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_file = get_object_or_404(
             File,
             pk=pk,
             owner=request.user,
             is_deleted=False,
         )
-        file.is_deleted = True
-        file.deleted_at = datetime.datetime.now(datetime.UTC)
-        file.save()
+        target_file.is_deleted = True
+        target_file.deleted_at = datetime.datetime.now(datetime.UTC)
+        target_file.save()
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -301,8 +395,14 @@ class FileViewSet(ViewSet):
         summary="Download File",
     )
     @action(detail=True, methods=["get"], url_path="download", url_name="download")
-    def download_file(self, request, pk=None):
-        file = get_object_or_404(
+    def download_file(self, request: Request, pk: str | None = None) -> HttpResponse:
+        """Downloads a file from the server."""
+        if pk is None:
+            return Response(
+                {"detail": "File UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_file = get_object_or_404(
             File,
             pk=pk,
             owner=request.user,
@@ -316,7 +416,7 @@ class FileViewSet(ViewSet):
             # Get the file content from MinIO
             minio_response = client.get_object(
                 settings.AWS_STORAGE_BUCKET_NAME,
-                file.file.name,
+                target_file.file.name,
             )
 
             # Read the file content into memory
@@ -325,9 +425,11 @@ class FileViewSet(ViewSet):
             # Serve the file content as a response
             http_response = HttpResponse(
                 file_content,
-                content_type=file.media_type,
+                content_type=target_file.media_type,
             )
-            http_response["Content-Disposition"] = f'attachment; filename="{file.name}"'
+            http_response["Content-Disposition"] = (
+                f'attachment; filename="{target_file.name}"'
+            )
         except client.exceptions.NoSuchKey as e:
             return Response(
                 {"detail": str(e)},
@@ -372,32 +474,50 @@ class CheckFileContentsExistView(APIView):
     def post(self, request: Request) -> Response:
         """Checks if the file contents in request metadata exist on the server.
 
-        Used o prevent unnecessary file uploads when the file contents already exist.
+        Used to prevent unnecessary file uploads when the file contents already exist.
 
-        Response flags:
-            file_exists_in_tree: True when the file checksum, directory, and name
-                match an existing file in the user's files directory. Meaning any
-                upload or update is unnecessary.
+        Response payload:
+            file_exists_in_tree: True when the contents checksum, directory, and name
+                match an existing file in the user's files directory. Meaning a content
+                upload is unnecessary and the file may be referenced by its path (dir + name).
             file_contents_exist_for_user: True when the user has a file with the
                 same checksum, regardless of directory or name. Meaning content
                 upload is unnecessary.
             user_mutable_attributes_differ: True when the file doesn't exist, or the
                 matching file's attributes (e.g. media_type, permissions) differ
-                from the request metadata. Meaning a metadata update is necessary.
+                from the request metadata. Meaning a metadata update is necessary
+                to create a full match.
+            asset_id: The ID of the "best-match" file in the following order or availability:
+                1. File with same contents, directory, and name (when file_exists_in_tree=True)
+                    Note their metadata may still differ.
+                2. File with same contents (when file_contents_exist_for_user=True)
+                3. None (when no match is found)
 
         Example request data:
             {
-                "directory": "/path/to/file",
-                "name": "file.h5",
-                "sum_blake3": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "metadata": {
+                    "directory": "/path/to/file",
+                    "name": "file.h5",
+                    "sum_blake3": "55c6dac98fbc9a388f619f5f4ffc4c9fdd3eb37eab48afd68b65da90ef3070b1",
+                }
             }
         Example response:
             {
                 "file_exists_in_tree": False,
                 "file_contents_exist_for_user": True,
-                "user_mutable_attributes_differ": False,
+                "user_mutable_attributes_differ": True,
+                "asset_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
             }
-        """
+        In that example response, an exact match was not found, but another file with
+            same contents was found (a sibling file). Thus, a file *content* upload is not
+            necessary. The asset ID points to this sibling file, which can be used in place
+            of the file contents when creating a new file.
+        In cases when an "exact" match exists (contents + directory + name) - indicated by
+            `file_exists_in_tree` being True - `asset_id` will point to this matched entry.
+        Note that a check that gives file_exists_in_tree=True may still have diverging metadata
+            such as permissions. That is indicated by `user_mutable_attributes_differ`
+            being True, which can be used to trigger a metadata update.
+        """  # noqa: E501
         user = cast(User, request.user)
         request_data = cast(QueryDict, request.data)
 
@@ -444,6 +564,34 @@ class CheckFileContentsExistView(APIView):
             user=user,
         )
         return Response(conditions, status=status.HTTP_200_OK)
+
+
+def sanitize_path_rel_to_user(unsafe_path: str, request: Request) -> Path | None:
+    """Ensures a path is safe by making it relative to the user's root in SDS.
+    Args:
+        unsafe_path:    The unsafe path.
+        request:        The request object with `.user.email`.
+    Returns:
+        A Path object if the path is safe,
+        or None if it is not safe to continue.
+    """
+    files_dir = Path("/files/")
+    user_root_path = files_dir / request.user.email
+    if not user_root_path.is_relative_to(files_dir):
+        msg = (
+            "INTERNAL ERROR: User root path is not a subdirectory "
+            f"of {files_dir}: {user_root_path}"
+        )
+        logging.error(msg)
+        return None
+    unsafe_concat_path = Path(
+        f"{user_root_path}/{unsafe_path}",
+        # needs to be a concatenation, as we want to remain under the user's files dir
+    )
+    user_rel_path = unsafe_concat_path.resolve(strict=False)
+    if not user_rel_path.is_relative_to(user_root_path):
+        return None
+    return user_rel_path
 
 
 check_contents_exist = CheckFileContentsExistView.as_view()

@@ -1,3 +1,7 @@
+"""Swagger example schema for API methods."""
+
+# ruff: noqa: E501
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from sds_gateway.api_methods.models import File
@@ -79,36 +83,63 @@ file_post_response_example_schema = {
     "sum_blake3": example_checksum,
 }
 
-file_get_response_example_schema = {
-    "uuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "owner": {
-        "id": 0,
-        "email": "user@example.com",
-        "name": "Owner Name",
-    },
-    "dataset": {
-        "dataset_field_1": "value_1",
-        "dataset_field_2": "value_2",
-        "dataset_field_3": "value_3",
-    },
-    "capture": {
-        "capture_field_1": "value_1",
-        "capture_field_2": "value_2",
-        "capture_field_3": "value_3",
-    },
-    "created_at": "2024-11-04T10:02:50.511753-05:00",
-    "updated_at": "2024-11-04T10:58:11.950794-05:00",
-    "file": minio_file_url,
-    "name": example_file_name,
-    "directory": "/files/user@example.com/path/to/file",
-    "media_type": "application/x-hdf5",
-    "permissions": "rw-r--r--",
-    "size": example_size,
-    "sum_blake3": example_checksum,
-    "expiration_date": "2026-11-04T10:02:50.511615-05:00",
-    "is_deleted": False,
-    "deleted_at": None,
-    "bucket_name": "spectrumx",
+file_list_response_example_schema = {
+    "count": 105,
+    "next": "http://localhost:8000/api/latest/assets/files/?page=2&page_size=3",
+    "previous": None,
+    "results": [
+        {
+            "bucket_name": "spectrumx",
+            "capture": None,
+            "created_at": "2025-01-06 14:38:24",
+            "dataset": None,
+            "directory": "/files/sds_user/0LoiUqJt2d/",
+            "expiration_date": "2027-01-06T14:38:24.361963-05:00",
+            "file": "http://minio:9000/spectrumx/files/514513e51ad9887f7debee71b4bb26cf24720d9ae02404d467b424b444101d83?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20250110%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250110T004858Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=16b4ec54382bd2e24f7dc13815451f096bfcda0b3e46608707a4c5c8756b9150",
+            "media_type": "text/plain",
+            "name": "test_file_kprX1E.txt",
+            "owner": {"id": 1, "email": "sds_user", "name": ""},
+            "permissions": "rw-r--r--",
+            "size": 8100,
+            "sum_blake3": "514513e51ad9887f7debee71b4bb26cf24720d9ae02404d467b424b444101d83",
+            "updated_at": "2025-01-06 14:38:24",
+            "uuid": "2df64c69-8e16-4509-a2f1-fa9c629b1d8a",
+        },
+        {
+            "bucket_name": "spectrumx",
+            "capture": None,
+            "created_at": "2024-12-16 21:14:01",
+            "dataset": None,
+            "directory": "/files/sds_user/1ciYuIKVRL/",
+            "expiration_date": "2026-12-16T21:14:01.700497-05:00",
+            "file": "http://minio:9000/spectrumx/files/0fe9dbd2417345775fe2b6d412879c45160e4e4e49cede7be6dc4a766ab34f1b?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20250110%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250110T004858Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=0607ab7c36dec416f3b71ecf58b3dd7294efb5ee54dddfda303f8e07f5ef6238",
+            "media_type": "text/plain",
+            "name": "test_file_0RKgWy.txt",
+            "owner": {"id": 1, "email": "sds_user", "name": ""},
+            "permissions": "rw-r--r--",
+            "size": 8100,
+            "sum_blake3": "0fe9dbd2417345775fe2b6d412879c45160e4e4e49cede7be6dc4a766ab34f1b",
+            "updated_at": "2024-12-16 21:14:01",
+            "uuid": "8987bdeb-9d72-4840-9e0f-a80f6e32e0d0",
+        },
+        {
+            "bucket_name": "spectrumx",
+            "capture": None,
+            "created_at": "2025-01-06 14:37:35",
+            "dataset": None,
+            "directory": "/files/sds_user/2NectR0cYr/",
+            "expiration_date": "2027-01-06T14:37:35.056678-05:00",
+            "file": "http://minio:9000/spectrumx/files/6187db034bf0e6fbbd8b1d00a77b5b38654fcd3ab36fc3cf273b48fe87154ba9?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=minioadmin%2F20250110%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250110T004858Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=1cd266ec3e2635d8b8cc0c67ff5e61f9a5e4f96b06a99c20333aad5252b87fac",
+            "media_type": "text/plain",
+            "name": "test_file_WUpKxZ.txt",
+            "owner": {"id": 1, "email": "sds_user", "name": ""},
+            "permissions": "rw-r--r--",
+            "size": 8100,
+            "sum_blake3": "6187db034bf0e6fbbd8b1d00a77b5b38654fcd3ab36fc3cf273b48fe87154ba9",
+            "updated_at": "2025-01-06 14:37:35",
+            "uuid": "a8e8b4cc-cdab-4002-b871-8e209ce52fc3",
+        },
+    ],
 }
 
 file_put_request_example_schema = {
