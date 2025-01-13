@@ -137,7 +137,7 @@ def test_file_get_returns_valid(
     assert file_sample.name.startswith("dry-run-")
     assert file_sample.media_type == "text/plain"
     assert file_sample.size == file_size
-    assert file_sample.directory == Path("./sds-files/dry-run/")
+    assert file_sample.directory == Path("/sds-files/dry-run/")
     assert file_sample.permissions == "rw-rw-r--"
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
@@ -249,7 +249,7 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
     )
 
     # run the test
-    downloaded_file = client.download_file_contents(file_uuid=file_id.hex)
+    downloaded_file = client._download_file_contents(file_uuid=file_id.hex)
     assert downloaded_file.exists(), "File was not downloaded to returned path"
     assert downloaded_file.is_file(), "Returned path must be a file"
     assert downloaded_file.stat().st_size == num_bytes, (
@@ -282,7 +282,7 @@ def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
 
     # run the test
     assert parent_dir.exists() is False, "Parent dir must not exist before test"
-    downloaded_path = client.download_file_contents(
+    downloaded_path = client._download_file_contents(
         file_uuid=file_id.hex, target_path=expected_path
     )
     assert downloaded_path == expected_path, "Returned path must match the given path"

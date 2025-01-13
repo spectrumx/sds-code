@@ -8,11 +8,13 @@ import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum, auto
+from multiprocessing.synchronize import RLock
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import dotenv
 from loguru import logger as log
+from pydantic import UUID4
 
 from spectrumx.errors import Result, SDSError
 
@@ -115,7 +117,7 @@ class SDSConfig:
         self._env_file = Path(env_file) if env_file else Path(".env")
         if not self._env_file.is_absolute():
             self._env_file = base_dir / self._env_file
-        clean_config = self._load_config(env_cli_config=env_config, verbose=verbose)
+        clean_config = self.__load_config(env_cli_config=env_config, verbose=verbose)
         self._set_config(clean_config)
 
     def show_config(self, log_fn: Callable[[str], None] = print) -> None:
@@ -124,7 +126,7 @@ class SDSConfig:
         log.debug(header)  # for sdk developers
         log_fn(header)  # for users
         for attr in self._active_config:
-            log_redacted(
+            _log_redacted(
                 key=attr.attr_name,
                 value=str(attr.attr_value),
                 log_fn=log_fn,
@@ -138,7 +140,7 @@ class SDSConfig:
                 attr.attr_name,
                 attr.value,
             )
-            log_redacted(key=attr.attr_name, value=attr.value)
+            _log_redacted(key=attr.attr_name, value=attr.value)
 
         # validate attributes / show user warnings
         if not self.api_key:
@@ -149,7 +151,7 @@ class SDSConfig:
 
         self._active_config = clean_config
 
-    def _load_config(
+    def __load_config(
         self,
         *,
         env_cli_config: Mapping[str, Any] | None = None,
@@ -200,30 +202,6 @@ class SDSConfig:
                 log_user_warning(dep_opt.user_warning)
 
         return cleaned_config
-
-
-def log_redacted(
-    key: str,
-    value: str,
-    log_fn: Callable[[str], None] = logging.info,
-) -> None:
-    """Logs but redacts value if the key hints to a sensitive content, as passwords."""
-    std_length: int = 4
-    lower_case_hints = {
-        "key",
-        "secret",
-        "token",
-        "pass",
-    }
-    safe_value = (
-        "*" * std_length
-        if any(hint in key.lower() for hint in lower_case_hints)
-        else value
-    )
-    del value
-    msg = f"\tSDS_Config: set {key}={safe_value}"
-    log.debug(msg)  # for sdk developers
-    log_fn(msg)
 
 
 class Client:
@@ -305,11 +283,12 @@ class Client:
             self._gateway.authenticate()
         self.is_authenticated = True
 
-    def get_file(self, file_uuid: uuid.UUID | str) -> File:
+    def get_file(self, file_uuid: UUID4 | str) -> File:
         """Get a file instance by its ID. Only metadata is downloaded from SDS.
 
         Note this does not download the file contents from the server. File
-            instances still need to be .download()ed to create a local copy.
+            instances still need to have their contents downloaded to create
+            a local copy - see `Client.download_file()`.
 
         Args:
             file_uuid: The UUID of the file to retrieve.
@@ -317,7 +296,7 @@ class Client:
             The file instance, or a sample file if in dry run mode.
         """
 
-        uuid_to_set: uuid.UUID = (
+        uuid_to_set: UUID4 = (
             uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
         )
 
@@ -328,8 +307,181 @@ class Client:
         log_user("Dry run enabled: a sample file is being returned instead")
         return files.generate_sample_file(uuid_to_set)
 
-    def download_file_contents(
-        self, file_uuid: uuid.UUID | str, target_path: Path | None = None
+    def download(
+        self,
+        *,
+        from_sds_path: Path | str,
+        to_local_path: Path | str,
+        skip_contents: bool = False,
+        overwrite: bool = False,
+        verbose: bool = True,
+    ) -> list[Result]:
+        """Downloads files from SDS.
+
+        Args:
+            from_sds_path:  The virtual directory on SDS to download files from.
+            to_local_path:  The local path to save the downloaded files to.
+            skip_contents:  When True, only the metadata is downloaded.
+            overwrite:      Whether to overwrite existing local files.
+            verbose:        Show a progress bar.
+        Returns:
+            A list of results for each file discovered and downloaded.
+        """
+        from_sds_path = Path(from_sds_path)
+        to_local_path = Path(to_local_path)
+
+        # local vars
+        prefix = "Dry-run: simulating download:" if self.dry_run else "Downloading:"
+
+        if not to_local_path.exists():
+            if self.dry_run:
+                log_user(f"Dry run: would create the directory '{to_local_path}'")
+            else:
+                to_local_path.mkdir(parents=True)
+
+        if self.dry_run:
+            log_user(
+                "Called download() in dry run mode: "
+                "files are made-up and not written to disk."
+            )
+            uuids = [uuid.uuid4() for _ in range(10)]
+            files_to_download = [files.generate_sample_file(uuid) for uuid in uuids]
+            log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
+        else:
+            files_to_download = self._gateway.list_files(from_sds_path)
+            if verbose:
+                log_user(f"Discovered {len(files_to_download)} files")
+
+        prog_bar = get_prog_bar(
+            files_to_download, desc="Downloading", disable=not verbose
+        )
+
+        results: list[Result] = []
+        for file_info in prog_bar:
+            file_info = cast(File, file_info)
+            prog_bar.set_description(f"{prefix} '{file_info.name}'")
+            local_file_path = (
+                to_local_path / (os.sep + str(file_info.directory)) / file_info.name
+            )
+
+            # skip download of local files (without UUID)
+            if file_info.uuid is None:
+                msg = f"Skipping local file: {file_info.name}"
+                log_user_warning(msg)
+                results.append(Result(exception=SDSError(msg)))
+                continue
+
+            # register failure if the resolved path is not relative to the target
+            if not local_file_path.is_relative_to(to_local_path):
+                msg = (
+                    f"Resolved path {local_file_path} is not relative to "
+                    f"{to_local_path}: skipping download."
+                )
+                log_user_warning(msg)
+                results.append(Result(exception=SDSError(msg)))
+                continue
+
+            # avoid unintended overwrites (success)
+            if local_file_path.exists() and not overwrite:
+                log_user(f"Skipping existing file: '{local_file_path}'")
+                results.append(Result(value=file_info))
+                continue
+
+            # download the file and register result
+            try:
+                self.download_file(
+                    file_uuid=file_info.uuid,
+                    to_local_path=local_file_path,
+                    skip_contents=skip_contents,
+                )
+                results.append(Result(value=file_info))
+            except SDSError as err:
+                log_user_error(f"Download failed: {err}")
+                results.append(Result(exception=err))
+
+        return results
+
+    def download_file(
+        self,
+        *,
+        file_instance: File | None = None,
+        file_uuid: UUID4 | str | None = None,
+        to_local_path: Path | str | None = None,
+        skip_contents: bool = False,
+        warn_missing_path: bool = True,
+    ) -> File:
+        """Downloads a file from SDS: metadata and maybe contents.
+
+        Either `file_instance` or `file_uuid` must be provided. When passing
+        a `file_instance`, it's recommended to set its `local_path` attribute,
+        otherwise the download will create a temporary file on disk.
+
+        Args:
+            file_instance:      The file instance to download.
+            file_uuid:          The UUID of the file to download.
+            to_local_path:      The local path to save the downloaded file to.
+            skip_contents:      When True, only the metadata is downloaded
+                                    and no files are created on disk.
+            warn_missing_path:  Show a warning when the download location is undefined.
+        Returns:
+            The file instance with updated attributes, or a sample when in dry run.
+        """
+        if isinstance(file_instance, File):
+            if file_instance.uuid is None:
+                msg = "The file passed is a local reference and cannot be downloaded."
+                raise ValueError(msg)
+            if file_instance.local_path is None and warn_missing_path:
+                msg = (
+                    "The file instance passed is missing a local path to "
+                    "download to. A temporary file will be created on disk."
+                )
+                log_user_warning(msg)
+            if skip_contents:
+                msg = (
+                    "A file instance was provided and skip_contents "
+                    "is True: nothing to download."
+                )
+                log_user_warning(msg)
+                return file_instance
+            valid_uuid = file_instance.uuid
+            valid_local_path_or_none = file_instance.local_path
+        else:
+            if file_uuid is None:
+                msg = "Expected a file instance or UUID to download."
+                raise ValueError(msg)
+            if to_local_path is None and warn_missing_path:
+                msg = "The file will be downloaded as temporary."
+                log_user_warning(msg)
+
+            valid_local_path_or_none = Path(to_local_path) if to_local_path else None
+
+            # download
+            valid_uuid: UUID4 = (
+                uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
+            )
+            if self.dry_run:
+                time.sleep(0.05)
+                return files.generate_sample_file(valid_uuid)
+
+            assert not self.dry_run, "Internal error: expected dry run to be disabled."
+            file_bytes = self._gateway.get_file_by_id(uuid=valid_uuid.hex)
+            file_instance = File.model_validate_json(file_bytes)
+
+        if not skip_contents:
+            downloaded_path = self._download_file_contents(
+                file_uuid=valid_uuid,
+                target_path=valid_local_path_or_none,
+                contents_lock=file_instance._contents_lock,  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
+            )
+            file_instance.local_path = downloaded_path
+        return file_instance
+
+    def _download_file_contents(
+        self,
+        *,
+        file_uuid: UUID4 | str,
+        contents_lock: RLock,
+        target_path: Path | None = None,
     ) -> Path:
         """Downloads the contents of a file from SDS to a location on disk.
 
@@ -346,13 +498,13 @@ class Client:
             file_desc, file_name = tempfile.mkstemp()
             os.close(file_desc)
             target_path = Path(file_name)
-        target_path = Path(target_path) if isinstance(target_path, str) else target_path
+        target_path = Path(target_path)
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        uuid_to_set: uuid.UUID = (
+        uuid_to_set: UUID4 = (
             uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
         )
         if not self.dry_run:
-            with target_path.open(mode="wb") as file_ptr:
+            with target_path.open(mode="wb") as file_ptr, contents_lock:
                 for chunk in self._gateway.get_file_contents_by_id(
                     uuid=uuid_to_set.hex
                 ):
@@ -361,8 +513,41 @@ class Client:
             log_user(f"Dry run enabled: file would be saved as {target_path}")
         return target_path
 
+    def upload(
+        self,
+        *,
+        local_path: Path | str,
+        sds_path: Path | str = "/",
+        verbose: bool = True,
+    ) -> list[Result]:
+        """Uploads a file or directory to SDS.
+
+        Args:
+            local_path: The local path of the file or directory to upload.
+            sds_path:   The virtual directory on SDS to upload the file to, \
+                            where '/' is the user root.
+            verbose:    Show a progress bar.
+        """
+        local_path = Path(local_path) if isinstance(local_path, str) else local_path
+        valid_files = files.get_valid_files(local_path, warn_skipped=True)
+        prog_bar = get_prog_bar(valid_files, desc="Uploading", disable=not verbose)
+        upload_results: list[Result] = []
+        for file_path in prog_bar:
+            try:
+                result = Result(
+                    value=self.upload_file(file_path=file_path, sds_path=sds_path)
+                )
+            except SDSError as err:
+                log_user_error(f"Upload failed: {err}")
+                result = Result(exception=err)
+            upload_results.append(result)
+        return upload_results
+
     def upload_file(
-        self, file_path: File | Path | str, sds_path: Path | str = "/"
+        self,
+        *,
+        file_path: File | Path | str,
+        sds_path: Path | str = "/",
     ) -> File:
         """Uploads a file to SDS.
 
@@ -390,13 +575,13 @@ class Client:
             else files.construct_file(file_path, sds_path=sds_path)
         )
 
-        return self._upload_file_mux(file_instance)
+        return self.__upload_file_mux(file_instance)
 
-    def _upload_file_mux(self, file_instance: File) -> File:
+    def __upload_file_mux(self, file_instance: File) -> File:
         """Uploads a file instance to SDS, choosing the right upload mode."""
         file_path = file_instance.local_path
         # check whether sds already has this file for this user
-        upload_mode, asset_id = self._get_upload_mode_and_asset(
+        upload_mode, asset_id = self.__get_upload_mode_and_asset(
             file_instance=file_instance
         )
 
@@ -421,7 +606,7 @@ class Client:
                 if asset_id is None:
                     msg = "Expected an asset ID when uploading metadata only"
                     raise SDSError(msg)
-                return self._upload_new_file_metadata_only(
+                return self.__upload_new_file_metadata_only(
                     file_instance=file_instance, sibling_uuid=asset_id
                 )
             case FileUploadMode.UPDATE_METADATA_ONLY:  # pragma: no cover
@@ -429,21 +614,21 @@ class Client:
                 assert (
                     asset_id is not None
                 ), "Expected an asset ID when updating metadata"
-                return self._update_existing_file_metadata_only(
+                return self.__update_existing_file_metadata_only(
                     file_instance=file_instance, asset_id=asset_id
                 )
             case _:  # pragma: no cover
                 msg = f"Unexpected upload mode: {upload_mode}"
                 raise SDSError(msg)
 
-    def _update_existing_file_metadata_only(
-        self, file_instance: File, asset_id: uuid.UUID | None
+    def __update_existing_file_metadata_only(
+        self, file_instance: File, asset_id: UUID4 | None
     ) -> File:
         """UPDATES an existing file instance with new metadata.
 
         ---
-            Note: favor use of the safer `_upload_metadata_only()` method instead, which
-            creates a new File entry reusing the contents of a sibling file.
+            Note: favor use of the safer `__upload_new_file_metadata_only()`,
+            which creates a new File entry reusing the contents of a sibling file.
         ---
 
         Useful when the files is already instantiated in SDS and the file
@@ -471,8 +656,8 @@ class Client:
         )
         return File.model_validate_json(file_response)
 
-    def _upload_new_file_metadata_only(
-        self, file_instance: File, sibling_uuid: uuid.UUID
+    def __upload_new_file_metadata_only(
+        self, file_instance: File, sibling_uuid: UUID4
     ) -> File:
         """UPLOADS a new file instance to SDS, skipping the file contents.
 
@@ -499,7 +684,7 @@ class Client:
         )
         return File.model_validate_json(file_response)
 
-    def _get_upload_mode_and_asset(
+    def __get_upload_mode_and_asset(
         self, file_instance: File
     ) -> tuple[FileUploadMode, uuid.UUID | None]:
         """Determines how to upload a file into SDS.
@@ -544,114 +729,6 @@ class Client:
             return FileUploadMode.UPLOAD_METADATA_ONLY, asset_id
         return FileUploadMode.UPLOAD_CONTENTS_AND_METADATA, asset_id
 
-    def upload(
-        self,
-        local_path: Path | str,
-        *,
-        sds_path: Path | str = "/",
-        verbose: bool = True,
-    ) -> list[Result]:
-        """Uploads a file or directory to SDS.
-
-        Args:
-            local_path: The local path of the file or directory to upload.
-            sds_path:   The virtual directory on SDS to upload the file to, \
-                            where '/' is the user root.
-            verbose:    Show a progress bar.
-        """
-        local_path = Path(local_path) if isinstance(local_path, str) else local_path
-        valid_files = files.get_valid_files(local_path, warn_skipped=True)
-        prog_bar = get_prog_bar(valid_files, desc="Uploading", disable=not verbose)
-        upload_results: list[Result] = []
-        for file_path in prog_bar:
-            try:
-                result = Result(value=self.upload_file(file_path, sds_path=sds_path))
-            except SDSError as err:
-                log_user_error(f"Upload failed: {err}")
-                result = Result(exception=err)
-            upload_results.append(result)
-        return upload_results
-
-    def download_file(self, file_uuid: uuid.UUID | str, to: Path | str) -> File:
-        """Downloads a file from SDS.
-
-        Args:
-            file_uuid:  The UUID of the file to download.
-            to:         The local path to save the downloaded file to.
-        Returns:
-            The file instance with updated attributes, or a sample when in dry run.
-        """
-        # validate inputs
-        if not isinstance(to, (Path, str)):
-            msg = f"to must be a Path or str, not {type(to)}"
-            raise TypeError(msg)
-        to = Path(to) if isinstance(to, str) else to
-        # download
-        uuid_to_set: uuid.UUID = (
-            uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
-        )
-        if self.dry_run:
-            time.sleep(0.05)
-            return files.generate_sample_file(uuid_to_set)
-
-        assert not self.dry_run, "Internal error: expected dry run to be disabled."
-        file_bytes = self._gateway.download_file(uuid=uuid_to_set.hex)
-        file_instance = File.model_validate_json(file_bytes)
-        file_instance.local_path = to
-        file_instance.save()
-        return file_instance
-
-    def download(
-        self,
-        sds_path: Path | str,
-        to: Path | str,
-        *,
-        overwrite: bool = False,
-        verbose: bool = True,
-    ) -> None:
-        """Downloads files from SDS.
-
-        Args:
-            sds_path:   The virtual directory on SDS to download files from.
-            to:         The local path to save the downloaded files to.
-            overwrite:  Whether to overwrite existing local files.
-            verbose:    Show a progress bar.
-        """
-        sds_path = Path(sds_path) if isinstance(sds_path, str) else sds_path
-        to = Path(to) if isinstance(to, str) else to
-
-        if not to.exists():
-            if self.dry_run:
-                log_user(f"Dry run: would create the directory '{to}'")
-            else:
-                to.mkdir(parents=True)
-
-        if self.dry_run:
-            log_user(
-                "Called download() in dry run mode: "
-                "files are made-up and not written to disk."
-            )
-            uuids = [uuid.uuid4() for _ in range(10)]
-            files_to_download = [files.generate_sample_file(uuid) for uuid in uuids]
-            log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
-        else:
-            files_to_download = self._gateway.list_files(sds_path)
-            if verbose:
-                log_user(f"Discovered {len(files_to_download)} files")
-
-        prog_bar = get_prog_bar(
-            files_to_download, desc="Downloading", disable=not verbose
-        )
-
-        for file_info in prog_bar:
-            prefix = "Dry-run: simulating download:" if self.dry_run else "Downloading:"
-            prog_bar.set_description(f"{prefix} '{file_info.name}'")
-            local_file_path = to / file_info.name
-            if local_file_path.exists() and not overwrite:
-                log_user(f"Skipping existing file: {local_file_path}")
-                continue
-            self.download_file(file_info.uuid, to=local_file_path)
-
     def __str__(self) -> str:
         return f"Client(host={self.host})"
 
@@ -685,6 +762,30 @@ def _clean_config(
         cleaned_config.append(attr)
 
     return cleaned_config
+
+
+def _log_redacted(
+    key: str,
+    value: str,
+    log_fn: Callable[[str], None] = logging.info,
+) -> None:
+    """Logs but redacts value if the key hints to a sensitive content, as passwords."""
+    std_length: int = 4
+    lower_case_hints = {
+        "key",
+        "secret",
+        "token",
+        "pass",
+    }
+    safe_value = (
+        "*" * std_length
+        if any(hint in key.lower() for hint in lower_case_hints)
+        else value
+    )
+    del value
+    msg = f"\tSDS_Config: set {key}={safe_value}"
+    log.debug(msg)  # for sdk developers
+    log_fn(msg)
 
 
 __all__ = ["Client"]
