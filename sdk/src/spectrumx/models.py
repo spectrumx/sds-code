@@ -1,8 +1,9 @@
 """Data models for the SpectrumX Data System SDK."""
 
 from datetime import datetime
+from multiprocessing import RLock
+from multiprocessing.synchronize import RLock as RLockT
 from pathlib import Path
-from typing import Any
 
 from pydantic import UUID4, BaseModel
 
@@ -48,8 +49,16 @@ class File(SDSModel):
     is_sample: bool = False
     local_path: Path | None = None
 
-    def model_post_init(self, __context: Any, /) -> None:
+    # events and state
+    _is_downloading: bool = False
+    _is_uploading: bool = False
+    _contents_lock: RLockT
+
+    def model_post_init(self, _) -> None:
         """Post-initialization steps."""
+        # create the locks
+        self._contents_lock = RLock()
+        # standardize the directory path
         if not self.directory.is_absolute():
             self.directory = Path("/") / self.directory
 
@@ -59,19 +68,37 @@ class File(SDSModel):
         return self.directory / self.name
 
     @property
-    def sum_blake3(self) -> str | None:
+    def is_local(self) -> bool:
+        """Checks if the file contents are available locally."""
+        if self._is_downloading:
+            return False
+        return (
+            self.local_path is not None
+            and self.local_path.exists()
+            and self.local_path.is_file()
+        )
+
+    def compute_sum_blake3(self) -> str | None:
         """Calculates the BLAKE3 checksum of the file.
 
+        If the file is currently being downloaded, this method will
+            block until the download is complete or terminated.
+
+        Args:
+            block: when True, waits until the file contents are unlocked.
         Returns:
-            The BLAKE3 checksum of the file, or None if the file is not available.
+            The BLAKE3 checksum of the file,
+                OR None if the file is not available locally.
         """
-        if (
-            self.local_path is None
-            or self.local_path.is_dir()
-            or not self.local_path.exists()
-        ):
-            return None
-        return utils.sum_blake3(self.local_path)
+        # we deliberately don't cache the checksum because the file
+        # might be changed externally by a different process or the user.
+        with self._contents_lock:
+            # content downloads cannot start within this block
+            if not self.is_local:
+                return None
+            # this should not happen anyway, so let's just assert
+            assert self.local_path is not None, "Local path is not set"
+            return utils.sum_blake3(self.local_path)
 
     @property
     def chmod_props(self) -> str:
@@ -82,6 +109,10 @@ class File(SDSModel):
         max_permission_num = 0o777
         assert 0 <= perm_num <= max_permission_num, "Invalid permission number"
         return f"{perm_num:03o}"
+
+    def is_same_contents(self, other: "File") -> bool:
+        """Checks if the file has the same contents as another local file."""
+        return self.compute_sum_blake3() == other.compute_sum_blake3()
 
 
 class Dataset(SDSModel):
