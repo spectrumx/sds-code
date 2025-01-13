@@ -72,7 +72,8 @@ def test_get_valid_files(temp_file_tree: Path) -> None:
 
     # normalize paths to be relative to the temp_file_tree
     valid_file_paths = {
-        temp_file_tree / file_instance.path for file_instance in valid_file_instances
+        Path(f"{temp_file_tree}/{file_instance.path}")
+        for file_instance in valid_file_instances
     }
 
     # all test files should be valid and match the local path
@@ -116,8 +117,12 @@ def test_single_file_upload(
     assert uploaded_file is not None, "File upload failed."
     assert isinstance(uploaded_file.uuid, uuid.UUID), "UUID not set."
     assert uploaded_file.size == local_file.size, "Size mismatch."
-    assert len(uploaded_file.sum_blake3 or "") == BLAKE3_HEX_LEN, "Checksum not set."
-    assert uploaded_file.sum_blake3 == local_file.sum_blake3, "Checksum mismatch."
+    assert (
+        len(uploaded_file.compute_sum_blake3() or "") == BLAKE3_HEX_LEN
+    ), "Checksum not set."
+    assert (
+        uploaded_file.compute_sum_blake3() == local_file.compute_sum_blake3()
+    ), "Checksum mismatch."
 
 
 @pytest.mark.integration
@@ -197,8 +202,12 @@ def test_large_file_upload(
     assert uploaded_file is not None, "File upload failed."
     assert isinstance(uploaded_file.uuid, uuid.UUID), "UUID not set."
     assert uploaded_file.size == local_file.size, "Size mismatch."
-    assert len(uploaded_file.sum_blake3 or "") == BLAKE3_HEX_LEN, "Checksum not set."
-    assert uploaded_file.sum_blake3 == local_file.sum_blake3, "Checksum mismatch."
+    assert (
+        len(uploaded_file.compute_sum_blake3() or "") == BLAKE3_HEX_LEN
+    ), "Checksum not set."
+    assert (
+        uploaded_file.compute_sum_blake3() == local_file.compute_sum_blake3()
+    ), "Checksum mismatch."
 
 
 @pytest.mark.integration

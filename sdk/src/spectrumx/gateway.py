@@ -155,7 +155,7 @@ class GatewayClient:
             endpoint=endpoint, asset_id=asset_id, endpoint_args=endpoint_args
         )
         if self.verbose:
-            log.debug(f"Gateway req: {method} {payload["url"]}")
+            log.debug(f"Gateway req: {method} {payload['url']}")
         return requests.request(
             timeout=self.timeout if timeout is None else timeout,
             method=method,
@@ -184,6 +184,9 @@ class GatewayClient:
             return
         msg = f"Authentication failed: {response.text}"
         raise AuthError(msg)
+
+    # ============
+    # FILE METHODS
 
     def get_file_by_id(self, uuid: str) -> bytes:
         """Retrieves a file metadata from the SDS API. Not its contents.
@@ -234,7 +237,7 @@ class GatewayClient:
             "directory": str(file_instance.directory),
             "media_type": file_instance.media_type,
             "name": file_instance.name,
-            "sum_blake3": file_instance.sum_blake3,
+            "sum_blake3": file_instance.compute_sum_blake3(),
             "permissions": file_instance.permissions,
         }
         response = self._request(
@@ -300,7 +303,7 @@ class GatewayClient:
             "media_type": file_instance.media_type,
             "name": file_instance.name,
             "permissions": file_instance.permissions,
-            "sum_blake3": file_instance.sum_blake3,
+            "sum_blake3": file_instance.compute_sum_blake3(),
             "sibling_uuid": sibling_uuid.hex,
         }
         response = self._request(
@@ -324,7 +327,7 @@ class GatewayClient:
             "media_type": file_instance.media_type,
             "name": file_instance.name,
             "permissions": file_instance.permissions,
-            "sum_blake3": file_instance.sum_blake3,
+            "sum_blake3": file_instance.compute_sum_blake3(),
         }
         assert (
             file_instance.uuid is not None
@@ -337,3 +340,6 @@ class GatewayClient:
         )
         network.success_or_raise(response=response, ContextException=FileError)
         return response.content
+
+    # ===============
+    # CAPTURE METHODS
