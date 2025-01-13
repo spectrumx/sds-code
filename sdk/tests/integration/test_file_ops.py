@@ -407,3 +407,29 @@ def test_download_single_file(
     integration_client: Client, temp_file_with_text_contents: Path, tmp_path: Path
 ) -> None:
     """Test file download from SDS."""
+    sds_path = Path("/")
+
+    # upload a test file
+    uploaded_file = integration_client.upload_file(
+        file_path=temp_file_with_text_contents,
+        sds_path=sds_path,
+    )
+    if uploaded_file is None or uploaded_file.uuid is None:
+        pytest.fail("File upload failed.")
+
+    # download that file to a different location
+    download_path = tmp_path / "downloaded_file"
+
+    try:
+        downloaded_file = integration_client.download_file(
+            file_uuid=uploaded_file.uuid, to_local_path=download_path
+        )
+        downloaded_file.is_same_contents(uploaded_file)
+
+    # cleanup
+    finally:
+        download_path.unlink(missing_ok=True)
+
+
+def test_download_files_in_bulk() -> None:
+    """Test downloading multiple files from SDS."""
