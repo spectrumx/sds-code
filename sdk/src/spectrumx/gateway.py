@@ -225,6 +225,19 @@ class GatewayClient:
                 if chunk:
                     yield chunk
 
+    def list_files(self, sds_path: Path) -> bytes:
+        """Lists files from the SDS API.
+
+        Returns:
+            The response content from SDS Gateway.
+        """
+        response = self._request(
+            method=HTTPMethods.GET,
+            endpoint=Endpoints.FILES,
+        )
+        network.success_or_raise(response, ContextException=FileError)
+        return response.content
+
     def check_file_contents_exist(self, file_instance: File) -> FileContentsCheck:
         """Checks if the file contents exist on the SDS API.
 
