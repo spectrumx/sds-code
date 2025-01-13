@@ -9,8 +9,7 @@ This script demonstrates how to interact with the SDS using the SpectrumX SDK.
 # ruff: noqa: ERA001 # commented out code
 
 from pathlib import Path
-from random import randint
-from random import random
+from random import randint, random
 
 from rich import traceback
 from spectrumx import Client
@@ -67,8 +66,8 @@ def main() -> None:
     # download all files in a directory from the SDS
     local_downloads: Path = Path("sds-downloads")
     sds.download(
-        sds_path=reference_name,  # files will be downloaded from this virtual directory
-        to=local_downloads,  # download to this location; will be created if needed
+        from_sds_path=reference_name,  # files will be downloaded from this virtual directory
+        to_local_path=local_downloads,  # download to this location; will be created if needed
         overwrite=False,  # do not overwrite local existing files (default)
         verbose=True,  # shows a progress bar (default)
     )
