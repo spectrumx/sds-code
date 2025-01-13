@@ -3,6 +3,7 @@ Tests for the high-level usage of SpectrumX client.
 """
 
 # pylint: disable=redefined-outer-name
+import json
 import tempfile
 import uuid as uuidlib
 from datetime import datetime
@@ -55,6 +56,11 @@ def download_file_endpoint(client: Client, file_id: str) -> str:
     return (
         client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/download/"
     )
+
+
+def get_file_endpoint(client: Client, file_id: str) -> str:
+    """Returns the endpoint for getting a file."""
+    return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/"
 
 
 # ------------------------
@@ -241,24 +247,47 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
     )
     num_bytes = len(long_file_contents.encode("utf-8"))
 
+    file_metadata = {
+        "uuid": file_id.hex,
+        "name": "downloaded-file.txt",
+        "media_type": "text/plain",
+        "size": num_bytes,
+        "directory": "/my/download/location",
+        "permissions": "rw-r--r--",
+        "created_at": "2024-12-01T12:00:00Z",
+        "updated_at": "2024-12-01T12:00:00Z",
+        "expiration_date": "2026-12-01T12:00:00Z",
+    }
+
+    # mock the file metadata endpoint
+    responses.add(
+        method=responses.GET,
+        url=get_file_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=json.dumps(file_metadata),
+    )
+
     # mock the file download endpoint
-    responses.get(
-        download_file_endpoint(client, file_id=file_id.hex),
+    responses.add(
+        method=responses.GET,
+        url=download_file_endpoint(client, file_id=file_id.hex),
         status=200,
         body=long_file_contents,
     )
 
     # run the test
     downloaded_file = client.download_file(file_uuid=file_id.hex)
-    assert downloaded_file.exists(), "File was not downloaded to returned path"
-    assert downloaded_file.is_file(), "Returned path must be a file"
-    assert downloaded_file.stat().st_size == num_bytes, (
+    downloaded_path = downloaded_file.local_path
+    assert downloaded_path is not None, "Returned path must not be None"
+    assert downloaded_path.exists(), "File was not downloaded to returned path"
+    assert downloaded_path.is_file(), "Returned path must be a file"
+    assert downloaded_path.stat().st_size == num_bytes, (
         f"File size must match. Got {num_bytes} B, "
         f"expected {downloaded_file.stat().st_size} B"
     )
 
     # cleanup
-    downloaded_file.unlink(missing_ok=False)
+    downloaded_path.unlink(missing_ok=False)
 
 
 def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
@@ -273,18 +302,39 @@ def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
     parent_dir = Path(tempfile.gettempdir()) / random_str
     expected_path = parent_dir / "downloaded-file.txt"
 
+    # mock the file metadata endpoint
+    file_metadata = {
+        "uuid": file_id.hex,
+        "name": expected_path.name,
+        "media_type": "text/plain",
+        "size": num_bytes,
+        "directory": "/my/download/location",
+        "permissions": "rw-r--r--",
+        "created_at": "2024-12-01T12:00:00Z",
+        "updated_at": "2024-12-01T12:00:00Z",
+        "expiration_date": "2026-12-01T12:00:00Z",
+    }
+    responses.add(
+        method=responses.GET,
+        url=get_file_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=json.dumps(file_metadata),
+    )
+
     # mock the file download endpoint
-    responses.get(
-        download_file_endpoint(client, file_id=file_id.hex),
+    responses.add(
+        method=responses.GET,
+        url=download_file_endpoint(client, file_id=file_id.hex),
         status=200,
         body=file_contents,
     )
 
     # run the test
     assert parent_dir.exists() is False, "Parent dir must not exist before test"
-    downloaded_path = client.download_file(
+    downloaded_file = client.download_file(
         file_uuid=file_id.hex, to_local_path=expected_path
     )
+    downloaded_path = downloaded_file.local_path
     assert downloaded_path == expected_path, "Returned path must match the given path"
     assert expected_path.exists(), "File was not downloaded to given path"
     assert expected_path.is_file(), "Given path must be a file"
