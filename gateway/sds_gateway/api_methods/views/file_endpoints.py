@@ -18,6 +18,7 @@ from drf_spectacular.utils import OpenApiExample
 from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
+from loguru import logger as log
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -75,6 +76,8 @@ class FileViewSet(ViewSet):
     def create(self, request: Request) -> Response:
         """Uploads a file to the server."""
 
+        log.error(request.data)
+
         serializer = FilePostSerializer(
             data=request.data,
             context={"request_user": request.user},
@@ -104,6 +107,7 @@ class FileViewSet(ViewSet):
                     # return path with user_dir as the "root"
                     rel_path = str(Path(value).relative_to(user_dir))
                     returned_object[key] = str(Path("/" + rel_path))
+                    log.error(returned_object[key])
                 else:
                     returned_object[key] = value
             return Response(returned_object, status=status.HTTP_201_CREATED)

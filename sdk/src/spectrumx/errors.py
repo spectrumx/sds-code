@@ -1,6 +1,8 @@
 """Custom exceptions for the SDS SDK."""
 
 from typing import Any
+from typing import Generic
+from typing import TypeVar
 
 
 class SDSError(Exception):
@@ -41,7 +43,10 @@ class ExperimentError(SDSError):
     """Issue interacting with an experiment in SDS."""
 
 
-class Result:
+T = TypeVar("T")
+
+
+class Result(Generic[T]):
     """Either packs a value or an exception.
 
     Call result() to get the value or raise the exception.
@@ -54,7 +59,7 @@ class Result:
 
     def __init__(
         self,
-        value: Any | None = None,
+        value: T | None = None,
         exception: Exception | None = None,
     ) -> None:
         if value is None and exception is None:
@@ -63,8 +68,8 @@ class Result:
         if value is not None and exception is not None:
             msg = "Only one of value or exception can be provided."
             raise ValueError(msg)
-        self.value = value
-        self.exception = exception
+        self.value: T = value
+        self.exception: Exception = exception
 
     def __bool__(self) -> bool:
         return self.exception is None
@@ -79,8 +84,8 @@ class Result:
     def __repr__(self) -> str:
         return self.__str__()
 
-    def __call__(self) -> Any:
+    def __call__(self) -> T:
         """Returns the value or raises the exception."""
-        if self.exception:
+        if self.exception or self.value is None:
             raise self.exception
         return self.value
