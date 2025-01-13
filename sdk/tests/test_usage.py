@@ -249,7 +249,7 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
     )
 
     # run the test
-    downloaded_file = client._download_file_contents(file_uuid=file_id.hex)
+    downloaded_file = client.download_file(file_uuid=file_id.hex)
     assert downloaded_file.exists(), "File was not downloaded to returned path"
     assert downloaded_file.is_file(), "Returned path must be a file"
     assert downloaded_file.stat().st_size == num_bytes, (
@@ -282,8 +282,8 @@ def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
 
     # run the test
     assert parent_dir.exists() is False, "Parent dir must not exist before test"
-    downloaded_path = client._download_file_contents(
-        file_uuid=file_id.hex, target_path=expected_path
+    downloaded_path = client.download_file(
+        file_uuid=file_id.hex, to_local_path=expected_path
     )
     assert downloaded_path == expected_path, "Returned path must match the given path"
     assert expected_path.exists(), "File was not downloaded to given path"

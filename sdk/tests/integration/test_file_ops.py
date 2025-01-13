@@ -10,7 +10,9 @@ import pytest
 from loguru import logger as log
 from spectrumx.client import Client
 from spectrumx.gateway import API_TARGET_VERSION
-from spectrumx.ops.files import construct_file, get_valid_files, is_valid_file
+from spectrumx.ops.files import construct_file
+from spectrumx.ops.files import get_valid_files
+from spectrumx.ops.files import is_valid_file
 from spectrumx.utils import get_random_line
 
 from tests.integration.conftest import passthru_hostnames

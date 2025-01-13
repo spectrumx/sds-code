@@ -535,5 +535,5 @@
         quote-style               = "double"
         skip-magic-trailing-comma = false
 
-    [tool.ruff.lint.isort]
-        force-single-line = true
+        [tool.ruff.lint.isort]
+            force-single-line = true

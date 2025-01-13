@@ -3,13 +3,12 @@ from pathlib import Path
 from typing import cast
 
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import (
-    OpenApiExample,
-    OpenApiParameter,
-    OpenApiResponse,
-    extend_schema,
-)
-from rest_framework import status, viewsets
+from drf_spectacular.utils import OpenApiExample
+from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiResponse
+from drf_spectacular.utils import extend_schema
+from rest_framework import status
+from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -19,13 +18,11 @@ from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
 )
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
-from sds_gateway.api_methods.helpers.reconstruct_file_tree import (
-    destroy_tree,
-    reconstruct_tree,
-)
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import destroy_tree
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
-    CaptureGetSerializer,
     CapturePostSerializer,
 )
 from sds_gateway.users.models import User
