@@ -102,14 +102,14 @@ def test_get_valid_files(temp_file_tree: Path) -> None:
     ],
     indirect=True,
 )
-def test_single_file_upload(
+def test_upload_single_file(
     integration_client: Client, temp_file_with_text_contents: Path
 ) -> None:
     """Test file upload to SDS."""
     sds_path = Path("/")
     local_file = construct_file(temp_file_with_text_contents, sds_path=sds_path)
     uploaded_file = integration_client.upload_file(
-        temp_file_with_text_contents, sds_path=sds_path
+        file_path=temp_file_with_text_contents, sds_path=sds_path
     )
     assert uploaded_file.is_sample is False, "Sample file returned."
     for attr in uploaded_file.__dict__:
@@ -144,8 +144,8 @@ def test_single_file_upload(
     ],
     indirect=True,
 )
-def test_bulk_file_upload(integration_client: Client, temp_file_tree: Path) -> None:
-    """Test file upload to SDS."""
+def test_upload_files_in_bulk(integration_client: Client, temp_file_tree: Path) -> None:
+    """Tests uploading multiple files to SDS."""
     random_subdir_name = get_random_line(10, include_punctuation=False)
     results = integration_client.upload(
         local_path=temp_file_tree,
@@ -188,7 +188,7 @@ def test_bulk_file_upload(integration_client: Client, temp_file_tree: Path) -> N
     ],
     indirect=True,
 )
-def test_large_file_upload(
+def test_upload_large_file(
     integration_client: Client,
     temp_large_binary_file: Path,
 ) -> None:
@@ -196,7 +196,7 @@ def test_large_file_upload(
     sds_path = Path("/")
     local_file = construct_file(temp_large_binary_file, sds_path=sds_path)
     uploaded_file = integration_client.upload_file(
-        temp_large_binary_file, sds_path=sds_path
+        file_path=temp_large_binary_file, sds_path=sds_path
     )
     assert uploaded_file.is_sample is False, "Sample file returned."
     assert uploaded_file is not None, "File upload failed."
@@ -230,7 +230,7 @@ def test_large_file_upload(
     ],
     indirect=True,
 )
-def test_file_content_check_non_existing(
+def test_check_file_content_non_existing(
     integration_client: Client,
     temp_large_binary_file: Path,
 ) -> None:
@@ -272,7 +272,7 @@ def test_file_content_check_non_existing(
     ],
     indirect=True,
 )
-def test_file_content_check_identical(
+def test_check_file_content_identical(
     integration_client: Client,
     temp_file_with_text_contents: Path,
 ) -> None:
@@ -283,7 +283,7 @@ def test_file_content_check_identical(
 
     # upload the file to sds
     uploaded_file = integration_client.upload_file(
-        temp_file_with_text_contents, sds_path=sds_path
+        file_path=temp_file_with_text_contents, sds_path=sds_path
     )
     assert uploaded_file.uuid is not None, "UUID not set."
     # sleep
@@ -326,7 +326,7 @@ def test_file_content_check_identical(
     ],
     indirect=True,
 )
-def test_file_content_check_name_changed(
+def test_check_file_content_name_changed(
     integration_client: Client,
     temp_file_with_text_contents: Path,
 ) -> None:
@@ -336,7 +336,7 @@ def test_file_content_check_name_changed(
 
     # upload the file to sds
     uploaded_file = integration_client.upload_file(
-        temp_file_with_text_contents, sds_path=sds_path
+        file_path=temp_file_with_text_contents, sds_path=sds_path
     )
     assert uploaded_file.uuid is not None, "UUID not set."
 
