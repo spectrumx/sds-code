@@ -1,5 +1,6 @@
 """Integration tests for file operations on SDS."""
 
+import re
 import time
 import uuid
 from pathlib import Path
@@ -15,6 +16,10 @@ from spectrumx.utils import get_random_line
 from tests.integration.conftest import passthru_hostnames
 
 BLAKE3_HEX_LEN: int = 64
+uuid_v4_regex = (
+    r"[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]"
+    r"{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}"
+)
 
 
 def test_is_valid_file_allowed(temp_file_with_text_contents) -> None:
@@ -354,6 +359,42 @@ def test_file_content_check_name_changed(
     )
 
 
+# TODO:
 # def test_file_upload_mode_skip(
 # def test_file_upload_mode_contents_and_metadata(
 # def test_file_upload_mode_metadata_only(
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    [
+        [
+            *[  # file metadata download
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file metadata download
+                re.compile(
+                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
+                )
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file content checks for upload before download
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file upload before download
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+                for hostname_and_port in passthru_hostnames
+            ],
+        ]
+    ],
+    indirect=True,
+)
+def test_download_single_file(
+    integration_client: Client, temp_file_with_text_contents: Path, tmp_path: Path
+) -> None:
+    """Test file download from SDS."""

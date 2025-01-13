@@ -1,13 +1,17 @@
 """Fixtures and utilities for integration tests."""
 
 # better traceback formatting with rich, if available
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from loguru import logger as log
 from responses import RequestsMock
 from spectrumx.client import Client
+
+if TYPE_CHECKING:
+    from re import Pattern
 
 # add more hostnames here to bypass `responses` when running integration tests.
 # these servers will receive the actual requests from integration tests:
@@ -27,14 +31,15 @@ passthru_hostnames = [
 
 @pytest.fixture
 def _integration_setup_teardown() -> Generator[None]:
+    """Fixture to set up and tear down integration tests."""
     # setup code for integration tests
-    log.debug("Setting up for integration test")
 
     # yield control to the test
     yield
 
     # teardown code for integration tests
-    log.debug("Tearing down after integration test")
+
+    return
 
 
 @pytest.fixture
@@ -63,7 +68,7 @@ def _without_responses(
 
     # setup
     responses.reset()
-    bypassed_urls = request.param
+    bypassed_urls: Sequence[str | Pattern[str]] = request.param
     log.debug("Test allowing request bypass of the URLs:")
     for url in bypassed_urls:
         log.debug(f"  - {url}")
@@ -73,7 +78,6 @@ def _without_responses(
     yield
 
     # teardown
-    log.error("Tearing down _without_responses fixture")
     responses.reset()
 
 

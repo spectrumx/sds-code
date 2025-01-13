@@ -46,6 +46,10 @@ class Result:
 
     Call result() to get the value or raise the exception.
     Truthy (`if result`) when successful, falsy when an exception occurred.
+
+    You can use a list of Result objects to quickly filter out the successful
+        ones, then log or retry them as needed, e.g.:
+        `failed_jobs = [result for result in all_jobs if not result]`.
     """
 
     def __init__(
