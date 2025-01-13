@@ -202,7 +202,7 @@ class GatewayClient:
             endpoint=Endpoints.FILES,
             asset_id=uuid,
         )
-        network.success_or_raise(response, FileError)
+        network.success_or_raise(response, ContextException=FileError)
         return response.content
 
     def get_file_contents_by_id(self, uuid: str) -> Iterator[bytes]:
