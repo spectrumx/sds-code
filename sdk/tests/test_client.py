@@ -6,10 +6,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from spectrumx.client import (
-    SDSConfig,
-    _cfg_name_lookup,  # pyright: ignore[reportPrivateUsage]
-)
+from spectrumx.client import SDSConfig
+from spectrumx.client import _cfg_name_lookup  # pyright: ignore[reportPrivateUsage]
 
 
 class LogLevels(IntEnum):

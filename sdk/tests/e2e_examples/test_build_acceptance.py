@@ -7,9 +7,11 @@ build and publishing.
 # ruff: noqa: ERA001
 
 from pathlib import Path
-from random import randint, random
+from random import randint
+from random import random
 
-from spectrumx import Client, enable_logging
+from spectrumx import Client
+from spectrumx import enable_logging
 
 
 def setup_module() -> None:
@@ -59,7 +61,7 @@ def test_basic_usage() -> None:
 
     # upload all files in a directory to the SDS
     sds.upload(
-        local_dir,  # may be a single file or a directory
+        local_path=local_dir,  # may be a single file or a directory
         sds_path=reference_name,  # files will be created under this virtual directory
         verbose=True,  # shows a progress bar (default)
     )
@@ -67,8 +69,8 @@ def test_basic_usage() -> None:
     # download all files in a directory from the SDS
     local_downloads: Path = Path("sds-downloads")
     sds.download(
-        from_sds_path=reference_name,  # files will be downloaded from this virtual directory
-        to_local_path=local_downloads,  # download to this location; will be created if needed
+        from_sds_path=reference_name,  # files will be downloaded from this virtual dir
+        to_local_path=local_downloads,  # download to this location (it may be created)
         overwrite=False,  # do not overwrite local existing files (default)
         verbose=True,  # shows a progress bar (default)
     )

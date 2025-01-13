@@ -1,7 +1,8 @@
 """Fixtures and utilities for integration tests."""
 
 # better traceback formatting with rich, if available
-from collections.abc import Generator, Sequence
+from collections.abc import Generator
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 

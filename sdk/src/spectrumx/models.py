@@ -5,7 +5,8 @@ from multiprocessing import RLock
 from multiprocessing.synchronize import RLock as RLockT
 from pathlib import Path
 
-from pydantic import UUID4, BaseModel
+from pydantic import UUID4
+from pydantic import BaseModel
 
 from . import utils
 
