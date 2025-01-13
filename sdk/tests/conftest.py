@@ -85,8 +85,8 @@ def temp_large_binary_file(
 @pytest.fixture
 def temp_file_tree(
     tmp_path: Path,
-    num_dirs: int = 4,
-    num_files_per_dir: int = 4,
+    num_dirs: int = 3,
+    num_files_per_dir: int = 3,
 ) -> Generator[Path]:
     """Fixture to create a temporary directory with files in subdirs."""
 

@@ -21,6 +21,7 @@ from pydantic import UUID4
 
 from spectrumx.errors import Result
 from spectrumx.errors import SDSError
+from spectrumx.ops.pagination import Paginator
 
 from . import __version__
 from .gateway import GatewayClient
@@ -404,6 +405,25 @@ class Client:
 
         return results
 
+    def list_files(self, sds_path: Path | str) -> Paginator[File]:
+        """Lists files in a given SDS path.
+
+        Args:
+            sds_path: The virtual directory on SDS to list files from.
+        Returns:
+            A paginator for the files in the given SDS path.
+        """
+        if self.dry_run:
+            log_user("Dry run enabled: files will be simulated")
+        pagination: Paginator[File] = Paginator(
+            gateway=self._gateway,
+            sds_path=sds_path,
+            Entry=File,
+            dry_run=self.dry_run,
+        )
+
+        return pagination
+
     def download_file(
         self,
         *,
@@ -474,7 +494,7 @@ class Client:
             downloaded_path = self._download_file_contents(
                 file_uuid=valid_uuid,
                 target_path=valid_local_path_or_none,
-                contents_lock=file_instance._contents_lock,  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
+                contents_lock=file_instance.contents_lock,  # pyright: ignore[reportPrivateUsage]
             )
             file_instance.local_path = downloaded_path
         return file_instance
@@ -522,7 +542,7 @@ class Client:
         local_path: Path | str,
         sds_path: Path | str = "/",
         verbose: bool = True,
-    ) -> list[Result]:
+    ) -> list[Result[File]]:
         """Uploads a file or directory to SDS.
 
         Args:
@@ -534,11 +554,11 @@ class Client:
         local_path = Path(local_path) if isinstance(local_path, str) else local_path
         valid_files = files.get_valid_files(local_path, warn_skipped=True)
         prog_bar = get_prog_bar(valid_files, desc="Uploading", disable=not verbose)
-        upload_results: list[Result] = []
+        upload_results: list[Result[File]] = []
         for file_path in prog_bar:
             try:
                 result = Result(
-                    value=self.upload_file(file_path=file_path, sds_path=sds_path)
+                    value=self.upload_file(local_file=file_path, sds_path=sds_path)
                 )
             except SDSError as err:
                 log_user_error(f"Upload failed: {err}")
@@ -549,34 +569,44 @@ class Client:
     def upload_file(
         self,
         *,
-        file_path: File | Path | str,
+        local_file: File | Path | str,
         sds_path: Path | str = "/",
     ) -> File:
         """Uploads a file to SDS.
 
+        If the file instance passed already has a directory set, `sds_path` will
+        be prepended. E.g. given:
+            `sds_path = 'baz'`; and
+            `local_file.directory = 'foo/bar/'`, then:
+        The file will be uploaded to `baz/foo/bar/` (under the user root in SDS) and
+            the returned file instance will have its `directory` attribute updated
+            to match this new path.
+
         Args:
-            file_path:  The local path of the file to upload.
-            sds_dir:    The virtual directory on SDS to upload the file to, \
-                        where '/' is the user root.
+            local_file:     The local file to upload.
+            sds_path:       The virtual directory on SDS to upload the file to.
         Returns:
             The file instance with updated attributes, or a sample when in dry run.
         """
         # validate inputs
-        if not isinstance(file_path, (File, Path, str)):
+        if not isinstance(local_file, (File, Path, str)):
             msg = (
                 "file_path must be a Path, str, or "
-                f"File instance, not {type(file_path)}"
+                f"File instance, not {type(local_file)}"
             )
             raise TypeError(msg)
-        file_path = Path(file_path) if isinstance(file_path, str) else file_path
-        sds_path = Path(sds_path) if isinstance(sds_path, str) else sds_path
+        local_file = Path(local_file) if isinstance(local_file, str) else local_file
+        sds_path = Path(sds_path)
 
-        # construct the file instance
-        file_instance = (
-            file_path
-            if isinstance(file_path, File)
-            else files.construct_file(file_path, sds_path=sds_path)
-        )
+        # construct the file instance if needed
+        if isinstance(local_file, File):
+            file_instance = local_file.model_copy()
+            if file_instance.directory:
+                composed_sds_path = sds_path / file_instance.directory
+                file_instance.directory = composed_sds_path
+        else:
+            file_instance = files.construct_file(local_file, sds_path=sds_path)
+        del local_file
 
         return self.__upload_file_mux(file_instance)
 
@@ -597,7 +627,7 @@ class Client:
                 log_user(f"Skipping upload of existing '{file_path}'")
                 return file_instance
             case FileUploadMode.UPLOAD_CONTENTS_AND_METADATA:
-                log_user(f"Uploading '{file_path}'")
+                log_user(f"Uploading C&M '{file_path}'")
                 file_created_response = self._gateway.upload_new_file(
                     file_instance=file_instance
                 )

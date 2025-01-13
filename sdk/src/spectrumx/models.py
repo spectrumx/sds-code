@@ -4,9 +4,12 @@ from datetime import datetime
 from multiprocessing import RLock
 from multiprocessing.synchronize import RLock as RLockT
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import UUID4
 from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
 
 from . import utils
 
@@ -39,7 +42,7 @@ class File(SDSModel):
     """
 
     created_at: datetime
-    directory: Path
+    directory: Annotated[Path, Field(default_factory=Path)]
     expiration_date: datetime | None
     media_type: str
     name: str
@@ -53,15 +56,12 @@ class File(SDSModel):
     # events and state
     _is_downloading: bool = False
     _is_uploading: bool = False
-    _contents_lock: RLockT
+    contents_lock: RLockT = Field(default_factory=RLock)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def model_post_init(self, _) -> None:
         """Post-initialization steps."""
-        # create the locks
-        self._contents_lock = RLock()
-        # standardize the directory path
-        if not self.directory.is_absolute():
-            self.directory = Path("/") / self.directory
 
     @property
     def path(self) -> Path:
@@ -93,7 +93,7 @@ class File(SDSModel):
         """
         # we deliberately don't cache the checksum because the file
         # might be changed externally by a different process or the user.
-        with self._contents_lock:
+        with self.contents_lock:
             # content downloads cannot start within this block
             if not self.is_local:
                 return None

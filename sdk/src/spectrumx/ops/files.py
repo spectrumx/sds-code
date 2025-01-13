@@ -118,7 +118,7 @@ def get_valid_files(local_path: Path, *, warn_skipped: bool = False) -> Generato
         try:
             successful_files += 1
             local_rel_path = file_path.relative_to(local_path).parent
-            yield construct_file(file_path, sds_path=local_rel_path)
+            yield construct_file(file_path=file_path, sds_path=local_rel_path)
         except FileNotFoundError:
             continue
     log_user(

@@ -4,6 +4,7 @@ import re
 import time
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -16,6 +17,9 @@ from spectrumx.ops.files import is_valid_file
 from spectrumx.utils import get_random_line
 
 from tests.integration.conftest import passthru_hostnames
+
+if TYPE_CHECKING:
+    from spectrumx.models import File
 
 BLAKE3_HEX_LEN: int = 64
 uuid_v4_regex = (
@@ -111,7 +115,7 @@ def test_upload_single_file(
     sds_path = Path("/")
     local_file = construct_file(temp_file_with_text_contents, sds_path=sds_path)
     uploaded_file = integration_client.upload_file(
-        file_path=temp_file_with_text_contents, sds_path=sds_path
+        local_file=temp_file_with_text_contents, sds_path=sds_path
     )
     assert uploaded_file.is_sample is False, "Sample file returned."
     for attr in uploaded_file.__dict__:
@@ -198,7 +202,7 @@ def test_upload_large_file(
     sds_path = Path("/")
     local_file = construct_file(temp_large_binary_file, sds_path=sds_path)
     uploaded_file = integration_client.upload_file(
-        file_path=temp_large_binary_file, sds_path=sds_path
+        local_file=temp_large_binary_file, sds_path=sds_path
     )
     assert uploaded_file.is_sample is False, "Sample file returned."
     assert uploaded_file is not None, "File upload failed."
@@ -285,7 +289,7 @@ def test_check_file_content_identical(
 
     # upload the file to sds
     uploaded_file = integration_client.upload_file(
-        file_path=temp_file_with_text_contents, sds_path=sds_path
+        local_file=temp_file_with_text_contents, sds_path=sds_path
     )
     assert uploaded_file.uuid is not None, "UUID not set."
     # sleep
@@ -338,7 +342,7 @@ def test_check_file_content_name_changed(
 
     # upload the file to sds
     uploaded_file = integration_client.upload_file(
-        file_path=temp_file_with_text_contents, sds_path=sds_path
+        local_file=temp_file_with_text_contents, sds_path=sds_path
     )
     assert uploaded_file.uuid is not None, "UUID not set."
 
@@ -383,22 +387,18 @@ def test_check_file_content_name_changed(
     "_without_responses",
     [
         [
-            *[  # file metadata download
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file metadata download
-                re.compile(
-                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
-                )
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file content checks for upload before download
+            *[  # file content checks - for uploading before download
                 f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
                 for hostname_and_port in passthru_hostnames
             ],
-            *[  # file upload before download
+            *[  # file metadata download and file upload
                 f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file content download
+                re.compile(
+                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
+                )
                 for hostname_and_port in passthru_hostnames
             ],
         ]
@@ -413,7 +413,7 @@ def test_download_single_file(
 
     # upload a test file
     uploaded_file = integration_client.upload_file(
-        file_path=temp_file_with_text_contents,
+        local_file=temp_file_with_text_contents,
         sds_path=sds_path,
     )
     if uploaded_file is None or uploaded_file.uuid is None:
@@ -433,5 +433,53 @@ def test_download_single_file(
         download_path.unlink(missing_ok=True)
 
 
-def test_download_files_in_bulk() -> None:
-    """Test downloading multiple files from SDS."""
+# def test_download_files_in_bulk() -> None:
+#     """Test downloading multiple files from SDS."""
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    [
+        [
+            *[  # file content checks - for uploading before download
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file metadata download and file upload
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file content download
+                re.compile(
+                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
+                )
+                for hostname_and_port in passthru_hostnames
+            ],
+        ]
+    ],
+    indirect=True,
+)
+def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
+    """Tests listing files in a directory on SDS."""
+    random_subdir_name = get_random_line(10, include_punctuation=False)
+    sds_path = Path("/test-tree") / random_subdir_name
+    results = integration_client.upload(
+        local_path=temp_file_tree,
+        sds_path=sds_path,
+        verbose=True,
+    )
+    log.info(f"Uploaded {len(results)} files.")
+    failures = [result for result in results if not result]
+    if failures:
+        pytest.fail(f"One or more file uploads failed: {failures}")
+    uploaded_files: list[File] = [result.value for result in results if result]
+    assert len(uploaded_files) > 0, "No files uploaded."
+
+    # list files in the directory
+    files_listed = integration_client.list_files(sds_path)
+    listed_uuids = {file.uuid for file in files_listed}
+    uploaded_uuids = {file.uuid for file in uploaded_files}
+    assert listed_uuids == uploaded_uuids, "UUIDs mismatch."

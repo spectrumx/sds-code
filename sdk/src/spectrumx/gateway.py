@@ -142,13 +142,13 @@ class GatewayClient:
         """Makes a request to the SDS API.
 
         Args:
-            method:     The HTTP method to use.
-            endpoint:   The endpoint to target.
-            asset_id:   The asset ID to target.
-            timeout:    The timeout for the request.
-            stream:     Streams the response if True.
-            url_args:   URL arguments for the request.
-            **kwargs:   Additional keyword arguments for the request e.g. URL params.
+            method:         The HTTP method to use.
+            endpoint:       The endpoint to target.
+            asset_id:       The asset ID to target.
+            timeout:        The timeout for the request.
+            stream:         Streams the response if True.
+            endpoint_args:  Arguments part of the endpoint e.g.: /path/{arg}/subpath.
+            **kwargs:       Additional arguments for the request e.g. URL params.
         Returns:
             The response from the request.
         """
@@ -156,7 +156,12 @@ class GatewayClient:
             endpoint=endpoint, asset_id=asset_id, endpoint_args=endpoint_args
         )
         if self.verbose:
-            log.debug(f"Gateway req: {method} {payload['url']}")
+            debug_str = f"GWY req: {method} {payload['url']}"
+            if "params" in kwargs:
+                debug_str += f" params={kwargs['params']}"
+            if "asset_id" in kwargs:
+                debug_str += f" asset_id={kwargs['asset_id']}"
+            log.debug(debug_str)
         return requests.request(
             timeout=self.timeout if timeout is None else timeout,
             method=method,
@@ -226,7 +231,7 @@ class GatewayClient:
                 if chunk:
                     yield chunk
 
-    def list_files(self, sds_path: Path) -> bytes:
+    def list_files(self, sds_path: Path, page: int = 1, page_size: int = 30) -> bytes:
         """Lists files from the SDS API.
 
         Returns:
@@ -235,6 +240,11 @@ class GatewayClient:
         response = self._request(
             method=HTTPMethods.GET,
             endpoint=Endpoints.FILES,
+            params={
+                "page": page,
+                "page_size": page_size,
+                "path": str(sds_path),
+            },
         )
         network.success_or_raise(response, ContextException=FileError)
         return response.content

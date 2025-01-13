@@ -161,7 +161,7 @@ def test_file_upload_returns_file(
     client.dry_run = True
     assert client.dry_run is True, "Dry run must be enabled for this test."
     file_sample = client.upload_file(
-        file_path=temp_file_with_text_contents,
+        local_file=temp_file_with_text_contents,
         sds_path=Path("/my/upload/location"),
     )
     assert (
@@ -223,7 +223,7 @@ def test_large_file_upload_mocked(
     )
     # run the test
     file_sample = client.upload_file(
-        file_path=temp_large_binary_file,
+        local_file=temp_large_binary_file,
         sds_path=Path(mocked_upload_json["directory"]),
     )
     assert file_sample.uuid == file_id, "UUID not as mocked."
@@ -398,7 +398,7 @@ def test_dry_file_upload_does_not_request(
     client.dry_run = True
     assert client.dry_run is True, "Dry run must be enabled for this test."
     _file_sample = client.upload_file(
-        file_path=temp_file_with_text_contents,
+        local_file=temp_file_with_text_contents,
         sds_path=Path("/my/upload/location"),
     )
 
