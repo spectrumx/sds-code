@@ -14,7 +14,23 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
 
     @extend_schema_field(serializers.DictField)
     def get_metadata(self, obj):
-        return retrieve_indexed_metadata(obj)
+        # Check if this is a many=True serialization
+        is_many = bool(
+            self.parent and isinstance(self.parent, serializers.ListSerializer),
+        )
+
+        if is_many and self.parent and self.parent.instance:
+            # Cache the metadata for all objects if not already done
+            if not hasattr(self.parent, "metadata_cache"):
+                self.parent.metadata_cache = retrieve_indexed_metadata(
+                    self.parent.instance,
+                    is_many=True,
+                )
+            # Return the cached metadata for this specific object
+            return self.parent.metadata_cache.get(str(obj.uuid), {})
+
+        # Single object serialization - use existing logic
+        return retrieve_indexed_metadata(obj, is_many=False)
 
     class Meta:
         model = Capture
