@@ -1,6 +1,6 @@
 import logging
 
-from opensearchpy import NotFoundError
+from opensearchpy import exceptions as os_exceptions
 
 from sds_gateway.api_methods.utils.metadata_schemas import (
     capture_metadata_fields_by_type as md_props_by_type,
@@ -66,7 +66,7 @@ def index_capture_metadata(capture, metadata):
             f"Metadata for capture '{capture.uuid}' indexed in '{capture.index_name}'."
         )
         logger.info(msg)
-    except ConnectionError as e:
+    except os_exceptions.ConnectionError as e:
         # Log the error
         msg = f"Failed to connect to OpenSearch: {e}"
         logger.exception(msg)
@@ -74,30 +74,74 @@ def index_capture_metadata(capture, metadata):
         raise
 
 
-def retrieve_indexed_metadata(capture):
+def retrieve_indexed_metadata(capture_or_captures, *, is_many: bool = False):
+    """Retrieve metadata for one or more captures.
+
+    Args:
+        capture_or_captures: Single capture or list of captures to retrieve metadata for
+        is_many: If True, this is part of a bulk request and should use mget
+    """
     try:
         client = get_opensearch_client()
 
-        # Retrieve the indexed document
-        response = client.get(index=capture.index_name, id=capture.uuid)
+        if is_many:
+            if not isinstance(capture_or_captures, list):
+                capture_or_captures = [capture_or_captures]
 
-        # Retrieve the metadata from the indexed document
+            # Build mget body for all captures
+            docs = [
+                {"_index": capture.index_name, "_id": str(capture.uuid)}
+                for capture in capture_or_captures
+            ]
+
+            if not docs:
+                return {}
+
+            # Use mget to fetch all documents in one request
+            response = client.mget(body={"docs": docs})
+
+            # If single capture was passed, return its metadata
+            if not isinstance(capture_or_captures, list):
+                doc = response["docs"][0]
+                return (
+                    doc.get("_source", {}).get("metadata", {})
+                    if doc.get("found")
+                    else {}
+                )
+
+            # For multiple captures, return a dict mapping uuid to metadata
+            return {
+                str(capture.uuid): doc.get("_source", {}).get("metadata", {})
+                for capture, doc in zip(
+                    capture_or_captures,
+                    response["docs"],
+                    strict=False,
+                )
+                if doc.get("found")
+            }
+
+        response = client.get(
+            index=capture_or_captures.index_name,
+            id=capture_or_captures.uuid,
+        )
         return response["_source"]["metadata"]
-    except NotFoundError:
+    except os_exceptions.NotFoundError:
         # Log the error
-        msg = f"Document not found in OpenSearch for capture '{capture.uuid}'"
+        msg = "Document or index not found in OpenSearch for metadata retrieval"
         logger.warning(msg)
         # Return an empty dictionary
         return {}
-    except ConnectionError as e:
+    except os_exceptions.ConnectionError as e:
         # Log the error
         msg = f"Failed to connect to OpenSearch: {e}"
         logger.exception(msg)
         # Handle the error (e.g., retry, raise an exception, etc.)
         raise
-    except Exception as e:
-        # Log the error
-        msg = f"Failed to retrieve indexed metadata for capture '{capture.uuid}': {e}"
+    except os_exceptions.RequestError as e:
+        msg = f"OpenSearch query error: {e}"
         logger.exception(msg)
-        # Handle the error (e.g., retry, raise an exception, etc.)
+        raise
+    except os_exceptions.OpenSearchException as e:
+        msg = f"OpenSearch error: {e}"
+        logger.exception(msg)
         raise
