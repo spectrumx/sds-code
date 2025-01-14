@@ -1,0 +1,334 @@
+"""Tests for capture endpoints."""
+
+from typing import cast
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from opensearchpy import exceptions as os_exceptions
+from rest_framework import status
+from rest_framework.test import APIClient, APITestCase
+from rest_framework_api_key.models import AbstractAPIKey
+
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.utils.metadata_schemas import (
+    capture_metadata_fields_by_type as md_props_by_type,
+)
+from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.users.models import UserAPIKey
+
+User = get_user_model()
+
+# Constants
+TOTAL_TEST_CAPTURES = 2
+
+
+class CaptureTestCases(APITestCase):
+    def setUp(self):
+        """Set up test data."""
+        self.client = APIClient()
+        self.user = User.objects.create(
+            email="testuser@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,  # allows creating API keys
+        )
+
+        # Create API key for authentication
+        api_key, key = UserAPIKey.objects.create_key(
+            name="test-key",
+            user=self.user,
+        )
+        self.api_key = cast(AbstractAPIKey, api_key)
+        self.key = cast(str, key)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {self.key}")
+
+        # Set up API endpoints
+        self.list_url = reverse("api:captures-list")
+        self.detail_url = lambda uuid: reverse(
+            "api:captures-detail",
+            kwargs={"pk": uuid},
+        )
+
+        # Create test captures without metadata
+        self.drf_capture = Capture.objects.create(
+            owner=self.user,
+            capture_type="drf",
+            channel="ch0",
+            top_level_dir="test-dir",
+            index_name="captures-drf",
+        )
+
+        self.rh_capture = Capture.objects.create(
+            owner=self.user,
+            capture_type="rh",
+            index_name="captures-rh",
+        )
+
+        # Define test metadata
+        self.drf_metadata = {
+            "center_freq": 2000000000,
+            "bandwidth": 20000000,
+            "gain": 20.5,
+        }
+
+        self.rh_metadata = {
+            "data_type": "periodogram",
+            "fmin": 1993000000,
+            "fmax": 2017000000,
+            "xcount": 512,
+            "sample_rate": 20000000,
+            "gain": 30.5,
+        }
+
+        # Get OpenSearch client and ensure indices exist
+        self.opensearch = get_opensearch_client()
+        self._setup_opensearch_indices()
+        self._index_test_metadata()
+
+    def _setup_opensearch_indices(self):
+        """Set up OpenSearch indices with proper mappings."""
+        for capture, metadata_type in [
+            (self.drf_capture, "drf"),
+            (self.rh_capture, "rh"),
+        ]:
+            if not self.opensearch.indices.exists(index=capture.index_name):
+                # Create mapping without supports_range field
+                mapping_properties = {}
+                for field, config in md_props_by_type[metadata_type][
+                    "index_mapping"
+                ].items():
+                    mapping_properties[field] = {"type": config["type"]}
+
+                self.opensearch.indices.create(
+                    index=capture.index_name,
+                    body={
+                        "settings": {
+                            "number_of_shards": 1,
+                            "number_of_replicas": 0,
+                        },
+                        "mappings": {
+                            "properties": {
+                                "channel": {"type": "keyword"},
+                                "capture_type": {"type": "keyword"},
+                                "created_at": {"type": "date"},
+                                "metadata": {
+                                    "type": "object",
+                                    "properties": mapping_properties,
+                                },
+                            },
+                        },
+                    },
+                )
+
+    def _index_test_metadata(self):
+        """Index test metadata into OpenSearch."""
+        # Index DRF capture metadata
+        self.opensearch.index(
+            index=self.drf_capture.index_name,
+            id=str(self.drf_capture.uuid),
+            body={
+                "channel": self.drf_capture.channel,
+                "capture_type": self.drf_capture.capture_type,
+                "created_at": self.drf_capture.created_at,
+                "metadata": self.drf_metadata,
+            },
+        )
+        # Ensure immediate visibility
+        self.opensearch.indices.refresh(index=self.drf_capture.index_name)
+
+        # Index RH capture metadata
+        self.opensearch.index(
+            index=self.rh_capture.index_name,
+            id=str(self.rh_capture.uuid),
+            body={
+                "channel": self.rh_capture.channel,
+                "capture_type": self.rh_capture.capture_type,
+                "created_at": self.rh_capture.created_at,
+                "metadata": self.rh_metadata,
+            },
+        )
+        # Ensure immediate visibility
+        self.opensearch.indices.refresh(index=self.rh_capture.index_name)
+
+    def tearDown(self):
+        """Clean up test data."""
+        super().tearDown()
+        # Delete test documents
+        for capture in [self.drf_capture, self.rh_capture]:
+            self.opensearch.delete_by_query(
+                index=capture.index_name,
+                body={"query": {"match_all": {}}},
+            )
+            self.opensearch.indices.refresh(index=capture.index_name)
+
+    def test_list_captures_200(self):
+        """Test listing captures returns metadata for all captures."""
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert len(data) == TOTAL_TEST_CAPTURES
+
+        # Verify metadata for each capture type is correctly retrieved in bulk
+        drf_capture = next(c for c in data if c["capture_type"] == "drf")
+        rh_capture = next(c for c in data if c["capture_type"] == "rh")
+
+        # Verify the metadata matches what was indexed
+        assert drf_capture["metadata"] == self.drf_metadata
+        assert rh_capture["metadata"] == self.rh_metadata
+
+        # Verify other fields are present
+        assert drf_capture["channel"] == "ch0"
+        assert drf_capture["top_level_dir"] == "test-dir"
+        assert rh_capture["channel"] == ""
+
+    def test_list_captures_by_type_200(self):
+        """Test filtering captures by type returns correct metadata."""
+        response = self.client.get(f"{self.list_url}?capture_type=drf")
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["capture_type"] == "drf"
+
+        # Verify metadata is correctly retrieved for filtered list
+        assert data[0]["metadata"] == self.drf_metadata
+        assert data[0]["channel"] == "ch0"
+
+    def test_list_captures_by_type_404(self):
+        """Test filtering captures by type that doesn't exist."""
+        response = self.client.get(f"{self.list_url}?capture_type=fake_type")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_list_captures_empty_404(self):
+        """Test list captures returns 404 when no captures exist."""
+        # Delete all captures
+        Capture.objects.all().delete()
+
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json() == {"detail": "No captures found"}
+
+    def test_retrieve_capture_200(self):
+        """Test retrieving a single capture returns full metadata."""
+        response = self.client.get(self.detail_url(self.drf_capture.uuid))
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert data["uuid"] == str(self.drf_capture.uuid)
+        assert data["capture_type"] == "drf"
+        assert data["channel"] == "ch0"
+
+        # Verify metadata is correctly retrieved for single capture
+        assert data["metadata"] == self.drf_metadata
+
+    def test_retrieve_capture_404(self):
+        """Test retrieving a non-existent capture."""
+        response = self.client.get(
+            self.detail_url("00000000-0000-0000-0000-000000000000"),
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_retrieve_not_owned_capture_404(self):
+        """Test retrieving a capture owned by another user."""
+        other_user = User.objects.create(
+            email="other@test.com",
+            password="test-pass-123",  # noqa: S106
+        )
+        other_capture = Capture.objects.create(
+            owner=other_user,
+            capture_type="drf",
+        )
+
+        response = self.client.get(self.detail_url(other_capture.uuid))
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_list_captures_no_metadata_200(self):
+        """Test listing captures when metadata is missing returns empty metadata."""
+        # Delete metadata from OpenSearch but keep the captures
+        self.opensearch.delete_by_query(
+            index=self.drf_capture.index_name,
+            body={"query": {"match_all": {}}},
+        )
+        # Ensure changes are visible
+        self.opensearch.indices.refresh(index=self.drf_capture.index_name)
+
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        drf_capture = next(c for c in data if c["capture_type"] == "drf")
+        # Verify empty metadata is returned when not found
+        assert drf_capture["metadata"] == {}
+        # Verify other fields still present
+        assert drf_capture["channel"] == "ch0"
+        assert drf_capture["capture_type"] == "drf"
+
+
+class OpenSearchErrorTestCases(APITestCase):
+    """Test cases for OpenSearch error handling in capture endpoints."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create(
+            email="testuser@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+        api_key, key = UserAPIKey.objects.create_key(
+            name="test-key",
+            user=self.user,
+        )
+
+        # Create test capture without metadata
+        self.mock_capture = Capture.objects.create(
+            owner=self.user,
+            capture_type="drf",
+            channel="ch0",
+            top_level_dir="test-dir",
+            index_name="captures-drf",
+        )
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {key}")
+        self.list_url = reverse("api:captures-list")
+
+    @patch(
+        "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
+    )
+    def test_list_captures_opensearch_connection_error(self, mock_retrieve):
+        mock_retrieve.side_effect = os_exceptions.ConnectionError(
+            "Connection refused",
+        )
+
+        response = self.client.get(self.list_url)
+        mock_retrieve.assert_called_once()
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.json() == {"detail": "OpenSearch service unavailable"}
+
+    @patch(
+        "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
+    )
+    def test_list_captures_opensearch_request_error(self, mock_retrieve):
+        mock_retrieve.side_effect = os_exceptions.RequestError(
+            "search_phase_execution_exception",
+            "Invalid query",
+            {"error": "Invalid query syntax"},
+        )
+
+        response = self.client.get(self.list_url)
+        mock_retrieve.assert_called_once()
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Invalid query" in response.json()["detail"]
+
+    @patch(
+        "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
+    )
+    def test_list_captures_opensearch_general_error(self, mock_retrieve):
+        mock_retrieve.side_effect = os_exceptions.OpenSearchException(
+            "Unknown error occurred",
+        )
+
+        response = self.client.get(self.list_url)
+        mock_retrieve.assert_called_once()
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json()["detail"] == "Unknown error occurred"
