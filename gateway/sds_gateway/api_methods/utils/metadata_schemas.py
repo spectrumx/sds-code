@@ -176,6 +176,87 @@ drf_capture_metadata_schema = {
     ],
 }
 
+rh_capture_metadata_schema = {
+    "properties": {
+        "data_type": {
+            "type": str,
+            "description": "The type of data in the capture (e.g. periodogram).",
+        },
+        "xstart": {
+            "type": int,
+            "description": "The start frequency in Hz.",
+        },
+        "fmin": {
+            "type": int,
+            "description": "The minimum frequency in Hz.",
+        },
+        "xstop": {
+            "type": int,
+            "description": "The stop frequency in Hz.",
+        },
+        "fmax": {
+            "type": int,
+            "description": "The maximum frequency in Hz.",
+        },
+        "nfft": {
+            "type": int,
+            "description": "The number of FFT points.",
+        },
+        "xcount": {
+            "type": int,
+            "description": "The number of frequency points.",
+        },
+        "gps_lock": {
+            "type": bool,
+            "description": "Whether GPS lock was achieved.",
+        },
+        "scan_time": {
+            "type": float,
+            "description": "The time taken to perform the scan in seconds.",
+        },
+        "sample_rate": {
+            "type": float,
+            "description": "The sample rate of the capture.",
+        },
+        "gain": {
+            "type": float,
+            "description": "The gain of the capture.",
+        },
+    },
+    "index_mapping": {
+        "data_type": {
+            "type": "text",
+        },
+        "fmin": {
+            "type": "integer",
+        },
+        "fmax": {
+            "type": "integer",
+        },
+        "xcount": {
+            "type": "integer",
+        },
+        "nfft": {
+            "type": "integer",
+        },
+        "sample_rate": {
+            "type": "float",
+        },
+    },
+    "required": [
+        "data_type",
+        "fmin",
+        "fmax",
+        "gps_lock",
+        "nfft",
+        "scan_time",
+        "xcount",
+        "xstart",
+        "xstop",
+    ],
+}
+
 capture_metadata_fields_by_type = {
     "drf": drf_capture_metadata_schema,
+    "rh": rh_capture_metadata_schema,
 }

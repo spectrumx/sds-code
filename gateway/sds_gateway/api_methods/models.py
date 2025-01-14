@@ -100,6 +100,7 @@ class Capture(BaseModel):
 
     CAPTURE_TYPE_CHOICES = [
         ("drf", "Digital RF"),
+        ("rh", "RadioHound"),
     ]
 
     channel = models.CharField(max_length=255, blank=True)
