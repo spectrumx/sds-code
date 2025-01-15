@@ -9,7 +9,8 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APIClient
+from rest_framework.test import APITestCase
 from rest_framework_api_key.models import AbstractAPIKey
 
 from sds_gateway.api_methods.models import File
