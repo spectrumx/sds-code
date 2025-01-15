@@ -71,8 +71,7 @@ class Paginator(Generic[T]):
         self.Entry = Entry
         self.page_size = page_size
         self.sds_path = Path(sds_path)
-        self.total_matches = total_matches if total_matches else 1
-        self.total_pages = (self.total_matches // page_size) + 1
+        self._total_matches = total_matches if total_matches else 1
 
         # internal state
         self._has_fetched = False
@@ -105,13 +104,16 @@ class Paginator(Generic[T]):
         if not self._has_fetched:
             log.info("Fetching the first page of results.")
             self._fetch_next_page()
-        return self.total_matches
+        return self._total_matches
+
+    @property
+    def _total_pages(self) -> int:
+        """Calculates the total number of pages."""
+        return (self._total_matches // self.page_size) + 1
 
     def _has_next_page(self) -> bool:
         """Checks if there is a next page available."""
-        if self._is_fetching:
-            return True
-        return self._next_page < self.total_pages
+        return self._next_page < self._total_pages
 
     def _fetch_next_page(self) -> None:
         """Fetches the next page of results."""
@@ -150,12 +152,15 @@ class Paginator(Generic[T]):
 
     def _ingest_fake_page(self) -> None:
         """Loads a fake page into memory for dry-run mode."""
-        self.total_matches = int(self.page_size * 2.5)  # targeting 3 pages
-        _remaining_matches = self.total_matches - (self._next_page * self.page_size)
+        self._total_matches = int(self.page_size * 2.5)  # targeting 3 pages
+        _remaining_matches = self._total_matches - (self._next_page * self.page_size)
+        _page_length = min(self.page_size, _remaining_matches)
+        if _remaining_matches <= 0:
+            msg = "No more entries available."
+            raise StopIteration(msg)
         if issubclass(self.Entry, files.File):
             self._current_page_entries = (
-                files.generate_sample_file(uuid.uuid4())
-                for _ in range(_remaining_matches)
+                files.generate_sample_file(uuid.uuid4()) for _ in range(_page_length)
             )
         else:
             msg = f"Dry-run mode not implemented for this entry type: {self.Entry}"
@@ -176,7 +181,7 @@ class Paginator(Generic[T]):
             msg = "Failed to load page data: expected a dictionary from JSON."
             raise TypeError(msg)
         if "count" in self._current_page_data:
-            self.total_matches = self._current_page_data["count"]
+            self._total_matches = self._current_page_data["count"]
         self._current_page_entries = (
             (
                 self.Entry(**entry_data)

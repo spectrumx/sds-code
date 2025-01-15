@@ -39,6 +39,8 @@ GitHub Actions automate code quality checks, testing, and package publishing. Se
 
 ### Local Testing
 
+Local tests do not require a deployed Gateway.
+
 ```bash
 make
 # equivalent to `make install test`
@@ -55,6 +57,9 @@ make test-verbose
 make test-all
 # `make test` + test supported python versions @ lower bound of deps. for compatibility
 # expect deprecation warnings for lower bound tests.
+
+make test-acceptance
+# runs acceptance against the source code (not the built artifact)
 
 make serve-coverage
 # serves the coverage report on localhost:8000 - run one of the test targets first

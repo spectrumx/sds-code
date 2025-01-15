@@ -12,8 +12,8 @@ from enum import Enum
 from enum import auto
 from multiprocessing.synchronize import RLock
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
-from typing import cast
 
 import dotenv
 from loguru import logger as log
@@ -33,6 +33,9 @@ from .utils import into_human_bool
 from .utils import log_user
 from .utils import log_user_error
 from .utils import log_user_warning
+
+if TYPE_CHECKING:
+    from tqdm import tqdm
 
 SDSModelT = type[SDSModel]
 AttrValueT = str | int | float | bool
@@ -356,17 +359,14 @@ class Client:
             if verbose:
                 log_user(f"Discovered {len(files_to_download)} files")
 
-        prog_bar = get_prog_bar(
+        prog_bar: tqdm[File] = get_prog_bar(
             files_to_download, desc="Downloading", disable=not verbose
         )
 
-        results: list[Result] = []
+        results: list[Result[File]] = []
         for file_info in prog_bar:
-            file_info = cast(File, file_info)
             prog_bar.set_description(f"{prefix} '{file_info.name}'")
-            local_file_path = (
-                to_local_path / (os.sep + str(file_info.directory)) / file_info.name
-            )
+            local_file_path = to_local_path / file_info.directory / file_info.name
 
             # skip download of local files (without UUID)
             if file_info.uuid is None:
@@ -483,7 +483,7 @@ class Client:
                 uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
             )
             if self.dry_run:
-                time.sleep(0.05)
+                time.sleep(0.08)
                 return files.generate_sample_file(valid_uuid)
 
             assert not self.dry_run, "Internal error: expected dry run to be disabled."
@@ -522,11 +522,11 @@ class Client:
             os.close(file_desc)
             target_path = Path(file_name)
         target_path = Path(target_path)
-        target_path.parent.mkdir(parents=True, exist_ok=True)
         uuid_to_set: UUID4 = (
             uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
         )
         if not self.dry_run:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
             with target_path.open(mode="wb") as file_ptr, contents_lock:
                 for chunk in self._gateway.get_file_contents_by_id(
                     uuid=uuid_to_set.hex

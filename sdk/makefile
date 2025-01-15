@@ -79,6 +79,7 @@ test-integration-verbose:
 		tests
 
 test-all:
+	echo -e "\n\t\033[34mRunning all local (non-integration) tests\033[0m\n"
 	echo -e "\n\t\033[34mRunning tests against the highest dep versions and generating reports\033[0m\n"
 	$(MAKE) test
 	echo -e "\n\t\033[34mRunning tests against the lowest dep versions vs. all supported python versions\033[0m\n"
@@ -88,6 +89,10 @@ test-all:
 	done
 	echo -e "\n\t\033[34mRestoring highest dep versions\033[0m\n"
 	uv sync --resolution highest --dev
+
+check-acceptance:
+	echo -e "\n\t\033[34mRunning acceptance checks using current environment \033[33m(NOT BUILT ARTIFACT)\033[0m\n"
+	uv run -p $(PYTHON_VERSION) tests/e2e_examples/check_build_acceptance.py
 
 serve-coverage:
 	python -m http.server 1313 -d tests/htmlcov
