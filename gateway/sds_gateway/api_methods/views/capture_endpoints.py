@@ -111,6 +111,10 @@ class CaptureViewSet(viewsets.ViewSet):
                 cur_file.capture = capture
                 cur_file.save()
 
+            if not isinstance(channel, str):
+                msg = "Channel must be a string."
+                return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
             validated_metadata = validate_metadata_by_channel(tmp_dir_path, channel)
             index_capture_metadata(capture, validated_metadata)
             destroy_tree(temp_dir)
@@ -168,15 +172,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 required=False,
                 description="Type of capture to filter by (e.g. 'drf')",
             ),
-            OpenApiParameter(
-                name="metadata",
-                type=OpenApiTypes.OBJECT,
-                location=OpenApiParameter.QUERY,
-                required=False,
-                description=(
-                    "Metadata fields to filter by, must be valid for the capture type"
-                ),
-            ),
         ],
         responses={
             200: CaptureGetSerializer,
@@ -209,6 +204,11 @@ class CaptureViewSet(viewsets.ViewSet):
                     status=status.HTTP_404_NOT_FOUND,
                 )
             return Response(data)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except os_exceptions.ConnectionError:
             return Response(
                 {"detail": "OpenSearch service unavailable"},
