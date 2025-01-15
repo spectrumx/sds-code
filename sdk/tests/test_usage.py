@@ -143,7 +143,7 @@ def test_file_get_returns_valid(
     assert file_sample.name.startswith("dry-run-")
     assert file_sample.media_type == "text/plain"
     assert file_sample.size == file_size
-    assert file_sample.directory == Path("/sds-files/dry-run/")
+    assert file_sample.directory == Path("sds-files/dry-run/")
     assert file_sample.permissions == "rw-rw-r--"
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
