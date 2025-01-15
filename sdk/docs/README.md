@@ -8,7 +8,6 @@
     + [Installation](#installation)
     + [Basic Usage](#basic-usage)
     + [Error Handling](#error-handling)
-    + [Full example (not implemented)](#full-example-not-implemented)
 
 The Spectrum Data System (SDS) SDK is a Python package that provides a simple interface for interacting with the SDS Gateway. The SDK is designed to be easy to use and to provide a high-level interface for common tasks, such as uploading and downloading files, searching for files, and managing RF datasets.
 
@@ -142,61 +141,4 @@ while not is_success and retries_left > 0:
         #   if listed files cannot be found.
         # TODO: take action or break
         break
-```
-
-## Full example (not implemented)
-
-> [!WARNING]
->
-> The basic functionality in the example below may not be implemented in early
-> versions of the SDK and is subject to change before a stable v1.0 release.
-
-```python
-from spectrumx import Client
-from spectrumx.models import Capture, Dataset
-from pathlib import Path
-
-sds = Client(
-    host="sds.crc.nd.edu"
-)
-
-# authenticate using either the token from
-# the .env file or in the config passed in
-sds.authenticate()
-
-# get list of datasets available
-print("Dataset name | Dataset ID")
-for dataset in sds.datasets():
-    print(f"{dataset.name} | {dataset.id}")
-
-# download a dataset to a local directory
-local_downloads = Path("datasets")
-most_recent_dataset: Dataset = sds.datasets()[0]
-most_recent_dataset.download_assets(
-    to=local_downloads, # download to this location + dataset_name
-    overwrite=False,    # do not overwrite local files (default)
-    verbose=True,       # shows a progress bar (default)
-)
-
-# search for capture files between two frequencies and dates
-# a "capture" represents a file in the SDS in a known format, such
-# as a Digital RF archive or SigMF file.
-start_time = datetime.datetime(2024, 1, 1, 0, 0, 0)
-end_time = datetime.datetime(2024, 1, 2, 0, 0, 0)
-captures = sds.search(
-    asset_type=Capture,
-    center_freq_range=(3e9, 5e9), # between 3 and 5 GHz
-    capture_time_range=(start_time, end_time),
-    # additional arguments work as "and" filters
-)
-for capture in captures:
-    print(capture.id)
-    capture.download(
-        to=local_downloads / "search_results",
-        overwrite=False,
-        verbose=True,
-    )
-
-# fetch a dataset by its ID
-dataset = Dataset.get(sds, dataset_id="dataset-id")
 ```
