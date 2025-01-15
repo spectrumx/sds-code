@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from spectrumx.client import SDSConfig
-from spectrumx.client import _cfg_name_lookup  # pyright: ignore[reportPrivateUsage]
+from spectrumx.config import SDSConfig
+from spectrumx.config import _cfg_name_lookup  # pyright: ignore[reportPrivateUsage]
 
 
 class LogLevels(IntEnum):
@@ -58,9 +58,9 @@ def test_load_config_from_args(sample_config: dict[str, Any]) -> None:
         )
         expected_value = value
         actual_value = getattr(config, norm_key)
-        assert expected_value == actual_value, (
-            f"Expected {expected_value}, got {actual_value}"
-        )
+        assert (
+            expected_value == actual_value
+        ), f"Expected {expected_value}, got {actual_value}"
 
 
 def test_show_config_does_not_expose_api_key(
