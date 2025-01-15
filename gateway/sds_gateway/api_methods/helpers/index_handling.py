@@ -1,7 +1,10 @@
 import logging
+from typing import Any
 
+from opensearchpy import OpenSearch
 from opensearchpy import exceptions as os_exceptions
 
+from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.utils.metadata_schemas import (
     capture_metadata_fields_by_type as md_props_by_type,
 )
@@ -11,7 +14,7 @@ from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_clien
 logger = logging.getLogger(__name__)
 
 
-def create_index(client, index_name, capture_type):
+def create_index(client: OpenSearch, index_name: str, capture_type: str):
     try:
         # Define the index settings and mappings
         index_body = {
@@ -40,7 +43,7 @@ def create_index(client, index_name, capture_type):
         raise
 
 
-def index_capture_metadata(capture, metadata):
+def index_capture_metadata(capture: Capture, metadata: dict[str, Any]):
     try:
         client = get_opensearch_client()
 
@@ -74,7 +77,11 @@ def index_capture_metadata(capture, metadata):
         raise
 
 
-def retrieve_indexed_metadata(capture_or_captures, *, is_many: bool = False):
+def retrieve_indexed_metadata(
+    capture_or_captures: Capture | list[Any],
+    *,
+    is_many: bool = False,
+) -> dict[str, Any]:
     """Retrieve metadata for one or more captures.
 
     Args:
@@ -85,8 +92,10 @@ def retrieve_indexed_metadata(capture_or_captures, *, is_many: bool = False):
         client = get_opensearch_client()
 
         if is_many:
+            # Raise error if not a list
             if not isinstance(capture_or_captures, list):
-                capture_or_captures = [capture_or_captures]
+                msg = "capture_or_captures must be a list when is_many is True"
+                raise ValueError(msg)
 
             # Build mget body for all captures
             docs = [
@@ -99,15 +108,6 @@ def retrieve_indexed_metadata(capture_or_captures, *, is_many: bool = False):
 
             # Use mget to fetch all documents in one request
             response = client.mget(body={"docs": docs})
-
-            # If single capture was passed, return its metadata
-            if not isinstance(capture_or_captures, list):
-                doc = response["docs"][0]
-                return (
-                    doc.get("_source", {}).get("metadata", {})
-                    if doc.get("found")
-                    else {}
-                )
 
             # For multiple captures, return a dict mapping uuid to metadata
             return {

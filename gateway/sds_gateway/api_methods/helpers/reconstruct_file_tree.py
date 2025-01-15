@@ -51,6 +51,6 @@ def reconstruct_tree(
     return reconstructed_root, files_to_connect
 
 
-def destroy_tree(temp_dir):
+def destroy_tree(temp_dir: str):
     # Remove the directory and its contents
     shutil.rmtree(temp_dir)
