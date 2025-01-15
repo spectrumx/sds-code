@@ -2,7 +2,8 @@
 
 import logging
 import uuid
-from pathlib import Path, PurePosixPath
+from pathlib import Path
+from pathlib import PurePosixPath
 
 from django.http import QueryDict
 from loguru import logger as log
