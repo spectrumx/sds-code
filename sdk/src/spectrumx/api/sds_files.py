@@ -59,8 +59,8 @@ def get_file(client: Client, file_uuid: UUID4 | str) -> File:
 
 
 def download_file(
-    client: Client,
     *,
+    client: Client,
     file_instance: File | None = None,
     file_uuid: UUID4 | str | None = None,
     to_local_path: Path | str | None = None,
@@ -156,7 +156,9 @@ def _download_file_contents(
     return target_path
 
 
-def list_files(client: Client, sds_path: Path | str) -> Paginator[File]:
+def list_files(
+    *, client: Client, sds_path: Path | str, verbose: bool = False
+) -> Paginator[File]:
     """Lists files in a given SDS path.
 
     Args:
@@ -171,6 +173,7 @@ def list_files(client: Client, sds_path: Path | str) -> Paginator[File]:
         sds_path=sds_path,
         Entry=File,
         dry_run=client.dry_run,
+        verbose=verbose,
     )
 
     return pagination
@@ -218,7 +221,7 @@ def upload_file(
     return __upload_file_mux(client=client, file_instance=file_instance)
 
 
-def __upload_file_mux(client: Client, file_instance: File) -> File:
+def __upload_file_mux(*, client: Client, file_instance: File) -> File:
     """Uploads a file instance to SDS, choosing the right upload mode."""
     file_path = file_instance.local_path
     # check whether sds already has this file for this user
@@ -262,7 +265,7 @@ def __upload_file_mux(client: Client, file_instance: File) -> File:
 
 
 def __update_existing_file_metadata_only(
-    client: Client, file_instance: File, asset_id: UUID4 | None
+    *, client: Client, file_instance: File, asset_id: UUID4 | None
 ) -> File:
     """UPDATES an existing file instance with new metadata.
 
@@ -298,7 +301,7 @@ def __update_existing_file_metadata_only(
 
 
 def __upload_new_file_metadata_only(
-    client: Client, file_instance: File, sibling_uuid: UUID4
+    *, client: Client, file_instance: File, sibling_uuid: UUID4
 ) -> File:
     """UPLOADS a new file instance to SDS, skipping the file contents.
 
@@ -327,7 +330,7 @@ def __upload_new_file_metadata_only(
 
 
 def __get_upload_mode_and_asset(
-    client: Client, file_instance: File
+    *, client: Client, file_instance: File
 ) -> tuple[FileUploadMode, uuid.UUID | None]:
     """Determines how to upload a file into SDS.
 

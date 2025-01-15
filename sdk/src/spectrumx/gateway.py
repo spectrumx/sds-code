@@ -134,9 +134,10 @@ class GatewayClient:
         endpoint: Endpoints,
         *,
         asset_id: None | str = None,
-        timeout: None | int = None,
-        stream: bool = False,
         endpoint_args: None | dict[str, Any] = None,
+        stream: bool = False,
+        timeout: None | int = None,
+        verbose: bool = False,
         **kwargs,
     ) -> requests.Response:
         """Makes a request to the SDS API.
@@ -145,9 +146,10 @@ class GatewayClient:
             method:         The HTTP method to use.
             endpoint:       The endpoint to target.
             asset_id:       The asset ID to target.
-            timeout:        The timeout for the request.
-            stream:         Streams the response if True.
             endpoint_args:  Arguments part of the endpoint e.g.: /path/{arg}/subpath.
+            stream:         Streams the response if True.
+            timeout:        The timeout for the request.
+            verbose:        Whether to log the request.
             **kwargs:       Additional arguments for the request e.g. URL params.
         Returns:
             The response from the request.
@@ -155,7 +157,7 @@ class GatewayClient:
         payload = self.get_default_payload(
             endpoint=endpoint, asset_id=asset_id, endpoint_args=endpoint_args
         )
-        if self.verbose:
+        if self.verbose or verbose:
             debug_str = f"GWY req: {method} {payload['url']}"
             if "params" in kwargs:
                 debug_str += f" params={kwargs['params']}"
@@ -180,10 +182,12 @@ class GatewayClient:
         """Returns the base URL for the SDS API, without the port."""
         return f"{self.protocol}://{self.host}"
 
-    def authenticate(self) -> None:
+    def authenticate(self, *, verbose: bool = False) -> None:
         """Authenticates the client with the SDS API."""
         assert self._api_key is not None, "API key is required for authentication."
-        response = self._request(method=HTTPMethods.GET, endpoint=Endpoints.AUTH)
+        response = self._request(
+            method=HTTPMethods.GET, endpoint=Endpoints.AUTH, verbose=verbose
+        )
         status = HTTPStatus(response.status_code)
         log.debug(f"Authentication response: {status}")
         if status.is_success:
@@ -194,7 +198,7 @@ class GatewayClient:
     # ============
     # FILE METHODS
 
-    def get_file_by_id(self, uuid: str) -> bytes:
+    def get_file_by_id(self, uuid: str, *, verbose: bool = False) -> bytes:
         """Retrieves a file metadata from the SDS API. Not its contents.
 
         Args:
@@ -206,11 +210,14 @@ class GatewayClient:
             method=HTTPMethods.GET,
             endpoint=Endpoints.FILES,
             asset_id=uuid,
+            verbose=verbose,
         )
         network.success_or_raise(response, ContextException=FileError)
         return response.content
 
-    def get_file_contents_by_id(self, uuid: str) -> Iterator[bytes]:
+    def get_file_contents_by_id(
+        self, uuid: str, *, verbose: bool = False
+    ) -> Iterator[bytes]:
         """Retrieves file contents from the SDS API.
 
         Args:
@@ -225,13 +232,21 @@ class GatewayClient:
             endpoint=Endpoints.FILE_DOWNLOAD,
             method=HTTPMethods.GET,
             stream=True,
+            verbose=verbose,
         ) as stream:
             network.success_or_raise(stream, ContextException=FileError)
             for chunk in stream.iter_content(chunk_size=chunk_size):
                 if chunk:
                     yield chunk
 
-    def list_files(self, sds_path: Path, page: int = 1, page_size: int = 30) -> bytes:
+    def list_files(
+        self,
+        *,
+        sds_path: Path,
+        page: int = 1,
+        page_size: int = 30,
+        verbose: bool = False,
+    ) -> bytes:
         """Lists files from the SDS API.
 
         Returns:
@@ -245,11 +260,17 @@ class GatewayClient:
                 "page_size": page_size,
                 "path": str(sds_path),
             },
+            verbose=verbose,
         )
         network.success_or_raise(response, ContextException=FileError)
         return response.content
 
-    def check_file_contents_exist(self, file_instance: File) -> FileContentsCheck:
+    def check_file_contents_exist(
+        self,
+        file_instance: File,
+        *,
+        verbose: bool = False,
+    ) -> FileContentsCheck:
         """Checks if the file contents exist on the SDS API.
 
         Args:
@@ -268,11 +289,12 @@ class GatewayClient:
             method=HTTPMethods.POST,
             endpoint=Endpoints.FILE_CONTENTS_CHECK,
             data=payload,
+            verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=FileError)
         return FileContentsCheck(**response.json())
 
-    def upload_new_file(self, file_instance: File) -> bytes:
+    def upload_new_file(self, file_instance: File, *, verbose: bool = False) -> bytes:
         """Uploads a local file to the SDS API.
 
         Uploads file contents and metadata.
@@ -299,6 +321,7 @@ class GatewayClient:
                 files={
                     "file": file_ptr,  # request.data['file'] on the server
                 },
+                verbose=verbose,
             ) as stream,
         ):
             network.success_or_raise(response=stream, ContextException=FileError)
@@ -309,7 +332,11 @@ class GatewayClient:
         return all_chunks
 
     def upload_new_file_metadata_only(
-        self, file_instance: File, sibling_uuid: uuid.UUID
+        self,
+        file_instance: File,
+        sibling_uuid: uuid.UUID,
+        *,
+        verbose: bool = False,
     ) -> bytes:
         """UPLOADS a new file to the SDS API without its contents.
 
@@ -319,6 +346,7 @@ class GatewayClient:
         Args:
             file_instance: The file to upload, as a models.File instance.
             sibling_uuid:  The UUID of the sibling file.
+            verbose:       Whether to log the request.
         Returns:
             The response content from SDS Gateway.
         """
@@ -334,15 +362,19 @@ class GatewayClient:
             method=HTTPMethods.POST,
             endpoint=Endpoints.FILES,
             data=payload,
+            verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=FileError)
         return response.content
 
-    def update_existing_file_metadata(self, file_instance: File) -> bytes:
+    def update_existing_file_metadata(
+        self, file_instance: File, *, verbose: bool = False
+    ) -> bytes:
         """UPDATES an existing file's metadata to the SDS API.
 
         Args:
             file_instance:  The file to update, as a models.File instance.
+            verbose:        Whether to log the request.
         Returns:
             The response content from SDS Gateway.
         """
@@ -353,14 +385,15 @@ class GatewayClient:
             "permissions": file_instance.permissions,
             "sum_blake3": file_instance.compute_sum_blake3(),
         }
-        assert (
-            file_instance.uuid is not None
-        ), "File UUID is required for metadata update."
+        assert file_instance.uuid is not None, (
+            "File UUID is required for metadata update."
+        )
         response = self._request(
             asset_id=file_instance.uuid.hex,
             data=payload,
             endpoint=Endpoints.FILES,
             method=HTTPMethods.PUT,
+            verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=FileError)
         return response.content

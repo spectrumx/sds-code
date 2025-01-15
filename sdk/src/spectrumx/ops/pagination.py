@@ -46,6 +46,7 @@ class Paginator(Generic[T]):
         page_size: int = 30,
         start_page: int = 1,
         total_matches: int | None = None,
+        verbose: bool = False,
     ) -> None:
         if page_size <= 0:
             msg = "Page size must be a positive integer."
@@ -65,13 +66,14 @@ class Paginator(Generic[T]):
         if not issubclass(Entry, SDSModel):
             msg = "Entry must be a subclass of SDSModel."
             raise TypeError(msg)
+        self.dry_run = dry_run
+        self._Entry = Entry
         self._gateway = gateway
         self._next_page = start_page
-        self.dry_run = dry_run
-        self.Entry = Entry
-        self.page_size = page_size
-        self.sds_path = Path(sds_path)
+        self._page_size = page_size
+        self._sds_path = Path(sds_path)
         self._total_matches = total_matches if total_matches else 1
+        self._verbose: bool = verbose
 
         # internal state
         self._has_fetched = False
@@ -109,11 +111,13 @@ class Paginator(Generic[T]):
     @property
     def _total_pages(self) -> int:
         """Calculates the total number of pages."""
-        return (self._total_matches // self.page_size) + 1
+        return (self._total_matches // self._page_size) + 1
 
     def _has_next_page(self) -> bool:
         """Checks if there is a next page available."""
-        return self._next_page < self._total_pages
+        has_not_fetched = not self._has_fetched
+        has_pages_left = self._next_page <= self._total_pages
+        return has_not_fetched or has_pages_left
 
     def _fetch_next_page(self) -> None:
         """Fetches the next page of results."""
@@ -133,9 +137,10 @@ class Paginator(Generic[T]):
                 # try to fetch the next page
                 try:
                     raw_page = self._gateway.list_files(
-                        sds_path=self.sds_path,
+                        sds_path=self._sds_path,
                         page=self._next_page,
-                        page_size=self.page_size,
+                        page_size=self._page_size,
+                        verbose=self._verbose,
                     )
                     self._ingest_new_page(raw_page)
                 except FileError as err:
@@ -152,18 +157,18 @@ class Paginator(Generic[T]):
 
     def _ingest_fake_page(self) -> None:
         """Loads a fake page into memory for dry-run mode."""
-        self._total_matches = int(self.page_size * 2.5)  # targeting 3 pages
-        _remaining_matches = self._total_matches - (self._next_page * self.page_size)
-        _page_length = min(self.page_size, _remaining_matches)
+        self._total_matches = int(self._page_size * 2.5)  # targeting 3 pages
+        _remaining_matches = self._total_matches - (self._next_page * self._page_size)
+        _page_length = min(self._page_size, _remaining_matches)
         if _remaining_matches <= 0:
             msg = "No more entries available."
             raise StopIteration(msg)
-        if issubclass(self.Entry, files.File):
+        if issubclass(self._Entry, files.File):
             self._current_page_entries = (
                 files.generate_sample_file(uuid.uuid4()) for _ in range(_page_length)
             )
         else:
-            msg = f"Dry-run mode not implemented for this entry type: {self.Entry}"
+            msg = f"Dry-run mode not implemented for this entry type: {self._Entry}"
             raise NotImplementedError(msg)
 
     def _ingest_new_page(self, raw_page: bytes) -> None:
@@ -184,7 +189,7 @@ class Paginator(Generic[T]):
             self._total_matches = self._current_page_data["count"]
         self._current_page_entries = (
             (
-                self.Entry(**entry_data)
+                self._Entry(**entry_data)
                 for entry_data in self._current_page_data["results"]
             )
             if "results" in self._current_page_data

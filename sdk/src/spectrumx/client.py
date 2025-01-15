@@ -412,15 +412,20 @@ class Client:
 
         return results
 
-    def list_files(self, sds_path: Path | str) -> Paginator[File]:
+    def list_files(
+        self, sds_path: Path | str, *, verbose: bool = False
+    ) -> Paginator[File]:
         """Lists files in a given SDS path.
 
         Args:
             sds_path: The virtual directory on SDS to list files from.
+            verbose:  Show network requests and other info.
         Returns:
             A paginator for the files in the given SDS path.
         """
-        return self._sds_files.list_files(client=self, sds_path=sds_path)
+        return self._sds_files.list_files(
+            client=self, sds_path=sds_path, verbose=verbose
+        )
 
     def download_file(
         self,
