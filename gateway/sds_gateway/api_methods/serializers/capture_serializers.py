@@ -10,10 +10,10 @@ from sds_gateway.api_methods.serializers.user_serializer import UserGetSerialize
 
 class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     owner = UserGetSerializer()
-    metadata = serializers.SerializerMethodField()
+    capture_props = serializers.SerializerMethodField()
 
     @extend_schema_field(serializers.DictField)
-    def get_metadata(self, obj):
+    def get_capture_props(self, obj):
         # Check if this is a many=True serialization
         is_many = bool(
             self.parent and isinstance(self.parent, serializers.ListSerializer),
@@ -23,20 +23,20 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             return retrieve_indexed_metadata(obj, is_many=False)
 
         # Cache the metadata for all objects if not already done
-        if not hasattr(self.parent, "metadata_cache"):
+        if not hasattr(self.parent, "capture_props_cache"):
             # Convert QuerySet to list if needed
             instances = (
                 list(self.parent.instance)
                 if self.parent and hasattr(self.parent.instance, "__iter__")
                 else [self.parent.instance if self.parent else obj]
             )
-            self.parent.metadata_cache = retrieve_indexed_metadata(
+            self.parent.capture_props_cache = retrieve_indexed_metadata(
                 instances,
                 is_many=True,
             )
 
         # Return the cached metadata for this specific object
-        return self.parent.metadata_cache.get(str(obj.uuid), {})
+        return self.parent.capture_props_cache.get(str(obj.uuid), {})
 
     class Meta:
         model = Capture

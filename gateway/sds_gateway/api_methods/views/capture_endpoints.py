@@ -152,6 +152,7 @@ class CaptureViewSet(viewsets.ViewSet):
             Capture,
             pk=pk,
             owner=request.user,
+            is_deleted=False,
         )
         serializer = CaptureGetSerializer(target_capture, many=False)
         return Response(serializer.data)
@@ -180,8 +181,8 @@ class CaptureViewSet(viewsets.ViewSet):
         # Get capture type from query params
         capture_type = request.GET.get("capture_type", None)
 
-        # Start with base queryset filtered by user
-        captures = Capture.objects.filter(owner=request.user)
+        # Start with base queryset filtered by user and not deleted
+        captures = Capture.objects.filter(owner=request.user, is_deleted=False)
 
         # Filter by capture type if provided
         if capture_type:
