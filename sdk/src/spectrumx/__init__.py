@@ -62,8 +62,8 @@ def enable_logging() -> None:
 # package exports
 
 __all__ = [
-    "__version__",
     "Client",
+    "__version__",
     "enable_logging",
     "models",
 ]

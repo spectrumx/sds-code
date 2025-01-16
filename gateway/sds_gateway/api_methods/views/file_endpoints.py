@@ -7,7 +7,7 @@ from typing import cast
 
 from django.conf import settings
 from django.db.models import CharField
-from django.db.models import F as FExpression  # noqa: N811
+from django.db.models import F as FExpression
 from django.db.models import Value as WrappedValue
 from django.db.models.functions import Concat
 from django.http import HttpResponse

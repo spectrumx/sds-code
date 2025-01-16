@@ -147,9 +147,9 @@ def test_file_get_returns_valid(
     assert file_sample.permissions == "rw-rw-r--"
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
-    assert isinstance(
-        file_sample.expiration_date, datetime
-    ), "Expiration date should be a datetime"
+    assert isinstance(file_sample.expiration_date, datetime), (
+        "Expiration date should be a datetime"
+    )
     assert file_sample.expiration_date > file_sample.created_at
 
 
@@ -164,12 +164,12 @@ def test_file_upload_returns_file(
         local_file=temp_file_with_text_contents,
         sds_path=Path("/my/upload/location"),
     )
-    assert (
-        file_sample.is_sample is False
-    ), "The file must be a real file on disk (not a sample), even for this test"  # pyright: ignore[reportPrivateUsage]
-    assert (
-        temp_file_with_text_contents == file_sample.local_path
-    ), "Local path does not match"
+    assert file_sample.is_sample is False, (
+        "The file must be a real file on disk (not a sample), even for this test"
+    )  # pyright: ignore[reportPrivateUsage]
+    assert temp_file_with_text_contents == file_sample.local_path, (
+        "Local path does not match"
+    )
     assert file_sample.uuid is None, "A local file must not have a UUID"
     assert file_sample.name is not None, "Expected a file name"
     assert file_sample.media_type == "text/plain", "Expected media type 'text/plain'"
@@ -181,9 +181,9 @@ def test_file_upload_returns_file(
     assert file_sample.permissions == "rw-r--r--"
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
-    assert (
-        file_sample.expiration_date is None
-    ), "Local files should not have an expiration date"
+    assert file_sample.expiration_date is None, (
+        "Local files should not have an expiration date"
+    )
 
 
 def test_large_file_upload_mocked(

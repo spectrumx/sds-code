@@ -385,9 +385,9 @@ class GatewayClient:
             "permissions": file_instance.permissions,
             "sum_blake3": file_instance.compute_sum_blake3(),
         }
-        assert (
-            file_instance.uuid is not None
-        ), "File UUID is required for metadata update."
+        assert file_instance.uuid is not None, (
+            "File UUID is required for metadata update."
+        )
         response = self._request(
             asset_id=file_instance.uuid.hex,
             data=payload,

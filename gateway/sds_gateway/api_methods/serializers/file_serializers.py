@@ -121,7 +121,7 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
             )
 
         # ensure the resolved path is within the user's files directory
-        validated_data["directory"] = f"{user_files_dir}{validated_data["directory"]}/"
+        validated_data["directory"] = f"{user_files_dir}{validated_data['directory']}/"
         resolved_dir = Path(validated_data["directory"]).resolve(strict=False)
         resolved_user_files_dir = Path(user_files_dir).resolve(strict=False)
         if not resolved_dir.is_relative_to(resolved_user_files_dir):

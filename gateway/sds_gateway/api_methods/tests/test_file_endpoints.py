@@ -109,9 +109,9 @@ class FileTestCases(APITestCase):
         response = client.get(
             reverse("api:files-detail", args=[self.file.uuid]),
         )
-        assert (
-            response.status_code == status.HTTP_404_NOT_FOUND
-        ), f"Expected 404, got {response.status_code}"
+        assert response.status_code == status.HTTP_404_NOT_FOUND, (
+            f"Expected 404, got {response.status_code}"
+        )
 
     def test_retrieve_owned_file_200(self) -> None:
         """A user should see a file that they own."""
@@ -136,9 +136,9 @@ class FileTestCases(APITestCase):
         response = client.get(
             reverse("api:files-detail", args=[_file_created.uuid]),
         )
-        assert (
-            response.status_code == status.HTTP_200_OK
-        ), f"Expected 200, got {response.status_code}"
+        assert response.status_code == status.HTTP_200_OK, (
+            f"Expected 200, got {response.status_code}"
+        )
 
     def test_retrieve_latest_file_not_owned_404(self) -> None:
         """A user should not see the latest file that they do not own."""
@@ -157,9 +157,9 @@ class FileTestCases(APITestCase):
             self.list_url,
             data={"path": self.file.directory},
         )
-        assert (
-            response.status_code == status.HTTP_404_NOT_FOUND
-        ), f"Expected 404, got {response.status_code}"
+        assert response.status_code == status.HTTP_404_NOT_FOUND, (
+            f"Expected 404, got {response.status_code}"
+        )
 
     def test_retrieve_latest_file_owned_200(self) -> None:
         """A user should see the latest file that they own."""
@@ -185,14 +185,14 @@ class FileTestCases(APITestCase):
             self.list_url,
             data={"path": _file_created.directory},
         )
-        assert (
-            response.status_code == status.HTTP_200_OK
-        ), f"Expected 200, got {response.status_code}"
+        assert response.status_code == status.HTTP_200_OK, (
+            f"Expected 200, got {response.status_code}"
+        )
         file_returned = response.data
         assert file_returned, "Expected a file to be returned"
-        assert (
-            file_returned.get("owner").get("email") == user.email
-        ), f"Expected {user.email}, got {file_returned.get('owner').get('email')}"
+        assert file_returned.get("owner").get("email") == user.email, (
+            f"Expected {user.email}, got {file_returned.get('owner').get('email')}"
+        )
 
     def test_update_file(self) -> None:
         data = {
