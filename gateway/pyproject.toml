@@ -451,9 +451,10 @@
 
     [tool.ruff.lint]
         ignore = [
+            "N811",   # Constant imports aliased to non-constant-style names (false positives with django)
+            "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
             "S101",   # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
             "S104",   # Possible binding to all interfaces
-            "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
             "SIM102", # sometimes it's better to nest
             "UP038",  # Checks for uses of isinstance/issubclass that take a tuple
             # of types for comparison.
