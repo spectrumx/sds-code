@@ -35,9 +35,9 @@ def test_file_created(file_properties: dict[str, Any]) -> None:
         **file_properties,
     )
     for key, value in file_properties.items():
-        assert (
-            getattr(new_file, key) == value
-        ), f"{key} does not match: {getattr(new_file, key)} != {value}"
+        assert getattr(new_file, key) == value, (
+            f"{key} does not match: {getattr(new_file, key)} != {value}"
+        )
 
 
 def test_file_path(file_properties: dict[str, Any]) -> None:
