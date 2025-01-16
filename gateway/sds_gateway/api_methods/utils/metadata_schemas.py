@@ -1,4 +1,6 @@
 # ruff: noqa: E501
+# for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/digital-rf/README.md
+# the mapping below is used for drf capture metadata parsing in extract_drf_metadata.py
 drf_capture_metadata_schema = {
     "properties": {
         "H5Tget_class": {
@@ -118,7 +120,6 @@ drf_capture_metadata_schema = {
             "description": "Custom attributes of the capture.",
         },
     },
-    # fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
     "required": [
         "H5Tget_class",
         "H5Tget_size",
@@ -147,6 +148,7 @@ drf_capture_metadata_schema = {
     ],
 }
 
+# fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
 drf_capture_index_mapping = {
     "sample_rate_numerator": {
         "type": "integer",
@@ -177,6 +179,8 @@ drf_capture_index_mapping = {
     },
 }
 
+# for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/radiohound/v0/schema.json
+# full mapping is not used in this repo, but is provided here for reference
 rh_capture_index_mapping = {
     "data_type": {
         "type": "text",
@@ -216,7 +220,6 @@ rh_capture_index_mapping = {
     },
 }
 
-# fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
 capture_index_mapping_by_type = {
     "drf": drf_capture_index_mapping,
     "rh": rh_capture_index_mapping,
