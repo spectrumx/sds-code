@@ -1,6 +1,7 @@
 """Pagination for SDS constructs."""
 
 import json
+import time
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -34,6 +35,28 @@ class Paginator(Generic[T]):
     and fetching requests happen once per page. Iterating it also consumes the
     generator, so any yielded content should be stored if needed in the future.
 
+    ## Usage example
+
+    ```
+    paginator = Paginator[File](
+        Entry=File,
+        gateway=gateway,
+        sds_path="/path/to/files",
+        dry_run=False,
+        verbose=True,
+    )
+    print(f"Total files matched: {len(paginator)}")
+    # len() will fetch the first page
+
+    for my_file in paginator:
+        print(f"Processing file: {my_file.name}")
+        process_file(my_file)
+        # new pages are fetched automatically
+
+    for _my_file in file_paginator:
+        msg = "This will not run, as the paginator was consumed."
+        raise AssertionError(msg)
+    ```
     """
 
     def __init__(
@@ -48,6 +71,19 @@ class Paginator(Generic[T]):
         total_matches: int | None = None,
         verbose: bool = False,
     ) -> None:
+        """Initializes the paginator with the required parameters.
+
+        Args:
+            Entry:      The model class to use when parsing the entries.
+            gateway:    The gateway client to use for fetching pages.
+            sds_path:   The SDS path to paginate through.
+            dry_run:    If True, will generate synthetic pages instead of fetching.
+            page_size:  The number of entries to fetch per page.
+            start_page: The page number to start fetching from.
+            total_matches: The total number of entries to expect.
+            verbose:    If True, will log more information about the pagination.
+        """
+
         if page_size <= 0:
             msg = "Page size must be a positive integer."
             raise ValueError(msg)
@@ -81,6 +117,7 @@ class Paginator(Generic[T]):
         self._current_page_data: dict[str, Any] | None = None
         self._current_page_entries: Generator[T] = iter(())
         self._next_element: T | _Unset = _Unset()
+        self._yielded_count: int = 0
 
     def __iter__(self) -> Self:
         """Returns the iterator object."""
@@ -94,17 +131,21 @@ class Paginator(Generic[T]):
             except StopIteration:
                 try:
                     self._fetch_next_page()
+                    self._debug("Fetched the next page.")
                 except StopIteration as err:
+                    self._debug("No more pages available.")
                     raise StopIteration(err) from err
             else:
+                self._yielded_count += 1
                 return self._next_element
-        msg = "No more entries available."
-        raise StopIteration(msg)
+        # execution should never reach here
+        msg = "Internal paginator error."
+        raise RuntimeError(msg)
 
     def __len__(self) -> int:
         """Returns the total number of entries."""
         if not self._has_fetched:
-            log.info("Fetching the first page of results.")
+            self._debug("Fetching the first page of results.")
             self._fetch_next_page()
         return self._total_matches
 
@@ -112,6 +153,11 @@ class Paginator(Generic[T]):
     def _total_pages(self) -> int:
         """Calculates the total number of pages."""
         return (self._total_matches // self._page_size) + 1
+
+    def _debug(self, message: str, depth: int = 1) -> None:
+        """Logs a debug message if verbose mode is enabled."""
+        if self._verbose:
+            log.opt(depth=depth).debug(message)
 
     def _has_next_page(self) -> bool:
         """Checks if there is a next page available."""
@@ -131,7 +177,7 @@ class Paginator(Generic[T]):
                 msg = "No more pages available."
                 raise StopIteration(msg)
             if self.dry_run:
-                log.info("Dry run enabled: generating a synthetic page")
+                self._debug("Dry run enabled: generating a synthetic page")
                 self._ingest_fake_page()
             else:
                 # try to fetch the next page
@@ -158,12 +204,16 @@ class Paginator(Generic[T]):
     def _ingest_fake_page(self) -> None:
         """Loads a fake page into memory for dry-run mode."""
         self._total_matches = int(self._page_size * 2.5)  # targeting 3 pages
-        _remaining_matches = self._total_matches - (self._next_page * self._page_size)
+        _remaining_matches = self._total_matches - self._yielded_count
         _page_length = min(self._page_size, _remaining_matches)
-        if _remaining_matches <= 0:
+        if self._yielded_count >= self._total_matches:
             msg = "No more entries available."
             raise StopIteration(msg)
+        # generate page
         if issubclass(self._Entry, files.File):
+            # TODO: merge self._current_page_entries with the new
+            #   entries (lazily) to allow pre-fetching a page, or
+            #   fetching multiple pages at once.
             self._current_page_entries = (
                 files.generate_sample_file(uuid.uuid4()) for _ in range(_page_length)
             )
@@ -195,3 +245,45 @@ class Paginator(Generic[T]):
             if "results" in self._current_page_data
             else iter(())
         )
+
+
+def _process_file_fake(my_file: files.File) -> None:  # pragma: no cover
+    """Sleeps a bit."""
+    time.sleep(0.07)
+
+
+def main() -> None:  # pragma: no cover
+    """Usage example for paginator."""
+    log.info("Running the main script.")
+    file_paginator = Paginator[files.File](
+        Entry=files.File,
+        gateway=GatewayClient(
+            host="localhost",
+            api_key="does-not-matter-in-dry-run",
+        ),
+        sds_path="/path/to/files",
+        page_size=10,
+        dry_run=True,  # in dry-run this should always generate 2.5 pages
+        verbose=True,
+    )
+    log.info(f"Total files matched: {len(file_paginator)}")
+    processed_count: int = 0
+    for my_file in file_paginator:
+        log.info(f"Processing file: {my_file.name}")
+        _process_file_fake(my_file)
+        processed_count += 1
+        # new pages are fetched automatically
+
+    log.info(f"Processed {processed_count} / {len(file_paginator)} files.")
+
+    log.info("Trying another loop:")
+    for _my_file in file_paginator:
+        msg = "This will not run, as the paginator was consumed."
+        raise AssertionError(msg)
+    log.info("No more files to process.")
+
+    log.info("Paginator demo finished.")
+
+
+if __name__ == "__main__":
+    main()
