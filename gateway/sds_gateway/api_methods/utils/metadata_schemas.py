@@ -119,35 +119,6 @@ drf_capture_metadata_schema = {
         },
     },
     # fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
-    "index_mapping": {
-        "sample_rate_numerator": {
-            "type": "integer",
-        },
-        "sample_rate_denominator": {
-            "type": "integer",
-        },
-        "samples_per_second": {
-            "type": "integer",
-        },
-        "start_bound": {
-            "type": "integer",
-        },
-        "end_bound": {
-            "type": "integer",
-        },
-        "center_freq": {
-            "type": "integer",
-        },
-        "span": {
-            "type": "integer",
-        },
-        "gain": {
-            "type": "float",
-        },
-        "bandwidth": {
-            "type": "integer",
-        },
-    },
     "required": [
         "H5Tget_class",
         "H5Tget_size",
@@ -176,87 +147,77 @@ drf_capture_metadata_schema = {
     ],
 }
 
-rh_capture_metadata_schema = {
-    "properties": {
-        "data_type": {
-            "type": str,
-            "description": "The type of data in the capture (e.g. periodogram).",
-        },
-        "xstart": {
-            "type": int,
-            "description": "The start frequency in Hz.",
-        },
-        "fmin": {
-            "type": int,
-            "description": "The minimum frequency in Hz.",
-        },
-        "xstop": {
-            "type": int,
-            "description": "The stop frequency in Hz.",
-        },
-        "fmax": {
-            "type": int,
-            "description": "The maximum frequency in Hz.",
-        },
-        "nfft": {
-            "type": int,
-            "description": "The number of FFT points.",
-        },
-        "xcount": {
-            "type": int,
-            "description": "The number of frequency points.",
-        },
-        "gps_lock": {
-            "type": bool,
-            "description": "Whether GPS lock was achieved.",
-        },
-        "scan_time": {
-            "type": float,
-            "description": "The time taken to perform the scan in seconds.",
-        },
-        "sample_rate": {
-            "type": float,
-            "description": "The sample rate of the capture.",
-        },
-        "gain": {
-            "type": float,
-            "description": "The gain of the capture.",
-        },
+drf_capture_index_mapping = {
+    "sample_rate_numerator": {
+        "type": "integer",
     },
-    "index_mapping": {
-        "data_type": {
-            "type": "text",
-        },
-        "fmin": {
-            "type": "integer",
-        },
-        "fmax": {
-            "type": "integer",
-        },
-        "xcount": {
-            "type": "integer",
-        },
-        "nfft": {
-            "type": "integer",
-        },
-        "sample_rate": {
-            "type": "float",
-        },
+    "sample_rate_denominator": {
+        "type": "integer",
     },
-    "required": [
-        "data_type",
-        "fmin",
-        "fmax",
-        "gps_lock",
-        "nfft",
-        "scan_time",
-        "xcount",
-        "xstart",
-        "xstop",
-    ],
+    "samples_per_second": {
+        "type": "integer",
+    },
+    "start_bound": {
+        "type": "integer",
+    },
+    "end_bound": {
+        "type": "integer",
+    },
+    "center_freq": {
+        "type": "integer",
+    },
+    "span": {
+        "type": "integer",
+    },
+    "gain": {
+        "type": "float",
+    },
+    "bandwidth": {
+        "type": "integer",
+    },
 }
 
-capture_metadata_fields_by_type = {
-    "drf": drf_capture_metadata_schema,
-    "rh": rh_capture_metadata_schema,
+rh_capture_index_mapping = {
+    "data_type": {
+        "type": "text",
+    },
+    "fmin": {
+        "type": "integer",
+    },
+    "fmax": {
+        "type": "integer",
+    },
+    "xstart": {
+        "type": "integer",
+    },
+    "xstop": {
+        "type": "integer",
+    },
+    "sample_rate": {
+        "type": "integer",
+    },
+    "center_frequency": {
+        "type": "float",
+    },
+    "latitude": {
+        "type": "float",
+    },
+    "longitude": {
+        "type": "float",
+    },
+    "altitude": {
+        "type": "float",
+    },
+    "mac_address": {
+        "type": "keyword",
+    },
+    "short_name": {
+        "type": "keyword",
+    },
+}
+
+# fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
+capture_index_mapping_by_type = {
+    "drf": drf_capture_index_mapping,
+    "rh": rh_capture_index_mapping,
 }

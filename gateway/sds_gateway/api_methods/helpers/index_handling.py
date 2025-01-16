@@ -6,7 +6,7 @@ from opensearchpy import exceptions as os_exceptions
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_metadata_fields_by_type as md_props_by_type,
+    capture_index_mapping_by_type as md_props_by_type,
 )
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 
@@ -29,7 +29,7 @@ def create_index(client: OpenSearch, index_name: str, capture_type: str):
                     "created_at": {"type": "date"},
                     "metadata": {
                         "type": "object",
-                        "properties": md_props_by_type[capture_type]["index_mapping"],
+                        "properties": md_props_by_type[capture_type],
                     },
                 },
             },

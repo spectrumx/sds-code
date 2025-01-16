@@ -19,24 +19,24 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             self.parent and isinstance(self.parent, serializers.ListSerializer),
         )
 
-        if is_many and self.parent:
-            # Cache the metadata for all objects if not already done
-            if not hasattr(self.parent, "metadata_cache"):
-                # Convert QuerySet to list if needed
-                instances = (
-                    list(self.parent.instance)
-                    if hasattr(self.parent.instance, "__iter__")
-                    else [self.parent.instance]
-                )
-                self.parent.metadata_cache = retrieve_indexed_metadata(
-                    instances,
-                    is_many=True,
-                )
-            # Return the cached metadata for this specific object
-            return self.parent.metadata_cache.get(str(obj.uuid), {})
+        if not is_many or not self.parent:
+            return retrieve_indexed_metadata(obj, is_many=False)
 
-        # Single object serialization - use existing logic
-        return retrieve_indexed_metadata(obj, is_many=False)
+        # Cache the metadata for all objects if not already done
+        if not hasattr(self.parent, "metadata_cache"):
+            # Convert QuerySet to list if needed
+            instances = (
+                list(self.parent.instance)
+                if self.parent and hasattr(self.parent.instance, "__iter__")
+                else [self.parent.instance if self.parent else obj]
+            )
+            self.parent.metadata_cache = retrieve_indexed_metadata(
+                instances,
+                is_many=True,
+            )
+
+        # Return the cached metadata for this specific object
+        return self.parent.metadata_cache.get(str(obj.uuid), {})
 
     class Meta:
         model = Capture
