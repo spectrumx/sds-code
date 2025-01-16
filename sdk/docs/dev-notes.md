@@ -3,7 +3,6 @@
 + [SDK Development Notes](#sdk-development-notes)
     + [Design Goals](#design-goals)
     + [Directories as Attributes](#directories-as-attributes)
-    + [SDK Methods](#sdk-methods)
     + [Supported Python Versions](#supported-python-versions)
 
 ## Design Goals
@@ -58,21 +57,6 @@ There are many benefits of treating directories as attributes (assume `<path>` e
 6. **Orthogonal soft deletions:** the directory attribute can be preserved in the case of deletions, making "un-deletions" faster and more reliable.
 7. **File versioning for free:** if a new file has the same path as an existing one, the server will store both by their checksums and the SDK can indicate there are multiple versions available when listing by path.
 8. **File duplication:** if a file the server already has is re-uploaded, the SDK can avoid the extraneous data transfer and an additional "file" row can be created pointing to an already existing file on the server's disk.
-
-## SDK Methods
-
-| Method             | Asset                             | Action Group | Description                                                        |
-| ------------------ | --------------------------------- | ------------ | ------------------------------------------------------------------ |
-| `sds.authenticate` | Client                            | -            | Authenticates the client with SDS.                                 |
-| `sds.files`        | File                              | Listing      | Returns an iterator for files available to the current user.       |
-| `sds.datasets`     | Dataset                           | Listing      | Returns an iterator for datasets available to the current user.    |
-| `sds.captures`     | Capture                           | Listing      | Returns an iterator for captures available to the current user.    |
-| `sds.experiments`  | Experiment                        | Listing      | Returns an iterator for experiments available to the current user. |
-| `sds.upload`       | Capture, Dataset, File, Directory | Create       | Uploads the asset to SDS.                                          |
-| `sds.download`     | Capture, Dataset, File, Directory | Read         | Downloads the asset from SDS.                                      |
-| `sds.search`       | Capture, Dataset, Directory       | Listing      | Searches for assets based on filters.                              |
-| `<asset>.update`   | Capture, Dataset, File, Directory | Update       | Updates the asset's metadata.                                      |
-| `<asset>.delete`   | Capture, Dataset, File, Directory | Delete       | Marks the asset for deletion.                                      |
 
 ## Supported Python Versions
 

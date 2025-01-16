@@ -175,7 +175,7 @@ class Client:
             files_to_download = [files.generate_sample_file(uuid) for uuid in uuids]
             log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
         else:
-            files_to_download = self._gateway.list_files(from_sds_path)
+            files_to_download = self._gateway.list_files(sds_path=from_sds_path)
             if verbose:
                 log_user(f"Discovered {len(files_to_download)} files")
 
