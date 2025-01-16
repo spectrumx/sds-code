@@ -3,11 +3,23 @@
 import datetime
 import json
 import uuid
+from enum import StrEnum
 from pathlib import Path
 
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
 from django.db import models
+
+
+class CaptureType(StrEnum):
+    DigitalRF = "drf"
+    RadioHound = "rh"
+    SigMF = "sigmf"
+
+
+class CaptureOrigin(StrEnum):
+    System = "system"
+    User = "user"
 
 
 def default_expiration_date() -> datetime.datetime:
@@ -24,6 +36,8 @@ class BaseModel(models.Model):
     uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(blank=True, null=True)
+    is_deleted = models.BooleanField(default=False)
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         """Allows this class to be abstract."""
@@ -36,11 +50,9 @@ class File(BaseModel):
     Model to define files uploaded through the API.
     """
 
-    deleted_at = models.DateTimeField(blank=True, null=True)
     directory = models.CharField(max_length=2048, default="files/")
     expiration_date = models.DateTimeField(default=default_expiration_date)
     file = models.FileField(upload_to="files/")
-    is_deleted = models.BooleanField(default=False)
     media_type = models.CharField(max_length=255, blank=True)
     name = models.CharField(max_length=255, blank=True)
     permissions = models.CharField(max_length=9, default="rw-r--r--")
@@ -99,15 +111,20 @@ class Capture(BaseModel):
     """
 
     CAPTURE_TYPE_CHOICES = [
-        ("drf", "Digital RF"),
-        ("rh", "RadioHound"),
+        (CaptureType.DigitalRF, "Digital RF"),
+        (CaptureType.RadioHound, "RadioHound"),
+        (CaptureType.SigMF, "SigMF"),
+    ]
+    ORIGIN_CHOICES = [
+        (CaptureOrigin.System, "System"),
+        (CaptureOrigin.User, "User"),
     ]
 
     channel = models.CharField(max_length=255, blank=True)
     capture_type = models.CharField(
         max_length=255,
         choices=CAPTURE_TYPE_CHOICES,
-        default="drf",
+        default=CaptureType.DigitalRF,
     )
     top_level_dir = models.CharField(max_length=2048, blank=True)
     index_name = models.CharField(max_length=255, blank=True)
@@ -117,6 +134,11 @@ class Capture(BaseModel):
         null=True,
         related_name="captures",
         on_delete=models.PROTECT,
+    )
+    origin = models.CharField(
+        max_length=255,
+        choices=ORIGIN_CHOICES,
+        default=CaptureOrigin.User,
     )
 
     def __str__(self):

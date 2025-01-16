@@ -1,11 +1,11 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import CaptureType, File
 
 capture_request_example_schema = {
     "top_level_dir": "/path/to/top_level_dir",
     "channel": "channel_0",
-    "capture_type": "drf",
+    "capture_type": CaptureType.DigitalRF,
     "index_name": "capture_metadata",
 }
 
@@ -48,7 +48,7 @@ capture_response_example_schema = {
     "created_at": "2024-11-04T23:18:02.829Z",
     "updated_at": "2024-11-04T23:18:02.829Z",
     "channel": "channel_0",
-    "capture_type": "drf",
+    "capture_type": CaptureType.DigitalRF,
     "index_name": "capture_metadata",
     "top_level_dir": "/path/to/top_level_dir",
 }

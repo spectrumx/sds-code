@@ -22,10 +22,7 @@ from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
 )
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
-from sds_gateway.api_methods.helpers.reconstruct_file_tree import (
-    destroy_tree,
-    reconstruct_tree,
-)
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CaptureGetSerializer,
@@ -117,7 +114,6 @@ class CaptureViewSet(viewsets.ViewSet):
 
             validated_metadata = validate_metadata_by_channel(tmp_dir_path, channel)
             index_capture_metadata(capture, validated_metadata)
-            destroy_tree(temp_dir)
 
         get_serializer = CaptureGetSerializer(capture)
 

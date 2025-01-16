@@ -1,5 +1,6 @@
 """Tests for capture endpoints."""
 
+from datetime import datetime
 from typing import cast
 from unittest.mock import patch
 
@@ -10,9 +11,9 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 from rest_framework_api_key.models import AbstractAPIKey
 
-from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import Capture, CaptureType
 from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_metadata_fields_by_type as md_props_by_type,
+    capture_index_mapping_by_type as md_props_by_type,
 )
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.users.models import UserAPIKey
@@ -52,7 +53,7 @@ class CaptureTestCases(APITestCase):
         # Create test captures without metadata
         self.drf_capture = Capture.objects.create(
             owner=self.user,
-            capture_type="drf",
+            capture_type=CaptureType.DigitalRF,
             channel="ch0",
             top_level_dir="test-dir",
             index_name="captures-drf",
@@ -60,7 +61,7 @@ class CaptureTestCases(APITestCase):
 
         self.rh_capture = Capture.objects.create(
             owner=self.user,
-            capture_type="rh",
+            capture_type=CaptureType.RadioHound,
             index_name="captures-rh",
         )
 
@@ -88,15 +89,13 @@ class CaptureTestCases(APITestCase):
     def _setup_opensearch_indices(self):
         """Set up OpenSearch indices with proper mappings."""
         for capture, metadata_type in [
-            (self.drf_capture, "drf"),
-            (self.rh_capture, "rh"),
+            (self.drf_capture, CaptureType.DigitalRF),
+            (self.rh_capture, CaptureType.RadioHound),
         ]:
             if not self.opensearch.indices.exists(index=capture.index_name):
                 # Create mapping without supports_range field
                 mapping_properties = {}
-                for field, config in md_props_by_type[metadata_type][
-                    "index_mapping"
-                ].items():
+                for field, config in md_props_by_type[metadata_type].items():
                     mapping_properties[field] = {"type": config["type"]}
 
                 self.opensearch.indices.create(
@@ -170,8 +169,12 @@ class CaptureTestCases(APITestCase):
         assert len(data) == TOTAL_TEST_CAPTURES
 
         # Verify metadata for each capture type is correctly retrieved in bulk
-        drf_capture = next(c for c in data if c["capture_type"] == "drf")
-        rh_capture = next(c for c in data if c["capture_type"] == "rh")
+        drf_capture = next(
+            c for c in data if c["capture_type"] == CaptureType.DigitalRF
+        )
+        rh_capture = next(
+            c for c in data if c["capture_type"] == CaptureType.RadioHound
+        )
 
         # Verify the metadata matches what was indexed
         assert drf_capture["metadata"] == self.drf_metadata
@@ -184,12 +187,14 @@ class CaptureTestCases(APITestCase):
 
     def test_list_captures_by_type_200(self):
         """Test filtering captures by type returns correct metadata."""
-        response = self.client.get(f"{self.list_url}?capture_type=drf")
+        response = self.client.get(
+            f"{self.list_url}?capture_type={CaptureType.DigitalRF}",
+        )
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
         assert len(data) == 1
-        assert data[0]["capture_type"] == "drf"
+        assert data[0]["capture_type"] == CaptureType.DigitalRF
 
         # Verify metadata is correctly retrieved for filtered list
         assert data[0]["metadata"] == self.drf_metadata
@@ -203,7 +208,10 @@ class CaptureTestCases(APITestCase):
     def test_list_captures_empty_404(self):
         """Test list captures returns 404 when no captures exist."""
         # Delete all captures
-        Capture.objects.all().delete()
+        Capture.objects.filter(owner=self.user).update(
+            is_deleted=True,
+            deleted_at=datetime.datetime.now(datetime.UTC),
+        )
 
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -216,7 +224,7 @@ class CaptureTestCases(APITestCase):
 
         data = response.json()
         assert data["uuid"] == str(self.drf_capture.uuid)
-        assert data["capture_type"] == "drf"
+        assert data["capture_type"] == CaptureType.DigitalRF
         assert data["channel"] == "ch0"
 
         # Verify metadata is correctly retrieved for single capture
@@ -237,7 +245,7 @@ class CaptureTestCases(APITestCase):
         )
         other_capture = Capture.objects.create(
             owner=other_user,
-            capture_type="drf",
+            capture_type=CaptureType.DigitalRF,
         )
 
         response = self.client.get(self.detail_url(other_capture.uuid))
@@ -257,12 +265,14 @@ class CaptureTestCases(APITestCase):
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
-        drf_capture = next(c for c in data if c["capture_type"] == "drf")
+        drf_capture = next(
+            c for c in data if c["capture_type"] == CaptureType.DigitalRF
+        )
         # Verify empty metadata is returned when not found
         assert drf_capture["metadata"] == {}
         # Verify other fields still present
         assert drf_capture["channel"] == "ch0"
-        assert drf_capture["capture_type"] == "drf"
+        assert drf_capture["capture_type"] == CaptureType.DigitalRF
 
 
 class OpenSearchErrorTestCases(APITestCase):
@@ -283,7 +293,7 @@ class OpenSearchErrorTestCases(APITestCase):
         # Create test capture without metadata
         self.mock_capture = Capture.objects.create(
             owner=self.user,
-            capture_type="drf",
+            capture_type=CaptureType.DigitalRF,
             channel="ch0",
             top_level_dir="test-dir",
             index_name="captures-drf",
