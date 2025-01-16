@@ -1,6 +1,6 @@
 """Tests for capture endpoints."""
 
-from datetime import datetime
+import datetime
 from typing import cast
 from unittest.mock import patch
 
@@ -110,8 +110,8 @@ class CaptureTestCases(APITestCase):
                                 "channel": {"type": "keyword"},
                                 "capture_type": {"type": "keyword"},
                                 "created_at": {"type": "date"},
-                                "metadata": {
-                                    "type": "object",
+                                "capture_props": {
+                                    "type": "nested",
                                     "properties": mapping_properties,
                                 },
                             },
@@ -129,7 +129,7 @@ class CaptureTestCases(APITestCase):
                 "channel": self.drf_capture.channel,
                 "capture_type": self.drf_capture.capture_type,
                 "created_at": self.drf_capture.created_at,
-                "metadata": self.drf_metadata,
+                "capture_props": self.drf_metadata,
             },
         )
         # Ensure immediate visibility
@@ -143,7 +143,7 @@ class CaptureTestCases(APITestCase):
                 "channel": self.rh_capture.channel,
                 "capture_type": self.rh_capture.capture_type,
                 "created_at": self.rh_capture.created_at,
-                "metadata": self.rh_metadata,
+                "capture_props": self.rh_metadata,
             },
         )
         # Ensure immediate visibility
@@ -152,11 +152,18 @@ class CaptureTestCases(APITestCase):
     def tearDown(self):
         """Clean up test data."""
         super().tearDown()
-        # Delete test documents
+
+        # Clean up OpenSearch documents
         for capture in [self.drf_capture, self.rh_capture]:
             self.opensearch.delete_by_query(
                 index=capture.index_name,
-                body={"query": {"match_all": {}}},
+                body={
+                    "query": {
+                        "term": {
+                            "_id": str(capture.uuid),
+                        },
+                    },
+                },
             )
             self.opensearch.indices.refresh(index=capture.index_name)
 
@@ -177,8 +184,8 @@ class CaptureTestCases(APITestCase):
         )
 
         # Verify the metadata matches what was indexed
-        assert drf_capture["metadata"] == self.drf_metadata
-        assert rh_capture["metadata"] == self.rh_metadata
+        assert drf_capture["capture_props"] == self.drf_metadata
+        assert rh_capture["capture_props"] == self.rh_metadata
 
         # Verify other fields are present
         assert drf_capture["channel"] == "ch0"
@@ -197,7 +204,7 @@ class CaptureTestCases(APITestCase):
         assert data[0]["capture_type"] == CaptureType.DigitalRF
 
         # Verify metadata is correctly retrieved for filtered list
-        assert data[0]["metadata"] == self.drf_metadata
+        assert data[0]["capture_props"] == self.drf_metadata
         assert data[0]["channel"] == "ch0"
 
     def test_list_captures_by_type_404(self):
@@ -228,7 +235,7 @@ class CaptureTestCases(APITestCase):
         assert data["channel"] == "ch0"
 
         # Verify metadata is correctly retrieved for single capture
-        assert data["metadata"] == self.drf_metadata
+        assert data["capture_props"] == self.drf_metadata
 
     def test_retrieve_capture_404(self):
         """Test retrieving a non-existent capture."""
@@ -251,28 +258,24 @@ class CaptureTestCases(APITestCase):
         response = self.client.get(self.detail_url(other_capture.uuid))
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_list_captures_no_metadata_200(self):
+    def test_list_captures_no_metadata_400(self):
         """Test listing captures when metadata is missing returns empty metadata."""
         # Delete metadata from OpenSearch but keep the captures
         self.opensearch.delete_by_query(
             index=self.drf_capture.index_name,
-            body={"query": {"match_all": {}}},
+            body={
+                "query": {
+                    "term": {
+                        "_id": str(self.drf_capture.uuid),
+                    },
+                },
+            },
         )
         # Ensure changes are visible
         self.opensearch.indices.refresh(index=self.drf_capture.index_name)
 
         response = self.client.get(self.list_url)
-        assert response.status_code == status.HTTP_200_OK
-
-        data = response.json()
-        drf_capture = next(
-            c for c in data if c["capture_type"] == CaptureType.DigitalRF
-        )
-        # Verify empty metadata is returned when not found
-        assert drf_capture["metadata"] == {}
-        # Verify other fields still present
-        assert drf_capture["channel"] == "ch0"
-        assert drf_capture["capture_type"] == CaptureType.DigitalRF
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
 class OpenSearchErrorTestCases(APITestCase):

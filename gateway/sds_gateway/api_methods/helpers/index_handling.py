@@ -27,8 +27,8 @@ def create_index(client: OpenSearch, index_name: str, capture_type: str):
                     "channel": {"type": "keyword"},
                     "capture_type": {"type": "keyword"},
                     "created_at": {"type": "date"},
-                    "metadata": {
-                        "type": "object",
+                    "capture_props": {
+                        "type": "nested",
                         "properties": md_props_by_type[capture_type],
                     },
                 },
@@ -43,7 +43,7 @@ def create_index(client: OpenSearch, index_name: str, capture_type: str):
         raise
 
 
-def index_capture_metadata(capture: Capture, metadata: dict[str, Any]):
+def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]):
     try:
         client = get_opensearch_client()
 
@@ -56,7 +56,7 @@ def index_capture_metadata(capture: Capture, metadata: dict[str, Any]):
             "channel": capture.channel,
             "capture_type": capture.capture_type,
             "created_at": capture.created_at,
-            "metadata": metadata,
+            "capture_props": capture_props,
         }
 
         # Index the document in OpenSearch
@@ -109,25 +109,32 @@ def retrieve_indexed_metadata(
             # Use mget to fetch all documents in one request
             response = client.mget(body={"docs": docs})
 
-            # For multiple captures, return a dict mapping uuid to metadata
+            # Check that every capture has a corresponding document in the response
+            if not all(doc.get("found") for doc in response["docs"]):
+                failed_capture_uuids = [
+                    doc["_id"] for doc in response["docs"] if not doc.get("found")
+                ]
+                msg = f"Metadata retrieval failed for captures: {failed_capture_uuids}"
+                raise ValueError(msg)
+
+            # For multiple captures, return a dict mapping uuid to capture_props
             return {
-                str(capture.uuid): doc.get("_source", {}).get("metadata", {})
+                str(capture.uuid): doc.get("_source", {}).get("capture_props", {})
                 for capture, doc in zip(
                     capture_or_captures,
                     response["docs"],
-                    strict=False,
+                    strict=True,
                 )
-                if doc.get("found")
             }
 
         response = client.get(
             index=capture_or_captures.index_name,
             id=capture_or_captures.uuid,
         )
-        return response["_source"]["metadata"]
+        return response["_source"]["capture_props"]
     except os_exceptions.NotFoundError:
         # Log the error
-        msg = "Document or index not found in OpenSearch for metadata retrieval"
+        msg = "Document(s) or index not found in OpenSearch for metadata retrieval"
         logger.warning(msg)
         # Return an empty dictionary
         return {}
