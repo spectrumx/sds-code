@@ -233,6 +233,7 @@ def _log_redacted(
     key: str,
     value: str,
     log_fn: Callable[[str], None] = logging.info,
+    depth: int = 1,
 ) -> None:
     """Logs but redacts value if the key hints to a sensitive content, as passwords."""
     std_length: int = 4
@@ -249,7 +250,7 @@ def _log_redacted(
     )
     del value
     msg = f"\tSDS_Config: set {key}={safe_value}"
-    log.debug(msg)  # for sdk developers
+    log.opt(depth=depth).debug(msg)  # for sdk developers
     log_fn(msg)
 
 

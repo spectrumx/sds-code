@@ -34,26 +34,26 @@ def validate_file_permission_string(permissions: str) -> None:
     )
 
 
-def log_user(msg: str) -> None:
+def log_user(msg: str, depth: int = 1) -> None:
     """Alias to log_user_info. Logs a message visible to SDK users."""
-    log_user_info(msg)
+    log_user_info(msg, depth=depth + 1)
 
 
-def log_user_info(msg: str) -> None:
+def log_user_info(msg: str, depth: int = 1) -> None:
     """Logs an informational message to the user."""
-    log.info(msg)
+    log.opt(depth=depth).info(msg)
     logging.info(msg)
 
 
-def log_user_warning(msg: str) -> None:
+def log_user_warning(msg: str, depth: int = 1) -> None:
     """Logs a warning message to the user."""
-    log.warning(msg)
+    log.opt(depth=depth).warning(msg)
     logging.warning(msg)
 
 
-def log_user_error(msg: str) -> None:
+def log_user_error(msg: str, depth: int = 1) -> None:
     """Logs an error message to the user."""
-    log.error(msg)
+    log.opt(depth=depth).error(msg)
     logging.error(msg)
 
 
