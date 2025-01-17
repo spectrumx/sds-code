@@ -5,7 +5,6 @@
 
 import os
 import tempfile
-import time
 import uuid
 from enum import Enum
 from enum import auto
@@ -67,7 +66,11 @@ def download_file(
     skip_contents: bool = False,
     warn_missing_path: bool = True,
 ) -> File:
-    """Downloads a file from SDS: metadata and maybe contents."""
+    """Downloads a file from SDS: metadata and contents (unless skip_contents=True).
+
+    Note this function always overwrites the local path of the file instance.
+    """
+    # prepare file instance
     if isinstance(file_instance, File):
         if file_instance.uuid is None:
             msg = "The file passed is a local reference and cannot be downloaded."
@@ -87,6 +90,8 @@ def download_file(
             return file_instance
         valid_uuid = file_instance.uuid
         valid_local_path_or_none = file_instance.local_path
+
+    # or get the file info and create a new instance
     else:
         if file_uuid is None:
             msg = "Expected a file instance or UUID to download."
@@ -97,26 +102,33 @@ def download_file(
 
         valid_local_path_or_none = Path(to_local_path) if to_local_path else None
 
-        # download
+        # download file metadata
         valid_uuid: UUID4 = (
             uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
         )
         if client.dry_run:
-            time.sleep(0.08)
-            return files.generate_sample_file(valid_uuid)
+            log_user("Dry run enabled: a sample file is being returned instead")
+            file_instance = files.generate_sample_file(valid_uuid)
+        else:
+            file_bytes = client._gateway.get_file_by_id(uuid=valid_uuid.hex)
+            file_instance = File.model_validate_json(file_bytes)
 
-        assert not client.dry_run, "Internal error: expected dry run to be disabled."
-        file_bytes = client._gateway.get_file_by_id(uuid=valid_uuid.hex)
-        file_instance = File.model_validate_json(file_bytes)
-
+    # download the file contents
     if not skip_contents:
-        downloaded_path = _download_file_contents(
-            client=client,
-            file_uuid=valid_uuid,
-            target_path=valid_local_path_or_none,
-            contents_lock=file_instance.contents_lock,  # pyright: ignore[reportPrivateUsage]
-        )
-        file_instance.local_path = downloaded_path
+        if client.dry_run:
+            file_instance.local_path = valid_local_path_or_none
+            log_user(
+                "Dry run enabled: file contents would be "
+                f"downloaded as {file_instance.local_path}"
+            )
+        else:
+            downloaded_path = _download_file_contents(
+                client=client,
+                file_uuid=valid_uuid,
+                target_path=valid_local_path_or_none,
+                contents_lock=file_instance.contents_lock,  # pyright: ignore[reportPrivateUsage]
+            )
+            file_instance.local_path = downloaded_path
     return file_instance
 
 

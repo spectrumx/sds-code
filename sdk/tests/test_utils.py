@@ -1,5 +1,7 @@
 """Tests for the utils module."""
 
+from pathlib import Path
+
 import pytest
 from spectrumx import utils
 
@@ -73,6 +75,49 @@ def test_into_bool_truthy() -> None:
     ]
     for truthy in truthy_values:
         assert utils.into_human_bool(truthy) is True, f"{truthy} failed"
+
+
+def test_clean_local_path() -> None:
+    """Test that a local path is cleaned."""
+    test_cases = [
+        {
+            # our usual case
+            "input": Path("/files/user@domain.com/clean/path"),
+            "expected": Path("clean/path"),
+        },
+        {
+            # still clean it when not in a top-level
+            "input": Path("files/user@domain.ai/clean/path"),
+            "expected": Path("clean/path"),
+        },
+        {
+            # still clean it when not "files"
+            "input": Path("___/user@domain.ai/clean/path"),
+            "expected": Path("clean/path"),
+        },
+        {
+            # no changes
+            "input": Path("example.com/change/path"),
+            "expected": Path("example.com/change/path"),
+        },
+        {
+            # no changes
+            "input": Path("user@domain.dev/still/clean/path"),
+            "expected": Path("user@domain.dev/still/clean/path"),
+        },
+        {
+            # no changes
+            "input": Path("yet/another/path"),
+            "expected": Path("yet/another/path"),
+        },
+    ]
+    for case in test_cases:
+        entered = case["input"]
+        expected = case["expected"]
+        actual = utils.clean_local_path(entered)
+        assert actual == case["expected"], (
+            f"Failed: {entered} -> {actual} != {expected}"
+        )
 
 
 def test_into_bool_falsey() -> None:

@@ -1,6 +1,5 @@
 """Client for the SpectrumX Data System."""
 
-import uuid
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,6 +17,7 @@ from .config import SDSConfig
 from .gateway import GatewayClient
 from .models import File
 from .ops import files
+from .utils import clean_local_path
 from .utils import get_prog_bar
 from .utils import log_user
 from .utils import log_user_error
@@ -169,13 +169,12 @@ class Client:
         if self.dry_run:
             log_user(
                 "Called download() in dry run mode: "
-                "files are made-up and not written to disk."
+                "files are fabricated and not written to disk."
             )
-            uuids = [uuid.uuid4() for _ in range(10)]
-            files_to_download = [files.generate_sample_file(uuid) for uuid in uuids]
+            files_to_download = files.generate_random_files(num_files=10)
             log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
         else:
-            files_to_download = self._gateway.list_files(sds_path=from_sds_path)
+            files_to_download = self.list_files(sds_path=from_sds_path)
             if verbose:
                 log_user(f"Discovered {len(files_to_download)} files")
 
@@ -186,23 +185,45 @@ class Client:
         results: list[Result[File]] = []
         for file_info in prog_bar:
             prog_bar.set_description(f"{prefix} '{file_info.name}'")
-            local_file_path = to_local_path / file_info.directory / file_info.name
+            sds_dir = file_info.directory
+
+            local_file_path = Path(f"{to_local_path}/{sds_dir}") / file_info.name
+            local_file_path = clean_local_path(local_file_path)
+            # this path will be validated later
 
             # skip download of local files (without UUID)
             if file_info.uuid is None:
                 msg = f"Skipping local file: {file_info.name}"
                 log_user_warning(msg)
-                results.append(Result(exception=SDSError(msg)))
+                results.append(
+                    Result(
+                        exception=SDSError(msg),
+                        error_info={
+                            "file": file_info,
+                        },
+                    )
+                )
                 continue
 
             # register failure if the resolved path is not relative to the target
+            local_file_path = local_file_path.resolve()
+            to_local_path = to_local_path.resolve()
+            log.debug(f"Resolved path: {local_file_path}")
+            log.debug(f"Target path: {to_local_path}")
             if not local_file_path.is_relative_to(to_local_path):
                 msg = (
                     f"Resolved path {local_file_path} is not relative to "
                     f"{to_local_path}: skipping download."
                 )
                 log_user_warning(msg)
-                results.append(Result(exception=SDSError(msg)))
+                results.append(
+                    Result(
+                        exception=SDSError(msg),
+                        error_info={
+                            "file": file_info,
+                        },
+                    )
+                )
                 continue
 
             # avoid unintended overwrites (success)
@@ -213,15 +234,23 @@ class Client:
 
             # download the file and register result
             try:
-                self.download_file(
+                log.debug(f"Dw: {local_file_path}")
+                downloaded_file = self.download_file(
                     file_uuid=file_info.uuid,
                     to_local_path=local_file_path,
                     skip_contents=skip_contents,
                 )
-                results.append(Result(value=file_info))
+                results.append(Result(value=downloaded_file))
             except SDSError as err:
                 log_user_error(f"Download failed: {err}")
-                results.append(Result(exception=err))
+                results.append(
+                    Result(
+                        exception=err,
+                        error_info={
+                            "file": file_info,
+                        },
+                    )
+                )
 
         return results
 
@@ -250,6 +279,8 @@ class Client:
         warn_missing_path: bool = True,
     ) -> File:
         """Downloads a file from SDS: metadata and maybe contents.
+
+        > Note this function always overwrites the local file, if it exists.
 
         Either `file_instance` or `file_uuid` must be provided. When passing
         a `file_instance`, it's recommended to set its `local_path` attribute,

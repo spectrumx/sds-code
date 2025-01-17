@@ -2,6 +2,7 @@
 
 import logging
 import random
+import re
 import string
 from collections.abc import Iterable
 from pathlib import Path
@@ -90,6 +91,23 @@ def sum_blake3(file_path: Path) -> str:
         for chunk in iter(lambda: file.read(4096), b""):
             checksum.update(chunk)
     return checksum.hexdigest()
+
+
+def clean_local_path(local_path: Path) -> Path:
+    """Hack to remove what looks like an SDS user ID from local path.
+
+    This is non-critical and will be unnecessary after some gateway changes...
+    """
+    # match email-like strings at the second level
+    n_level = 2 if local_path.is_absolute() else 1
+    email_like_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+    local_path_2nd_level: str = local_path.parts[n_level]
+    log.warning(local_path_2nd_level)
+    is_dirty = bool(re.match(email_like_pattern, string=local_path_2nd_level))
+    if not is_dirty:
+        return local_path
+    # remove the top 2 levels
+    return Path(*local_path.parts[n_level + 1 :])
 
 
 T = TypeVar("T")
