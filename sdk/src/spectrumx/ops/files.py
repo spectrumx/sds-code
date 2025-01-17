@@ -48,7 +48,7 @@ def get_file_updated_at(file_path: Path) -> datetime:
 
 
 def construct_file(file_path: Path, sds_path: Path) -> File:
-    """Constructs a file instance from a local file."""
+    """Constructs a file instance from a local file. File has to exist on disk."""
     file_path = Path(file_path)
     if not file_path.exists():
         msg = f"File not found: {file_path}"

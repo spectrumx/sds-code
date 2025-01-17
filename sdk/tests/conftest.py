@@ -2,6 +2,7 @@
 
 import os
 import random
+import uuid
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,8 @@ from typing import Any
 import pytest
 from loguru import logger as log
 from spectrumx import enable_logging
+from spectrumx.models import File
+from spectrumx.ops import files
 from spectrumx.utils import get_random_line
 
 # better traceback formatting with rich, if available
@@ -113,6 +116,67 @@ def temp_file_tree(
         file_path.unlink(missing_ok=True)
     for dir_path in _all_created_dirs:
         dir_path.rmdir()
+
+
+class FakeFileFactory:
+    """Say that three times fast."""
+
+    def __init__(
+        self, num_files: int, *, tmp_path: Path, create_local: bool = False
+    ) -> None:
+        self.num_files: int = num_files
+        self.create_local: bool = create_local
+        self.fake_files: list[File] = []
+        self.tmp_path: Path = tmp_path
+        self.value: list[File] = []
+
+    def _inner_loop(self) -> Generator[File, None, list[File]]:
+        """Inner loop to generate fake files."""
+        for _ in range(self.num_files):
+            file_obj = files.generate_sample_file(uuid.uuid4())
+            if self.create_local:
+                file_obj.local_path = self.tmp_path / f"{file_obj.name}"
+                file_obj.local_path.touch()
+            self.fake_files.append(file_obj)
+            yield file_obj
+        log.error(f"AAAAA: {self.fake_files}")
+        self.value = self.fake_files
+        return self.value
+
+    def __iter__(self) -> Generator[File, None, list[File]]:
+        """Sets self.value properly when this generator is nested."""
+        self.value = yield from self._inner_loop()
+        return self.value
+
+
+@pytest.fixture
+# yes, this returns a generator of a generator
+def fake_files(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> Generator[FakeFileFactory]:
+    """Fixture to create a list of fake files."""
+
+    _file_count = request.param.get("file_count", 4)
+    _create_local = request.param.get("create_local", False)
+
+    # yield to test
+    file_gen = FakeFileFactory(
+        num_files=_file_count, create_local=_create_local, tmp_path=tmp_path
+    )
+    yield file_gen
+
+    # get returned list of files for cleanup
+    fake_files: list[File] = file_gen.value
+    assert isinstance(fake_files, list), (
+        "Expected a list of File instances as generator value"
+    )
+
+    # cleanup
+    log.error(f"Cleaning up {len(fake_files)} fake files.")
+    for file_obj in fake_files:
+        assert isinstance(file_obj, File), "Expected a File instance"
+        if file_obj.local_path:
+            file_obj.local_path.unlink(missing_ok=True)
 
 
 # ==== helpers
