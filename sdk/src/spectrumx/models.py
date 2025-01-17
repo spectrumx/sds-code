@@ -37,8 +37,8 @@ class File(SDSModel):
         uuid:               The unique identifier of the file in SDS.
 
         # local attributes:
-        is_sample:          Sample files are not written to disk (used in dry-run mode).
-        local_path:         The path to the file on the local filesystem.
+        is_sample:          Sample files are not written to disk (used in dry-run mode)
+        local_path:         The path to the file on the local filesystem (includes name)
     """
 
     created_at: datetime
@@ -111,9 +111,14 @@ class File(SDSModel):
         assert 0 <= perm_num <= max_permission_num, "Invalid permission number"
         return f"{perm_num:03o}"
 
-    def is_same_contents(self, other: "File") -> bool:
+    def is_same_contents(self, other: "File", *, verbose: bool = False) -> bool:
         """Checks if the file has the same contents as another local file."""
-        return self.compute_sum_blake3() == other.compute_sum_blake3()
+        this_sum = self.compute_sum_blake3()
+        other_sum = other.compute_sum_blake3()
+        if verbose:
+            utils.log_user(f"{this_sum}  {self.local_path}")
+            utils.log_user(f"{other_sum}  {other.local_path}")
+        return this_sum == other_sum
 
 
 class Dataset(SDSModel):

@@ -156,3 +156,12 @@ def generate_sample_file(uuid_to_set: uuid.UUID) -> File:
         sample_file.is_sample is True  # pyright: ignore[reportPrivateUsage]
     ), "SDS internal error: generated file is not a sample"
     return sample_file
+
+
+def generate_random_files(num_files: int) -> list[File]:
+    """Calls generate_sample_file() to create a list of fabricated files."""
+    sample_files = []
+    for _ in range(num_files):
+        file_obj = generate_sample_file(uuid.uuid4())
+        sample_files.append(file_obj)
+    return sample_files

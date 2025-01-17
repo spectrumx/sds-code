@@ -4,10 +4,17 @@ import re
 from enum import IntEnum
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
+from loguru import logger as log
+from spectrumx.client import Client
 from spectrumx.config import SDSConfig
 from spectrumx.config import _cfg_name_lookup  # pyright: ignore[reportPrivateUsage]
+from spectrumx.models import File
+from spectrumx.ops import files
+
+log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")
 
 
 class LogLevels(IntEnum):
@@ -93,3 +100,91 @@ def test_warning_for_unrecognized_config(
 
     assert "not recognized" in caplog.text.lower()
     assert unknown_attr in caplog.text
+
+
+def test_download_dry_run_happy_path(
+    caplog: pytest.LogCaptureFixture,
+    client: Client,
+) -> None:
+    """Covers the client's generic download() method for files."""
+
+    caplog.set_level(LogLevels.INFO)
+    client.dry_run = True
+    sds_path = "sds/path"
+    local_path = "local/path"
+    expected_length = 10  # how many files dry run generates by default
+
+    results = client.download(
+        from_sds_path=sds_path,
+        to_local_path=local_path,
+        verbose=True,
+    )
+    successful = [result() for result in results if result]
+    errors = [result.error_info for result in results if not result]
+    assert len(errors) == 0, "No errors should be present in this run."
+    assert (
+        "Dry-run enabled: no SDS requests will be made or files written." in caplog.text
+    )
+    assert len(results) == expected_length
+    assert len(successful) == expected_length
+    assert all(file_obj.is_sample for file_obj in successful), (
+        "All files should be sample files in dry-run."
+    )
+
+
+def test_download_fails_for_invalid_files(
+    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
+    client: Client,
+) -> None:
+    """Ensures download() fails when an invalid local path is provided."""
+
+    caplog.set_level(LogLevels.ERROR)
+    sds_path = Path("sds/custom/dir/")
+    local_path = Path("local/path")
+
+    target_num_files = 2
+    original_list = files.generate_random_files(num_files=target_num_files)
+
+    def _get_problematic_list_of_files(num_files: int = 10) -> list[File]:
+        """Generates a list of fabricated files with issues for download."""
+        # num_files is ignored here 😈
+        altered_list = [
+            ofile.model_copy() for ofile in original_list[:target_num_files]
+        ]
+
+        # set an invalid directory (not a child of local_path)
+        altered_list[0].directory = local_path / "../../../" / "invalid"
+
+        # can't download a file with missing uuid for now
+        altered_list[1].uuid = None
+
+        return altered_list
+
+    # Patch the files.generate_random_files method to return the problematic list
+    with patch.object(
+        files,
+        attribute="generate_random_files",
+        side_effect=_get_problematic_list_of_files,
+    ):
+        _ = capsys.readouterr()
+        results = client.download(from_sds_path=sds_path, to_local_path=local_path)
+        assert len(results) == target_num_files, "Three files should be generated"
+
+        captured = capsys.readouterr()
+        log.debug(captured.err)
+        assert "simulating download" in captured.err
+        # assert "Skipping local file" in captured.err
+        successful_files = [result() for result in results if result]
+        error_infos = [result.error_info for result in results if not result]
+        log.error(
+            f"File count: successful={len(successful_files)}, "
+            f"errored={len(error_infos)}"
+        )
+        for success in successful_files:
+            log.info(f"{success.name}: {success.uuid}")
+        for error in error_infos:
+            assert "file" in error, "Error info should contain a file object."
+            file_obj: File = error["file"]
+            log.error(f"{file_obj.name}: uuid={file_obj.uuid}")
+        assert not any(successful_files), "No file should be successfully downloaded."

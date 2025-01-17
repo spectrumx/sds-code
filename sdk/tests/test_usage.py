@@ -16,14 +16,9 @@ from spectrumx import Client
 from spectrumx.errors import AuthError
 from spectrumx.gateway import API_TARGET_VERSION
 
-
 # --------
 # FIXTURES
 # --------
-@pytest.fixture
-def client() -> Client:
-    """Fixture to create a Client instance for testing."""
-    return Client(host="sds.crc.nd.edu")
 
 
 @pytest.fixture

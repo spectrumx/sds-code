@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from loguru import logger as log
 from spectrumx import enable_logging
+from spectrumx.client import Client
 from spectrumx.models import File
 from spectrumx.ops import files
 from spectrumx.utils import get_random_line
@@ -26,6 +27,12 @@ enable_logging()
 
 
 # ==== fixtures
+
+
+@pytest.fixture
+def client() -> Client:
+    """Fixture to create a Client instance for testing."""
+    return Client(host="sds-dev.crc.nd.edu")
 
 
 @pytest.fixture
