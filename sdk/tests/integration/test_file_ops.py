@@ -458,55 +458,6 @@ def test_download_single_file(
     ],
     indirect=True,
 )
-def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
-    """Tests listing files in a directory on SDS."""
-    random_subdir_name = get_random_line(10, include_punctuation=False)
-    sds_path = Path("/test-tree") / random_subdir_name
-    results = integration_client.upload(
-        local_path=temp_file_tree,
-        sds_path=sds_path,
-        verbose=True,
-    )
-    log.info(f"Uploaded {len(results)} files.")
-    failures = [result for result in results if not result]
-    if failures:
-        pytest.fail(f"One or more file uploads failed: {failures}")
-    uploaded_files: list[File] = [result() for result in results if result]
-    assert len(uploaded_files) > 0, "No files uploaded."
-
-    # list files in the directory
-    integration_client.verbose = True
-    files_listed = integration_client.list_files(sds_path=sds_path)
-    listed_uuids = {file.uuid for file in files_listed}
-    uploaded_uuids = {file.uuid for file in uploaded_files}
-    assert listed_uuids == uploaded_uuids, "UUIDs mismatch."
-
-
-@pytest.mark.integration
-@pytest.mark.usefixtures("_integration_setup_teardown")
-@pytest.mark.usefixtures("_without_responses")
-@pytest.mark.parametrize(
-    "_without_responses",
-    [
-        [
-            *[  # file content checks - for uploading before download
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file metadata download and file upload
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file content download
-                re.compile(
-                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
-                )
-                for hostname_and_port in passthru_hostnames
-            ],
-        ]
-    ],
-    indirect=True,
-)
 def test_download_files_in_bulk(
     integration_client: Client, temp_file_tree: Path
 ) -> None:
@@ -579,3 +530,52 @@ def test_download_files_in_bulk(
         )
 
     log.info(f"Downloaded {len(uploaded_files)} files.")
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    [
+        [
+            *[  # file content checks - for uploading before download
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file metadata download and file upload
+                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
+                for hostname_and_port in passthru_hostnames
+            ],
+            *[  # file content download
+                re.compile(
+                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
+                )
+                for hostname_and_port in passthru_hostnames
+            ],
+        ]
+    ],
+    indirect=True,
+)
+def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
+    """Tests listing files in a directory on SDS."""
+    random_subdir_name = get_random_line(10, include_punctuation=False)
+    sds_path = Path("/test-tree") / random_subdir_name
+    results = integration_client.upload(
+        local_path=temp_file_tree,
+        sds_path=sds_path,
+        verbose=True,
+    )
+    log.info(f"Uploaded {len(results)} files.")
+    failures = [result for result in results if not result]
+    if failures:
+        pytest.fail(f"One or more file uploads failed: {failures}")
+    uploaded_files: list[File] = [result() for result in results if result]
+    assert len(uploaded_files) > 0, "No files uploaded."
+
+    # list files in the directory
+    integration_client.verbose = True
+    files_listed = integration_client.list_files(sds_path=sds_path)
+    listed_uuids = {file.uuid for file in files_listed}
+    uploaded_uuids = {file.uuid for file in uploaded_files}
+    assert listed_uuids == uploaded_uuids, "UUIDs mismatch."

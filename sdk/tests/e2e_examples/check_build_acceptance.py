@@ -11,7 +11,7 @@ The goal is to be a quick way to check if client code runs, without strict
 Run it as a standalone script between the package build and publishing steps.
 Avoid adding third-party imports to this file.
 """
-# ruff: noqa: ERA001, T201
+# ruff: noqa: ERA001, T201, I001
 
 import datetime
 from collections.abc import Callable
@@ -35,12 +35,12 @@ if TYPE_CHECKING:
 
 def setup_module() -> None:
     """Setup any state specific to the execution of the given module."""
-    Path("my_spectrum_capture").mkdir(parents=True, exist_ok=True)
+    Path("my_spectrum_files").mkdir(parents=True, exist_ok=True)
 
 
 def teardown_module() -> None:
     """Teardown any state that was previously setup with a setup_module method."""
-    Path("my_spectrum_capture").rmdir()
+    Path("my_spectrum_files").rmdir()
 
 
 def check_basic_usage() -> None:
@@ -67,7 +67,7 @@ def check_basic_usage() -> None:
     sds.authenticate()
 
     # local_dir has your own local files that will be uploaded to the SDS
-    reference_name: str = "my_spectrum_capture"
+    reference_name: str = "my_spectrum_files"
     local_dir: Path = Path(reference_name)
 
     # or, if the directory doesn't exist, let's create some fake data
@@ -76,7 +76,7 @@ def check_basic_usage() -> None:
         num_files = 10
         for file_idx in range(num_files):
             num_lines = randint(10, 100)  # noqa: S311
-            file_name = f"capture_{file_idx}.csv"
+            file_name = f"rf_run_{file_idx}.csv"
             with (local_dir / file_name).open(mode="w", encoding="utf-8") as file_ptr:
                 fake_nums = [random() for _ in range(num_lines)]  # noqa: S311
                 file_ptr.write("\n".join(map(str, fake_nums)))
@@ -99,9 +99,69 @@ def check_basic_usage() -> None:
         verbose=True,  # shows a progress bar (default)
     )
 
-    print("Downloaded files:")
-    for file_path in local_downloads.iterdir():
-        print(file_path)
+    if not sds.dry_run:
+        print("Downloaded files:")
+        for file_path in local_downloads.iterdir():
+            print(file_path)
+    else:
+        print("Turn off dry-run to download and write files.")
+
+
+def check_error_handling() -> None:
+    """Basic error handling examples."""
+
+    # ======== Authentication ========
+
+    from spectrumx.errors import AuthError, NetworkError
+
+    sds = Client(host="sds.crc.nd.edu")
+    try:
+        sds.authenticate()
+    except NetworkError as err:
+        print(f"Failed to connect to the SDS: {err}")
+        # check your host= parameter and network connection
+        # if you're hosting the SDS Gateway, make sure it is accessible
+    except AuthError as err:
+        print(f"Failed to authenticate: {err}")
+        # TODO: take action
+
+    # ======== File operations ========
+
+    from time import sleep
+    from spectrumx.errors import NetworkError, SDSError, ServiceError
+
+    # ...
+    local_dir: Path = Path("my_spectrum_files")
+    reference_name: str = "my_spectrum_files"
+    is_success = False
+    retries_left: int = 5
+    while not is_success and retries_left > 0:
+        try:
+            retries_left -= 1
+            # the sds.upload will restart a partial file transfer from zero,
+            # but it won't re-upload already finished files.
+            sds.upload(
+                local_path=local_dir,
+                sds_path=reference_name,
+                verbose=True,
+            )
+            is_success = True
+        except (NetworkError, ServiceError) as err:
+            # NetworkError refers to connection issues between client and SDS Gateway
+            # ServiceError refers to issues with the SDS Gateway itself (e.g. HTTP 500)
+            # sleep longer with each retry, at least 5s, up to 5min
+            sleep_time = max(5, 5 / (retries_left**2) * 60)
+            print(f"Failed to reach the gateway; sleeping {sleep_time}s")
+            print(f"Error: {err}")
+            if retries_left > 0:
+                sleep(sleep_time)
+            continue
+        except SDSError as err:
+            print(f"Another SDS error occurred: {err}")
+            # other errors might include e.g. OSError
+            #   if listed files cannot be found.
+            # TODO: take action or break
+            break
 
 
 def check_file_listing_usage() -> None:
@@ -109,7 +169,7 @@ def check_file_listing_usage() -> None:
 
     sds = Client(host="sds.crc.nd.edu")
     sds.authenticate()
-    reference_name: str = "my_spectrum_capture"
+    reference_name: str = "my_spectrum_files"
 
     # list files in an SDS directory, without downloading them
     files_generator = sds.list_files(sds_path=reference_name)
@@ -224,6 +284,7 @@ def main() -> None:
     # check_basic_usage()
     all_checks = [
         CheckCaller(call_fn=check_basic_usage, name="Basic usage"),
+        CheckCaller(call_fn=check_error_handling, name="Error handling"),
         CheckCaller(call_fn=check_file_listing_usage, name="File listing usage"),
         # uncomment the following when implemented:
         # CheckCaller(call_fn=check_capture_usage, name="Capture usage"),
