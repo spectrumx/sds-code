@@ -125,7 +125,7 @@ class Paginator(Generic[T]):
 
     def __next__(self) -> T:
         """Returns the next entry in the pagination."""
-        while self._next_element is not _Unset or self._has_next_page():
+        while self._next_element is not _Unset or self._has_next_page:
             try:
                 self._next_element = next(self._current_page_entries)
             except StopIteration:
@@ -159,6 +159,7 @@ class Paginator(Generic[T]):
         if self._verbose:
             log.opt(depth=depth).debug(message)
 
+    @property
     def _has_next_page(self) -> bool:
         """Checks if there is a next page available."""
         has_not_fetched = not self._has_fetched
@@ -173,7 +174,7 @@ class Paginator(Generic[T]):
         self._is_fetching = True
         # try-finally to unset self._is_fetching when done
         try:
-            if not self._has_next_page():
+            if not self._has_next_page:
                 msg = "No more pages available."
                 raise StopIteration(msg)
             if self.dry_run:

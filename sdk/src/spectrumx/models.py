@@ -56,7 +56,7 @@ class File(SDSModel):
     # events and state
     _is_downloading: bool = False
     _is_uploading: bool = False
-    contents_lock: RLockT = Field(default_factory=RLock)
+    contents_lock: RLockT = Field(default_factory=RLock, exclude=True)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
