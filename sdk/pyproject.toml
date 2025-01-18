@@ -36,8 +36,11 @@
 
     [tool.deptry.per_rule_ignores]
         # https://deptry.com/usage/#per-rule-ignores
-        DEP003 = ["spectrumx"]
+        DEP001 = ["spectrumx"]
         DEP004 = ["rich"]
+
+    [tool.deptry.package_module_name_map]
+        python-dotenv = "dotenv"
 
 [tool.pylint]
 
