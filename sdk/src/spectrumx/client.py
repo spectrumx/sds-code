@@ -15,7 +15,7 @@ from spectrumx.ops.pagination import Paginator
 from . import __version__
 from .config import SDSConfig
 from .gateway import GatewayClient
-from .models import File
+from .models.files import File
 from .ops import files
 from .utils import clean_local_path
 from .utils import get_prog_bar
