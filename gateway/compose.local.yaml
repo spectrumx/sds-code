@@ -20,8 +20,8 @@ networks:
     sds-gateway-local-opensearch-net:
         driver: bridge
     sds-network-local:
-        external: true
-
+        # external: true
+        driver: bridge
 services:
 
     sds-gateway-local-app:
@@ -94,8 +94,8 @@ services:
             context: .
             dockerfile: ./compose/production/opensearch/Dockerfile
             args:
-                UID: ${UID}
-                GID: ${GID}
+                UID: 1000
+                GID: 1000
         container_name: sds-gateway-local-opensearch
         volumes:
             - sds-gateway-local-opensearch-data:/usr/share/opensearch/data

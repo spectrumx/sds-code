@@ -62,7 +62,7 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         # check if API key expired
-        api_key = UserAPIKey.objects.get_from_user(request.user)
+        api_key = UserAPIKey.objects.filter(user=request.user).exclude(source='svi_backend').first()
         if api_key is None:
             return render(
                 request,
@@ -79,8 +79,8 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
             self.template_name,
             {
                 "api_key": True,  # return True if API key exists
-                "expires_at": api_key.expiry_date.strftime("%Y-%m-%d %H:%M:%S"),
-                "expired": api_key.expiry_date < datetime.datetime.now(datetime.UTC),
+                "expires_at": api_key.expiry_date.strftime("%Y-%m-%d %H:%M:%S") if api_key.expiry_date else 'Does not expire',
+                "expired": api_key.expiry_date < datetime.datetime.now(datetime.UTC) if api_key.expiry_date else False,
             },
         )
 
@@ -89,7 +89,7 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
         expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1)
 
         # Delete the API key if it exists
-        existing_api_key = UserAPIKey.objects.get_from_user(request.user)
+        existing_api_key = UserAPIKey.objects.filter(user=request.user).exclude(source='svi_backend').first()
         if existing_api_key:
             existing_api_key.delete()
 
@@ -98,13 +98,14 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
             name=request.user.email,
             user=request.user,
             expiry_date=expires_at,
+            source='sds_web_ui'
         )
         return render(
             request,
             self.template_name,
             {
                 "api_key": key,  # key only returned when API key is created
-                "expires_at": expires_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "expires_at": expires_at.strftime("%Y-%m-%d %H:%M:%S") if expires_at else 'Does not expire',
                 "expired": False,
             },
         )
