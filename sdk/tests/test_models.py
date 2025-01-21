@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from pytz import UTC
 from pytz import timezone
-from spectrumx.models import File
+from spectrumx.models.files import File
 
 
 @pytest.fixture

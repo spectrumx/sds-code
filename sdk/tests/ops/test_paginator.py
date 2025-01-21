@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 from loguru import logger as log
 from spectrumx.gateway import GatewayClient
-from spectrumx.models import File
+from spectrumx.models.files import File
 from spectrumx.ops.pagination import Paginator
 
 log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")

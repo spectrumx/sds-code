@@ -14,7 +14,7 @@ from loguru import logger as log
 
 from .errors import AuthError
 from .errors import FileError
-from .models import File
+from .models.files import File
 from .ops import network
 from .utils import log_user_warning
 

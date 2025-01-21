@@ -1,4 +1,4 @@
-"""Data models for the SpectrumX Data System SDK."""
+"""File model for SpectrumX."""
 
 from datetime import datetime
 from multiprocessing import RLock
@@ -6,18 +6,12 @@ from multiprocessing.synchronize import RLock as RLockT
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import UUID4
-from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 
-from . import utils
+from spectrumx import utils
 
-
-class SDSModel(BaseModel):
-    """Base class for most models in SDS."""
-
-    uuid: UUID4 | None = None
+from .base import SDSModel
 
 
 class File(SDSModel):
@@ -121,21 +115,4 @@ class File(SDSModel):
         return this_sum == other_sum
 
 
-class Dataset(SDSModel):
-    """A dataset in SDS (collection of files)."""
-
-    # TODO: Implement this model.
-
-
-class Capture(SDSModel):
-    """A capture in SDS (collection of related RF files)."""
-
-    # TODO: Implement this model.
-
-
-__all__ = [
-    "Capture",
-    "Dataset",
-    "File",
-    "SDSModel",
-]
+__all__ = ["File"]

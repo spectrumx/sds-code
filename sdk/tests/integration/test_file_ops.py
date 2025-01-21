@@ -1,6 +1,5 @@
 """Integration tests for file operations on SDS."""
 
-import re
 import time
 import uuid
 from pathlib import Path
@@ -10,22 +9,17 @@ from unittest.mock import patch
 import pytest
 from loguru import logger as log
 from spectrumx.client import Client
-from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.ops.files import construct_file
 from spectrumx.ops.files import get_valid_files
 from spectrumx.ops.files import is_valid_file
 from spectrumx.utils import get_random_line
 
-from tests.integration.conftest import passthru_hostnames
+from tests.integration.conftest import PassthruEndpoints
 
 if TYPE_CHECKING:
-    from spectrumx.models import File
+    from spectrumx.models.files import File
 
 BLAKE3_HEX_LEN: int = 64
-uuid_v4_regex = (
-    r"[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]"
-    r"{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}"
-)
 
 
 def test_is_valid_file_allowed(temp_file_with_text_contents) -> None:

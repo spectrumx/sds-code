@@ -7,7 +7,7 @@ from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
 
-from spectrumx.models import File
+from spectrumx.models.files import File
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
 
