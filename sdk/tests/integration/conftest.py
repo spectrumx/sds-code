@@ -1,18 +1,25 @@
 """Fixtures and utilities for integration tests."""
 
 # better traceback formatting with rich, if available
+import re
 from collections.abc import Generator
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from re import Pattern
 
 import pytest
 from loguru import logger as log
 from responses import RequestsMock
 from spectrumx.client import Client
+from spectrumx.gateway import API_PATH
+from spectrumx.gateway import API_TARGET_VERSION
+from spectrumx.gateway import Endpoints
 
-if TYPE_CHECKING:
-    from re import Pattern
+# matches UUIDv4 strings for passthru validation
+uuid_v4_regex = (
+    r"[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]"
+    r"{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}"
+)
 
 # add more hostnames here to bypass `responses` when running integration tests.
 # these servers will receive the actual requests from integration tests:
@@ -28,6 +35,92 @@ passthru_hostnames = [
     #   changing your local /etc/hosts first. This is useful if you're also
     #   testing your Traefik config, for example.
 ]
+
+
+class PassthruEndpoints:
+    """Wrapper to return commonly used passthru hostnames.
+
+    Passthru hostnames are a collection of complete endpoints -- protocol + (sub+)domain
+        + port + path -- that are used to bypass the `responses` package in integration
+        tests. All endpoints matched by these URLs will be allowed to pass
+        through to the real service behind, so that the integration can be tested.
+    The method (GET, POST, etc) is not part of a passthru, so some goals share the same
+        passthru URL, such as the file metadata download (GET) and file uploads (POST).
+    Any requests not in the passthru list will be intercepted by `responses`, and,
+        unless they are mocked, that will raise an error.
+
+    Usage:
+
+    Decorate a test function with the following:
+
+    ```
+    @pytest.mark.usefixtures("_without_responses")
+    @pytest.mark.parametrize(
+        "_without_responses",
+        argvalues=[
+            PassthruEndpoints.authentication(),
+            # other passthru endpoints here
+        ],
+        # tell pytest to pass the parameters to the fixture, \
+        #   instead of the test function directly:
+        indirect=True,
+    )
+    ```
+
+    """
+
+    @staticmethod
+    def authentication() -> list[str]:
+        """Passthrough for authentication."""
+        return [
+            f"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.AUTH}"
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @staticmethod
+    def file_content_checks() -> list[str]:
+        """Passthrough for file content checks."""
+        return [
+            f"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.FILE_CONTENTS_CHECK}"
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @classmethod
+    def file_uploads(cls) -> list[str]:
+        """Passthrough for upload of file metadata + contents.
+
+        Alias for file_meta_download_or_upload() to make usage more explicit.
+        """
+        return cls.file_meta_download_or_upload()
+
+    @staticmethod
+    def file_meta_download_or_upload() -> list[str]:
+        """Passthrough for file metadata download or file uploads."""
+        return [
+            f"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.FILES}"
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @staticmethod
+    def file_content_download() -> list[Pattern[str]]:
+        """Passthrough for file content download."""
+        return [  # file content download
+            re.compile(
+                rf"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.FILES}/{uuid_v4_regex}/download"
+            )
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @staticmethod
+    def all_passthru() -> list[str | Pattern[str]]:
+        """Returns all passthru endpoints for debugging."""
+        return (
+            PassthruEndpoints.authentication()
+            + PassthruEndpoints.file_content_checks()
+            + PassthruEndpoints.file_uploads()
+            + PassthruEndpoints.file_meta_download_or_upload()
+            + PassthruEndpoints.file_content_download()
+        )
 
 
 @pytest.fixture
@@ -51,20 +144,22 @@ def _without_responses(
 
     Used in integration tests like:
 
-    >>> @pytest.mark.integration    # optional
-        @pytest.mark.usefixtures("_integration_setup_teardown")   # optional
-        @pytest.mark.parametrize(
-            "_without_responses",
-            [
-                [   # list of URLs to allow bypass (the real service is called)
-                    "https://sds.crc.nd.edu:443/api/v1/auth",
-                    "http://localhost:80/api/v1/auth",
-                ]
-            ],
-            # tell pytest to pass the parameters to this fixture, \
-            #   instead of the test function directly:
-            indirect=True,
-        )
+    ```
+    @pytest.mark.integration    # optional
+    @pytest.mark.usefixtures("_integration_setup_teardown")   # optional
+    @pytest.mark.parametrize(
+        "_without_responses",
+        [
+            [   # list of URLs to allow bypass (the real service is called)
+                "https://sds-dev.crc.nd.edu:443{API_PATH}v1/auth",
+                "http://localhost:80{API_PATH}v1/auth",
+            ]
+        ],
+        # tell pytest to pass the parameters to this
+        #   fixture, instead of the test function directly:
+        indirect=True,
+    )
+    ```
     """
 
     # setup

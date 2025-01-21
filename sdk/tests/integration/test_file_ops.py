@@ -94,16 +94,10 @@ def test_get_valid_files(temp_file_tree: Path) -> None:
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
+    argvalues=[
         [
-            *[  # file content checks
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file uploads
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
         ]
     ],
     indirect=True,
@@ -136,16 +130,10 @@ def test_upload_single_file(
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
+    argvalues=[
         [
-            *[  # file content checks
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file uploads
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
         ]
     ],
     indirect=True,
@@ -170,16 +158,10 @@ def test_upload_files_in_bulk(integration_client: Client, temp_file_tree: Path) 
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
+    argvalues=[
         [
-            *[  # file content checks
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file uploads
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
         ]
     ],
     indirect=True,
@@ -221,11 +203,8 @@ def test_upload_large_file(
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
-        [
-            f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-            for hostname_and_port in passthru_hostnames
-        ]
+    argvalues=[
+        PassthruEndpoints.file_content_checks(),
     ],
     indirect=True,
 )
@@ -264,16 +243,10 @@ def test_check_file_content_non_existing(
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
+    argvalues=[
         [
-            *[  # file content checks
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file uploads
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
         ]
     ],
     indirect=True,
@@ -318,16 +291,10 @@ def test_check_file_content_identical(
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
+    argvalues=[
         [
-            *[  # file content checks
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file uploads
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
         ]
     ],
     indirect=True,
@@ -385,22 +352,11 @@ def test_check_file_content_name_changed(
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
+    argvalues=[
         [
-            *[  # file content checks - for uploading before download
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file metadata download and file upload
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file content download
-                re.compile(
-                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
-                )
-                for hostname_and_port in passthru_hostnames
-            ],
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_meta_download_or_upload(),
+            *PassthruEndpoints.file_content_download(),
         ]
     ],
     indirect=True,
@@ -438,22 +394,11 @@ def test_download_single_file(
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
+    argvalues=[
         [
-            *[  # file content checks - for uploading before download
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file metadata download and file upload
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file content download
-                re.compile(
-                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
-                )
-                for hostname_and_port in passthru_hostnames
-            ],
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_meta_download_or_upload(),
+            *PassthruEndpoints.file_content_download(),
         ]
     ],
     indirect=True,
@@ -537,22 +482,11 @@ def test_download_files_in_bulk(
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
+    argvalues=[
         [
-            *[  # file content checks - for uploading before download
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file metadata download and file upload
-                f"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files"
-                for hostname_and_port in passthru_hostnames
-            ],
-            *[  # file content download
-                re.compile(
-                    rf"{hostname_and_port}/api/{API_TARGET_VERSION}/assets/files/{uuid_v4_regex}/download"
-                )
-                for hostname_and_port in passthru_hostnames
-            ],
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_meta_download_or_upload(),
+            *PassthruEndpoints.file_content_download(),
         ]
     ],
     indirect=True,
