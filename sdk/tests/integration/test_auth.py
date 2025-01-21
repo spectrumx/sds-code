@@ -6,9 +6,8 @@ Use the integration_client fixture for these tests.
 import pytest
 from spectrumx import Client
 from spectrumx.errors import AuthError
-from spectrumx.gateway import API_TARGET_VERSION
 
-from tests.integration.conftest import passthru_hostnames
+from tests.integration.conftest import PassthruEndpoints
 
 
 @pytest.mark.integration
@@ -16,11 +15,8 @@ from tests.integration.conftest import passthru_hostnames
 @pytest.mark.usefixtures("_without_responses")
 @pytest.mark.parametrize(
     "_without_responses",
-    [
-        [
-            f"{hostname_and_port}/api/{API_TARGET_VERSION}/auth"
-            for hostname_and_port in passthru_hostnames
-        ]
+    argvalues=[
+        PassthruEndpoints.authentication(),
     ],
     # tell pytest to pass the parameters to the fixture, \
     #   instead of the test function directly:
