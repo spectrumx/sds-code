@@ -8,6 +8,8 @@ from django.db import models
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from rest_framework_api_key.models import AbstractAPIKey
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 from .managers import APIKeyUserManager
 from .managers import UserManager
@@ -49,9 +51,26 @@ class User(AbstractUser):
         return reverse("users:detail", kwargs={"pk": self.id})
 
 
+@receiver(post_save, sender=User)
+def create_api_key(sender, instance, created, **kwargs):
+    """Create API key for new users."""
+    if created:
+        UserAPIKey.objects.create_key(
+            name=f"{instance.email}-SVI-API-KEY",
+            user=instance,
+            source='svi_backend'
+        )
+
+
 class UserAPIKey(AbstractAPIKey):
+    SOURCE_CHOICES = [
+        ('sds_web_ui', "SDS Web UI"),
+        ('sds_api', "SDS API"),
+        ('svi_backend', "SVI Backend"),
+    ]
     user = cast(
         User,
         models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE),
     )
+    source = models.CharField(choices=SOURCE_CHOICES, default='sds_web_ui', max_length=255)
     objects = APIKeyUserManager()
