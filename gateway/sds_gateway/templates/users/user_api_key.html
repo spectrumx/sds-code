@@ -22,9 +22,13 @@
                     </br />
                 {% endif %}
                 <p>
-                    Your key expires at: <strong>{{ expires_at }}</strong>
+                    {% if expires_at %}
+                        Your key expires at: <strong>{{ expires_at }}</strong>
+                        <p>When expired, you will be prompted to generate a new key.</p>
+                    {% else %}
+                        Your key does not expire.
+                    {% endif %}
                 </p>
-                <p>When expired, you will be prompted to generate a new key.</p>
                 {% if not api_key|is_string %}
                     <p>If you have lost your API key, you may generate a new one below (this will invalidate the current key).</p>
                     <form method="post" action="{% url 'users:generate_api_key' %}">

@@ -85,19 +85,15 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
         )
 
     def post(self, request, *args, **kwargs):
-        # Calculate the expiration date (1 week from now)
-        expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=1)
-
         # Delete the API key if it exists
         existing_api_key = UserAPIKey.objects.filter(user=request.user).exclude(source='svi_backend').first()
         if existing_api_key:
             existing_api_key.delete()
 
-        # Create an API key for the user
+        # Create an API key for the user (with no expiration date for now)
         api_key, key = UserAPIKey.objects.create_key(
             name=request.user.email,
             user=request.user,
-            expiry_date=expires_at,
             source='sds_web_ui'
         )
         return render(
@@ -105,7 +101,7 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
             self.template_name,
             {
                 "api_key": key,  # key only returned when API key is created
-                "expires_at": expires_at.strftime("%Y-%m-%d %H:%M:%S") if expires_at else 'Does not expire',
+                "expires_at": None,
                 "expired": False,
             },
         )
