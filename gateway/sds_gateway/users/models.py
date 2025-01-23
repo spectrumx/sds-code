@@ -35,11 +35,15 @@ class User(AbstractUser):
             "Designates whether this user has been approved to use the API by an Admin.",  # noqa: E501
         ),
     )
+    svi_api_key = models.CharField(max_length=255, blank=True, null=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
     objects = UserManager()
+
+    def get_svi_api_key(self):
+        return self.svi_api_key
 
     def get_absolute_url(self) -> str:
         """Get URL for user's detail view.
@@ -55,11 +59,13 @@ class User(AbstractUser):
 def create_api_key(sender, instance, created, **kwargs):
     """Create API key for new users."""
     if created:
-        UserAPIKey.objects.create_key(
+        api_key_obj, key = UserAPIKey.objects.create_key(
             name=f"{instance.email}-SVI-API-KEY",
             user=instance,
             source='svi_backend'
         )
+        instance.svi_api_key = key
+        instance.save()
 
 
 class UserAPIKey(AbstractAPIKey):

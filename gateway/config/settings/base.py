@@ -435,3 +435,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # Add 'allauth.socialaccount.providers.auth0' to INSTALLED_APPS
 INSTALLED_APPS += ["allauth.socialaccount.providers.auth0"]
+
+# SVI Server API Key
+SVI_SERVER_EMAIL: str = env("SVI_SERVER_EMAIL", default="svi-server@spectrumx.crc.nd.com")
+SVI_SERVER_API_KEY: str = env("SVI_SERVER_API_KEY", default="svi-server-api-key")
