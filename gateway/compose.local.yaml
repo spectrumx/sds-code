@@ -94,8 +94,8 @@ services:
             context: .
             dockerfile: ./compose/production/opensearch/Dockerfile
             args:
-                UID: 1000
-                GID: 1000
+                UID: ${UID}
+                GID: ${GID}
         container_name: sds-gateway-local-opensearch
         volumes:
             - sds-gateway-local-opensearch-data:/usr/share/opensearch/data
