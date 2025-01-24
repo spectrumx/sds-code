@@ -4,7 +4,8 @@
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from sds_gateway.api_methods.models import CaptureType, File
+from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import File
 
 capture_request_example_schema = {
     "top_level_dir": "/path/to/top_level_dir",

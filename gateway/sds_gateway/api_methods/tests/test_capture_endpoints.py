@@ -8,10 +8,12 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APIClient
+from rest_framework.test import APITestCase
 from rest_framework_api_key.models import AbstractAPIKey
 
-from sds_gateway.api_methods.models import Capture, CaptureType
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.metadata_schemas import (
     capture_index_mapping_by_type as md_props_by_type,
 )
