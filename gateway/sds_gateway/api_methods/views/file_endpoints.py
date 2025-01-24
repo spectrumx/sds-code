@@ -76,17 +76,28 @@ class FileViewSet(ViewSet):
     def create(self, request: Request) -> Response:
         """Uploads a file to the server."""
 
-        log.error(request.data)
+        request_data = request.data.copy()
+        request_data["owner"] = request.user.pk
 
-        # TODO: handle file creation when a sibling file is provided
-        if request.data.get("sibling_uuid"):
-            return Response(
-                {"detail": "This file creation mode is not yet supported."},
-                status=status.HTTP_501_NOT_IMPLEMENTED,
+        # when a sibling file is provided, use its file contents
+        if sibling_uuid := request_data.get("sibling_uuid"):
+            sibling_file = get_object_or_404(
+                File,
+                uuid=sibling_uuid,
+                owner=request.user,
+                is_deleted=False,
+            )
+            keys_to_remove = ["sibling_uuid", "sum_blake3", "file", "owner"]
+            for key in keys_to_remove:
+                request_data.pop(key, None)
+            request_data.update(
+                file=sibling_file.file,
+                sum_blake3=sibling_file.sum_blake3,
+                owner=request.user.pk,
             )
 
         serializer = FilePostSerializer(
-            data=request.data,
+            data=request_data,
             context={"request_user": request.user},
         )
         attrs_to_return = [
@@ -103,7 +114,7 @@ class FileViewSet(ViewSet):
         ]
         logging.debug("Validating file upload: %s", serializer)
         user_dir = f"/files/{request.user.email}"
-        if serializer.is_valid(raise_exception=True):
+        if serializer.is_valid(raise_exception=False):
             serializer.save()
             logging.debug("New file uploaded: %s", serializer["uuid"])
             returned_object = {}
@@ -118,6 +129,7 @@ class FileViewSet(ViewSet):
                 else:
                     returned_object[key] = value
             return Response(returned_object, status=status.HTTP_201_CREATED)
+        log.error(f"File upload failed: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
