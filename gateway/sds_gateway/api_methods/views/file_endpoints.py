@@ -76,11 +76,11 @@ class FileViewSet(ViewSet):
     def create(self, request: Request) -> Response:
         """Uploads a file to the server."""
 
-        request_data = request.data.copy()
-        request_data["owner"] = request.user.pk
-
         # when a sibling file is provided, use its file contents
-        if sibling_uuid := request_data.get("sibling_uuid"):
+        if sibling_uuid := request.data.get("sibling_uuid"):
+            # .copy() only works for this mode
+            request_data = request.data.copy()
+            request_data["owner"] = request.user.pk
             sibling_file = get_object_or_404(
                 File,
                 uuid=sibling_uuid,
@@ -95,11 +95,16 @@ class FileViewSet(ViewSet):
                 sum_blake3=sibling_file.sum_blake3,
                 owner=request.user.pk,
             )
+            serializer = FilePostSerializer(
+                data=request_data,
+                context={"request_user": request.user},
+            )
+        else:
+            serializer = FilePostSerializer(
+                data=request.data,
+                context={"request_user": request.user},
+            )
 
-        serializer = FilePostSerializer(
-            data=request_data,
-            context={"request_user": request.user},
-        )
         attrs_to_return = [
             "uuid",
             "name",

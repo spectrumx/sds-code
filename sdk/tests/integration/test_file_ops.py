@@ -274,7 +274,7 @@ def test_check_file_content_identical(
     assert file_contents_check.user_mutable_attributes_differ is False, (
         "Attributes should be identical."
     )
-    assert file_contents_check.asset_id == str(uploaded_file.uuid), (
+    assert file_contents_check.asset_id == uploaded_file.uuid, (
         "Asset ID does not match uploaded file: "
         f"{file_contents_check.asset_id} != {uploaded_file.uuid!s}"
     )
@@ -329,7 +329,7 @@ def test_check_file_content_name_changed(
     assert file_contents_check.user_mutable_attributes_differ is True, (
         "Attributes are different (name)."
     )
-    assert file_contents_check.asset_id == str(uploaded_file.uuid), (
+    assert file_contents_check.asset_id == uploaded_file.uuid, (
         "Expected asset ID to be the closest match (sibling UUID) to the uploaded file:"
         f"{file_contents_check.asset_id} != {uploaded_file.uuid!s}"
     )

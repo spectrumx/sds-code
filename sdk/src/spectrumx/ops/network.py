@@ -21,11 +21,11 @@ def success_or_raise(
     try:
         error_json = response.json()
         error_details = error_json.get("detail", error_json)
-        error_details = str(error_details)
     except requests.exceptions.JSONDecodeError:
         error_details = response.content
 
-    log.exception(error_details)
+    error_details = str(error_details)
+    log.opt(depth=1).exception(error_details)
     if status in {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}:
         raise errors.AuthError(message=error_details)
     if status.is_client_error:
