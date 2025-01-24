@@ -78,6 +78,13 @@ class FileViewSet(ViewSet):
 
         log.error(request.data)
 
+        # TODO: handle file creation when a sibling file is provided
+        if request.data.get("sibling_uuid"):
+            return Response(
+                {"detail": "This file creation mode is not yet supported."},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
+            )
+
         serializer = FilePostSerializer(
             data=request.data,
             context={"request_user": request.user},
