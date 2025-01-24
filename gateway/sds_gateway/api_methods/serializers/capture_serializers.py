@@ -17,37 +17,37 @@ class CaptureGetSerializer(serializers.ModelSerializer):
     capture_props = serializers.SerializerMethodField()
 
     @extend_schema_field(serializers.DictField)
-    def get_capture_props(self, obj):
-        # Check if this is a many=True serialization
+    def get_capture_props(self, capture: Capture) -> dict[str, Any]:
+        """Retrieve the indexed metadata for the capture."""
+        # check if this is a many=True serialization
         is_many = bool(
             self.parent and isinstance(self.parent, serializers.ListSerializer),
         )
 
         if not is_many or not self.parent:
-            return retrieve_indexed_metadata(obj, is_many=False)
+            return retrieve_indexed_metadata(capture)
 
-        # Cache the metadata for all objects if not already done
+        # cache the metadata for all objects if not already done
         if not hasattr(self.parent, "capture_props_cache"):
             # Convert QuerySet to list if needed
-            instances = (
+            instances: list[Capture] = (
                 list(self.parent.instance)
-                if self.parent and hasattr(self.parent.instance, "__iter__")
-                else [self.parent.instance if self.parent else obj]
+                if self.parent is not None and hasattr(self.parent.instance, "__iter__")
+                else [self.parent.instance if self.parent else capture]
             )
             self.parent.capture_props_cache = retrieve_indexed_metadata(
                 instances,
-                is_many=True,
             )
 
-        # Return the cached metadata for this specific object
-        return self.parent.capture_props_cache.get(str(obj.uuid), {})
+        # return the cached metadata for this specific object
+        return self.parent.capture_props_cache.get(str(capture.uuid), {})
 
     class Meta:
         model = Capture
         fields = "__all__"
 
 
-class CapturePostSerializer(serializers.ModelSerializer):
+class CapturePostSerializer(serializers.ModelSerializer[Capture]):
     capture_props = serializers.SerializerMethodField()
 
     class Meta:
