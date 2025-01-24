@@ -4,6 +4,7 @@ import logging
 import uuid
 from pathlib import Path
 from pathlib import PurePosixPath
+from typing import Any
 
 from django.http import QueryDict
 from loguru import logger as log
@@ -102,7 +103,7 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
 
         return super().is_valid(raise_exception=raise_exception)
 
-    def create(self, validated_data) -> File:
+    def create(self, validated_data: dict[str, Any]) -> File:
         # Set the owner to the request user
         validated_data["owner"] = self.context["request_user"]
         user_files_dir = f"/files/{validated_data['owner'].email}"
@@ -128,13 +129,6 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
 
         if "media_type" not in validated_data:
             validated_data["media_type"] = ""
-
-        # TODO: allow sibling_uuid to be passed to avoid duplicate uploads:
-        # 1. If sibling_uuid is passed, check if this uuid exists under the user
-        # 2. If it doesn't, fail. Otherwise:
-        # 3. Use the sibling's file and checksum;
-        # 4. Set remaining fields to match the request data;
-        # 5. Save to DB, return the instance as usual.
 
         checksum = File().calculate_checksum(validated_data["file"])
 

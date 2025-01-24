@@ -80,8 +80,8 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
 
         return render(
             request,
-            self.template_name,
-            {
+            template_name=self.template_name,
+            context={
                 "api_key": True,  # return True if API key exists
                 "expires_at": api_key.expiry_date.strftime("%Y-%m-%d %H:%M:%S")
                 if api_key.expiry_date
@@ -110,8 +110,8 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
         )
         return render(
             request,
-            self.template_name,
-            {
+            template_name=self.template_name,
+            context={
                 "api_key": key,  # key only returned when API key is created
                 "expires_at": None,
                 "expired": False,
