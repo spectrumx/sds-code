@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -13,6 +12,8 @@ from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from spectrumx.gateway import GatewayClient
 
 
@@ -41,6 +42,7 @@ class CaptureAPI:
         if self.dry_run:
             log.debug("Dry run enabled: simulating the capture creation")
             return Capture(
+                capture_props={},
                 capture_type=capture_type,
                 channel=channel,
                 index_name=index_name,
