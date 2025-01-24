@@ -4,14 +4,14 @@ from typing import cast
 
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (
-    OpenApiExample,
-    OpenApiParameter,
-    OpenApiResponse,
-    extend_schema,
-)
+from drf_spectacular.utils import OpenApiExample
+from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiResponse
+from drf_spectacular.utils import extend_schema
+from loguru import logger as log
 from opensearchpy import exceptions as os_exceptions
-from rest_framework import status, viewsets
+from rest_framework import status
+from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -24,10 +24,11 @@ from sds_gateway.api_methods.helpers.extract_drf_metadata import (
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
-    CaptureGetSerializer,
     CapturePostSerializer,
 )
+from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
 
@@ -59,42 +60,61 @@ class CaptureViewSet(viewsets.ViewSet):
         summary="Create Capture",
     )
     def create(self, request: Request) -> Response:
-        # channel whose data/metadata to capture
+        """Create a capture object, connecting files and indexing the metadata."""
         channel = request.data.get("channel", None)
-        # path to directory that contains the channel dirs
-        requested_top_level_dir = Path(request.data.get("top_level_dir", ""))
+        unsafe_top_level_dir = request.data.get("top_level_dir", "")
+
+        if not isinstance(channel, str):
+            msg = "Channel must be a string."
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        # sanitize top_level_dir
+        requested_top_level_dir = sanitize_path_rel_to_user(
+            unsafe_path=unsafe_top_level_dir,
+            request=request,
+        )
+        if requested_top_level_dir is None:
+            return Response(
+                {"detail": "The provided `top_level_dir` is invalid."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         requester = cast(User, request.user)
-
-        # Ensure the top_level_dir is not a relative path
-        if not requested_top_level_dir.is_absolute():
-            msg = "Relative paths are not allowed."
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Resolve the top_level_dir to an absolute path
-        resolved_top_level_dir = requested_top_level_dir.resolve(strict=False)
-
-        # Ensure the resolved path is within the user's files directory
-        user_files_dir = Path(f"/files/{requester.email}").resolve(strict=False)
-        if not resolved_top_level_dir.is_relative_to(user_files_dir):
-            msg = f"The top_level_dir must be in the user's files directory: /files/{requester.email}"  # noqa: E501
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-
-        request.data["owner"] = requester.id
+        request_data = request.data.copy()
         post_serializer = CapturePostSerializer(
-            data=request.data,
+            data=request_data,
+            context={"request_user": request.user},
         )
-        if post_serializer.is_valid():
-            post_serializer.save()
-        else:
-            return Response(post_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if not post_serializer.is_valid():
+            errors = post_serializer.errors
+            log.error(f"Capture POST serializer errors: {errors}")
+            return Response(
+                {"detail": errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # get capture object from serializer
-        capture_data = dict(post_serializer.data)
-        capture = Capture.objects.get(
-            uuid=capture_data["uuid"],
-            owner=requester,
+        capture = post_serializer.save()
+
+        self.index_drf_capture(
+            channel=channel,
+            requested_top_level_dir=requested_top_level_dir,
+            requester=requester,
+            capture=capture,
         )
 
+        get_serializer = CaptureGetSerializer(capture)
+
+        return Response(get_serializer.data, status=status.HTTP_201_CREATED)
+
+    def index_drf_capture(
+        self,
+        *,
+        channel: str,
+        requested_top_level_dir: Path,
+        requester: User,
+        capture: Capture,
+    ) -> None:
+        """Indexes a capture after constructing a temporary file tree."""
         with tempfile.TemporaryDirectory() as temp_dir:
             tmp_dir_path, files_to_connect = reconstruct_tree(
                 target_dir=Path(temp_dir),
@@ -106,16 +126,11 @@ class CaptureViewSet(viewsets.ViewSet):
                 cur_file.capture = capture
                 cur_file.save()
 
-            if not isinstance(channel, str):
-                msg = "Channel must be a string."
-                return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-
-            validated_metadata = validate_metadata_by_channel(tmp_dir_path, channel)
+            validated_metadata = validate_metadata_by_channel(
+                data_path=tmp_dir_path,
+                channel_name=channel,
+            )
             index_capture_metadata(capture, validated_metadata)
-
-        get_serializer = CaptureGetSerializer(capture)
-
-        return Response(get_serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         parameters=[
