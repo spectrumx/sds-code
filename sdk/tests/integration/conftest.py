@@ -112,6 +112,14 @@ class PassthruEndpoints:
         ]
 
     @staticmethod
+    def capture_creation() -> list[str]:
+        """Passthrough for capture creation."""
+        return [
+            f"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.CAPTURES}"
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @staticmethod
     def all_passthru() -> list[str | Pattern[str]]:
         """Returns all passthru endpoints for debugging."""
         return (
@@ -120,6 +128,7 @@ class PassthruEndpoints:
             + PassthruEndpoints.file_uploads()
             + PassthruEndpoints.file_meta_download_or_upload()
             + PassthruEndpoints.file_content_download()
+            + PassthruEndpoints.capture_creation()
         )
 
 

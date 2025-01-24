@@ -8,6 +8,7 @@ from typing import Any
 from loguru import logger as log
 from pydantic import UUID4
 
+from spectrumx.api.captures import CaptureAPI
 from spectrumx.errors import Result
 from spectrumx.errors import SDSError
 from spectrumx.ops.pagination import Paginator
@@ -33,6 +34,7 @@ class Client:
     host: str
     is_authenticated: bool
     verbose: bool = False
+    captures: CaptureAPI
 
     _gateway: GatewayClient
     _config: SDSConfig
@@ -67,6 +69,13 @@ class Client:
             timeout=self._config.timeout,
             verbose=self.verbose,
         )
+
+        # create internal API instances
+        self.captures = CaptureAPI(
+            gateway=self._gateway,
+            dry_run=self.dry_run,
+        )
+
         self._issue_user_alerts()
 
     def __str__(self) -> str:
@@ -89,9 +98,12 @@ class Client:
 
     @dry_run.setter
     def dry_run(self, value: bool) -> None:
-        """Sets the dry run mode."""
+        """Sets the dry run mode for the client and internal API instances."""
 
         self._config.dry_run = bool(value)
+        self.captures.dry_run = self._config.dry_run
+        # add future API instances here
+
         msg = (
             "Dry-run enabled: no SDS requests will be made or files written."
             if self._config.dry_run
@@ -118,6 +130,8 @@ class Client:
             log.warning("Dry run DISABLED: authenticating")
             self._gateway.authenticate()
         self.is_authenticated = True
+
+    # ======= FILE METHODS
 
     def get_file(self, file_uuid: UUID4 | str) -> File:
         """Get a file instance by its ID. Only metadata is downloaded from SDS.

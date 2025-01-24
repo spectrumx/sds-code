@@ -3,14 +3,16 @@
 import os
 import uuid
 from collections.abc import Iterator
-from dataclasses import dataclass
 from enum import StrEnum
 from http import HTTPStatus
 from pathlib import Path
+from typing import Annotated
 from typing import Any
 
 import requests
 from loguru import logger as log
+from pydantic import BaseModel
+from pydantic import Field
 
 from .errors import AuthError
 from .errors import FileError
@@ -50,12 +52,11 @@ class HTTPMethods(StrEnum):
     PUT = "PUT"
 
 
-@dataclass
-class FileContentsCheck:
+class FileContentsCheck(BaseModel):
     file_contents_exist_for_user: bool
     file_exists_in_tree: bool
     user_mutable_attributes_differ: bool
-    asset_id: uuid.UUID | None = None
+    asset_id: Annotated[uuid.UUID | None, Field()] = None
 
 
 class GatewayClient:
@@ -292,7 +293,7 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=FileError)
-        return FileContentsCheck(**response.json())
+        return FileContentsCheck.model_validate_json(response.content)
 
     def upload_new_file(self, file_instance: File, *, verbose: bool = False) -> bytes:
         """Uploads a local file to the SDS API.
@@ -400,3 +401,38 @@ class GatewayClient:
 
     # ===============
     # CAPTURE METHODS
+
+    def create_capture(
+        self,
+        *,
+        top_level_dir: Path,
+        channel: str,
+        capture_type: str,
+        index_name: str,
+        verbose: bool = False,
+    ) -> bytes:
+        """Creates a capture on the SDS API.
+
+        Args:
+            top_level_dir: The top-level directory for the capture.
+            channel:       The channel for the capture.
+            capture_type:  The capture type.
+            index_name:    The index name.
+        Returns:
+            The response content from SDS Gateway.
+        """
+        payload = {
+            "top_level_dir": str(top_level_dir),
+            "channel": channel,
+            "capture_type": capture_type,
+            "index_name": index_name,
+        }
+        response = self._request(
+            method=HTTPMethods.POST,
+            endpoint=Endpoints.CAPTURES,
+            data=payload,
+            verbose=verbose,
+        )
+        network.success_or_raise(response=response, ContextException=FileError)
+        log.error(response.content)
+        return response.content

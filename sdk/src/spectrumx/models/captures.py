@@ -1,9 +1,13 @@
 """Capture model for SpectrumX."""
 
 from enum import StrEnum
+from pathlib import Path
+from typing import Annotated
+from typing import Any
 
 from pydantic import UUID4
 from pydantic import BaseModel
+from pydantic import Field
 
 
 class CaptureType(StrEnum):
@@ -14,10 +18,35 @@ class CaptureType(StrEnum):
     SigMF = "sigmf"
 
 
-class Capture(BaseModel):
-    """A capture in SDS."""
+class CaptureOrigin(StrEnum):
+    """Capture origins in SDS."""
 
-    uuid: UUID4 | None = None
+    System = "system"
+    User = "user"
+
+
+_d_capture_props = "The indexed metadata for the capture"
+_d_capture_type = f"The type of capture {', '.join([x.value for x in CaptureType])}"
+_d_channel = "The channel associated with the capture"
+_d_index_name = "The name of the index associated with the capture"
+_d_origin = "The origin of the capture"
+_d_top_level_dir = "The top-level directory for the capture files"
+_d_uuid = "The unique identifier for the capture"
+
+
+class Capture(BaseModel):
+    """A capture in SDS. A collection of spectrum data files that is indexed."""
+
+    capture_props: Annotated[dict[str, Any], Field(description=_d_capture_props)]
+    capture_type: Annotated[CaptureType, Field(description=_d_capture_type)]
+    channel: Annotated[str, Field(max_length=255, description=_d_channel)]
+    index_name: Annotated[str, Field(max_length=255, description=_d_index_name)]
+    origin: Annotated[CaptureOrigin, Field(description=_d_origin)]
+    top_level_dir: Annotated[Path, Field(description=_d_top_level_dir)]
+    uuid: Annotated[UUID4, Field(description=_d_uuid)]
+
+    def __str__(self) -> str:
+        return f"<{self.__repr_name__} {self.uuid}>"
 
 
 __all__ = [
