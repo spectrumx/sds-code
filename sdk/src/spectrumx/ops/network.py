@@ -3,6 +3,7 @@
 from http import HTTPStatus
 
 import requests
+from loguru import logger as log
 
 from spectrumx import errors
 
@@ -16,11 +17,15 @@ def success_or_raise(
     if status.is_success:
         return
 
+    log.info(response)
     try:
-        error_details = response.json().get("detail")
+        error_json = response.json()
+        error_details = error_json.get("detail", error_json)
+        error_details = str(error_details)
     except requests.exceptions.JSONDecodeError:
-        error_details = response.text
+        error_details = response.content
 
+    log.exception(error_details)
     if status in {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}:
         raise errors.AuthError(message=error_details)
     if status.is_client_error:
