@@ -14,6 +14,33 @@ from spectrumx.utils import log_user_warning
 _tz = datetime.now().astimezone().tzinfo
 
 
+def _load_undesired_globs() -> list[str]:
+    """Returns a list of undesired glob patterns loaded from a .sds-ignore file.
+
+    The .sds-ignore file is similar to a .gitignore, with one pattern per line.
+    Comments are marked with a # and ignored on read.
+    Simple wildcards are supported, but recursive ones (**) are not.
+    Exclusions with a ! prefix are not supported.
+    """
+    undesired_basenames = []
+    ignore_file = Path(__file__).parent / ".sds-ignore"
+    comment_indicator = "#"
+    if ignore_file.is_file():
+        with ignore_file.open("r") as f:
+            undesired_basenames = [
+                line.split(comment_indicator, maxsplit=1)[0].strip()
+                for line in f.read().splitlines()
+                if not line.lstrip().startswith(comment_indicator)
+            ]
+            undesired_basenames = sorted([line for line in undesired_basenames if line])
+    else:
+        log_user_warning("No .sds-ignore file found")
+    return undesired_basenames
+
+
+DISALLOWED_GLOBS = _load_undesired_globs()
+
+
 def get_file_media_type(file_path: Path) -> str:
     """Returns the media type of a file.
 
@@ -66,10 +93,19 @@ def construct_file(file_path: Path, sds_path: Path) -> File:
     )
 
 
-def is_valid_file(file_path: Path) -> tuple[bool, list[str]]:
+def is_valid_file(
+    file_path: Path, *, check_sds_ignore: bool = True
+) -> tuple[bool, list[str]]:
     """Returns True if the path is a valid file.
     A similar check is also performed at the server side.
 
+    About check_sds_ignore's glob matches, we use Pathlib.match();
+        see their docs to know more about what's supported:
+        https://docs.python.org/3/library/pathlib.html#pathlib.PurePath.match
+
+    Args:
+        file_path:          The path to the file.
+        check_sds_ignore:   Whether to check for undesired glob patterns.
     Returns:
         True/False whether the file is valid.
         Reasons for invalidity otherwise.
@@ -83,6 +119,10 @@ def is_valid_file(file_path: Path) -> tuple[bool, list[str]]:
     ]
     is_valid_mime = file_mime not in disallowed_mimes
     reasons: list[str] = []
+    if check_sds_ignore and any(file_path.match(glob) for glob in DISALLOWED_GLOBS):
+        reasons.append(
+            f"Path matched one or more undesired glob patterns for '{file_path.name}'"
+        )
     if not is_valid_mime:
         reasons.append(f"Invalid MIME type: {file_mime}")
     if not file_path.is_file():
@@ -104,8 +144,8 @@ def get_valid_files(local_path: Path, *, warn_skipped: bool = False) -> Generato
         File instances.
     """
     recursive_file_list = local_path.rglob("*")
-    successful_files = 0
-    ignored_files = 0
+    successful_files: int = 0
+    ignored_files: int = 0
     for file_path in recursive_file_list:
         if not file_path.is_file():
             continue
@@ -113,7 +153,9 @@ def get_valid_files(local_path: Path, *, warn_skipped: bool = False) -> Generato
         if not is_valid:
             ignored_files += 1
             if warn_skipped:
-                log_user_warning(f"Skipping {file_path}: {', '.join(reasons)}")
+                log_user_warning(f"Skipping {file_path}:")
+                for reason in reasons:
+                    log_user_warning(f"\t- {reason}")
             continue
         try:
             successful_files += 1
