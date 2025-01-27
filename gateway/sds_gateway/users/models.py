@@ -8,8 +8,6 @@ from django.db import models
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from rest_framework_api_key.models import AbstractAPIKey
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 from .managers import APIKeyUserManager
 from .managers import UserManager
@@ -35,7 +33,6 @@ class User(AbstractUser):
             "Designates whether this user has been approved to use the API by an Admin.",  # noqa: E501
         ),
     )
-    svi_api_key = models.CharField(max_length=255, blank=True, null=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -53,19 +50,6 @@ class User(AbstractUser):
 
         """
         return reverse("users:detail", kwargs={"pk": self.id})
-
-
-@receiver(post_save, sender=User)
-def create_api_key(sender, instance, created, **kwargs):
-    """Create API key for new users."""
-    if created:
-        api_key_obj, key = UserAPIKey.objects.create_key(
-            name=f"{instance.email}-SVI-API-KEY",
-            user=instance,
-            source='svi_backend'
-        )
-        instance.svi_api_key = key
-        instance.save()
 
 
 class UserAPIKey(AbstractAPIKey):

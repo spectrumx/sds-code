@@ -9,8 +9,9 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from rest_framework.views import APIView
+from rest_framework.authentication import TokenAuthentication
 
-from sds_gateway.users.models import User
+from sds_gateway.users.models import User, UserAPIKey
 
 from .serializers import UserSerializer
 
@@ -32,9 +33,11 @@ class UserViewSet(RetrieveModelMixin, ListModelMixin, UpdateModelMixin, GenericV
 
 class GetAPIKeyView(APIView):
     permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     def get(self, request):
         # Verify the requesting user is the SVI Server
+        print(f"request.user: {request.user}")
         if request.user.email != settings.SVI_SERVER_EMAIL:
             return Response(
                 {"error": "Unauthorized. Only SVI Server can access this endpoint."},
@@ -51,9 +54,17 @@ class GetAPIKeyView(APIView):
 
         # Look up user by email
         try:
-            user = get_object_or_404(User, email=email)
+            user = get_object_or_404(User, email=email, is_approved=True)
+            # delete any existing API key
+            UserAPIKey.objects.filter(user=user, source='svi_backend').delete()
+            # create a new API key
+            api_key_obj, key = UserAPIKey.objects.create_key(
+                name=f"{user.email}-SVI-API-KEY",
+                user=user,
+                source='svi_backend'
+            )
             return Response({
-                "api_key": user.get_svi_api_key(),
+                "api_key": key,
                 "email": user.email
             })
         except User.DoesNotExist:
