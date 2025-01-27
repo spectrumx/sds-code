@@ -43,15 +43,15 @@
         [tls.options.default]
             minVersion = "VersionTLS12"
 
-[tls.stores]
-    # these self-signed certs will be used by default if let's encrypt
-    #   fails due to e.g. the domain not being publicly reachable.
-    # you might need --insecure flag in curl; and to manually bypass
-    #   the browser's security warning if this is the case.
-    [tls.stores.default]
-        [tls.stores.default.defaultCertificate]
-            certFile = "/etc/traefik/certs/public_key.crt"
-            keyFile  = "/etc/traefik/certs/private_key.pem"
+    [tls.stores]
+        # these self-signed certs will be used by default if let's encrypt
+        #   fails due to e.g. the domain not being publicly reachable.
+        # you might need --insecure flag in curl; and to manually bypass
+        #   the browser's security warning if this is the case.
+        [tls.stores.default]
+            [tls.stores.default.defaultCertificate]
+                certFile = "/etc/traefik/certs/public_key.crt"
+                keyFile  = "/etc/traefik/certs/private_key.pem"
 
 [entryPoints]
 
@@ -63,12 +63,12 @@
             # redirect all HTTP traffic to HTTPS
             to = "web-secure"
 
-[entryPoints.web-secure]
-    address   = ":443"
-    asDefault = true
-    [entryPoints.web-secure.http2]
-        maxConcurrentStreams = 250
-    [entryPoints.web-secure.http3]
+    [entryPoints.web-secure]
+        address   = ":443"
+        asDefault = true
+        [entryPoints.web-secure.http2]
+            maxConcurrentStreams = 250
+        [entryPoints.web-secure.http3]
 
 [certificatesResolvers]
     [certificatesResolvers.letsencrypt]
@@ -90,47 +90,57 @@
         [http.routers.traefik-api.tls]
             certResolver = "letsencrypt"
 
-# LOCAL router
-[http.routers.sds-gateway-local-app]
-    entryPoints = ["web", "web-secure"]
-    middlewares = ["csrf"]
-    rule        = "Host(`sds-dev.crc.nd.edu`)"
-    service     = "sds-gateway-local-app"
-    [http.routers.sds-gateway-local-app.tls]
-        certResolver = "letsencrypt"
+    # LOCAL router
+    [http.routers.sds-gateway-local-app]
+        entryPoints = ["web", "web-secure"]
+        middlewares = ["csrf"]
+        rule        = "Host(`sds-dev.crc.nd.edu`)"
+        service     = "sds-gateway-local-app"
+        [http.routers.sds-gateway-local-app.tls]
+            certResolver = "letsencrypt"
 
-# ⚠️ PROD router
-[http.routers.sds-gateway-prod-app]
-    entryPoints = ["web", "web-secure"]
-    middlewares = ["csrf"]
-    rule        = "Host(`sds.crc.nd.edu`)"
-    service     = "sds-gateway-prod-app"
-    [http.routers.sds-gateway-prod-app.tls]
-        certResolver = "letsencrypt"
+    # ⚠️ PROD router - SVI endpoints /users/get-svi-api-key/
+    [http.routers.sds-gateway-prod-app-secure]
+        entryPoints = ["web", "web-secure"]
+        middlewares = ["csrf", "whitelist-svi-domains"]
+        rule        = "Host(`sds.crc.nd.edu`) && Path(`/users/get-svi-api-key/`)"
+        service     = "sds-gateway-prod-app"
 
-# LOCAL router for static files
-[http.routers.sds-gateway-local-nginx]
-    entryPoints = ["web", "web-secure"]
-    rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
-    service     = "sds-gateway-local-nginx"
-    [http.routers.sds-gateway-local-nginx.tls]
-        certResolver = "letsencrypt"
+        [http.routers.sds-gateway-prod-app-secure.tls]
+            certResolver = "letsencrypt"
 
-# ⚠️ PROD router for static files
-[http.routers.sds-gateway-prod-nginx]
-    entryPoints = ["web", "web-secure"]
-    rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/static/`)"
-    service     = "sds-gateway-prod-nginx"
-    [http.routers.sds-gateway-prod-nginx.tls]
-        certResolver = "letsencrypt"
+    # ⚠️ PROD router - public-facing
+    [http.routers.sds-gateway-prod-app]
+        entryPoints = ["web", "web-secure"]
+        middlewares = ["csrf"]
+        rule        = "Host(`sds.crc.nd.edu`)"
+        service     = "sds-gateway-prod-app"
+        [http.routers.sds-gateway-prod-app.tls]
+            certResolver = "letsencrypt"
 
-        # "whoami" service to debug Traefik
-        # [http.routers.whoami]
-        #     entryPoints = ["web", "web-secure"]
-        #     rule    = "Host(`sds-dev.crc.nd.edu`)"
-        #     service = "whoami"
-        #     [http.routers.whoami.tls]
-        #         certResolver = "letsencrypt"
+    # LOCAL router for static files
+    [http.routers.sds-gateway-local-nginx]
+        entryPoints = ["web", "web-secure"]
+        rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
+        service     = "sds-gateway-local-nginx"
+        [http.routers.sds-gateway-local-nginx.tls]
+            certResolver = "letsencrypt"
+
+    # ⚠️ PROD router for static files
+    [http.routers.sds-gateway-prod-nginx]
+        entryPoints = ["web", "web-secure"]
+        rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/static/`)"
+        service     = "sds-gateway-prod-nginx"
+        [http.routers.sds-gateway-prod-nginx.tls]
+            certResolver = "letsencrypt"
+
+            # "whoami" service to debug Traefik
+            # [http.routers.whoami]
+            #     entryPoints = ["web", "web-secure"]
+            #     rule    = "Host(`sds-dev.crc.nd.edu`)"
+            #     service = "whoami"
+            #     [http.routers.whoami.tls]
+            #         certResolver = "letsencrypt"
 
 [http.middlewares]
 
@@ -139,17 +149,26 @@
         [http.middlewares.csrf.headers]
             hostsProxyHeaders = ["X-CSRFToken"]
 
-[http.middlewares.auth]
+    [http.middlewares.whitelist-svi-domains]
 
-    # This is a basic auth for the Traefik dashboard
+        [http.middlewares.whitelist-svi-domains.ipWhiteList]
+            sourceRange = [
+                "127.0.0.1/32",    # localhost
+                "129.74.246.5/32", # svi server
+                "10.32.8.29/32",   # svi qa
+            ]
 
-    [http.middlewares.auth.basicAuth]
-        # Generate the credentials file with bcrypt hashes for the users:
-        #     $ htpasswd -nB your-user-name >> traefik/credentials.htpasswd
-        # Try it out:
-        #     $ e.g. curl -u your-user-name:your-password http://your-sds-hostname/dashboard/
-        # https://doc.traefik.io/traefik/middlewares/http/basicauth/#usersfile
-        usersFile = "/etc/traefik/dashboard/credentials.htpasswd"
+    [http.middlewares.auth]
+
+        # This is a basic auth for the Traefik dashboard
+
+        [http.middlewares.auth.basicAuth]
+            # Generate the credentials file with bcrypt hashes for the users:
+            #     $ htpasswd -nB your-user-name >> traefik/credentials.htpasswd
+            # Try it out:
+            #     $ e.g. curl -u your-user-name:your-password http://your-sds-hostname/dashboard/
+            # https://doc.traefik.io/traefik/middlewares/http/basicauth/#usersfile
+            usersFile = "/etc/traefik/dashboard/credentials.htpasswd"
 
 [http.services]
 
