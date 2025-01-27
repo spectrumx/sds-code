@@ -15,7 +15,7 @@ The Spectrum Data System (SDS) SDK is a Python package that provides a simple in
 >
 > **SDS is not meant for personal files or as a backup tool.** Files may be rejected by the Gateway when uploaded, or deleted without warning. All uploaded files have an expiration date. Do not upload sensitive, personally identifiable, confidential information, or any file that you do not have permission to share. Do not upload binary executables.
 >
-> If you own data in `https://sds.crc.nd.edu` that needs to be permanently deleted, please reach out to the team, as SDS may retain uploaded data for a period of time after deletion.
+> If you own data in `https://sds.crc.nd.edu` that needs to be permanently deleted, please reach out to the team at `crc-sds-list [·at·] nd.edu`, as SDS may retain uploaded data for a period of time after deletion.
 
 ## Installation
 

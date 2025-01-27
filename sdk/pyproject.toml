@@ -29,6 +29,12 @@
         "Typing :: Typed",
     ]
 
+    [project.urls]
+        Changelog     = "https://github.com/spectrumx/sds-code/blob/master/sdk/docs/changelog.md"
+        Documentation = "https://github.com/spectrumx/sds-code/tree/master/sdk/docs"
+        Issues        = "https://github.com/spectrumx/sds-code/issues"
+        Repository    = "https://github.com/spectrumx/sds-code/tree/master/sdk"
+
 # deptry detects unused and missing dependencies.
 [tool.deptry]
 
