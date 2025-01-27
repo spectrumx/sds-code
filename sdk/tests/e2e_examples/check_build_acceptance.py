@@ -23,13 +23,13 @@ from typing import TYPE_CHECKING
 
 from spectrumx import Client
 from spectrumx import enable_logging
-from spectrumx.models import Capture
-from spectrumx.models import Dataset
-from spectrumx.models import File
+from spectrumx.models.captures import Capture
 
 NOT_IMPLEMENTED = "This example is not yet implemented."
 
 if TYPE_CHECKING:
+    from spectrumx.models.files import File
+    from spectrumx.models.datasets import Dataset
     from spectrumx.ops.pagination import Paginator
 
 

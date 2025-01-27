@@ -11,7 +11,7 @@ from loguru import logger as log
 from spectrumx.client import Client
 from spectrumx.config import SDSConfig
 from spectrumx.config import _cfg_name_lookup  # pyright: ignore[reportPrivateUsage]
-from spectrumx.models import File
+from spectrumx.models.files import File
 from spectrumx.ops import files
 
 log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")

@@ -11,7 +11,7 @@ import pytest
 from loguru import logger as log
 from spectrumx import enable_logging
 from spectrumx.client import Client
-from spectrumx.models import File
+from spectrumx.models.files import File
 from spectrumx.ops import files
 from spectrumx.utils import get_random_line
 

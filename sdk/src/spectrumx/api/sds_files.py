@@ -15,7 +15,7 @@ from pydantic import UUID4
 
 from spectrumx.client import Client
 from spectrumx.errors import SDSError
-from spectrumx.models import File
+from spectrumx.models.files import File
 from spectrumx.ops import files
 from spectrumx.ops.pagination import Paginator
 from spectrumx.utils import log_user
