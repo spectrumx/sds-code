@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from django.conf import settings
@@ -5,6 +6,8 @@ from django.conf import settings
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 def reconstruct_tree(
@@ -48,3 +51,14 @@ def reconstruct_tree(
         )
 
     return reconstructed_root, files_to_connect
+
+
+def find_rh_metadata_file(tmp_dir_path: Path) -> Path:
+    """Finds the RadioHound metadata file in the given directory."""
+    for file in tmp_dir_path.iterdir():
+        # find file with .rh.json extension
+        if file.name.endswith(".rh.json"):
+            return file
+    msg = "RadioHound metadata file not found"
+    logger.exception(msg)
+    raise FileNotFoundError(msg)

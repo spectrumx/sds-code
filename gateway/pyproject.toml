@@ -28,8 +28,10 @@
         "numpy~=1.26",                           # upgrade to numpy v2 when digital-rf (from PyPI) supports it
         "opensearch-py>=2.7.1",
         "pillow>=11.0.0",
+        "pydantic>=2.10.0",
         "python-slugify>=8.0.4",
         "redis>=5.2.0",
+        "rich>=13.9.3",
         "uvicorn-worker>=0.2.0",
         "uvicorn>=0.32.0",
         "whitenoise>=6.7.0",

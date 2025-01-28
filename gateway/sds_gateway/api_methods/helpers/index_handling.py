@@ -1,46 +1,23 @@
 import logging
+import tempfile
+from pathlib import Path
 from typing import Any
 
-from opensearchpy import OpenSearch
 from opensearchpy import exceptions as os_exceptions
 
-from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_index_mapping_by_type as md_props_by_type,
+from sds_gateway.api_methods.helpers.extract_drf_metadata import (
+    validate_metadata_by_channel,
 )
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
+from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.users.models import User
 
 # Set up logging
 logger = logging.getLogger(__name__)
-
-
-def create_index(client: OpenSearch, index_name: str, capture_type: str):
-    try:
-        # Define the index settings and mappings
-        index_body = {
-            "settings": {
-                "number_of_shards": 1,
-                "number_of_replicas": 0,
-            },
-            "mappings": {
-                "properties": {
-                    "channel": {"type": "keyword"},
-                    "capture_type": {"type": "keyword"},
-                    "created_at": {"type": "date"},
-                    "capture_props": {
-                        "type": "nested",
-                        "properties": md_props_by_type[capture_type],
-                    },
-                },
-            },
-        }
-        client.indices.create(index=index_name, body=index_body)
-        msg = f"Index '{index_name}' created."
-        logger.info(msg)
-    except Exception as e:
-        msg = f"Failed to create index '{index_name}': {e}"
-        logger.exception(msg)
-        raise
 
 
 def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]):
@@ -49,7 +26,8 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]):
 
         # Create the index if it does not exist
         if not client.indices.exists(index=capture.index_name):
-            create_index(client, capture.index_name, capture.capture_type)
+            msg = f"Index {capture.index_name} not found"
+            raise ValueError(msg)
 
         # Combine capture fields and additional fields
         document = {
@@ -75,6 +53,48 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]):
         logger.exception(msg)
         # Handle the error (e.g., retry, raise an exception, etc.)
         raise
+
+
+def handle_metadata(
+    capture: Capture,
+    top_level_dir: Path,
+    capture_type: CaptureType,
+    channel: str | None,
+    requester: User,
+):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Reconstruct the file tree in a temporary directory
+        tmp_dir_path, files_to_connect = reconstruct_tree(
+            target_dir=Path(temp_dir),
+            top_level_dir=top_level_dir,
+            owner=requester,
+        )
+
+        # Connect the files to the capture
+        for cur_file in files_to_connect:
+            cur_file.capture = capture
+            cur_file.save()
+
+        capture_props = None
+        # Validate the metadata and index it
+        if capture_type == CaptureType.DigitalRF:
+            if channel:
+                capture_props = validate_metadata_by_channel(tmp_dir_path, channel)
+            else:
+                msg = "Channel is required for DigitalRF captures"
+                logger.exception(msg)
+                raise ValueError(msg)
+        elif capture_type == CaptureType.RadioHound:
+            rh_metadata_file = find_rh_metadata_file(tmp_dir_path)
+            rh_data = load_rh_file(rh_metadata_file)
+            capture_props = rh_data.model_dump(mode="json")
+
+        if capture_props:
+            index_capture_metadata(capture, capture_props)
+        else:
+            msg = f"No metadata found for capture '{capture.uuid}'"
+            logger.exception(msg)
+            raise ValueError(msg)
 
 
 def retrieve_indexed_metadata(
