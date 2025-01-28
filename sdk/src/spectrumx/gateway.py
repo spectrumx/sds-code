@@ -14,6 +14,8 @@ from loguru import logger as log
 from pydantic import BaseModel
 from pydantic import Field
 
+from spectrumx.models.captures import CaptureType
+
 from .errors import AuthError
 from .errors import FileError
 from .models.files import File
@@ -164,7 +166,7 @@ class GatewayClient:
                 debug_str += f" params={kwargs['params']}"
             if "asset_id" in kwargs:
                 debug_str += f" asset_id={kwargs['asset_id']}"
-            log.debug(debug_str)
+            log.opt(depth=1).debug(debug_str)
         return requests.request(
             timeout=self.timeout if timeout is None else timeout,
             method=method,
@@ -434,5 +436,24 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=FileError)
-        log.error(response.content)
+        return response.content
+
+    def list_captures(
+        self,
+        *,
+        capture_type: CaptureType,
+        verbose: bool = False,
+    ) -> bytes:
+        """Lists captures on the SDS API.
+
+        Returns:
+            The response content from SDS Gateway.
+        """
+        response = self._request(
+            method=HTTPMethods.GET,
+            endpoint=Endpoints.CAPTURES,
+            verbose=verbose,
+            params={"capture_type": capture_type},
+        )
+        network.success_or_raise(response, ContextException=FileError)
         return response.content

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 from loguru import logger as log
-from rich import print as rich_print
 from spectrumx.client import Client
 from spectrumx.models.captures import CaptureType
 from spectrumx.utils import get_random_line
@@ -102,13 +101,39 @@ def test_capture_creation_drf(integration_client: Client) -> None:
     assert capture.index_name == "capture_metadata"
 
     # test capture properties
-    rich_print(capture.capture_props)
     assert capture.capture_props["start_bound"] == cap_start_bound
     assert capture.capture_props["is_continuous"] == cap_is_continuous
     assert (
         capture.capture_props["custom_attrs"]["receiver/info/mboard_serial"]
         == cap_serial
     )
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.capture_listing(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_listing_drf(integration_client: Client) -> None:
+    """Tests reading and listing a Digital-RF capture."""
+    captures = integration_client.captures.listing(
+        capture_type=CaptureType.DigitalRF,
+    )
+    assert len(captures) > 0, "At least one capture should be present"
+    for capture in captures:
+        assert capture.uuid is not None, "Capture UUID should not be None"
+        assert capture.capture_type == CaptureType.DigitalRF
+        assert capture.channel is not None
+        assert capture.top_level_dir is not None
+        assert capture.index_name is not None
 
 
 def _upload_assets(
@@ -121,7 +146,7 @@ def _upload_assets(
     upload_results = integration_client.upload(
         local_path=local_path,
         sds_path=f"/{sds_path}",
-        verbose=True,
+        verbose=False,
     )
     success_results = [success for success in upload_results if success]
     failed_results = [success for success in upload_results if not success]

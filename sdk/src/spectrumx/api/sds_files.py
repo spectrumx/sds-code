@@ -169,7 +169,10 @@ def _download_file_contents(
 
 
 def list_files(
-    *, client: Client, sds_path: Path | str, verbose: bool = False
+    *,
+    client: Client,
+    sds_path: Path | str,
+    verbose: bool = False,
 ) -> Paginator[File]:
     """Lists files in a given SDS path.
 

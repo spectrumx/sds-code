@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -57,5 +58,17 @@ class CaptureAPI:
             index_name=index_name,
         )
         capture = Capture.model_validate_json(capture_raw)
-        log.debug("Capture created: {}", capture)
+        log.debug(f"Capture created with UUID {capture.uuid}")
         return capture
+
+    def listing(self, *, capture_type: CaptureType) -> list[Capture]:
+        """Lists all captures in SDS under the current user."""
+        log.debug(f"Listing captures of type {capture_type}")
+        captures_raw = self.gateway.list_captures(capture_type=capture_type)
+        captures_list_raw = json.loads(captures_raw)
+        captures: list[Capture] = []
+        for captures_raw in captures_list_raw:
+            capture = Capture.model_validate(captures_raw)
+            captures.append(capture)
+        log.debug(f"Listing {len(captures)} captures")
+        return captures

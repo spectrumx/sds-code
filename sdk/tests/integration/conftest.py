@@ -119,6 +119,11 @@ class PassthruEndpoints:
             for hostname_and_port in passthru_hostnames
         ]
 
+    @classmethod
+    def capture_listing(cls) -> list[str]:
+        """Passthrough for capture listing and reading."""
+        return cls.capture_creation()
+
     @staticmethod
     def all_passthru() -> list[str | Pattern[str]]:
         """Returns all passthru endpoints for debugging."""
