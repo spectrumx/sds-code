@@ -122,7 +122,7 @@ def download_file(
                 f"downloaded as {file_instance.local_path}"
             )
         else:
-            downloaded_path = _download_file_contents(
+            downloaded_path = __download_file_contents(
                 client=client,
                 file_uuid=valid_uuid,
                 target_path=valid_local_path_or_none,
@@ -130,42 +130,6 @@ def download_file(
             )
             file_instance.local_path = downloaded_path
     return file_instance
-
-
-def _download_file_contents(
-    *,
-    client,
-    file_uuid: UUID4 | str,
-    contents_lock: RLock,
-    target_path: Path | None = None,
-) -> Path:
-    """Downloads the contents of a file from SDS to a location on disk.
-
-    If target_path is not provided, a temporary file is created.
-    When provided, the parent of target_path will be created if it does not exist.
-
-    Args:
-        file_uuid:      The UUID of the file to download from SDS.
-        target_path:    The local path to save the downloaded file to.
-    Returns:
-        The local path to the downloaded file.
-    """
-    if target_path is None:
-        file_desc, file_name = tempfile.mkstemp()
-        os.close(file_desc)
-        target_path = Path(file_name)
-    target_path = Path(target_path)
-    uuid_to_set: UUID4 = (
-        uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
-    )
-    if not client.dry_run:
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        with target_path.open(mode="wb") as file_ptr, contents_lock:
-            for chunk in client._gateway.get_file_contents_by_id(uuid=uuid_to_set.hex):
-                file_ptr.write(chunk)
-    else:
-        log_user(f"Dry run enabled: file would be saved as {target_path}")
-    return target_path
 
 
 def list_files(
@@ -234,6 +198,42 @@ def upload_file(
     del local_file
 
     return __upload_file_mux(client=client, file_instance=file_instance)
+
+
+def __download_file_contents(
+    *,
+    client,
+    file_uuid: UUID4 | str,
+    contents_lock: RLock,
+    target_path: Path | None = None,
+) -> Path:
+    """Downloads the contents of a file from SDS to a location on disk.
+
+    If target_path is not provided, a temporary file is created.
+    When provided, the parent of target_path will be created if it does not exist.
+
+    Args:
+        file_uuid:      The UUID of the file to download from SDS.
+        target_path:    The local path to save the downloaded file to.
+    Returns:
+        The local path to the downloaded file.
+    """
+    if target_path is None:
+        file_desc, file_name = tempfile.mkstemp()
+        os.close(file_desc)
+        target_path = Path(file_name)
+    target_path = Path(target_path)
+    uuid_to_set: UUID4 = (
+        uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
+    )
+    if not client.dry_run:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with target_path.open(mode="wb") as file_ptr, contents_lock:
+            for chunk in client._gateway.get_file_contents_by_id(uuid=uuid_to_set.hex):
+                file_ptr.write(chunk)
+    else:
+        log_user(f"Dry run enabled: file would be saved as {target_path}")
+    return target_path
 
 
 def __upload_file_mux(*, client: Client, file_instance: File) -> File:
