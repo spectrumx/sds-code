@@ -69,10 +69,11 @@ class FileTestCases(APITestCase):
             test_file_path.unlink()
 
     def test_create_file(self) -> None:
-        with Path("testfile.txt").open("w") as file:
+        test_file_name = "testfile.txt"
+        with Path(test_file_name).open("w") as file:
             file.write("This is a test file.")
 
-        with Path("testfile.txt").open("rb") as file:
+        with Path(test_file_name).open("rb") as file:
             data = {
                 "file": file,
                 "directory": "/absolute/path/to/files",

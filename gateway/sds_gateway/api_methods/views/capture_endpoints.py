@@ -1,3 +1,5 @@
+import logging
+import tempfile
 from pathlib import Path
 from typing import cast
 
@@ -16,7 +18,13 @@ from rest_framework.response import Response
 
 import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
-from sds_gateway.api_methods.helpers.index_handling import handle_metadata
+from sds_gateway.api_methods.helpers.extract_drf_metadata import (
+    validate_metadata_by_channel,
+)
+from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
+from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
@@ -25,10 +33,54 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 )
 from sds_gateway.users.models import User
 
+log = logging.getLogger(__name__)
+
 
 class CaptureViewSet(viewsets.ViewSet):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
+
+    def handle_metadata(
+        self,
+        capture: Capture,
+        top_level_dir: Path,
+        capture_type: CaptureType,
+        channel: str | None,
+        requester: User,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Reconstruct the file tree in a temporary directory
+            tmp_dir_path, files_to_connect = reconstruct_tree(
+                target_dir=Path(temp_dir),
+                top_level_dir=top_level_dir,
+                owner=requester,
+            )
+
+            # Connect the files to the capture
+            for cur_file in files_to_connect:
+                cur_file.capture = capture
+                cur_file.save()
+
+            capture_props = None
+            # Validate the metadata and index it
+            if capture_type == CaptureType.DigitalRF:
+                if channel:
+                    capture_props = validate_metadata_by_channel(tmp_dir_path, channel)
+                else:
+                    msg = "Channel is required for DigitalRF captures"
+                    log.exception(msg)
+                    raise ValueError(msg)
+            elif capture_type == CaptureType.RadioHound:
+                rh_metadata_file = find_rh_metadata_file(tmp_dir_path)
+                rh_data = load_rh_file(rh_metadata_file)
+                capture_props = rh_data.model_dump(mode="json")
+
+            if capture_props:
+                index_capture_metadata(capture, capture_props)
+            else:
+                msg = f"No metadata found for capture '{capture.uuid}'"
+                log.exception(msg)
+                raise ValueError(msg)
 
     @extend_schema(
         request=CapturePostSerializer,
@@ -58,6 +110,12 @@ class CaptureViewSet(viewsets.ViewSet):
         # channel whose data/metadata to capture
         channel = request.data.get("channel", None)
         capture_type = request.data.get("capture_type", None)
+        log.info(
+            "Received capture_type: %s, type: %s",
+            capture_type,
+            type(capture_type),
+        )
+
         # path to directory that contains the channel dirs
         requested_top_level_dir = Path(request.data.get("top_level_dir", ""))
         requester = cast(User, request.user)
@@ -77,8 +135,12 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate and create capture
-        request.data["owner"] = requester.id
-        post_serializer = CapturePostSerializer(data=request.data)
+        requester = cast(User, request.user)
+        request_data = request.data.copy()
+        post_serializer = CapturePostSerializer(
+            data=request_data,
+            context={"request_user": requester},
+        )
         if not post_serializer.is_valid():
             return Response(post_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -86,13 +148,8 @@ class CaptureViewSet(viewsets.ViewSet):
         capture_data = dict(post_serializer.data)
         capture = Capture.objects.get(uuid=capture_data["uuid"], owner=requester)
 
-        # Validate capture type and handle metadata
-        if capture_type not in CaptureType.__members__.values():
-            msg = f"Invalid capture type: {capture_type}"
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
-            handle_metadata(
+            self.handle_metadata(
                 capture,
                 requested_top_level_dir,
                 CaptureType(capture_type),
