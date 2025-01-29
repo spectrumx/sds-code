@@ -24,7 +24,6 @@ networks:
         external: true
 
 services:
-
     sds-gateway-prod-app:
         build:
             context: .
@@ -33,9 +32,14 @@ services:
         container_name: sds-gateway-prod-app
         tty: true
         depends_on:
-            - postgres
-            - redis
-            - minio
+            opensearch:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            minio:
+                condition: service_healthy
         volumes:
             - source: sds-gateway-prod-app-media
               target: /app/sds_gateway/media
@@ -49,6 +53,10 @@ services:
               read_only: false
               bind:
                 selinux: z
+            - source: ./opensearch/data/certs
+              target: /app/opensearch/data/certs
+              type: bind
+              read_only: true
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
@@ -97,6 +105,11 @@ services:
         command: server /files --console-address ":9001"
         networks:
             - sds-gateway-prod-minio-net
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
 
     opensearch:
         # used for indexing and searching documents
@@ -122,6 +135,11 @@ services:
             - "19600:9600"
         networks:
             - sds-gateway-prod-opensearch-net
+        healthcheck:
+            test: ["CMD-SHELL", "curl -k -u admin:admin https://localhost:9200/_cluster/health?pretty | grep -q '\"status\" : \"green\"\\|\"status\" : \"yellow\"'"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
 
     postgres:
         # main database for the gateway app
@@ -137,6 +155,11 @@ services:
             - ./.envs/production/postgres.env
         networks:
             - sds-gateway-prod-minio-net
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
     redis:
         # used as caching layer for the gateway app
@@ -144,6 +167,11 @@ services:
         container_name: sds-gateway-prod-redis
         volumes:
             - sds-gateway-prod-redis-data:/data
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
 
     # ===================
     # production services
