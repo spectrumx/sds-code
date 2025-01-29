@@ -4,6 +4,34 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+# Function to check if OpenSearch is ready
+check_opensearch() {
+    echo "Checking OpenSearch availability..."
+    local response
+    response=$(curl -s "http://opensearch:9200/_cluster/health" || true)
+    if [ -n "$response" ]; then
+        echo "OpenSearch response: $response"
+        echo "OpenSearch is up and running!"
+        return 0
+    else
+        echo "WARNING: OpenSearch is not available - indices will not be initialized"
+        echo "Failed to connect to OpenSearch at http://opensearch:9200"
+        return 1
+    fi
+}
 
+# Give OpenSearch time to start up
+echo "Waiting 15 seconds for OpenSearch to start..."
+sleep 15
+
+# Run migrations
 python manage.py migrate
+
+# Try to initialize OpenSearch indices, but don't block startup if it fails
+if check_opensearch; then
+    echo "Initializing OpenSearch indices..."
+    python manage.py init_indices || echo "WARNING: Failed to initialize OpenSearch indices"
+fi
+
+# Start the application
 exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
