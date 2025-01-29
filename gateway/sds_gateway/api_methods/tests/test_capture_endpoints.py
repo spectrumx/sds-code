@@ -8,10 +8,12 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APIClient
+from rest_framework.test import APITestCase
 from rest_framework_api_key.models import AbstractAPIKey
 
-from sds_gateway.api_methods.models import Capture, CaptureType
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.metadata_schemas import (
     capture_index_mapping_by_type as md_props_by_type,
 )
@@ -62,6 +64,7 @@ class CaptureTestCases(APITestCase):
         self.rh_capture = Capture.objects.create(
             owner=self.user,
             capture_type=CaptureType.RadioHound,
+            top_level_dir="test-dir",
             index_name="captures-rh",
         )
 
@@ -73,12 +76,39 @@ class CaptureTestCases(APITestCase):
         }
 
         self.rh_metadata = {
-            "data_type": "periodogram",
-            "fmin": 1993000000,
-            "fmax": 2017000000,
-            "xcount": 512,
-            "sample_rate": 20000000,
-            "gain": 30.5,
+            "altitude": 2.0,
+            "batch": 0,
+            "center_frequency": 2000000000.0,
+            "custom_fields": {
+                "requested": {
+                    "fmax": 2010000000,
+                    "fmin": 1990000000,
+                    "gain": 1,
+                    "samples": 1024,
+                    "span": 20000000,
+                },
+            },
+            "gain": 1.0,
+            "hardware_board_id": "025",
+            "hardware_version": "3.4",
+            "latitude": 41.699584,
+            "longitude": -86.237237,
+            "mac_address": "f4e11ea46780",
+            "metadata": {
+                "archive_result": True,
+                "data_type": "periodogram",
+                "fmax": 2012000000,
+                "fmin": 1988000000,
+                "gps_lock": False,
+                "nfft": 1024,
+                "scan_time": 0.07766938209533691,
+            },
+            "sample_rate": 24000000,
+            "short_name": "WI-Lab V3.4-025 #6",
+            "software_version": "v0.10b30",
+            "timestamp": "2025-01-10T15:48:07.100486Z",
+            "type": "float32",
+            "version": "v0",
         }
 
         # Get OpenSearch client and ensure indices exist
@@ -166,6 +196,62 @@ class CaptureTestCases(APITestCase):
                 },
             )
             self.opensearch.indices.refresh(index=capture.index_name)
+
+    def test_create_drf_capture_201(self):
+        """Test creating drf capture returns metadata."""
+        with patch(
+            "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+            return_value=self.drf_metadata,
+        ):
+            response = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": "ch0",
+                    "top_level_dir": "/files/testuser@example.com/test-dir",
+                    "index_name": "captures-drf",
+                },
+            )
+            assert response.status_code == status.HTTP_201_CREATED
+            assert response.json()["capture_props"] == self.drf_metadata
+            assert response.json()["channel"] == "ch0"
+            assert (
+                response.json()["top_level_dir"]
+                == "/files/testuser@example.com/test-dir"
+            )
+            assert response.json()["capture_type"] == CaptureType.DigitalRF
+
+    def test_create_rh_capture_201(self):
+        """Test creating rh capture returns metadata."""
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.find_rh_metadata_file",
+                return_value="mock_path",
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.load_rh_file",
+                return_value=type(
+                    "MockRHData",
+                    (),
+                    {"model_dump": lambda mode: self.rh_metadata},
+                ),
+            ),
+        ):
+            response = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.RadioHound,
+                    "top_level_dir": "/files/testuser@example.com/test-dir",
+                    "index_name": "captures-rh",
+                },
+            )
+            assert response.status_code == status.HTTP_201_CREATED
+            assert response.json()["capture_props"] == self.rh_metadata
+            assert response.json()["capture_type"] == CaptureType.RadioHound
+            assert (
+                response.json()["top_level_dir"]
+                == "/files/testuser@example.com/test-dir"
+            )
 
     def test_list_captures_200(self):
         """Test listing captures returns metadata for all captures."""

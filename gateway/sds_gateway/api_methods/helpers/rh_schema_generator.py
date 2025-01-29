@@ -399,7 +399,7 @@ class _RadioHoundDataV0(BaseModel):
             if "custom_fields" not in values:
                 values["custom_fields"] = {}
             values["custom_fields"]["requested"] = requested
-        del values["requested"]
+            del values["requested"]
         return values
 
     requested: Annotated[

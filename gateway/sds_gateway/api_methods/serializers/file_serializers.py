@@ -73,38 +73,32 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
 
     def is_valid(self, *, raise_exception: bool = True) -> bool:
         """Checks if the data is valid."""
-        # initial data must have 'file' and 'metadata'
         if not self.initial_data:
-            self._errors = {
-                "detail": [
-                    "No data provided.",
-                ],
-            }
+            self._errors = {"detail": ["No data provided."]}
             return super().is_valid(raise_exception=raise_exception)
 
-        for field in ["file", "metadata"]:
-            if field not in self.initial_data:
-                self._errors = {
-                    field: [
-                        "This field is required.",
-                    ],
-                }
+        if not isinstance(self.initial_data, (dict, QueryDict)):
+            self._errors = {"detail": ["Invalid data format"]}
             return super().is_valid(raise_exception=raise_exception)
 
-        # check required metadata fields
-        required_fields = [*self.Meta.user_mutable_fields]
+        # check that the file is in the initial data
+        if "file" not in self.initial_data:
+            self._errors = {"file": ["This field is required."]}
+            return super().is_valid(raise_exception=raise_exception)
+
+        # check required metadata fields (excluding optional fields)
+        required_fields = [
+            "directory",
+            "media_type",
+        ]  # name and permissions are optional
         for field in required_fields:
             logging.info(
-                "Checking if %s is in initial metadata: %s",
+                "Checking if %s is in initial data",
                 field,
-                self.initial_data["metadata"],
             )
-            if field not in self.initial_data["metadata"]:
-                self._errors = {
-                    f'metadata["{field}"]': [
-                        "This field is required.",
-                    ],
-                }
+            if field not in self.initial_data:
+                self._errors = {field: ["This field is required."]}
+                return super().is_valid(raise_exception=raise_exception)
 
         return super().is_valid(raise_exception=raise_exception)
 
