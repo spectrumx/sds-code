@@ -131,7 +131,7 @@ services:
         networks:
             - sds-gateway-prod-opensearch-net
         healthcheck:
-            test: ["CMD-SHELL", "curl -k -u admin:admin https://localhost:9200/_cluster/health?pretty | grep -q '\"status\" : \"green\"\\|\"status\" : \"yellow\"'"]
+            test: ["CMD-SHELL", "curl -k -u ${OPENSEARCH_USER}:${OPENSEARCH_PASSWORD} https://localhost:9200/_cluster/health?pretty | grep -q '\"status\" : \"green\"\\|\"status\" : \"yellow\"'"]
             interval: 30s
             timeout: 10s
             retries: 3
