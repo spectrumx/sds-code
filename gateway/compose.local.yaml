@@ -32,10 +32,14 @@ services:
         container_name: sds-gateway-local-app
         tty: true
         depends_on:
-            - minio
-            - opensearch
-            - postgres
-            - redis
+            opensearch:
+                condition: service_healthy
+            postgres:
+                condition: service_started
+            redis:
+                condition: service_started
+            minio:
+                condition: service_started
         volumes:
             - .:/app:z  # bind mount used in local for hot reloading; prod uses built assets
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
@@ -111,6 +115,11 @@ services:
             - "9600:9600"
         networks:
             - sds-gateway-local-opensearch-net
+        healthcheck:
+            test: ["CMD-SHELL", "curl -u ${OPENSEARCH_USER}:${OPENSEARCH_PASSWORD} http://localhost:9200/_cluster/health?pretty | grep -q '\"status\" : \"green\"\\|\"status\" : \"yellow\"'"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
 
     postgres:
         # main database for the gateway app
