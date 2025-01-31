@@ -235,6 +235,7 @@ class FileViewSet(ViewSet):
             unsafe_path=unsafe_path,
             request=request,
         )
+        log.debug(f"Listing for '{user_rel_path}'")
         if user_rel_path is None:
             return Response(
                 {"detail": "The provided path must be in the user's files directory."},
@@ -246,24 +247,32 @@ class FileViewSet(ViewSet):
             is_deleted=False,
         )
 
+        paginator = FilePagination()
+
         # if we could extract a basename, try an exact match first
         if basename:
             inferred_user_rel_path = user_rel_path.parent
-            exact_match = (
-                all_valid_user_owned_files.filter(
-                    name=basename,
-                    directory=str(inferred_user_rel_path) + "/",
+            exact_match_query = all_valid_user_owned_files.filter(
+                name=basename,
+                directory=str(inferred_user_rel_path) + "/",
+            ).order_by(
+                "-created_at",
+            )[
+                :1  # replace this when allowing listing multiple file versions
+            ]
+            if exact_match_query.exists():
+                paginated_files = paginator.paginate_queryset(
+                    exact_match_query,
+                    request=request,
                 )
-                .order_by("-created_at")
-                .first()
-            )
-            if exact_match:
-                serializer = FileGetSerializer(exact_match, many=False)
-                return Response(serializer.data)
-            logging.debug(
-                "No exact match found for %s and name %s",
-                str(inferred_user_rel_path),
-                basename,
+                serializer = FileGetSerializer(paginated_files, many=True)
+
+                # despite being a single result, we return it paginated for consistency
+                return paginator.get_paginated_response(serializer.data)
+
+            log.debug(
+                "No exact match found for "
+                f"{inferred_user_rel_path!s} and name {basename}",
             )
 
         # try matching `directory`, ignoring `name`
@@ -285,16 +294,17 @@ class FileViewSet(ViewSet):
             "path",
         )
 
-        paginator = FilePagination()
         paginated_files = paginator.paginate_queryset(latest_files, request=request)
         serializer = FileGetSerializer(paginated_files, many=True)
 
-        logging.debug(
-            "Matched %d / %d files for path %s - returning %d",
-            latest_files.count(),
-            all_valid_user_owned_files.count(),
-            str(user_rel_path),
-            len(serializer.data),
+        first_file = all_valid_user_owned_files.first()
+        if first_file:
+            log.debug(f"First file directory: {first_file.directory}")
+            log.debug(f"First file name: {first_file.name}")
+
+        log.debug(
+            f"Matched {latest_files.count()} / {all_valid_user_owned_files.count()} "
+            f"user files for path {user_rel_path!s} - returning {len(serializer.data)}",
         )
 
         return paginator.get_paginated_response(serializer.data)
