@@ -1,8 +1,9 @@
 """Test cases for the endpoints that handle file operations."""
 
-import logging
+import time
 import uuid
 from pathlib import Path
+from typing import Any
 from typing import cast
 
 from django.contrib.auth import get_user_model
@@ -18,7 +19,6 @@ from sds_gateway.api_methods.serializers.file_serializers import FilePostSeriali
 from sds_gateway.users.models import UserAPIKey
 
 User = get_user_model()
-logger = logging.getLogger(__name__)
 
 
 class FileTestCases(APITestCase):
@@ -38,19 +38,23 @@ class FileTestCases(APITestCase):
         self.key = cast(str, key)
 
         # create a test file object
+        self.file_name = "testfile.txt"
+        self.test_file_path = Path(self.file_name)
         self.file_contents = SimpleUploadedFile(
-            "testfile.txt",
+            self.file_name,
             content=b"file_content",
             content_type="text/plain",
         )
-        file_data = {
+        self.sds_path = "/absolute/path/to/files"
+        self.file_data = {
+            "directory": self.sds_path,
             "file": self.file_contents,
-            "directory": "/absolute/path/to/files",
             "media_type": "text/plain",
+            "name": self.file_name,
             "owner": self.user.pk,
         }
         serializer = FilePostSerializer(
-            data=file_data,
+            data=self.file_data,
             context={"request_user": self.user},
         )
         serializer.is_valid(raise_exception=True)
@@ -63,31 +67,30 @@ class FileTestCases(APITestCase):
         self.download_url = reverse("api:files-download", args=[self.file.uuid])
 
     def tearDown(self) -> None:
-        # Delete the test file if it exists
-        test_file_path = Path("testfile.txt")
-        if test_file_path.exists():
-            test_file_path.unlink()
+        """Clean up test files."""
+        self.test_file_path.unlink(missing_ok=True)
 
     def test_create_file(self) -> None:
-        test_file_name = "testfile.txt"
-        with Path(test_file_name).open("w") as file:
-            file.write("This is a test file.")
+        with self.test_file_path.open("w") as fp:
+            fp.write("This is a test file.")
 
-        with Path(test_file_name).open("rb") as file:
+        with self.test_file_path.open("rb") as fp:
             data = {
-                "file": file,
-                "directory": "/absolute/path/to/files",
+                "file": fp,
+                "directory": f"/files/{self.user.email}/",
                 "media_type": "text/plain",
             }
-            response = self.client.post(self.list_url, data, format="multipart")
+            response = self.client.post(self.list_url, data=data, format="multipart")
 
         assert response.status_code == status.HTTP_201_CREATED
 
     def test_retrieve_file_200(self) -> None:
+        """Retrieving the file details should return a 200."""
         response = self.client.get(self.detail_url)
         assert response.status_code == status.HTTP_200_OK
 
     def test_retrieve_file_404(self) -> None:
+        """Retrieving a missing file should return a 404."""
         random_uuid = uuid.uuid4()
         response = self.client.get(
             reverse("api:files-detail", args=[random_uuid.hex]),
@@ -96,14 +99,14 @@ class FileTestCases(APITestCase):
 
     def test_retrieve_not_owned_file_404(self) -> None:
         """A user should not see a file that they do not own."""
-        user = User.objects.create(
-            email="john-doe@example.com",
+        user_mallory = User.objects.create(
+            email="mallory@example.com",
             password="testpassword",  # noqa: S106
             is_approved=True,
         )
         _, key = UserAPIKey.objects.create_key(
             name="test-key",
-            user=user,
+            user=user_mallory,
         )
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {key}")
@@ -116,24 +119,9 @@ class FileTestCases(APITestCase):
 
     def test_retrieve_owned_file_200(self) -> None:
         """A user should see a file that they own."""
-        user = User.objects.create(
-            email="john-doe@example.com",
-            password="testpassword",  # noqa: S106
-            is_approved=True,
-        )
-        _, key = UserAPIKey.objects.create_key(
-            name="test-key",
-            user=user,
-        )
         client = APIClient()
-        client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {key}")
-        _file_created = File.objects.create(
-            file=self.file_contents,
-            directory=self.file.directory,
-            media_type=self.file.media_type,
-            size=self.file.size,
-            owner=user,
-        )
+        client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {self.key}")
+        _file_created = self.file
         response = client.get(
             reverse("api:files-detail", args=[_file_created.uuid]),
         )
@@ -158,63 +146,137 @@ class FileTestCases(APITestCase):
             self.list_url,
             data={"path": self.file.directory},
         )
-        assert response.status_code == status.HTTP_404_NOT_FOUND, (
-            f"Expected 404, got {response.status_code}"
-        )
+        results = response.data.get("results")
+        assert len(results) == 0, f"Expected no files to be returned, got {results}"
 
     def test_retrieve_latest_file_owned_200(self) -> None:
-        """A user should see the latest file that they own."""
-        user = User.objects.create(
-            email="john-doe@example.com",
-            password="testpassword",  # noqa: S106
-            is_approved=True,
+        """On multiple dir + name matches, the most recent should be returned."""
+        # create a new file with the same directory and name as the original one
+        new_contents_bytes = b"new file content"
+        new_contents = SimpleUploadedFile(
+            self.file_name,
+            content=new_contents_bytes,
+            content_type="text/plain",
         )
-        _, key = UserAPIKey.objects.create_key(
-            name="test-key",
-            user=user,
+        new_file_data = {
+            "directory": self.sds_path,
+            "file": new_contents,
+            "media_type": self.file.media_type,
+            "name": self.file_name,
+            "owner": self.user.pk,
+        }
+        serializer = FilePostSerializer(
+            data=new_file_data,
+            context={"request_user": self.user},
         )
-        client = APIClient()
-        client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {key}")
-        _file_created = File.objects.create(
-            file=self.file_contents,
-            directory=self.file.directory,
-            media_type=self.file.media_type,
-            size=self.file.size,
-            owner=user,
+        serializer.is_valid(raise_exception=True)
+        new_file = serializer.save()
+
+        time.sleep(1)  # ensure the new file is created after the original one
+
+        saved_contents = new_file.file.read()
+        assert len(saved_contents) > 0, "Expected content in the new file"
+
+        # make sure new file with conflicting path + name is correctly created
+        assert new_file.directory == self.file.directory, (
+            "Expected the same directory: "
+            f"{new_file.directory} != {self.file.directory}"
         )
-        response = client.get(
+        assert new_file.name == self.file.name, (
+            f"Expected the same name: {new_file.name} != {self.file.name}"
+        )
+        assert new_file.created_at > self.file.created_at, (
+            "Expected a newer file: {new_file.created_at} <= {self.file.created_at}"
+        )
+        assert new_file.owner == self.user, (
+            f"Unexpected owner: {new_file.owner} != {self.user}"
+        )
+        assert saved_contents == new_contents_bytes, (
+            "Expected the content of the new file: "
+            f"{saved_contents} != {new_contents_bytes}"
+        )
+        assert new_file.uuid != self.file.uuid, (
+            f"Expected a different file instance: {new_file.uuid} == {self.file.uuid}"
+        )
+
+        # get the latest file at this location
+        file_request = f"{self.sds_path}/{new_file.name}"
+        response = self.client.get(
             self.list_url,
-            data={"path": _file_created.directory},
+            data={"path": file_request},
         )
+
         assert response.status_code == status.HTTP_200_OK, (
             f"Expected 200, got {response.status_code}"
         )
-        file_returned = response.data
-        assert file_returned, "Expected a file to be returned"
-        assert file_returned.get("owner").get("email") == user.email, (
-            f"Expected {user.email}, got {file_returned.get('owner').get('email')}"
+        response = response.data
+        assert "results" in response, (
+            f"Expected a paginated response with 'results', got: {response}"
+        )
+        files_returned: list[dict[str, Any]] = response.get("results")
+        assert isinstance(
+            files_returned,
+            list,
+        ), f"Expected a list of files as result, got: {type(files_returned)}"
+        assert len(files_returned) == 1, (
+            f"Expected exactly one file to be returned. {files_returned}"
+        )
+
+        old_file_uuid = str(self.file.uuid)
+        retrieved_uuid = str(files_returned[0].get("uuid"))
+        new_file_uuid = str(new_file.uuid)
+        assert retrieved_uuid == new_file_uuid != old_file_uuid, (
+            f"{retrieved_uuid=} == {new_file_uuid=} != {old_file_uuid=}"
         )
 
     def test_update_file(self) -> None:
+        """Updates the file name and directory."""
+        updated_file_name = "file_update.txt"
         data = {
-            "name": "file_update.txt",
-            "directory": f"/files/{self.user.email}/test_directory_2",
+            "name": updated_file_name,
+            "directory": "/test_directory_2",
             "media_type": "text/plain",
         }
         response = self.client.put(
-            self.detail_url,
-            data,
+            self.detail_url,  # the file UUID to update is in the URL
+            data=data,
             format="multipart",
         )
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["name"] == "file_update.txt"
-        assert "test_directory_2" in response.data["directory"]
+        assert response.status_code == status.HTTP_200_OK, response.data
+        assert response.data["name"] == updated_file_name, response.data
+        assert "test_directory_2" in response.data["directory"], response.data
 
     def test_delete_file(self) -> None:
-        response = self.client.delete(
-            self.detail_url,
+        """Make sure the file is deleted."""
+
+        # Create a new file to be deleted
+        ephemeral_file_data = {
+            "directory": self.sds_path,
+            "file": SimpleUploadedFile(
+                "file_to_delete.txt",
+                content=b"delete me",
+                content_type="text/plain",
+            ),
+            "media_type": "text/plain",
+            "name": "file_to_delete.txt",
+            "owner": self.user.pk,
+        }
+        serializer = FilePostSerializer(
+            data=ephemeral_file_data,
+            context={"request_user": self.user},
         )
-        assert response.status_code == status.HTTP_204_NO_CONTENT
+        serializer.is_valid(raise_exception=True)
+        ephemeral_file = serializer.save()
+
+        # Update the detail URL to point to the new file
+        try:
+            self.detail_url = reverse("api:files-detail", args=[ephemeral_file.uuid])
+            response = self.client.delete(
+                self.detail_url,
+            )
+            assert response.status_code == status.HTTP_204_NO_CONTENT
+        finally:
+            ephemeral_file.delete()
 
     def test_file_contents_check(self) -> None:
         metadata = {
@@ -224,7 +286,7 @@ class FileTestCases(APITestCase):
         }
         response = self.client.post(
             self.contents_check_url,
-            metadata,
+            data=metadata,
             format="multipart",
         )
         assert response.status_code == status.HTTP_200_OK
@@ -232,7 +294,8 @@ class FileTestCases(APITestCase):
         assert "file_exists_in_tree" in response.data
         assert "user_mutable_attributes_differ" in response.data
 
-    def test_download_file(self):
+    def test_download_file(self) -> None:
+        """When downloading a file, the contents should match the uploaded file."""
         response = self.client.get(self.download_url)
         assert response.status_code == status.HTTP_200_OK
         assert (

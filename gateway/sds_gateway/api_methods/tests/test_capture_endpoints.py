@@ -221,7 +221,7 @@ class CaptureTestCases(APITestCase):
             )
             assert response.json()["capture_type"] == CaptureType.DigitalRF
 
-    def test_create_rh_capture_201(self):
+    def test_create_rh_capture_201(self) -> None:
         """Test creating rh capture returns metadata."""
         with (
             patch(
@@ -241,8 +241,8 @@ class CaptureTestCases(APITestCase):
                 self.list_url,
                 data={
                     "capture_type": CaptureType.RadioHound,
-                    "top_level_dir": "/files/testuser@example.com/test-dir",
                     "index_name": "captures-rh",
+                    "top_level_dir": "/files/testuser@example.com/test-dir",
                 },
             )
             assert response.status_code == status.HTTP_201_CREATED
@@ -253,7 +253,7 @@ class CaptureTestCases(APITestCase):
                 == "/files/testuser@example.com/test-dir"
             )
 
-    def test_list_captures_200(self):
+    def test_list_captures_200(self) -> None:
         """Test listing captures returns metadata for all captures."""
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_200_OK

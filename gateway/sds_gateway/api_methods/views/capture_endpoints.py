@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from typing import Any
 from typing import cast
 
 from django.shortcuts import get_object_or_404
@@ -39,11 +40,10 @@ class CaptureViewSet(viewsets.ViewSet):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def handle_metadata(
+    def ingest_capture(
         self,
         capture: Capture,
         top_level_dir: Path,
-        capture_type: CaptureType,
         channel: str | None,
         requester: User,
     ):
@@ -60,25 +60,35 @@ class CaptureViewSet(viewsets.ViewSet):
                 cur_file.capture = capture
                 cur_file.save()
 
-            capture_props = None
-            # Validate the metadata and index it
-            if capture_type == CaptureType.DigitalRF:
-                if channel:
-                    capture_props = validate_metadata_by_channel(tmp_dir_path, channel)
-                else:
-                    msg = "Channel is required for DigitalRF captures"
-                    log.exception(msg)
-                    raise ValueError(msg)
-            elif capture_type == CaptureType.RadioHound:
-                rh_metadata_file = find_rh_metadata_file(tmp_dir_path)
-                rh_data = load_rh_file(rh_metadata_file)
-                capture_props = rh_data.model_dump(mode="json")
+            capture_props: dict[str, Any] = {}
 
+            # validate the metadata
+            match cap_type := capture.capture_type:
+                case CaptureType.DigitalRF:
+                    if channel:
+                        capture_props = validate_metadata_by_channel(
+                            data_path=tmp_dir_path,
+                            channel_name=channel,
+                        )
+                    else:
+                        msg = "Channel is required for DigitalRF captures"
+                        log.warning(msg)
+                        raise ValueError(msg)
+                case CaptureType.RadioHound:
+                    rh_metadata_file = find_rh_metadata_file(tmp_dir_path)
+                    rh_data = load_rh_file(rh_metadata_file)  # may raise ValueError too
+                    capture_props = rh_data.model_dump(mode="json")
+                case _:
+                    msg = f"Unrecognized capture type '{cap_type}'"
+                    log.warning(msg)
+                    raise ValueError(msg)
+
+            # index the capture properties
             if capture_props:
-                index_capture_metadata(capture, capture_props)
+                index_capture_metadata(capture=capture, capture_props=capture_props)
             else:
                 msg = f"No metadata found for capture '{capture.uuid}'"
-                log.exception(msg)
+                log.warning(msg)
                 raise ValueError(msg)
 
     @extend_schema(
@@ -109,15 +119,12 @@ class CaptureViewSet(viewsets.ViewSet):
         """Create a capture object, connecting files and indexing the metadata."""
         channel = request.data.get("channel", None)
         capture_type = request.data.get("capture_type", None)
-        log.info(
-            "Received capture_type: %s, type: %s",
-            capture_type,
-            type(capture_type),
-        )
+        log.info(f"Received capture_type: '{capture_type}' {type(capture_type)}")
+        log.info(f"Received channel: '{channel}' {type(channel)}")
 
         unsafe_top_level_dir = request.data.get("top_level_dir", "")
 
-        if not isinstance(channel, str):
+        if channel is not None and not isinstance(channel, str):
             msg = "Channel must be a string."
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -149,11 +156,11 @@ class CaptureViewSet(viewsets.ViewSet):
         capture = post_serializer.save()
 
         try:
-            self.index_drf_capture(
-                channel=channel,
-                requested_top_level_dir=requested_top_level_dir,
-                requester=requester,
+            self.ingest_capture(
                 capture=capture,
+                channel=channel,
+                requester=requester,
+                top_level_dir=requested_top_level_dir,
             )
         except ValueError as e:
             msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
@@ -166,32 +173,6 @@ class CaptureViewSet(viewsets.ViewSet):
         get_serializer = CaptureGetSerializer(capture)
 
         return Response(get_serializer.data, status=status.HTTP_201_CREATED)
-
-    def index_drf_capture(
-        self,
-        *,
-        channel: str,
-        requested_top_level_dir: Path,
-        requester: User,
-        capture: Capture,
-    ) -> None:
-        """Indexes a capture after constructing a temporary file tree."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tmp_dir_path, files_to_connect = reconstruct_tree(
-                target_dir=Path(temp_dir),
-                top_level_dir=requested_top_level_dir,
-                owner=requester,
-            )
-
-            for cur_file in files_to_connect:
-                cur_file.capture = capture
-                cur_file.save()
-
-            validated_metadata = validate_metadata_by_channel(
-                data_path=tmp_dir_path,
-                channel_name=channel,
-            )
-            index_capture_metadata(capture, validated_metadata)
 
     @extend_schema(
         parameters=[
