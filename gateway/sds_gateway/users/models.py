@@ -9,6 +9,8 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from rest_framework_api_key.models import AbstractAPIKey
 
+from sds_gateway.api_methods.models import KeySources
+
 from .managers import APIKeyUserManager
 from .managers import UserManager
 
@@ -54,15 +56,17 @@ class User(AbstractUser):
 
 class UserAPIKey(AbstractAPIKey):
     SOURCE_CHOICES = [
-        ("sds_web_ui", "SDS Web UI"),
-        ("sds_api", "SDS API"),
-        ("svi_backend", "SVI Backend"),
+        (KeySources.SDSWebUI, "SDS Web UI"),
+        (KeySources.SVIBackend, "SVI Backend"),
+        (KeySources.SVIWebUI, "SVI Web UI"),
     ]
     user = cast(
         User,
         models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE),
     )
     source = models.CharField(
-        choices=SOURCE_CHOICES, default="sds_web_ui", max_length=255
+        choices=SOURCE_CHOICES,
+        default=KeySources.SDSWebUI,
+        max_length=255,
     )
     objects = APIKeyUserManager()

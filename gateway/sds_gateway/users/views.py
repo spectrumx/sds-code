@@ -1,10 +1,12 @@
 import datetime
+from typing import Any
 from typing import cast
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import Paginator
 from django.db.models.query import QuerySet as Queryset
+from django.http import HttpRequest
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
@@ -15,6 +17,7 @@ from django.views.generic import RedirectView
 from django.views.generic import UpdateView
 
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
 from sds_gateway.users.models import User
@@ -64,14 +67,14 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
         # check if API key expired
         api_key = (
             UserAPIKey.objects.filter(user=request.user)
-            .exclude(source="svi_backend")
+            .exclude(source=KeySources.SVIBackend)
             .first()
         )
         if api_key is None:
             return render(
                 request,
-                self.template_name,
-                {
+                template_name=self.template_name,
+                context={
                     "api_key": False,
                     "expires_at": None,
                     "expired": False,
@@ -92,27 +95,27 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
             },
         )
 
-    def post(self, request, *args, **kwargs):
-        # Delete the API key if it exists
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        """Regenerates an API key for the authenticated user."""
         existing_api_key = (
             UserAPIKey.objects.filter(user=request.user)
-            .exclude(source="svi_backend")
+            .exclude(source=KeySources.SVIBackend)
             .first()
         )
         if existing_api_key:
             existing_api_key.delete()
 
-        # Create an API key for the user (with no expiration date for now)
-        api_key, key = UserAPIKey.objects.create_key(
+        # create an API key for the user (with no expiration date for now)
+        _, raw_key = UserAPIKey.objects.create_key(
             name=request.user.email,
             user=request.user,
-            source="sds_web_ui",
+            source=KeySources.SDSWebUI,
         )
         return render(
             request,
             template_name=self.template_name,
             context={
-                "api_key": key,  # key only returned when API key is created
+                "api_key": raw_key,  # key only returned when API key is created
                 "expires_at": None,
                 "expired": False,
             },

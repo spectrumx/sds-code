@@ -12,14 +12,26 @@ from django.db import models
 
 
 class CaptureType(StrEnum):
+    """The type of radiofrequency capture."""
+
     DigitalRF = "drf"
     RadioHound = "rh"
     SigMF = "sigmf"
 
 
 class CaptureOrigin(StrEnum):
+    """How a capture was created."""
+
     System = "system"
     User = "user"
+
+
+class KeySources(StrEnum):
+    """The source of an SDS API key."""
+
+    SDSWebUI = "sds_web_ui"
+    SVIBackend = "svi_backend"
+    SVIWebUI = "svi_web_ui"
 
 
 def default_expiration_date() -> datetime.datetime:
