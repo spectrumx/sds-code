@@ -358,20 +358,20 @@ class FileViewSet(ViewSet):
             is_deleted=False,
         )
 
-        directory = request.data.get("directory", None)
-        user_files_dir = f"/files/{request.user.email}"
+        unsafe_path = request.data.get("directory", None)
+        user_rel_path = sanitize_path_rel_to_user(
+            unsafe_path=unsafe_path,
+            request=request,
+        )
+        if user_rel_path is None:
+            return Response(
+                {"detail": "The provided path must be in the user's files directory."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request_data = request.data.copy()
+        request_data["directory"] = str(user_rel_path)
 
-        if directory:
-            # Resolve the top_level_dir to an absolute path
-            resolved_dir = Path(directory).resolve(strict=False)
-
-            # Ensure the resolved path is within the user's files directory
-            user_files_dir = Path(user_files_dir).resolve(strict=False)
-            if not resolved_dir.is_relative_to(user_files_dir):
-                msg = f"The provided directory must be in the user's files directory: {user_files_dir}"  # noqa: E501
-                return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-
-        serializer = FilePostSerializer(target_file, data=request.data, partial=True)
+        serializer = FilePostSerializer(target_file, data=request_data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -559,8 +559,8 @@ class CheckFileContentsExistView(APIView):
         user = cast(User, request.user)
         request_data = cast(QueryDict, request.data)
 
-        file_dir_from_client = request_data.get("directory")
-        if not file_dir_from_client:
+        unsafe_path = request_data.get("directory")
+        if not unsafe_path:
             return Response(
                 {"detail": "No directory provided."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -581,22 +581,20 @@ class CheckFileContentsExistView(APIView):
             )
 
         # ensure the resolved path is within the user's files directory
-        user_root_dir = Path("/files/") / user.email
-        if Path(file_dir_from_client).is_absolute():
-            file_dir_from_client = Path(f"./{file_dir_from_client}")
-        user_relative_dir = user_root_dir / file_dir_from_client
-        resolved_dir = Path(user_relative_dir).resolve(strict=False)
-        if not resolved_dir.is_relative_to(user_root_dir):
-            msg = (
-                "The provided directory must be in the user's files directory: "
-                f"'{file_dir_from_client}' should be under '{user_root_dir}'"
+        user_rel_path = sanitize_path_rel_to_user(
+            unsafe_path=unsafe_path,
+            request=request,
+        )
+        if user_rel_path is None:
+            return Response(
+                {"detail": "The provided path must be in the user's files directory."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = FilePostSerializer()
         conditions = serializer.check_file_contents_exist(
             blake3_sum=checksum_from_client,
-            directory=str(file_dir_from_client),
+            directory=str(user_rel_path),
             name=file_name_from_client,
             request_data=request_data,
             user=user,
