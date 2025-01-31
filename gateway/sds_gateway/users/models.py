@@ -54,13 +54,15 @@ class User(AbstractUser):
 
 class UserAPIKey(AbstractAPIKey):
     SOURCE_CHOICES = [
-        ('sds_web_ui', "SDS Web UI"),
-        ('sds_api', "SDS API"),
-        ('svi_backend', "SVI Backend"),
+        ("sds_web_ui", "SDS Web UI"),
+        ("sds_api", "SDS API"),
+        ("svi_backend", "SVI Backend"),
     ]
     user = cast(
         User,
         models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE),
     )
-    source = models.CharField(choices=SOURCE_CHOICES, default='sds_web_ui', max_length=255)
+    source = models.CharField(
+        choices=SOURCE_CHOICES, default="sds_web_ui", max_length=255
+    )
     objects = APIKeyUserManager()
