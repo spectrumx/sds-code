@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% load static i18n %}
+{% load socialaccount %}
 
 {% block title %}
     SDS Gateway
@@ -39,7 +40,7 @@
                     </div>
                     <a id="log-in-link"
                        class="btn btn-primary"
-                       href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
+                       href="{% provider_login_url 'auth0' %}">{% translate "Sign In" %}</a>
                 {% endif %}
             </div>
         </div>

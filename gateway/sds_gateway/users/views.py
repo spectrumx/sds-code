@@ -51,7 +51,7 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
     permanent = False
 
     def get_redirect_url(self):
-        return reverse("users:detail", kwargs={"pk": self.request.user.pk})
+        return reverse("users:generate_api_key")
 
 
 user_redirect_view = UserRedirectView.as_view()
@@ -62,7 +62,11 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
 
     def get(self, request, *args, **kwargs):
         # check if API key expired
-        api_key = UserAPIKey.objects.filter(user=request.user).exclude(source='svi_backend').first()
+        api_key = (
+            UserAPIKey.objects.filter(user=request.user)
+            .exclude(source="svi_backend")
+            .first()
+        )
         if api_key is None:
             return render(
                 request,
@@ -79,14 +83,22 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
             self.template_name,
             {
                 "api_key": True,  # return True if API key exists
-                "expires_at": api_key.expiry_date.strftime("%Y-%m-%d %H:%M:%S") if api_key.expiry_date else 'Does not expire',
-                "expired": api_key.expiry_date < datetime.datetime.now(datetime.UTC) if api_key.expiry_date else False,
+                "expires_at": api_key.expiry_date.strftime("%Y-%m-%d %H:%M:%S")
+                if api_key.expiry_date
+                else "Does not expire",
+                "expired": api_key.expiry_date < datetime.datetime.now(datetime.UTC)
+                if api_key.expiry_date
+                else False,
             },
         )
 
     def post(self, request, *args, **kwargs):
         # Delete the API key if it exists
-        existing_api_key = UserAPIKey.objects.filter(user=request.user).exclude(source='svi_backend').first()
+        existing_api_key = (
+            UserAPIKey.objects.filter(user=request.user)
+            .exclude(source="svi_backend")
+            .first()
+        )
         if existing_api_key:
             existing_api_key.delete()
 
@@ -94,7 +106,7 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
         api_key, key = UserAPIKey.objects.create_key(
             name=request.user.email,
             user=request.user,
-            source='sds_web_ui'
+            source="sds_web_ui",
         )
         return render(
             request,

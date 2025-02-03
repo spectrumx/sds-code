@@ -1,5 +1,6 @@
 {% load static i18n %}
 {% load render_bundle from webpack_loader %}
+{% load socialaccount %}
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
@@ -95,7 +96,7 @@
                                         {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
                                         <a id="log-in-nav-link"
                                            class="nav-link"
-                                           href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
+                                           href="{% provider_login_url 'auth0' %}">{% translate "Sign In" %}</a>
                                     </li>
                                 {% endif %}
                             </ul>
