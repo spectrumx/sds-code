@@ -156,7 +156,7 @@ AUTH_USER_MODEL: str = "users.User"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
 LOGIN_REDIRECT_URL: str = "users:redirect"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-url
-LOGIN_URL: str = "/accounts/auth0/login/"
+LOGIN_URL: str = "account_login"
 
 # PASSWORDS
 # ------------------------------------------------------------------------------
@@ -430,12 +430,20 @@ SOCIALACCOUNT_PROVIDERS = {
             "profile",
             "email",
         ],
+        "APP": {
+            "client_id": env("CLIENT_ID"),
+            "secret": env("CLIENT_SECRET"),
+        },
     },
 }
 
 # Add 'allauth.socialaccount.providers.auth0' to INSTALLED_APPS
 INSTALLED_APPS += ["allauth.socialaccount.providers.auth0"]
+SOCIALACCOUNT_LOGIN_ON_GET: bool = True
 
 # SVI Server API Key
-SVI_SERVER_EMAIL: str = env("SVI_SERVER_EMAIL", default="svi-server@spectrumx.crc.nd.edu")
+SVI_SERVER_EMAIL: str = env(
+    "SVI_SERVER_EMAIL",
+    default="svi-server@spectrumx.crc.nd.edu",
+)
 SVI_SERVER_API_KEY: str = env("SVI_SERVER_API_KEY", default="svi-server-api-key")
