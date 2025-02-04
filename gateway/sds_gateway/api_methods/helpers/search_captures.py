@@ -7,10 +7,12 @@ from django.db.models import QuerySet
 from opensearchpy import exceptions as os_exceptions
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_metadata_fields_by_type,
+    capture_index_mapping_by_type as md_props_by_type,
 )
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +36,7 @@ def build_metadata_query(
     Returns:
         List of OpenSearch query clauses for the metadata fields
     """
-    schema = capture_metadata_fields_by_type.get(capture_type, {})
-
-    # Get the properties and index mapping for this capture type
-    properties = schema.get("properties", {})
-    index_mapping = schema.get("index_mapping", {})
+    index_mapping = md_props_by_type.get(capture_type, {})
 
     # Build metadata query
     metadata_queries = []
@@ -47,11 +45,10 @@ def build_metadata_query(
         if field not in index_mapping:
             continue
 
-        field_config = properties.get(field, {})
         field_path = f"metadata.{field}"
 
         # Handle range queries for supported fields
-        if field_config.get("supports_range") and isinstance(value, dict):
+        if isinstance(value, dict):
             range_query: RangeValue = {}
             if "gte" in value:
                 range_query["gte"] = value["gte"]
@@ -67,8 +64,8 @@ def build_metadata_query(
 
 
 def search_captures(
-    user,
-    capture_type: str | None = None,
+    user: User,
+    capture_type: CaptureType | None = None,
     metadata_filters: dict[str, Any] | None = None,
 ) -> QuerySet[Capture]:
     """Search for captures with optional metadata filtering.
@@ -84,13 +81,15 @@ def search_captures(
     Raises:
         ValueError: If the capture type is invalid
     """
+
     # Start with base queryset filtered by user
-    captures = Capture.objects.filter(owner=user)
+    # Start with base queryset filtered by user and not deleted
+    captures = Capture.objects.filter(owner=user, is_deleted=False)
 
     # Filter by capture type if provided
     if capture_type:
         # Verify capture type exists before filtering
-        if not capture_metadata_fields_by_type.get(capture_type):
+        if not md_props_by_type.get(capture_type):
             raise ValueError(UNKNOWN_CAPTURE_TYPE)
         captures = captures.filter(capture_type=capture_type)
 

@@ -28,6 +28,7 @@ from sds_gateway.api_methods.helpers.index_handling import index_capture_metadat
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
+from sds_gateway.api_methods.helpers.search_captures import search_captures
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
@@ -304,10 +305,16 @@ class CaptureViewSet(viewsets.ViewSet):
         # assuming `owned_captures` is a valid capture queryset,
         #   listing past this point should either work,
         #   or raise 5xx errors for critical failures
+        
+        metadata_filters = request.GET.get("metadata_filters", None)
 
         try:
-            serializer = CaptureGetSerializer(owned_captures, many=True)
-            return Response(serializer.data)
+            captures = search_captures(request.user, capture_type, metadata_filters)
+
+            # Serialize and return results
+            serializer = CaptureGetSerializer(captures, many=True)
+            data = serializer.data
+            return Response(data)
         except ValueError as err:
             # errors raised here should be logged and treated as server errors
             log.exception(err)
