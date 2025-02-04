@@ -44,7 +44,7 @@ repos:
 
     # Run the Ruff linter.
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.9.3
+      rev: v0.9.4
       hooks:
           # Linter
           - id: ruff # runs ruff check --force-exclude
@@ -72,7 +72,7 @@ repos:
           - id: djlint-django
 
     - repo: https://github.com/igorshubovych/markdownlint-cli
-      rev: "v0.43.0"
+      rev: "v0.44.0"
       hooks:
           - id: markdownlint
             args: ["-f"]

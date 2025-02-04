@@ -1,6 +1,6 @@
 [project]
     dependencies = [
-        "blake3>=0.4.1",
+        "blake3>=1.0.0",
         "loguru>=0.6.0",
         "pydantic>=2.8.0",
         "python-dotenv>=1.0.0",
@@ -43,6 +43,7 @@
     [tool.deptry.per_rule_ignores]
         # https://deptry.com/usage/#per-rule-ignores
         DEP001 = ["spectrumx"]
+        DEP003 = ["spectrumx"]
         DEP004 = ["rich"]
 
     [tool.deptry.package_module_name_map]

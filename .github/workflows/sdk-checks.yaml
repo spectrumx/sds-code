@@ -48,14 +48,14 @@ jobs:
 
             - name: Install hooks
               working-directory: ./sdk
-              run: uv run pre-commit install --install-hooks
+              run: uv run -p 3.13 pre-commit install --install-hooks
 
             - name: Run pre-commit
               working-directory: ./sdk
               # make sure default_language_version in .pre-commit-config.yaml
               # matches the one installed with uv, which is the most recent
               # stable python version that meets project requirements.
-              run: uv run pre-commit run --all-files
+              run: uv run -p 3.13 pre-commit run --all-files
 
     # Run static analysis with pyright
     #   - Install the pylance extension for VS Code to have these warnings in the editor

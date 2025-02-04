@@ -49,7 +49,7 @@ test:
 
 test-lowest:
 	# Run tests against the lowest versions of dependencies to ensure compatibility
-	uv run --resolution lowest-direct -p $(PYTHON_VERSION) pytest \
+	uv run -v --resolution lowest-direct -p $(PYTHON_VERSION) pytest \
 		-m "$(TEST_MARKER_DEFAULT)" \
 		tests
 

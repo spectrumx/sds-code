@@ -80,11 +80,11 @@ jobs:
               working-directory: ./sdk
               run: uv build --link-mode=copy
 
-            - name: Build acceptance test
-              # tests the actual package built, to catch errors in the build
+            - name: Build acceptance checks
+              # checks the actual package built, to catch errors in the build
               # configuration and make sure the published package is usable
               working-directory: ./sdk
-              run: uv run --isolated --no-project -p 3.13 --with dist/*.tar.gz tests/e2e_examples/test_build_acceptance.py
+              run: uv run --isolated --no-project -p 3.13 --with dist/*.tar.gz tests/e2e_examples/check_build_acceptance.py
 
             - name: Store artifact
               # https://github.com/actions/upload-artifact?tab=readme-ov-file#inputs
