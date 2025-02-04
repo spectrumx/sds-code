@@ -279,6 +279,13 @@ class CaptureViewSet(viewsets.ViewSet):
                 required=False,
                 description="Type of capture to filter by (e.g. 'drf')",
             ),
+            OpenApiParameter(
+                name="metadata_filters",
+                type=OpenApiTypes.JSON,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Metadata filters to apply to the search",
+            ),
         ],
         responses={
             200: CaptureGetSerializer,
@@ -286,6 +293,20 @@ class CaptureViewSet(viewsets.ViewSet):
             503: OpenApiResponse(description="OpenSearch service unavailable"),
             400: OpenApiResponse(description="Bad Request"),
         },
+        examples=[
+            OpenApiExample(
+                "Example Capture List Request",
+                summary="Capture List Request Body",
+                value=example_schema.capture_list_request_example_schema,
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Example Capture List Response",
+                summary="Capture List Response Body",
+                value=example_schema.capture_list_response_example_schema,
+                response_only=True,
+            ),
+        ],
         description="List captures with optional metadata filtering.",
         summary="List Captures",
     )

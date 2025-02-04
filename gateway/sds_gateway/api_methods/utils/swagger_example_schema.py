@@ -270,3 +270,17 @@ example_file_content_check_request = {
     "permissions": "rw-r--r--",
     "sum_blake3": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
 }
+
+capture_list_request_example_schema = {
+    "metadata_filters": {
+        "start_bound": {"$gte": 1515000000},
+        "end_bound": {"$lte": 1515005000},
+    },
+}
+
+capture_list_response_example_schema = {
+    "count": 105,
+    "next": "http://localhost:8000/api/latest/assets/captures/?page=2&page_size=3",
+    "previous": None,
+    "results": [],
+}
