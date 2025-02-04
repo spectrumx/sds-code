@@ -50,20 +50,21 @@ style="display: none">
                     <button class="btn btn-primary" type="submit">Generate API Key</button>
                 </form>
             {% endif %}
+            <br /><br />
             <div class="resources-section text-center mt-5">
                 <h2>{% translate "Resources" %}</h2>
-                <div class="row g-5">
-                    <div class="col-md-6 mb-6">
-                        <div class="resource-box">
-                            <p>{% translate "Writing a Python program?" %}</p>
+                <div class="row g-3">
+                    <div class="col-md-6 mb-3">
+                        <div class="resource-box" style="box-shadow: none;">
+                            {% translate "Writing a Python program?" %}
                             <a class="btn btn-info"
                                href="https://pypi.org/project/spectrumx/"
                                target="_blank">{% translate "SpectrumX SDK in PyPI" %}</a>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-2">
-                        <div class="resource-box">
-                            <p>{% translate "Try the lower-level API" %}</p>
+                    <div class="col-md-6 mb-3">
+                        <div class="resource-box" style="box-shadow: none;">
+                            {% translate "Try the lower-level API" %}
                             <a class="btn btn-info"
                                href="{% url 'api-docs' %}"
                                target="_blank">{% translate "API Documentation" %}</a>
