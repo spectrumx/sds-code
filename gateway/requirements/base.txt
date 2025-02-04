@@ -9,7 +9,7 @@ django-celery-beat==2.6.0  # https://github.com/celery/django-celery-beat
 flower==2.0.1  # https://github.com/mher/flower
 uvicorn[standard]==0.30.3  # https://github.com/encode/uvicorn
 uvicorn-worker==0.2.0  # https://github.com/Kludex/uvicorn-worker
-blake3==0.4.1  # https://github.com/oconnor663/blake3-py
+blake3==1.0.4  # https://github.com/oconnor663/blake3-py
 opensearch-py==2.7.1 # https://github.com/opensearch-project/opensearch-py
 digital-rf==2.6.9  #
 numpy==1.26.0  #
@@ -38,3 +38,4 @@ django-webpack-loader==3.1.0  # https://github.com/django-webpack/django-webpack
 
 django-allauth[socialaccount]==65.0.2  # https://github.com/pennersr/django-allauth
 fido2==1.1.3  # https://github.com/Yubico/python-fido2
+django-extensions>=3.2.3  # https://github.com/django-extensions/django-extensions

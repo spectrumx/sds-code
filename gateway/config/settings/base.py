@@ -110,10 +110,11 @@ DJANGO_APPS: list[str] = [
     "django.contrib.sites",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # "django.contrib.humanize", # Handy template tags
+    "django.contrib.humanize",  # handy template tags used in allauth
     "django.contrib.admin",
     "django.forms",
     "storages",
+    "django_extensions",  # show_urls, validate_templates, ...
 ]
 THIRD_PARTY_APPS: list[str] = [
     "crispy_forms",
