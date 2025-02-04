@@ -1,29 +1,24 @@
 {% load static i18n %}
+{% load socialaccount %}
 {% load render_bundle from webpack_loader %}
 {% load socialaccount %}
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
-<html lang="{{ LANGUAGE_CODE }}" data-bs-theme="dark">
+<html lang="{{ LANGUAGE_CODE }}">
+
     <head>
-        <meta charset="utf-8" />
-        <meta http-equiv="x-ua-compatible" content="ie=edge" />
-        <title>
-            {% block title %}
-                SpectrumX Data System Gateway
-            {% endblock title %}
-        </title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="description"
-              content="Control plane, metadata management, and web interface for SDS" />
-        <meta name="author"
-              content="Center for Research Computing | University of Notre Dame" />
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>SpectrumX - Spectrum Data System</title>
+        <link rel="icon" type="image/svg+xml" href="images/favicon.svg">
+        <link rel="icon" type="image/png" href="images/favicon.png">
         <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
-        {% block css %}
+      {% block css %}
             <!-- Your stuff: Third-party CSS libraries go here -->
             <!-- This file stores project-specific CSS -->
             {% render_bundle 'project' 'css' %}
-        {% endblock css %}
+             {% endblock css %}
         <!-- Le javascript
     ================================================== -->
         {# Placed at the top of the document so pages load faster with defer #}
@@ -40,71 +35,34 @@
           style="display: none">
         {# djlint:on #}
         {% block body %}
-            <div class="mb-1">
-                <nav class="navbar navbar-expand-md">
-                    <div class="container-fluid">
-                        <button class="navbar-toggler navbar-toggler-right"
-                                type="button"
-                                data-bs-toggle="collapse"
-                                data-bs-target="#navbarSupportedContent"
-                                aria-controls="navbarSupportedContent"
-                                aria-expanded="false"
-                                aria-label="Toggle navigation">
-                            <span class="navbar-toggler-icon"></span>
-                        </button>
-                        <a class="navbar-brand" href="{% url 'home' %}">SDS Gateway <span class="alpha-tag"><small>alpha</small></span></a>
-                        <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                            {% comment %} left navbar {% endcomment %}
-                            <ul class="navbar-nav mr-auto">
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url 'about' %}">About</a>
-                                </li>
-                                {% if request.user.is_authenticated %}
-                                    <li class="nav-item">
-                                        <a class="nav-link" href="{% url 'users:file_list' %}?page=1">{% translate "My Files" %}</a>
-                                    </li>
-                                {% endif %}
-                            </ul>
-                            {% comment %} right navbar {% endcomment %}
-                            <ul class="navbar-nav ms-auto">
-                                {% if request.user.is_authenticated %}
-                                    <li class="nav-item">
-                                        <a class="nav-link" href="{% url 'users:detail' request.user.pk %}">
-                                            {% if request.user.name %}
-                                                {{ request.user.name }}
-                                            {% else %}
-                                                {{ request.user.email }}
-                                            {% endif %}
-                                        </a>
-                                    </li>
-                                    <li class="nav-item"
-                                        {% if not request.user.is_approved %}title="{% translate 'Contact administrator for account approval to generate API keys.' %}"{% endif %}>
-                                        <a class="nav-link {% if not request.user.is_approved %}disabled{% endif %}"
-                                           href="{% url 'users:generate_api_key' %}">{% translate "API Key" %}</a>
-                                    </li>
-                                    <li class="nav-item">
-                                        {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
-                                        <form id="signout" method="post" action="{% url 'account_logout' %}">
-                                            {% csrf_token %}
-                                            <a href="#"
-                                               class="nav-link btn btn-link"
-                                               onclick="document.getElementById('signout').submit();">{% translate "Sign Out" %}</a>
-                                        </form>
-                                    </li>
-                                {% else %}
-                                    <li class="nav-item">
-                                        {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
-                                        <a id="log-in-nav-link"
-                                           class="nav-link"
-                                           href="{% provider_login_url 'auth0' %}">{% translate "Sign In" %}</a>
-                                    </li>
-                                {% endif %}
-                            </ul>
+            <div class="rainbow-bar">
+            <header class="site-header">
+                <div class="container">
+                    <div class="header-content">
+                        <div class="logo">
+                            <a href="/">
+                                <img src="/static/images/logo.svg" alt="SpectrumX Logo">
+                            </a>
                         </div>
+                        <nav class="main-nav">
+                            <ul class="primary-menu">
+                                <li><a href="{% url 'about' %}">About</a></li>
+                                <li><a href="{% url 'users:file_list' %}?page=1">My Files</a></li>
+                                <li><a href="{% url 'users:generate_api_key' %}">API Key</a></li>
+                                {% if not request.user.is_authenticated %}
+                                    <a id="log-in-link"
+                                    href="/accounts/login">Sign In</a></li>
+             <!--  <h1 class="my-4">{% translate "SDS Gateway" %}</h1>   -->
+                {% else %}
+                {% endif %}
+                        </nav>
                     </div>
-                </nav>
+                </div>
+            </header>
             </div>
-            <div class="py-4 container">
+         <main class="main-content">
+            <section class="hero hero-white-page">
+            <div class="container">
                 {% comment %} system-wide notifications {% endcomment %}
                 {% if system_notifications %}
                     {% for notification in system_notifications %}
@@ -227,5 +185,24 @@
                 })()
             </script>
         {% endblock inline_javascript %}
+    </main>
+
+        <footer class="site-footer">
+            <div class="container-fluid">
+                <div class="footer-content">
+                    <div class="footer-logos">
+                        <img src="/static/images/nsf.svg" alt="NSF Logo">
+                        <img src="/static/images/spectrumx-rev.svg" alt="SpectrumX Logo">
+                    </div>
+                    <div class="footer-text">
+                        <p>NSF SpectrumX is an NSF Spectrum Innovation Center funded via Award 2132700 operated under cooperative agreement by the University of Notre Dame.</p>
+                    </div>
+                        <p class="copyright">©2024 SpectrumX | All Rights Reserved</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
     </body>
+
 </html>

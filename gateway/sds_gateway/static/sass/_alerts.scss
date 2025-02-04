@@ -1,0 +1,18 @@
+.italic-text {
+  font-style: italic;
+}
+.alert-debug {
+    background-color: $white;
+    border-color: $mint-green;
+    color: $black;
+  }
+  
+  .alert-error {
+    background-color: $pink;
+    border-color: $dark-pink;
+    color: $red;
+  }
+  .alert-dismissible {
+    font-size: 1.25rem;
+    color: #333; /* Customize the color */
+  }

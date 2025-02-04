@@ -6,35 +6,35 @@
     SDS Gateway
 {% endblock title %}
 {% block content %}
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
-                <div class="container mt-4">
+            <div class="container">
+                <div class="hero-content">
+                    <div class="center-heading">
                     <h2>{% translate "About" %}</h2>
-                    <p>
+                </div>
+                    <p class="styled-paragraph">
                         {% translate "The <b>SpectrumX Data System (SDS)</b> is a data management and retrieval platform for radio-frequency experiments." %}
-                    </p>
-                    <p>
                         {% translate "This is the SDS Gateway, a web interface in the making for user-friendly data retrieval." %}
                         {% translate "Here you can also generate API keys to interact with SDS via our " %}
                         <a href="https://pypi.org/project/spectrumx" target="_blank">{% translate "Python SDK" %}</a>.
-                    </p>
-                    <div class="text-center my-4">
+                     </p>          
+                  <!--
+                          <div class="text-center my-4">
                         <img src="{% static 'images/spx-logo.png' %}"
                              class="img-fluid"
                              width="64"
                              alt="SpectrumX Logo" />
-                    </div>
-                    <p>
+                    </div>-->       
+                    <p class="styled-paragraph">
                         {% translate "The SpectrumX Data System (SDS) is a project under the SpectrumX initiative, " %}
                         {% translate "which vision is to become a trusted resource within the spectrum ecosystem offering objective, " %}
                         {% translate "long-term and innovative policy and technical contributions through collaborative, inclusive and integrative education and research activities." %}
                     </p>
                 </div>
-                <div class="container mt-4">
-                    <h2>{% translate "Resources" %}</h2>
-                    <ul class="list-unstyled">
-                        <li class="list-group-item">
+                <div class="container">
+                    <div class="hero-content">
+                    <h2 class="center-heading">{% translate "Resources" %}</h2> 
+                    <ul class="centered-list">
+                        <li>
                             <a href="https://www.spectrumx.org/" target="_blank">{% translate "SpectrumX Website" %}</a>
                         </li>
                         <li>
@@ -44,8 +44,9 @@
                             <a href="{% url 'api-docs' %}" target="_blank">{% translate "Gateway API Documentation" %}</a>
                         </li>
                     </ul>
-                </div>
             </div>
         </div>
     </div>
+
+
 {% endblock content %}

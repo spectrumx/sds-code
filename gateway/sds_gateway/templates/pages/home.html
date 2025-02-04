@@ -10,39 +10,39 @@
     <div class="container">
         <div class="row">
             <div class="col-md-6 offset-md-3">
-                {% if request.user.is_authenticated %}
-                    <h1 class="my-4">{% translate "SDS Gateway" %}</h1>
+                {% if not request.user.is_authenticated %}
+             <!--  <h1 class="my-4">{% translate "SDS Gateway" %}</h1>   -->
                 {% else %}
-                    <h1 class="my-4">{% translate "SpectrumX Data System Gateway" %}</h1>
+
                 {% endif %}
                 <br />
-                {% if request.user.is_authenticated %}
-                    <p>
-                        {% translate "👋 Welcome, " %}
-                        <b>{{ request.user.name }}</b>
-                        {% translate "!" %}
-                    </p>
-                    <p>
-                        {% translate "You can create/update your API Key or view/edit your user profile details using the links in the navigation bar above. You can also view the API documentation at the link below." %}
-                    </p>
-                    <a class="btn btn-primary" href="{% url 'api-docs' %}" target="_blank">{% translate "Gateway API Documentation" %}</a>
-                {% else %}
-                    <p>
-                        {% translate "The <b>SpectrumX Data System (SDS)</b> is a data management and retrieval platform for radio-frequency experiments." %}
-                    </p>
-                    <p>
-                        {% translate "This is the SDS Gateway, a web interface in the making for user-friendly data retrieval." %}
-                        {% translate "Here you can also generate API keys to interact with SDS via our " %}
-                        <a href="https://pypi.org/project/spectrumx" target="_blank">{% translate "Python SDK" %}</a>.
-                    </p>
-                    <div class="alert alert-warning rounded">
-                        <p>This platform is in alpha and under active development.</p>
-                    </div>
-                    <a id="log-in-link"
-                       class="btn btn-primary"
-                       href="{% provider_login_url 'auth0' %}">{% translate "Sign In" %}</a>
-                {% endif %}
+  <!--            <section class="hero">  -->
+  <!--               <div class="container"> -->
+                    <h1>Spectrum Data System</h1>
+                    <div class="hero-content">
+                        <div class="hero-boxes">
+                            <div class="hero-box">
+                                <h2>About the SDS</h2>
+                                <p>A <a href="/about">data management and retrieval platform</a> for radio-frequency experiments</p>
+                            </div>
+                            <div class="hero-box">
+                                <h2>API Gateway Documentation</h2>
+                                <p><a href="https://sds.crc.nd.edu/api/v1/docs/">Documentation of API endpoints</a> of SpectrumX Data System Gateway</p>
+                            </div>
+                            <div class="hero-box">
+                                <h2>My SDS Files</h2>
+                                <p><a href="/users/file-list/?page=1">View your files</a> in the SDS</p>
+                            </div>
+                        </div>
+               <!--    </div> -->
+
+                </div>
+
+            <br />
+
             </div>
         </div>
     </div>
+
+
 {% endblock content %}

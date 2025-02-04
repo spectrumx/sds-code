@@ -4,18 +4,21 @@
 {% load static i18n %}
 {% load custom_filters %}
 
+<body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %}"
+id="body"
+style="display: none">
 {% block title %}
     Generate API Key
 {% endblock title %}
 {% block content %}
-    <div class="container">
-        <div class="row">
+    <div class="container mt-5">
             <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
+                <div class="hero-content text-center mt-5">
                 <h2>Generate an API Key</h2>
                 {% if api_key and not expired %}
                     {% if api_key|is_string %}
                         <p>Your new API Key:</p>
-                        <div class="d-inline-block bg-body-secondary p-3 rounded border">
+                        <div class="d-inline-block p-3 rounded border" style="background-color: white;">
                             <pre class="api-key-text"><strong>{{ api_key }}</strong></pre>
                         </div>
                         <p class="text-danger">Keep this key safe and secure. You will not be able to view it again.</p>
@@ -47,22 +50,30 @@
                     <button class="btn btn-primary" type="submit">Generate API Key</button>
                 </form>
             {% endif %}
-            <div class="mt-4">
+            <div class="resources-section text-center mt-5">
                 <h2>{% translate "Resources" %}</h2>
-                <ul class="list-unstyled">
-                    <li class="mb-3">
-                        <p>{% translate "Writing a Python program?" %}</p>
-                        <a class="btn btn-info"
-                           href="https://pypi.org/project/spectrumx/"
-                           target="_blank">{% translate "SpectrumX SDK in PyPI" %}</a>
-                    </li>
-                    <li class="mb-3">
-                        <p>{% translate "Or try the lower-level API for the SDS Gateway:" %}</p>
-                        <a class="btn btn-info" href="{% url 'api-docs' %}" target="_blank">{% translate "API Documentation" %}</a>
-                    </li>
-                </ul>
+                <div class="row g-5">
+                    <div class="col-md-6 mb-6">
+                        <div class="resource-box">
+                            <p>{% translate "Writing a Python program?" %}</p>
+                            <a class="btn btn-info"
+                               href="https://pypi.org/project/spectrumx/"
+                               target="_blank">{% translate "SpectrumX SDK in PyPI" %}</a>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <div class="resource-box">
+                            <p>{% translate "Try the lower-level API" %}</p>
+                            <a class="btn btn-info"
+                               href="{% url 'api-docs' %}"
+                               target="_blank">{% translate "API Documentation" %}</a>
+                        </div>
+                    </div>
+                </div>
             </div>
+            
+        </div>
         </div>
     </div>
-</div>
 {% endblock content %}
+</body>

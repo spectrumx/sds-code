@@ -1,81 +1,8 @@
-@import "custom_bootstrap_vars";
-@import "~bootstrap/scss/bootstrap";
+@import 'variables';
 
-// project specific CSS goes here
+@import '~bootstrap/scss/bootstrap';
+@import 'bootstrap_overrides';  
+@import 'layout';
+@import 'components';
+@import 'alerts';
 
-///////////////
-// Variables //
-///////////////
-
-// Alert colors
-
-$white: #fff;
-$mint-green: #d6e9c6;
-$black: #000;
-$pink: #f2dede;
-$dark-pink: #eed3d7;
-$red: #b94a48;
-
-////////////
-// Alerts //
-////////////
-
-// bootstrap alert CSS, translated to the django-standard levels of
-// debug, info, success, warning, error
-
-.alert-debug {
-    background-color: $white;
-    border-color: $mint-green;
-    color: $black;
-}
-
-.alert-error {
-    background-color: $pink;
-    border-color: $dark-pink;
-    color: $red;
-}
-
-.provider-list {
-    list-style-type: none;
-    padding-left: 0;
-}
-
-.api-key-text {
-    font-size: 1.2em;
-    font-family: monospace;
-}
-
-.alpha-tag {
-    background-color: #fa4;
-    color: #000;
-    border-radius: 0.3em;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.8em;
-    margin-left: 0.5em;
-    padding: 0.2em 0.5em;
-}
-
-h2 {
-    margin-top: 1em;
-    border-bottom: 0.5px solid #ccc7;
-    padding-bottom: 0.3em;
-    margin-bottom: 0.7em;
-}
-
-a {
-    text-decoration: none;
-}
-
-.cursor-pointer {
-    cursor: pointer;
-}
-
-@media (prefers-color-scheme: dark) {
-    .swagger-ui {
-        filter: invert(88%) hue-rotate(180deg);
-    }
-
-    .swagger-ui .microlight {
-        filter: invert(100%) hue-rotate(180deg);
-    }
-}
