@@ -272,9 +272,10 @@ example_file_content_check_request = {
 }
 
 capture_list_request_example_schema = {
+    "capture_type": CaptureType.DigitalRF,
     "metadata_filters": {
-        "start_bound": {"$gte": 1515000000},
-        "end_bound": {"$lte": 1515005000},
+        "start_bound": {"gte": 1515000000},
+        "end_bound": {"lte": 1515005000},
     },
 }
 
@@ -282,5 +283,9 @@ capture_list_response_example_schema = {
     "count": 105,
     "next": "http://localhost:8000/api/latest/assets/captures/?page=2&page_size=3",
     "previous": None,
-    "results": [],
+    "results": [
+        capture_response_example_schema,
+        capture_response_example_schema,
+        capture_response_example_schema,
+    ],
 }
