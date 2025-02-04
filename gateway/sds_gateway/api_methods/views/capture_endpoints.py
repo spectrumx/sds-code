@@ -14,6 +14,7 @@ from loguru import logger as log
 from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework import viewsets
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -37,6 +38,12 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 )
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
+
+
+class CapturePagination(PageNumberPagination):
+    page_size = 30
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class CaptureViewSet(viewsets.ViewSet):
@@ -286,6 +293,22 @@ class CaptureViewSet(viewsets.ViewSet):
                 required=False,
                 description="Metadata filters to apply to the search",
             ),
+            OpenApiParameter(
+                name="page",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Page number for pagination.",
+                default=1,
+            ),
+            OpenApiParameter(
+                name="page_size",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Number of items per page.",
+                default=CapturePagination.page_size,
+            ),
         ],
         responses={
             200: CaptureGetSerializer,
@@ -332,13 +355,12 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             captures = search_captures(request.user, capture_type, metadata_filters)
 
-            # Serialize and return results
-            serializer = CaptureGetSerializer(captures, many=True)
-            data = serializer.data
-            return Response(data)
-        except ValueError as err:
-            # errors raised here should be logged and treated as server errors
-            log.exception(err)
+            # Paginate and serialize results
+            paginator = CapturePagination()
+            paginated_captures = paginator.paginate_queryset(captures, request=request)
+            serializer = CaptureGetSerializer(paginated_captures, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        except ValueError as e:
             return Response(
                 {"detail": str(err)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
