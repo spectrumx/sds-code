@@ -112,7 +112,7 @@ For the local deploy:
 7. Run the test suite:
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py test
+    docker exec -it sds-gateway-local-app python manage.py test --force-color
     ```
 
     Tests that run:
@@ -128,13 +128,19 @@ For the local deploy:
     + `test_minio_health_check`
     + `test_opensearch_health_check`
 
+8. Run template checks:
+
+    ```bash
+    docker exec -it sds-gateway-local-app python manage.py validate_templates
+    ```
+
 ## Debugging tips
 
 + Where are my static files served from?
     + See [localhost:3000/webpack-dev-server](http://localhost:3000/webpack-dev-server).
 + What is the URL to X / how to see my routing table?
     + `docker exec -it sds-gateway-local-app python manage.py show_urls`.
-    + `show_urls` is provided by `django-extensions` and currently doesn't run in production mode.
+    + `show_urls` is provided by `django-extensions`.
 
 ## Production deploy
 
