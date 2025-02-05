@@ -430,11 +430,7 @@ SOCIALACCOUNT_PROVIDERS = {
             "openid",
             "profile",
             "email",
-        ],
-        "APP": {
-            "client_id": env("CLIENT_ID"),
-            "secret": env("CLIENT_SECRET"),
-        },
+        ]
     },
 }
 
