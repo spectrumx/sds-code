@@ -48,14 +48,20 @@
                                 <li><a href="{% url 'users:file_list' %}?page=1">My Files</a></li>
                                 <li><a href="{% url 'users:generate_api_key' %}">API Key</a></li>
                                 {% if not request.user.is_authenticated %}
-                              <li class="nav-item">
+                                <li class="nav-item">
                                         {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
                                         <a id="log-in-nav-link"
                                            class="nav-link"
                                            href="{% provider_login_url 'auth0' %}">{% translate "Sign In" %}</a>
-                                    </li>
-                {% else %}
-                {% endif %}
+                                </li>
+                                {% else %}
+                                <li class="nav-item">
+                                    <a class="nav-link" 
+                                       href="{% url 'account_logout' %}" >
+                                        Sign Out
+                                    </a>
+                                </li>
+                                {% endif %}
                         </nav>
                     </div>
                 </div>
