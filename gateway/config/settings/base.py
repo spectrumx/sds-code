@@ -430,7 +430,7 @@ SOCIALACCOUNT_PROVIDERS = {
             "openid",
             "profile",
             "email",
-        ]
+        ],
     },
 }
 

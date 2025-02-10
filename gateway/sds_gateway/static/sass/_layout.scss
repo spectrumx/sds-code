@@ -9,8 +9,8 @@
     font-family: 'Inter', sans-serif;
     line-height: 1.6;
     color: var(--text-color);
-    background-color: var(--white); 
-    min-height: 100vh; 
+    background-color: var(--white);
+    min-height: 100vh;
     margin: 0;
     padding: 0;
   }
@@ -44,7 +44,7 @@
     left: 0;
     z-index: 1001;
 }
-  
+
   /* Header */
   .site-header {
     background: var(--white);
@@ -60,16 +60,16 @@
     justify-content: space-between;
     align-items: center;
     padding: 1rem 0;
-   
+
   }
-  
+
   .logo img {
     height: 40px;
   }
 
   main{
     min-height: calc(100vh - 60px);
-    background-color: var(--white); 
+    background-color: var(--white);
 
     .main-white-page & {
       background-color: var(--white);
@@ -84,20 +84,20 @@
     display: flex;
     gap: 2rem;
   }
-  
+
   .main-nav ul {
     list-style: none;
     display: flex;
     gap: 1.5rem;
   }
-  
+
   .main-nav a {
     text-decoration: none;
     color: var(--text-color);
     font-weight: 500;
     transition: color 0.3s;
   }
-  
+
   .main-nav a:hover {
     color: var(--secondary-color);
   }
@@ -132,22 +132,21 @@
     padding: 1rem 0;
     position:fixed;
   }
-  
+
   .footer-content {
     display: grid;
     grid-template-columns: 1fr 2fr 1fr;
     gap: 2rem;
   }
-  
+
   .footer-logos {
     display: flex;
     gap: 2rem;
   }
-  
+
   .footer-logos img {
     height: 40px;
   }
   .left-title {
     text-align: left;
   }
-  

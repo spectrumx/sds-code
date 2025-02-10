@@ -1,5 +1,5 @@
-
 {% extends "base.html" %}
+
 {% load i18n %}
 {% load allauth account %}
 
@@ -7,22 +7,20 @@
     {% trans "Sign In" %}
 {% endblock head_title %}
 {% block content %}
-
     {% element h2 %}
     {% trans "Sign In" %}
 {% endelement %}
 <div class="hero-content">
-
     <div class="auth-container">
-{% if not SOCIALACCOUNT_ONLY %}
-    {% setvar link %}
-    <a href="{{ signup_url }}">
+        {% if not SOCIALACCOUNT_ONLY %}
+            {% setvar link %}
+            <a href="{{ signup_url }}">
+            {% endsetvar %}
+            {% setvar end_link %}
+        </a>
     {% endsetvar %}
-    {% setvar end_link %}
-</a>
-{% endsetvar %}
-{% element p %}
-{% blocktranslate %}New here? {{ link }}Create an account{{ end_link }}.{% endblocktranslate %}
+    {% element p %}
+    {% blocktranslate %}New here? {{ link }}Create an account{{ end_link }}.{% endblocktranslate %}
 {% endelement %}
 {% url 'account_login' as login_url %}
 {% element form form=form method="post" action=login_url tags="entrance,login" %}
@@ -59,7 +57,6 @@
     {% include "socialaccount/snippets/login.html" with page_layout="entrance" %}
 {% endif %}
 </div>
-
 </div>
 {% endblock content %}
 {% block extra_body %}

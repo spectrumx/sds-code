@@ -4,76 +4,83 @@
 {% load static i18n %}
 {% load custom_filters %}
 
+{# djlint:off H021 #}
 <body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %}"
-id="body"
-style="display: none">
-{% block title %}
-    Generate API Key
-{% endblock title %}
-{% block content %}
-    <div class="container mt-5">
+      id="body"
+      style="display: none">
+    {# djlint:on #}
+    {% block title %}
+        Generate API Key
+    {% endblock title %}
+    {% block content %}
+        <div class="container mt-5">
             <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
                 <div class="hero-content text-center mt-5">
-                <h2>Generate an API Key</h2>
-                {% if api_key and not expired %}
-                    {% if api_key|is_string %}
-                        <p>Your new API Key:</p>
-                        <div class="d-inline-block p-3 rounded border" style="background-color: white;">
-                            <pre class="api-key-text"><strong>{{ api_key }}</strong></pre>
-                        </div>
-                        <p class="text-danger">Keep this key safe and secure. You will not be able to view it again.</p>
-                    </br />
-                {% endif %}
-                <p>
-                    {% if expires_at %}
-                        Your key expires at: <strong>{{ expires_at }}</strong>
-                        <p>When expired, you will be prompted to generate a new key.</p>
-                    {% else %}
-                        Your key does not expire.
+                    <h2>Generate an API Key</h2>
+                    {% if api_key and not expired %}
+                        {% if api_key|is_string %}
+                            <p>Your new API Key:</p>
+                            {# djlint:off H021 #}
+                            <div class="d-inline-block p-3 rounded border"
+                                 style="background-color: white">
+                                <pre class="api-key-text"><strong>{{ api_key }}</strong></pre>
+                            </div>
+                            {# djlint:on #}
+                            <p class="text-danger">Keep this key safe and secure. You will not be able to view it again.</p>
+                        </br />
                     {% endif %}
-                </p>
-                {% if not api_key|is_string %}
-                    <p>If you have lost your API key, you may generate a new one below (this will invalidate the current key).</p>
+                    <p>
+                        {% if expires_at %}
+                            Your key expires at: <strong>{{ expires_at }}</strong>
+                            <p>When expired, you will be prompted to generate a new key.</p>
+                        {% else %}
+                            Your key does not expire.
+                        {% endif %}
+                    </p>
+                    {% if not api_key|is_string %}
+                        <p>If you have lost your API key, you may generate a new one below (this will invalidate the current key).</p>
+                        <form method="post" action="{% url 'users:generate_api_key' %}">
+                            {% csrf_token %}
+                            <button class="btn btn-danger" type="submit">Invalidate Existing Key and Generate New One</button>
+                        </form>
+                    {% endif %}
+                {% else %}
+                    {% if expired %}
+                        <p>Your API Key has expired. Generate a new key below.</p>
+                    {% else %}
+                        <p>You do not have an API Key. Generate one.</p>
+                    {% endif %}
                     <form method="post" action="{% url 'users:generate_api_key' %}">
                         {% csrf_token %}
-                        <button class="btn btn-danger" type="submit">Invalidate Existing Key and Generate New One</button>
+                        <button class="btn btn-primary" type="submit">Generate API Key</button>
                     </form>
                 {% endif %}
-            {% else %}
-                {% if expired %}
-                    <p>Your API Key has expired. Generate a new key below.</p>
-                {% else %}
-                    <p>You do not have an API Key. Generate one.</p>
-                {% endif %}
-                <form method="post" action="{% url 'users:generate_api_key' %}">
-                    {% csrf_token %}
-                    <button class="btn btn-primary" type="submit">Generate API Key</button>
-                </form>
-            {% endif %}
-            <br /><br />
-            <div class="resources-section text-center mt-5">
-                <h2>{% translate "Resources" %}</h2>
-                <div class="row g-3">
-                    <div class="col-md-6 mb-3">
-                        <div class="resource-box" style="box-shadow: none;">
-                            {% translate "Writing a Python program?" %}
-                            <a class="btn btn-info"
-                               href="https://pypi.org/project/spectrumx/"
-                               target="_blank">{% translate "SpectrumX SDK in PyPI" %}</a>
+                <br />
+                <br />
+                <div class="resources-section text-center mt-5">
+                    <h2>{% translate "Resources" %}</h2>
+                    <div class="row g-3">
+                        <div class="col-md-6 mb-3">
+                            {# djlint:off H021 #}
+                            <div class="resource-box" style="box-shadow: none;">
+                                {# djlint:on #}
+                                {% translate "Writing a Python program?" %}
+                                <a class="btn btn-info"
+                                   href="https://pypi.org/project/spectrumx/"
+                                   target="_blank">{% translate "SpectrumX SDK in PyPI" %}</a>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="resource-box" style="box-shadow: none;">
-                            {% translate "Try the lower-level API" %}
-                            <a class="btn btn-info"
-                               href="{% url 'api-docs' %}"
-                               target="_blank">{% translate "API Documentation" %}</a>
+                        <div class="col-md-6 mb-3">
+                            {# djlint:off H021 #}
+                            <div class="resource-box" style="box-shadow: none;">
+                                {# djlint:on #}
+                                {% translate "Try the lower-level API" %}
+                                <a class="btn btn-info" href="{% url 'api-docs' %}" target="_blank">{% translate "API Documentation" %}</a>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
-        </div>
         </div>
     </div>
 {% endblock content %}

@@ -11,38 +11,38 @@
         <div class="row">
             <div class="col-md-6 offset-md-3">
                 {% if not request.user.is_authenticated %}
-             <!--  <h1 class="my-4">{% translate "SDS Gateway" %}</h1>   -->
+                    <!--  <h1 class="my-4">{% translate "SDS Gateway" %}</h1>   -->
                 {% else %}
-
                 {% endif %}
                 <br />
-  <!--            <section class="hero">  -->
-  <!--               <div class="container"> -->
-                    <h1>Spectrum Data System</h1>
-                    <div class="hero-content">
-                        <div class="hero-boxes">
-                            <div class="hero-box">
-                                <h2>About the SDS</h2>
-                                <p>A <a href="/about">data management and retrieval platform</a> for radio-frequency experiments</p>
-                            </div>
-                            <div class="hero-box">
-                                <h2>API Gateway Documentation</h2>
-                                <p><a href="https://sds.crc.nd.edu/api/v1/docs/">Documentation of API endpoints</a> of SpectrumX Data System Gateway</p>
-                            </div>
-                            <div class="hero-box">
-                                <h2>My SDS Files</h2>
-                                <p><a href="/users/file-list/?page=1">View your files</a> in the SDS</p>
-                            </div>
+                <!--            <section class="hero">  -->
+                <!--               <div class="container"> -->
+                <h1>Spectrum Data System</h1>
+                <div class="hero-content">
+                    <div class="hero-boxes">
+                        <div class="hero-box">
+                            <h2>About the SDS</h2>
+                            <p>
+                                A <a href="{% url 'about' %}">data management and retrieval platform</a> for radio-frequency experiments
+                            </p>
                         </div>
-               <!--    </div> -->
-
+                        <div class="hero-box">
+                            <h2>API Gateway Documentation</h2>
+                            <p>
+                                <a href="https://sds.crc.nd.edu/api/v1/docs/">Documentation of API endpoints</a> of SpectrumX Data System Gateway
+                            </p>
+                        </div>
+                        <div class="hero-box">
+                            <h2>My SDS Files</h2>
+                            <p>
+                                <a href="{% url 'users:file_list' %}?page=1">View your files</a> in the SDS
+                            </p>
+                        </div>
+                    </div>
+                    <!--    </div> -->
                 </div>
-
-            <br />
-
+                <br />
             </div>
         </div>
     </div>
-
-
 {% endblock content %}
