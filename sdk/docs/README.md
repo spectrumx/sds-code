@@ -9,7 +9,7 @@
     + [Basic Usage](#basic-usage)
     + [Error Handling](#error-handling)
 
-The Spectrum Data System (SDS) SDK is a Python package that provides a simple interface for interacting with the SDS Gateway. The SDK is designed to be easy to use and to provide a high-level interface for common tasks, such as uploading and downloading files, searching for files, and managing RF datasets.
+The SpectrumX Data System (SDS) SDK is a Python package that provides a simple interface for interacting with the SDS Gateway. The SDK is designed to be easy to use and to provide a high-level interface for common tasks, such as uploading and downloading files, searching for files, and managing RF datasets.
 
 > [!NOTE]
 >

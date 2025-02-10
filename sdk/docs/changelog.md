@@ -1,12 +1,13 @@
 # SpectrumX SDK Changelog
 
-## `0.1.5` - Future
+## `0.1.6` - Future
+
+## `0.1.5` - 2025-02-10
 
 + Breaking changes:
     + `spectrumx.models.File` moved to `spectrumx.models.files.File`.
 + New features:
-    + TODO: SDS Capture creation, reading, and listing.
-    + TODO: Introducing client identification and "outdated client" version warning when authenticating (gateway + SDS).
+    + SDS Capture creation and listing.
 + Housekeeping:
     + Refactored client by branching its method implementations and client configuration to separate modules.
 
