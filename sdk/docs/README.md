@@ -50,6 +50,10 @@ uv add spectrumx
 2. Then, in your Python script or Jupyter notebook ([See more usage examples](./tests/e2e_examples/check_build_acceptance.py) in `./tests/e2e_examples/` for the full script):
 
     ```python
+    from pathlib import Path
+    from random import randint, random
+    from spectrums.client import Client
+
     # Example of files upload, listing, and download from SDS.
 
     # NOTE: the SDS client-server interaction is stateless, so it is
@@ -117,7 +121,8 @@ The SDK provides context-aware exceptions that can be caught and handled in your
 
 ```py
 # ======== Authentication ========
-
+from pathlib import Path
+from spectrums.client import Client
 from spectrumx.errors import AuthError, NetworkError
 
 sds = Client(host="sds.crc.nd.edu")
