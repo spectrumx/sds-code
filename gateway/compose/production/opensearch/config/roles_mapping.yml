@@ -1,0 +1,23 @@
+_meta:
+  type: "rolesmapping"
+  config_version: 2
+
+all_access:
+  reserved: true
+  hidden: false
+  backend_roles:
+  - "admin"
+  hosts: []
+  users: []
+  and_backend_roles: []
+  description: "Maps admin to all_access"
+
+client_access:
+  reserved: false
+  hidden: false
+  users:
+    - "${OPENSEARCH_USER}"
+  hosts: []
+  backend_roles: []
+  and_backend_roles: []
+  description: "Maps client_access role to client user"

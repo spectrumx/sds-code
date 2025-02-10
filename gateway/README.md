@@ -194,7 +194,7 @@ Keep this in mind, however:
     docker network create sds-network-prod --driver=bridge --name=sds-network-prod
     ```
 
-    Generate the opensearch certificates:
+    Generate the OpenSearch certificates:
 
     ```bash
     opensearch/generate_certs.sh
@@ -206,7 +206,7 @@ Keep this in mind, however:
     chmod -v 600 compose/*/opensearch/opensearch.yaml
     ```
 
-    Build the opensearch service with the right env vars to avoid permission errors in `opensearch`:
+    Build the OpenSearch service with the right env vars to avoid permission errors in `opensearch`:
 
     ```bash
     # edit `opensearch.env` with the UID and GID of the host
@@ -273,7 +273,17 @@ Keep this in mind, however:
     docker exec -it -u 0 sds-gateway-prod-app chown -R 100:101 /app/sds_gateway/media/
     ```
 
-8. Opensearch adjustments
+8. OpenSearch adjustments
+
+    If you would like to modify the OpenSearch user permissions setup (through the security configuration), see the files in `compose/production/opensearch/config` (and reference the [OpenSearch documentation for these files](https://opensearch.org/docs/latest/security/configuration/yaml/)):
+
+    + `internal_users.yml`: In this file, you can set initial users (this is where the `OPENSEARCH_USER` and admin user are set).
+
+    + `roles.yml`: Here, you can set up custom roles for users. The extensive list of allowed permissions can be found [here](https://opensearch.org/docs/latest/security/access-control/permissions/).
+
+    + `roles_mapping.yml`: In this file, you can map roles to users defined in `internal_users.yml`. It is necessary to map a role directly to a user by adding them to the `users` list when using HTTP Basic Authentication with OpenSearch and not an external authentication system.
+
+    Run the following command to confirm changes:
 
     ```bash
     docker exec -it sds-gateway-prod-opensearch plugins/opensearch-security/tools/securityadmin.sh \
@@ -282,6 +292,11 @@ Keep this in mind, however:
         -cert config/certs/admin.pem \
         -key config/certs/admin-key.pem
     ```
+
+    > [!TIP]
+    > If you want to reserve users or permissions so they cannot be changed through the API and only through running the `securityadmin.sh` script, set a parameter on individual entries: `reserved: true`.
+    >
+    > If you would like to preserve changes to your `.opendistro_security` (e.g. users or roles you have added through the API), add the `-backup` flag before running the script. Use the `-f` flag instead of the `-cd` flag if you would like to only update one of the config files. See the [OpenSearch documentation](https://opensearch.org/docs/latest/security/configuration/security-admin/#a-word-of-caution) on the nuances of this script for more information.
 
 9. Run the **test** suite:
 

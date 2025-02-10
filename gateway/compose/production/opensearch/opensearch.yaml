@@ -15,6 +15,5 @@ plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/c
 plugins.security.allow_unsafe_democertificates: false
 plugins.security.authcz.admin_dn:
   - 'CN=admin,OU=CRC,O=UNIVERSITY OF NOTRE DAME,L=SOUTH BEND,ST=INDIANA,C=US'
-  - 'CN=sds-gateway-prod-opensearch,OU=CRC,O=UNIVERSITY OF NOTRE DAME,L=SOUTH BEND,ST=INDIANA,C=US'
 plugins.security.nodes_dn:
   - 'CN=sds-gateway-prod-opensearch,OU=CRC,O=UNIVERSITY OF NOTRE DAME,L=SOUTH BEND,ST=INDIANA,C=US'

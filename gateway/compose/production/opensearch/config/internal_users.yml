@@ -1,0 +1,15 @@
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+admin:
+  hash: "${ADMIN_HASH}"
+  reserved: true
+  description: "Admin user"
+  backend_roles:
+    - "admin"
+
+${OPENSEARCH_USER}:
+  hash: "${CLIENT_HASH}"
+  reserved: false
+  description: "Client user for application access"
