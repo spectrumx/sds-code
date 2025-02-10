@@ -5,9 +5,28 @@
 <body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %}"
 id="body"
 style="display: none">
-{% block content %}
-<h1 style="text-align: left; padding: 0; font-size: 2rem;">Your Files
+
+{% block content %}<h1 style="text-align: left; padding: 0; font-size: 2rem; margin-bottom: 0px;">Your Files
     <hr /></h1>
+{% if not page_obj %}
+   
+   <div class="table-responsive">
+    <table class="table table-hover table-light table-striped">
+        <thead class="bg-white">
+            <tr>
+                <th class="bg-white border-0">File Name</th>
+                <th class="bg-white border-0">Media Type</th>
+                <th class="bg-white border-0">File Size</th>
+                <th class="bg-white border-0">Created At</th>
+            </tr>
+        </thead>
+        </table>
+        </div>
+        <p class="alert alert-debug italic-text">
+            It looks like you don't have any files uploaded yet.  To get started, checkout out the <a href="http://localhost:8000/api/v1/docs/">Gateway API Documentation</a> and <a href="https://pypi.org/project/spectrumx/">SpectrumX Python SDK</a>.
+         </p>
+{% else %}
+
 
 <div class="table-responsive">
     <table class="table table-hover table-light table-striped">
@@ -81,10 +100,7 @@ style="display: none">
 
     </ul>
 </nav>
-{% else %}
-   <p class="alert-debug italic-text">
-      No files to display!
-   </p>
+{% endif %}
 {% endif %}
 {% endblock content %}
 </body>
