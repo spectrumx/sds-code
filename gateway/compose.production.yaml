@@ -130,9 +130,8 @@ services:
             - "19600:9600"
         networks:
             - sds-gateway-prod-opensearch-net
-
         healthcheck:
-            test: ["CMD-SHELL", "curl -k -u \"$OPENSEARCH_USER:$OPENSEARCH_PASSWORD\" https://localhost:9200/_cluster/health || exit 1"]
+            test: ["CMD-SHELL", "curl -k -u \"$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWORD\" https://localhost:9200/_cluster/health || exit 1"]
             interval: 30s
             timeout: 10s
             retries: 3

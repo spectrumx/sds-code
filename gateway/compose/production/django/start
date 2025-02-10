@@ -6,8 +6,7 @@ set -o nounset
 
 python /app/manage.py collectstatic --noinput
 
-# TODO: Uncomment this when we fix the Client-OpenSearch connection issue
-# echo "Initializing OpenSearch indices..."
-# python manage.py init_indices
+echo "Initializing OpenSearch indices..."
+python manage.py init_indices
 
 exec /usr/local/bin/gunicorn config.asgi --bind 0.0.0.0:18000 --chdir=/app -k uvicorn_worker.UvicornWorker

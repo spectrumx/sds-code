@@ -1,0 +1,22 @@
+_meta:
+  type: "roles"
+  config_version: 2
+
+client_access:
+  description: "Read-write role for application access"
+  reserved: false
+  static: false
+  cluster_permissions:
+    - "cluster:monitor/*"
+    - "cluster:admin/indices*"
+    - "cluster:admin/index*"
+    - "cluster:monitor/main"
+  index_permissions:
+    - index_patterns:
+        - "*"
+      allowed_actions:
+        - "indices_all"
+    - index_patterns:
+        - "captures-*"
+      allowed_actions:
+        - "indices_all"

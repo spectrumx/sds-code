@@ -8,7 +8,7 @@ DIR_HOST_CERTS="opensearch/data/certs"                      # where new certs wi
 DIR_HOST_CERTS_TEMP="opensearch/data/.certs-$RUN_TIMESTAMP" # where new certs are generated; no trailing slash
 DIR_BACKUP="$DIR_HOST_CERTS_TEMP-backup"                    # backup location for existing certs
 DIR_RETURN="$(pwd)"                                         # return to this directory after script execution
-OPEN_SEARCH_CONTAINER_NAME="sds-gateway-prod-opensearch"
+OPEN_SEARCH_CONTAINER_NAME="opensearch"
 ROOT_CA_PEM="root-ca.pem"
 ROOT_CA_KEY_PEM="root-ca-key.pem"
 
