@@ -40,56 +40,130 @@ class CaptureViewSet(viewsets.ViewSet):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
+    def _validate_and_index_metadata(
+        self,
+        capture: Capture,
+        data_path: Path,
+        channel: str | None = None,
+        *,
+        is_metadata_file: bool = False,
+    ) -> None:
+        """Validate and index metadata for a capture.
+
+        Args:
+            capture: The capture to validate and index metadata for
+            data_path: Path to directory containing metadata or metadata file
+            channel: Optional channel name for DigitalRF captures
+            is_metadata_file: Whether data_path points to a metadata file
+        """
+        capture_props: dict[str, Any] = {}
+
+        # validate the metadata
+        match cap_type := capture.capture_type:
+            case CaptureType.DigitalRF:
+                if channel:
+                    capture_props = validate_metadata_by_channel(
+                        data_path=data_path.parent if is_metadata_file else data_path,
+                        channel_name=channel,
+                    )
+                else:
+                    msg = "Channel is required for DigitalRF captures"
+                    log.warning(msg)
+                    raise ValueError(msg)
+            case CaptureType.RadioHound:
+                if is_metadata_file:
+                    rh_data = load_rh_file(data_path)
+                else:
+                    rh_metadata_file = find_rh_metadata_file(data_path)
+                    rh_data = load_rh_file(rh_metadata_file)
+                capture_props = rh_data.model_dump(mode="json")
+            case _:
+                msg = f"Unrecognized capture type '{cap_type}'"
+                log.warning(msg)
+                raise ValueError(msg)
+
+        # index the capture properties
+        if capture_props:
+            index_capture_metadata(
+                capture=capture,
+                capture_props=capture_props,
+            )
+        else:
+            msg = f"No metadata found for capture '{capture.uuid}'"
+            log.warning(msg)
+            raise ValueError(msg)
+
     def ingest_capture(
         self,
         capture: Capture,
-        top_level_dir: Path,
-        channel: str | None,
-        requester: User,
-    ):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Reconstruct the file tree in a temporary directory
-            tmp_dir_path, files_to_connect = reconstruct_tree(
-                target_dir=Path(temp_dir),
-                top_level_dir=top_level_dir,
-                owner=requester,
+        top_level_dir: Path | None = None,
+        metadata_file_path: Path | None = None,
+        channel: str | None = None,
+        requester: User | None = None,
+    ) -> None:
+        """Ingest or update a capture by handling files and metadata.
+
+        This function can be used for both creating new captures
+        and updating existing ones.
+
+        For creation, both top_level_dir and requester are required.
+        For updates, either top_level_dir or metadata_file_path must be provided.
+
+        Args:
+            capture: The capture to ingest or update
+            top_level_dir: Path to directory containing files to connect to capture
+            metadata_file_path: Path to metadata file for reindexing
+            channel: Optional channel name for DigitalRF captures
+            requester: The user making the request (required for creation)
+        """
+        # Validate inputs based on operation type
+        is_update = bool(capture.pk)
+        if not is_update and (not top_level_dir or not requester):
+            msg = "top_level_dir and requester are required for creating new captures"
+            raise ValueError(msg)
+        if is_update and not (top_level_dir or metadata_file_path):
+            msg = "Either top_level_dir or metadata_file_path required for updates"
+            raise ValueError(msg)
+
+        # Set requester to owner for updates if not provided
+        if is_update and not requester:
+            requester = capture.owner
+
+        # At this point requester must be set
+        assert requester is not None, "requester must be set"
+
+        # Handle metadata reindexing if metadata_file provided
+        if metadata_file_path:
+            self._validate_and_index_metadata(
+                capture=capture,
+                data_path=metadata_file_path,
+                channel=channel,
+                is_metadata_file=True,
             )
 
-            # Connect the files to the capture
-            for cur_file in files_to_connect:
-                cur_file.capture = capture
-                cur_file.save()
+        # Handle file connections if top_level_dir provided
+        if top_level_dir:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Reconstruct the file tree in a temporary directory
+                tmp_dir_path, files_to_connect = reconstruct_tree(
+                    target_dir=Path(temp_dir),
+                    top_level_dir=top_level_dir,
+                    owner=requester,
+                )
 
-            capture_props: dict[str, Any] = {}
+                # Connect the files to the capture
+                for cur_file in files_to_connect:
+                    cur_file.capture = capture
+                    cur_file.save()
 
-            # validate the metadata
-            match cap_type := capture.capture_type:
-                case CaptureType.DigitalRF:
-                    if channel:
-                        capture_props = validate_metadata_by_channel(
-                            data_path=tmp_dir_path,
-                            channel_name=channel,
-                        )
-                    else:
-                        msg = "Channel is required for DigitalRF captures"
-                        log.warning(msg)
-                        raise ValueError(msg)
-                case CaptureType.RadioHound:
-                    rh_metadata_file = find_rh_metadata_file(tmp_dir_path)
-                    rh_data = load_rh_file(rh_metadata_file)  # may raise ValueError too
-                    capture_props = rh_data.model_dump(mode="json")
-                case _:
-                    msg = f"Unrecognized capture type '{cap_type}'"
-                    log.warning(msg)
-                    raise ValueError(msg)
-
-            # index the capture properties
-            if capture_props:
-                index_capture_metadata(capture=capture, capture_props=capture_props)
-            else:
-                msg = f"No metadata found for capture '{capture.uuid}'"
-                log.warning(msg)
-                raise ValueError(msg)
+                # For creation or if no metadata file provided,
+                # extract metadata from files
+                self._validate_and_index_metadata(
+                    capture=capture,
+                    data_path=tmp_dir_path,
+                    channel=channel,
+                    is_metadata_file=False,
+                )
 
     @extend_schema(
         request=CapturePostSerializer,
@@ -112,7 +186,10 @@ class CaptureViewSet(viewsets.ViewSet):
                 response_only=True,
             ),
         ],
-        description="Create a capture object, connect files to the capture, and index its metadata.",  # noqa: E501
+        description=(
+            "Create a capture object, connect files to the capture, "
+            "and index its metadata."
+        ),
         summary="Create Capture",
     )
     def create(self, request: Request) -> Response:
@@ -157,21 +234,21 @@ class CaptureViewSet(viewsets.ViewSet):
 
         try:
             self.ingest_capture(
-                capture=capture,
+                capture=cast(Capture, capture),
+                top_level_dir=requested_top_level_dir,
                 channel=channel,
                 requester=requester,
-                top_level_dir=requested_top_level_dir,
             )
         except ValueError as e:
-            msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
+            msg = f"Error creating capture: {e}"
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError as e:
-            msg = f"Error connecting to OpenSearch: {e}"
-            log.error(msg)
-            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except os_exceptions.ConnectionError:
+            return Response(
+                {"detail": "OpenSearch service unavailable"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         get_serializer = CaptureGetSerializer(capture)
-
         return Response(get_serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
@@ -273,3 +350,122 @@ class CaptureViewSet(viewsets.ViewSet):
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Capture UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        request=CapturePostSerializer,
+        responses={
+            200: CaptureGetSerializer,
+            400: OpenApiResponse(description="Bad Request"),
+            404: OpenApiResponse(description="Not Found"),
+            503: OpenApiResponse(description="OpenSearch service unavailable"),
+        },
+        description="Update a capture by adding files or reindexing metadata.",
+        summary="Update Capture",
+    )
+    def update(self, request: Request, pk: str | None = None) -> Response:
+        """Update a capture by adding files or reindexing metadata."""
+        if pk is None:
+            return Response(
+                {"detail": "Capture UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target_capture = get_object_or_404(
+            Capture,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        # Get optional parameters
+        channel = request.data.get("channel", None)
+        unsafe_top_level_dir = request.data.get("top_level_dir", None)
+        unsafe_metadata_file = request.data.get("metadata_file", None)
+
+        # Validate inputs
+        error_msg = None
+        requested_top_level_dir = None
+        metadata_file_path = None
+
+        if channel is not None and not isinstance(channel, str):
+            error_msg = "Channel must be a string."
+        elif unsafe_top_level_dir:
+            requested_top_level_dir = sanitize_path_rel_to_user(
+                unsafe_path=unsafe_top_level_dir,
+                request=request,
+            )
+            if requested_top_level_dir is None:
+                error_msg = "The provided `top_level_dir` is invalid."
+        elif unsafe_metadata_file:
+            metadata_file_path = sanitize_path_rel_to_user(
+                unsafe_path=unsafe_metadata_file,
+                request=request,
+            )
+            if metadata_file_path is None:
+                error_msg = "The provided `metadata_file` is invalid."
+
+        if error_msg:
+            return Response({"detail": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            self.ingest_capture(
+                capture=cast(Capture, target_capture),
+                top_level_dir=requested_top_level_dir,
+                metadata_file_path=metadata_file_path,
+                channel=channel,
+            )
+        except ValueError as e:
+            msg = f"Error updating capture: {e}"
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+        except os_exceptions.ConnectionError:
+            return Response(
+                {"detail": "OpenSearch service unavailable"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # Return updated capture
+        serializer = CaptureGetSerializer(target_capture)
+        return Response(serializer.data)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Capture UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        responses={
+            204: OpenApiResponse(description="No Content"),
+            404: OpenApiResponse(description="Not Found"),
+        },
+        description="Delete a capture on the server.",
+        summary="Delete Capture",
+    )
+    def destroy(self, request: Request, pk: str | None = None) -> Response:
+        """Delete a capture on the server."""
+        if pk is None:
+            return Response(
+                {"detail": "Capture UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_capture = get_object_or_404(
+            Capture,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
+        target_capture.is_deleted = True
+        target_capture.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -5,16 +5,42 @@ from typing import cast
 
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+from rest_framework.utils.serializer_helpers import ReturnList
 
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
+
+
+class FileCaptureListSerializer(serializers.ModelSerializer[File]):
+    class Meta:
+        model = File
+        fields = [
+            "uuid",
+            "name",
+            "directory",
+        ]
 
 
 class CaptureGetSerializer(serializers.ModelSerializer):
     owner = UserGetSerializer()
     capture_props = serializers.SerializerMethodField()
+    files = serializers.SerializerMethodField()
+
+    def get_files(self, capture: Capture) -> ReturnList:
+        """Get the files for the capture.
+
+        Returns:
+            A list of serialized file objects with uuid, name, and directory fields.
+        """
+        serializer = FileCaptureListSerializer(
+            File.objects.filter(capture=capture),
+            many=True,
+            context=self.context,
+        )
+        return cast(ReturnList, serializer.data)
 
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:
@@ -30,14 +56,13 @@ class CaptureGetSerializer(serializers.ModelSerializer):
         # cache the metadata for all objects if not already done
         if not hasattr(self.parent, "capture_props_cache"):
             # Convert QuerySet to list if needed
-            instances: list[Capture] = (
+            instances: list[Capture] = cast(
+                list[Capture],
                 list(self.parent.instance)
                 if self.parent is not None and hasattr(self.parent.instance, "__iter__")
-                else [self.parent.instance if self.parent else capture]
+                else [self.parent.instance if self.parent else capture],
             )
-            self.parent.capture_props_cache = retrieve_indexed_metadata(
-                instances,
-            )
+            self.parent.capture_props_cache = retrieve_indexed_metadata(instances)
 
         # return the cached metadata for this specific object
         return self.parent.capture_props_cache.get(str(capture.uuid), {})
