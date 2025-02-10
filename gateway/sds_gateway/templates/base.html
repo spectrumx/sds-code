@@ -6,13 +6,14 @@
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
 <html lang="{{ LANGUAGE_CODE }}">
-
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>SpectrumX - Spectrum Data System</title>
-        <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
-      {% block css %}
+        <link rel="icon"
+              type="image/svg+xml"
+              href="{% static 'images/favicon.svg' %}" />
+        {% block css %}
             <!-- Your stuff: Third-party CSS libraries go here -->
             <!-- This file stores project-specific CSS -->
             {% render_bundle 'project' 'css' %}
@@ -34,182 +35,183 @@
         {# djlint:on #}
         {% block body %}
             <div class="rainbow-bar">
-            <header class="site-header">
-                <div class="container">
-                    <div class="header-content">
-                        <div class="logo">
-                            <a href="/">
-                                <img src="/static/images/logo.svg" alt="SpectrumX Logo">
-                            </a>
+                <header class="site-header">
+                    <div class="container">
+                        <div class="header-content">
+                            <div class="logo">
+                                <a href="{% url 'home' %}">
+                                    <img src="{% static 'images/logo.svg' %}" alt="SpectrumX Logo" />
+                                </a>
+                            </div>
+                            <nav class="main-nav">
+                                <ul class="primary-menu">
+                                    <li>
+                                        <a href="{% url 'about' %}">About</a>
+                                    </li>
+                                    <li>
+                                        <a href="{% url 'users:file_list' %}?page=1">My Files</a>
+                                    </li>
+                                    <li>
+                                        <a href="{% url 'users:generate_api_key' %}">API Key</a>
+                                    </li>
+                                    {% if not request.user.is_authenticated %}
+                                        <li class="nav-item">
+                                            {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
+                                            <a id="log-in-nav-link" class="nav-link" href="{% url 'auth0_login' %}">{% translate "Sign In" %}</a>
+                                        </li>
+                                    {% else %}
+                                        <li class="nav-item">
+                                            <a class="nav-link" href="{% url 'account_logout' %}">Sign Out</a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
                         </div>
-                        <nav class="main-nav">
-                            <ul class="primary-menu">
-                                <li><a href="{% url 'about' %}">About</a></li>
-                                <li><a href="{% url 'users:file_list' %}?page=1">My Files</a></li>
-                                <li><a href="{% url 'users:generate_api_key' %}">API Key</a></li>
-                                {% if not request.user.is_authenticated %}
-                                <li class="nav-item">
-                                        {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
-                                        <a id="log-in-nav-link"
-                                           class="nav-link"
-                                           href="/accounts/auth0/login">{% translate "Sign In" %}</a>
-                                </li>
-                                {% else %}
-                                <li class="nav-item">
-                                    <a class="nav-link" 
-                                       href="{% url 'account_logout' %}" >
-                                        Sign Out
-                                    </a>
-                                </li>
-                                {% endif %}
-                        </nav>
                     </div>
-                </div>
-            </header>
+                </header>
             </div>
-         <main class="main-content">
-            <section class="hero hero-white-page">
-            <div class="container">
-                {% comment %} system-wide notifications {% endcomment %}
-                {% if system_notifications %}
-                    {% for notification in system_notifications %}
-                        <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
-                    {% endfor %}
-                {% endif %}
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
-                            {{ message }}
-                            <button type="button"
-                                    class="btn-close"
-                                    data-bs-dismiss="alert"
-                                    aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-                {% block main %}
-                    {% block content %}
-                        <p>
-                            The <b>SpectrumX Data System (SDS)</b> is a data management and retrieval platform for radio-frequency experiments.
-                        </p>
-                    {% endblock content %}
-                {% endblock main %}
-            </div>
-        {% endblock body %}
-        <!-- /container -->
-        {% block modal %}
-        {% endblock modal %}
-        {% block inline_javascript %}
-            {% comment %} avoids showing a partially loaded page {% endcomment %}
-            <script type="text/javascript">
-                window.onload = function() {
-                    setTimeout(function() {
-                        document.getElementById("body").style.display = "";
-                        console.log("Page loaded");
-                    }, 200);
-                }
-            </script>
-            <script>
-                /*!
-                 * Color mode toggler for Bootstrap's docs (https://getbootstrap.com/)
-                 * Copyright 2011-2024 The Bootstrap Authors
-                 * Licensed under the Creative Commons Attribution 3.0 Unported License.
-                 */
-
-                (() => {
-                    'use strict'
-
-                    const getStoredTheme = () => localStorage.getItem('theme')
-                    const setStoredTheme = theme => localStorage.setItem('theme', theme)
-
-                    const getPreferredTheme = () => {
-                        const storedTheme = getStoredTheme()
-                        if (storedTheme) {
-                            return storedTheme
+            <main class="main-content">
+                <section class="hero hero-white-page">
+                    <div class="container">
+                        {% comment %} system-wide notifications {% endcomment %}
+                        {% if system_notifications %}
+                            {% for notification in system_notifications %}
+                                <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+                                    {{ message }}
+                                    <button type="button"
+                                            class="btn-close"
+                                            data-bs-dismiss="alert"
+                                            aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                        {% block main %}
+                            {% block content %}
+                                <p>
+                                    The <b>SpectrumX Data System (SDS)</b> is a data management and retrieval platform for radio-frequency experiments.
+                                </p>
+                            {% endblock content %}
+                        {% endblock main %}
+                    </div>
+                {% endblock body %}
+                <!-- /container -->
+                {% block modal %}
+                {% endblock modal %}
+                {% block inline_javascript %}
+                    {% comment %} avoids showing a partially loaded page {% endcomment %}
+                    <script type="text/javascript">
+                        window.onload = function() {
+                            setTimeout(function() {
+                                document.getElementById("body").style.display = "";
+                                console.log("Page loaded");
+                            }, 200);
                         }
+                    </script>
+                    <script>
+                        /*!
+                         * Color mode toggler for Bootstrap's docs (https://getbootstrap.com/)
+                         * Copyright 2011-2024 The Bootstrap Authors
+                         * Licensed under the Creative Commons Attribution 3.0 Unported License.
+                         */
 
-                        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-                    }
+                        (() => {
+                            'use strict'
 
-                    const setTheme = theme => {
-                        if (theme === 'auto') {
-                            document.documentElement.setAttribute('data-bs-theme', (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
-                        } else {
-                            document.documentElement.setAttribute('data-bs-theme', theme)
-                        }
-                    }
+                            const getStoredTheme = () => localStorage.getItem('theme')
+                            const setStoredTheme = theme => localStorage.setItem('theme', theme)
 
-                    setTheme(getPreferredTheme())
+                            const getPreferredTheme = () => {
+                                const storedTheme = getStoredTheme()
+                                if (storedTheme) {
+                                    return storedTheme
+                                }
 
-                    const showActiveTheme = (theme, focus = false) => {
-                        const themeSwitcher = document.querySelector('#bd-theme')
+                                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+                            }
 
-                        if (!themeSwitcher) {
-                            return
-                        }
+                            const setTheme = theme => {
+                                if (theme === 'auto') {
+                                    document.documentElement.setAttribute('data-bs-theme', (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+                                } else {
+                                    document.documentElement.setAttribute('data-bs-theme', theme)
+                                }
+                            }
 
-                        const themeSwitcherText = document.querySelector('#bd-theme-text')
-                        const activeThemeIcon = document.querySelector('.theme-icon-active use')
-                        const btnToActive = document.querySelector(`[data-bs-theme-value="${theme}"]`)
-                        const svgOfActiveBtn = btnToActive.querySelector('svg use').getAttribute('href')
-
-                        document.querySelectorAll('[data-bs-theme-value]').forEach(element => {
-                            element.classList.remove('active')
-                            element.setAttribute('aria-pressed', 'false')
-                        })
-
-                        btnToActive.classList.add('active')
-                        btnToActive.setAttribute('aria-pressed', 'true')
-                        activeThemeIcon.setAttribute('href', svgOfActiveBtn)
-                        const themeSwitcherLabel = `${themeSwitcherText.textContent} (${btnToActive.dataset.bsThemeValue})`
-                        themeSwitcher.setAttribute('aria-label', themeSwitcherLabel)
-
-                        if (focus) {
-                            themeSwitcher.focus()
-                        }
-                    }
-
-                    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-                        const storedTheme = getStoredTheme()
-                        if (storedTheme !== 'light' && storedTheme !== 'dark') {
                             setTheme(getPreferredTheme())
-                        }
-                    })
 
-                    window.addEventListener('DOMContentLoaded', () => {
-                        showActiveTheme(getPreferredTheme())
+                            const showActiveTheme = (theme, focus = false) => {
+                                const themeSwitcher = document.querySelector('#bd-theme')
 
-                        document.querySelectorAll('[data-bs-theme-value]')
-                            .forEach(toggle => {
-                                toggle.addEventListener('click', () => {
-                                    const theme = toggle.getAttribute('data-bs-theme-value')
-                                    setStoredTheme(theme)
-                                    setTheme(theme)
-                                    showActiveTheme(theme, true)
+                                if (!themeSwitcher) {
+                                    return
+                                }
+
+                                const themeSwitcherText = document.querySelector('#bd-theme-text')
+                                const activeThemeIcon = document.querySelector('.theme-icon-active use')
+                                const btnToActive = document.querySelector(`[data-bs-theme-value="${theme}"]`)
+                                const svgOfActiveBtn = btnToActive.querySelector('svg use').getAttribute('href')
+
+                                document.querySelectorAll('[data-bs-theme-value]').forEach(element => {
+                                    element.classList.remove('active')
+                                    element.setAttribute('aria-pressed', 'false')
                                 })
-                            })
-                    })
-                })()
-            </script>
-        {% endblock inline_javascript %}
-    </main>
 
+                                btnToActive.classList.add('active')
+                                btnToActive.setAttribute('aria-pressed', 'true')
+                                activeThemeIcon.setAttribute('href', svgOfActiveBtn)
+                                const themeSwitcherLabel = `${themeSwitcherText.textContent} (${btnToActive.dataset.bsThemeValue})`
+                                themeSwitcher.setAttribute('aria-label', themeSwitcherLabel)
+
+                                if (focus) {
+                                    themeSwitcher.focus()
+                                }
+                            }
+
+                            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                                const storedTheme = getStoredTheme()
+                                if (storedTheme !== 'light' && storedTheme !== 'dark') {
+                                    setTheme(getPreferredTheme())
+                                }
+                            })
+
+                            window.addEventListener('DOMContentLoaded', () => {
+                                showActiveTheme(getPreferredTheme())
+
+                                document.querySelectorAll('[data-bs-theme-value]')
+                                    .forEach(toggle => {
+                                        toggle.addEventListener('click', () => {
+                                            const theme = toggle.getAttribute('data-bs-theme-value')
+                                            setStoredTheme(theme)
+                                            setTheme(theme)
+                                            showActiveTheme(theme, true)
+                                        })
+                                    })
+                            })
+                        })()
+                    </script>
+                {% endblock inline_javascript %}
+            </section>
+        </main>
         <footer class="site-footer">
             <div class="container-fluid">
                 <div class="footer-content">
                     <div class="footer-logos">
-                        <img src="/static/images/nsf.svg" alt="NSF Logo">
-                        <img src="/static/images/spectrumx-rev.svg" alt="SpectrumX Logo">
+                        <img src="{% static 'images/nsf.svg' %}" alt="NSF Logo" />
+                        <img src="{% static 'images/spectrumx-rev.svg' %}" alt="SpectrumX Logo" />
                     </div>
                     <div class="footer-text">
-                        <p>NSF SpectrumX is an NSF Spectrum Innovation Center funded via Award 2132700 operated under cooperative agreement by the University of Notre Dame.</p>
+                        <p>
+                            NSF SpectrumX is an NSF Spectrum Innovation Center funded via Award 2132700 operated under cooperative agreement by the University of Notre Dame.
+                        </p>
                     </div>
-                        <p class="copyright">©2024 SpectrumX | All Rights Reserved</p>
-                    </div>
+                    <p class="copyright">©2024 SpectrumX | All Rights Reserved</p>
                 </div>
             </div>
         </footer>
-
     </body>
-
 </html>
