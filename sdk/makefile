@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 
 PYTHON_VERSION ?= 3.13
-SUPPORTED_PYTHON_VERSIONS := 3.12 3.13
+SUPPORTED_PYTHON_VERSIONS := 3.11 3.12 3.13
 GIT_ROOT := $(shell git rev-parse --show-toplevel;)
 TEST_MARKER_DEFAULT := not integration
 TEST_MARKER_INTEGRATION := integration

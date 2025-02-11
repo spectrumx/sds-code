@@ -1,6 +1,15 @@
 """Network operations for SpectrumX SDK."""
 
+import sys
 from http import HTTPStatus
+
+if sys.version_info < (3, 12):  # noqa: UP036 # Backport fixes to older versions
+    HTTPStatus.is_informational = property(lambda s: 100 <= s <= 199)  # noqa: PLR2004
+    HTTPStatus.is_success = property(lambda s: 200 <= s <= 299)  # noqa: PLR2004
+    HTTPStatus.is_redirection = property(lambda s: 300 <= s <= 399)  # noqa: PLR2004
+    HTTPStatus.is_client_error = property(lambda s: 400 <= s <= 499)  # noqa: PLR2004
+    HTTPStatus.is_server_error = property(lambda s: 500 <= s <= 599)  # noqa: PLR2004
+
 
 import requests
 from loguru import logger as log
