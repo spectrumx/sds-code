@@ -1,6 +1,12 @@
 """Capture model for SpectrumX."""
 
-from enum import StrEnum
+import sys
+
+if sys.version_info < (3, 11):  # noqa: UP036
+    from backports.strenum import StrEnum  # noqa: UP035 # Required backport
+else:
+    from enum import StrEnum
+
 from pathlib import Path
 from typing import Annotated
 from typing import Any
