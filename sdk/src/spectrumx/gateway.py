@@ -1,9 +1,14 @@
 """Lower level module for interaction with the SpectrumX Data System."""
 
 import os
+import sys
 import uuid
 from collections.abc import Iterator
-from enum import StrEnum
+
+if sys.version_info < (3, 11):  # noqa: UP036
+    from backports.strenum import StrEnum  # noqa: UP035 # Required backport
+else:
+    from enum import StrEnum
 from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated

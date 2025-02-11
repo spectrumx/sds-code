@@ -1,9 +1,14 @@
 """Custom exceptions for the SDS SDK."""
 
+import sys
 from typing import Any
 from typing import Generic
-from typing import Self
 from typing import TypeVar
+
+if sys.version_info < (3, 11):  # noqa: UP036
+    from typing_extensions import Self  # noqa: UP035 # Required backport
+else:
+    from typing import Self
 
 from loguru import logger as log
 
