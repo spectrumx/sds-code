@@ -76,7 +76,8 @@ def test_into_bool_truthy() -> None:
     for truthy in truthy_values:
         assert utils.into_human_bool(truthy) is True, f"{truthy} failed"
 
-
+@pytest.mark.linux
+@pytest.mark.darwin
 def test_clean_local_path() -> None:
     """Test that a local path is cleaned."""
     test_cases = [
