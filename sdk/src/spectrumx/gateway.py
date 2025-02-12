@@ -18,6 +18,7 @@ import requests
 from loguru import logger as log
 from pydantic import BaseModel
 from pydantic import Field
+from yarl import URL
 
 from spectrumx.models.captures import CaptureType
 
@@ -27,7 +28,7 @@ from .models.files import File
 from .ops import network
 from .utils import log_user_warning
 
-API_PATH: str = "/api/"
+API_PATH: str = "api/"
 API_TARGET_VERSION: str = "v1"
 
 
@@ -40,14 +41,14 @@ def is_test_env() -> bool:
 class Endpoints(StrEnum):
     """Contains the endpoints for the SDS Gateway API."""
 
-    AUTH = "/auth"
-    CAPTURES = "/assets/captures"
-    DATASETS = "/assets/datasets"
-    EXPERIMENTS = "/assets/experiments"
-    FILE_CONTENTS_CHECK = "/assets/utils/check_contents_exist"
-    FILE_DOWNLOAD = "/assets/files/{uuid}/download"
-    FILES = "/assets/files"
-    SEARCH = "/search"
+    AUTH = "auth/"
+    CAPTURES = "assets/captures/"
+    DATASETS = "assets/datasets/"
+    EXPERIMENTS = "assets/experiments/"
+    FILE_CONTENTS_CHECK = "assets/utils/check_contents_exist/"
+    FILE_DOWNLOAD = "assets/files/{uuid}/download/"
+    FILES = "assets/files/"
+    SEARCH = "search/"
 
 
 class HTTPMethods(StrEnum):
@@ -114,7 +115,7 @@ class GatewayClient:
         endpoint: Endpoints,
         asset_id: None | str = None,
         endpoint_args: None | dict[str, Any] = None,
-    ) -> dict[str, str | dict[str, str] | bool]:
+    ) -> dict[str, URL | dict[str, str] | bool]:
         endpoint_fmt = (
             endpoint.value.format(**endpoint_args) if endpoint_args else endpoint.value
         )
@@ -123,10 +124,9 @@ class GatewayClient:
             raise ValueError(msg)
 
         assert API_TARGET_VERSION.startswith("v"), "API version must start with 'v'."
-        url_path = Path(f"{API_PATH}/{API_TARGET_VERSION}/{endpoint_fmt}")
+        url = self.base_url / API_PATH / API_TARGET_VERSION / endpoint_fmt
         if asset_id is not None:
-            url_path /= asset_id
-        url = f"{self.base_url}{url_path}/"
+            url = url / asset_id / ""
 
         is_verify = not is_test_env()
         headers = self._headers()
@@ -181,14 +181,14 @@ class GatewayClient:
         )
 
     @property
-    def base_url(self) -> str:
+    def base_url(self) -> URL:
         """Returns the base URL for the SDS API."""
-        return f"{self.protocol}://{self.host}:{self.port}"
+        return URL(f"{self.protocol}://{self.host}:{self.port}")
 
     @property
-    def base_url_no_port(self) -> str:
+    def base_url_no_port(self) -> URL:
         """Returns the base URL for the SDS API, without the port."""
-        return f"{self.protocol}://{self.host}"
+        return URL(f"{self.protocol}://{self.host}")
 
     def authenticate(self, *, verbose: bool = False) -> None:
         """Authenticates the client with the SDS API."""

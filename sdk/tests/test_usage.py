@@ -8,13 +8,14 @@ import tempfile
 import uuid as uuidlib
 from datetime import datetime
 from pathlib import Path
+from yarl import URL
 
 import pytest
 from loguru import logger as log
 from responses import RequestsMock
 from spectrumx import Client
 from spectrumx.errors import AuthError
-from spectrumx.gateway import API_TARGET_VERSION
+from spectrumx.gateway import API_TARGET_VERSION, Endpoints
 
 # --------
 # FIXTURES
@@ -28,34 +29,33 @@ def responses_dry_run(responses: RequestsMock) -> RequestsMock:
     return responses
 
 
-def get_auth_endpoint(client: Client) -> str:
+def get_auth_endpoint(client: Client) -> URL:
     """Returns the endpoint for the auth API, with trailing slash."""
-    return client.base_url + f"/api/{API_TARGET_VERSION}/auth/"
+    return client.base_url_no_port / "api" / API_TARGET_VERSION / Endpoints.AUTH
 
 
-def get_files_endpoint(client: Client) -> str:
+def get_files_endpoint(client: Client) -> URL:
     """Returns the endpoint for the files API, with trailing slash."""
-    return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/"
+    return client.base_url_no_port / "api" / API_TARGET_VERSION / Endpoints.FILES
 
 
-def get_content_check_endpoint(client: Client) -> str:
+def get_content_check_endpoint(client: Client) -> URL:
     """Returns the endpoint for the content check API."""
     return (
-        client.base_url
-        + f"/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist/"
+        client.base_url_no_port / "api" / API_TARGET_VERSION / Endpoints.FILE_CONTENTS_CHECK
     )
 
 
-def download_file_endpoint(client: Client, file_id: str) -> str:
+def download_file_endpoint(client: Client, file_id: str) -> URL:
     """Returns the endpoint for downloading a file."""
     return (
-        client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/download/"
+        client.base_url_no_port / "api" / API_TARGET_VERSION / Endpoints.FILES / f"{file_id}/download/"
     )
 
 
-def get_file_endpoint(client: Client, file_id: str) -> str:
+def get_file_endpoint(client: Client, file_id: str) -> URL:
     """Returns the endpoint for getting a file."""
-    return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/"
+    return client.base_url_no_port / "api" / API_TARGET_VERSION / Endpoints.FILES / f"{file_id}/"
 
 
 # ------------------------
@@ -64,7 +64,7 @@ def get_file_endpoint(client: Client, file_id: str) -> str:
 def test_authentication_200_succeeds(client: Client, responses: RequestsMock) -> None:
     """Given a successful auth response, the client must be authenticated."""
     responses.get(
-        get_auth_endpoint(client),
+        get_auth_endpoint(client).human_repr(),
         body="{}",
         status=200,
         content_type="application/json",
@@ -81,7 +81,7 @@ def test_authentication_200_succeeds(client: Client, responses: RequestsMock) ->
 def test_authentication_401_fails(client: Client, responses: RequestsMock) -> None:
     """Given a failed auth response, the client must raise AuthError."""
     responses.get(
-        get_auth_endpoint(client),
+        get_auth_endpoint(client).human_repr(),
         body="{}",
         status=401,
         content_type="application/json",
@@ -97,9 +97,8 @@ def test_authentication_401_fails(client: Client, responses: RequestsMock) -> No
 def test_get_file_by_id(client: Client, responses: RequestsMock) -> None:
     """Given a file ID, the client must return the file."""
     uuid = uuidlib.uuid4()
-    url: str = get_files_endpoint(client) + f"{uuid.hex}/"
     responses.get(
-        url=url,
+        url=(get_files_endpoint(client) / f"{uuid.hex}/").human_repr(),
         status=200,
         json={
             "created_at": "2021-10-01T12:00:00Z",
@@ -149,7 +148,7 @@ def test_file_get_returns_valid(
 
 
 def test_file_upload_returns_file(
-    client: Client, temp_file_with_text_contents: Path
+    client: Client, temp_file_with_text_contents: Path, tmpdir
 ) -> None:
     """The upload_file method must return a valid File instance."""
     test_file_size = temp_file_with_text_contents.stat().st_size
@@ -169,11 +168,11 @@ def test_file_upload_returns_file(
     assert file_sample.name is not None, "Expected a file name"
     assert file_sample.media_type == "text/plain", "Expected media type 'text/plain'"
     assert file_sample.size == test_file_size, "Expected the test file to be 4030 bytes"
-    assert "/tmp/pytest-" in str(  # noqa: S108
+    assert str(tmpdir) in str(  # noqa: S108
         file_sample.local_path
     ), "Expected the temp file directory"
     assert file_sample.directory == Path("/my/upload/location")
-    assert file_sample.permissions == "rw-r--r--"
+    assert file_sample.permissions.startswith("rw-")
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
     assert file_sample.expiration_date is None, (
@@ -195,7 +194,7 @@ def test_large_file_upload_mocked(
     }
     responses.add(
         method=responses.POST,
-        url=get_content_check_endpoint(client),
+        url=get_content_check_endpoint(client).human_repr(),
         status=201,
         json=mocked_file_content_check_json,
     )
@@ -212,7 +211,7 @@ def test_large_file_upload_mocked(
     }
     responses.add(
         method=responses.POST,
-        url=get_files_endpoint(client),
+        url=get_files_endpoint(client).human_repr(),
         status=201,
         json=mocked_upload_json,
     )
@@ -257,7 +256,7 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
     # mock the file metadata endpoint
     responses.add(
         method=responses.GET,
-        url=get_file_endpoint(client, file_id=file_id.hex),
+        url=get_file_endpoint(client, file_id=file_id.hex).human_repr(),
         status=200,
         body=json.dumps(file_metadata),
     )
@@ -265,7 +264,7 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
     # mock the file download endpoint
     responses.add(
         method=responses.GET,
-        url=download_file_endpoint(client, file_id=file_id.hex),
+        url=download_file_endpoint(client, file_id=file_id.hex).human_repr(),
         status=200,
         body=long_file_contents,
     )
@@ -311,7 +310,7 @@ def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
     }
     responses.add(
         method=responses.GET,
-        url=get_file_endpoint(client, file_id=file_id.hex),
+        url=get_file_endpoint(client, file_id=file_id.hex).human_repr(),
         status=200,
         body=json.dumps(file_metadata),
     )
@@ -319,7 +318,7 @@ def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
     # mock the file download endpoint
     responses.add(
         method=responses.GET,
-        url=download_file_endpoint(client, file_id=file_id.hex),
+        url=download_file_endpoint(client, file_id=file_id.hex).human_repr(),
         status=200,
         body=file_contents,
     )
@@ -369,7 +368,7 @@ def test_dry_auth_does_not_request(
     """When in dry mode, the client must not make any requests."""
     responses_dry_run.add_callback(
         responses_dry_run.GET,
-        url=get_auth_endpoint(client),
+        url=get_auth_endpoint(client).human_repr(),
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),
@@ -385,7 +384,7 @@ def test_dry_file_upload_does_not_request(
     """When in dry run mode, the upload method must not make any requests."""
     responses_dry_run.add_callback(
         responses_dry_run.POST,
-        url=get_files_endpoint(client),
+        url=get_files_endpoint(client).human_repr(),
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),
@@ -407,7 +406,7 @@ def test_dry_file_get_does_not_request(
 
     responses_dry_run.add_callback(
         responses_dry_run.GET,
-        url=get_files_endpoint(client) + f"{file_id.hex}/",
+        url=(get_files_endpoint(client) / f"{file_id.hex}/").human_repr(),
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),

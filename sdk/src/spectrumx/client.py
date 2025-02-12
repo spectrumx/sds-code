@@ -7,6 +7,7 @@ from typing import Any
 
 from loguru import logger as log
 from pydantic import UUID4
+from yarl import URL
 
 from spectrumx.api.captures import CaptureAPI
 from spectrumx.errors import Result
@@ -112,12 +113,12 @@ class Client:
         log_user_warning(msg)
 
     @property
-    def base_url(self) -> str:
+    def base_url(self) -> URL:
         """Base URL for the client."""
         return self._gateway.base_url
 
     @property
-    def base_url_no_port(self) -> str:
+    def base_url_no_port(self) -> URL:
         """Base URL without the port."""
         return self._gateway.base_url_no_port
 
