@@ -286,22 +286,21 @@ class CaptureTestCases(APITestCase):
     def test_update_capture_200_new_metadata(self):
         """Test updating a capture returns 200 with new metadata."""
         # update the metadata dict and insert into the capture update payload
-        new_center_freq = 1500000000
-        new_gain = 10.5
-
-        self.drf_metadata["center_freq"] = new_center_freq
-        self.drf_metadata["gain"] = new_gain
+        new_metadata = self.drf_metadata.copy()
+        new_metadata["center_freq"] = 1500000000
+        new_metadata["gain"] = 10.5
 
         with patch(
             "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
-            return_value=self.drf_metadata,
+            return_value=new_metadata,
         ):
             response = self.client.put(
                 self.detail_url(self.drf_capture.uuid),
             )
             assert response.status_code == status.HTTP_200_OK
-            assert response.json()["capture_props"]["center_freq"] == new_center_freq
-            assert response.json()["capture_props"]["gain"] == new_gain
+            response_data = response.json()["capture_props"]
+            assert response_data["center_freq"] == new_metadata["center_freq"]
+            assert response_data["gain"] == new_metadata["gain"]
 
     def test_list_captures_200(self) -> None:
         """Test listing captures returns metadata for all captures."""
