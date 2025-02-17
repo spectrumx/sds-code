@@ -253,6 +253,33 @@ class CaptureTestCases(APITestCase):
                 == "/files/testuser@example.com/test-dir"
             )
 
+    def test_update_capture_404(self):
+        """Test updating a non-existent capture returns 404."""
+        response = self.client.put(
+            self.detail_url("00000000-0000-0000-0000-000000000000"),
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_update_capture_200_new_metadata(self):
+        """Test updating a capture returns 200 with new metadata."""
+        # update the metadata dict and insert into the capture update payload
+        new_center_freq = 1500000000
+        new_gain = 10.5
+
+        self.drf_metadata["center_freq"] = new_center_freq
+        self.drf_metadata["gain"] = new_gain
+
+        with patch(
+            "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+            return_value=self.drf_metadata,
+        ):
+            response = self.client.put(
+                self.detail_url(self.drf_capture.uuid),
+            )
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["capture_props"]["center_freq"] == new_center_freq
+            assert response.json()["capture_props"]["gain"] == new_gain
+
     def test_list_captures_200(self) -> None:
         """Test listing captures returns metadata for all captures."""
         response = self.client.get(self.list_url)
@@ -293,13 +320,14 @@ class CaptureTestCases(APITestCase):
         assert data[0]["capture_props"] == self.drf_metadata
         assert data[0]["channel"] == "ch0"
 
-    def test_list_captures_by_type_404(self):
-        """Test filtering captures by type that doesn't exist."""
+    def test_list_captures_by_type_empty_list_200(self):
+        """Test filtering captures by type that doesn't exist returns empty list."""
         response = self.client.get(f"{self.list_url}?capture_type=fake_type")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == []
 
-    def test_list_captures_empty_404(self):
-        """Test list captures returns 404 when no captures exist."""
+    def test_list_captures_empty_list_200(self):
+        """Test list captures returns 200 when no captures exist."""
         # Delete all captures
         Capture.objects.filter(owner=self.user).update(
             is_deleted=True,
@@ -307,8 +335,27 @@ class CaptureTestCases(APITestCase):
         )
 
         response = self.client.get(self.list_url)
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert response.json() == {"detail": "No captures found"}
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == []
+
+    def test_list_captures_no_metadata_400(self):
+        """Test listing captures when metadata is missing returns empty metadata."""
+        # Delete metadata from OpenSearch but keep the captures
+        self.opensearch.delete_by_query(
+            index=self.drf_capture.index_name,
+            body={
+                "query": {
+                    "term": {
+                        "_id": str(self.drf_capture.uuid),
+                    },
+                },
+            },
+        )
+        # Ensure changes are visible
+        self.opensearch.indices.refresh(index=self.drf_capture.index_name)
+
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_retrieve_capture_200(self):
         """Test retrieving a single capture returns full metadata."""
@@ -344,24 +391,10 @@ class CaptureTestCases(APITestCase):
         response = self.client.get(self.detail_url(other_capture.uuid))
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_list_captures_no_metadata_400(self):
-        """Test listing captures when metadata is missing returns empty metadata."""
-        # Delete metadata from OpenSearch but keep the captures
-        self.opensearch.delete_by_query(
-            index=self.drf_capture.index_name,
-            body={
-                "query": {
-                    "term": {
-                        "_id": str(self.drf_capture.uuid),
-                    },
-                },
-            },
-        )
-        # Ensure changes are visible
-        self.opensearch.indices.refresh(index=self.drf_capture.index_name)
-
-        response = self.client.get(self.list_url)
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+    def test_delete_capture_204(self):
+        """Test deleting a capture returns 204."""
+        response = self.client.delete(self.detail_url(self.drf_capture.uuid))
+        assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
 class OpenSearchErrorTestCases(APITestCase):
