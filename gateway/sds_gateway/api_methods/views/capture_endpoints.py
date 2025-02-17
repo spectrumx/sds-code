@@ -207,13 +207,12 @@ class CaptureViewSet(viewsets.ViewSet):
                 channel=channel,
             )
         except ValueError as e:
-            msg = f"Error creating capture: {e}"
+            msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError:
-            return Response(
-                {"detail": "OpenSearch service unavailable"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+        except os_exceptions.ConnectionError as e:
+            msg = f"Error connecting to OpenSearch: {e}"
+            log.error(msg)
+            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         get_serializer = CaptureGetSerializer(capture)
         return Response(get_serializer.data, status=status.HTTP_201_CREATED)
@@ -360,13 +359,12 @@ class CaptureViewSet(viewsets.ViewSet):
                 channel=target_capture.channel,
             )
         except ValueError as e:
-            msg = f"Error updating capture: {e}"
+            msg = f"Error handling metadata for capture '{target_capture.uuid}': {e}"
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError:
-            return Response(
-                {"detail": "OpenSearch service unavailable"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+        except os_exceptions.ConnectionError as e:
+            msg = f"Error connecting to OpenSearch: {e}"
+            log.error(msg)
+            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         # Return updated capture
         serializer = CaptureGetSerializer(target_capture)
