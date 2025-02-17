@@ -1,6 +1,7 @@
 """Tests for capture endpoints."""
 
 import datetime
+import logging
 from typing import cast
 from unittest.mock import patch
 
@@ -25,10 +26,16 @@ User = get_user_model()
 # Constants
 TOTAL_TEST_CAPTURES = 2
 
+logger = logging.getLogger(__name__)
+
 
 class CaptureTestCases(APITestCase):
     def setUp(self):
         """Set up test data."""
+        # First clean up any existing test data
+        self._cleanup_opensearch_documents()
+
+        # Then set up new test data
         self.client = APIClient()
         self.user = User.objects.create(
             email="testuser@example.com",
@@ -116,6 +123,32 @@ class CaptureTestCases(APITestCase):
         self._setup_opensearch_indices()
         self._index_test_metadata()
 
+    def _cleanup_opensearch_documents(self):
+        """Clean up OpenSearch documents."""
+        test_captures = [
+            getattr(self, "drf_capture", None),
+            getattr(self, "rh_capture", None),
+        ]
+        for capture in test_captures:
+            if capture:
+                try:
+                    self.opensearch.delete_by_query(
+                        index=capture.index_name,
+                        body={
+                            "query": {
+                                "term": {
+                                    "_id": str(capture.uuid),
+                                },
+                            },
+                        },
+                        refresh=True,
+                        conflicts="proceed",
+                    )
+                    self.opensearch.indices.refresh(index=capture.index_name)
+
+                except os_exceptions.OpenSearchException as e:
+                    logger.debug("Error cleaning up test documents: %s", e)
+
     def _setup_opensearch_indices(self):
         """Set up OpenSearch indices with proper mappings."""
         for capture, metadata_type in [
@@ -161,8 +194,9 @@ class CaptureTestCases(APITestCase):
                 "created_at": self.drf_capture.created_at,
                 "capture_props": self.drf_metadata,
             },
+            version=1,  # Explicitly set version
+            version_type="external",  # Use external versioning
         )
-        # Ensure immediate visibility
         self.opensearch.indices.refresh(index=self.drf_capture.index_name)
 
         # Index RH capture metadata
@@ -184,18 +218,7 @@ class CaptureTestCases(APITestCase):
         super().tearDown()
 
         # Clean up OpenSearch documents
-        for capture in [self.drf_capture, self.rh_capture]:
-            self.opensearch.delete_by_query(
-                index=capture.index_name,
-                body={
-                    "query": {
-                        "term": {
-                            "_id": str(capture.uuid),
-                        },
-                    },
-                },
-            )
-            self.opensearch.indices.refresh(index=capture.index_name)
+        self._cleanup_opensearch_documents()
 
     def test_create_drf_capture_201(self):
         """Test creating drf capture returns metadata."""
