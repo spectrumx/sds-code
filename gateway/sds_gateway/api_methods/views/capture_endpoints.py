@@ -45,8 +45,6 @@ class CaptureViewSet(viewsets.ViewSet):
         capture: Capture,
         data_path: Path,
         channel: str | None = None,
-        *,
-        is_metadata_file: bool = False,
     ) -> None:
         """Validate and index metadata for a capture.
 
@@ -63,7 +61,7 @@ class CaptureViewSet(viewsets.ViewSet):
             case CaptureType.DigitalRF:
                 if channel:
                     capture_props = validate_metadata_by_channel(
-                        data_path=data_path.parent if is_metadata_file else data_path,
+                        data_path=data_path,
                         channel_name=channel,
                     )
                 else:
@@ -71,11 +69,8 @@ class CaptureViewSet(viewsets.ViewSet):
                     log.warning(msg)
                     raise ValueError(msg)
             case CaptureType.RadioHound:
-                if is_metadata_file:
-                    rh_data = load_rh_file(data_path)
-                else:
-                    rh_metadata_file = find_rh_metadata_file(data_path)
-                    rh_data = load_rh_file(rh_metadata_file)
+                rh_metadata_file = find_rh_metadata_file(data_path)
+                rh_data = load_rh_file(rh_metadata_file)
                 capture_props = rh_data.model_dump(mode="json")
             case _:
                 msg = f"Unrecognized capture type '{cap_type}'"
@@ -96,50 +91,25 @@ class CaptureViewSet(viewsets.ViewSet):
     def ingest_capture(
         self,
         capture: Capture,
+        requester: User,
         top_level_dir: Path | None = None,
-        metadata_file_path: Path | None = None,
         channel: str | None = None,
-        requester: User | None = None,
     ) -> None:
         """Ingest or update a capture by handling files and metadata.
 
         This function can be used for both creating new captures
         and updating existing ones.
 
-        For creation, both top_level_dir and requester are required.
+        For creation, top_level_dir is required.
         For updates, either top_level_dir or metadata_file_path must be provided.
 
         Args:
             capture: The capture to ingest or update
+            requester: The user making the request
             top_level_dir: Path to directory containing files to connect to capture
             metadata_file_path: Path to metadata file for reindexing
             channel: Optional channel name for DigitalRF captures
-            requester: The user making the request (required for creation)
         """
-        # Validate inputs based on operation type
-        is_update = bool(capture.pk)
-        if not is_update and (not top_level_dir or not requester):
-            msg = "top_level_dir and requester are required for creating new captures"
-            raise ValueError(msg)
-        if is_update and not (top_level_dir or metadata_file_path):
-            msg = "Either top_level_dir or metadata_file_path required for updates"
-            raise ValueError(msg)
-
-        # Set requester to owner for updates if not provided
-        if is_update and not requester:
-            requester = capture.owner
-
-        # At this point requester must be set
-        assert requester is not None, "requester must be set"
-
-        # Handle metadata reindexing if metadata_file provided
-        if metadata_file_path:
-            self._validate_and_index_metadata(
-                capture=capture,
-                data_path=metadata_file_path,
-                channel=channel,
-                is_metadata_file=True,
-            )
 
         # Handle file connections if top_level_dir provided
         if top_level_dir:
@@ -156,13 +126,10 @@ class CaptureViewSet(viewsets.ViewSet):
                     cur_file.capture = capture
                     cur_file.save()
 
-                # For creation or if no metadata file provided,
-                # extract metadata from files
                 self._validate_and_index_metadata(
                     capture=capture,
                     data_path=tmp_dir_path,
                     channel=channel,
-                    is_metadata_file=False,
                 )
 
     @extend_schema(
@@ -235,9 +202,9 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             self.ingest_capture(
                 capture=cast(Capture, capture),
+                requester=requester,
                 top_level_dir=requested_top_level_dir,
                 channel=channel,
-                requester=requester,
             )
         except ValueError as e:
             msg = f"Error creating capture: {e}"
@@ -326,11 +293,6 @@ class CaptureViewSet(viewsets.ViewSet):
             # Serialize and return results
             serializer = CaptureGetSerializer(captures, many=True)
             data = serializer.data
-            if not data:
-                return Response(
-                    {"detail": "No captures found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
             return Response(data)
         except ValueError as e:
             return Response(
@@ -368,11 +330,15 @@ class CaptureViewSet(viewsets.ViewSet):
             404: OpenApiResponse(description="Not Found"),
             503: OpenApiResponse(description="OpenSearch service unavailable"),
         },
-        description="Update a capture by adding files or reindexing metadata.",
+        description=(
+            "Update a capture by adding files and re-indexing metadata. "
+            "Uses the top_level_dir attribute to connect files to the capture and "
+            "re-index metadata file to capture changes to the capture properties."
+        ),
         summary="Update Capture",
     )
     def update(self, request: Request, pk: str | None = None) -> Response:
-        """Update a capture by adding files or reindexing metadata."""
+        """Update a capture by adding files or re-indexing metadata."""
         if pk is None:
             return Response(
                 {"detail": "Capture UUID is required."},
@@ -386,42 +352,12 @@ class CaptureViewSet(viewsets.ViewSet):
             is_deleted=False,
         )
 
-        # Get optional parameters
-        channel = request.data.get("channel", None)
-        unsafe_top_level_dir = request.data.get("top_level_dir", None)
-        unsafe_metadata_file = request.data.get("metadata_file", None)
-
-        # Validate inputs
-        error_msg = None
-        requested_top_level_dir = None
-        metadata_file_path = None
-
-        if channel is not None and not isinstance(channel, str):
-            error_msg = "Channel must be a string."
-        elif unsafe_top_level_dir:
-            requested_top_level_dir = sanitize_path_rel_to_user(
-                unsafe_path=unsafe_top_level_dir,
-                request=request,
-            )
-            if requested_top_level_dir is None:
-                error_msg = "The provided `top_level_dir` is invalid."
-        elif unsafe_metadata_file:
-            metadata_file_path = sanitize_path_rel_to_user(
-                unsafe_path=unsafe_metadata_file,
-                request=request,
-            )
-            if metadata_file_path is None:
-                error_msg = "The provided `metadata_file` is invalid."
-
-        if error_msg:
-            return Response({"detail": error_msg}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
             self.ingest_capture(
                 capture=cast(Capture, target_capture),
-                top_level_dir=requested_top_level_dir,
-                metadata_file_path=metadata_file_path,
-                channel=channel,
+                requester=cast(User, target_capture.owner),
+                top_level_dir=Path(target_capture.top_level_dir),
+                channel=target_capture.channel,
             )
         except ValueError as e:
             msg = f"Error updating capture: {e}"
