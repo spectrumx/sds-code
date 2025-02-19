@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+import uuid
 from typing import cast
 from unittest.mock import patch
 
@@ -37,6 +38,7 @@ class CaptureTestCases(APITestCase):
 
         # Then set up new test data
         self.client = APIClient()
+        self.scan_group = uuid.uuid4()
         self.user = User.objects.create(
             email="testuser@example.com",
             password="testpassword",  # noqa: S106
@@ -71,6 +73,7 @@ class CaptureTestCases(APITestCase):
         self.rh_capture = Capture.objects.create(
             owner=self.user,
             capture_type=CaptureType.RadioHound,
+            scan_group=self.scan_group,
             top_level_dir="test-dir",
             index_name="captures-rh",
         )
@@ -86,6 +89,7 @@ class CaptureTestCases(APITestCase):
             "altitude": 2.0,
             "batch": 0,
             "center_frequency": 2000000000.0,
+            "scan_group": str(self.scan_group),
             "custom_fields": {
                 "requested": {
                     "fmax": 2010000000,
@@ -264,6 +268,7 @@ class CaptureTestCases(APITestCase):
                 self.list_url,
                 data={
                     "capture_type": CaptureType.RadioHound,
+                    "scan_group": str(self.scan_group),
                     "index_name": "captures-rh",
                     "top_level_dir": "/files/testuser@example.com/test-dir",
                 },
