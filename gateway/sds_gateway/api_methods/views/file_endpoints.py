@@ -1,6 +1,5 @@
 """File operations endpoints for the SDS Gateway API."""
 
-import datetime
 import logging
 from pathlib import Path
 from typing import cast
@@ -408,9 +407,7 @@ class FileViewSet(ViewSet):
             owner=request.user,
             is_deleted=False,
         )
-        target_file.is_deleted = True
-        target_file.deleted_at = datetime.datetime.now(datetime.UTC)
-        target_file.save()
+        target_file.soft_delete()
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)

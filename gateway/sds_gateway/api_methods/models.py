@@ -56,6 +56,12 @@ class BaseModel(models.Model):
 
         abstract = True
 
+    def soft_delete(self) -> None:
+        """Soft delete this record by marking it as deleted."""
+        self.is_deleted = True
+        self.deleted_at = datetime.datetime.now(datetime.UTC)
+        self.save()
+
 
 class File(BaseModel):
     """
