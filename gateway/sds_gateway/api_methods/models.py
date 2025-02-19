@@ -138,7 +138,8 @@ class Capture(BaseModel):
         (CaptureOrigin.User, "User"),
     ]
 
-    channel = models.CharField(max_length=255, blank=True)
+    channel = models.CharField(max_length=255, blank=True)  # DRF
+    scan_group = models.UUIDField(blank=True, null=True)  # RH
     capture_type = models.CharField(
         max_length=255,
         choices=CAPTURE_TYPE_CHOICES,
