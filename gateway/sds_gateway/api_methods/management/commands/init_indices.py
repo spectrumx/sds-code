@@ -71,14 +71,15 @@ class Command(BaseCommand):
                     # Get current mapping
                     current_mapping = client.indices.get_mapping(index=index_name)
                     current_properties = current_mapping[index_name]["mappings"].get(
-                        "properties", {}
+                        "properties",
+                        {},
                     )
                     new_properties = index_config["mappings"]["properties"]
 
                     # Only update if mappings are different
                     if current_properties != new_properties:
                         self.stdout.write(
-                            f"Updating mapping for index '{index_name}'..."
+                            f"Updating mapping for index '{index_name}'...",
                         )
                         try:
                             client.indices.put_mapping(
