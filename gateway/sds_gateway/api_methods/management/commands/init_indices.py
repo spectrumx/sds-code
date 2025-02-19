@@ -36,6 +36,7 @@ class Command(BaseCommand):
                     "mappings": {
                         "properties": {
                             "channel": {"type": "keyword"},
+                            "scan_group": {"type": "keyword"},
                             "capture_type": {"type": "keyword"},
                             "created_at": {"type": "date"},
                             "capture_props": {

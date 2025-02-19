@@ -182,6 +182,9 @@ drf_capture_index_mapping = {
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/radiohound/v0/schema.json
 # full mapping is not used in this repo, but is provided here for reference
 rh_capture_index_mapping = {
+    "scan_group": {
+        "type": "keyword",
+    },
     "metadata": {
         "type": "nested",
     },

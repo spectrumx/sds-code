@@ -1,4 +1,5 @@
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -91,9 +92,10 @@ class CaptureViewSet(viewsets.ViewSet):
     def ingest_capture(
         self,
         capture: Capture,
+        channel: str | None,
+        scan_group: uuid.UUID | None,
         requester: User,
-        top_level_dir: Path | None = None,
-        channel: str | None = None,
+        top_level_dir: Path,
     ) -> None:
         """Ingest or update a capture by handling files and metadata.
 
@@ -119,6 +121,7 @@ class CaptureViewSet(viewsets.ViewSet):
                     target_dir=Path(temp_dir),
                     top_level_dir=top_level_dir,
                     owner=requester,
+                    scan_group=scan_group,
                 )
 
                 # Connect the files to the capture
@@ -162,15 +165,18 @@ class CaptureViewSet(viewsets.ViewSet):
     def create(self, request: Request) -> Response:
         """Create a capture object, connecting files and indexing the metadata."""
         channel = request.data.get("channel", None)
+        scan_group = request.data.get("scan_group", None)
         capture_type = request.data.get("capture_type", None)
         log.info(f"Received capture_type: '{capture_type}' {type(capture_type)}")
         log.info(f"Received channel: '{channel}' {type(channel)}")
+        log.info(f"Received scan_group: '{scan_group}' {type(scan_group)}")
+
+        # validate the inputs
+        validation_response = self._validate_create_inputs(request)
+        if validation_response is not None:
+            return validation_response
 
         unsafe_top_level_dir = request.data.get("top_level_dir", "")
-
-        if channel is not None and not isinstance(channel, str):
-            msg = "Channel must be a string."
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
         # sanitize top_level_dir
         requested_top_level_dir = sanitize_path_rel_to_user(
@@ -201,10 +207,11 @@ class CaptureViewSet(viewsets.ViewSet):
 
         try:
             self.ingest_capture(
-                capture=cast(Capture, capture),
+                capture=capture,
+                channel=channel,
+                scan_group=scan_group,
                 requester=requester,
                 top_level_dir=requested_top_level_dir,
-                channel=channel,
             )
         except ValueError as e:
             msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
@@ -354,9 +361,10 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             self.ingest_capture(
                 capture=cast(Capture, target_capture),
+                channel=target_capture.channel,
+                scan_group=target_capture.scan_group,
                 requester=cast(User, target_capture.owner),
                 top_level_dir=Path(target_capture.top_level_dir),
-                channel=target_capture.channel,
             )
         except ValueError as e:
             msg = f"Error handling metadata for capture '{target_capture.uuid}': {e}"
