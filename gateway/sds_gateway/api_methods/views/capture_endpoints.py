@@ -400,6 +400,7 @@ class CaptureViewSet(viewsets.ViewSet):
             owner=request.user,
             is_deleted=False,
         )
-        target_capture.is_deleted = True
-        target_capture.save()
+        target_capture.soft_delete()
+
+        # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
