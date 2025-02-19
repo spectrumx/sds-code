@@ -171,11 +171,6 @@ class CaptureViewSet(viewsets.ViewSet):
         log.info(f"Received channel: '{channel}' {type(channel)}")
         log.info(f"Received scan_group: '{scan_group}' {type(scan_group)}")
 
-        # validate the inputs
-        validation_response = self._validate_create_inputs(request)
-        if validation_response is not None:
-            return validation_response
-
         unsafe_top_level_dir = request.data.get("top_level_dir", "")
 
         # sanitize top_level_dir

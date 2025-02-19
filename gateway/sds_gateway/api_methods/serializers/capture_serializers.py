@@ -80,6 +80,7 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
         fields = [
             "uuid",
             "channel",
+            "scan_group",
             "capture_type",
             "top_level_dir",
             "index_name",
@@ -98,6 +99,7 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
                 "capture_type",
                 "top_level_dir",
                 "index_name",
+                "scan_group",
             ],
             CaptureType.SigMF: [
                 "capture_type",
