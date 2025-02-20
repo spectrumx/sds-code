@@ -73,8 +73,7 @@
 		"python.analysis.indexing": true,
 		"python.analysis.typeCheckingMode": "standard",
 		"python.languageServer": "Pylance",
-		"ruff.fixAll": true,
-		"ruff.nativeServer": "off"
+		"ruff.fixAll": true
 	},
 	"tasks": {
 		"tasks": [
