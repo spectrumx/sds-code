@@ -303,7 +303,8 @@
         "pytz>=2024.2",
         "rich>=13.9.4",
         "ruff>=0.7.2",
-    ]
+        "beautifulsoup4>=4.13.3",
+]
 
     [tool.uv.workspace]
         members = ["spectrumx"]

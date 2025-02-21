@@ -31,7 +31,11 @@ def success_or_raise(
         error_json = response.json()
         error_details = error_json.get("detail", error_json)
     except requests.exceptions.JSONDecodeError:
-        error_details = response.content
+        error_details = (
+            extract_error_details_from_html(response)
+            if is_test_env()
+            else response.reason
+        )
 
     error_details = str(error_details)
     log.opt(depth=1).exception(error_details)
@@ -42,3 +46,24 @@ def success_or_raise(
     if status.is_server_error:
         raise errors.ServiceError(message=error_details)
     raise errors.SDSError(message=error_details)
+
+
+def extract_error_details_from_html(response: requests.Response) -> str:
+    """Extracts error details from an HTML response, focusing on specific elements."""
+    try:
+        from bs4 import BeautifulSoup  # pyright: ignore[reportMissingModuleSource]
+    except ImportError:
+        log.warning("Install 'BeautifulSoup' to have a more detailed error message.")
+        return response.reason
+
+    target_ids = ["pastebinTraceback", "summary"]
+    soup = BeautifulSoup(markup=response.text, features="html.parser")
+    texts: list[str] = []
+    for target_id in target_ids:
+        element = soup.find(id=target_id)
+        if element:
+            texts.append(element.get_text(strip=True))
+
+    combined_text = "\n".join(texts)
+    no_blanks = "\n".join(filter(None, combined_text.splitlines()))
+    return no_blanks.strip()
