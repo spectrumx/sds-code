@@ -1,5 +1,6 @@
 """Tests for SDS Captures."""
 
+import json
 from collections.abc import Generator
 from pathlib import Path
 
@@ -106,6 +107,81 @@ def test_capture_creation_drf(integration_client: Client) -> None:
     assert (
         capture.capture_props["custom_attrs"]["receiver/info/mboard_serial"]
         == cap_serial
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_creation_rh(integration_client: Client) -> None:
+    """Tests creating a RadioHound capture."""
+
+    # ARRANGE
+
+    # define paths in the context of a capture
+    dir_top_level = dir_integration_data / "captures" / "radiohound"
+    radiohound_file = dir_top_level / "reference-v0.rh.json"
+    assert radiohound_file.is_file(), (
+        "Reference file should exist; check that "
+        f"you have the right paths set: '{radiohound_file}'"
+    )
+
+    # suffix path_after_capture_data with a random name to avoid conflicts between runs
+    path_after_capture_data = dir_top_level.relative_to(dir_integration_data)
+    random_suffix = get_random_line(10, include_punctuation=False)
+    path_after_capture_data = path_after_capture_data / f"test-{random_suffix}"
+
+    _upload_assets(
+        integration_client=integration_client,
+        sds_path=path_after_capture_data,
+        local_path=dir_top_level,
+    )
+
+    # ACT
+
+    with radiohound_file.open("r") as fp_json:
+        radiohound_data = json.load(fp_json)
+
+    # create a capture
+    capture = integration_client.captures.create(
+        top_level_dir=Path(f"/{path_after_capture_data}"),
+        scan_group=radiohound_data["scan_group"],
+        capture_type=CaptureType.RadioHound,
+        index_name="capture_metadata",
+    )
+
+    # ASSERT
+
+    # basic capture information
+    assert capture.uuid is not None, "Capture UUID should not be None"
+    assert capture.capture_type == CaptureType.RadioHound
+    assert capture.top_level_dir == Path(f"/{path_after_capture_data}")
+    assert capture.index_name == "capture_metadata"
+
+    # test capture metadata
+
+    # ====== PR 61 will fix this assertion ======
+    assert capture.scan_group == radiohound_data["scan_group"], (
+        "Scan group was not set correctly for RadioHound capture"
+    )
+    # https://github.com/spectrumx/sds-code/pull/61
+
+    assert capture.capture_props, "Capture properties should not be empty"
+    assert capture.capture_props == radiohound_data, (
+        "Capture props doesn't match the reference data: \n"
+        f"'{capture.capture_props}'\n!=\n'{radiohound_data}'"
     )
 
 
