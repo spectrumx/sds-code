@@ -1,3 +1,4 @@
+# Source: https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/radiohound/rh-schema-generator.py
 # This is PEP-723-compatible script: https://peps.python.org/pep-0723/
 # You can run it with uv without manually installing its dependencies:
 #   uv run rh-schema-generator.py
