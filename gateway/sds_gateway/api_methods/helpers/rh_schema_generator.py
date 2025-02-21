@@ -26,6 +26,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+from pydantic import UUID4
 from pydantic import AfterValidator
 from pydantic import AliasChoices
 from pydantic import BaseModel
@@ -33,6 +34,7 @@ from pydantic import BeforeValidator
 from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import PlainSerializer
+from pydantic import WithJsonSchema
 from pydantic import model_validator
 from pydantic.json_schema import SkipJsonSchema
 from rich.console import Console
@@ -41,6 +43,7 @@ console = Console()
 DEFAULT_EXTENSION = ".rh.json"
 FORMAT_VERSION = "v0"
 MAX_INT_SIZE = int(2**63 - 1)
+UUID4_REGEX = "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 
 
 def log_warning(msg: str) -> None:
@@ -79,7 +82,7 @@ def validate_version_after(v: str) -> str:
     # make sure that, if present, it's a valid version string
     pattern = r"^v[0-9]+$"
     if not re.match(pattern=pattern, string=v):
-        msg = "Invalid version format"
+        msg = "Version must match pattern 'v[0-9]+'"
         raise ValueError(msg)
     return v
 
@@ -132,10 +135,8 @@ class _RHMetadataV0(BaseModel):
     gps_lock: Annotated[
         bool,
         Field(
-            description=(
-                "Whether a GPS satellite lock is obtained, "
-                "otherwise the last known coordinates"
-            ),
+            description="Whether a GPS satellite lock is obtained, otherwise "
+            "the last known coordinates",
         ),
     ]
     nfft: Annotated[
@@ -152,7 +153,7 @@ class _RHMetadataV0(BaseModel):
     xcount: Annotated[
         int | None,
         Field(
-            description="The number of points in the periodogram",
+            description="[Deprecated] The number of points in the periodogram",
             gt=0,
             lt=MAX_INT_SIZE,
             deprecated=True,
@@ -163,7 +164,7 @@ class _RHMetadataV0(BaseModel):
     xstart: Annotated[
         int | None,
         Field(
-            description="The start frequency of the periodogram",
+            description="[Deprecated] The start frequency of the periodogram",
             gt=0,
             lt=MAX_INT_SIZE,
             deprecated=True,
@@ -174,7 +175,7 @@ class _RHMetadataV0(BaseModel):
     xstop: Annotated[
         int | None,
         Field(
-            description="The stop frequency of the periodogram",
+            description="[Deprecated] The stop frequency of the periodogram",
             gt=0,
             lt=MAX_INT_SIZE,
             deprecated=True,
@@ -219,7 +220,7 @@ def nd_array_before_validator(x: str | list[Any]) -> NDArray[Any]:  # type: igno
     return x  # type: ignore[return-value]
 
 
-def nd_array_serializer(x) -> list:
+def nd_array_serializer(x) -> list[NumpyDType]:  # type: ignore[valid-type]
     return x.tolist()
 
 
@@ -287,9 +288,8 @@ class _RadioHoundDataV0(BaseModel):
         datetime.datetime,
         AfterValidator(validate_timestamp),
         Field(
-            description=(
-                "Timestamp of the capture start, as ISO 8601 with timezone information"
-            ),
+            description="Timestamp of the capture start, as "
+            "ISO 8601 with timezone information",
         ),
     ]
 
@@ -317,20 +317,11 @@ class _RadioHoundDataV0(BaseModel):
             default=None,
         ),
     ]
-    batch: Annotated[
-        int | None,
-        Field(
-            description="Can be used to group scans together",
-            default=None,
-        ),
-    ]
     center_frequency: Annotated[
         float | None,
         Field(
-            description=(
-                "The center frequency of the capture, "
-                "calculated as the mean of the start and end frequencies"
-            ),
+            description="The center frequency of the capture, calculated as the mean "
+            "of the start and end frequencies",
             default=None,
         ),
     ]
@@ -357,6 +348,26 @@ class _RadioHoundDataV0(BaseModel):
             default=None,
         ),
     ]
+    scan_group: Annotated[
+        UUID4 | None,
+        WithJsonSchema(
+            json_schema={
+                "anyOf": [
+                    {
+                        "pattern": UUID4_REGEX,
+                        "type": "string",
+                    },
+                    {"type": "null"},
+                ],
+            },
+            mode="validation",
+        ),
+        Field(
+            description="The scan group, used to group RH files. "
+            "UUID version 4 as a 36 char string (with dashes).",
+            default=None,
+        ),
+    ]
     software_version: Annotated[
         str | None,
         Field(
@@ -367,24 +378,34 @@ class _RadioHoundDataV0(BaseModel):
     ]
 
     # deprecated attributes
+    batch: Annotated[
+        int | None,
+        Field(
+            description="[Deprecated | Use scan_group instead] "
+            "Can be used to group scans together.",
+            default=None,
+            deprecated=True,
+            exclude=True,
+        ),
+    ]
     suggested_gain: Annotated[
         float | None,
         Field(
-            description="Suggested gain for the device",
-            gt=0,
+            description="[Deprecated] Suggested gain for the device",
+            default=None,
             deprecated=True,
             exclude=True,
-            default=None,
+            gt=0,
         ),
     ]
     uncertainty: Annotated[
         int | None,
         Field(
-            description="Uncertainty of the measurement",
-            gt=0,
+            description="[Deprecated] Uncertainty of the measurement",
+            default=None,
             deprecated=True,
             exclude=True,
-            default=None,
+            gt=0,
         ),
     ]
 
@@ -392,7 +413,7 @@ class _RadioHoundDataV0(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def move_requested_to_custom_fields(cls, values: dict) -> dict:
+    def move_requested_to_custom_fields(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Introduced in v0."""
         requested = values.get("requested")
         if requested:
@@ -403,7 +424,7 @@ class _RadioHoundDataV0(BaseModel):
         return values
 
     requested: Annotated[
-        dict | None,
+        dict[str, Any] | None,
         # we don't care to validate `requested` contents
         # as it's been moved to custom_fields
         Field(
@@ -417,13 +438,16 @@ class _RadioHoundDataV0(BaseModel):
         ),
     ]
 
-    def model_post_init(self, _: Any) -> None:
+    def model_post_init(self, /, __context: Any) -> None:
         self.data_as_numpy = np.frombuffer(self.data, dtype=self.type.value)
 
     def to_file(self, file_path: Path | str | bytes) -> None:
         """Write the RadioHound data to a file."""
         obj = self.model_dump(mode="json")
         file_path_real: Path
+        if file_path is None:  # pragma: no cover
+            msg = "File path must not be None"
+            raise ValueError(msg)
 
         if isinstance(file_path, bytes):
             file_path_real = Path(file_path.decode())
@@ -451,6 +475,9 @@ def load_rh_file_v0(file_path: Path | str | bytes) -> _RadioHoundDataV0:
         ValidationError: If the file is not a valid RadioHound file.
     """
     file_path_real: Path
+    if file_path is None:
+        msg = "File path must not be None"
+        raise ValueError(msg)
     if isinstance(file_path, bytes):
         file_path_real = Path(file_path.decode())
     elif isinstance(file_path, str):
