@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -30,14 +31,15 @@ class CaptureAPI:
         self,
         *,
         top_level_dir: Path,
-        channel: str,
         capture_type: CaptureType,
         index_name: str,
+        channel: str | None = None,
+        scan_group: str | None = None,
     ) -> Capture:
         """Creates a new capture in SDS."""
         log.debug(
             f"Creating capture with {top_level_dir=}, "
-            f"{channel=}, {capture_type=}, {index_name=}"
+            f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}"
         )
 
         if self.dry_run:
@@ -48,14 +50,16 @@ class CaptureAPI:
                 channel=channel,
                 index_name=index_name,
                 origin=CaptureOrigin.User,
+                scan_group=uuid.UUID(scan_group) if scan_group else None,
                 top_level_dir=top_level_dir,
                 uuid=uuid4(),
             )
         capture_raw = self.gateway.create_capture(
-            top_level_dir=top_level_dir,
-            channel=channel,
             capture_type=capture_type,
+            channel=channel,
             index_name=index_name,
+            scan_group=scan_group,
+            top_level_dir=top_level_dir,
         )
         capture = Capture.model_validate_json(capture_raw)
         log.debug(f"Capture created with UUID {capture.uuid}")

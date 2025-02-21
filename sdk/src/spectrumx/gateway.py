@@ -1,6 +1,5 @@
 """Lower level module for interaction with the SpectrumX Data System."""
 
-import os
 import sys
 import uuid
 from collections.abc import Iterator
@@ -30,12 +29,6 @@ from .utils import log_user_warning
 
 API_PATH: str = "/api/"
 API_TARGET_VERSION: str = "v1"
-
-
-def is_test_env() -> bool:
-    """Returns whether the current environment is a test environment."""
-    env_var = os.getenv("PYTEST_CURRENT_TEST", default=None)
-    return env_var is not None
 
 
 class Endpoints(StrEnum):
@@ -414,9 +407,10 @@ class GatewayClient:
         self,
         *,
         top_level_dir: Path,
-        channel: str,
         capture_type: str,
         index_name: str,
+        channel: str | None = None,
+        scan_group: str | None = None,
         verbose: bool = False,
     ) -> bytes:
         """Creates a capture on the SDS API.
@@ -431,10 +425,14 @@ class GatewayClient:
         """
         payload = {
             "top_level_dir": str(top_level_dir),
-            "channel": channel,
             "capture_type": capture_type,
             "index_name": index_name,
         }
+        # add optional fields
+        if channel:
+            payload["channel"] = channel
+        if scan_group:
+            payload["scan_group"] = scan_group
         response = self._request(
             method=HTTPMethods.POST,
             endpoint=Endpoints.CAPTURES,
