@@ -3,7 +3,10 @@
 import sys
 from http import HTTPStatus
 
-if sys.version_info < (3, 12):  # noqa: UP036 # Backport fixes to older versions
+from spectrumx.utils import is_test_env
+
+# Backport fixes to older versions
+if sys.version_info < (3, 12):  # noqa: UP036 # pragma: no cover
     HTTPStatus.is_informational = property(lambda s: 100 <= s <= 199)  # noqa: PLR2004
     HTTPStatus.is_success = property(lambda s: 200 <= s <= 299)  # noqa: PLR2004
     HTTPStatus.is_redirection = property(lambda s: 300 <= s <= 399)  # noqa: PLR2004

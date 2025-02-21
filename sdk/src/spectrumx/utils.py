@@ -1,6 +1,7 @@
 """Utility functions for the SpectrumX SDK."""
 
 import logging
+import os
 import random
 import re
 import string
@@ -58,7 +59,7 @@ def log_user_error(msg: str, depth: int = 1) -> None:
     logging.error(msg)
 
 
-def into_human_bool(value: str) -> bool:
+def into_human_bool(value: str | int | bool) -> bool:
     """Converts a string to a boolean value, defaulting to False when invalid."""
     if isinstance(value, bool):
         return value
@@ -67,6 +68,17 @@ def into_human_bool(value: str) -> bool:
     if isinstance(value, str):
         return value.lower() in {"t", "true", "1", "y", "yes", "on", "enabled"}
     return False
+
+
+def is_test_env() -> bool:
+    """Returns whether the current environment is a test environment.
+
+    Useful for:
+        + Deciding if SSL verification can be skipped;
+        + Whether debug logs should be enabled on error;
+    """
+    env_var = os.getenv("PYTEST_CURRENT_TEST", default=None)
+    return env_var is not None
 
 
 def get_random_line(length: int, *, include_punctuation: bool = True) -> str:

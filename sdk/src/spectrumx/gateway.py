@@ -25,6 +25,7 @@ from .errors import AuthError
 from .errors import FileError
 from .models.files import File
 from .ops import network
+from .utils import is_test_env
 from .utils import log_user_warning
 
 API_PATH: str = "/api/"
