@@ -331,6 +331,7 @@
                 "tests/htmlcov",
                 "tests/coverage",
                 "docs/dev-*",
+                "tests/**/data/",
                 "README.md",      # docs/README.md is used instead
             ]
             ignore-vcs = true
