@@ -14,7 +14,7 @@ on:
             - "v[0-9]+.[0-9]+.[0-9]+" # this excludes tags like v1.0.0-rc1 or v1.0.0-beta1
 
 permissions:
-    # 'read' to access the list of commits
+    id-token: "write"
     contents: "write"
     packages: "write"
     pull-requests: "read"
@@ -82,6 +82,10 @@ jobs:
               working-directory: ./sdk
               run: uv build --link-mode=copy
 
+            - name: Listing packaged files
+              working-directory: ./sdk
+              run: tar -tvf dist/*.tar.gz | sort -k6
+
             - name: Build acceptance checks
               # checks the actual package built, to catch errors in the build
               # configuration and make sure the published package is usable
@@ -146,3 +150,4 @@ jobs:
 
             - name: Publish package
               run: uv publish --trusted-publishing always
+              working-directory: ./sdk
