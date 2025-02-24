@@ -3,6 +3,7 @@
 import json
 from collections.abc import Generator
 from pathlib import Path
+from pathlib import PurePosixPath
 
 import pytest
 from loguru import logger as log
@@ -74,7 +75,9 @@ def test_capture_creation_drf(integration_client: Client) -> None:
     # suffix path_after_capture_data with a random name to avoid conflicts between runs
     path_after_capture_data = dir_top_level.relative_to(dir_integration_data)
     random_suffix = get_random_line(10, include_punctuation=False)
-    path_after_capture_data = path_after_capture_data / f"test-{random_suffix}"
+    path_after_capture_data = (
+        PurePosixPath(path_after_capture_data) / f"test-{random_suffix}"
+    )
 
     _upload_assets(
         integration_client=integration_client,
@@ -85,8 +88,9 @@ def test_capture_creation_drf(integration_client: Client) -> None:
     # ACT
 
     # create a capture
+    capture_top_level = PurePosixPath("/") / path_after_capture_data
     capture = integration_client.captures.create(
-        top_level_dir=Path(f"/{path_after_capture_data}"),
+        top_level_dir=capture_top_level,
         channel=drf_channel,
         capture_type=CaptureType.DigitalRF,
     )
@@ -97,7 +101,7 @@ def test_capture_creation_drf(integration_client: Client) -> None:
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == CaptureType.DigitalRF
     assert capture.channel == drf_channel
-    assert capture.top_level_dir == Path(f"/{path_after_capture_data}")
+    assert capture.top_level_dir == capture_top_level
 
     # test capture properties
     assert capture.capture_props["start_bound"] == cap_start_bound
@@ -139,7 +143,7 @@ def test_capture_creation_rh(integration_client: Client) -> None:
     # suffix path_after_capture_data with a random name to avoid conflicts between runs
     rel_path_capture = dir_top_level.relative_to(dir_integration_data)
     random_suffix = get_random_line(10, include_punctuation=False)
-    rel_path_capture = rel_path_capture / f"test-{random_suffix}"
+    rel_path_capture = PurePosixPath(rel_path_capture) / f"test-{random_suffix}"
 
     _upload_assets(
         integration_client=integration_client,
@@ -153,8 +157,9 @@ def test_capture_creation_rh(integration_client: Client) -> None:
         radiohound_data = json.load(fp_json)
 
     # create a capture
+    capture_top_level = PurePosixPath("/") / rel_path_capture
     capture = integration_client.captures.create(
-        top_level_dir=rel_path_capture,
+        top_level_dir=capture_top_level,
         scan_group=radiohound_data["scan_group"],
         capture_type=CaptureType.RadioHound,
     )
@@ -164,7 +169,7 @@ def test_capture_creation_rh(integration_client: Client) -> None:
     # basic capture information
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == CaptureType.RadioHound
-    assert capture.top_level_dir == rel_path_capture
+    assert capture.top_level_dir == capture_top_level
 
     # test capture metadata
     assert capture.scan_group is not None, "Scan group should not be None"
@@ -287,7 +292,9 @@ def test_capture_update_rh(integration_client: Client) -> None:
     # suffix path_after_capture_data with a random name to avoid conflicts between runs
     rh_capture_update_sds_path = dir_top_level.relative_to(dir_integration_data)
     random_suffix = get_random_line(10, include_punctuation=False)
-    rh_capture_update_sds_path = rh_capture_update_sds_path / f"test-{random_suffix}"
+    rh_capture_update_sds_path = (
+        PurePosixPath(rh_capture_update_sds_path) / f"test-{random_suffix}"
+    )
 
     _upload_assets(
         integration_client=integration_client,
@@ -299,8 +306,9 @@ def test_capture_update_rh(integration_client: Client) -> None:
         radiohound_data = json.load(fp_json)
 
     # create a capture
+    capture_top_level = PurePosixPath("/") / rh_capture_update_sds_path
     capture = integration_client.captures.create(
-        top_level_dir=Path(f"/{rh_capture_update_sds_path}"),
+        top_level_dir=capture_top_level,
         scan_group=radiohound_data["scan_group"],
         capture_type=CaptureType.RadioHound,
     )
@@ -310,7 +318,7 @@ def test_capture_update_rh(integration_client: Client) -> None:
     # basic capture information
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == CaptureType.RadioHound
-    assert capture.top_level_dir == Path(f"/{rh_capture_update_sds_path}")
+    assert capture.top_level_dir == capture_top_level
 
     # test capture metadata
     assert capture.capture_props, "Capture properties should not be empty"
@@ -419,7 +427,7 @@ def test_capture_reading_drf(integration_client: Client) -> None:
 
 def _upload_assets(
     integration_client: Client,
-    sds_path: Path,
+    sds_path: PurePosixPath,
     local_path: Path,
 ) -> None:
     """Helper to upload a local directory to SDS and assert success."""

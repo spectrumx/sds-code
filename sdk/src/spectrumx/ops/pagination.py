@@ -4,7 +4,7 @@ import json
 import sys
 import time
 import uuid
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Generic
@@ -66,7 +66,7 @@ class Paginator(Generic[T]):
         *,
         Entry: type[SDSModel],  # noqa: N803
         gateway: GatewayClient,
-        sds_path: Path | str,
+        sds_path: PurePosixPath | str,
         dry_run: bool = False,
         page_size: int = 30,
         start_page: int = 1,
@@ -97,8 +97,8 @@ class Paginator(Generic[T]):
         ):  # pragma: no cover
             msg = "Total matches must be an integer."
             raise ValueError(msg)
-        if not isinstance(sds_path, (Path, str)):  # pragma: no cover
-            msg = "SDS path must be a Path or str."
+        if not isinstance(sds_path, (PurePosixPath, str)):  # pragma: no cover
+            msg = "SDS path must be a PurePosixPath or str."
             raise TypeError(msg)
         if not isinstance(gateway, GatewayClient):  # pragma: no cover
             msg = "Gateway client must be provided."
@@ -111,7 +111,7 @@ class Paginator(Generic[T]):
         self._gateway = gateway
         self._next_page = start_page
         self._page_size = page_size
-        self._sds_path = Path(sds_path)
+        self._sds_path = PurePosixPath(sds_path)
         self._total_matches = total_matches if total_matches else 1
         self._verbose: bool = verbose
 

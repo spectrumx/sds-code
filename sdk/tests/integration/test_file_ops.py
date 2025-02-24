@@ -3,6 +3,7 @@
 import time
 import uuid
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -101,7 +102,7 @@ def test_upload_single_file(
     integration_client: Client, temp_file_with_text_contents: Path
 ) -> None:
     """Test file upload to SDS."""
-    sds_path = Path("/")
+    sds_path = PurePosixPath("/")
     local_file = construct_file(temp_file_with_text_contents, sds_path=sds_path)
     uploaded_file = integration_client.upload_file(
         local_file=temp_file_with_text_contents, sds_path=sds_path
@@ -233,7 +234,7 @@ def test_upload_files_in_bulk(integration_client: Client, temp_file_tree: Path) 
     random_subdir_name = get_random_line(10, include_punctuation=False)
     results = integration_client.upload(
         local_path=temp_file_tree,
-        sds_path=Path("/test-tree") / random_subdir_name,
+        sds_path=PurePosixPath("/test-tree") / random_subdir_name,
         verbose=True,
     )
     log.info(f"Uploaded {len(results)} files.")
@@ -271,7 +272,7 @@ def test_upload_large_file(
     temp_large_binary_file: Path,
 ) -> None:
     """Tests uploading a large file to SDS."""
-    sds_path = Path("/")
+    sds_path = PurePosixPath("/")
     local_file = construct_file(temp_large_binary_file, sds_path=sds_path)
     uploaded_file = integration_client.upload_file(
         local_file=temp_large_binary_file, sds_path=sds_path
@@ -310,7 +311,7 @@ def test_check_file_content_non_existing(
     temp_large_binary_file: Path,
 ) -> None:
     """The file content checker must indicate new files don't exist in SDS."""
-    file_instance = construct_file(temp_large_binary_file, sds_path=Path("./"))
+    file_instance = construct_file(temp_large_binary_file, sds_path=PurePosixPath("./"))
     file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
         file_instance
     )
@@ -347,7 +348,7 @@ def test_check_file_content_identical(
 ) -> None:
     """The file content checker must indicate when files are identical."""
     random_string = get_random_line(10, include_punctuation=False)
-    sds_path = Path("/") / random_string
+    sds_path = PurePosixPath("/") / random_string
     file_instance = construct_file(temp_file_with_text_contents, sds_path=sds_path)
 
     # upload the file to sds
@@ -395,7 +396,7 @@ def test_check_file_content_name_changed(
 ) -> None:
     """The file content checker must indicate when file names have changed."""
     random_string = get_random_line(10, include_punctuation=False)
-    sds_path = Path("/") / random_string
+    sds_path = PurePosixPath("/") / random_string
 
     # upload the file to sds
     uploaded_file = integration_client.upload_file(
@@ -455,7 +456,7 @@ def test_download_single_file(
     integration_client: Client, temp_file_with_text_contents: Path, tmp_path: Path
 ) -> None:
     """Test file download from SDS."""
-    sds_path = Path("/")
+    sds_path = PurePosixPath("/")
 
     # upload a test file
     uploaded_file = integration_client.upload_file(
@@ -498,7 +499,7 @@ def test_download_files_in_bulk(
 ) -> None:
     """Test downloading multiple files from SDS."""
     random_subdir_name = get_random_line(10, include_punctuation=False)
-    sds_path = Path("/test-tree") / random_subdir_name
+    sds_path = PurePosixPath("/test-tree") / random_subdir_name
     results = integration_client.upload(
         local_path=temp_file_tree,
         sds_path=sds_path,
@@ -584,7 +585,7 @@ def test_download_files_in_bulk(
 def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
     """Tests listing files in a directory on SDS."""
     random_subdir_name = get_random_line(10, include_punctuation=False)
-    sds_path = Path("/test-tree") / random_subdir_name
+    sds_path = PurePosixPath("/test-tree") / random_subdir_name
     results = integration_client.upload(
         local_path=temp_file_tree,
         sds_path=sds_path,
