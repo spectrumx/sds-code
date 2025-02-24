@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -165,7 +166,7 @@ class Client:
     def download(
         self,
         *,
-        from_sds_path: Path | str,
+        from_sds_path: PurePosixPath | str,
         to_local_path: Path | str,
         skip_contents: bool = False,
         overwrite: bool = False,
@@ -182,7 +183,7 @@ class Client:
         Returns:
             A list of results for each file discovered and downloaded.
         """
-        from_sds_path = Path(from_sds_path)
+        from_sds_path = PurePosixPath(from_sds_path)
         to_local_path = Path(to_local_path)
 
         # local vars
@@ -283,7 +284,7 @@ class Client:
         return results
 
     def list_files(
-        self, sds_path: Path | str, *, verbose: bool = False
+        self, sds_path: PurePosixPath | str, *, verbose: bool = False
     ) -> Paginator[File]:
         """Lists files in a given SDS path.
 
@@ -337,7 +338,7 @@ class Client:
         self,
         *,
         local_path: Path | str,
-        sds_path: Path | str = "/",
+        sds_path: PurePosixPath | str = "/",
         verbose: bool = True,
     ) -> list[Result[File]]:
         """Uploads a file or directory to SDS.
@@ -371,7 +372,7 @@ class Client:
         self,
         *,
         local_file: File | Path | str,
-        sds_path: Path | str = "/",
+        sds_path: PurePosixPath | str = "/",
     ) -> File:
         """Uploads a file to SDS.
 

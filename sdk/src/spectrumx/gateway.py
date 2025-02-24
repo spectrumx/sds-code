@@ -10,6 +10,7 @@ else:
     from enum import StrEnum
 from http import HTTPStatus
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Annotated
 from typing import Any
 
@@ -246,7 +247,7 @@ class GatewayClient:
     def list_files(
         self,
         *,
-        sds_path: Path,
+        sds_path: PurePosixPath,
         page: int = 1,
         page_size: int = 30,
         verbose: bool = False,
@@ -430,7 +431,7 @@ class GatewayClient:
     def create_capture(
         self,
         *,
-        top_level_dir: Path,
+        top_level_dir: PurePosixPath,
         capture_type: str,
         index_name: str,
         channel: str | None = None,

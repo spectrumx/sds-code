@@ -6,6 +6,7 @@ Find asset-specific tests in `./ops/`.
 
 import uuid as uuidlib
 from pathlib import Path
+from pathlib import PurePosixPath
 
 import pytest
 from loguru import logger as log
@@ -117,7 +118,7 @@ def test_dry_file_upload_does_not_request(
     assert client.dry_run is True, "Dry run must be enabled for this test."
     _file_sample = client.upload_file(
         local_file=temp_file_with_text_contents,
-        sds_path=Path("/my/upload/location"),
+        sds_path=PurePosixPath("/my/upload/location"),
     )
 
 

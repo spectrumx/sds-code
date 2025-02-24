@@ -4,7 +4,7 @@
 
 from datetime import datetime
 from datetime import timedelta
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 import pytest
@@ -22,7 +22,7 @@ def file_properties() -> dict[str, Any]:
     tz = timezone("UTC")
     return {
         "name": "test_file",
-        "directory": Path("/my/files/are/here"),
+        "directory": PurePosixPath("/my/files/are/here"),
         "media_type": "text/plain",
         "permissions": "-w-rw-r--",
         "size": 111_222_333,
@@ -48,7 +48,7 @@ def test_file_path(file_properties: dict[str, Any]) -> None:
     new_file = File(
         **file_properties,
     )
-    assert new_file.path == Path(file_properties["directory"]) / file_properties["name"]
+    assert new_file.path == file_properties["directory"] / file_properties["name"]
 
 
 def test_chmod_props(file_properties: dict[str, Any]) -> None:

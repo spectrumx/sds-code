@@ -8,6 +8,7 @@ else:
     from enum import StrEnum
 
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Annotated
 from typing import Any
 
@@ -62,7 +63,7 @@ class Capture(BaseModel):
     capture_type: Annotated[CaptureType, Field(description=_d_capture_type)]
     index_name: Annotated[str, Field(max_length=255, description=_d_index_name)]
     origin: Annotated[CaptureOrigin, Field(description=_d_origin)]
-    top_level_dir: Annotated[Path, Field(description=_d_top_level_dir)]
+    top_level_dir: Annotated[PurePosixPath, Field(description=_d_top_level_dir)]
     uuid: Annotated[UUID4, Field(description=_d_uuid)]
     files: Annotated[list[CaptureFile], Field(description=_d_capture_files)]
 
