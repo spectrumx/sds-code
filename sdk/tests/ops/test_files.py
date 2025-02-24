@@ -7,6 +7,7 @@ import tempfile
 import uuid as uuidlib
 from datetime import datetime
 from pathlib import Path
+from pathlib import PurePosixPath
 
 import pytest
 from responses import RequestsMock
@@ -95,7 +96,7 @@ def test_file_get_returns_valid(
     assert file_sample.name.startswith("dry-run-")
     assert file_sample.media_type == "text/plain"
     assert file_sample.size == file_size
-    assert file_sample.directory == Path("sds-files/dry-run/")
+    assert file_sample.directory == PurePosixPath("sds-files/dry-run/")
     assert file_sample.permissions == "rw-rw-r--"
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
@@ -114,7 +115,7 @@ def test_file_upload_returns_file(
     assert client.dry_run is True, "Dry run must be enabled for this test."
     file_sample = client.upload_file(
         local_file=temp_file_with_text_contents,
-        sds_path=Path("/my/upload/location"),
+        sds_path=PurePosixPath("/my/upload/location"),
     )
     assert file_sample.is_sample is False, (
         "The file must be a real file on disk (not a sample), even for this test"
@@ -129,7 +130,7 @@ def test_file_upload_returns_file(
     assert str(tmp_path) in str(file_sample.local_path), (
         "Expected the temp file directory"
     )
-    assert file_sample.directory == Path("/my/upload/location")
+    assert file_sample.directory == PurePosixPath("/my/upload/location")
     expected_permissions = "rw-rw-rw-" if sys.platform == "win32" else "rw-r--r--"
     assert file_sample.permissions == expected_permissions
 
@@ -180,13 +181,13 @@ def test_large_file_upload_mocked(
     # run the test
     file_sample = client.upload_file(
         local_file=temp_large_binary_file,
-        sds_path=Path(mocked_upload_json["directory"]),
+        sds_path=PurePosixPath(mocked_upload_json["directory"]),
     )
     assert file_sample.uuid == file_id, "UUID not as mocked."
     assert file_sample.name == mocked_upload_json["name"]
     assert file_sample.media_type == mocked_upload_json["media_type"]
     assert file_sample.size == file_size
-    assert file_sample.directory == Path(mocked_upload_json["directory"])
+    assert file_sample.directory == PurePosixPath(mocked_upload_json["directory"])
     assert file_sample.permissions == mocked_upload_json["permissions"]
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
