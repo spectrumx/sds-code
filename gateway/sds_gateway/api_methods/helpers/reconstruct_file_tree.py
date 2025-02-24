@@ -4,7 +4,9 @@ import uuid
 from pathlib import Path
 
 from django.conf import settings
+from django.db.models import Q
 
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
@@ -16,6 +18,7 @@ def reconstruct_tree(
     target_dir: Path,
     top_level_dir: Path,
     owner: User,
+    capture_type: CaptureType,
     scan_group: uuid.UUID | None = None,
 ) -> tuple[Path, list[File]]:
     """Reconstructs a file tree from files in MinIO into a temp dir.
@@ -24,6 +27,7 @@ def reconstruct_tree(
         target_dir: The server location where the file tree will be reconstructed.
         top_level_dir: The virtual directory of the tree root in SDS.
         owner: The owner of the files to reconstruct.
+        capture_type: The type of capture (DigitalRF or RadioHound)
         scan_group: Optional UUID to filter files by scan group.
     Returns:
         The path to the reconstructed file tree
@@ -39,12 +43,22 @@ def reconstruct_tree(
         raise ValueError(msg)
     reconstructed_root = target_dir / top_level_dir
 
+    owned_files_filter_by_capture_type = {
+        CaptureType.DigitalRF: Q(
+            directory__startswith=top_level_dir,
+            owner=owner,
+        ),
+        CaptureType.RadioHound: Q(
+            directory=f"{top_level_dir.as_posix()}/",  # Match directory format in DB
+            name__endswith=".rh.json",
+            owner=owner,
+        ),
+    }
     # Get all files owned by user in this directory
     owned_files = {
         f.name: f
         for f in File.objects.filter(
-            directory__startswith=top_level_dir,
-            owner=owner,
+            owned_files_filter_by_capture_type[capture_type],
         )
     }
 
@@ -59,7 +73,7 @@ def reconstruct_tree(
         )
 
     # If scan_group provided, filter files by it
-    if scan_group:
+    if scan_group and capture_type == CaptureType.RadioHound:
         files_to_connect = find_files_in_scan_group(
             scan_group,
             reconstructed_root,
