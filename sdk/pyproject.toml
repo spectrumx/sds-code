@@ -52,7 +52,8 @@
         DEP004 = ["rich"]
 
     [tool.deptry.package_module_name_map]
-        python-dotenv = "dotenv"
+        backports-strenum = "backports"
+        python-dotenv     = "dotenv"
 
 [tool.pylint]
 
