@@ -1,6 +1,11 @@
 # SpectrumX SDK Changelog
 
-## `0.1.6` - Future
+## `0.1.7` - Future
+
+## `0.1.6` - 2025-02-24
+
++ New features:
+    + Support for Python 3.10 and 3.11.
 
 ## `0.1.5` - 2025-02-10
 
