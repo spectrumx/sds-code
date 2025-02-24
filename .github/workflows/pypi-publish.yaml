@@ -15,7 +15,9 @@ on:
 
 permissions:
     # 'read' to access the list of commits
-    contents: read
+    contents: "write"
+    packages: "write"
+    pull-requests: "read"
 
 jobs:
     build:
@@ -120,7 +122,7 @@ jobs:
     pypi-release:
         runs-on: ubuntu-latest
         name: pypi-release
-        needs: [build, github-release]
+        needs: [build]
         environment: pypi
         permissions:
             # A 'write' permission is mandatory for trusted publishing
