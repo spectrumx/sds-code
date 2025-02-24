@@ -10,6 +10,7 @@ from minio.error import MinioException
 from rest_framework.test import APITestCase
 
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 
@@ -163,6 +164,7 @@ class ReconstructRHFileTreeTest(APITestCase):
                 target_dir=Path(temp_dir),
                 top_level_dir=self.top_level_dir,
                 owner=self.user,
+                capture_type=CaptureType.RadioHound,
                 scan_group=self.scan_group,
             )
 

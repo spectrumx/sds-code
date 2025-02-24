@@ -121,6 +121,7 @@ class CaptureViewSet(viewsets.ViewSet):
                     target_dir=Path(temp_dir),
                     top_level_dir=top_level_dir,
                     owner=requester,
+                    capture_type=capture.capture_type,
                     scan_group=scan_group,
                 )
 
