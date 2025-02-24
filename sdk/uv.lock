@@ -638,7 +638,7 @@ wheels = [
 
 [[package]]
 name = "spectrumx"
-version = "0.1.5"
+version = "0.1.6"
 source = { editable = "." }
 dependencies = [
     { name = "backports-strenum", marker = "python_full_version < '3.11'" },
