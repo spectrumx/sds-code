@@ -5,12 +5,15 @@ set -euo pipefail
 RUN_TIMESTAMP=$(date +%s)
 
 DIR_HOST_CERTS="opensearch/data/certs"                      # where new certs will be placed
+DIR_HOST_CERTS_DJANGO="${DIR_HOST_CERTS}-django"            # copy of certs for the django app
 DIR_HOST_CERTS_TEMP="opensearch/data/.certs-$RUN_TIMESTAMP" # where new certs are generated; no trailing slash
 DIR_BACKUP="$DIR_HOST_CERTS_TEMP-backup"                    # backup location for existing certs
 DIR_RETURN="$(pwd)"                                         # return to this directory after script execution
 OPEN_SEARCH_CONTAINER_NAME="opensearch"
 ROOT_CA_PEM="root-ca.pem"
 ROOT_CA_KEY_PEM="root-ca-key.pem"
+DJANGO_UID=100
+DJANGO_GID=101
 
 # creates temp directory; checks if script can run
 function pre_conditions() {
@@ -95,6 +98,13 @@ function fix_permissions() {
     chmod 600 "$DIR_HOST_CERTS"/*
 }
 
+function create_django_copy() {
+    mkdir -p "$DIR_HOST_CERTS_DJANGO"
+    rsync -avP "$DIR_HOST_CERTS/" "$DIR_HOST_CERTS_DJANGO"
+    sudo chown -R $DJANGO_UID:$DJANGO_GID "$DIR_HOST_CERTS_DJANGO"
+    echo -e "\e[32mCerts stored in '$DIR_HOST_CERTS_DJANGO'\e[0m"
+}
+
 function main() {
     pre_conditions || exit 1
     cd "$DIR_HOST_CERTS_TEMP" || exit 1
@@ -103,6 +113,7 @@ function main() {
     cd "$DIR_RETURN" || exit 0
     replace_certs
     fix_permissions
+    create_django_copy
 }
 
 main
