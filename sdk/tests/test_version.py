@@ -1,6 +1,4 @@
-"""
-Tests for the SpectrumX client.
-"""
+"""Tests versioning of SpectrumX."""
 
 
 def test_version_exists() -> None:

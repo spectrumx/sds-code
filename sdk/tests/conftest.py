@@ -11,6 +11,7 @@ import pytest
 from loguru import logger as log
 from spectrumx import enable_logging
 from spectrumx.client import Client
+from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.models.files import File
 from spectrumx.ops import files
 from spectrumx.utils import get_random_line
@@ -189,13 +190,6 @@ def fake_files(
 # ==== helpers
 
 
-def random_bytes_generator(size: int, chunk: int = 1024) -> Generator[bytes]:
-    """Generates random binary data for tests."""
-    for _ in range(size // chunk):
-        yield os.urandom(chunk)
-    yield os.urandom(size % chunk)
-
-
 def file_content_generator(
     num_lines: int = 100, chars_per_line: int = 80
 ) -> Generator[str]:
@@ -203,3 +197,15 @@ def file_content_generator(
     for _current_line in range(num_lines):
         random_line = get_random_line(chars_per_line)
         yield f"{random_line}\n"
+
+
+def get_files_endpoint(client: Client) -> str:
+    """Returns the endpoint for the files API, with trailing slash."""
+    return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/"
+
+
+def random_bytes_generator(size: int, chunk: int = 1024) -> Generator[bytes]:
+    """Generates random binary data for tests."""
+    for _ in range(size // chunk):
+        yield os.urandom(chunk)
+    yield os.urandom(size % chunk)

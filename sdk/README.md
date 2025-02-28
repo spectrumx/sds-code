@@ -1,8 +1,8 @@
 # SpectrumX Data System | SDK
 
-![PyPI - Version](https://img.shields.io/pypi/v/spectrumx)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/spectrumx)
-![Pepy Total Downloads](https://img.shields.io/pepy/dt/spectrumx)
+[![PyPI - Version](https://img.shields.io/pypi/v/spectrumx)](https://pypi.org/project/spectrumx/)
+[![PyPI - Python Versions](https://img.shields.io/pypi/pyversions/spectrumx)](https://pypi.org/project/spectrumx/)
+[![Pepy Total Downloads](https://img.shields.io/pepy/dt/spectrumx)](https://pypi.org/project/spectrumx/)
 [![SDK Code Quality Checks](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml/badge.svg)](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml)
 
 + [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)

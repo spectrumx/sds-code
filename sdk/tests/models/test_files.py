@@ -1,4 +1,4 @@
-"""Tests for the models module."""
+"""Tests for the File model."""
 
 # pylint: disable=redefined-outer-name
 

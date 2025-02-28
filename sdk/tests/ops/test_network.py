@@ -66,7 +66,7 @@ def test_success_or_raise_contextual_exception() -> None:
     """A custom exception should be raised when used as context for client errors."""
     response = requests.Response()
     response.status_code = 400
-    response._content = b"Bad Request"
+    response._content = b'{"detail": "Bad Request"}'
 
     class CustomException(errors.SDSError):
         pass
