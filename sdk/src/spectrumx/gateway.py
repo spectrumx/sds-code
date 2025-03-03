@@ -461,3 +461,25 @@ class GatewayClient:
         )
         network.success_or_raise(response, ContextException=FileError)
         return response.content
+
+    def update_capture(
+        self,
+        *,
+        capture_uuid: uuid.UUID,
+        verbose: bool = False,
+    ) -> bytes:
+        """Updates a capture on the SDS API.
+
+        Args:
+            capture_uuid: The UUID of the capture to update.
+        Returns:
+            The response content from SDS Gateway.
+        """
+        response = self._request(
+            method=HTTPMethods.PUT,
+            endpoint=Endpoints.CAPTURES,
+            asset_id=capture_uuid.hex,
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=FileError)
+        return response.content

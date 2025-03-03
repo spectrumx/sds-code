@@ -76,3 +76,38 @@ class CaptureAPI:
             captures.append(capture)
         log.debug(f"Listing {len(captures)} captures")
         return captures
+
+    def update(
+        self,
+        *,
+        capture_uuid: uuid.UUID,
+    ) -> None:
+        """Updates a capture in SDS by re-discovering and re-indexing the files.
+
+        Re-upload the desired capture files in order to change
+        """
+        log.debug(f"Updating capture with UUID {capture_uuid}")
+
+        if self.dry_run:
+            log.debug(f"Dry run enabled: simulating capture update {capture_uuid}")
+            return
+
+        capture_raw = self.gateway.update_capture(
+            capture_uuid=capture_uuid,
+            verbose=True,
+        )
+        capture = Capture.model_validate_json(capture_raw)
+        log.debug(f"Capture updated with UUID {capture.uuid}")
+
+    def read(
+        self,
+        *,
+        capture_uuid: uuid.UUID,
+    ) -> Capture:
+        """Reads a specific capture from SDS."""
+        log.debug(f"Reading capture with UUID {capture_uuid}")
+
+        capture_raw = self.gateway.read_capture(capture_uuid=capture_uuid)
+        capture = Capture.model_validate_json(capture_raw)
+        log.debug(f"Capture read with UUID {capture.uuid}")
+        return capture
