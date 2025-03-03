@@ -449,14 +449,10 @@ class FileViewSet(ViewSet):
         try:
             # Get the file content from MinIO
             minio_response = client.get_object(
-                settings.AWS_STORAGE_BUCKET_NAME,
-                target_file.file.name,
+                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                object_name=target_file.file.name,
             )
-
-            # Read the file content into memory
             file_content = minio_response.read()
-
-            # Serve the file content as a response
             http_response = HttpResponse(
                 file_content,
                 content_type=target_file.media_type,
@@ -464,23 +460,11 @@ class FileViewSet(ViewSet):
             http_response["Content-Disposition"] = (
                 f'attachment; filename="{target_file.name}"'
             )
-        except client.exceptions.NoSuchKey as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        except client.exceptions.ResponseError as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-        else:
-            return http_response
         finally:
-            # if there was a response, close it and release the connection
             if minio_response:
                 minio_response.close()
                 minio_response.release_conn()
+        return http_response
 
 
 class CheckFileContentsExistView(APIView):
