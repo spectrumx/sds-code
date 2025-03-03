@@ -11,7 +11,7 @@ from sds_gateway.api_methods.utils.metadata_schemas import (
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 
 
-def create_index(client: OpenSearch, index_name: str, capture_type: str):
+def create_index(client: OpenSearch, index_name: str, capture_type: str) -> None:
     try:
         # Define the index settings and mappings
         index_body = {
@@ -44,12 +44,13 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
     try:
         client = get_opensearch_client()
 
-        # Create the index if it does not exist
         if not client.indices.exists(index=capture.index_name):
-            msg = f"Index {capture.index_name} not found"
-            raise ValueError(msg)
+            create_index(
+                client=client,
+                index_name=capture.index_name,
+                capture_type=capture.capture_type,
+            )
 
-        # Combine capture fields and additional fields
         document = {
             "channel": capture.channel,
             "capture_type": capture.capture_type,
@@ -57,7 +58,7 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
             "capture_props": capture_props,
         }
 
-        # Index the document in OpenSearch
+        # index capture
         client.index(
             index=capture.index_name,
             id=capture.uuid,
@@ -68,10 +69,8 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
         )
         log.info(msg)
     except os_exceptions.ConnectionError as e:
-        # Log the error
         msg = f"Failed to connect to OpenSearch: {e}"
         log.exception(msg)
-        # Handle the error (e.g., retry, raise an exception, etc.)
         raise
 
 
