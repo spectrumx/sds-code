@@ -2,7 +2,6 @@ import datetime
 from typing import Any
 from typing import cast
 
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import Paginator
 from django.db.models.query import QuerySet as Queryset
@@ -20,11 +19,12 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
+from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 
 
-class UserDetailView(LoginRequiredMixin, DetailView):
+class UserDetailView(Auth0LoginRequiredMixin, DetailView):
     model = User
     slug_field = "id"
     slug_url_kwarg = "id"
@@ -33,7 +33,7 @@ class UserDetailView(LoginRequiredMixin, DetailView):
 user_detail_view = UserDetailView.as_view()
 
 
-class UserUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = User
     fields = ["name"]
     success_message = _("Information successfully updated")
@@ -50,7 +50,7 @@ class UserUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
 user_update_view = UserUpdateView.as_view()
 
 
-class UserRedirectView(LoginRequiredMixin, RedirectView):
+class UserRedirectView(Auth0LoginRequiredMixin, RedirectView):
     permanent = False
 
     def get_redirect_url(self):
@@ -60,7 +60,7 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
 user_redirect_view = UserRedirectView.as_view()
 
 
-class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
+class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
     template_name = "users/user_api_key.html"
 
     def get(self, request, *args, **kwargs):
@@ -125,7 +125,7 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, View):
 user_generate_api_key_view = GenerateAPIKeyView.as_view()
 
 
-class ListFilesView(LoginRequiredMixin, View):
+class ListFilesView(Auth0LoginRequiredMixin, View):
     template_name = "users/file_list.html"
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
@@ -150,7 +150,7 @@ class ListFilesView(LoginRequiredMixin, View):
 user_file_list_view = ListFilesView.as_view()
 
 
-class FileDetailView(LoginRequiredMixin, DetailView):
+class FileDetailView(Auth0LoginRequiredMixin, DetailView):
     model = File
     slug_field = "uuid"
     slug_url_kwarg = "uuid"

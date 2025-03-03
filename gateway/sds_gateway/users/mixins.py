@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import AccessMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -20,3 +21,10 @@ class ApprovedUserRequiredMixin(AccessMixin):
             )
             return redirect(reverse("home"))
         return super().dispatch(request, *args, **kwargs)
+
+
+class Auth0LoginRequiredMixin(LoginRequiredMixin):
+    """Custom mixin that redirects to Auth0 login instead of the default login page"""
+
+    def get_login_url(self):
+        return reverse("auth0_login")

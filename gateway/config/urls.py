@@ -10,6 +10,7 @@ from drf_spectacular.views import SpectacularAPIView
 from drf_spectacular.views import SpectacularSwaggerView
 from loguru import logger as log
 from rest_framework.authtoken.views import obtain_auth_token
+from rest_framework.permissions import AllowAny
 
 urlpatterns = [
     path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
@@ -42,7 +43,10 @@ urlpatterns += [
     path(f"api/{settings.API_VERSION}/auth-token/", obtain_auth_token),
     path(
         f"api/{settings.API_VERSION}/schema/",
-        SpectacularAPIView.as_view(),
+        SpectacularAPIView.as_view(
+            permission_classes=[AllowAny],
+            authentication_classes=[],
+        ),
         name="api-schema",
     ),
     path(
@@ -50,6 +54,8 @@ urlpatterns += [
         SpectacularSwaggerView.as_view(
             template_name="swagger-ui.html",
             url_name="api-schema",
+            permission_classes=[AllowAny],
+            authentication_classes=[],
         ),
         name="api-docs",
     ),
