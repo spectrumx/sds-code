@@ -80,7 +80,17 @@ class CaptureViewSet(viewsets.ViewSet):
             case CaptureType.RadioHound:
                 rh_metadata_file = find_rh_metadata_file(data_path)
                 rh_data = load_rh_file(rh_metadata_file)
-                capture_props = rh_data.model_dump(mode="json")
+                rh_json = rh_data.model_dump(mode="json")
+
+                # replace "latitude" and "longitude" in the json with coordinates
+                rh_json["coordinates"] = {
+                    "lat": rh_json["latitude"],
+                    "lon": rh_json["longitude"],
+                }
+                del rh_json["latitude"]
+                del rh_json["longitude"]
+
+                capture_props = rh_json
             case _:
                 msg = f"Unrecognized capture type '{cap_type}'"
                 log.warning(msg)
