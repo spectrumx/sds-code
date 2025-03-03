@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from loguru import logger as log
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
@@ -24,6 +25,7 @@ from sds_gateway.users.models import UserAPIKey
 from .serializers import UserSerializer
 
 
+@extend_schema(exclude=True)
 class UserViewSet(
     RetrieveModelMixin,
     ListModelMixin,
@@ -46,6 +48,7 @@ class UserViewSet(
         return Response(status=status.HTTP_200_OK, data=serializer.data)
 
 
+@extend_schema(exclude=True)
 class GetAPIKeyView(APIView):
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication]

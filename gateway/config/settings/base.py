@@ -403,10 +403,9 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
     "POSTPROCESSING_HOOKS": [
         "sds_gateway.api_methods.utils.spectacular_hooks.remove_irrelevant_auth_schemes",
     ],
-    "SERVE_PERMISSIONS": [
-        "rest_framework.permissions.IsAuthenticated",
-    ],  # Allow only authenticated users to access the schema
     "SCHEMA_PATH_PREFIX": f"/api/{API_VERSION}",
+    "SERVE_PUBLIC": True,
+    "SERVE_AUTHENTICATION": None,
 }
 # django-webpack-loader
 # ------------------------------------------------------------------------------
