@@ -7,6 +7,8 @@ from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
 
+from loguru import logger as log
+
 from spectrumx.models.files import File
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
@@ -14,7 +16,7 @@ from spectrumx.utils import log_user_warning
 _tz = datetime.now().astimezone().tzinfo
 
 
-def _load_undesired_globs() -> list[str]:
+def _load_undesired_globs(ignore_file: Path | None = None) -> list[str]:
     """Returns a list of undesired glob patterns loaded from a .sds-ignore file.
 
     The .sds-ignore file is similar to a .gitignore, with one pattern per line.
@@ -23,7 +25,8 @@ def _load_undesired_globs() -> list[str]:
     Exclusions with a ! prefix are not supported.
     """
     undesired_basenames = []
-    ignore_file = Path(__file__).parent / ".sds-ignore"
+    if ignore_file is None:
+        ignore_file = Path(__file__).parent / ".sds-ignore"
     comment_indicator = "#"
     if ignore_file.is_file():
         with ignore_file.open("r") as f:
@@ -34,7 +37,7 @@ def _load_undesired_globs() -> list[str]:
             ]
             undesired_basenames = sorted([line for line in undesired_basenames if line])
     else:
-        log_user_warning("No .sds-ignore file found")
+        log.info("No .sds-ignore file found")
     return undesired_basenames
 
 

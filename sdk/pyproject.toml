@@ -304,7 +304,7 @@
         "rich>=13.9.4",
         "ruff>=0.7.2",
         "beautifulsoup4>=4.13.3",
-]
+    ]
 
     [tool.uv.workspace]
         members = ["spectrumx"]
@@ -337,7 +337,7 @@
                 "README.md",      # docs/README.md is used instead
             ]
             ignore-vcs = true
-            include = ["src/spectrumx/**/*.py", "/docs/", "/tests/"]
+            include = ["src/spectrumx/**/*.py", "/docs/", "/tests/", "src/spectrumx/**/.sds-ignore"]
 
         [tool.hatch.build.targets.wheel]
             packages = ["src/spectrumx"]
