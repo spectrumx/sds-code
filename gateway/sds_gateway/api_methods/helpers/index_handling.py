@@ -78,13 +78,15 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
 def retrieve_indexed_metadata(
     capture_or_captures: Capture | list[Capture],
 ) -> dict[str, Any]:
-    """Retrieve metadata for one or more captures.
+    """Retrieve metadata for one or more captures from OpenSearch.
 
     Args:
         capture_or_captures: Single capture or list of captures to retrieve metadata
+    Returns:
+        dict:   Mapping of capture UUID to its metadata
     """
     try:
-        client = get_opensearch_client()
+        os_client = get_opensearch_client()
 
         is_many = isinstance(capture_or_captures, list)
 
@@ -92,7 +94,7 @@ def retrieve_indexed_metadata(
             if not isinstance(capture_or_captures, Capture):  # pragma: no cover
                 msg = "Invalid input type for metadata retrieval"
                 raise ValueError(msg)
-            response = client.get(
+            response = os_client.get(
                 index=capture_or_captures.index_name,
                 id=capture_or_captures.uuid,
             )
@@ -108,15 +110,19 @@ def retrieve_indexed_metadata(
             log.warning("No captures to retrieve metadata for")
             return {}
 
-        response = client.mget(body={"docs": docs})
+        response = os_client.mget(body={"docs": docs})
 
         # check that every capture has a corresponding document in the response
         if not all(doc.get("found") for doc in response["docs"]):
             failed_capture_uuids = [
                 doc["_id"] for doc in response["docs"] if not doc.get("found")
             ]
-            msg = f"Metadata retrieval failed for captures: {failed_capture_uuids}"
-            raise ValueError(msg)
+            msg = (
+                "OpenSearch metadata retrieval failed "
+                f"for captures: {failed_capture_uuids}"
+            )
+            # report error internally, but don't fail the request for a missing document
+            log.warning(msg)
 
         # map capture uuid to its properties
         return {

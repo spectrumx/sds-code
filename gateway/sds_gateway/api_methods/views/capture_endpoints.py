@@ -278,38 +278,42 @@ class CaptureViewSet(viewsets.ViewSet):
     )
     def list(self, request: Request) -> Response:
         """List captures with optional metadata filtering."""
-        # Get capture type from query params
         capture_type = request.GET.get("capture_type", None)
-
-        # Start with base queryset filtered by user and not deleted
-        captures = Capture.objects.filter(owner=request.user, is_deleted=False)
-
-        # Filter by capture type if provided
+        owned_captures = Capture.objects.filter(
+            owner=request.user,
+            is_deleted=False,
+        )
         if capture_type:
-            captures = captures.filter(capture_type=capture_type)
+            owned_captures = owned_captures.filter(capture_type=capture_type)
+
+        # assuming `owned_captures` is a valid capture queryset,
+        #   listing past this point should either work,
+        #   or raise 5xx errors for critical failures
 
         try:
-            # Serialize and return results
-            serializer = CaptureGetSerializer(captures, many=True)
-            data = serializer.data
-            return Response(data)
-        except ValueError as e:
+            serializer = CaptureGetSerializer(owned_captures, many=True)
+            return Response(serializer.data)
+        except ValueError as err:
+            # errors raised here should be logged and treated as server errors
+            log.exception(err)
             return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": str(err)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        except os_exceptions.ConnectionError:
+        except os_exceptions.ConnectionError as err:
+            log.exception(err)
             return Response(
-                {"detail": "OpenSearch service unavailable"},
+                {"detail": "Internal service unavailable"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except (
             os_exceptions.RequestError,
             os_exceptions.OpenSearchException,
-        ) as e:
+        ) as err:
+            log.exception(err)
             return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": str(err)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(

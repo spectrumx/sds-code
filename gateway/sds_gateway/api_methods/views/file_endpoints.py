@@ -129,7 +129,6 @@ class FileViewSet(ViewSet):
                     # return path with user_dir as the "root"
                     rel_path = str(Path(value).relative_to(user_dir))
                     returned_object[key] = str(Path("/" + rel_path))
-                    log.error(returned_object[key])
                 else:
                     returned_object[key] = value
             return Response(returned_object, status=status.HTTP_201_CREATED)
