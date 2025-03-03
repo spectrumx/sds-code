@@ -1,83 +1,103 @@
 import json
-import logging
 import uuid
 from pathlib import Path
 
 from django.conf import settings
 from django.db.models import Q
+from loguru import logger as log
 
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
 
-logger = logging.getLogger(__name__)
-
 
 def reconstruct_tree(
     target_dir: Path,
-    top_level_dir: Path,
+    virtual_top_dir: Path,
     owner: User,
-    capture_type: CaptureType,
-    scan_group: uuid.UUID | None = None,
+    drf_capture_type: CaptureType,
+    rh_scan_group: uuid.UUID | None = None,
+    *,
+    verbose: bool = False,
 ) -> tuple[Path, list[File]]:
     """Reconstructs a file tree from files in MinIO into a temp dir.
 
     Args:
-        target_dir: The server location where the file tree will be reconstructed.
-        top_level_dir: The virtual directory of the tree root in SDS.
-        owner: The owner of the files to reconstruct.
-        capture_type: The type of capture (DigitalRF or RadioHound)
-        scan_group: Optional UUID to filter files by scan group.
+        target_dir:         The server dir where the file tree will be reconstructed
+        virtual_top_dir:    The virtual directory of the tree root in SDS.
+        owner:              The owner of the files to reconstruct.
+        drf_capture_type:   The type of capture (DigitalRF or RadioHound)
+        rh_scan_group:      Optional UUID to filter files by scan group.
     Returns:
         The path to the reconstructed file tree
         The list of File objects reconstructed
     """
     minio_client = get_minio_client()
-    target_dir = Path(target_dir)
+    target_dir = Path(target_dir).resolve()
+    virtual_top_dir = Path(virtual_top_dir).resolve()
     if not target_dir.is_absolute():
         msg = f"{target_dir=} must be an absolute path to reconstruct the file tree."
         raise ValueError(msg)
     if not target_dir.is_dir():
         msg = f"{target_dir=} must be a directory."
         raise ValueError(msg)
-    reconstructed_root = target_dir / top_level_dir
+
+    reconstructed_root = Path(f"{target_dir}/{virtual_top_dir}").resolve()
+    assert reconstructed_root.is_relative_to(
+        target_dir,
+    ), f"{reconstructed_root=} must be a subdirectory of {target_dir=}"
 
     owned_files_filter_by_capture_type = {
         CaptureType.DigitalRF: Q(
-            directory__startswith=top_level_dir,
             owner=owner,
+            directory__startswith=str(virtual_top_dir).rstrip("/"),  # parent dir match
         ),
         CaptureType.RadioHound: Q(
-            directory=f"{top_level_dir.as_posix()}/",  # Match directory format in DB
-            name__endswith=".rh.json",
             owner=owner,
+            name__endswith=".rh.json",
+            directory__startswith=str(virtual_top_dir).rstrip("/"),  # parent dir match
         ),
     }
     # Get all files owned by user in this directory
     owned_files = {
-        f.name: f
-        for f in File.objects.filter(
-            owned_files_filter_by_capture_type[capture_type],
+        owned_file.name: owned_file
+        for owned_file in File.objects.filter(
+            owned_files_filter_by_capture_type[drf_capture_type],
         )
     }
+    if not owned_files:
+        msg = f"No files found for {owner=} in {virtual_top_dir=}"
+        log.warning(msg)
+        return reconstructed_root, []
 
     # Reconstruct the tree
+    if verbose:
+        log.debug(f"Reconstructing tree with {len(owned_files)} files")
     for file_obj in owned_files.values():
-        local_file_path = Path(target_dir) / file_obj.directory / file_obj.name
+        local_file_path = Path(
+            f"{target_dir}/{file_obj.directory}/{file_obj.name}",
+            # must be str concatenation to handle file_obj.directory being absolute
+        ).resolve()
+        assert local_file_path.is_relative_to(
+            reconstructed_root,
+        ), f"'{local_file_path=}' must be a subdirectory of '{reconstructed_root=}'"
         local_file_path.parent.mkdir(parents=True, exist_ok=True)
+        if verbose:
+            log.debug(f"Pulling {file_obj.file.name} as {local_file_path}")
         minio_client.fget_object(
-            settings.AWS_STORAGE_BUCKET_NAME,
+            bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
             object_name=file_obj.file.name,
             file_path=str(local_file_path),
         )
 
     # If scan_group provided, filter files by it
-    if scan_group and capture_type == CaptureType.RadioHound:
-        files_to_connect = find_files_in_scan_group(
-            scan_group,
-            reconstructed_root,
-            owned_files,
+    if rh_scan_group and drf_capture_type == CaptureType.RadioHound:
+        log.debug(f"Filtering RadioHound files by scan group {rh_scan_group}")
+        files_to_connect = filter_rh_files_by_scan_group(
+            owned_files=owned_files,
+            scan_group=rh_scan_group,
+            tmp_dir_path=reconstructed_root,
         )
     else:
         files_to_connect = list(owned_files.values())
@@ -85,44 +105,55 @@ def reconstruct_tree(
     return reconstructed_root, files_to_connect
 
 
-def find_files_in_scan_group(
+def filter_rh_files_by_scan_group(
+    owned_files: dict[str, File],
     scan_group: uuid.UUID,
     tmp_dir_path: Path,
-    owned_files: dict[str, File],
+    extension: str = ".rh.json",
 ) -> list[File]:
-    """Finds all files in directory with scan_group in the file content.
+    """Filters RH files that belong to the given scan group.
 
     Args:
-        scan_group: UUID to search for in the file content
-        tmp_dir_path: Directory to search in
-
+        scan_group:     UUID to search for in the file content
+        tmp_dir_path:   Directory to search the file contents
+        owned_files:    Maps file names to File objects for metadata tracking
     Returns:
-        List of File objects that contain the scan_group in their metadata
+        List of RH File's that belong to the scan group
     """
     matching_files: list[File] = []
-    for file_path in tmp_dir_path.rglob("*.rh.json"):
+    file_count = 0
+    log.error(tmp_dir_path)
+    log.debug(f"Listing files in {tmp_dir_path}")
+    for path in tmp_dir_path.iterdir():
+        log.debug(path)
+    rh_glob = tmp_dir_path.rglob(f"{extension}")
+    for file_path in rh_glob:
+        file_count += 1
         try:
-            with file_path.open() as f:
-                content = json.load(f)
-                if (
-                    content.get("scan_group") == str(scan_group)
-                    and file_path.name in owned_files
-                ):
-                    matching_files.append(owned_files[file_path.name])
+            with file_path.open() as candidate_file:
+                content = json.load(candidate_file)
+            if (
+                content.get("scan_group") == str(scan_group)
+                and file_path.name in owned_files
+            ):
+                matching_files.append(owned_files[file_path.name])
         except (json.JSONDecodeError, KeyError) as e:
             msg = f"Error processing {file_path}: {e}"
-            logger.warning(msg)
+            log.warning(msg)
             continue
+
+    if not matching_files:
+        msg = f"No files found out of {file_count} for scan group '{scan_group}'"
+        log.warning(msg)
 
     return matching_files
 
 
-def find_rh_metadata_file(tmp_dir_path: Path) -> Path:
+def find_rh_metadata_file(tmp_dir_path: Path, extension: str = ".rh.json") -> Path:
     """Finds the RadioHound metadata file in the given directory."""
-    for file in tmp_dir_path.iterdir():
-        # find file with .rh.json extension
-        if file.name.endswith(".rh.json"):
-            return file
+    for local_file in tmp_dir_path.iterdir():
+        if local_file.name.endswith(extension):
+            return local_file
     msg = "RadioHound metadata file not found"
-    logger.exception(msg)
+    log.exception(msg)
     raise FileNotFoundError(msg)

@@ -162,10 +162,10 @@ class ReconstructRHFileTreeTest(APITestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             reconstructed_root, files = reconstruct_tree(
                 target_dir=Path(temp_dir),
-                top_level_dir=self.top_level_dir,
+                virtual_top_dir=self.top_level_dir,
                 owner=self.user,
-                capture_type=CaptureType.RadioHound,
-                scan_group=self.scan_group,
+                drf_capture_type=CaptureType.RadioHound,
+                rh_scan_group=self.scan_group,
             )
 
             # Should only return files matching scan group

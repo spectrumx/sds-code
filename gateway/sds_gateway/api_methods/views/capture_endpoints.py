@@ -45,25 +45,24 @@ class CaptureViewSet(viewsets.ViewSet):
         self,
         capture: Capture,
         data_path: Path,
-        channel: str | None = None,
+        drf_channel: str | None = None,
     ) -> None:
         """Validate and index metadata for a capture.
 
         Args:
-            capture: The capture to validate and index metadata for
-            data_path: Path to directory containing metadata or metadata file
-            channel: Optional channel name for DigitalRF captures
-            is_metadata_file: Whether data_path points to a metadata file
+            capture:        The capture to validate and index metadata for
+            data_path:      Path to directory containing metadata or metadata file
+            drf_channel:    Channel name for DigitalRF captures
         """
         capture_props: dict[str, Any] = {}
 
         # validate the metadata
         match cap_type := capture.capture_type:
             case CaptureType.DigitalRF:
-                if channel:
+                if drf_channel:
                     capture_props = validate_metadata_by_channel(
                         data_path=data_path,
-                        channel_name=channel,
+                        channel_name=drf_channel,
                     )
                 else:
                     msg = "Channel is required for DigitalRF captures"
@@ -92,9 +91,9 @@ class CaptureViewSet(viewsets.ViewSet):
     def ingest_capture(
         self,
         capture: Capture,
-        channel: str | None,
-        scan_group: uuid.UUID | None,
+        drf_channel: str | None,
         requester: User,
+        rh_scan_group: uuid.UUID | None,
         top_level_dir: Path,
     ) -> None:
         """Ingest or update a capture by handling files and metadata.
@@ -102,15 +101,12 @@ class CaptureViewSet(viewsets.ViewSet):
         This function can be used for both creating new captures
         and updating existing ones.
 
-        For creation, top_level_dir is required.
-        For updates, either top_level_dir or metadata_file_path must be provided.
-
         Args:
-            capture: The capture to ingest or update
-            requester: The user making the request
-            top_level_dir: Path to directory containing files to connect to capture
-            metadata_file_path: Path to metadata file for reindexing
-            channel: Optional channel name for DigitalRF captures
+            capture:        The capture to ingest or update
+            drf_channel:    Channel name for DigitalRF captures
+            requester:      The user making the request
+            rh_scan_group:  Optional scan group UUID for RH captures
+            top_level_dir:  Path to directory containing files to connect to capture
         """
 
         # Handle file connections if top_level_dir provided
@@ -119,10 +115,10 @@ class CaptureViewSet(viewsets.ViewSet):
                 # Reconstruct the file tree in a temporary directory
                 tmp_dir_path, files_to_connect = reconstruct_tree(
                     target_dir=Path(temp_dir),
-                    top_level_dir=top_level_dir,
+                    virtual_top_dir=top_level_dir,
                     owner=requester,
-                    capture_type=capture.capture_type,
-                    scan_group=scan_group,
+                    drf_capture_type=capture.capture_type,
+                    rh_scan_group=rh_scan_group,
                 )
 
                 # Connect the files to the capture
@@ -133,7 +129,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 self._validate_and_index_metadata(
                     capture=capture,
                     data_path=tmp_dir_path,
-                    channel=channel,
+                    drf_channel=drf_channel,
                 )
 
     @extend_schema(
@@ -165,12 +161,13 @@ class CaptureViewSet(viewsets.ViewSet):
     )
     def create(self, request: Request) -> Response:
         """Create a capture object, connecting files and indexing the metadata."""
-        channel = request.data.get("channel", None)
-        scan_group = request.data.get("scan_group", None)
+        drf_channel = request.data.get("channel", None)
+        rh_scan_group = request.data.get("scan_group", None)
         capture_type = request.data.get("capture_type", None)
-        log.info(f"Received capture_type: '{capture_type}' {type(capture_type)}")
-        log.info(f"Received channel: '{channel}' {type(channel)}")
-        log.info(f"Received scan_group: '{scan_group}' {type(scan_group)}")
+        log.debug("POST request to create capture:")
+        log.debug(f"\tcapture_type: '{capture_type}' {type(capture_type)}")
+        log.debug(f"\tchannel: '{drf_channel}' {type(drf_channel)}")
+        log.debug(f"\tscan_group: '{rh_scan_group}' {type(rh_scan_group)}")
 
         unsafe_top_level_dir = request.data.get("top_level_dir", "")
 
@@ -204,8 +201,8 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             self.ingest_capture(
                 capture=capture,
-                channel=channel,
-                scan_group=scan_group,
+                drf_channel=drf_channel,
+                rh_scan_group=rh_scan_group,
                 requester=requester,
                 top_level_dir=requested_top_level_dir,
             )
@@ -347,20 +344,31 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        owner = cast(User, request.user)
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=request.user,
+            owner=owner,
             is_deleted=False,
         )
 
+        requested_top_level_dir = sanitize_path_rel_to_user(
+            unsafe_path=target_capture.top_level_dir,
+            user=owner,
+        )
+        if requested_top_level_dir is None:
+            return Response(
+                {"detail": "Invalid capture"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             self.ingest_capture(
-                capture=cast(Capture, target_capture),
-                channel=target_capture.channel,
-                scan_group=target_capture.scan_group,
-                requester=cast(User, target_capture.owner),
-                top_level_dir=Path(target_capture.top_level_dir),
+                capture=target_capture,
+                drf_channel=target_capture.channel,
+                rh_scan_group=target_capture.scan_group,
+                requester=owner,
+                top_level_dir=requested_top_level_dir,
             )
         except ValueError as e:
             msg = f"Error handling metadata for capture '{target_capture.uuid}': {e}"
