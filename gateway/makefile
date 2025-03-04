@@ -10,7 +10,8 @@ all: build up logs
 redeploy: build down up logs
 
 build:
-	@echo "Building sds-gateway"
+	@echo "Pulling and building sds-gateway"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) pull --ignore-buildable
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) build
 
 up:
