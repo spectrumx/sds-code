@@ -18,6 +18,7 @@ else:
 from loguru import logger as log
 
 from spectrumx.errors import FileError
+from spectrumx.errors import Unset
 from spectrumx.gateway import GatewayClient
 from spectrumx.models import SDSModel
 from spectrumx.ops import files
@@ -26,10 +27,6 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 T = TypeVar("T", bound=SDSModel)
-
-
-class _Unset:
-    """Placeholder for an unset value to allow setting None."""
 
 
 class Paginator(Generic[T]):
@@ -123,7 +120,7 @@ class Paginator(Generic[T]):
         self._is_fetching: bool = False
         self._current_page_data: dict[str, Any] | None = None
         self._current_page_entries: Generator[T] = iter(())
-        self._next_element: T | _Unset = _Unset()
+        self._next_element: T | Unset = Unset()
         self._yielded_count: int = 0
 
     def __iter__(self) -> Self:
@@ -132,7 +129,7 @@ class Paginator(Generic[T]):
 
     def __next__(self) -> T:
         """Returns the next entry in the pagination."""
-        while self._next_element is not _Unset or self._has_next_page:
+        while self._next_element is not Unset or self._has_next_page:
             try:
                 self._next_element = next(self._current_page_entries)
             except StopIteration:

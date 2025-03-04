@@ -32,7 +32,7 @@ class CaptureAPI:
         *,
         top_level_dir: Path,
         capture_type: CaptureType,
-        index_name: str,
+        index_name: str = "capture_metadata",
         channel: str | None = None,
         scan_group: str | None = None,
     ) -> Capture:

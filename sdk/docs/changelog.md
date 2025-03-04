@@ -1,6 +1,10 @@
 # SpectrumX SDK Changelog
 
-## `0.1.7` - Future
+## `0.1.7` - 2025-03-04
+
++ Features:
+    + `spectrumx.api.captures.create()` now accepts a `scan_group` for RadioHound captures.
+    + `spectrumx.api.captures.create()` `index_name` is now optional and defaults to `capture_metadata`.
 
 ## `0.1.6` - 2025-02-24
 

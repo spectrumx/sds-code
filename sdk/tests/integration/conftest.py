@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from re import Pattern
 
+import dotenv
 import pytest
 from loguru import logger as log
 from responses import RequestsMock
@@ -207,5 +208,33 @@ def integration_client() -> Client:
         / "integration.env",  # contains the SDS_SECRET_TOKEN
         verbose=True,
     )
+    assert (
+        _integration_client._config.api_key is not None  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
+    ), "Client didn't load the API key."
+    assert _integration_client.dry_run is False, "Dry run mode should be disabled."
+    return _integration_client
+
+
+@pytest.fixture
+def inline_auth_integration_client() -> Client:
+    """Client instance for integration testing authenticated with inline."""
+    env_file = Path("tests") / "integration" / "integration.env"
+    env_file_loaded = dotenv.dotenv_values(env_file, verbose=True)
+    assert "SDS_SECRET_TOKEN" in env_file_loaded, (
+        f"No SDS_SECRET_TOKEN found in '{env_file}'."
+    )
+    sds_token = env_file_loaded["SDS_SECRET_TOKEN"]
+    _integration_client = Client(
+        host="sds-dev.crc.nd.edu",
+        env_config={
+            "SDS_SECRET_TOKEN": sds_token,
+            "DRY_RUN": False,
+        },
+        env_file=None,
+        verbose=True,
+    )
+    assert (
+        _integration_client._config.api_key is not None  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
+    ), "Client didn't load the API key."
     assert _integration_client.dry_run is False, "Dry run mode should be disabled."
     return _integration_client

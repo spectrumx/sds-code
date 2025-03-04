@@ -89,7 +89,6 @@ def test_capture_creation_drf(integration_client: Client) -> None:
         top_level_dir=Path(f"/{path_after_capture_data}"),
         channel=drf_channel,
         capture_type=CaptureType.DigitalRF,
-        index_name="capture_metadata",
     )
 
     # ASSERT
@@ -99,7 +98,6 @@ def test_capture_creation_drf(integration_client: Client) -> None:
     assert capture.capture_type == CaptureType.DigitalRF
     assert capture.channel == drf_channel
     assert capture.top_level_dir == Path(f"/{path_after_capture_data}")
-    assert capture.index_name == "capture_metadata"
 
     # test capture properties
     assert capture.capture_props["start_bound"] == cap_start_bound
@@ -161,7 +159,6 @@ def test_capture_creation_rh(integration_client: Client) -> None:
         top_level_dir=rel_path_capture,
         scan_group=radiohound_data["scan_group"],
         capture_type=CaptureType.RadioHound,
-        index_name="capture_metadata",
     )
 
     # ASSERT
@@ -170,7 +167,6 @@ def test_capture_creation_rh(integration_client: Client) -> None:
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == CaptureType.RadioHound
     assert capture.top_level_dir == rel_path_capture
-    assert capture.index_name == "capture_metadata"
 
     # test capture metadata
     assert capture.scan_group is not None, "Scan group should not be None"
@@ -208,7 +204,6 @@ def test_capture_listing_drf(integration_client: Client) -> None:
         assert capture.capture_type == CaptureType.DigitalRF
         assert capture.channel is not None
         assert capture.top_level_dir is not None
-        assert capture.index_name is not None
 
 
 @pytest.mark.integration
@@ -258,7 +253,6 @@ def test_capture_update_rh(integration_client: Client) -> None:
         top_level_dir=Path(f"/{rh_capture_update_sds_path}"),
         scan_group=radiohound_data["scan_group"],
         capture_type=CaptureType.RadioHound,
-        index_name="capture_metadata",
     )
 
     # ASSERT
@@ -267,7 +261,6 @@ def test_capture_update_rh(integration_client: Client) -> None:
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == CaptureType.RadioHound
     assert capture.top_level_dir == Path(f"/{rh_capture_update_sds_path}")
-    assert capture.index_name == "capture_metadata"
 
     # test capture metadata
     assert capture.capture_props, "Capture properties should not be empty"

@@ -62,6 +62,8 @@ class Client:
             verbose=self.verbose,
         )
 
+        log.warning(f"bbbbbb => {self._config.api_key}")
+
         # initialize the gateway
         self._gateway = GatewayClient(
             host=self.host,
@@ -127,8 +129,9 @@ class Client:
             log_user("Dry run is enabled: assuming successful authentication")
             log_user("To authenticate against SDS, set Client.dry_run to False")
         else:
-            log.warning("Dry run DISABLED: authenticating")
+            log.warning(f"Dry run DISABLED: authenticating against '{self.host}'")
             self._gateway.authenticate()
+        log.info("Authenticated successfully")
         self.is_authenticated = True
 
     # ======= FILE METHODS

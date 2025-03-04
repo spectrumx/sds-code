@@ -11,6 +11,8 @@ from typing import Any
 import dotenv
 from loguru import logger as log
 
+from spectrumx.errors import Unset
+
 from .models import SDSModel
 from .utils import into_human_bool
 from .utils import log_user
@@ -72,7 +74,7 @@ class SDSConfig:
     timeout: int = 30
 
     _active_config: list[Attr]
-    _env_file: Path
+    _env_file: Path | None = None
 
     def __init__(
         self,
@@ -95,7 +97,7 @@ class SDSConfig:
     def init_config(
         self,
         *,
-        env_file: Path | None,
+        env_file: Path | None | type[Unset] = Unset,
         env_config: Mapping[str, Any] | None,
         verbose: bool,
     ) -> None:
@@ -108,8 +110,13 @@ class SDSConfig:
 
         """
         base_dir = Path.cwd()
-        self._env_file = Path(env_file) if env_file else Path(".env")
-        if not self._env_file.is_absolute():
+        if env_file is Unset:
+            self._env_file = Path(".env")
+        elif isinstance(env_file, (str, Path)):
+            self._env_file = Path(env_file)
+        else:
+            self._env_file = None
+        if self._env_file and not self._env_file.is_absolute():
             self._env_file = base_dir / self._env_file
         clean_config = self.__load_config(env_cli_config=env_config, verbose=verbose)
         self._set_config(clean_config)
@@ -152,23 +159,30 @@ class SDSConfig:
         verbose: bool = False,
     ) -> list[Attr]:
         """Load the configuration."""
-        if not self._env_file.exists():
+        if self._env_file and not self._env_file.exists():
             msg = f"Environment file missing: {self._env_file}"
             log_user_warning(msg)
 
         if verbose:
-            msg = f"SDS_Config: found environment file: {self._env_file}"
-            log_user(msg)
+            if self._env_file:
+                msg = f"SDS_Config: found environment file: {self._env_file}"
+                log_user(msg)
+            else:
+                log_user("SDS_Config: not using an env file")
 
         # get variables from running env
-        env_vars = {
-            "SDS_SECRET_TOKEN": os.getenv("SDS_SECRET_TOKEN", default=None),
-        }
+        env_vars = {}
+        if secret := os.environ.get("SDS_SECRET_TOKEN"):
+            env_vars["SDS_SECRET_TOKEN"] = secret
         env_vars = {k: v for k, v in env_vars.items() if v is not None}
-        log.debug(f"SDS_Config: from env: {env_vars}")
+        log.debug(f"SDS_Config: from local env: {list(env_vars.keys())}")
 
         # merge file, cli, and env vars configs
-        if not self._env_file.exists() and self._env_file.name != ".env":
+        if (
+            self._env_file
+            and not self._env_file.exists()
+            and self._env_file.name != ".env"
+        ):
             log_user_warning(f"Custom env file not found: {self._env_file}")
         env_file_config = dotenv.dotenv_values(self._env_file, verbose=verbose)
         env_cli_config = env_cli_config or {}
