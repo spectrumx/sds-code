@@ -70,6 +70,20 @@ def into_human_bool(value: str | int | bool) -> bool:
     return False
 
 
+def is_running_in_notebook() -> bool:
+    """Check if the current environment is a Jupyter notebook."""
+    try:
+        from IPython import get_ipython  # pyright: ignore[reportPrivateImportUsage]
+
+        if "ZMQInteractiveShell" in str(get_ipython()):
+            running_in_notebook = True
+        else:
+            running_in_notebook = False
+    except ImportError:
+        running_in_notebook = False
+    return running_in_notebook
+
+
 def is_test_env() -> bool:
     """Returns whether the current environment is a test environment.
 
@@ -129,8 +143,11 @@ def get_prog_bar(iterable: Iterable[T], *args, **kwargs) -> tqdm:  # pyright: ig
     default_options = {
         "unit": "files",
         "unit_scale": True,
-        "ncols": 120,
-        "colour": "yellow",
+        # width in the terminal is in characters; in jupyter it's in pixels
+        "ncols": 800 if is_running_in_notebook() else 120,
+        # adjust colors for visibility:
+        #   terminals usually have a dark bg; jupyter outputs usually have a light bg
+        "colour": "green" if is_running_in_notebook() else "yellow",
     }
     kwargs = {**default_options, **kwargs}
 
