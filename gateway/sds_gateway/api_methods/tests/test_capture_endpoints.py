@@ -67,7 +67,6 @@ class CaptureTestCases(APITestCase):
             capture_type=CaptureType.DigitalRF,
             channel="ch0",
             top_level_dir="test-dir",
-            index_name="captures-drf",
         )
 
         self.rh_capture = Capture.objects.create(
@@ -75,7 +74,6 @@ class CaptureTestCases(APITestCase):
             capture_type=CaptureType.RadioHound,
             scan_group=self.scan_group,
             top_level_dir="test-dir",
-            index_name="captures-rh",
         )
 
         # Define test metadata
@@ -445,7 +443,6 @@ class OpenSearchErrorTestCases(APITestCase):
             capture_type=CaptureType.DigitalRF,
             channel="ch0",
             top_level_dir="test-dir",
-            index_name="captures-drf",
         )
 
         self.client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {key}")

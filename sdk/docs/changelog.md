@@ -4,7 +4,7 @@
 
 + Features:
     + `spectrumx.api.captures.create()` now accepts a `scan_group` for RadioHound captures.
-    + `spectrumx.api.captures.create()` `index_name` is now optional and defaults to `capture_metadata`.
+    + `index_name` from `spectrumx.api.captures.create()` is dropped: the index is automatically chosen from the capture type.
 
 ## `0.1.6` - 2025-02-24
 

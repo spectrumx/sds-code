@@ -18,6 +18,11 @@ if TYPE_CHECKING:
 
     from spectrumx.gateway import GatewayClient
 
+index_mapping = {
+    CaptureType.DigitalRF: "captures-drf",
+    CaptureType.RadioHound: "captures-rh",
+}
+
 
 class CaptureAPI:
     client: GatewayClient
@@ -32,11 +37,19 @@ class CaptureAPI:
         *,
         top_level_dir: Path,
         capture_type: CaptureType,
-        index_name: str = "capture_metadata",
+        index_name: str = "",
         channel: str | None = None,
         scan_group: str | None = None,
     ) -> Capture:
         """Creates a new capture in SDS."""
+        if index_name:
+            log.warning(
+                "The 'index_name' parameter is deprecated and "
+                "will be removed in future versions."
+            )
+        index_name = index_mapping.get(capture_type, index_name)
+        if not index_name:
+            log.warning(f"Could not find an index for {capture_type=}")
         log.debug(
             f"Creating capture with {top_level_dir=}, "
             f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}"
