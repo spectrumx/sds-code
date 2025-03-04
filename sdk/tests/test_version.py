@@ -1,5 +1,7 @@
 """Tests versioning of SpectrumX."""
 
+import re
+
 
 def test_version_exists() -> None:
     """Tests the version of the SpectrumX SDK exists."""
@@ -9,13 +11,19 @@ def test_version_exists() -> None:
 
 
 def test_version_sem_ver() -> None:
-    """Tests the version number follows semantic versioning."""
+    """Tests the version number follows semantic versioning.
+
+    Following https://peps.python.org/pep-0440/#public-version-identifiers
+    """
     from spectrumx import __version__
 
-    parts = __version__.split(".")
-    three_parts = 3
-    assert len(parts) == three_parts, "Version number must have three parts"
-    assert all(part.isdigit() for part in parts)
+    sem_ver_pattern: re.Pattern[str] = re.compile(
+        r"^\d+(\.\d+)*([abrc]\d+)?(\.post\d+)?(\.dev\d+)?$"
+    )
+    assert sem_ver_pattern.match(__version__), (
+        "Version number must follow semantic versioning with optional "
+        "pre-release, post-release, or dev-release segments"
+    )
 
 
 def test_version_pyproject() -> None:
