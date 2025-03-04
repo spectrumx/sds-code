@@ -11,14 +11,12 @@ client_access:
     - "cluster:admin/indices*"
     - "cluster:admin/index*"
     - "cluster:monitor/main"
-    - "indices:data/write/bulk"
-    - "indices:data/write/index"
   index_permissions:
+    - index_patterns:
+        - "*"
+      allowed_actions:
+        - "indices_all"
     - index_patterns:
         - "captures-*"
       allowed_actions:
-        - "indices:admin/*"
-        - "indices:data/*"
-        - "indices:monitor/*"
-        - "indices:data/write/bulk"
-        - "indices:data/write/index"
+        - "indices_all"
