@@ -62,8 +62,6 @@ class Client:
             verbose=self.verbose,
         )
 
-        log.warning(f"bbbbbb => {self._config.api_key}")
-
         # initialize the gateway
         self._gateway = GatewayClient(
             host=self.host,

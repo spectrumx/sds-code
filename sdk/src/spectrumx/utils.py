@@ -114,7 +114,6 @@ def clean_local_path(local_path: Path) -> Path:
     n_level = 2 if local_path.is_absolute() else 1
     email_like_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     local_path_2nd_level: str = local_path.parts[n_level]
-    log.warning(local_path_2nd_level)
     is_dirty = bool(re.match(email_like_pattern, string=local_path_2nd_level))
     if not is_dirty:
         return local_path
