@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 class CaptureTestCases(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test data."""
         # First clean up any existing test data
         self._cleanup_opensearch_documents()
@@ -63,15 +63,17 @@ class CaptureTestCases(APITestCase):
 
         # Create test captures without metadata
         self.drf_capture = Capture.objects.create(
-            owner=self.user,
             capture_type=CaptureType.DigitalRF,
             channel="ch0",
+            index_name="captures-drf",
+            owner=self.user,
             top_level_dir="test-dir",
         )
 
         self.rh_capture = Capture.objects.create(
-            owner=self.user,
             capture_type=CaptureType.RadioHound,
+            index_name="captures-rh",
+            owner=self.user,
             scan_group=self.scan_group,
             top_level_dir="test-dir",
         )
@@ -125,7 +127,7 @@ class CaptureTestCases(APITestCase):
         self._setup_opensearch_indices()
         self._index_test_metadata()
 
-    def _cleanup_opensearch_documents(self):
+    def _cleanup_opensearch_documents(self) -> None:
         """Clean up OpenSearch documents."""
         test_captures = [
             getattr(self, "drf_capture", None),
@@ -151,12 +153,13 @@ class CaptureTestCases(APITestCase):
                 except os_exceptions.OpenSearchException as e:
                     logger.debug("Error cleaning up test documents: %s", e)
 
-    def _setup_opensearch_indices(self):
+    def _setup_opensearch_indices(self) -> None:
         """Set up OpenSearch indices with proper mappings."""
         for capture, metadata_type in [
             (self.drf_capture, CaptureType.DigitalRF),
             (self.rh_capture, CaptureType.RadioHound),
         ]:
+            assert capture.index_name, "Test capture is missing index_name."
             if not self.opensearch.indices.exists(index=capture.index_name):
                 # Create mapping without supports_range field
                 mapping_properties = {}
@@ -184,7 +187,7 @@ class CaptureTestCases(APITestCase):
                     },
                 )
 
-    def _index_test_metadata(self):
+    def _index_test_metadata(self) -> None:
         """Index test metadata into OpenSearch."""
         # Index DRF capture metadata
         self.opensearch.index(
@@ -215,14 +218,14 @@ class CaptureTestCases(APITestCase):
         # Ensure immediate visibility
         self.opensearch.indices.refresh(index=self.rh_capture.index_name)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up test data."""
         super().tearDown()
 
         # Clean up OpenSearch documents
         self._cleanup_opensearch_documents()
 
-    def test_create_drf_capture_201(self):
+    def test_create_drf_capture_201(self) -> None:
         """Test creating drf capture returns metadata."""
         with patch(
             "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
@@ -279,14 +282,14 @@ class CaptureTestCases(APITestCase):
                 == "/files/testuser@example.com/test-dir"
             )
 
-    def test_update_capture_404(self):
+    def test_update_capture_404(self) -> None:
         """Test updating a non-existent capture returns 404."""
         response = self.client.put(
             self.detail_url("00000000-0000-0000-0000-000000000000"),
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_capture_200_new_metadata(self):
+    def test_update_capture_200_new_metadata(self) -> None:
         """Test updating a capture returns 200 with new metadata."""
         # update the metadata dict and insert into the capture update payload
         new_metadata = self.drf_metadata.copy()
@@ -330,7 +333,7 @@ class CaptureTestCases(APITestCase):
         assert drf_capture["top_level_dir"] == "test-dir"
         assert rh_capture["channel"] == ""
 
-    def test_list_captures_by_type_200(self):
+    def test_list_captures_by_type_200(self) -> None:
         """Test filtering captures by type returns correct metadata."""
         response = self.client.get(
             f"{self.list_url}?capture_type={CaptureType.DigitalRF}",
@@ -345,15 +348,15 @@ class CaptureTestCases(APITestCase):
         assert data[0]["capture_props"] == self.drf_metadata
         assert data[0]["channel"] == "ch0"
 
-    def test_list_captures_by_type_empty_list_200(self):
+    def test_list_captures_by_type_empty_list_200(self) -> None:
         """Test filtering captures by type that doesn't exist returns empty list."""
         response = self.client.get(f"{self.list_url}?capture_type=fake_type")
         assert response.status_code == status.HTTP_200_OK
         assert response.json() == []
 
-    def test_list_captures_empty_list_200(self):
+    def test_list_captures_empty_list_200(self) -> None:
         """Test list captures returns 200 when no captures exist."""
-        # Delete all captures
+        # delete all test user captures
         Capture.objects.filter(owner=self.user).update(
             is_deleted=True,
             deleted_at=datetime.datetime.now(datetime.UTC),
@@ -361,11 +364,11 @@ class CaptureTestCases(APITestCase):
 
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_200_OK
-        assert response.json() == []
+        assert response.json() == [], "Expected no captures"
 
-    def test_list_captures_no_metadata_400(self):
-        """Test listing captures when metadata is missing returns empty metadata."""
-        # Delete metadata from OpenSearch but keep the captures
+    def test_list_captures_no_metadata_200(self) -> None:
+        """Listing captures when metadata is missing should not fail."""
+        # delete metadata from OpenSearch but keep the captures
         self.opensearch.delete_by_query(
             index=self.drf_capture.index_name,
             body={
@@ -376,13 +379,12 @@ class CaptureTestCases(APITestCase):
                 },
             },
         )
-        # Ensure changes are visible
+        # ensure changes are visible
         self.opensearch.indices.refresh(index=self.drf_capture.index_name)
-
         response = self.client.get(self.list_url)
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_200_OK
 
-    def test_retrieve_capture_200(self):
+    def test_retrieve_capture_200(self) -> None:
         """Test retrieving a single capture returns full metadata."""
         response = self.client.get(self.detail_url(self.drf_capture.uuid))
         assert response.status_code == status.HTTP_200_OK
@@ -395,14 +397,14 @@ class CaptureTestCases(APITestCase):
         # Verify metadata is correctly retrieved for single capture
         assert data["capture_props"] == self.drf_metadata
 
-    def test_retrieve_capture_404(self):
+    def test_retrieve_capture_404(self) -> None:
         """Test retrieving a non-existent capture."""
         response = self.client.get(
             self.detail_url("00000000-0000-0000-0000-000000000000"),
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_retrieve_not_owned_capture_404(self):
+    def test_retrieve_not_owned_capture_404(self) -> None:
         """Test retrieving a capture owned by another user."""
         other_user = User.objects.create(
             email="other@test.com",
@@ -416,7 +418,7 @@ class CaptureTestCases(APITestCase):
         response = self.client.get(self.detail_url(other_capture.uuid))
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_delete_capture_204(self):
+    def test_delete_capture_204(self) -> None:
         """Test deleting a capture returns 204."""
         response = self.client.delete(self.detail_url(self.drf_capture.uuid))
         assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -425,7 +427,7 @@ class CaptureTestCases(APITestCase):
 class OpenSearchErrorTestCases(APITestCase):
     """Test cases for OpenSearch error handling in capture endpoints."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = APIClient()
         self.user = User.objects.create(
             email="testuser@example.com",
@@ -451,7 +453,7 @@ class OpenSearchErrorTestCases(APITestCase):
     @patch(
         "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
     )
-    def test_list_captures_opensearch_connection_error(self, mock_retrieve):
+    def test_list_captures_opensearch_connection_error(self, mock_retrieve) -> None:
         mock_retrieve.side_effect = os_exceptions.ConnectionError(
             "Connection refused",
         )
@@ -464,7 +466,7 @@ class OpenSearchErrorTestCases(APITestCase):
     @patch(
         "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
     )
-    def test_list_captures_opensearch_request_error(self, mock_retrieve):
+    def test_list_captures_opensearch_request_error(self, mock_retrieve) -> None:
         mock_retrieve.side_effect = os_exceptions.RequestError(
             "search_phase_execution_exception",
             "Invalid query",
@@ -479,7 +481,7 @@ class OpenSearchErrorTestCases(APITestCase):
     @patch(
         "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
     )
-    def test_list_captures_opensearch_general_error(self, mock_retrieve):
+    def test_list_captures_opensearch_general_error(self, mock_retrieve) -> None:
         mock_retrieve.side_effect = os_exceptions.OpenSearchException(
             "Unknown error occurred",
         )

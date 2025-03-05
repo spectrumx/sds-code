@@ -298,6 +298,9 @@ class CaptureViewSet(viewsets.ViewSet):
         if capture_type:
             owned_captures = owned_captures.filter(capture_type=capture_type)
 
+        if not owned_captures.exists():
+            return Response([], status=status.HTTP_200_OK)
+
         # assuming `owned_captures` is a valid capture queryset,
         #   listing past this point should either work,
         #   or raise 5xx errors for critical failures
