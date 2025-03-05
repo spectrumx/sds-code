@@ -5,11 +5,11 @@ Metadata management and web interface for SDS.
 [![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-+ [SpectrumX Data System | Gateway](#spectrumx-data-system--gateway)
-    + [Development environment](#development-environment)
-    + [Local deploy](#local-deploy)
-    + [Debugging tips](#debugging-tips)
-    + [Production deploy](#production-deploy)
+- [SpectrumX Data System | Gateway](#spectrumx-data-system--gateway)
+    - [Development environment](#development-environment)
+    - [Local deploy](#local-deploy)
+    - [Debugging tips](#debugging-tips)
+    - [Production deploy](#production-deploy)
 
 ## Development environment
 
@@ -119,16 +119,16 @@ For the local deploy:
 
     Tests that run:
 
-    + `test_authenticate`
-    + `test_create_file`
-    + `test_retrieve_file`
-    + `test_retrieve_latest_file`
-    + `test_update_file`
-    + `test_delete_file`
-    + `test_file_contents_check`
-    + `test_download_file`
-    + `test_minio_health_check`
-    + `test_opensearch_health_check`
+    - `test_authenticate`
+    - `test_create_file`
+    - `test_retrieve_file`
+    - `test_retrieve_latest_file`
+    - `test_update_file`
+    - `test_delete_file`
+    - `test_file_contents_check`
+    - `test_download_file`
+    - `test_minio_health_check`
+    - `test_opensearch_health_check`
 
 8. Run template checks:
 
@@ -138,11 +138,11 @@ For the local deploy:
 
 ## Debugging tips
 
-+ Where are my static files served from?
-    + See [localhost:3000/webpack-dev-server](http://localhost:3000/webpack-dev-server).
-+ What is the URL to X / how to see my routing table?
-    + `docker exec -it sds-gateway-local-app python manage.py show_urls`.
-    + `show_urls` is provided by `django-extensions`.
+- Where are my static files served from?
+    - See [localhost:3000/webpack-dev-server](http://localhost:3000/webpack-dev-server).
+- What is the URL to X / how to see my routing table?
+    - `docker exec -it sds-gateway-local-app python manage.py show_urls`.
+    - `show_urls` is provided by `django-extensions`.
 
 ## Production deploy
 
@@ -174,19 +174,19 @@ Keep this in mind, however:
     >
     > Follow these steps to set the secrets:
 
-    + Set most secrets, passwords, tokens, etc. to random values. You can use the following one-liner and adjust the length as needed:
+    - Set most secrets, passwords, tokens, etc. to random values. You can use the following one-liner and adjust the length as needed:
 
         ```bash
         echo $(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 64)
         ```
 
-    + In `minio.env`, **`AWS_SECRET_ACCESS_KEY` must be equal to `MINIO_ROOT_PASSWORD`**;
-    + In `django.env`, the **`DJANGO_ADMIN_URL` must end with a slash `/`**.
-    + In `django.env`, to generate the `API_KEY` get it running first, then navigate to [localhost:18000/users/generate-api-key](http://localhost:18000/users/generate-api-key) (or this path under your own domain).
-        + **Copy the generated key to that env file**. The key is not stored in the database, so you will only see it at creation time.
-    + In `django.env`, configure OAuth in Auth0's dashboard and **set the `CLIENT_ID` and `CLIENT_SECRET`** accordingly.
-    + In `django.env`, set the `SVI_SERVER_EMAIL` and `SVI_SERVER_API_KEY` to match the values in the SVI's environment variables.
-    + In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user, password, and database name** in that file.
+    - In `minio.env`, **`AWS_SECRET_ACCESS_KEY` must be equal to `MINIO_ROOT_PASSWORD`**;
+    - In `django.env`, the **`DJANGO_ADMIN_URL` must end with a slash `/`**.
+    - In `django.env`, to generate the `API_KEY` get it running first, then navigate to [localhost:18000/users/generate-api-key](http://localhost:18000/users/generate-api-key) (or this path under your own domain).
+        - **Copy the generated key to that env file**. The key is not stored in the database, so you will only see it at creation time.
+    - In `django.env`, configure OAuth in Auth0's dashboard and **set the `CLIENT_ID` and `CLIENT_SECRET`** accordingly.
+    - In `django.env`, set the `SVI_SERVER_EMAIL` and `SVI_SERVER_API_KEY` to match the values in the SVI's environment variables.
+    - In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user, password, and database name** in that file.
 
 2. **Deploy** with Docker (recommended):
 
@@ -281,11 +281,11 @@ Keep this in mind, however:
 
     If you would like to modify the OpenSearch user permissions setup (through the security configuration), see the files in `compose/production/opensearch/config` (and reference the [OpenSearch documentation for these files](https://opensearch.org/docs/latest/security/configuration/yaml/)):
 
-    + `internal_users.yml`: In this file, you can set initial users (this is where the `OPENSEARCH_USER` and admin user are set).
+    - `internal_users.yml`: In this file, you can set initial users (this is where the `OPENSEARCH_USER` and admin user are set).
 
-    + `roles.yml`: Here, you can set up custom roles for users. The extensive list of allowed permissions can be found [here](https://opensearch.org/docs/latest/security/access-control/permissions/).
+    - `roles.yml`: Here, you can set up custom roles for users. The extensive list of allowed permissions can be found [here](https://opensearch.org/docs/latest/security/access-control/permissions/).
 
-    + `roles_mapping.yml`: In this file, you can map roles to users defined in `internal_users.yml`. It is necessary to map a role directly to a user by adding them to the `users` list when using HTTP Basic Authentication with OpenSearch and not an external authentication system.
+    - `roles_mapping.yml`: In this file, you can map roles to users defined in `internal_users.yml`. It is necessary to map a role directly to a user by adding them to the `users` list when using HTTP Basic Authentication with OpenSearch and not an external authentication system.
 
     Run the following command to confirm changes:
 
@@ -293,9 +293,11 @@ Keep this in mind, however:
     docker exec -it sds-gateway-prod-opensearch /usr/share/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
         -cd /usr/share/opensearch/config/opensearch-security/ -icl -nhnv \
         -cacert /usr/share/opensearch/config/certs/root-ca.pem \
-        -cert /usr/share/opensearch/config/certs/opensearch.pem \
-        -key /usr/share/opensearch/config/certs/opensearch-key.pem
+        -cert /usr/share/opensearch/config/certs/admin.pem \
+        -key /usr/share/opensearch/config/certs/admin-key.pem
     ```
+
+    Or you can restart the OpenSearch Docker container to reflect the changes. This option takes longer as you must wait for the container to start.
 
     > [!TIP]
     > If you want to reserve users or permissions so they cannot be changed through the API and only through running the `securityadmin.sh` script, set a parameter on individual entries: `reserved: true`.
