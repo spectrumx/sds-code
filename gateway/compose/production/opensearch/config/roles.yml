@@ -11,6 +11,7 @@ client_access:
     - "cluster:admin/indices*"
     - "cluster:admin/index*"
     - "cluster:monitor/main"
+    - "cluster_composite_ops"
   index_permissions:
     - index_patterns:
         - "*"
