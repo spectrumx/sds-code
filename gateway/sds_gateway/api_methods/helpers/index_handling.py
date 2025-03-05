@@ -40,16 +40,17 @@ def create_index(client: OpenSearch, index_name: str, capture_type: str) -> None
         raise
 
 
+class UnknownIndexError(Exception):
+    pass
+
+
 def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> None:
     try:
         client = get_opensearch_client()
 
         if not client.indices.exists(index=capture.index_name):
-            create_index(
-                client=client,
-                index_name=capture.index_name,
-                capture_type=capture.capture_type,
-            )
+            msg = f"Unknown index name: {capture.index_name}"
+            raise UnknownIndexError(msg)
 
         document = {
             "channel": capture.channel,

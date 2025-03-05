@@ -23,6 +23,7 @@ from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
 )
+from sds_gateway.api_methods.helpers.index_handling import UnknownIndexError
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
@@ -206,12 +207,23 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=requester,
                 top_level_dir=requested_top_level_dir,
             )
+        except UnknownIndexError as e:
+            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
+            server_msg = (
+                f"Unknown index: '{e}'. Try running the init_indices "
+                "subcommand if this is index should exist."
+            )
+            log.error(server_msg)
+            capture.soft_delete()
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
         except ValueError as e:
-            msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+            user_msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
+            capture.soft_delete()
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
         except os_exceptions.ConnectionError as e:
-            msg = f"Error connecting to OpenSearch: {e}"
-            log.error(msg)
+            user_msg = f"Error connecting to OpenSearch: {e}"
+            log.error(user_msg)
+            capture.soft_delete()
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         get_serializer = CaptureGetSerializer(capture)
@@ -374,6 +386,14 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=owner,
                 top_level_dir=requested_top_level_dir,
             )
+        except UnknownIndexError as e:
+            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
+            server_msg = (
+                f"Unknown index: '{e}'. Try running the init_indices "
+                "subcommand if this is index should exist."
+            )
+            log.error(server_msg)
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
         except ValueError as e:
             msg = f"Error handling metadata for capture '{target_capture.uuid}': {e}"
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
