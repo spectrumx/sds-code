@@ -322,7 +322,7 @@ class FileViewSet(ViewSet):
                 "Example File Put Request",
                 summary="File Put Request Body",
                 description="This is an example of a file put request body.",
-                value=example_schema.file_put_request_example_schema,
+                value=example_schema.example_file_update_request,
                 request_only=True,
             ),
             OpenApiExample(
@@ -482,7 +482,7 @@ class CheckFileContentsExistView(APIView):
                 "Example File Contents Check Request",
                 summary="File Contents Check Request Body",
                 description="This is an example of a file contents check request body.",
-                value=example_schema.file_contents_check_request_example_schema,
+                value=example_schema.example_file_content_check_request,
                 request_only=True,
             ),
         ],

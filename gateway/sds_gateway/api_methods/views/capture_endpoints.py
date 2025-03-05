@@ -144,13 +144,13 @@ class CaptureViewSet(viewsets.ViewSet):
             OpenApiExample(
                 "Example Capture Request",
                 summary="Capture Request Body",
-                value=example_schema.capture_request_example_schema,
+                value=example_schema.example_cap_creation_request,
                 request_only=True,
             ),
             OpenApiExample(
                 "Example Capture Response",
                 summary="Capture Response Body",
-                value=example_schema.capture_response_example_schema,
+                value=example_schema.example_cap_creation_response,
                 response_only=True,
             ),
         ],
@@ -247,7 +247,7 @@ class CaptureViewSet(viewsets.ViewSet):
             OpenApiExample(
                 "Example Capture Response",
                 summary="Capture Response Body",
-                value=example_schema.capture_response_example_schema,
+                value=example_schema.example_cap_creation_response,
                 response_only=True,
             ),
         ],
