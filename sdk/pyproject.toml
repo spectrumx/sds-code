@@ -47,9 +47,9 @@
 
     [tool.deptry.per_rule_ignores]
         # https://deptry.com/usage/#per-rule-ignores
-        DEP001 = ["spectrumx"]
+        DEP001 = ["spectrumx", "IPython"]
         DEP003 = ["spectrumx"]
-        DEP004 = ["rich"]
+        DEP004 = ["rich", "bs4"]
 
     [tool.deptry.package_module_name_map]
         backports-strenum = "backports"
