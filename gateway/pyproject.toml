@@ -80,9 +80,9 @@
         # pytest-cov
         #   https://pytest-cov.readthedocs.io/en/latest/config.html
         # more verbose:
-        # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
+        # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=sds_gateway --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
         # less verbose:
-        addopts              = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --tb=short"
+        addopts              = "--maxfail=2 --new-first -rf --strict-markers --cov=sds_gateway --cov-report=html --show-capture=stdout -o log_cli=true --tb=short"
         console_output_style = "progress"
         log_auto_indent      = true
         log_cli              = true

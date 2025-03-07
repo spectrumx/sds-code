@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from loguru import logger as log
 
+
 try:
     from rich import traceback
 

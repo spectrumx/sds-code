@@ -1,11 +1,12 @@
 # Build and manage a local deploy of the SDS Gateway - NOT PRODUCTION READY
 
-.PHONY: all redeploy build up logs logs-once down restart
+.PHONY: all redeploy build build-full up logs logs-once down restart test
 
 all: build up logs
 redeploy: build down up logs
 
-# Variables
+# variables for local (dev) deployment
+APP_CONTAINER := sds-gateway-local-app
 COMPOSE_FILE := compose.local.yaml
 ENV_FILE := .envs/local/opensearch.env
 
@@ -38,3 +39,8 @@ down:
 restart:
 	@echo "Restarting sds-gateway"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) restart $(ARGS)
+
+test:
+	@echo "Running tests"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --force-color
