@@ -145,8 +145,8 @@ class CaptureTestCases(APITestCase):
                                 },
                             },
                         },
-                        refresh=True,
-                        conflicts="proceed",
+                        refresh=True,  # pyright: ignore[reportCallIssue]
+                        conflicts="proceed",  # pyright: ignore[reportCallIssue]
                     )
                     self.opensearch.indices.refresh(index=capture.index_name)
 
@@ -199,8 +199,8 @@ class CaptureTestCases(APITestCase):
                 "created_at": self.drf_capture.created_at,
                 "capture_props": self.drf_metadata,
             },
-            version=1,  # Explicitly set version
-            version_type="external",  # Use external versioning
+            version=1,  # pyright: ignore[reportCallIssue]
+            version_type="external",  # pyright: ignore[reportCallIssue]
         )
         self.opensearch.indices.refresh(index=self.drf_capture.index_name)
 
@@ -454,6 +454,8 @@ class OpenSearchErrorTestCases(APITestCase):
         "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
     )
     def test_list_captures_opensearch_connection_error(self, mock_retrieve) -> None:
+        """OpenSearch errors should be passed to clients as an internal error."""
+
         mock_retrieve.side_effect = os_exceptions.ConnectionError(
             "Connection refused",
         )
@@ -461,12 +463,16 @@ class OpenSearchErrorTestCases(APITestCase):
         response = self.client.get(self.list_url)
         mock_retrieve.assert_called_once()
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-        assert response.json() == {"detail": "OpenSearch service unavailable"}
+        res_json = response.json()
+        assert "detail" in res_json, "'detail' field missing from failed response"
+        detail = res_json["detail"]
+        assert "opensearch" not in detail.lower(), f"Unexpected detail: '{detail}'"
 
     @patch(
         "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
     )
     def test_list_captures_opensearch_request_error(self, mock_retrieve) -> None:
+        """Internal OpenSearch errors should be seen as an internal error."""
         mock_retrieve.side_effect = os_exceptions.RequestError(
             "search_phase_execution_exception",
             "Invalid query",
@@ -475,18 +481,25 @@ class OpenSearchErrorTestCases(APITestCase):
 
         response = self.client.get(self.list_url)
         mock_retrieve.assert_called_once()
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Invalid query" in response.json()["detail"]
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        res_json = response.json()
+        assert "detail" in res_json, "'detail' field missing from failed response"
+        detail = res_json["detail"]
+        assert "invalid query" not in detail.lower(), f"Unexpected detail: '{detail}'"
 
     @patch(
         "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
     )
     def test_list_captures_opensearch_general_error(self, mock_retrieve) -> None:
+        """OpenSearch errors should be passed to clients as an internal error."""
         mock_retrieve.side_effect = os_exceptions.OpenSearchException(
             "Unknown error occurred",
         )
 
         response = self.client.get(self.list_url)
         mock_retrieve.assert_called_once()
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert response.json()["detail"] == "Unknown error occurred"
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        res_json = response.json()
+        assert "detail" in res_json, "'detail' field missing from failed response"
+        detail = res_json["detail"]
+        assert "opensearch" not in detail.lower(), f"Unexpected detail: '{detail}'"

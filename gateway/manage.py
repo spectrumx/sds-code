@@ -3,6 +3,14 @@
 import os
 import sys
 from pathlib import Path
+from loguru import logger as log
+
+try:
+    from rich import traceback
+
+    traceback.install()
+except ImportError:
+    log.warning("Install rich to get nice stacktraces.")
 
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
