@@ -29,6 +29,7 @@ def reconstruct_tree(
         owner:              The owner of the files to reconstruct.
         drf_capture_type:   The type of capture (DigitalRF or RadioHound)
         rh_scan_group:      Optional UUID to filter files by scan group.
+        verbose:            Whether to log debug info.
     Returns:
         The path to the reconstructed file tree
         The list of File objects reconstructed
@@ -98,6 +99,7 @@ def reconstruct_tree(
             owned_files=owned_files,
             scan_group=rh_scan_group,
             tmp_dir_path=reconstructed_root,
+            verbose=verbose,
         )
     else:
         files_to_connect = list(owned_files.values())
@@ -110,23 +112,29 @@ def filter_rh_files_by_scan_group(
     scan_group: uuid.UUID,
     tmp_dir_path: Path,
     extension: str = ".rh.json",
+    *,
+    verbose: bool = False,
 ) -> list[File]:
     """Filters RH files that belong to the given scan group.
 
     Args:
+        owned_files:    Maps file names to File objects for metadata tracking
         scan_group:     UUID to search for in the file content
         tmp_dir_path:   Directory to search the file contents
-        owned_files:    Maps file names to File objects for metadata tracking
+        extension:      File extension to filter by
+        verbose:        Whether to log debug info
     Returns:
         List of RH File's that belong to the scan group
     """
     matching_files: list[File] = []
     file_count = 0
     log.error(tmp_dir_path)
-    log.debug(f"Listing files in {tmp_dir_path}")
-    for path in tmp_dir_path.iterdir():
-        log.debug(path)
-    rh_glob = tmp_dir_path.rglob(f"{extension}")
+    if verbose:
+        log.debug(f"Listing files in {tmp_dir_path}")
+        for path in tmp_dir_path.iterdir():
+            log.debug(path)
+    pattern = f"*{extension}"
+    rh_glob = tmp_dir_path.rglob(pattern)
     for file_path in rh_glob:
         file_count += 1
         try:
@@ -137,13 +145,18 @@ def filter_rh_files_by_scan_group(
                 and file_path.name in owned_files
             ):
                 matching_files.append(owned_files[file_path.name])
+            elif verbose:
+                log.debug(f"Skipping {file_path.name} for scan group '{scan_group}'")
         except (json.JSONDecodeError, KeyError) as e:
             msg = f"Error processing {file_path}: {e}"
             log.warning(msg)
             continue
 
-    if not matching_files:
-        msg = f"No files found out of {file_count} for scan group '{scan_group}'"
+    if file_count == 0:
+        msg = f"No files found in '{tmp_dir_path}' that match '{pattern}'"
+        log.warning(msg)
+    elif not matching_files:
+        msg = f"No files found out of {file_count} files for scan group '{scan_group}'"
         log.warning(msg)
 
     return matching_files

@@ -2,6 +2,7 @@ import json
 import tempfile
 import uuid
 from pathlib import Path
+from typing import cast
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -13,6 +14,7 @@ from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tr
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
+from sds_gateway.users.models import User as UserModel
 
 User = get_user_model()
 
@@ -42,10 +44,13 @@ class ReconstructRHFileTreeTest(APITestCase):
         self.scan_group = uuid.uuid4()
 
         # Create test user
-        self.user = User.objects.create(
-            email="testuser@example.com",
-            password="testpassword",  # noqa: S106
-            is_approved=True,
+        self.user = cast(
+            UserModel,
+            User.objects.create(
+                email="testuser@example.com",
+                password="testpassword",  # noqa: S106
+                is_approved=True,
+            ),
         )
 
         # Create test directory structure with user's email prefix
@@ -72,8 +77,8 @@ class ReconstructRHFileTreeTest(APITestCase):
         self.non_matching_files = []
 
         # Create 3 files with matching scan group
-        for i in range(3):
-            file_name = f"test_data_{i}.rh.json"
+        for idx in range(3):
+            file_name = f"test_data_{idx}.rh.json"
 
             # Create temporary file with content and create File object
             with tempfile.NamedTemporaryFile(
@@ -83,7 +88,7 @@ class ReconstructRHFileTreeTest(APITestCase):
             ) as tmp_file:
                 # Write the JSON data
                 data = self.rh_data.copy()
-                data["file_number"] = i
+                data["file_number"] = idx
                 json_data = json.dumps(data).encode()
                 tmp_file.write(json_data)
                 tmp_file.flush()
@@ -112,8 +117,8 @@ class ReconstructRHFileTreeTest(APITestCase):
 
         # Create 2 files with different scan group
         other_scan_group = uuid.uuid4()
-        for i in range(2):
-            file_name = f"other_data_{i}.rh.json"
+        for idx in range(2):
+            file_name = f"other_data_{idx}.rh.json"
 
             # Create temporary file with content and create File object
             with tempfile.NamedTemporaryFile(
@@ -124,7 +129,7 @@ class ReconstructRHFileTreeTest(APITestCase):
                 # Write the JSON data
                 data = self.rh_data.copy()
                 data["scan_group"] = str(other_scan_group)
-                data["file_number"] = i
+                data["file_number"] = idx
                 json_data = json.dumps(data).encode()
                 tmp_file.write(json_data)
                 tmp_file.flush()
@@ -151,13 +156,13 @@ class ReconstructRHFileTreeTest(APITestCase):
                     msg = f"Invalid file data: {serializer.errors}"
                     raise ValueError(msg)
 
-    def tearDown(self):
-        # Clean up files in MinIO and database
-        for file in self.matching_files + self.non_matching_files:
-            file.file.delete()  # Delete from MinIO
-            file.delete()  # Delete from database
+    def tearDown(self) -> None:
+        # clean up files in MinIO and database
+        for test_file_instance in self.matching_files + self.non_matching_files:
+            test_file_instance.file.delete()  # delete from MinIO
+            test_file_instance.delete()  # delete from database
 
-    def test_reconstruct_tree_with_scan_group(self):
+    def test_reconstruct_tree_with_scan_group(self) -> None:
         """Test reconstructing tree filters by scan group."""
         with tempfile.TemporaryDirectory() as temp_dir:
             reconstructed_root, files = reconstruct_tree(
@@ -166,17 +171,20 @@ class ReconstructRHFileTreeTest(APITestCase):
                 owner=self.user,
                 drf_capture_type=CaptureType.RadioHound,
                 rh_scan_group=self.scan_group,
+                verbose=True,
             )
 
             # Should only return files matching scan group
-            assert len(files) == len(self.matching_files)
-            for file in files:
-                assert file in self.matching_files
-                assert file not in self.non_matching_files
+            actual = len(files)
+            expected = len(self.matching_files)
+            assert actual == expected, f"Expected {expected} files, got {actual}"
+            for local_file in files:
+                assert local_file in self.matching_files
+                assert local_file not in self.non_matching_files
 
             # Verify files were reconstructed
-            for file in files:
-                reconstructed_path = reconstructed_root / file.name
+            for local_file in files:
+                reconstructed_path = reconstructed_root / local_file.name
                 assert reconstructed_path.exists()
 
                 # Verify content
