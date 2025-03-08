@@ -26,7 +26,7 @@ uuid_v4_regex = (
 # these servers will receive the actual requests from integration tests:
 passthru_hostnames = [
     "http://localhost:80",
-    "https://sds-dev.crc.nd.edu:443",
+    "https://sds-dev.crc.nd.edu",
     # "https://sds-staging.example.com:443",    # add your instance here  # noqa: ERA001
     #
     # To change the host used in these tests, see integration.env.example in this dir.
@@ -74,7 +74,7 @@ class PassthruEndpoints:
     def authentication() -> list[str]:
         """Passthrough for authentication."""
         return [
-            f"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.AUTH}"
+            f"{hostname_and_port}/{API_PATH}{API_TARGET_VERSION}/{Endpoints.AUTH}"
             for hostname_and_port in passthru_hostnames
         ]
 
@@ -82,7 +82,7 @@ class PassthruEndpoints:
     def file_content_checks() -> list[str]:
         """Passthrough for file content checks."""
         return [
-            f"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.FILE_CONTENTS_CHECK}"
+            f"{hostname_and_port}/{API_PATH}{API_TARGET_VERSION}/{Endpoints.FILE_CONTENTS_CHECK}"
             for hostname_and_port in passthru_hostnames
         ]
 
@@ -98,7 +98,7 @@ class PassthruEndpoints:
     def file_meta_download_or_upload() -> list[str]:
         """Passthrough for file metadata download or file uploads."""
         return [
-            f"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.FILES}"
+            f"{hostname_and_port}/{API_PATH}{API_TARGET_VERSION}/{Endpoints.FILES}"
             for hostname_and_port in passthru_hostnames
         ]
 
@@ -107,7 +107,7 @@ class PassthruEndpoints:
         """Passthrough for file content download."""
         return [  # file content download
             re.compile(
-                rf"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.FILES}/{uuid_v4_regex}/download"
+                rf"{hostname_and_port}/{API_PATH}{API_TARGET_VERSION}/{Endpoints.FILES}/{uuid_v4_regex}/download"
             )
             for hostname_and_port in passthru_hostnames
         ]
@@ -116,7 +116,7 @@ class PassthruEndpoints:
     def capture_creation() -> list[str]:
         """Passthrough for capture creation."""
         return [
-            f"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.CAPTURES}"
+            f"{hostname_and_port}/{API_PATH}{API_TARGET_VERSION}/{Endpoints.CAPTURES}"
             for hostname_and_port in passthru_hostnames
         ]
 

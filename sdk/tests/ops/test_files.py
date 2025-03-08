@@ -2,39 +2,39 @@
 # pylint: disable=redefined-outer-name
 
 import json
+import sys
 import tempfile
 import uuid as uuidlib
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from responses import RequestsMock
 from spectrumx import Client
-from spectrumx.gateway import API_TARGET_VERSION
+from spectrumx.gateway import Endpoints
 from spectrumx.ops.files import get_file_permissions
+from yarl import URL
 
 from tests.conftest import get_files_endpoint
 
 
-def _download_file_endpoint(client: Client, file_id: str) -> str:
+def _download_file_endpoint(client: Client, file_id: str) -> URL:
     """Returns the endpoint for downloading a file."""
-    return (
-        client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/download/"
-    )
+    return Endpoints.FILES.from_base(client.base_url_no_port) / file_id / "download/"
 
 
-def _get_file_id_endpoint(client: Client, file_id: str) -> str:
+def _get_file_id_endpoint(client: Client, file_id: str) -> URL:
     """Returns the endpoint for getting a file."""
-    return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/"
+    return Endpoints.FILES.from_base(client.base_url_no_port) / file_id / ""
 
 
-def _get_content_check_endpoint(client: Client) -> str:
+def _get_content_check_endpoint(client: Client) -> URL:
     """Returns the endpoint for the content check API."""
-    return (
-        client.base_url
-        + f"/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist/"
-    )
+    return Endpoints.UTILS_CHECK_CONTENT.from_base(client.base_url_no_port) / ""
 
 
+@pytest.mark.linux
+@pytest.mark.darwin
 def test_get_file_permissions(temp_file_empty: Path) -> None:
     """Test get_file_permissions for many permission combinations."""
     chmod_combos = {
@@ -54,9 +54,9 @@ def test_get_file_permissions(temp_file_empty: Path) -> None:
 def test_get_file_by_id(client: Client, responses: RequestsMock) -> None:
     """Given a file ID, the client must return the file."""
     uuid = uuidlib.uuid4()
-    url: str = get_files_endpoint(client) + f"{uuid.hex}/"
+    url: URL = _get_file_id_endpoint(client, uuid.hex)
     responses.get(
-        url=url,
+        url=url.human_repr(),
         status=200,
         json={
             "created_at": "2021-10-01T12:00:00Z",
@@ -106,7 +106,7 @@ def test_file_get_returns_valid(
 
 
 def test_file_upload_returns_file(
-    client: Client, temp_file_with_text_contents: Path
+    client: Client, temp_file_with_text_contents: Path, tmp_path: Path
 ) -> None:
     """The upload_file method must return a valid File instance."""
     test_file_size = temp_file_with_text_contents.stat().st_size
@@ -126,11 +126,13 @@ def test_file_upload_returns_file(
     assert file_sample.name is not None, "Expected a file name"
     assert file_sample.media_type == "text/plain", "Expected media type 'text/plain'"
     assert file_sample.size == test_file_size, "Expected the test file to be 4030 bytes"
-    assert "/tmp/pytest-" in str(  # noqa: S108
-        file_sample.local_path
-    ), "Expected the temp file directory"
+    assert str(tmp_path) in str(file_sample.local_path), (
+        "Expected the temp file directory"
+    )
     assert file_sample.directory == Path("/my/upload/location")
-    assert file_sample.permissions == "rw-r--r--"
+    expected_permissions = "rw-rw-rw-" if sys.platform == "win32" else "rw-r--r--"
+    assert file_sample.permissions == expected_permissions
+
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
     assert file_sample.expiration_date is None, (
@@ -152,7 +154,7 @@ def test_large_file_upload_mocked(
     }
     responses.add(
         method=responses.POST,
-        url=_get_content_check_endpoint(client),
+        url=_get_content_check_endpoint(client).human_repr(),
         status=201,
         json=mocked_file_content_check_json,
     )
@@ -167,9 +169,11 @@ def test_large_file_upload_mocked(
         "updated_at": "2024-12-01T12:00:00Z",
         "expiration_date": "2026-12-01T12:00:00Z",
     }
+    if sys.platform == "win32":
+        mocked_upload_json["permissions"] = "rw-rw-rw-"
     responses.add(
         method=responses.POST,
-        url=get_files_endpoint(client),
+        url=get_files_endpoint(client).human_repr(),
         status=201,
         json=mocked_upload_json,
     )
@@ -214,7 +218,7 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
     # mock the file metadata endpoint
     responses.add(
         method=responses.GET,
-        url=_get_file_id_endpoint(client, file_id=file_id.hex),
+        url=_get_file_id_endpoint(client, file_id=file_id.hex).human_repr(),
         status=200,
         body=json.dumps(file_metadata),
     )
@@ -222,7 +226,7 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
     # mock the file download endpoint
     responses.add(
         method=responses.GET,
-        url=_download_file_endpoint(client, file_id=file_id.hex),
+        url=_download_file_endpoint(client, file_id=file_id.hex).human_repr(),
         status=200,
         body=long_file_contents,
     )
@@ -268,7 +272,7 @@ def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
     }
     responses.add(
         method=responses.GET,
-        url=_get_file_id_endpoint(client, file_id=file_id.hex),
+        url=_get_file_id_endpoint(client, file_id=file_id.hex).human_repr(),
         status=200,
         body=json.dumps(file_metadata),
     )
@@ -276,7 +280,7 @@ def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
     # mock the file download endpoint
     responses.add(
         method=responses.GET,
-        url=_download_file_endpoint(client, file_id=file_id.hex),
+        url=_download_file_endpoint(client, file_id=file_id.hex).human_repr(),
         status=200,
         body=file_contents,
     )

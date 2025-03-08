@@ -5,10 +5,10 @@ from spectrumx.gateway import GatewayClient
 
 
 def test_endpoints() -> None:
-    """All endpoints must start with a slash."""
+    """All endpoints must not start with a slash."""
     assert all(
-        endpoint.startswith("/") for endpoint in Endpoints.__members__.values()
-    ), "All endpoints must start with a slash."
+        not endpoint.startswith("/") for endpoint in Endpoints.__members__.values()
+    ), "All endpoints must not start with a slash."
 
 
 def test_base_url() -> None:
@@ -19,4 +19,4 @@ def test_base_url() -> None:
         port=666,
         protocol="sds",
     )
-    assert gateway.base_url == "sds://fake-host-for-tests.crc.nd.edu:666"
+    assert gateway.base_url.human_repr() == "sds://fake-host-for-tests.crc.nd.edu:666/"

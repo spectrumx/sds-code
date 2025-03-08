@@ -13,8 +13,8 @@ from responses import RequestsMock
 from spectrumx import Client
 from spectrumx.errors import AuthError
 from spectrumx.gateway import API_TARGET_VERSION
-
-from tests.conftest import get_files_endpoint
+from spectrumx.gateway import Endpoints
+from yarl import URL
 
 # --------
 # FIXTURES
@@ -28,9 +28,46 @@ def responses_dry_run(responses: RequestsMock) -> RequestsMock:
     return responses
 
 
-def get_auth_endpoint(client: Client) -> str:
+def get_auth_endpoint(client: Client) -> URL:
     """Returns the endpoint for the auth API, with trailing slash."""
-    return client.base_url + f"/api/{API_TARGET_VERSION}/auth/"
+    return client.base_url_no_port / "api" / API_TARGET_VERSION / Endpoints.AUTH
+
+
+def get_files_endpoint(client: Client) -> URL:
+    """Returns the endpoint for the files API, with trailing slash."""
+    return client.base_url_no_port / "api" / API_TARGET_VERSION / Endpoints.FILES
+
+
+def get_content_check_endpoint(client: Client) -> URL:
+    """Returns the endpoint for the content check API."""
+    return (
+        client.base_url_no_port
+        / "api"
+        / API_TARGET_VERSION
+        / Endpoints.FILE_CONTENTS_CHECK
+    )
+
+
+def download_file_endpoint(client: Client, file_id: str) -> URL:
+    """Returns the endpoint for downloading a file."""
+    return (
+        client.base_url_no_port
+        / "api"
+        / API_TARGET_VERSION
+        / Endpoints.FILES
+        / f"{file_id}/download/"
+    )
+
+
+def get_file_endpoint(client: Client, file_id: str) -> URL:
+    """Returns the endpoint for getting a file."""
+    return (
+        client.base_url_no_port
+        / "api"
+        / API_TARGET_VERSION
+        / Endpoints.FILES
+        / f"{file_id}/"
+    )
 
 
 # ------------------------
@@ -39,7 +76,7 @@ def get_auth_endpoint(client: Client) -> str:
 def test_authentication_200_succeeds(client: Client, responses: RequestsMock) -> None:
     """Given a successful auth response, the client must be authenticated."""
     responses.get(
-        get_auth_endpoint(client),
+        get_auth_endpoint(client).human_repr(),
         body="{}",
         status=200,
         content_type="application/json",
@@ -56,7 +93,7 @@ def test_authentication_200_succeeds(client: Client, responses: RequestsMock) ->
 def test_authentication_401_fails(client: Client, responses: RequestsMock) -> None:
     """Given a failed auth response, the client must raise AuthError."""
     responses.get(
-        get_auth_endpoint(client),
+        get_auth_endpoint(client).human_repr(),
         body="{}",
         status=401,
         content_type="application/json",
@@ -92,7 +129,7 @@ def test_dry_auth_does_not_request(
     """When in dry mode, the client must not make any requests."""
     responses_dry_run.add_callback(
         responses_dry_run.GET,
-        url=get_auth_endpoint(client),
+        url=get_auth_endpoint(client).human_repr(),
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),
@@ -108,7 +145,7 @@ def test_dry_file_upload_does_not_request(
     """When in dry run mode, the upload method must not make any requests."""
     responses_dry_run.add_callback(
         responses_dry_run.POST,
-        url=get_files_endpoint(client),
+        url=get_files_endpoint(client).human_repr(),
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),
@@ -130,7 +167,7 @@ def test_dry_file_get_does_not_request(
 
     responses_dry_run.add_callback(
         responses_dry_run.GET,
-        url=get_files_endpoint(client) + f"{file_id.hex}/",
+        url=(get_files_endpoint(client) / f"{file_id.hex}/").human_repr(),
         callback=lambda _: DryModeAssertionError(
             "No requests must be made in dry run mode"
         ),
