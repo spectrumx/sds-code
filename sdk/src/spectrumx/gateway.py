@@ -23,6 +23,8 @@ from spectrumx.models.captures import CaptureType
 from .errors import AuthError
 from .errors import FileError
 from .models.files import File
+from .models.files import FileUpload
+from .models.files import PermissionRepresentation
 from .ops import network
 from .utils import is_test_env
 from .utils import log_user_warning
@@ -308,10 +310,9 @@ class GatewayClient:
             msg = "Attempting to upload a remote file. Download it first."
             raise FileError(msg)
 
-        payload = {
-            "directory": str(file_instance.directory),
-            "media_type": file_instance.media_type,
-        }
+        payload = FileUpload.from_file(file_instance).model_dump(
+            context={"mode": PermissionRepresentation.STRING}
+        )
         all_chunks: bytes = b""
         with (
             file_instance.local_path.open("rb") as file_ptr,

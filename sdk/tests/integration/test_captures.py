@@ -270,7 +270,8 @@ def test_capture_update_rh(integration_client: Client) -> None:
     )
 
     # upload a new radiohound file
-    new_radiohound_file = dir_top_level / "reference-v0-addendum.rh.json"
+    new_dir_top_level = dir_integration_data / "captures" / "radiohound-update"
+    new_radiohound_file = new_dir_top_level / "reference-v0-addendum.rh.json"
     assert new_radiohound_file.is_file(), (
         "New reference file should exist; check that "
         f"you have the right paths set: '{new_radiohound_file}'"
@@ -279,7 +280,7 @@ def test_capture_update_rh(integration_client: Client) -> None:
     _upload_assets(
         integration_client=integration_client,
         sds_path=rh_capture_update_sds_path,
-        local_path=dir_top_level,
+        local_path=new_dir_top_level,
     )
 
     # ACT
