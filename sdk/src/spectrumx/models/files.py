@@ -115,4 +115,20 @@ class File(SDSModel):
         return this_sum == other_sum
 
 
-__all__ = ["File"]
+class FileUpload(SDSModel):
+    name: str | None
+    directory: str
+    media_type: str
+    permissions: str | None
+
+    @staticmethod
+    def from_file(file: File) -> "FileUpload":
+        return FileUpload(
+            name=file.name,
+            directory=str(file.directory),
+            media_type=file.media_type,
+            permissions=file.permissions,
+        )
+
+
+__all__ = ["File", "FileUpload"]
