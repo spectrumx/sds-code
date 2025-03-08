@@ -311,6 +311,8 @@ class GatewayClient:
         payload = {
             "directory": str(file_instance.directory),
             "media_type": file_instance.media_type,
+            "name": file_instance.name,
+            "permissions": file_instance.permissions,
         }
         all_chunks: bytes = b""
         with (
