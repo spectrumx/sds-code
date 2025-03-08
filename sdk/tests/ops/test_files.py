@@ -60,6 +60,26 @@ def test_get_file_permissions(temp_file_empty: Path) -> None:
         assert get_file_permissions(temp_file_empty) == perm_string
 
 
+@pytest.mark.win32
+def test_get_file_permissions_win32(temp_file_empty: Path) -> None:
+    """
+    Test get_file_permissions for many permission combinations.
+
+    Windows only allows setting read or write permissions on a file.
+    """
+    chmod_combos = {
+        "r--r--r--": 0o400,
+        "r--r--r--": 0o440,  # noqa: F601
+        "r--r--r--": 0o444,  # noqa: F601
+        "rw-rw-rw-": 0o600,
+        "rw-rw-rw-": 0o660,  # noqa: F601
+        "rw-rw-rw-": 0o666,  # noqa: F601
+    }
+    for perm_string, chmod in chmod_combos.items():
+        temp_file_empty.chmod(chmod)
+        assert get_file_permissions(temp_file_empty) == perm_string
+
+
 def test_get_file_by_id(client: Client, responses: responses.RequestsMock) -> None:
     """Given a file ID, the client must return the file."""
     uuid = uuidlib.uuid4()
