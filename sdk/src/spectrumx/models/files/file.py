@@ -4,14 +4,16 @@ from datetime import datetime
 from multiprocessing import RLock
 from multiprocessing.synchronize import RLock as RLockT
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Annotated
 
 from pydantic import ConfigDict
 from pydantic import Field
 
 from spectrumx import utils
-
-from .base import SDSModel
+from spectrumx.models.base import SDSModel
+from spectrumx.models.files.permission import PermissionRepresentation
+from spectrumx.models.files.permission import UnixPermissionStr
 
 
 class File(SDSModel):
@@ -36,11 +38,11 @@ class File(SDSModel):
     """
 
     created_at: datetime
-    directory: Annotated[Path, Field(default_factory=Path)]
+    directory: Annotated[PurePosixPath, Field(default_factory=PurePosixPath)]
     expiration_date: datetime | None
     media_type: str
     name: str
-    permissions: str
+    permissions: UnixPermissionStr
     size: int
     updated_at: datetime
 
@@ -58,7 +60,7 @@ class File(SDSModel):
         """Post-initialization steps."""
 
     @property
-    def path(self) -> Path:
+    def path(self) -> PurePosixPath:
         """Returns the path to the file, relative to the owner's root on SDS."""
         return self.directory / self.name
 
@@ -98,12 +100,10 @@ class File(SDSModel):
     @property
     def chmod_props(self) -> str:
         """Converts human-readable permissions to chmod properties."""
-        utils.validate_file_permission_string(self.permissions)
-        one_hot = "".join(["0" if flag == "-" else "1" for flag in self.permissions])
-        perm_num = int(one_hot, base=2)
-        max_permission_num = 0o777
-        assert 0 <= perm_num <= max_permission_num, "Invalid permission number"
-        return f"{perm_num:03o}"
+        return self.model_dump(
+            include={"permissions": True},
+            context={"mode": PermissionRepresentation.OCTAL},
+        )["permissions"]
 
     def is_same_contents(self, other: "File", *, verbose: bool = False) -> bool:
         """Checks if the file has the same contents as another local file."""
@@ -115,4 +115,20 @@ class File(SDSModel):
         return this_sum == other_sum
 
 
-__all__ = ["File"]
+class FileUpload(SDSModel):
+    name: str | None
+    directory: str
+    media_type: str
+    permissions: UnixPermissionStr | None
+
+    @staticmethod
+    def from_file(file: File) -> "FileUpload":
+        return FileUpload(
+            name=file.name,
+            directory=str(file.directory),
+            media_type=file.media_type,
+            permissions=file.permissions,
+        )
+
+
+__all__ = ["File", "FileUpload"]

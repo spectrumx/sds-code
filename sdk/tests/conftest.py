@@ -2,6 +2,7 @@
 
 import os
 import random
+import sys
 import uuid
 from collections.abc import Generator
 from pathlib import Path
@@ -15,6 +16,7 @@ from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.models.files import File
 from spectrumx.ops import files
 from spectrumx.utils import get_random_line
+from yarl import URL
 
 # better traceback formatting with rich, if available
 try:
@@ -25,6 +27,18 @@ except ImportError:
     log.warning("Install rich for better tracebacks")
 
 enable_logging()
+
+# Platform Specific Testing
+PLATFORMS = set("darwin linux win32".split())
+
+
+def pytest_runtest_setup(item):
+    supported_platforms = PLATFORMS.intersection(
+        mark.name for mark in item.iter_markers()
+    )
+    plat = sys.platform
+    if supported_platforms and plat not in supported_platforms:
+        pytest.skip(f"cannot run on platform {plat}")
 
 
 # ==== fixtures
@@ -199,9 +213,9 @@ def file_content_generator(
         yield f"{random_line}\n"
 
 
-def get_files_endpoint(client: Client) -> str:
+def get_files_endpoint(client: Client) -> URL:
     """Returns the endpoint for the files API, with trailing slash."""
-    return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/"
+    return client.base_url_no_port / "api" / API_TARGET_VERSION / "assets/files/"
 
 
 def random_bytes_generator(size: int, chunk: int = 1024) -> Generator[bytes]:

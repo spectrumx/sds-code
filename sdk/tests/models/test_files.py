@@ -4,13 +4,16 @@
 
 from datetime import datetime
 from datetime import timedelta
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 from pytz import UTC
 from pytz import timezone
 from spectrumx.models.files import File
+from spectrumx.models.files import PermissionRepresentation
+from spectrumx.models.files import UnixPermissionStr
 
 
 @pytest.fixture
@@ -19,7 +22,7 @@ def file_properties() -> dict[str, Any]:
     tz = timezone("UTC")
     return {
         "name": "test_file",
-        "directory": Path("/my/files/are/here"),
+        "directory": PurePosixPath("/my/files/are/here"),
         "media_type": "text/plain",
         "permissions": "-w-rw-r--",
         "size": 111_222_333,
@@ -45,7 +48,7 @@ def test_file_path(file_properties: dict[str, Any]) -> None:
     new_file = File(
         **file_properties,
     )
-    assert new_file.path == Path(file_properties["directory"]) / file_properties["name"]
+    assert new_file.path == file_properties["directory"] / file_properties["name"]
 
 
 def test_chmod_props(file_properties: dict[str, Any]) -> None:
@@ -53,4 +56,47 @@ def test_chmod_props(file_properties: dict[str, Any]) -> None:
     new_file = File(
         **file_properties,
     )
-    assert new_file.chmod_props == "264"  # 264 (octal) <=> '-w-rw-r--'
+    assert new_file.chmod_props == "0o264"  # 264 (octal) <=> '-w-rw-r--'
+
+
+# Permission Struct
+def test_permission_deserialization() -> None:
+    class Model(BaseModel):
+        permission: UnixPermissionStr
+
+    a = Model(permission="rwx------")
+    assert a.permission == "rwx------"
+
+    b = Model(permission=0o755)
+    assert b.permission == "rwxr-xr-x"
+
+
+def test_permission_serialization() -> None:
+    class Model(BaseModel):
+        permission: UnixPermissionStr
+
+    a = Model(permission="rwx------")
+    assert a.model_dump(context={"mode": "string"}) == {"permission": "rwx------"}
+
+    assert a.model_dump(context={"mode": PermissionRepresentation.STRING}) == {
+        "permission": "rwx------"
+    }
+
+    assert a.model_dump(context={"mode": "octal"}) == {"permission": "0o700"}
+
+    assert a.model_dump(context={"mode": PermissionRepresentation.OCTAL}) == {
+        "permission": "0o700"
+    }
+
+    b = Model(permission=0o755)
+    assert b.model_dump(context={"mode": "string"}) == {"permission": "rwxr-xr-x"}
+
+    assert b.model_dump(context={"mode": PermissionRepresentation.STRING}) == {
+        "permission": "rwxr-xr-x"
+    }
+
+    assert b.model_dump(context={"mode": "octal"}) == {"permission": "0o755"}
+
+    assert b.model_dump(context={"mode": PermissionRepresentation.OCTAL}) == {
+        "permission": "0o755"
+    }

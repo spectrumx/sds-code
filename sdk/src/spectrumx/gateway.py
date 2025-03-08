@@ -9,7 +9,7 @@ if sys.version_info < (3, 11):  # noqa: UP036
 else:
     from enum import StrEnum
 from http import HTTPStatus
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Annotated
 from typing import Any
 
@@ -17,31 +17,39 @@ import requests
 from loguru import logger as log
 from pydantic import BaseModel
 from pydantic import Field
+from yarl import URL
 
 from spectrumx.models.captures import CaptureType
 
 from .errors import AuthError
 from .errors import FileError
 from .models.files import File
+from .models.files import FileUpload
+from .models.files import PermissionRepresentation
 from .ops import network
 from .utils import is_test_env
 from .utils import log_user_warning
 
-API_PATH: str = "/api/"
+API_PATH: str = "api/"
 API_TARGET_VERSION: str = "v1"
 
 
 class Endpoints(StrEnum):
     """Contains the endpoints for the SDS Gateway API."""
 
-    AUTH = "/auth"
-    CAPTURES = "/assets/captures"
-    DATASETS = "/assets/datasets"
-    EXPERIMENTS = "/assets/experiments"
-    FILE_CONTENTS_CHECK = "/assets/utils/check_contents_exist"
-    FILE_DOWNLOAD = "/assets/files/{uuid}/download"
-    FILES = "/assets/files"
-    SEARCH = "/search"
+    AUTH = "auth/"
+    CAPTURES = "assets/captures/"
+    DATASETS = "assets/datasets/"
+    EXPERIMENTS = "assets/experiments/"
+    FILE_CONTENTS_CHECK = "assets/utils/check_contents_exist/"
+    FILE_DOWNLOAD = "assets/files/{uuid}/download/"
+    FILES = "assets/files/"
+    UTILS = "assets/utils/"
+    UTILS_CHECK_CONTENT = "assets/utils/check_contents_exist/"
+    SEARCH = "search/"
+
+    def from_base(self, base: URL, **kwargs) -> URL:
+        return base / API_PATH / API_TARGET_VERSION / self.format(kwargs)
 
 
 class HTTPMethods(StrEnum):
@@ -108,7 +116,7 @@ class GatewayClient:
         endpoint: Endpoints,
         asset_id: None | str = None,
         endpoint_args: None | dict[str, Any] = None,
-    ) -> dict[str, str | dict[str, str] | bool]:
+    ) -> dict[str, URL | dict[str, str] | bool]:
         endpoint_fmt = (
             endpoint.value.format(**endpoint_args) if endpoint_args else endpoint.value
         )
@@ -117,10 +125,9 @@ class GatewayClient:
             raise ValueError(msg)
 
         assert API_TARGET_VERSION.startswith("v"), "API version must start with 'v'."
-        url_path = Path(f"{API_PATH}/{API_TARGET_VERSION}/{endpoint_fmt}")
+        url = self.base_url / API_PATH / API_TARGET_VERSION / endpoint_fmt
         if asset_id is not None:
-            url_path /= asset_id
-        url = f"{self.base_url}{url_path}/"
+            url = url / asset_id / ""
 
         is_verify = not is_test_env()
         headers = self._headers()
@@ -175,14 +182,14 @@ class GatewayClient:
         )
 
     @property
-    def base_url(self) -> str:
+    def base_url(self) -> URL:
         """Returns the base URL for the SDS API."""
-        return f"{self.protocol}://{self.host}:{self.port}"
+        return URL(f"{self.protocol}://{self.host}:{self.port}")
 
     @property
-    def base_url_no_port(self) -> str:
+    def base_url_no_port(self) -> URL:
         """Returns the base URL for the SDS API, without the port."""
-        return f"{self.protocol}://{self.host}"
+        return URL(f"{self.protocol}://{self.host}")
 
     def authenticate(self, *, verbose: bool = False) -> None:
         """Authenticates the client with the SDS API."""
@@ -244,7 +251,7 @@ class GatewayClient:
     def list_files(
         self,
         *,
-        sds_path: Path,
+        sds_path: PurePosixPath,
         page: int = 1,
         page_size: int = 30,
         verbose: bool = False,
@@ -308,10 +315,9 @@ class GatewayClient:
             msg = "Attempting to upload a remote file. Download it first."
             raise FileError(msg)
 
-        payload = {
-            "directory": str(file_instance.directory),
-            "media_type": file_instance.media_type,
-        }
+        payload = FileUpload.from_file(file_instance).model_dump(
+            context={"mode": PermissionRepresentation.STRING}
+        )
         all_chunks: bytes = b""
         with (
             file_instance.local_path.open("rb") as file_ptr,
@@ -406,7 +412,7 @@ class GatewayClient:
     def create_capture(
         self,
         *,
-        top_level_dir: Path,
+        top_level_dir: PurePosixPath,
         capture_type: str,
         index_name: str,
         channel: str | None = None,
