@@ -1,9 +1,11 @@
+import json
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
 from typing import cast
 
+from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample
@@ -287,6 +289,34 @@ class CaptureViewSet(viewsets.ViewSet):
         serializer = CaptureGetSerializer(target_capture, many=False)
         return Response(serializer.data)
 
+    def _validate_metadata_filters(
+        self, metadata_filters_str: str | None
+    ) -> list[dict[str, Any]] | None:
+        """Parse and validate metadata filters from request."""
+        if not metadata_filters_str:
+            return None
+
+        try:
+            metadata_filters = json.loads(metadata_filters_str)
+            if not isinstance(metadata_filters, list):
+                msg = "metadata_filters must be a list."
+                log.error(msg)
+                raise TypeError(msg)
+            return metadata_filters  # noqa: TRY300
+        except json.JSONDecodeError as err:
+            msg = "metadata_filters could not be parsed."
+            log.error(msg)
+            raise ValueError(msg) from err
+
+    def _paginate_captures(
+        self, captures: QuerySet[Capture], request: Request
+    ) -> Response:
+        """Paginate and serialize capture results."""
+        paginator = CapturePagination()
+        paginated_captures = paginator.paginate_queryset(captures, request=request)
+        serializer = CaptureGetSerializer(paginated_captures, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
     @extend_schema(
         parameters=[
             OpenApiParameter(
@@ -356,44 +386,25 @@ class CaptureViewSet(viewsets.ViewSet):
         if not owned_captures.exists():
             return Response([], status=status.HTTP_200_OK)
 
-        # assuming `owned_captures` is a valid capture queryset,
-        #   listing past this point should either work,
-        #   or raise 5xx errors for critical failures
-        
-        metadata_filters = request.GET.get("metadata_filters", None)
-
         try:
+            metadata_filters = self._validate_metadata_filters(
+                request.GET.get("metadata_filters")
+            )
             captures = search_captures(request.user, capture_type, metadata_filters)
-
-            # Paginate and serialize results
-            paginator = CapturePagination()
-            paginated_captures = paginator.paginate_queryset(captures, request=request)
-            serializer = CaptureGetSerializer(paginated_captures, many=True)
-            return paginator.get_paginated_response(serializer.data)
-        except ValueError as e:
+            return self._paginate_captures(captures, request)
+        except (ValueError, TypeError) as err:
             return Response(
                 {"detail": str(err)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except os_exceptions.ConnectionError as err:
-            try:
-                log.exception(err)
-            except Exception:  # noqa: BLE001
-                # used in tests when mocking this exception
-                log.error("OpenSearch connection error")
+            log.exception(err)
             return Response(
                 {"detail": "Internal service unavailable"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        except (
-            os_exceptions.RequestError,
-            os_exceptions.OpenSearchException,
-        ) as err:
-            try:
-                log.exception(err)
-            except Exception:  # noqa: BLE001
-                # used in tests when mocking this exception
-                log.error(str(err))
+        except (os_exceptions.RequestError, os_exceptions.OpenSearchException) as err:
+            log.exception(err)
             return Response(
                 {"detail": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

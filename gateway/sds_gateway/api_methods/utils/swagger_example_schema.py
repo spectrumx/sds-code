@@ -273,12 +273,56 @@ example_file_content_check_request = {
 
 capture_list_request_example_schema = {
     "capture_type": CaptureType.DigitalRF,
-    "metadata_filters": {
-        "start_bound": {"gte": 1515000000},
-        "end_bound": {"lte": 1515005000},
-    },
+    "metadata_filters": [
+        {
+            "field": "capture_props.start_bound",
+            "query_type": "range",
+            "filter_value": {
+                "gte": 1515000000,
+            },
+        },
+        {
+            "field": "capture_props.end_bound",
+            "query_type": "range",
+            "filter_value": {
+                "lte": 1515005000,
+            },
+        },
+        {
+            "field": "capture_props.center_freq",
+            "query_type": "match",
+            "filter_value": 1024000000,
+        },
+    ],
 }
 
+capture_response_example_schema = {
+    "uuid": "2c413fbb-4132-4d56-a0c0-633acdd71676",
+    "owner": {
+        "id": 1,
+        "email": "user@example.com",
+        "name": "",
+    },
+    "capture_props": {
+        "start_bound": 1515000000,
+        "end_bound": 1515005000,
+        "center_freq": 1024000000,
+    },
+    "files": [
+        {
+            "uuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "name": "file.h5",
+            "directory": "/files/user@example.com/path/to/file",
+        },
+    ],
+    "created_at": "2025-03-05T12:23:26.229351-05:00",
+    "updated_at": "2025-03-05T12:23:26.229368-05:00",
+    "deleted_at": None,
+    "is_deleted": False,
+    "channel": "fm_n",
+    "scan_group": None,
+    "capture_type": "drf",
+}
 capture_list_response_example_schema = {
     "count": 105,
     "next": "http://localhost:8000/api/latest/assets/captures/?page=2&page_size=3",

@@ -1,6 +1,7 @@
 """Tests for capture endpoints."""
 
 import datetime
+import json
 import logging
 import uuid
 from typing import cast
@@ -383,6 +384,24 @@ class CaptureTestCases(APITestCase):
         self.opensearch.indices.refresh(index=self.drf_capture.index_name)
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_200_OK
+
+    def test_list_captures_with_metadata_filters_200(self) -> None:
+        """Test listing captures with metadata filters returns correct captures."""
+        center_freq = 2000000000
+        metadata_filters = [
+            {
+                "field": "capture_props.center_freq",
+                "type": "match",
+                "value": center_freq,
+            },
+        ]
+        response = self.client.get(
+            f"{self.list_url}?metadata_filters={json.dumps(metadata_filters)}"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["capture_props"]["center_freq"] == center_freq
 
     def test_retrieve_capture_200(self) -> None:
         """Test retrieving a single capture returns full metadata."""
