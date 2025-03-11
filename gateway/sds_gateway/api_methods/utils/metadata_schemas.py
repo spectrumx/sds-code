@@ -179,72 +179,6 @@ drf_capture_index_mapping = {
     },
 }
 
-drf_index_search_params = {
-    "sample_rate_numerator": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "sample_rate_denominator": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "samples_per_second": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "start_bound": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "end_bound": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "center_freq": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "span": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "gain": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "bandwidth": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-}
-
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/radiohound/v0/schema.json
 # full mapping is not used in this repo, but is provided here for reference
 rh_capture_index_mapping = {
@@ -291,77 +225,13 @@ rh_capture_index_mapping = {
     },
 }
 
-rh_index_search_params = {
-    "metadata.fmax": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "metadata.fmin": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "metadata.nfft": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "sample_rate": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "center_frequency": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "coordinates": {
-        "accept": [
-            "match",
-            "multi_match",
-            "geo_distance",
-            "geo_bounding_box",
-        ],
-    },
-    "altitude": {
-        "accept": [
-            "match",
-            "multi_match",
-            "range",
-        ],
-    },
-    "mac_address": {
-        "accept": [
-            "match",
-            "match_phrase",
-            "multi_match",
-        ],
-    },
-    "short_name": {
-        "accept": [
-            "match",
-            "match_phrase",
-            "multi_match",
-        ],
-    },
-}
-
-rh_index_search_params_by_type = {
-    "drf": drf_index_search_params,
-    "rh": rh_index_search_params,
-}
+base_index_fields = [
+    "channel",
+    "scan_group",
+    "capture_type",
+    "created_at",
+    "capture_props",
+]
 
 capture_index_mapping_by_type = {
     "drf": drf_capture_index_mapping,

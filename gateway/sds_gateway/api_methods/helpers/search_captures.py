@@ -8,8 +8,9 @@ from opensearchpy import exceptions as os_exceptions
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.utils.metadata_schemas import base_index_fields
 from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_index_mapping_by_type as md_props_by_type,
+    capture_index_mapping_by_type as md_props_by_type,  # type: dict[CaptureType, dict[str, Any]]
 )
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.users.models import User
@@ -21,44 +22,51 @@ UNKNOWN_CAPTURE_TYPE = "Unknown capture type"
 
 
 def build_metadata_query(
-    capture_type: str,
-    metadata_filters: dict[str, Any],
+    capture_type: CaptureType | None = None,
+    metadata_filters: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Build OpenSearch query for metadata fields.
 
     Args:
         capture_type: Type of capture (e.g. 'drf')
-        metadata_filters: Dictionary of metadata field names and their filter values.
-            For range queries on supported fields, value should be a dict with
-            'gte'/'lte' keys.
-            Example: {"center_freq": {"gte": 1000000, "lte": 2000000}}
+        metadata_filters: list of dicts with 'field', 'type', and 'value' keys
 
     Returns:
         List of OpenSearch query clauses for the metadata fields
     """
-    index_mapping = md_props_by_type.get(capture_type, {})
+
+    if not capture_type:
+        # if no capture type is provided, return all fields from all capture types
+        index_mapping = {
+            capture_type: md_props_by_type[capture_type] for capture_type in CaptureType
+        }
+    else:
+        index_mapping = md_props_by_type.get(capture_type, {})
+
+    # flatten the index mapping to list of fields
+    index_fields = base_index_fields.copy()  # Start with a copy of base fields
+    for field, field_type in index_mapping.items():
+        if isinstance(field_type, dict) and field_type.get("type") == "nested":
+            for nested_field in field_type.get("properties", {}):
+                index_fields.append(f"capture_props.{field}.{nested_field}")
+        else:
+            index_fields.append(f"capture_props.{field}")
 
     # Build metadata query
     metadata_queries = []
-    for field, value in metadata_filters.items():
-        # Skip if field is not in index mapping
-        if field not in index_mapping:
-            continue
+    for query in metadata_filters:
+        field_path = query["field"]
 
-        field_path = f"metadata.{field}"
+        # warn if the field is not in the index mapping
+        # but continue to build the query
+        if field_path not in index_fields:
+            msg = (
+                f"Field '{field_path}' does not match an indexed field."
+                "The filter may not be applied to the query accurately."
+            )
+            logger.warning(msg)
 
-        # Handle range queries for supported fields
-        if isinstance(value, dict):
-            range_query: RangeValue = {}
-            if "gte" in value:
-                range_query["gte"] = value["gte"]
-            if "lte" in value:
-                range_query["lte"] = value["lte"]
-            if range_query:
-                metadata_queries.append({"range": {field_path: range_query}})
-        else:
-            # Regular exact match query
-            metadata_queries.append({"match": {field_path: value}})
+        metadata_queries.append({query["type"]: {field_path: query["value"]}})
 
     return metadata_queries
 
@@ -66,7 +74,7 @@ def build_metadata_query(
 def search_captures(
     user: User,
     capture_type: CaptureType | None = None,
-    metadata_filters: dict[str, Any] | None = None,
+    metadata_filters: list[dict[str, Any]] | None = None,
 ) -> QuerySet[Capture]:
     """Search for captures with optional metadata filtering.
 
@@ -116,7 +124,8 @@ def search_captures(
 
     # Search OpenSearch
     client = get_opensearch_client()
-    index_name = f"captures-{capture_type}"
+
+    index_name = "captures-*" if capture_type is None else f"captures-{capture_type}"
 
     try:
         response = client.search(
