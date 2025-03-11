@@ -53,7 +53,7 @@ services:
               read_only: false
               bind:
                 selinux: z
-            - source: ./opensearch/data/certs
+            - source: ./opensearch/data/certs-django
               target: /app/opensearch/data/certs
               type: bind
               read_only: true
