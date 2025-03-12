@@ -328,7 +328,7 @@ class CaptureViewSet(viewsets.ViewSet):
             ),
             OpenApiParameter(
                 name="metadata_filters",
-                type=OpenApiTypes.JSON,
+                type=OpenApiTypes.OBJECT,
                 location=OpenApiParameter.QUERY,
                 required=False,
                 description="Metadata filters to apply to the search",

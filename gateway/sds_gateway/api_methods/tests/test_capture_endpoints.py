@@ -103,8 +103,10 @@ class CaptureTestCases(APITestCase):
             "gain": 1.0,
             "hardware_board_id": "025",
             "hardware_version": "3.4",
-            "latitude": 41.699584,
-            "longitude": -86.237237,
+            "coordinates": {
+                "lat": 41.699584,
+                "lon": -86.237237,
+            },
             "mac_address": "f4e11ea46780",
             "metadata": {
                 "archive_result": True,
@@ -385,8 +387,11 @@ class CaptureTestCases(APITestCase):
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_200_OK
 
-    def test_list_captures_with_metadata_filters_200(self) -> None:
-        """Test listing captures with metadata filters returns correct captures."""
+    def test_list_captures_with_metadata_filters_no_type_200(self) -> None:
+        """
+        Test listing captures with metadata filters returns captures
+        with matching metadata, without type distinction.
+        """
         center_freq = 2000000000
         metadata_filters = [
             {
@@ -400,8 +405,87 @@ class CaptureTestCases(APITestCase):
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert len(data) == 1
-        assert data[0]["capture_props"]["center_freq"] == center_freq
+        assert data["count"] == 1, "Expected to find the DRF capture"
+        returned_center_freq = data["results"][0]["capture_props"]["center_freq"]
+        assert returned_center_freq == center_freq, (
+            "Center frequency should be equal to the filter value: "
+            f"{returned_center_freq} == {center_freq}"
+        )
+
+    def test_list_captures_with_metadata_filters_rh_200(self) -> None:
+        """
+        Test listing captures with metadata filters returns
+        the rh capture with matching metadata.
+        """
+        center_freq = 2000000000
+        metadata_filters = [
+            {
+                "field": "capture_props.metadata.fmax",
+                "type": "range",
+                "value": {
+                    "gt": center_freq,
+                },
+            },
+        ]
+        response = self.client.get(
+            f"{self.list_url}?capture_type={CaptureType.RadioHound}&metadata_filters={json.dumps(metadata_filters)}"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == 1, "Expected to find the RH capture"
+        fmax = data["results"][0]["capture_props"]["metadata"]["fmax"]
+        assert fmax > center_freq, (
+            f"fmax should be greater than center frequency: {fmax} > {center_freq}"
+        )
+
+    def test_list_captures_with_metadata_filters_geolocation_200(self) -> None:
+        """
+        Test listing captures with metadata filters returns a
+        capture with coordinates in the bounding box.
+        """
+        top_left_lat = 43
+        top_left_lon = -87
+        bottom_right_lat = 40
+        bottom_right_lon = -85
+        metadata_filters = [
+            {
+                "field": "capture_props.coordinates",
+                "type": "geo_bounding_box",
+                "value": {
+                    "top_left": {
+                        "lat": top_left_lat,
+                        "lon": top_left_lon,
+                    },
+                    "bottom_right": {
+                        "lat": bottom_right_lat,
+                        "lon": bottom_right_lon,
+                    },
+                },
+            },
+        ]
+        response = self.client.get(
+            f"{self.list_url}?metadata_filters={json.dumps(metadata_filters)}"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == 1, "Expected to find the RH capture"
+        coordinates = data["results"][0]["capture_props"]["coordinates"]
+        assert coordinates["lat"] <= top_left_lat, (
+            "Latitude should be less than or equal to top left latitude: "
+            f"{coordinates['lat']} <= {top_left_lat}"
+        )
+        assert coordinates["lon"] >= top_left_lon, (
+            "Longitude should be greater than or equal to top left longitude: "
+            f"{coordinates['lon']} >= {top_left_lon}"
+        )
+        assert coordinates["lat"] >= bottom_right_lat, (
+            "Latitude should be greater than or equal to bottom right latitude: "
+            f"{coordinates['lat']} >= {bottom_right_lat}"
+        )
+        assert coordinates["lon"] <= bottom_right_lon, (
+            "Longitude should be less than or equal to bottom right longitude: "
+            f"{coordinates['lon']} <= {bottom_right_lon}"
+        )
 
     def test_retrieve_capture_200(self) -> None:
         """Test retrieving a single capture returns full metadata."""

@@ -21,6 +21,47 @@ RangeValue = dict[str, int | float]
 UNKNOWN_CAPTURE_TYPE = "Unknown capture type"
 
 
+def handle_nested_query(
+    field_path: str,
+    query_type: str,
+    value: Any,
+    levels_nested: int,
+    last_path: str | None = None,
+) -> dict[str, Any]:
+    """Build a nested metadata query for a given field path and value.
+
+    Args:
+        field_path: Full path to the field (e.g.'capture_props.metadata.fmax')
+        query_type: Type of query (e.g. 'match', 'term')
+        value: Value to match against
+        levels_nested: Number of nested levels to traverse
+
+    Returns:
+        Nested query dictionary for OpenSearch
+    """
+
+    if levels_nested == 0:
+        return {query_type: {f"{last_path}.{field_path}": value}}
+
+    path_parts = field_path.split(".")
+    current_path = path_parts[0]
+    if last_path is not None:
+        current_path = f"{last_path}.{current_path}"
+
+    return {
+        "nested": {
+            "path": current_path,
+            "query": handle_nested_query(
+                ".".join(path_parts[1:]),
+                query_type,
+                value,
+                levels_nested - 1,
+                current_path,
+            ),
+        }
+    }
+
+
 def build_metadata_query(
     capture_type: CaptureType | None = None,
     metadata_filters: list[dict[str, Any]] | None = None,
@@ -36,10 +77,11 @@ def build_metadata_query(
     """
 
     if not capture_type:
-        # if no capture type is provided, return all fields from all capture types
-        index_mapping = {
-            capture_type: md_props_by_type[capture_type] for capture_type in CaptureType
-        }
+        # Merge all capture type properties into a single flat dictionary
+        index_mapping = {}
+        for ct in CaptureType:
+            if ct != CaptureType.SigMF:
+                index_mapping.update(md_props_by_type[ct])
     else:
         index_mapping = md_props_by_type.get(capture_type, {})
 
@@ -66,7 +108,18 @@ def build_metadata_query(
             )
             logger.warning(msg)
 
-        metadata_queries.append({query["type"]: {field_path: query["value"]}})
+        if field_path.count(".") > 0:
+            levels_nested = len(field_path.split(".")) - 1
+            metadata_queries.append(
+                handle_nested_query(
+                    field_path,
+                    query["type"],
+                    query["value"],
+                    levels_nested,
+                )
+            )
+        else:
+            metadata_queries.append({query["type"]: {field_path: query["value"]}})
 
     return metadata_queries
 
@@ -102,7 +155,7 @@ def search_captures(
         captures = captures.filter(capture_type=capture_type)
 
     # If no metadata filters, return all matching captures
-    if not metadata_filters or not capture_type:
+    if not metadata_filters:
         return captures
 
     # Build metadata query
@@ -110,14 +163,16 @@ def search_captures(
     if not metadata_queries:
         return captures
 
-    # Build the full query with both capture_type and metadata filters
+    # Build the query
+    must_clauses = []
+    if capture_type:
+        must_clauses.append({"term": {"capture_type": capture_type}})
+    must_clauses.extend(metadata_queries)
+
     query = {
         "query": {
             "bool": {
-                "must": [
-                    {"term": {"capture_type": capture_type}},
-                    *metadata_queries,
-                ],
+                "must": must_clauses,
             },
         },
     }
