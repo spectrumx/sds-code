@@ -254,12 +254,9 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:
             return file_instance
         case FileUploadMode.UPLOAD_CONTENTS_AND_METADATA:
             log_user(f"Uploading C&M '{file_path}'")
-            file_created_response = client._gateway.upload_new_file(
-                file_instance=file_instance
+            return __upload_contents_and_metadata(
+                client=client, file_instance=file_instance
             )
-            uploaded_file = File.model_validate_json(file_created_response)
-            uploaded_file.local_path = file_instance.local_path
-            return uploaded_file
         case FileUploadMode.UPLOAD_METADATA_ONLY:
             log_user(f"Uploading metadata for '{file_path}'")
             if asset_id is None:
@@ -277,6 +274,25 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:
         case _:  # pragma: no cover
             msg = f"Unexpected upload mode: {upload_mode}"
             raise SDSError(msg)
+
+
+def __upload_contents_and_metadata(*, client: Client, file_instance: File) -> File:
+    """UPLOADS a new file instance to SDS with contents and metadata.
+
+    Args:
+        file_instance:  The file instance to upload.
+    Returns:
+        The file instance with updated attributes.
+    """
+    if client.dry_run:
+        log_user("Dry run enabled: would upload contents and metadata")
+        return file_instance
+
+    assert not client.dry_run, "Internal error: expected dry run to be disabled."
+    file_response = client._gateway.upload_new_file(file_instance=file_instance)
+    uploaded_file = File.model_validate_json(file_response)
+    uploaded_file.local_path = file_instance.local_path
+    return uploaded_file
 
 
 def __update_existing_file_metadata_only(
@@ -312,7 +328,9 @@ def __update_existing_file_metadata_only(
     file_response = client._gateway.update_existing_file_metadata(
         file_instance=file_instance
     )
-    return File.model_validate_json(file_response)
+    updated_file = File.model_validate_json(file_response)
+    updated_file.local_path = file_instance.local_path
+    return updated_file
 
 
 def __upload_new_file_metadata_only(
@@ -341,7 +359,9 @@ def __upload_new_file_metadata_only(
     file_response = client._gateway.upload_new_file_metadata_only(
         file_instance=file_instance, sibling_uuid=sibling_uuid
     )
-    return File.model_validate_json(file_response)
+    uploaded_file = File.model_validate_json(file_response)
+    uploaded_file.local_path = file_instance.local_path
+    return uploaded_file
 
 
 def __get_upload_mode_and_asset(
