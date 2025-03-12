@@ -2,20 +2,20 @@ import json
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
-from typing import cast
+from typing import Any, cast
 
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiExample
-from drf_spectacular.utils import OpenApiParameter
-from drf_spectacular.utils import OpenApiResponse
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+)
 from loguru import logger as log
 from opensearchpy import exceptions as os_exceptions
-from rest_framework import status
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -26,16 +26,19 @@ from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
 )
-from sds_gateway.api_methods.helpers.index_handling import UnknownIndexError
-from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
-from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
-from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
+from sds_gateway.api_methods.helpers.index_handling import (
+    UnknownIndexError,
+    index_capture_metadata,
+)
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import (
+    find_rh_metadata_file,
+    reconstruct_tree,
+)
 from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
 from sds_gateway.api_methods.helpers.search_captures import search_captures
-from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
+from sds_gateway.api_methods.models import Capture, CaptureType
 from sds_gateway.api_methods.serializers.capture_serializers import (
+    CaptureGetSerializer,
     CapturePostSerializer,
 )
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
@@ -123,6 +126,8 @@ class CaptureViewSet(viewsets.ViewSet):
             requester:      The user making the request
             rh_scan_group:  Optional scan group UUID for RH captures
             top_level_dir:  Path to directory containing files to connect to capture
+        Raise:
+            FileNotFoundError:  If there are no files to connect to this capture
         """
         # check if the top level directory was passed
         if not top_level_dir:
@@ -146,6 +151,14 @@ class CaptureViewSet(viewsets.ViewSet):
                 rh_scan_group=rh_scan_group,
                 verbose=True,
             )
+
+            if not files_to_connect:
+                msg = (
+                    f"No files found for '{top_level_dir}' "
+                    f"matching capture '{capture.capture_type}'"
+                )
+                log.warning(msg)
+                raise FileNotFoundError(msg)
 
             # try to validate and index metadata before connecting files
             self._validate_and_index_metadata(
@@ -279,21 +292,31 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=requester,
                 top_level_dir=requested_top_level_dir,
             )
-        except UnknownIndexError as e:
-            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
+        except UnknownIndexError as err:
+            user_msg = f"Unknown index: '{err}'. Try recreating this capture."
             server_msg = (
-                f"Unknown index: '{e}'. Try running the init_indices "
+                f"Unknown index: '{err}'. Try running the init_indices "
                 "subcommand if this is index should exist."
             )
             log.error(server_msg)
             capture.soft_delete()
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
-            user_msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
+        except FileNotFoundError as err:
+            user_msg = (
+                "Could not find relevant files to create capture. "
+                f"Please, check if your files are in '{unsafe_top_level_dir}' "
+                "under SDS. You can list the files in this directory to verify."
+                f" {err}"
+            )
+            log.warning(user_msg)
             capture.soft_delete()
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError as e:
-            user_msg = f"Error connecting to OpenSearch: {e}"
+        except ValueError as err:
+            user_msg = f"Error handling metadata for capture '{capture.uuid}': {err}"
+            capture.soft_delete()
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        except os_exceptions.ConnectionError as err:
+            user_msg = f"Error connecting to OpenSearch: {err}"
             log.error(user_msg)
             capture.soft_delete()
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -530,19 +553,29 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=owner,
                 top_level_dir=requested_top_level_dir,
             )
-        except UnknownIndexError as e:
-            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
+        except UnknownIndexError as err:
+            user_msg = f"Unknown index: '{err}'. Try recreating this capture."
             server_msg = (
-                f"Unknown index: '{e}'. Try running the init_indices "
+                f"Unknown index: '{err}'. Try running the init_indices "
                 "subcommand if this is index should exist."
             )
             log.error(server_msg)
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
-            msg = f"Error handling metadata for capture '{target_capture.uuid}': {e}"
+        except FileNotFoundError as err:
+            user_msg = (
+                "Could not find relevant files to update capture. "
+                "Please, check if your files are still in "
+                f"'{target_capture.top_level_dir}' "
+                "under SDS. You can list the files in this directory to verify."
+                f" {err}"
+            )
+            log.warning(user_msg)
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as err:
+            msg = f"Error handling metadata for capture '{target_capture.uuid}': {err}"
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError as e:
-            msg = f"Error connecting to OpenSearch: {e}"
+        except os_exceptions.ConnectionError as err:
+            msg = f"Error connecting to OpenSearch: {err}"
             log.error(msg)
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
