@@ -152,8 +152,6 @@ def test_capture_creation_rh(integration_client: Client) -> None:
     with radiohound_file.open("r") as fp_json:
         radiohound_data = json.load(fp_json)
 
-    log.error(radiohound_data["scan_group"])
-
     # create a capture
     capture = integration_client.captures.create(
         top_level_dir=rel_path_capture,
@@ -194,7 +192,7 @@ def test_capture_creation_rh(integration_client: Client) -> None:
     indirect=True,
 )
 def test_capture_listing_drf(integration_client: Client) -> None:
-    """Tests reading and listing a Digital-RF capture."""
+    """Tests reading and listing Digital-RF captures."""
     captures = integration_client.captures.listing(
         capture_type=CaptureType.DigitalRF,
     )
@@ -202,8 +200,60 @@ def test_capture_listing_drf(integration_client: Client) -> None:
     for capture in captures:
         assert capture.uuid is not None, "Capture UUID should not be None"
         assert capture.capture_type == CaptureType.DigitalRF
-        assert capture.channel is not None
-        assert capture.top_level_dir is not None
+        assert capture.channel is not None, "DigitalRF capture should have a channel"
+        assert capture.top_level_dir is not None, "Top level dir should not be None"
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.capture_listing(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_listing_rh(integration_client: Client) -> None:
+    """Tests reading and listing RadioHound captures."""
+    captures = integration_client.captures.listing(
+        capture_type=CaptureType.RadioHound,
+    )
+    assert len(captures) > 0, "At least one capture should be present"
+    for capture in captures:
+        assert capture.uuid is not None, "Capture UUID should not be None"
+        assert capture.capture_type == CaptureType.RadioHound
+        assert not capture.channel, "RadioHound capture should not have a channel"
+        assert capture.top_level_dir is not None, "Top level dir should not be None"
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.capture_listing(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_listing_all(integration_client: Client) -> None:
+    """Tests reading and listing all types of captures."""
+    captures = integration_client.captures.listing()
+    assert len(captures) > 0, "At least one capture should be present"
+    for capture in captures:
+        assert capture.uuid is not None, "Capture UUID should not be None"
+        assert capture.capture_type in CaptureType.__members__.values(), (
+            "Capture type should be one of the known types: "
+            f"{CaptureType.__members__.values()}"
+        )
+        assert capture.top_level_dir is not None, "Top level dir should not be None"
 
 
 @pytest.mark.integration
@@ -302,7 +352,7 @@ def _upload_assets(
     local_path: Path,
 ) -> None:
     """Helper to upload a local directory to SDS and assert success."""
-    log.info(f"Uploading assets as '/{sds_path}'")
+    log.debug(f"Uploading assets as '/{sds_path}'")
     upload_results = integration_client.upload(
         local_path=local_path,
         sds_path=f"/{sds_path}",

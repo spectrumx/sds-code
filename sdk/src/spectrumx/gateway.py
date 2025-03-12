@@ -446,7 +446,7 @@ class GatewayClient:
     def list_captures(
         self,
         *,
-        capture_type: CaptureType,
+        capture_type: CaptureType | None = None,
         verbose: bool = False,
     ) -> bytes:
         """Lists captures on the SDS API.

@@ -78,7 +78,7 @@ class CaptureAPI:
         log.debug(f"Capture created with UUID {capture.uuid}")
         return capture
 
-    def listing(self, *, capture_type: CaptureType) -> list[Capture]:
+    def listing(self, *, capture_type: CaptureType | None = None) -> list[Capture]:
         """Lists all captures in SDS under the current user."""
         log.debug(f"Listing captures of type {capture_type}")
         captures_raw = self.gateway.list_captures(capture_type=capture_type)
