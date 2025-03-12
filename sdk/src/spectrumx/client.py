@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 
 class Client:
-    """Instantiates and SDS client."""
+    """Instantiates an SDS client."""
 
     host: str
     is_authenticated: bool
