@@ -1,6 +1,5 @@
 """File serializers for the SDS Gateway API methods."""
 
-import logging
 import uuid
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -91,24 +90,25 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
         required_fields = [
             "directory",
             "media_type",
+            "name",
         ]  # name and permissions are optional
         for field in required_fields:
-            logging.info(
-                "Checking if %s is in initial data",
-                field,
-            )
             if field not in self.initial_data:
-                self._errors = {field: ["This field is required."]}
-                return super().is_valid(raise_exception=raise_exception)
+                self._errors.update({field: ["This field is required."]})
+
+        for key, value in self._errors.items():
+            log.warning(f"'{key}': {value}")
 
         return super().is_valid(raise_exception=raise_exception)
 
     def create(self, validated_data: dict[str, Any]) -> File:
-        # Set the owner to the request user
+        """Creates a new file instance validating and saving the data."""
+
+        # set the owner to the request user
         validated_data["owner"] = self.context["request_user"]
         user_files_dir = f"/files/{validated_data['owner'].email}"
 
-        # Ensure directory is not a relative path
+        # ensure directory is not a relative path
         if not PurePosixPath(validated_data["directory"]).is_absolute():
             raise serializers.ValidationError(
                 {"detail": "Relative paths are not allowed."},
@@ -225,7 +225,7 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
         # make sure path ends in a slash
         directory = directory.rstrip("/") + "/"
 
-        log.info(f"Checking file contents for user in directory: {directory}")
+        log.debug(f"Checking file contents for user in directory: {directory}")
         identical_file = identical_user_owned_file.filter(
             directory=directory,
             name=name,
@@ -254,7 +254,7 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
             "user_mutable_attributes_differ": user_mutable_attributes_differ,
             "asset_id": asset.uuid if asset else None,
         }
-        log.info(payload)
+        log.debug(payload)
         return payload
 
 

@@ -1,6 +1,5 @@
 """File operations endpoints for the SDS Gateway API."""
 
-import logging
 from pathlib import Path
 from typing import cast
 
@@ -77,6 +76,7 @@ class FileViewSet(ViewSet):
 
         # when a sibling file is provided, use its file contents
         if sibling_uuid := request.data.get("sibling_uuid"):
+            log.info(f"Sibling file upload request: '{sibling_uuid}'")
             # .copy() only works for this mode
             request_data = request.data.copy()
             request_data["owner"] = request.user.pk
@@ -99,6 +99,7 @@ class FileViewSet(ViewSet):
                 context={"request_user": request.user},
             )
         else:
+            log.debug("Original file upload request")
             serializer = FilePostSerializer(
                 data=request.data,
                 context={"request_user": request.user},
@@ -116,11 +117,9 @@ class FileViewSet(ViewSet):
             "permissions",
             "expiration_date",
         ]
-        logging.debug("Validating file upload: %s", serializer)
         user_dir = f"/files/{request.user.email}"
         if serializer.is_valid(raise_exception=False):
             serializer.save()
-            logging.debug("New file uploaded: %s", serializer["uuid"])
             returned_object = {}
             for key, value in serializer.data.items():
                 if key not in attrs_to_return:
@@ -132,7 +131,7 @@ class FileViewSet(ViewSet):
                 else:
                     returned_object[key] = value
             return Response(returned_object, status=status.HTTP_201_CREATED)
-        log.error(f"File upload failed: {serializer.errors}")
+        log.warning(f"File upload 400: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
@@ -607,9 +606,9 @@ def sanitize_path_rel_to_user(
     if not user_root_path.is_relative_to(files_dir):
         msg = (
             "INTERNAL ERROR: User root path is not a subdirectory "
-            f"of {files_dir}: {user_root_path}"
+            f"of '{files_dir}': '{user_root_path}'"
         )
-        logging.error(msg)
+        log.warning(msg)
         return None
     unsafe_concat_path = Path(
         f"{user_root_path}/{unsafe_path}",

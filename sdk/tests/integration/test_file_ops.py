@@ -56,9 +56,9 @@ def test_is_valid_file_disallowed(temp_file_with_text_contents) -> None:
     for mime_type in disallowed_mime_types:
         with patch("spectrumx.ops.files.get_file_media_type", return_value=mime_type):
             is_valid, reasons = is_valid_file(temp_file_with_text_contents)
-            assert not is_valid, (
-                f"File with MIME type {mime_type} should be disallowed."
-            )
+            assert (
+                not is_valid
+            ), f"File with MIME type {mime_type} should be disallowed."
             assert reasons, "Reasons should be given for disallowed files."
 
 
@@ -78,9 +78,9 @@ def test_get_valid_files(temp_file_tree: Path) -> None:
 
     # all test files should be valid and match the local path
     invalid_file_paths = all_file_paths - valid_file_paths
-    assert invalid_file_paths == set(), (
-        f"All files should be valid. Invalid paths: {invalid_file_paths}"
-    )
+    assert (
+        invalid_file_paths == set()
+    ), f"All files should be valid. Invalid paths: {invalid_file_paths}"
 
 
 @pytest.mark.integration
@@ -184,12 +184,12 @@ def test_upload_large_file(
     assert uploaded_file is not None, "File upload failed."
     assert isinstance(uploaded_file.uuid, uuid.UUID), "UUID not set."
     assert uploaded_file.size == local_file.size, "Size mismatch."
-    assert len(uploaded_file.compute_sum_blake3() or "") == BLAKE3_HEX_LEN, (
-        "Checksum not set."
-    )
-    assert uploaded_file.compute_sum_blake3() == local_file.compute_sum_blake3(), (
-        "Checksum mismatch."
-    )
+    assert (
+        len(uploaded_file.compute_sum_blake3() or "") == BLAKE3_HEX_LEN
+    ), "Checksum not set."
+    assert (
+        uploaded_file.compute_sum_blake3() == local_file.compute_sum_blake3()
+    ), "Checksum mismatch."
 
 
 @pytest.mark.integration
@@ -218,18 +218,18 @@ def test_check_file_content_non_existing(
     file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
         file_instance
     )
-    assert file_contents_check.file_contents_exist_for_user is False, (
-        "Test file shouldn't exist for user."
-    )
-    assert file_contents_check.file_exists_in_tree is False, (
-        "Test file shouldn't exist in tree."
-    )
-    assert file_contents_check.user_mutable_attributes_differ is True, (
-        "Attributes should always differ for non-existent files."
-    )
-    assert file_contents_check.asset_id is None, (
-        "Asset ID should be None for non-existent files."
-    )
+    assert (
+        file_contents_check.file_contents_exist_for_user is False
+    ), "Test file shouldn't exist for user."
+    assert (
+        file_contents_check.file_exists_in_tree is False
+    ), "Test file shouldn't exist in tree."
+    assert (
+        file_contents_check.user_mutable_attributes_differ is True
+    ), "Attributes should always differ for non-existent files."
+    assert (
+        file_contents_check.asset_id is None
+    ), "Asset ID should be None for non-existent files."
 
 
 @pytest.mark.integration
@@ -265,15 +265,15 @@ def test_check_file_content_identical(
     file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
         file_instance
     )
-    assert file_contents_check.file_contents_exist_for_user is True, (
-        "Test file should exist for user."
-    )
-    assert file_contents_check.file_exists_in_tree is True, (
-        "Test file should exist in tree."
-    )
-    assert file_contents_check.user_mutable_attributes_differ is False, (
-        "Attributes should be identical."
-    )
+    assert (
+        file_contents_check.file_contents_exist_for_user is True
+    ), "Test file should exist for user."
+    assert (
+        file_contents_check.file_exists_in_tree is True
+    ), "Test file should exist in tree."
+    assert (
+        file_contents_check.user_mutable_attributes_differ is False
+    ), "Attributes should be identical."
     assert file_contents_check.asset_id == uploaded_file.uuid, (
         "Asset ID does not match uploaded file: "
         f"{file_contents_check.asset_id} != {uploaded_file.uuid!s}"
@@ -320,15 +320,15 @@ def test_check_file_content_name_changed(
     file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
         file_instance_renamed
     )
-    assert file_contents_check.file_exists_in_tree is False, (
-        "Test file shouldn't be identical to the one in SDS anymore."
-    )
-    assert file_contents_check.file_contents_exist_for_user is True, (
-        "Test file contents should exist for this user, under a different name."
-    )
-    assert file_contents_check.user_mutable_attributes_differ is True, (
-        "Attributes are different (name)."
-    )
+    assert (
+        file_contents_check.file_exists_in_tree is False
+    ), "Test file shouldn't be identical to the one in SDS anymore."
+    assert (
+        file_contents_check.file_contents_exist_for_user is True
+    ), "Test file contents should exist for this user, under a different name."
+    assert (
+        file_contents_check.user_mutable_attributes_differ is True
+    ), "Attributes are different (name)."
     assert file_contents_check.asset_id == uploaded_file.uuid, (
         "Expected asset ID to be the closest match (sibling UUID) to the uploaded file:"
         f"{file_contents_check.asset_id} != {uploaded_file.uuid!s}"
@@ -432,9 +432,9 @@ def test_download_files_in_bulk(
     # sort downloaded_files and uploaded_files by uuid
     downloaded_files = sorted(downloaded_files, key=lambda f: f.uuid or "-")
     uploaded_files = sorted(uploaded_files, key=lambda f: f.uuid or "-")
-    assert len(downloaded_files) == len(uploaded_files), (
-        "Number of downloaded files does not match the number of uploaded files."
-    )
+    assert len(downloaded_files) == len(
+        uploaded_files
+    ), "Number of downloaded files does not match the number of uploaded files."
 
     for uploaded_file, downloaded_file in zip(
         uploaded_files, downloaded_files, strict=True
@@ -453,14 +453,14 @@ def test_download_files_in_bulk(
         assert upload_path.is_file(), "Downloaded file not found."
 
         # they must be different
-        assert upload_path != download_path, (
-            "Uploaded and downloaded file path should be different."
-        )
+        assert (
+            upload_path != download_path
+        ), "Uploaded and downloaded file path should be different."
 
         # check contents are the same
-        assert downloaded_file.is_same_contents(uploaded_file, verbose=True), (
-            f"Contents mismatch for file {uploaded_file.path.name}"
-        )
+        assert downloaded_file.is_same_contents(
+            uploaded_file, verbose=True
+        ), f"Contents mismatch for file {uploaded_file.path.name}"
 
         # assert downloaded path is a child of the download_dir
         assert download_path.is_relative_to(download_dir), (
