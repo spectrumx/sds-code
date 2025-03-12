@@ -73,6 +73,7 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
 
     def is_valid(self, *, raise_exception: bool = True) -> bool:
         """Checks if the data is valid."""
+        self._errors = {}
         if not self.initial_data:
             self._errors = {"detail": ["No data provided."]}
             return super().is_valid(raise_exception=raise_exception)
@@ -130,39 +131,42 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
         if "media_type" not in validated_data:
             validated_data["media_type"] = ""
 
-        checksum = File().calculate_checksum(validated_data["file"])
+        b3_checksum = File().calculate_checksum(validated_data["file"])
 
         file_exists_in_tree = File.objects.filter(
-            sum_blake3=checksum,
+            sum_blake3=b3_checksum,
             directory=validated_data["directory"],
             name=validated_data["file"].name,
         ).exists()
 
         existing_file_instance = File.objects.filter(
-            sum_blake3=checksum,
+            sum_blake3=b3_checksum,
         ).first()
 
         if file_exists_in_tree:
             # return a 409 Conflict status code if the file already exists
             raise serializers.ValidationError(
                 {
-                    "detail": "File with checksum already exists in the tree, run PATCH instead.",  # noqa: E501
+                    "detail": "File with checksum already exists "
+                    "in the tree, run PATCH instead.",
                 },
                 code=str(CONFLICT),
             )
 
-        validated_data["sum_blake3"] = checksum
-        logging.warning("File media type: %s", type(validated_data["file"]))
-        if existing_file_instance:
+        # set remaining attributes
+        validated_data["sum_blake3"] = b3_checksum
+
+        if existing_file_instance:  # sibling file exists
             validated_data["file"] = existing_file_instance.file
             validated_data["size"] = existing_file_instance.size
-            validated_data["name"] = existing_file_instance.name
-        else:
-            validated_data["size"] = validated_data["file"].size
-            validated_data["name"] = validated_data["file"].name
-            validated_data["file"].name = validated_data["sum_blake3"]
-        file_instance = File(**validated_data)
+        else:  # original file contents
+            file_size = validated_data["file"].size
+            target_name = validated_data["file"].name
+            validated_data["file"].name = b3_checksum
+            validated_data["name"] = target_name
+            validated_data["size"] = file_size
 
+        file_instance = File(**validated_data)
         file_instance.save()
         return file_instance
 
