@@ -5,9 +5,11 @@
 [![Pepy Total Downloads](https://img.shields.io/pepy/dt/spectrumx)](https://pypi.org/project/spectrumx/)
 
 + [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)
-    + [Installation](#installation)
-    + [Basic Usage](#basic-usage)
-    + [Error Handling](#error-handling)
+    + [Getting Started](#getting-started)
+        + [Installation](#installation)
+        + [Basic Usage](#basic-usage)
+        + [Error Handling](#error-handling)
+    + [Concurrent Access](#concurrent-access)
 
 The SpectrumX Data System (SDS) SDK is a Python package that provides a simple interface for interacting with the SDS Gateway. The SDK is designed to be easy to use and to provide a high-level interface for common tasks, such as uploading and downloading files, searching for files, and managing RF datasets.
 
@@ -17,7 +19,9 @@ The SpectrumX Data System (SDS) SDK is a Python package that provides a simple i
 >
 > If you own data in `https://sds.crc.nd.edu` that needs to be permanently deleted, please reach out to the team at `crc-sds-list [·at·] nd.edu`, as SDS may retain uploaded data for a period of time after deletion.
 
-## Installation
+## Getting Started
+
+### Installation
 
 ```bash
 uv add spectrumx
@@ -32,7 +36,7 @@ uv add spectrumx
 > [!NOTE]
 > When not using `uv`, make sure you are using Python 3.12 or higher (`python --version`).
 
-## Basic Usage
+### Basic Usage
 
 1. In a file named `.env`, enter the `secret_token` provided to you:
 
@@ -47,23 +51,26 @@ uv add spectrumx
     export SDS_SECRET_TOKEN=your-secret-token
     ```
 
-2. Then, in your Python script or Jupyter notebook ([See more usage examples](./tests/e2e_examples/check_build_acceptance.py) in `./tests/e2e_examples/` for the full script):
+2. Then, in your Python script or Jupyter notebook
+
+    > See [`./tests/e2e_examples/check_build_acceptance.py`](https://github.com/spectrumx/sds-code/blob/master/sdk/tests/e2e_examples/check_build_acceptance.py) for more examples.
 
     ```python
     from pathlib import Path
     from random import randint, random
-    from spectrums.client import Client
+    from spectrumx.client import Client
 
     # Example of files upload, listing, and download from SDS.
 
     # NOTE: the SDS client-server interaction is stateless, so it is
     #   not recommended to have multiple clients writing to the same
     #   locations simultaneously, as they may overrule each other
-    #   and cause loss of data.
+    #   and cause loss of data. See "Concurrent Access" in the
+    #   usage guide to learn more.
     sds = Client(
         host="sds.crc.nd.edu",
-        # env_file=Path(".env"),  # default
-        # env_config={"SDS_SECRET_TOKEN": "my-custom-token"},  # overrides
+        # env_file=Path(".env"),  # default, recommended to keep tokens out of version control
+        # env_config={"SDS_SECRET_TOKEN": "my-custom-token"},  # alternative way to pass the access token
     )
 
     # when in dry-run (default), no changes are made to the SDS or the local filesystem
@@ -115,14 +122,14 @@ uv add spectrumx
         print("Turn off dry-run to download and write files.")
     ```
 
-## Error Handling
+### Error Handling
 
 The SDK provides context-aware exceptions that can be caught and handled in your code.
 
 ```py
 # ======== Authentication ========
 from pathlib import Path
-from spectrums.client import Client
+from spectrumx.client import Client
 from spectrumx.errors import AuthError, NetworkError
 
 sds = Client(host="sds.crc.nd.edu")
@@ -174,3 +181,20 @@ while not is_success and retries_left > 0:
         # TODO: take action or break
         break
 ```
+
+## Concurrent Access
+
+The SDS client-server interaction is stateless, meaning that each request contains all the information needed to complete that request. One positive outcome is that it allows multiple clients to interact with the SDS Gateway at the same time. However, this opens up the possibility of having multiple clients writing to the same locations simultaneously, causing loss of data by overruling each other's writes (race condition).
+
+> For example, if two clients are uploading files with the same directory, file names, and at the same time, only the last file successfully uploaded (from the Gateway's perspective) is guaranteed to be kept, which might not be aligned with the user's expectations.
+
+To avoid potential race conditions, it is not recommended to have multiple clients writing to the same locations simultaneously. Neither the SDK nor the Gateway currently take any measure to detect this, in part, because any measure towards it would either be incomplete, or it would make our APIs stateful and significantly increase code complexity.
+
+If this is needed, SDK users have a few options:
+
+1. Restructure their architecture to forward writes to a single centralized client responsible for them.
+2. Restructure the code by writing to different locations and/or at different application stages.
+    The latter assumes all conflicting clients are part of the same application.
+3. Implement a custom locking mechanism for writes to serve their specific use case.
+
+One writer (an SDK client that creates, updates, and/or deletes contents) and multiple readers are generally safe.

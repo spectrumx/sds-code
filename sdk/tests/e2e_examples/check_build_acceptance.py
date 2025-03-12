@@ -13,7 +13,6 @@ Avoid adding third-party imports to this file.
 """
 # ruff: noqa: ERA001, T201, I001
 
-import datetime
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,14 +22,11 @@ from typing import TYPE_CHECKING
 
 from spectrumx import Client
 from spectrumx import enable_logging
-from spectrumx.models.captures import Capture
 
 NOT_IMPLEMENTED = "This example is not yet implemented."
 
 if TYPE_CHECKING:
     from spectrumx.models.files import File
-    from spectrumx.models.datasets import Dataset
-    from spectrumx.ops.pagination import Paginator
 
 
 def setup_module() -> None:
@@ -203,64 +199,24 @@ def check_file_listing_usage() -> None:
 
 def check_capture_usage() -> None:
     """Basic capture usage example."""
-    raise NotImplementedError(NOT_IMPLEMENTED)
 
-    sds = Client(host="sds.crc.nd.edu")
-    sds.authenticate()
-    local_downloads = Path("sds-downloads") / "captures"
-
-    # search for capture files between two frequencies and dates
-    # a "capture" represents a file in the SDS in a known format, such
-    # as a Digital RF archive or SigMF file.
-    utc = datetime.UTC
-    start_time = datetime.datetime(2024, 1, 1, 0, 0, 0, tzinfo=utc)
-    end_time = datetime.datetime(2024, 1, 2, 0, 0, 0, tzinfo=utc)
-
-    # like in the file listing, the search results are a lazy-loaded Paginator
-    captures: Paginator[Capture] = sds.search(
-        asset_type=Capture,
-        center_freq_range=(3e9, 5e9),  # between 3 and 5 GHz
-        capture_time_range=(start_time, end_time),
-        # additional arguments work as "and" filters
-    )
-    for capture in captures:
-        print(f"Found capture: {capture.name} of type {capture.type}")
-        # e.g. "Found capture: my_capture of type Digital RF"
-        sds.captures.download(
-            capture=capture,
-            to_local_path=local_downloads / "search_results",
-            overwrite=False,
-            verbose=True,
-        )
-
-
-def check_dataset_usage() -> None:
-    """Basic dataset usage example."""
-    raise NotImplementedError(NOT_IMPLEMENTED)
+    from spectrumx.models.captures import Capture, CaptureType
 
     sds = Client(host="sds.crc.nd.edu")
     sds.authenticate()
 
-    # get list of datasets available
-    print("Dataset name | Dataset ID")
-    for dataset in sds.datasets():
-        print(f"{dataset.name} | {dataset.id}")
-
-    local_downloads = Path("sds-downloads") / "datasets"
-
-    # get the most recent dataset
-    target_dataset: Dataset = sds.datasets.get_most_recent()
-
-    # or fetch a dataset by its ID
-    target_dataset: Dataset = sds.datasets.get(sds, dataset_id="dataset-id")
-
-    # download a dataset to a local directory
-    sds.download_dataset(
-        dataset=target_dataset,
-        to_local_path=local_downloads,  # download to this location + dataset_name
-        overwrite=False,  # do not overwrite local files (default)
-        verbose=True,  # shows a progress bar (default)
+    new_capture = sds.captures.create(
+        capture_type=CaptureType.RadioHound,
+        top_level_dir=Path("/location/in/sds/"),
     )
+    print(f"New capture ID: {new_capture.uuid}")
+
+    my_rh_captures: list[Capture] = sds.captures.listing(
+        capture_type=CaptureType.RadioHound
+    )
+
+    for capture in my_rh_captures:
+        print(f"Capture {capture.uuid}: {capture.capture_props}")
 
 
 @dataclass
@@ -286,9 +242,7 @@ def main() -> None:
         CheckCaller(call_fn=check_basic_usage, name="Basic usage"),
         CheckCaller(call_fn=check_error_handling, name="Error handling"),
         CheckCaller(call_fn=check_file_listing_usage, name="File listing usage"),
-        # uncomment the following when implemented:
-        # CheckCaller(call_fn=check_capture_usage, name="Capture usage"),
-        # CheckCaller(call_fn=check_dataset_usage, name="Dataset usage"),
+        CheckCaller(call_fn=check_capture_usage, name="Capture usage"),
     ]
     for check in all_checks:
         log_header(f"Running {check.name} check...".upper())
