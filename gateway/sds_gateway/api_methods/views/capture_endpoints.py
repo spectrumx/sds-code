@@ -398,13 +398,24 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except os_exceptions.ConnectionError as err:
-            log.exception(err)
+            try:
+                log.exception(err)
+            except Exception:  # noqa: BLE001
+                # used in tests when mocking this exception
+                log.error("OpenSearch connection error")
             return Response(
                 {"detail": "Internal service unavailable"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        except (os_exceptions.RequestError, os_exceptions.OpenSearchException) as err:
-            log.exception(err)
+        except (
+            os_exceptions.RequestError,
+            os_exceptions.OpenSearchException,
+        ) as err:
+            try:
+                log.exception(err)
+            except Exception:  # noqa: BLE001
+                # used in tests when mocking this exception
+                log.error(str(err))
             return Response(
                 {"detail": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
