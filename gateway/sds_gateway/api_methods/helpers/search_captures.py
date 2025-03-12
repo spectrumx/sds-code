@@ -97,7 +97,9 @@ def build_metadata_query(
     # Build metadata query
     metadata_queries = []
     for query in metadata_filters:
-        field_path = query["field"]
+        field_path = query["field_path"]
+        query_type = query["query_type"]
+        filter_value = query["filter_value"]
 
         # warn if the field is not in the index mapping
         # but continue to build the query
@@ -113,13 +115,13 @@ def build_metadata_query(
             metadata_queries.append(
                 handle_nested_query(
                     field_path,
-                    query["type"],
-                    query["value"],
+                    query_type,
+                    filter_value,
                     levels_nested,
                 )
             )
         else:
-            metadata_queries.append({query["type"]: {field_path: query["value"]}})
+            metadata_queries.append({query_type: {field_path: filter_value}})
 
     return metadata_queries
 

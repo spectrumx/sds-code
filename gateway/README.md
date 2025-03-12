@@ -313,3 +313,110 @@ Keep this in mind, however:
 10. Don't forget to **approve users** to allow them to create API keys.
 
     You can do this by logging in as a superuser in the admin panel and enabling the `is_approved` flag in the user's entry.
+
+## OpenSearch Query Tips
+
+The API gives the user the ability to search captures using their metadata properties indexed in OpenSearch. To do so, you must add `metadata_filters` to your request to the capture listing endpoint.
+
+The `metadata_filters` parameter is a JSON encoded list of dictionary objects which contain:
+    + `field_path`: The path to the document field you want to filter by.
+    + `query_type`: The OpenSearch query type defined in the [OpenSearch DSL](https://opensearch.org/docs/latest/query-dsl/)
+    + `filter_value`: The value, or configuration of values, you want to filter for.
+
+For example:
+
+```json
+{
+    "field_path": "capture_props.<field_name>",
+    "query_type": "match",
+    "filter_value": "<field_value_to_match>"
+}
+```
+
+> [!NOTE]
+> You do not have to worry about building nested queries. The API handles nesting based on the dot notation in the `field_path`. Only provide the inner-most `filter_value`, the actual filter you want to apply to the field, when constructing filters for requests.
+
+To ensure your filters are accepted by OpenSearch, you should reference the OpenSearch query DSL [documentation](https://opensearch.org/docs/latest/query-dsl/) for more details on how filters are structured. The API leaves this structure up to the user to construct to allow for more versatility in the search functionality.
+
+Here are some useful examples of advanced queries one might want to make to the SDS:
+
+1. Range Queries
+
+    Range queries may be performed both on numerical fields as well as on date fields.
+
+    Let's say you want to search for captures with a center frequency within the range 1990000000 and 2010000000. That filter would be constructed like this:
+
+    ```json
+        {
+            "field_path": "capture_props.center_freq",
+            "query_type": "range",
+            "filter_value": {
+                "gte": 1990000000,
+                "lte": 2010000000
+            }
+        }
+    ```
+
+    Or, let's say you want to look up captures uploaded in the last 6 months:
+
+    ```json
+        {
+            "field_path": "created_at",
+            "query_type": "range",
+            "filter_value": {
+                "gte": "now-6M"
+            }
+        }
+    ```
+
+    >[!Note]
+    > `now` is a keyword in OpenSearch that refers to the current date and time.
+
+    More information about `range` queries can be found [here](https://opensearch.org/docs/latest/query-dsl/term/range/).
+
+2. Geo-bounding Box Queries
+
+    Geo-bounding box queries are useful for finding captures based on the GPS location of the sensor. They allow you to essentially create a geospatial window and query for captures within that window. This type of filter can only be performed on `geo_point` fields. The SDS creates `coordinates` fields from latitude and longitude pairs found in the metadata.
+
+    For example, the following filter will show captures with a latitude that is between 20° and 25° north, and a longitude that is between 80° and 85° west:
+
+    ```json
+        {
+            "field_path": "capture_props.coordinates",
+            "query_type": "geo_bounding_box",
+            "filter_value": {
+                "top_left": {
+                    "lat": 25,
+                    "lon": -85,
+                },
+                "bottom_right": {
+                    "lat": 20,
+                    "lon": -80
+                }
+            }
+        }
+    ```
+
+    More information about `geo_bounding_box` queries can be found [here](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geo-bounding-box/).
+
+3. Geodistance Queries
+
+    Geodistance queries allow you to filter captures based on their distance to a specified GPS location. Another useful query for GPS data.
+
+    The following filter looks for captures with 10 mile radius of the University of Notre Dame campus, main building (approximately: 41.703, -86.243):
+
+    ```json
+        {
+            "field_path": "capture_props.coordinates",
+            "query_type": "geo_distance",
+            "filter_value": {
+                "distance": "10mi",
+                "capture_props.coordinates": {
+                    "lat": 41.703,
+                    "lon": -86.243
+                }
+            }
+        }
+    ```
+
+   More information about `geo_distance` queries can be found [here](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geodistance/).

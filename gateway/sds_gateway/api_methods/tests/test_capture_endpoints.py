@@ -395,9 +395,9 @@ class CaptureTestCases(APITestCase):
         center_freq = 2000000000
         metadata_filters = [
             {
-                "field": "capture_props.center_freq",
-                "type": "match",
-                "value": center_freq,
+                "field_path": "capture_props.center_freq",
+                "query_type": "match",
+                "filter_value": center_freq,
             },
         ]
         response = self.client.get(
@@ -420,9 +420,9 @@ class CaptureTestCases(APITestCase):
         center_freq = 2000000000
         metadata_filters = [
             {
-                "field": "capture_props.metadata.fmax",
-                "type": "range",
-                "value": {
+                "field_path": "capture_props.metadata.fmax",
+                "query_type": "range",
+                "filter_value": {
                     "gt": center_freq,
                 },
             },
@@ -449,9 +449,9 @@ class CaptureTestCases(APITestCase):
         bottom_right_lon = -85
         metadata_filters = [
             {
-                "field": "capture_props.coordinates",
-                "type": "geo_bounding_box",
-                "value": {
+                "field_path": "capture_props.coordinates",
+                "query_type": "geo_bounding_box",
+                "filter_value": {
                     "top_left": {
                         "lat": top_left_lat,
                         "lon": top_left_lon,
