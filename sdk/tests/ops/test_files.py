@@ -113,7 +113,7 @@ def test_file_get_returns_valid(
 
 
 def test_file_upload_returns_file(
-    client: Client, temp_file_with_text_contents: Path
+    client: Client, temp_file_with_text_contents: Path, tmp_path: Path
 ) -> None:
     """The upload_file method must return a valid File instance."""
     test_file_size = temp_file_with_text_contents.stat().st_size
@@ -133,9 +133,9 @@ def test_file_upload_returns_file(
     assert file_sample.name is not None, "Expected a file name"
     assert file_sample.media_type == "text/plain", "Expected media type 'text/plain'"
     assert file_sample.size == test_file_size, "Expected the test file to be 4030 bytes"
-    assert "/tmp/pytest-" in str(  # noqa: S108
-        file_sample.local_path
-    ), "Expected the temp file directory"
+    assert str(tmp_path) in str(file_sample.local_path), (
+        "Expected the temp file directory"
+    )
     assert file_sample.directory == Path("/my/upload/location")
     assert file_sample.permissions == "rw-r--r--"
     assert isinstance(file_sample.created_at, datetime)
