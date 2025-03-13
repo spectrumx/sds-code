@@ -7,6 +7,7 @@ import uuid as uuidlib
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 import responses
 from loguru import logger as log
 from spectrumx import Client
@@ -39,6 +40,8 @@ def _get_content_check_endpoint(client: Client) -> str:
     )
 
 
+@pytest.mark.linux
+@pytest.mark.darwin
 def test_get_file_permissions(temp_file_empty: Path) -> None:
     """Test get_file_permissions for many permission combinations."""
     chmod_combos = {

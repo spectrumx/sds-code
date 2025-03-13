@@ -288,7 +288,7 @@
         log_cli              = true
         log_cli_level        = "WARN"
         log_date_format      = "%Y-%m-%d %H:%M:%S"
-        markers              = ["integration: marks a test as an integration test"]
+        markers              = ["integration: marks a test as an integration test", "linux: marks a test to run on linux", "darwin: marks a test to run on Mac OS", "win32: marks a test to run on windows"]
         minversion           = "8.0"
         testpaths            = ["tests"]
         verbosity_test_cases = 2
