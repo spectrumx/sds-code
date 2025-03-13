@@ -4,11 +4,12 @@ import json
 import sys
 import time
 import uuid
-from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Generic
 from typing import TypeVar
+
+from pydantic import TypeAdapter
 
 if sys.version_info < (3, 11):  # noqa: UP036
     from typing_extensions import Self  # noqa: UP035 # Required backport
@@ -21,10 +22,13 @@ from spectrumx.errors import FileError
 from spectrumx.errors import Unset
 from spectrumx.gateway import GatewayClient
 from spectrumx.models import SDSModel
+from spectrumx.models.files import SDSDirectory
+from spectrumx.models.files import SDSDirectoryInput
 from spectrumx.ops import files
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from pathlib import PurePosixPath
 
 T = TypeVar("T", bound=SDSModel)
 
@@ -66,7 +70,7 @@ class Paginator(Generic[T]):
         *,
         Entry: type[SDSModel],  # noqa: N803
         gateway: GatewayClient,
-        sds_path: PurePosixPath | str,
+        sds_path: SDSDirectoryInput,
         dry_run: bool = False,
         page_size: int = 30,
         start_page: int = 1,
@@ -97,9 +101,6 @@ class Paginator(Generic[T]):
         ):  # pragma: no cover
             msg = "Total matches must be an integer."
             raise ValueError(msg)
-        if not isinstance(sds_path, (PurePosixPath, str)):  # pragma: no cover
-            msg = "SDS path must be a PurePosixPath or str."
-            raise TypeError(msg)
         if not isinstance(gateway, GatewayClient):  # pragma: no cover
             msg = "Gateway client must be provided."
             raise TypeError(msg)
@@ -111,7 +112,9 @@ class Paginator(Generic[T]):
         self._gateway = gateway
         self._next_page = start_page
         self._page_size = page_size
-        self._sds_path = PurePosixPath(sds_path)
+        self._sds_path: PurePosixPath = TypeAdapter(SDSDirectory).validate_python(
+            sds_path
+        )
         self._total_matches = total_matches if total_matches else 1
         self._verbose: bool = verbose
 

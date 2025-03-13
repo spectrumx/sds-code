@@ -2,12 +2,13 @@
 
 import sys
 
+from spectrumx.models.files import SDSDirectory
+
 if sys.version_info < (3, 11):  # noqa: UP036
     from backports.strenum import StrEnum  # noqa: UP035 # Required backport
 else:
     from enum import StrEnum
 
-from pathlib import PurePosixPath
 from typing import Annotated
 from typing import Any
 
@@ -49,7 +50,7 @@ class Capture(BaseModel):
     capture_type: Annotated[CaptureType, Field(description=_d_capture_type)]
     index_name: Annotated[str, Field(max_length=255, description=_d_index_name)]
     origin: Annotated[CaptureOrigin, Field(description=_d_origin)]
-    top_level_dir: Annotated[PurePosixPath, Field(description=_d_top_level_dir)]
+    top_level_dir: Annotated[SDSDirectory, Field(description=_d_top_level_dir)]
     uuid: Annotated[UUID4, Field(description=_d_uuid)]
 
     # optional fields

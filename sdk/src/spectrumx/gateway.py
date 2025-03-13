@@ -9,7 +9,6 @@ if sys.version_info < (3, 11):  # noqa: UP036
 else:
     from enum import StrEnum
 from http import HTTPStatus
-from pathlib import PurePosixPath
 from typing import Annotated
 from typing import Any
 
@@ -17,6 +16,7 @@ import requests
 from loguru import logger as log
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import TypeAdapter
 
 from spectrumx.models.captures import CaptureType
 
@@ -25,6 +25,8 @@ from .errors import FileError
 from .models.files import File
 from .models.files import FileUpload
 from .models.files import PermissionRepresentation
+from .models.files import SDSDirectory
+from .models.files import SDSDirectoryInput
 from .ops import network
 from .utils import is_test_env
 from .utils import log_user_warning
@@ -246,7 +248,7 @@ class GatewayClient:
     def list_files(
         self,
         *,
-        sds_path: PurePosixPath,
+        sds_path: SDSDirectoryInput,
         page: int = 1,
         page_size: int = 30,
         verbose: bool = False,
@@ -262,7 +264,7 @@ class GatewayClient:
             params={
                 "page": page,
                 "page_size": page_size,
-                "path": str(sds_path),
+                "path": str(TypeAdapter(SDSDirectory).validate_python(sds_path)),
             },
             verbose=verbose,
         )
@@ -407,7 +409,7 @@ class GatewayClient:
     def create_capture(
         self,
         *,
-        top_level_dir: PurePosixPath,
+        top_level_dir: SDSDirectoryInput,
         capture_type: str,
         index_name: str,
         channel: str | None = None,
@@ -425,7 +427,9 @@ class GatewayClient:
             The response content from SDS Gateway.
         """
         payload = {
-            "top_level_dir": str(top_level_dir),
+            "top_level_dir": str(
+                TypeAdapter(SDSDirectory).validate_python(top_level_dir)
+            ),
             "capture_type": capture_type,
             "index_name": index_name,
         }

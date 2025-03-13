@@ -8,14 +8,15 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from loguru import logger as log
+from pydantic import TypeAdapter
 
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
+from spectrumx.models.files import SDSDirectory
+from spectrumx.models.files import SDSDirectoryInput
 
 if TYPE_CHECKING:
-    from pathlib import PurePosixPath
-
     from spectrumx.gateway import GatewayClient
 
 index_mapping = {
@@ -35,7 +36,7 @@ class CaptureAPI:
     def create(
         self,
         *,
-        top_level_dir: PurePosixPath,
+        top_level_dir: SDSDirectoryInput,
         capture_type: CaptureType,
         index_name: str = "",
         channel: str | None = None,
@@ -47,11 +48,12 @@ class CaptureAPI:
                 "The 'index_name' parameter is deprecated and "
                 "will be removed in future versions."
             )
+        top_level_dir_val = TypeAdapter(SDSDirectory).validate_python(top_level_dir)
         index_name = index_mapping.get(capture_type, index_name)
         if not index_name:
             log.warning(f"Could not find an index for {capture_type=}")
         log.debug(
-            f"Creating capture with {top_level_dir=}, "
+            f"Creating capture with {top_level_dir_val=}, "
             f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}"
         )
 
@@ -64,7 +66,7 @@ class CaptureAPI:
                 index_name=index_name,
                 origin=CaptureOrigin.User,
                 scan_group=uuid.UUID(scan_group) if scan_group else None,
-                top_level_dir=top_level_dir,
+                top_level_dir=top_level_dir_val,
                 uuid=uuid4(),
             )
         capture_raw = self.gateway.create_capture(
@@ -72,7 +74,7 @@ class CaptureAPI:
             channel=channel,
             index_name=index_name,
             scan_group=scan_group,
-            top_level_dir=top_level_dir,
+            top_level_dir=top_level_dir_val,
         )
         capture = Capture.model_validate_json(capture_raw)
         log.debug(f"Capture created with UUID {capture.uuid}")

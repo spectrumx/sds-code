@@ -9,8 +9,11 @@ from pathlib import Path
 from pathlib import PurePosixPath
 
 from loguru import logger as log
+from pydantic import TypeAdapter
 
 from spectrumx.models.files import File
+from spectrumx.models.files import SDSDirectory
+from spectrumx.models.files import SDSDirectoryInput
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
 
@@ -78,7 +81,7 @@ def get_file_updated_at(file_path: Path) -> datetime:
     return datetime.fromtimestamp(file_path.stat().st_mtime, tz=_tz)
 
 
-def construct_file(file_path: Path, sds_path: PurePosixPath) -> File:
+def construct_file(file_path: Path, sds_path: SDSDirectoryInput) -> File:
     """Constructs a file instance from a local file. File has to exist on disk."""
     file_path = Path(file_path)
     if not file_path.exists():
@@ -89,7 +92,7 @@ def construct_file(file_path: Path, sds_path: PurePosixPath) -> File:
         expiration_date=None,
         local_path=file_path,
         size=file_path.stat().st_size,
-        directory=sds_path,
+        directory=TypeAdapter(SDSDirectory).validate_python(sds_path),
         media_type=get_file_media_type(file_path),
         created_at=get_file_created_at(file_path),
         updated_at=get_file_updated_at(file_path),
@@ -165,7 +168,8 @@ def get_valid_files(local_path: Path, *, warn_skipped: bool = False) -> Generato
             successful_files += 1
             local_rel_path = file_path.relative_to(local_path).parent
             yield construct_file(
-                file_path=file_path, sds_path=PurePosixPath(local_rel_path)
+                file_path=file_path,
+                sds_path=TypeAdapter(SDSDirectory).validate_python(local_rel_path),
             )
         except FileNotFoundError:
             continue

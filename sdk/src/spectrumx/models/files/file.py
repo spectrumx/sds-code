@@ -12,6 +12,7 @@ from pydantic import Field
 
 from spectrumx import utils
 from spectrumx.models.base import SDSModel
+from spectrumx.models.files.path import SDSDirectory
 from spectrumx.models.files.permission import PermissionRepresentation
 from spectrumx.models.files.permission import UnixPermissionStr
 
@@ -38,7 +39,7 @@ class File(SDSModel):
     """
 
     created_at: datetime
-    directory: Annotated[PurePosixPath, Field(default_factory=PurePosixPath)]
+    directory: Annotated[SDSDirectory, Field(default_factory=PurePosixPath)]
     expiration_date: datetime | None
     media_type: str
     name: str
@@ -60,7 +61,7 @@ class File(SDSModel):
         """Post-initialization steps."""
 
     @property
-    def path(self) -> PurePosixPath:
+    def path(self) -> SDSDirectory:
         """Returns the path to the file, relative to the owner's root on SDS."""
         return self.directory / self.name
 

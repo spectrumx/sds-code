@@ -10,13 +10,15 @@ from enum import Enum
 from enum import auto
 from multiprocessing.synchronize import RLock
 from pathlib import Path
-from pathlib import PurePosixPath
 
 from pydantic import UUID4
+from pydantic import TypeAdapter
 
 from spectrumx.client import Client
 from spectrumx.errors import SDSError
 from spectrumx.models.files import File
+from spectrumx.models.files import SDSDirectory
+from spectrumx.models.files import SDSDirectoryInput
 from spectrumx.ops import files
 from spectrumx.ops.pagination import Paginator
 from spectrumx.utils import log_user
@@ -136,7 +138,7 @@ def download_file(
 def list_files(
     *,
     client: Client,
-    sds_path: PurePosixPath | str,
+    sds_path: SDSDirectoryInput,
     verbose: bool = False,
 ) -> Paginator[File]:
     """Lists files in a given SDS path.
@@ -163,7 +165,7 @@ def upload_file(
     *,
     client: Client,
     local_file: File | Path | str,
-    sds_path: PurePosixPath | str = "/",
+    sds_path: SDSDirectoryInput = "/",
 ) -> File:
     """Uploads a file to SDS.
 
@@ -186,16 +188,16 @@ def upload_file(
         msg = f"file_path must be a Path, str, or File instance, not {type(local_file)}"
         raise TypeError(msg)
     local_file = Path(local_file) if isinstance(local_file, str) else local_file
-    sds_path = PurePosixPath(sds_path)
+    sds_path_val = TypeAdapter(SDSDirectory).validate_python(sds_path)
 
     # construct the file instance if needed
     if isinstance(local_file, File):
         file_instance = local_file.model_copy()
         if file_instance.directory:
-            composed_sds_path = sds_path / file_instance.directory
+            composed_sds_path = sds_path_val / file_instance.directory
             file_instance.directory = composed_sds_path
     else:
-        file_instance = files.construct_file(local_file, sds_path=sds_path)
+        file_instance = files.construct_file(local_file, sds_path=sds_path_val)
     del local_file
 
     return __upload_file_mux(client=client, file_instance=file_instance)
