@@ -66,6 +66,7 @@ class CaptureAPI:
                 scan_group=uuid.UUID(scan_group) if scan_group else None,
                 top_level_dir=top_level_dir,
                 uuid=uuid4(),
+                files=[],
             )
         capture_raw = self.gateway.create_capture(
             capture_type=capture_type,
