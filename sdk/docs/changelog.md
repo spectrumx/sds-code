@@ -1,5 +1,19 @@
 # SpectrumX SDK Changelog
 
+## `0.1.8` - 2025-03-??
+
++ Features and improvements:
+    + [#78](https://github.com/spectrumx/sds-code/pull/78) The `capture_type` argument of `sds_client.captures.listing()` is now optional.
+    + [#78](https://github.com/spectrumx/sds-code/pull/78) The method `sds_client.captures.read()` is now available for reading a single capture, complementing the existing `sds_client.captures.listing()` method.
+    + [#78](https://github.com/spectrumx/sds-code/pull/78) When retrieving a single capture with `capture = read(<uuid>)`, the list of files associated to it is available in `capture.files`.
+        + Note these are `CaptureFile` instances, which hold a subset of the information in an SDS' `File` instance. To get all metadata on a file, use `sds_client.get_file(<uuid>)`.
++ Fixes:
+    + [#77](https://github.com/spectrumx/sds-code/pull/77) Fixed incorrect file name being set when the file contents are already in SDS.
+    + [#77](https://github.com/spectrumx/sds-code/pull/77) `local_path` is now set for uploaded files across all three upload modes.
+    + [#71](https://github.com/spectrumx/sds-code/pull/71) File permissions are now included in file uploads; redesigned handling of permission flags.
++ Housekeeping:
+    + [#76](https://github.com/spectrumx/sds-code/pull/76) Fixed documentation typos; Updated and expanded note on concurrent access in the usage guide.
+
 ## `0.1.7` - 2025-03-07
 
 + Features:
