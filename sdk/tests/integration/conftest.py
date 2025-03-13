@@ -113,6 +113,16 @@ class PassthruEndpoints:
         ]
 
     @staticmethod
+    def capture_reading() -> list[Pattern[str]]:
+        """Passthrough for file content download."""
+        return [  # file content download
+            re.compile(
+                rf"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.CAPTURES}/{uuid_v4_regex}/"
+            )
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @staticmethod
     def capture_creation() -> list[str]:
         """Passthrough for capture creation."""
         return [
@@ -122,7 +132,7 @@ class PassthruEndpoints:
 
     @classmethod
     def capture_listing(cls) -> list[str]:
-        """Passthrough for capture listing and reading."""
+        """Passthrough for capture creation and listing."""
         return cls.capture_creation()
 
     @staticmethod

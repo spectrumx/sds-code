@@ -346,6 +346,75 @@ def test_capture_update_rh(integration_client: Client) -> None:
     assert True
 
 
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
+            *PassthruEndpoints.capture_reading(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_reading_drf(integration_client: Client) -> None:
+    """Tests reading a specific Digital-RF capture."""
+
+    # ARRANGE
+
+    # define paths in the context of a capture
+    dir_top_level = dir_local_drf_top_level
+    dir_channel = dir_top_level / drf_channel
+    dir_metadata = dir_channel / "metadata"
+    assert dir_metadata.is_dir(), (
+        "Metadata directory should exist; check that "
+        f"you have the right paths set: '{dir_metadata}'"
+    )
+
+    # suffix path_after_capture_data with a random name to avoid conflicts between runs
+    path_after_capture_data = dir_top_level.relative_to(dir_integration_data)
+    random_suffix = get_random_line(10, include_punctuation=False)
+    path_after_capture_data = path_after_capture_data / f"test-{random_suffix}"
+
+    _upload_assets(
+        integration_client=integration_client,
+        sds_path=path_after_capture_data,
+        local_path=dir_top_level,
+    )
+
+    # create a capture
+    capture = integration_client.captures.create(
+        top_level_dir=Path(f"/{path_after_capture_data}"),
+        channel=drf_channel,
+        capture_type=CaptureType.DigitalRF,
+    )
+
+    # ACT
+
+    # read the capture
+    read_capture = integration_client.captures.read(
+        capture_uuid=capture.uuid,
+    )
+
+    # ASSERT
+
+    # basic capture information
+    assert read_capture.uuid == capture.uuid, "Capture UUID should match"
+    assert read_capture.capture_type == CaptureType.DigitalRF
+    assert read_capture.channel == drf_channel
+    assert read_capture.top_level_dir == Path(f"/{path_after_capture_data}")
+
+    # test capture properties
+    assert read_capture.capture_props == capture.capture_props, (
+        "Capture properties should match the created capture"
+    )
+
+
 def _upload_assets(
     integration_client: Client,
     sds_path: Path,
