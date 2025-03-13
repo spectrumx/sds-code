@@ -37,9 +37,22 @@ _d_index_name = "The name of the SDS index associated with the capture"
 _d_origin = "The origin of the capture"
 _d_top_level_dir = "The top-level directory for the capture files"
 _d_uuid = "The unique identifier for the capture"
+_d_capture_files = "Files associated to this capture"
 
 _d_channel = "The channel associated with the capture. Only for RadioHound type."
 _d_scan_group = "The scan group associated with the capture. Only for Digital-RF type."
+
+
+class CaptureFile(BaseModel):
+    uuid: Annotated[
+        UUID4, Field(description="The unique identifier for the capture file")
+    ]
+    name: Annotated[
+        str, Field(max_length=255, description="The name of the capture file")
+    ]
+    directory: Annotated[
+        Path, Field(description="The directory where the capture file is stored")
+    ]
 
 
 class Capture(BaseModel):
@@ -51,6 +64,7 @@ class Capture(BaseModel):
     origin: Annotated[CaptureOrigin, Field(description=_d_origin)]
     top_level_dir: Annotated[Path, Field(description=_d_top_level_dir)]
     uuid: Annotated[UUID4, Field(description=_d_uuid)]
+    files: Annotated[list[CaptureFile], Field(description=_d_capture_files)]
 
     # optional fields
     channel: Annotated[
@@ -59,7 +73,20 @@ class Capture(BaseModel):
     scan_group: Annotated[UUID4 | None, Field(description=_d_scan_group, default=None)]
 
     def __str__(self) -> str:
-        return f"<{self.__repr_name__} {self.uuid}>"
+        """Get the string representation of the capture."""
+        return (
+            f"Capture(uuid={self.uuid}, "
+            f"type={self.capture_type}, "
+            f"files={len(self.files)})"
+        )
+
+    @property
+    def __repr_name__(self) -> str:
+        """Get the name of the capture for display."""
+        return self.capture_type.value
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} {self.uuid} files={len(self.files)}>"
 
 
 __all__ = [
