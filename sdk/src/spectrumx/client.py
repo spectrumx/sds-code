@@ -149,6 +149,19 @@ class Client:
 
         return self._sds_files.get_file(client=self, file_uuid=file_uuid)
 
+    def delete_file(self, file_uuid: UUID4 | str) -> bool:
+        """Deletes a file from SDS by its UUID.
+
+        Args:
+            file_uuid: The UUID of the file to delete.
+        Returns:
+            True if the file was deleted successfully,
+            or if in dry run mode (simulating success).
+        Raises:
+            SDSError: If the file couldn't be deleted.
+        """
+        return self._sds_files.delete_file(client=self, file_uuid=file_uuid)
+
     def download(
         self,
         *,

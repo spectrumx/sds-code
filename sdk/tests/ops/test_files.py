@@ -7,12 +7,16 @@ import uuid as uuidlib
 from datetime import datetime
 from pathlib import Path
 
-from responses import RequestsMock
+import responses
+from loguru import logger as log
 from spectrumx import Client
+from spectrumx.api.sds_files import delete_file
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.ops.files import get_file_permissions
 
 from tests.conftest import get_files_endpoint
+
+log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
 
 def _download_file_endpoint(client: Client, file_id: str) -> str:
@@ -51,7 +55,7 @@ def test_get_file_permissions(temp_file_empty: Path) -> None:
         assert get_file_permissions(temp_file_empty) == perm_string
 
 
-def test_get_file_by_id(client: Client, responses: RequestsMock) -> None:
+def test_get_file_by_id(client: Client, responses: responses.RequestsMock) -> None:
     """Given a file ID, the client must return the file."""
     uuid = uuidlib.uuid4()
     url: str = get_files_endpoint(client) + f"{uuid.hex}/"
@@ -139,7 +143,7 @@ def test_file_upload_returns_file(
 
 
 def test_large_file_upload_mocked(
-    client: Client, responses: RequestsMock, temp_large_binary_file: Path
+    client: Client, responses: responses.RequestsMock, temp_large_binary_file: Path
 ) -> None:
     """Test the upload_file method with mocked responses."""
     file_id = uuidlib.uuid4()
@@ -188,7 +192,9 @@ def test_large_file_upload_mocked(
     assert isinstance(file_sample.updated_at, datetime)
 
 
-def test_download_file_contents(client: Client, responses: RequestsMock) -> None:
+def test_download_file_contents(
+    client: Client, responses: responses.RequestsMock
+) -> None:
     """The download_file_contents method must create a file with the file contents."""
     client.dry_run = False  # calls are mocked, but we want to test the actual requests
 
@@ -242,7 +248,9 @@ def test_download_file_contents(client: Client, responses: RequestsMock) -> None
     downloaded_path.unlink(missing_ok=False)
 
 
-def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
+def test_download_file_to_path(
+    client: Client, responses: responses.RequestsMock
+) -> None:
     """The download method must respect the given path, creating any parent dirs."""
     client.dry_run = False  # calls are mocked, but we want to test the actual requests
 
@@ -298,3 +306,72 @@ def test_download_file_to_path(client: Client, responses: RequestsMock) -> None:
     # cleanup
     expected_path.unlink(missing_ok=False)
     parent_dir.rmdir()
+
+
+@responses.activate
+def test_delete_file_success(client: Client) -> None:
+    """Test successful file deletion."""
+    # ARRANGE
+    test_uuid = uuidlib.uuid4()
+    test_uuid_hex = test_uuid.hex
+    client.dry_run = False
+    assert client.dry_run is False, "Dry run must be enabled for this test."
+    responses.add(
+        responses.DELETE,
+        f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=204,
+    )
+
+    # ACT
+    result = delete_file(client=client, file_uuid=test_uuid)
+
+    # ASSERT
+    assert result is True, "Expected deletion to succeed."
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.method == "DELETE"
+    assert (
+        responses.calls[0].request.url
+        == f"{get_files_endpoint(client)}{test_uuid_hex}/"
+    )
+
+
+@responses.activate
+def test_delete_file_str_uuid(client: Client) -> None:
+    """Test file deletion with string UUID."""
+    # ARRANGE
+    test_uuid = uuidlib.uuid4()
+    test_uuid_hex = test_uuid.hex
+    client.dry_run = False  # calls are mocked, but we want to test the actual requests
+    assert client.dry_run is False, "Dry run must be enabled for this test."
+    responses.add(
+        responses.DELETE,
+        f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=204,
+    )
+
+    # ACT
+    result = delete_file(client=client, file_uuid=test_uuid_hex)
+
+    # ASSERT
+    assert result is True, "Expected deletion to succeed."
+    assert len(responses.calls) == 1, "Expected one DELETE request to be made."
+    assert responses.calls[0].request.method == "DELETE"
+    assert (
+        responses.calls[0].request.url
+        == f"{get_files_endpoint(client)}{test_uuid_hex}/"
+    )
+
+
+@responses.activate
+def test_delete_file_dry_run(client: Client) -> None:
+    """Test file deletion in dry run mode."""
+    # ARRANGE
+    test_uuid = uuidlib.uuid4()
+    assert client.dry_run is True, "Dry run must be enabled for this test."
+
+    # ACT
+    result = delete_file(client=client, file_uuid=test_uuid)
+
+    # ASSERT
+    assert result is True  # deletion always succeeds in dry run mode
+    assert len(responses.calls) == 0

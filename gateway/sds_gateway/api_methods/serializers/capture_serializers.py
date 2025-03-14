@@ -35,8 +35,12 @@ class CaptureGetSerializer(serializers.ModelSerializer):
         Returns:
             A list of serialized file objects with uuid, name, and directory fields.
         """
+        non_deleted_files = File.objects.filter(
+            capture=capture,
+            is_deleted=False,
+        )
         serializer = FileCaptureListSerializer(
-            File.objects.filter(capture=capture),
+            non_deleted_files,
             many=True,
             context=self.context,
         )
