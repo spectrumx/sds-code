@@ -133,13 +133,18 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
 
         b3_checksum = File().calculate_checksum(validated_data["file"])
 
-        file_exists_in_tree = File.objects.filter(
+        user_file_queryset = File.objects.filter(
+            owner=validated_data["owner"],
+            is_deleted=False,
+        )
+
+        file_exists_in_tree = user_file_queryset.filter(
             sum_blake3=b3_checksum,
             directory=validated_data["directory"],
             name=validated_data["file"].name,
         ).exists()
 
-        existing_file_instance = File.objects.filter(
+        existing_file_instance = user_file_queryset.filter(
             sum_blake3=b3_checksum,
         ).first()
 
@@ -212,7 +217,11 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
                     the closest match, or None. In this order of availability.
                     The closest match's UUID may be used as a sibling_uuid.
         """
-        identical_user_owned_file = File.objects.filter(
+        user_file_queryset = File.objects.filter(
+            owner=user,
+            is_deleted=False,
+        )
+        identical_user_owned_file = user_file_queryset.filter(
             owner=user,
             sum_blake3=blake3_sum,
         )

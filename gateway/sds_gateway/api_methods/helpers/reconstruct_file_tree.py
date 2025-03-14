@@ -61,9 +61,13 @@ def reconstruct_tree(
         ),
     }
     # Get all files owned by user in this directory
+    user_file_queryset = File.objects.filter(
+        owner=owner,
+        is_deleted=False,
+    )
     owned_files = {
         owned_file.name: owned_file
-        for owned_file in File.objects.filter(
+        for owned_file in user_file_queryset.filter(
             owned_files_filter_by_capture_type[drf_capture_type],
         )
     }
