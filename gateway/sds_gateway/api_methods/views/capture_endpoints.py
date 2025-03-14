@@ -1,9 +1,11 @@
+import json
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
 from typing import cast
 
+from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample
@@ -14,6 +16,7 @@ from loguru import logger as log
 from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework import viewsets
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -28,6 +31,7 @@ from sds_gateway.api_methods.helpers.index_handling import index_capture_metadat
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
+from sds_gateway.api_methods.helpers.search_captures import search_captures
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
@@ -36,6 +40,12 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 )
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
+
+
+class CapturePagination(PageNumberPagination):
+    page_size = 30
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class CaptureViewSet(viewsets.ViewSet):
@@ -72,7 +82,17 @@ class CaptureViewSet(viewsets.ViewSet):
             case CaptureType.RadioHound:
                 rh_metadata_file = find_rh_metadata_file(data_path)
                 rh_data = load_rh_file(rh_metadata_file)
-                capture_props = rh_data.model_dump(mode="json")
+                rh_json = rh_data.model_dump(mode="json")
+
+                # replace "latitude" and "longitude" in the json with coordinates
+                rh_json["coordinates"] = {
+                    "lat": rh_json["latitude"],
+                    "lon": rh_json["longitude"],
+                }
+                del rh_json["latitude"]
+                del rh_json["longitude"]
+
+                capture_props = rh_json
             case _:
                 msg = f"Unrecognized capture type '{cap_type}'"
                 log.warning(msg)
@@ -269,6 +289,34 @@ class CaptureViewSet(viewsets.ViewSet):
         serializer = CaptureGetSerializer(target_capture, many=False)
         return Response(serializer.data)
 
+    def _validate_metadata_filters(
+        self, metadata_filters_str: str | None
+    ) -> list[dict[str, Any]] | None:
+        """Parse and validate metadata filters from request."""
+        if not metadata_filters_str:
+            return None
+
+        try:
+            metadata_filters = json.loads(metadata_filters_str)
+            if not isinstance(metadata_filters, list):
+                msg = "metadata_filters must be a list."
+                log.error(msg)
+                raise TypeError(msg)
+            return metadata_filters  # noqa: TRY300
+        except json.JSONDecodeError as err:
+            msg = "metadata_filters could not be parsed."
+            log.error(msg)
+            raise ValueError(msg) from err
+
+    def _paginate_captures(
+        self, captures: QuerySet[Capture], request: Request
+    ) -> Response:
+        """Paginate and serialize capture results."""
+        paginator = CapturePagination()
+        paginated_captures = paginator.paginate_queryset(captures, request=request)
+        serializer = CaptureGetSerializer(paginated_captures, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
     @extend_schema(
         parameters=[
             OpenApiParameter(
@@ -278,6 +326,29 @@ class CaptureViewSet(viewsets.ViewSet):
                 required=False,
                 description="Type of capture to filter by (e.g. 'drf')",
             ),
+            OpenApiParameter(
+                name="metadata_filters",
+                type=OpenApiTypes.OBJECT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Metadata filters to apply to the search",
+            ),
+            OpenApiParameter(
+                name="page",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Page number for pagination.",
+                default=1,
+            ),
+            OpenApiParameter(
+                name="page_size",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Number of items per page.",
+                default=CapturePagination.page_size,
+            ),
         ],
         responses={
             200: CaptureGetSerializer,
@@ -285,6 +356,20 @@ class CaptureViewSet(viewsets.ViewSet):
             503: OpenApiResponse(description="OpenSearch service unavailable"),
             400: OpenApiResponse(description="Bad Request"),
         },
+        examples=[
+            OpenApiExample(
+                "Example Capture List Request",
+                summary="Capture List Request Body",
+                value=example_schema.capture_list_request_example_schema,
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Example Capture List Response",
+                summary="Capture List Response Body",
+                value=example_schema.capture_list_response_example_schema,
+                response_only=True,
+            ),
+        ],
         description="List captures with optional metadata filtering.",
         summary="List Captures",
     )
@@ -301,16 +386,13 @@ class CaptureViewSet(viewsets.ViewSet):
         if not owned_captures.exists():
             return Response([], status=status.HTTP_200_OK)
 
-        # assuming `owned_captures` is a valid capture queryset,
-        #   listing past this point should either work,
-        #   or raise 5xx errors for critical failures
-
         try:
-            serializer = CaptureGetSerializer(owned_captures, many=True)
-            return Response(serializer.data)
-        except ValueError as err:
-            # errors raised here should be logged and treated as server errors
-            log.exception(err)
+            metadata_filters = self._validate_metadata_filters(
+                request.GET.get("metadata_filters")
+            )
+            captures = search_captures(request.user, capture_type, metadata_filters)
+            return self._paginate_captures(captures, request)
+        except (ValueError, TypeError) as err:
             return Response(
                 {"detail": str(err)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
