@@ -4,6 +4,7 @@ from datetime import datetime
 from multiprocessing import RLock
 from multiprocessing.synchronize import RLock as RLockT
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Annotated
 
 from pydantic import ConfigDict
@@ -37,7 +38,7 @@ class File(SDSModel):
     """
 
     created_at: datetime
-    directory: Annotated[Path, Field(default_factory=Path)]
+    directory: Annotated[PurePosixPath, Field(default_factory=PurePosixPath)]
     expiration_date: datetime | None
     media_type: str
     name: str
@@ -59,7 +60,7 @@ class File(SDSModel):
         """Post-initialization steps."""
 
     @property
-    def path(self) -> Path:
+    def path(self) -> PurePosixPath:
         """Returns the path to the file, relative to the owner's root on SDS."""
         return self.directory / self.name
 

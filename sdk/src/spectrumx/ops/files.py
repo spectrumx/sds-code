@@ -6,6 +6,7 @@ from collections.abc import Generator
 from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
+from pathlib import PurePosixPath
 
 from loguru import logger as log
 
@@ -77,7 +78,7 @@ def get_file_updated_at(file_path: Path) -> datetime:
     return datetime.fromtimestamp(file_path.stat().st_mtime, tz=_tz)
 
 
-def construct_file(file_path: Path, sds_path: Path) -> File:
+def construct_file(file_path: Path, sds_path: PurePosixPath) -> File:
     """Constructs a file instance from a local file. File has to exist on disk."""
     file_path = Path(file_path)
     if not file_path.exists():
@@ -163,7 +164,9 @@ def get_valid_files(local_path: Path, *, warn_skipped: bool = False) -> Generato
         try:
             successful_files += 1
             local_rel_path = file_path.relative_to(local_path).parent
-            yield construct_file(file_path=file_path, sds_path=local_rel_path)
+            yield construct_file(
+                file_path=file_path, sds_path=PurePosixPath(local_rel_path)
+            )
         except FileNotFoundError:
             continue
     log_user(
@@ -190,7 +193,7 @@ def generate_sample_file(uuid_to_set: uuid.UUID) -> File:
         name=f"dry-run-{trailing_uuid_hex}.txt",
         media_type="text/plain",
         size=888,
-        directory=Path("./sds-files/dry-run/"),
+        directory=PurePosixPath("./sds-files/dry-run/"),
         permissions="rw-rw-r--",
         created_at=created_at,
         updated_at=updated_at,

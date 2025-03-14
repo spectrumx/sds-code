@@ -14,7 +14,7 @@ from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from pathlib import PurePosixPath
 
     from spectrumx.gateway import GatewayClient
 
@@ -35,7 +35,7 @@ class CaptureAPI:
     def create(
         self,
         *,
-        top_level_dir: Path,
+        top_level_dir: PurePosixPath,
         capture_type: CaptureType,
         index_name: str = "",
         channel: str | None = None,

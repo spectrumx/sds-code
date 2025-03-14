@@ -3,6 +3,7 @@
 import re
 from enum import IntEnum
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 from unittest.mock import patch
 
@@ -140,7 +141,7 @@ def test_download_fails_for_invalid_files(
     """Ensures download() fails when an invalid local path is provided."""
 
     caplog.set_level(LogLevels.ERROR)
-    sds_path = Path("sds/custom/dir/")
+    sds_path = PurePosixPath("sds/custom/dir/")
     local_path = Path("local/path")
 
     target_num_files = 2

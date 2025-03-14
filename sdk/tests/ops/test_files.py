@@ -2,11 +2,14 @@
 # pylint: disable=redefined-outer-name
 
 import json
+import sys
 import tempfile
 import uuid as uuidlib
 from datetime import datetime
 from pathlib import Path
+from pathlib import PurePosixPath
 
+import pytest
 from responses import RequestsMock
 from spectrumx import Client
 from spectrumx.gateway import API_TARGET_VERSION
@@ -35,6 +38,8 @@ def _get_content_check_endpoint(client: Client) -> str:
     )
 
 
+@pytest.mark.linux
+@pytest.mark.darwin
 def test_get_file_permissions(temp_file_empty: Path) -> None:
     """Test get_file_permissions for many permission combinations."""
     chmod_combos = {
@@ -45,6 +50,26 @@ def test_get_file_permissions(temp_file_empty: Path) -> None:
         "rw-rw-r--": 0o664,
         "rwx------": 0o700,
         "rwxrwxrwx": 0o777,
+    }
+    for perm_string, chmod in chmod_combos.items():
+        temp_file_empty.chmod(chmod)
+        assert get_file_permissions(temp_file_empty) == perm_string
+
+
+@pytest.mark.win32
+def test_get_file_permissions_win32(temp_file_empty: Path) -> None:
+    """
+    Test get_file_permissions for many permission combinations.
+
+    Windows only allows setting read or write permissions on a file.
+    """
+    chmod_combos = {
+        "r--r--r--": 0o400,
+        "r--r--r--": 0o440,  # noqa: F601
+        "r--r--r--": 0o444,  # noqa: F601
+        "rw-rw-rw-": 0o600,
+        "rw-rw-rw-": 0o660,  # noqa: F601
+        "rw-rw-rw-": 0o666,  # noqa: F601
     }
     for perm_string, chmod in chmod_combos.items():
         temp_file_empty.chmod(chmod)
@@ -95,7 +120,7 @@ def test_file_get_returns_valid(
     assert file_sample.name.startswith("dry-run-")
     assert file_sample.media_type == "text/plain"
     assert file_sample.size == file_size
-    assert file_sample.directory == Path("sds-files/dry-run/")
+    assert file_sample.directory == PurePosixPath("sds-files/dry-run/")
     assert file_sample.permissions == "rw-rw-r--"
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
@@ -106,7 +131,7 @@ def test_file_get_returns_valid(
 
 
 def test_file_upload_returns_file(
-    client: Client, temp_file_with_text_contents: Path
+    client: Client, temp_file_with_text_contents: Path, tmp_path: Path
 ) -> None:
     """The upload_file method must return a valid File instance."""
     test_file_size = temp_file_with_text_contents.stat().st_size
@@ -114,7 +139,7 @@ def test_file_upload_returns_file(
     assert client.dry_run is True, "Dry run must be enabled for this test."
     file_sample = client.upload_file(
         local_file=temp_file_with_text_contents,
-        sds_path=Path("/my/upload/location"),
+        sds_path=PurePosixPath("/my/upload/location"),
     )
     assert file_sample.is_sample is False, (
         "The file must be a real file on disk (not a sample), even for this test"
@@ -126,11 +151,13 @@ def test_file_upload_returns_file(
     assert file_sample.name is not None, "Expected a file name"
     assert file_sample.media_type == "text/plain", "Expected media type 'text/plain'"
     assert file_sample.size == test_file_size, "Expected the test file to be 4030 bytes"
-    assert "/tmp/pytest-" in str(  # noqa: S108
-        file_sample.local_path
-    ), "Expected the temp file directory"
-    assert file_sample.directory == Path("/my/upload/location")
-    assert file_sample.permissions == "rw-r--r--"
+    assert str(tmp_path) in str(file_sample.local_path), (
+        "Expected the temp file directory"
+    )
+    assert file_sample.directory == PurePosixPath("/my/upload/location")
+    expected_permissions = "rw-rw-rw-" if sys.platform == "win32" else "rw-r--r--"
+    assert file_sample.permissions == expected_permissions
+
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)
     assert file_sample.expiration_date is None, (
@@ -176,13 +203,13 @@ def test_large_file_upload_mocked(
     # run the test
     file_sample = client.upload_file(
         local_file=temp_large_binary_file,
-        sds_path=Path(mocked_upload_json["directory"]),
+        sds_path=PurePosixPath(mocked_upload_json["directory"]),
     )
     assert file_sample.uuid == file_id, "UUID not as mocked."
     assert file_sample.name == mocked_upload_json["name"]
     assert file_sample.media_type == mocked_upload_json["media_type"]
     assert file_sample.size == file_size
-    assert file_sample.directory == Path(mocked_upload_json["directory"])
+    assert file_sample.directory == PurePosixPath(mocked_upload_json["directory"])
     assert file_sample.permissions == mocked_upload_json["permissions"]
     assert isinstance(file_sample.created_at, datetime)
     assert isinstance(file_sample.updated_at, datetime)

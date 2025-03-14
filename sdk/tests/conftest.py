@@ -2,6 +2,7 @@
 
 import os
 import random
+import sys
 import uuid
 from collections.abc import Generator
 from pathlib import Path
@@ -25,6 +26,18 @@ except ImportError:
     log.warning("Install rich for better tracebacks")
 
 enable_logging()
+
+# Platform Specific Testing
+PLATFORMS = set("darwin linux win32".split())
+
+
+def pytest_runtest_setup(item):
+    supported_platforms = PLATFORMS.intersection(
+        mark.name for mark in item.iter_markers()
+    )
+    plat = sys.platform
+    if supported_platforms and plat not in supported_platforms:
+        pytest.skip(f"cannot run on platform {plat}")
 
 
 # ==== fixtures
