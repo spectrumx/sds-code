@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from loguru import logger as log
 from spectrumx.client import Client
+from spectrumx.errors import FileError
 from spectrumx.ops.files import construct_file
 from spectrumx.ops.files import get_valid_files
 from spectrumx.ops.files import is_valid_file
@@ -602,3 +603,107 @@ def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
     listed_uuids = {file.uuid for file in files_listed}
     uploaded_uuids = {file.uuid for file in uploaded_files}
     assert listed_uuids == uploaded_uuids, "UUIDs mismatch."
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.file_meta_download_or_upload(),
+            *PassthruEndpoints.file_deletion(),
+        ]
+    ],
+    indirect=True,
+)
+def test_delete_file_integration(
+    integration_client: Client, temp_file_with_text_contents: Path
+) -> None:
+    """Test file deletion by uploading a file then deleting it."""
+
+    # make sure dry run is disabled
+    integration_client.dry_run = False
+    assert integration_client.dry_run is False, (
+        "Dry run should be disabled for integration tests"
+    )
+
+    # ARRANGE
+
+    # create a temporary file for testing
+    temp_file_path = temp_file_with_text_contents
+    temp_file_path.write_text("This is a test file to be deleted", encoding="utf-8")
+
+    # upload the file
+    sds_path = Path(f"/test-delete-file-{get_random_line(8)}")
+    log.info(f"Uploading test file to SDS at {sds_path}")
+    uploaded_file = integration_client.upload_file(
+        local_file=temp_file_path, sds_path=sds_path
+    )
+
+    # verify file UUID exists
+    assert uploaded_file.uuid is not None, "Uploaded file should have a UUID"
+    file_uuid = uploaded_file.uuid
+    log.info(f"File uploaded with UUID: {file_uuid}")
+
+    # verify file exists by retrieving metadata
+    retrieved_file = integration_client.get_file(file_uuid=file_uuid)
+    assert retrieved_file.uuid == file_uuid, (
+        "Retrieved file UUID should match uploaded file UUID"
+    )
+
+    # ACT
+
+    # delete the file
+    log.info(f"Deleting file with UUID: {file_uuid}")
+    delete_result = integration_client.delete_file(file_uuid=file_uuid)
+
+    # ASSERT
+
+    assert delete_result is True, "File deletion should return True"
+    with pytest.raises(FileError):
+        integration_client.get_file(file_uuid=file_uuid)
+    log.info(f"Test file '{file_uuid}' deleted successfully.")
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_meta_download_or_upload(),
+            *PassthruEndpoints.file_deletion(),
+        ]
+    ],
+    indirect=True,
+)
+def test_delete_file_error_integration(integration_client: Client) -> None:
+    """Test file deletion error when trying to delete a non-existent file."""
+    # ARRANGE
+    # Make sure dry run is disabled for integration testing
+    integration_client.dry_run = False
+    assert integration_client.dry_run is False, (
+        "Dry run mode should be disabled for integration tests"
+    )
+
+    # Generate a random UUID that should not exist in the system
+    non_existent_uuid = uuid.uuid4()
+    log.info(f"Attempting to delete non-existent file with UUID: {non_existent_uuid}")
+
+    # ACT & ASSERT
+    # Try to delete a file with a non-existent UUID, which should raise a FileError
+    with pytest.raises(FileError) as exc_info:
+        integration_client.delete_file(file_uuid=non_existent_uuid)
+
+    # ASSERT
+    error_message = str(exc_info.value)
+    log.info(f"FileError caught as expected: '{error_message}'")
+    assert "not found" in error_message.lower() or "no file" in error_message.lower(), (
+        "Error message should indicate the file was not found"
+    )
