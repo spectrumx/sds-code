@@ -11,6 +11,7 @@ from enum import auto
 from multiprocessing.synchronize import RLock
 from pathlib import Path
 
+from loguru import logger as log
 from pydantic import UUID4
 
 from spectrumx.client import Client
@@ -20,6 +21,8 @@ from spectrumx.ops import files
 from spectrumx.ops.pagination import Paginator
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
+
+log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
 
 class FileUploadMode(Enum):
@@ -200,6 +203,29 @@ def upload_file(
     return __upload_file_mux(client=client, file_instance=file_instance)
 
 
+def delete_file(client: Client, file_uuid: UUID4 | str) -> bool:
+    """Deletes a file from SDS by its UUID.
+
+    Args:
+        client: The client instance.
+        file_uuid: The UUID of the file to delete.
+    Returns:
+        True if the file was deleted successfully,
+        or if in dry run mode (simulating success).
+    Raises:
+        SDSError: If the file couldn't be deleted.
+    """
+    uuid_to_delete: UUID4 = (
+        uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
+    )
+
+    if client.dry_run:
+        log_user(f"Dry run enabled: would delete file with UUID {uuid_to_delete.hex}")
+        return True
+
+    return client._gateway.delete_file_by_id(uuid=uuid_to_delete.hex)
+
+
 def __download_file_contents(
     *,
     client,
@@ -258,7 +284,10 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:
                 client=client, file_instance=file_instance
             )
         case FileUploadMode.UPLOAD_METADATA_ONLY:
-            log_user(f"Uploading metadata for '{file_path}'")
+            log_user(f"Uploading only metadata for '{file_path}'")
+            log.debug(
+                f"Uploading only metadata '{file_path}' with sibling '{asset_id}'"
+            )
             if asset_id is None:
                 msg = "Expected an asset ID when uploading metadata only"
                 raise SDSError(msg)
@@ -267,6 +296,7 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:
             )
         case FileUploadMode.UPDATE_METADATA_ONLY:  # pragma: no cover
             log_user(f"Updating metadata for '{file_path}'")
+            log.debug(f"Updating metadata '{file_path}' with asset '{asset_id}'")
             assert asset_id is not None, "Expected an asset ID when updating metadata"
             return __update_existing_file_metadata_only(
                 client=client, file_instance=file_instance, asset_id=asset_id

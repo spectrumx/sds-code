@@ -401,6 +401,29 @@ class GatewayClient:
         network.success_or_raise(response=response, ContextException=FileError)
         return response.content
 
+    def delete_file_by_id(self, uuid: str, *, verbose: bool = False) -> bool:
+        """Deletes a file from the SDS API by its UUID.
+
+        Args:
+            uuid: The UUID of the file to delete as a hex string.
+            verbose: Whether to log the request.
+
+        Returns:
+            True if the file was deleted successfully.
+
+        Raises:
+            FileError: If the file could not be deleted.
+        """
+        response = self._request(
+            method=HTTPMethods.DELETE,
+            endpoint=Endpoints.FILES,
+            asset_id=uuid,
+            verbose=verbose,
+        )
+
+        network.success_or_raise(response, ContextException=FileError)
+        return True  # If no exception was raised, the deletion was successful
+
     # ===============
     # CAPTURE METHODS
 
