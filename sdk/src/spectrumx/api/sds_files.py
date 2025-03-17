@@ -139,7 +139,7 @@ def download_file(
 def list_files(
     *,
     client: Client,
-    sds_path: PurePosixPath | str,
+    sds_path: PurePosixPath | Path | str,
     verbose: bool = False,
 ) -> Paginator[File]:
     """Lists files in a given SDS path.
@@ -166,7 +166,7 @@ def upload_file(
     *,
     client: Client,
     local_file: File | Path | str,
-    sds_path: PurePosixPath | str = "/",
+    sds_path: PurePosixPath | Path | str = "/",
 ) -> File:
     """Uploads a file to SDS.
 

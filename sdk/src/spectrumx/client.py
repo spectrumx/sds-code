@@ -166,7 +166,7 @@ class Client:
     def download(
         self,
         *,
-        from_sds_path: PurePosixPath | str,
+        from_sds_path: PurePosixPath | Path | str,
         to_local_path: Path | str,
         skip_contents: bool = False,
         overwrite: bool = False,
@@ -284,7 +284,7 @@ class Client:
         return results
 
     def list_files(
-        self, sds_path: PurePosixPath | str, *, verbose: bool = False
+        self, sds_path: PurePosixPath | Path | str, *, verbose: bool = False
     ) -> Paginator[File]:
         """Lists files in a given SDS path.
 
@@ -338,7 +338,7 @@ class Client:
         self,
         *,
         local_path: Path | str,
-        sds_path: PurePosixPath | str = "/",
+        sds_path: PurePosixPath | Path | str = "/",
         verbose: bool = True,
     ) -> list[Result[File]]:
         """Uploads a file or directory to SDS.
@@ -372,7 +372,7 @@ class Client:
         self,
         *,
         local_file: File | Path | str,
-        sds_path: PurePosixPath | str = "/",
+        sds_path: PurePosixPath | Path | str = "/",
     ) -> File:
         """Uploads a file to SDS.
 

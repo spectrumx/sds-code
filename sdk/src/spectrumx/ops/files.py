@@ -78,7 +78,7 @@ def get_file_updated_at(file_path: Path) -> datetime:
     return datetime.fromtimestamp(file_path.stat().st_mtime, tz=_tz)
 
 
-def construct_file(file_path: Path, sds_path: PurePosixPath) -> File:
+def construct_file(file_path: Path, sds_path: Path | PurePosixPath) -> File:
     """Constructs a file instance from a local file. File has to exist on disk."""
     file_path = Path(file_path)
     if not file_path.exists():
@@ -89,7 +89,7 @@ def construct_file(file_path: Path, sds_path: PurePosixPath) -> File:
         expiration_date=None,
         local_path=file_path,
         size=file_path.stat().st_size,
-        directory=sds_path,
+        directory=PurePosixPath(sds_path),
         media_type=get_file_media_type(file_path),
         created_at=get_file_created_at(file_path),
         updated_at=get_file_updated_at(file_path),
