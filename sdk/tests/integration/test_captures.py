@@ -427,7 +427,7 @@ def test_capture_reading_drf(integration_client: Client) -> None:
 
 def _upload_assets(
     integration_client: Client,
-    sds_path: PurePosixPath,
+    sds_path: Path | PurePosixPath,
     local_path: Path,
 ) -> None:
     """Helper to upload a local directory to SDS and assert success."""

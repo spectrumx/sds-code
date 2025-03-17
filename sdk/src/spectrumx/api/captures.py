@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -14,7 +15,7 @@ from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
 
 if TYPE_CHECKING:
-    from pathlib import PurePosixPath
+    from pathlib import Path
 
     from spectrumx.gateway import GatewayClient
 
@@ -35,7 +36,7 @@ class CaptureAPI:
     def create(
         self,
         *,
-        top_level_dir: PurePosixPath,
+        top_level_dir: Path | PurePosixPath,
         capture_type: CaptureType,
         index_name: str = "",
         channel: str | None = None,
@@ -50,6 +51,8 @@ class CaptureAPI:
         index_name = index_mapping.get(capture_type, index_name)
         if not index_name:
             log.warning(f"Could not find an index for {capture_type=}")
+
+        top_level_dir = PurePosixPath(top_level_dir)
         log.debug(
             f"Creating capture with {top_level_dir=}, "
             f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}"

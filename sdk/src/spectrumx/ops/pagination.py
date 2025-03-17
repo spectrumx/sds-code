@@ -4,6 +4,7 @@ import json
 import sys
 import time
 import uuid
+from pathlib import Path
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from typing import Any
@@ -66,7 +67,7 @@ class Paginator(Generic[T]):
         *,
         Entry: type[SDSModel],  # noqa: N803
         gateway: GatewayClient,
-        sds_path: PurePosixPath | str,
+        sds_path: PurePosixPath | Path | str,
         dry_run: bool = False,
         page_size: int = 30,
         start_page: int = 1,
