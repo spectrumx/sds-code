@@ -217,6 +217,9 @@ rh_capture_index_mapping = {
     "coordinates": {
         "type": "geo_point",
     },
+    "altitude": {
+        "type": "float",
+    },
     "mac_address": {
         "type": "keyword",
     },
