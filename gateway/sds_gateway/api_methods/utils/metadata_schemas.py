@@ -166,7 +166,7 @@ drf_capture_index_mapping = {
         "type": "integer",
     },
     "center_freq": {
-        "type": "integer",
+        "type": "double",
     },
     "span": {
         "type": "integer",
@@ -184,12 +184,35 @@ drf_capture_index_mapping = {
 rh_capture_index_mapping = {
     "metadata": {
         "type": "nested",
+        "properties": {
+            "archive_result": {
+                "type": "boolean",
+            },
+            "data_type": {
+                "type": "keyword",
+            },
+            "fmax": {
+                "type": "double",
+            },
+            "fmin": {
+                "type": "double",
+            },
+            "gps_lock": {
+                "type": "boolean",
+            },
+            "nfft": {
+                "type": "integer",
+            },
+            "scan_time": {
+                "type": "float",
+            },
+        },
     },
     "sample_rate": {
         "type": "integer",
     },
     "center_frequency": {
-        "type": "float",
+        "type": "double",
     },
     "latitude": {
         "type": "float",
@@ -198,7 +221,7 @@ rh_capture_index_mapping = {
         "type": "float",
     },
     "altitude": {
-        "type": "float",
+        "type": "double",
     },
     "mac_address": {
         "type": "keyword",
