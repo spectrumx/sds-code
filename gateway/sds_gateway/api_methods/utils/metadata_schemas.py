@@ -184,29 +184,6 @@ drf_capture_index_mapping = {
 rh_capture_index_mapping = {
     "metadata": {
         "type": "nested",
-        "properties": {
-            "archive_result": {
-                "type": "boolean",
-            },
-            "data_type": {
-                "type": "keyword",
-            },
-            "fmax": {
-                "type": "float",
-            },
-            "fmin": {
-                "type": "float",
-            },
-            "gps_lock": {
-                "type": "boolean",
-            },
-            "nfft": {
-                "type": "integer",
-            },
-            "scan_time": {
-                "type": "float",
-            },
-        },
     },
     "sample_rate": {
         "type": "integer",
@@ -214,8 +191,11 @@ rh_capture_index_mapping = {
     "center_frequency": {
         "type": "float",
     },
-    "coordinates": {
-        "type": "geo_point",
+    "latitude": {
+        "type": "float",
+    },
+    "longitude": {
+        "type": "float",
     },
     "altitude": {
         "type": "float",
