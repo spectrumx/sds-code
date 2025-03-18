@@ -106,6 +106,8 @@ class CaptureViewSet(viewsets.ViewSet):
         requester: User,
         rh_scan_group: uuid.UUID | None,
         top_level_dir: Path,
+        *,
+        connect_files: bool = True,
     ) -> None:
         """Ingest or update a capture by handling files and metadata.
 
@@ -133,9 +135,10 @@ class CaptureViewSet(viewsets.ViewSet):
                 )
 
                 # Connect the files to the capture
-                for cur_file in files_to_connect:
-                    cur_file.capture = capture
-                    cur_file.save()
+                if connect_files:
+                    for cur_file in files_to_connect:
+                        cur_file.capture = capture
+                        cur_file.save()
 
                 self._validate_and_index_metadata(
                     capture=capture,
