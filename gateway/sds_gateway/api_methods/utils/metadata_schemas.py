@@ -221,7 +221,7 @@ rh_capture_index_mapping = {
         "type": "float",
     },
     "altitude": {
-        "type": "double",
+        "type": "float",
     },
     "mac_address": {
         "type": "keyword",
