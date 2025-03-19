@@ -67,6 +67,19 @@
     height: 40px;
   }
 
+  .logo a {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: var(--text-color);
+  }
+
+  .logo span {
+    font-size: 1.25rem;
+    font-weight: 500;
+    margin-left: 1rem;
+  }
+
   main{
     min-height: calc(100vh - 60px);
     background-color: var(--white);
