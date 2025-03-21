@@ -96,7 +96,7 @@ services:
         # used for indexing and searching documents
         build:
             context: .
-            dockerfile: ./compose/production/opensearch/Dockerfile
+            dockerfile: ./compose/local/opensearch/Dockerfile
             args:
                 UID: ${UID}
                 GID: ${GID}
