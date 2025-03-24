@@ -160,7 +160,6 @@ class FakeFileFactory:
                 file_obj.local_path.touch()
             self.fake_files.append(file_obj)
             yield file_obj
-        log.error(f"AAAAA: {self.fake_files}")
         self.value = self.fake_files
         return self.value
 

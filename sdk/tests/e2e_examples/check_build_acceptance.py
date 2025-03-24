@@ -26,9 +26,10 @@ from typing import TYPE_CHECKING
 
 from spectrumx import Client
 from spectrumx import enable_logging
+import spectrumx
 
 NOT_IMPLEMENTED = "This example is not yet implemented."
-SDS_HOST = "sds.crc.nd.edu"  # shouldn't matter for dry-runs
+SDS_HOST = "sds-dev.crc.nd.edu"  # shouldn't matter for dry-runs
 
 if TYPE_CHECKING:
     from spectrumx.models.files import File
@@ -46,6 +47,8 @@ def teardown_module() -> None:
 
 def check_basic_usage() -> None:
     """Runs a basic usage run. Update this code to reflect readme changes."""
+
+    print(f"Running basic usage check for v{spectrumx.__version__}...")
 
     # Example of files upload, listing, and download from SDS.
 

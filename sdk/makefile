@@ -92,7 +92,7 @@ test-all:
 
 check-acceptance:
 	echo -e "\n\t\033[34mRunning acceptance checks using current environment \033[33m(NOT BUILT ARTIFACT)\033[0m\n"
-	uv run -p $(PYTHON_VERSION) tests/e2e_examples/check_build_acceptance.py
+	uv run --no-cache -p $(PYTHON_VERSION) tests/e2e_examples/check_build_acceptance.py
 
 serve-coverage:
 	python -m http.server 1313 -d tests/htmlcov
@@ -112,9 +112,9 @@ update:
 	uv run pre-commit autoupdate
 
 build:
-	uv build
+	uv build --no-cache
 	echo -e "\n\t\033[32mRunning smoke tests on the built package\033[0m\n"
-	uv run --isolated --no-project -p $(PYTHON_VERSION) --with dist/*.tar.gz tests/e2e_examples/check_build_acceptance.py
+	uv run --no-cache --isolated --no-project -p $(PYTHON_VERSION) --with dist/*.tar.gz tests/e2e_examples/check_build_acceptance.py
 	# clean-up generated files
 	rm my_spectrum_files/rf_run_*.csv && rmdir my_spectrum_files
 	echo -e "\n\t\033[32mBuilt package:\033[0m\n"
