@@ -46,7 +46,31 @@ class CaptureAPI:
         channel: str | None = None,
         scan_group: str | None = None,
     ) -> Capture:
-        """Creates a new capture in SDS."""
+        """Creates a new RF capture in SDS.
+
+        An SDS capture is a collection of RF files that follow a predetermined structure
+        which makes them suitable for indexing and searching. Example capture types
+        include Digital-RF and RadioHound. The exact file structure and what files
+        get indexed depend on the capture type.
+
+        ### Notes:
+
+        + This method doesn't upload files, it is a lightweight method that only groups
+        files already in SDS into a capture. To upload files, see `upload()` and
+        `upload_file()` from your SDS client instance.
+
+        + The `top_level_dir` is the path in SDS relative to your user directory
+        where the files were uploaded to, not your local filesystem path.
+
+        Args:
+            top_level_dir:  Virtual directory in SDS where capture files are stored.
+            capture_type:   One of `spectrumx.models.captures.CaptureType`.
+            index_name:     The SDS index name. Leave empty to automatically select.
+            channel:        (For Digital-RF) the DRF channel name to index.
+            scan_group:     (For RadioHound) UUIDv4 that groups RH files.
+        Returns:
+            The created capture object.
+        """
         if index_name:
             log.warning(
                 "The 'index_name' parameter is deprecated and "
@@ -87,7 +111,16 @@ class CaptureAPI:
         return capture
 
     def listing(self, *, capture_type: CaptureType | None = None) -> list[Capture]:
-        """Lists all captures in SDS under the current user."""
+        """Lists all RF captures in SDS under the current user.
+
+        Note a capture must be manually "`.create()`-d" before it can be listed, even
+            if all the files are uploaded to SDS.
+
+        Args:
+            capture_type:   The type of capture to list. If empty, it lists everything.
+        Returns:
+            A list of the RF captures found owned by the requesting user.
+        """
         log.debug(f"Listing captures of type {capture_type}")
         if self.dry_run:
             log.debug("Dry run enabled: simulating capture listing")
@@ -125,7 +158,12 @@ class CaptureAPI:
     ) -> None:
         """Updates a capture in SDS by re-discovering and re-indexing the files.
 
-        Re-upload the desired capture files in order to change
+        Note that, just like the `.create()`, this method doesn't upload files.
+
+        Args:
+            capture_uuid:   The UUID of the capture to update.
+        Returns:
+            None
         """
         log.debug(f"Updating capture with UUID {capture_uuid}")
 
@@ -145,7 +183,17 @@ class CaptureAPI:
         *,
         capture_uuid: uuid.UUID,
     ) -> Capture:
-        """Reads a specific capture from SDS."""
+        """Reads a specific capture from SDS.
+
+        This differs from the `.listing()` method by retrieving more information about
+            the capture, including the associated files' UUID, directory, and name;
+            useful when working with a specific capture.
+
+        Args:
+            capture_uuid:   The UUID of the capture to read.
+        Returns:
+            The capture object.
+        """
         log.debug(f"Reading capture with UUID {capture_uuid}")
 
         capture_raw = self.gateway.read_capture(capture_uuid=capture_uuid)
