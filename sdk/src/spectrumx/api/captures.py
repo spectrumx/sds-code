@@ -9,11 +9,13 @@ from typing import TYPE_CHECKING
 from typing import Any
 from uuid import uuid4
 
+import pydantic
 from loguru import logger as log
 
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
+from spectrumx.utils import log_user_warning
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -93,8 +95,13 @@ class CaptureAPI:
             # TODO: request more pages if needed
         captures: list[Capture] = []
         for captures_raw in captures_list_raw:
-            capture = Capture.model_validate(captures_raw)
-            captures.append(capture)
+            try:
+                capture = Capture.model_validate(captures_raw)
+                captures.append(capture)
+            except pydantic.ValidationError as err:
+                log_user_warning(f"Validation error loading capture: {captures_raw}")
+                log.exception(err)
+                continue
         log.debug(f"Listing {len(captures)} captures")
         return captures
 
