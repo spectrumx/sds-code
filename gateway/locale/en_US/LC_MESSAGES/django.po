@@ -1,5 +1,5 @@
 # Translations for the SpectrumX Data System Gateway project
-# Copyright (C) 2024 Center for Research Computing | University of Notre Dame
+# Copyright (C) Center for Research Computing | University of Notre Dame
 # Center for Research Computing | University of Notre Dame <crcsupport@nd.edu>, 2024.
 #
 #, fuzzy
