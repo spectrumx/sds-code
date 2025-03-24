@@ -31,7 +31,7 @@ enable_logging()
 PLATFORMS = {"darwin", "linux", "win32"}
 
 
-def pytest_runtest_setup(item):
+def pytest_runtest_setup(item) -> None:
     supported_platforms = PLATFORMS.intersection(
         mark.name for mark in item.iter_markers()
     )
@@ -210,6 +210,17 @@ def file_content_generator(
     for _current_line in range(num_lines):
         random_line = get_random_line(chars_per_line)
         yield f"{random_line}\n"
+
+
+def get_captures_endpoint(
+    client: Client,
+    capture_id: str | None = None,
+) -> str:
+    """Returns the endpoint for captures."""
+    base_endpoint = client.base_url + f"/api/{API_TARGET_VERSION}/assets/captures/"
+    if capture_id:
+        return base_endpoint + f"{capture_id}/"
+    return base_endpoint
 
 
 def get_files_endpoint(client: Client) -> str:
