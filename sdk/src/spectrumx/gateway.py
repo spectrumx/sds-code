@@ -169,6 +169,7 @@ class GatewayClient:
             if "asset_id" in kwargs:
                 debug_str += f" asset_id={kwargs['asset_id']}"
             log.opt(depth=1).debug(debug_str)
+
         return requests.request(
             timeout=self.timeout if timeout is None else timeout,
             method=method,

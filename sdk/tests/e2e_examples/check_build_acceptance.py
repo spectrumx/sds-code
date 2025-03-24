@@ -8,6 +8,9 @@ The goal is to be a quick way to check if client code runs, without strict
     assertions or coverage. As such, I'm calling these "checks" instead of
     "tests".
 
+All SDK functions below should be called in dry_run mode to run in environments
+    without credentials e.g. CI/CD deployments.
+
 Run it as a standalone script between the package build and publishing steps.
 Avoid adding third-party imports to this file.
 """
@@ -15,6 +18,7 @@ Avoid adding third-party imports to this file.
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from random import randint
 from random import random
@@ -24,6 +28,7 @@ from spectrumx import Client
 from spectrumx import enable_logging
 
 NOT_IMPLEMENTED = "This example is not yet implemented."
+SDS_HOST = "sds.crc.nd.edu"  # shouldn't matter for dry-runs
 
 if TYPE_CHECKING:
     from spectrumx.models.files import File
@@ -49,7 +54,7 @@ def check_basic_usage() -> None:
     #   locations simultaneously, as they may overrule each other
     #   and cause loss of data.
     sds = Client(
-        host="sds.crc.nd.edu",
+        host=SDS_HOST,
         # env_file=Path(".env"),  # default
         # env_config={"SDS_SECRET_TOKEN": "my-custom-token"},  # overrides
     )
@@ -110,7 +115,7 @@ def check_error_handling() -> None:
 
     from spectrumx.errors import AuthError, NetworkError
 
-    sds = Client(host="sds.crc.nd.edu")
+    sds = Client(host=SDS_HOST)
     try:
         sds.authenticate()
     except NetworkError as err:
@@ -163,7 +168,7 @@ def check_error_handling() -> None:
 def check_file_listing_usage() -> None:
     """Basic file listing usage example."""
 
-    sds = Client(host="sds.crc.nd.edu")
+    sds = Client(host=SDS_HOST)
     sds.authenticate()
     reference_name: str = "my_spectrum_files"
 
@@ -202,7 +207,7 @@ def check_capture_usage() -> None:
 
     from spectrumx.models.captures import Capture, CaptureType
 
-    sds = Client(host="sds.crc.nd.edu")
+    sds = Client(host=SDS_HOST)
     sds.authenticate()
 
     new_capture = sds.captures.create(
@@ -236,6 +241,9 @@ def main() -> None:
     """Runs all checks."""
 
     enable_logging()
+
+    # skips SSL verification if we're running against a development server
+    os.environ["PYTEST_CURRENT_TEST"] = "check_build_acceptance.py::main"
 
     # check_basic_usage()
     all_checks = [

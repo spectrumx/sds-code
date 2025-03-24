@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import random
 import uuid
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
@@ -88,6 +89,18 @@ class CaptureAPI:
     def listing(self, *, capture_type: CaptureType | None = None) -> list[Capture]:
         """Lists all captures in SDS under the current user."""
         log.debug(f"Listing captures of type {capture_type}")
+        if self.dry_run:
+            log.debug("Dry run enabled: simulating capture listing")
+            num_captures: int = 3
+            rng = random.Random()  # noqa: S311
+            return [
+                _generate_capture(
+                    capture_type=capture_type
+                    if capture_type
+                    else rng.choice(list(CaptureType))
+                )
+                for _ in range(num_captures)
+            ]
         captures_raw = self.gateway.list_captures(capture_type=capture_type)
         captures_list_raw, has_more = _extract_page_from_payload(captures_raw)
         if has_more:
@@ -169,3 +182,18 @@ def _extract_page_from_payload(
         ret_captures_list = [ret_captures_list]
 
     return ret_captures_list, has_more
+
+
+def _generate_capture(capture_type: CaptureType) -> Capture:
+    """Generates a fake capture for testing purposes."""
+    return Capture(
+        capture_props={"_comment": "Simulated capture for a dry-run"},
+        capture_type=capture_type,
+        index_name="",
+        channel=None,
+        scan_group=None,
+        origin=CaptureOrigin.User,
+        top_level_dir=PurePosixPath("/"),
+        uuid=uuid4(),
+        files=[],
+    )
