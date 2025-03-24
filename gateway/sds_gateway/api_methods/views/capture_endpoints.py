@@ -118,6 +118,8 @@ class CaptureViewSet(viewsets.ViewSet):
             requester:      The user making the request
             rh_scan_group:  Optional scan group UUID for RH captures
             top_level_dir:  Path to directory containing files to connect to capture
+        Raise:
+            FileNotFoundError:  If there are no files to connect to this capture
         """
 
         # Handle file connections if top_level_dir provided
@@ -131,6 +133,11 @@ class CaptureViewSet(viewsets.ViewSet):
                     drf_capture_type=capture.capture_type,
                     rh_scan_group=rh_scan_group,
                 )
+
+                if not files_to_connect:
+                    msg = f"No files found for capture '{capture.uuid}'"
+                    log.warning(msg)
+                    raise FileNotFoundError(msg)
 
                 # Connect the files to the capture
                 for cur_file in files_to_connect:
@@ -170,6 +177,7 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
         summary="Create Capture",
     )
+    # ruff: noqa: PLR0911   # too many return statements - not elegantly solvable when handling multiple exceptions
     def create(self, request: Request) -> Response:
         """Create a capture object, connecting files and indexing the metadata."""
         drf_channel = request.data.get("channel", None)
@@ -217,21 +225,31 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=requester,
                 top_level_dir=requested_top_level_dir,
             )
-        except UnknownIndexError as e:
-            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
+        except UnknownIndexError as err:
+            user_msg = f"Unknown index: '{err}'. Try recreating this capture."
             server_msg = (
-                f"Unknown index: '{e}'. Try running the init_indices "
+                f"Unknown index: '{err}'. Try running the init_indices "
                 "subcommand if this is index should exist."
             )
             log.error(server_msg)
             capture.soft_delete()
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
-            user_msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
+        except FileNotFoundError as err:
+            user_msg = (
+                "Could not find relevant files to create capture. "
+                f"Please, check if your files are in '{unsafe_top_level_dir}' "
+                "under SDS. You can list the files in this directory to verify."
+                f" {err}"
+            )
+            log.warning(user_msg)
             capture.soft_delete()
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError as e:
-            user_msg = f"Error connecting to OpenSearch: {e}"
+        except ValueError as err:
+            user_msg = f"Error handling metadata for capture '{capture.uuid}': {err}"
+            capture.soft_delete()
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        except os_exceptions.ConnectionError as err:
+            user_msg = f"Error connecting to OpenSearch: {err}"
             log.error(user_msg)
             capture.soft_delete()
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -469,19 +487,29 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=owner,
                 top_level_dir=requested_top_level_dir,
             )
-        except UnknownIndexError as e:
-            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
+        except UnknownIndexError as err:
+            user_msg = f"Unknown index: '{err}'. Try recreating this capture."
             server_msg = (
-                f"Unknown index: '{e}'. Try running the init_indices "
+                f"Unknown index: '{err}'. Try running the init_indices "
                 "subcommand if this is index should exist."
             )
             log.error(server_msg)
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
-            msg = f"Error handling metadata for capture '{target_capture.uuid}': {e}"
+        except FileNotFoundError as err:
+            user_msg = (
+                "Could not find relevant files to update capture. "
+                "Please, check if your files are still in "
+                f"'{target_capture.top_level_dir}' "
+                "under SDS. You can list the files in this directory to verify."
+                f" {err}"
+            )
+            log.warning(user_msg)
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as err:
+            msg = f"Error handling metadata for capture '{target_capture.uuid}': {err}"
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError as e:
-            msg = f"Error connecting to OpenSearch: {e}"
+        except os_exceptions.ConnectionError as err:
+            msg = f"Error connecting to OpenSearch: {err}"
             log.error(msg)
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
