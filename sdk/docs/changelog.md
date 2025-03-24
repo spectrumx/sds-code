@@ -1,8 +1,12 @@
 # SpectrumX SDK Changelog
 
-## `0.1.8` - 2025-03-??
+## `0.1.9` - Future
+
+## `0.1.8` - 2025-03-24
 
 + Features and improvements:
+    + [#72](https://github.com/spectrumx/sds-code/pull/72) Added Windows compatibility.
+    + [#79](https://github.com/spectrumx/sds-code/pull/79) SDS files may now be deleted using the SDK.
     + [#78](https://github.com/spectrumx/sds-code/pull/78) The `capture_type` argument of `sds_client.captures.listing()` is now optional.
     + [#78](https://github.com/spectrumx/sds-code/pull/78) The method `sds_client.captures.read()` is now available for reading a single capture, complementing the existing `sds_client.captures.listing()` method.
     + [#78](https://github.com/spectrumx/sds-code/pull/78) When retrieving a single capture with `capture = read(<uuid>)`, the list of files associated to it is available in `capture.files`.
