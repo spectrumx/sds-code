@@ -6,6 +6,7 @@ import json
 import uuid
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
+from typing import Any
 from uuid import uuid4
 
 from loguru import logger as log
@@ -86,7 +87,10 @@ class CaptureAPI:
         """Lists all captures in SDS under the current user."""
         log.debug(f"Listing captures of type {capture_type}")
         captures_raw = self.gateway.list_captures(capture_type=capture_type)
-        captures_list_raw = json.loads(captures_raw)
+        captures_list_raw, has_more = _extract_page_from_payload(captures_raw)
+        if has_more:
+            log.warning("Not all capture results may be listed. ")
+            # TODO: request more pages if needed
         captures: list[Capture] = []
         for captures_raw in captures_list_raw:
             capture = Capture.model_validate(captures_raw)
@@ -128,3 +132,33 @@ class CaptureAPI:
         capture = Capture.model_validate_json(capture_raw)
         log.debug(f"Capture read with UUID {capture.uuid}")
         return capture
+
+
+def _extract_page_from_payload(
+    capture_result_raw: bytes,
+) -> tuple[list[dict[str, Any]], bool | None]:
+    """Extracts the page from the payload.
+    Args:
+        capture_result_raw: The raw capture result from the API.
+    Returns:
+        The list of captures;
+        A boolean indicating if there are more pages, or None if it can't be determined.
+    """
+    captures_object = json.loads(capture_result_raw)
+    ret_captures_list: list[dict[str, Any]] = captures_object.get(
+        "results", captures_object
+    )
+
+    # check if we need to request more pages
+    has_more: bool | None
+    if "next" not in ret_captures_list:
+        has_more = None
+    else:
+        next_url: str = captures_object["next"]
+        has_more = bool(next_url)
+
+    # if result looks like a single capture, make sure it's a list
+    if isinstance(ret_captures_list, dict):
+        ret_captures_list = [ret_captures_list]
+
+    return ret_captures_list, has_more
