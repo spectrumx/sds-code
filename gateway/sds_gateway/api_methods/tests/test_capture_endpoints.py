@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import uuid
+from typing import TYPE_CHECKING
 from typing import cast
 from unittest.mock import patch
 
@@ -13,7 +14,6 @@ from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.test import APITestCase
-from rest_framework_api_key.models import AbstractAPIKey
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
@@ -22,6 +22,10 @@ from sds_gateway.api_methods.utils.metadata_schemas import (
 )
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.users.models import UserAPIKey
+
+if TYPE_CHECKING:
+    from rest_framework_api_key.models import AbstractAPIKey
+
 
 User = get_user_model()
 
@@ -51,8 +55,8 @@ class CaptureTestCases(APITestCase):
             name="test-key",
             user=self.user,
         )
-        self.api_key = cast(AbstractAPIKey, api_key)
-        self.key = cast(str, key)
+        self.api_key = cast("AbstractAPIKey", api_key)
+        self.key = cast("str", key)
         self.client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {self.key}")
 
         # Set up API endpoints
@@ -401,7 +405,7 @@ class CaptureTestCases(APITestCase):
             },
         ]
         response = self.client.get(
-            f"{self.list_url}?metadata_filters={json.dumps(metadata_filters)}"
+            f"{self.list_url}?metadata_filters={json.dumps(metadata_filters)}",
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -428,7 +432,7 @@ class CaptureTestCases(APITestCase):
             },
         ]
         response = self.client.get(
-            f"{self.list_url}?capture_type={CaptureType.RadioHound}&metadata_filters={json.dumps(metadata_filters)}"
+            f"{self.list_url}?capture_type={CaptureType.RadioHound}&metadata_filters={json.dumps(metadata_filters)}",
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -464,7 +468,7 @@ class CaptureTestCases(APITestCase):
             },
         ]
         response = self.client.get(
-            f"{self.list_url}?metadata_filters={json.dumps(metadata_filters)}"
+            f"{self.list_url}?metadata_filters={json.dumps(metadata_filters)}",
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()

@@ -3,6 +3,7 @@
 import time
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import cast
 
@@ -12,11 +13,13 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.test import APITestCase
-from rest_framework_api_key.models import AbstractAPIKey
 
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.users.models import UserAPIKey
+
+if TYPE_CHECKING:
+    from rest_framework_api_key.models import AbstractAPIKey
 
 User = get_user_model()
 
@@ -34,8 +37,8 @@ class FileTestCases(APITestCase):
             name="test-key",
             user=self.user,
         )
-        self.api_key = cast(AbstractAPIKey, api_key)
-        self.key = cast(str, key)
+        self.api_key = cast("AbstractAPIKey", api_key)
+        self.key = cast("str", key)
 
         # create a test file object
         self.file_name = "testfile.txt"

@@ -44,7 +44,7 @@ class CaptureGetSerializer(serializers.ModelSerializer):
             many=True,
             context=self.context,
         )
-        return cast(ReturnList, serializer.data)
+        return cast("ReturnList", serializer.data)
 
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:
@@ -61,7 +61,7 @@ class CaptureGetSerializer(serializers.ModelSerializer):
         if not hasattr(self.parent, "capture_props_cache"):
             # Convert QuerySet to list if needed
             instances: list[Capture] = cast(
-                list[Capture],
+                "list[Capture]",
                 list(self.parent.instance)
                 if self.parent is not None and hasattr(self.parent.instance, "__iter__")
                 else [self.parent.instance if self.parent else capture],
@@ -124,7 +124,7 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
 
     def is_valid(self, *, raise_exception: bool = True) -> bool:
         """Checks if the data is valid."""
-        initial_data = cast(dict[str, str], self.initial_data)
+        initial_data = cast("dict[str, str]", self.initial_data)
         if not initial_data:
             self._errors = {"detail": ["No data provided."]}
             return super().is_valid(raise_exception=raise_exception)

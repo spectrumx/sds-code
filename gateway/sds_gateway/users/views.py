@@ -161,7 +161,7 @@ class FileDetailView(Auth0LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        target_file = cast(File, self.get_object())
+        target_file = cast("File", self.get_object())
         if target_file is None:
             return context
         serializer = FileGetSerializer(target_file)

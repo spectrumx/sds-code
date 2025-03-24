@@ -193,7 +193,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        requester = cast(User, request.user)
+        requester = cast("User", request.user)
         request_data = request.data.copy()
         post_serializer = CapturePostSerializer(
             data=request_data,
@@ -443,7 +443,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        owner = cast(User, request.user)
+        owner = cast("User", request.user)
         target_capture = get_object_or_404(
             Capture,
             pk=pk,

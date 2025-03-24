@@ -40,7 +40,7 @@ class APIKeyAuthentication(BaseAuthentication):
         api_key = split_header[-1].strip()
 
         try:
-            api_key_obj = cast(UserAPIKey, UserAPIKey.objects.get_from_key(api_key))
+            api_key_obj = cast("UserAPIKey", UserAPIKey.objects.get_from_key(api_key))
         except UserAPIKey.DoesNotExist as err:
             msg = "API key not found"
             logger.debug(msg)

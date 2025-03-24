@@ -17,7 +17,6 @@ import ast
 import base64
 import datetime
 import json
-import logging
 import re
 import sys
 from enum import Enum
@@ -26,6 +25,7 @@ from typing import Annotated
 from typing import Any
 
 import numpy as np
+from loguru import logger as log
 from numpy.typing import NDArray
 from pydantic import UUID4
 from pydantic import AfterValidator
@@ -43,13 +43,13 @@ from rich.console import Console
 console = Console()
 DEFAULT_EXTENSION = ".rh.json"
 FORMAT_VERSION = "v0"
-MAX_INT_SIZE = int(2**63 - 1)
+MAX_INT_SIZE = 2**63 - 1
 UUID4_REGEX = "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 
 
 def log_warning(msg: str) -> None:
     """Log a warning message."""
-    logging.warning("%s", msg)
+    log.warning(msg)
 
 
 def serialize_data(v: bytes) -> str:

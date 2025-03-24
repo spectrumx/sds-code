@@ -43,7 +43,7 @@ class UserViewSet(
     @action(detail=False)
     def me(self, request: HttpRequest) -> Response:
         """Get the current user's information."""
-        user = cast(User, request.user)
+        user = cast("User", request.user)
         serializer = UserSerializer(user, context={"request": request})
         return Response(status=status.HTTP_200_OK, data=serializer.data)
 

@@ -1,6 +1,7 @@
 """File operations endpoints for the SDS Gateway API."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import cast
 
 from django.conf import settings
@@ -9,7 +10,6 @@ from django.db.models import F as FExpression
 from django.db.models import Value as WrappedValue
 from django.db.models.functions import Concat
 from django.http import HttpResponse
-from django.http.request import QueryDict
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample
@@ -36,6 +36,9 @@ from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializ
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
+
+if TYPE_CHECKING:
+    from django.http.request import QueryDict
 
 
 class FilePagination(PageNumberPagination):
@@ -535,8 +538,8 @@ class CheckFileContentsExistView(APIView):
             such as permissions. That is indicated by `user_mutable_attributes_differ`
             being True, which can be used to trigger a metadata update.
         """  # noqa: E501
-        user = cast(User, request.user)
-        request_data = cast(QueryDict, request.data)
+        user = cast("User", request.user)
+        request_data = cast("QueryDict", request.data)
 
         unsafe_path = request_data.get("directory")
         if not unsafe_path:

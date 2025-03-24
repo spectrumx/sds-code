@@ -61,7 +61,7 @@ class UserAPIKey(AbstractAPIKey):
         (KeySources.SVIWebUI, "SVI Web UI"),
     ]
     user = cast(
-        User,
+        "User",
         models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE),
     )
     source = models.CharField(

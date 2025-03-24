@@ -1,10 +1,9 @@
 #!/usr/bin/env python
-# ruff: noqa
 import os
 import sys
 from pathlib import Path
-from loguru import logger as log
 
+from loguru import logger as log
 
 try:
     from rich import traceback
@@ -18,18 +17,21 @@ if __name__ == "__main__":
 
     try:
         from django.core.management import execute_from_command_line
-    except ImportError:
-        # The above import may fail for some other reason. Ensure that the
-        # issue is really that Django is missing to avoid masking other
-        # exceptions on Python 2.
+    except ImportError as err:
+        # The above import may fail for some other reason.
+        # Check if the issue is a missing Django:
         try:
-            import django
+            from importlib.util import find_spec
         except ImportError:
-            raise ImportError(
-                "Couldn't import Django. Are you sure it's installed and "
-                "available on your PYTHONPATH environment variable? Did you "
-                "forget to activate a virtual environment?"
-            )
+            pass  # proceed raising the first import error
+        else:
+            if find_spec("django") is None:
+                failed_django_import_msg = (
+                    "Couldn't import Django. Did you forget to "
+                    "activate a virtual environment?"
+                )
+                raise ImportError(failed_django_import_msg) from err
+            # proceed raising the first import error
 
         raise
 

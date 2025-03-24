@@ -2,6 +2,7 @@ import json
 import tempfile
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import cast
 
 from django.conf import settings
@@ -14,7 +15,9 @@ from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tr
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
-from sds_gateway.users.models import User as UserModel
+
+if TYPE_CHECKING:
+    from sds_gateway.users.models import User as UserModel
 
 User = get_user_model()
 
@@ -45,7 +48,7 @@ class ReconstructRHFileTreeTest(APITestCase):
 
         # Create test user
         self.user = cast(
-            UserModel,
+            "UserModel",
             User.objects.create(
                 email="testuser@example.com",
                 password="testpassword",  # noqa: S106

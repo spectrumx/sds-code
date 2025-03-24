@@ -1,10 +1,12 @@
 import contextlib
-import logging
 import typing
 from pathlib import Path
 
 import digital_rf as drf
-from digital_rf.digital_metadata import DigitalMetadataReader
+from loguru import logger as log
+
+if typing.TYPE_CHECKING:
+    from digital_rf.digital_metadata import DigitalMetadataReader
 
 from sds_gateway.api_methods.utils.metadata_schemas import drf_capture_metadata_schema
 
@@ -50,12 +52,12 @@ def read_metadata_by_channel(data_path: Path, channel_name: str):
 
     rf_reader = drf.DigitalRFReader(str(data_path))
     bounds_raw = rf_reader.get_bounds(channel_name)
-    bounds_raw = typing.cast(tuple[int, int], bounds_raw)
+    bounds_raw = typing.cast("tuple[int, int]", bounds_raw)
     bounds = Bounds(start=bounds_raw[0], end=bounds_raw[1])
 
     # get properties
     drf_properties = typing.cast(
-        dict[str, typing.Any],
+        "dict[str, typing.Any]",
         rf_reader.get_properties(channel_name, bounds.start),
     )
 
@@ -65,7 +67,7 @@ def read_metadata_by_channel(data_path: Path, channel_name: str):
 
     # initialize the digital metadata reader
     md_reader = typing.cast(
-        DigitalMetadataReader,
+        "DigitalMetadataReader",
         rf_reader.get_digital_metadata(channel_name),
     )
     dmd_properties = md_reader.read_flatdict(
@@ -120,11 +122,11 @@ def validate_metadata_by_channel(
 
         if key in required_props and key not in validated_props:
             msg = f"Missing expected property '{key}' in metadata."
-            logging.warning(msg)
+            log.warning(msg)
 
     if len(props_pending_validation) > 0:
         msg = f"Unexpected properties found in metadata: {props_pending_validation}. These will be added to a custom_attrs field."  # noqa: E501
-        logging.info(msg)
+        log.info(msg)
         # add the unexpected properties to a custom_attrs field
         validated_props["custom_attrs"] = {
             k: props_by_channel[k] for k in props_pending_validation
@@ -166,10 +168,10 @@ def convert_or_warn(
             converted_value = target_type(value)
         else:  # pragma: no cover
             msg = f"Type {type(value)} of '{name}' does not have a conversion method."
-            logging.warning(msg)
+            log.warning(msg)
     if not isinstance(converted_value, target_type):
         msg = f"Could not convert '{name}={value}' to type {cast_fn}."
-        logging.warning(msg)
+        log.warning(msg)
         if should_raise:
             raise ValueError(msg)
         return None
