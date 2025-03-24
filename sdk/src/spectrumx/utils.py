@@ -14,6 +14,8 @@ from loguru import logger as log
 from tqdm import auto as auto_tqdm
 from tqdm import tqdm
 
+logger = logging.getLogger(__name__)
+
 
 def validate_file_permission_string(permissions: str) -> None:
     """Make sure a unix-like permissions string is valid."""
@@ -44,19 +46,19 @@ def log_user(msg: str, depth: int = 1) -> None:
 def log_user_info(msg: str, depth: int = 1) -> None:
     """Logs an informational message to the user."""
     log.opt(depth=depth).info(msg)
-    logging.info(msg)
+    logger.info(msg)
 
 
 def log_user_warning(msg: str, depth: int = 1) -> None:
     """Logs a warning message to the user."""
     log.opt(depth=depth).warning(msg)
-    logging.warning(msg)
+    logger.warning(msg)
 
 
 def log_user_error(msg: str, depth: int = 1) -> None:
     """Logs an error message to the user."""
     log.opt(depth=depth).error(msg)
-    logging.error(msg)
+    logger.error(msg)
 
 
 def into_human_bool(value: str | int | bool) -> bool:

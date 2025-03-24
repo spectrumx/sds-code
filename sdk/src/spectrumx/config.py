@@ -20,6 +20,7 @@ from .utils import log_user_warning
 
 SDSModelT = type[SDSModel]
 AttrValueT = str | int | float | bool
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -231,7 +232,7 @@ def _clean_config(
         if attr is None:
             msg = f"SDS_Config: {key} not recognized"
             log.warning(msg)
-            logging.warning(msg)
+            logger.warning(msg)
             continue
 
         # set value
@@ -246,7 +247,7 @@ def _clean_config(
 def _log_redacted(
     key: str,
     value: str,
-    log_fn: Callable[[str], None] = logging.info,
+    log_fn: Callable[[str], None] = logger.info,
     depth: int = 1,
 ) -> None:
     """Logs but redacts value if the key hints to a sensitive content, as passwords."""

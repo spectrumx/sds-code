@@ -28,7 +28,7 @@ except ImportError:
 enable_logging()
 
 # Platform Specific Testing
-PLATFORMS = set("darwin linux win32".split())
+PLATFORMS = {"darwin", "linux", "win32"}
 
 
 def pytest_runtest_setup(item):
