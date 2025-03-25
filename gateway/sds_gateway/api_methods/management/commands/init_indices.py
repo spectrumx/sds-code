@@ -9,9 +9,7 @@ if TYPE_CHECKING:
     from opensearchpy import OpenSearch
 
 from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_index_mapping_by_type as md_props_by_type,
-)
+from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 
 
@@ -33,18 +31,7 @@ class Command(BaseCommand):
 
             index_name = f"captures-{capture_type.value}"
             index_config = {
-                "mappings": {
-                    "properties": {
-                        "channel": {"type": "keyword"},
-                        "scan_group": {"type": "keyword"},
-                        "capture_type": {"type": "keyword"},
-                        "created_at": {"type": "date"},
-                        "capture_props": {
-                            "type": "nested",
-                            "properties": md_props_by_type[capture_type],
-                        },
-                    },
-                },
+                "mappings": get_mapping_by_capture_type(capture_type),
                 "settings": {
                     "index": {
                         "number_of_shards": 1,
