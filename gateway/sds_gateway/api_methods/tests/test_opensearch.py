@@ -1,15 +1,14 @@
 import base64
 import json
-import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from rest_framework.test import APITestCase
 
-from sds_gateway.api_methods.helpers.index_handling import create_index
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
@@ -30,6 +29,38 @@ class OpenSearchIndexResetTest(APITestCase):
     def setUp(self):
         self.client = get_opensearch_client()
         self.test_index_prefix = "captures-test-"
+        self.original_index_mapping = {
+            "properties": {
+                "channel": {"type": "keyword"},
+                "scan_group": {"type": "keyword"},
+                "capture_type": {"type": "keyword"},
+                "created_at": {"type": "date"},
+                "capture_props": {
+                    "type": "nested",
+                    "properties": {
+                        "metadata": {
+                            "type": "nested",
+                            "properties": {
+                                "archive_result": {"type": "boolean"},
+                                "data_type": {"type": "keyword"},
+                                "fmax": {"type": "float"},
+                                "fmin": {"type": "float"},
+                                "gps_lock": {"type": "boolean"},
+                                "nfft": {"type": "integer"},
+                                "scan_time": {"type": "float"},
+                            },
+                        },
+                        "sample_rate": {"type": "integer"},
+                        "center_frequency": {"type": "float"},
+                        "latitude": {"type": "float"},
+                        "longitude": {"type": "float"},
+                        "altitude": {"type": "float"},
+                        "mac_address": {"type": "keyword"},
+                        "short_name": {"type": "text"},
+                    },
+                },
+            },
+        }
 
         # Create test user
         self.user = User.objects.create(email="testuser@example.com")
@@ -130,46 +161,18 @@ class OpenSearchIndexResetTest(APITestCase):
         # incompatible with regular index mapping update
         # e.g. int -> long, float -> double
         original_index_config = {
-            "mappings": {
-                "properties": {
-                    "channel": {"type": "keyword"},
-                    "scan_group": {"type": "keyword"},
-                    "capture_type": {"type": "keyword"},
-                    "created_at": {"type": "date"},
-                    "capture_props": {
-                        "type": "nested",
-                        "properties": {
-                            "metadata": {
-                                "type": "nested",
-                                "properties": {
-                                    "archive_result": {"type": "boolean"},
-                                    "data_type": {"type": "keyword"},
-                                    "fmax": {"type": "float"},
-                                    "fmin": {"type": "float"},
-                                    "gps_lock": {"type": "boolean"},
-                                    "nfft": {"type": "integer"},
-                                    "scan_time": {"type": "float"},
-                                },
-                            },
-                            "sample_rate": {"type": "integer"},
-                            "center_frequency": {"type": "float"},
-                            "latitude": {"type": "float"},
-                            "longitude": {"type": "float"},
-                            "altitude": {"type": "float"},
-                            "mac_address": {"type": "keyword"},
-                            "short_name": {"type": "text"},
-                        },
-                    },
+            "mappings": self.original_index_mapping,
+            "settings": {
+                "index": {
+                    "number_of_shards": 1,
+                    "number_of_replicas": 1,
                 },
-                "settings": {
-                    "index": {
-                        "number_of_shards": 1,
-                        "number_of_replicas": 1,
-                    },
-                },
-            }
+            },
         }
-        create_index(self.client, self.capture.index_name, original_index_config)
+        self.client.indices.create(
+            index=self.capture.index_name,
+            body=original_index_config,
+        )
 
     def _index_test_capture(self):
         """Index test capture metadata."""
@@ -199,7 +202,7 @@ class OpenSearchIndexResetTest(APITestCase):
 
         # Run reset_indices command with test prefix
         call_command(
-            "reset_indices",
+            "reset_index",
             index_name=index_name,
             capture_type=self.capture.capture_type,
         )
@@ -231,7 +234,7 @@ class OpenSearchIndexResetTest(APITestCase):
 
         # Run reset_indices command with test prefix
         call_command(
-            "reset_indices",
+            "reset_index",
             index_name=index_name,
             capture_type=self.capture.capture_type,
         )
@@ -252,81 +255,95 @@ class OpenSearchIndexResetTest(APITestCase):
         """Test backup verification with mismatched document counts."""
         index_name = f"{self.test_index_prefix}{self.capture.capture_type}"
 
-        # Create a document in the original index that won't be in backup
-        extra_doc = {
-            "capture_props": {"test": "data"},
-            "channel": "test",
-            "scan_group": "test",
-        }
-        self.client.index(index=index_name, body=extra_doc, id="test-doc")
-        self.client.indices.refresh(index=index_name)
+        # Get initial state - should have 1 document (our test capture)
+        initial_count = self.client.count(index=index_name)["count"]
+        assert initial_count == 1
 
-        # Mock user input to proceed despite count mismatch
-        with unittest.mock.patch("builtins.input", return_value="y"):
+        # Mock the reindex operation to simulate a failed/partial reindex
+        with mock.patch("opensearchpy.OpenSearch.reindex") as mock_reindex:
+            mock_reindex.return_value = {
+                "total": 0,
+                "updated": 0,
+                "created": 0,  # Simulate no documents copied
+                "failures": [],
+            }
+
+            # Run reset_index command - should fail at backup verification
             call_command(
-                "reset_indices",
+                "reset_index",
                 index_name=index_name,
                 capture_type=self.capture.capture_type,
             )
 
-        # Verify final index state
+        # Verify:
+        # 1. Original index still exists unchanged
+        # 2. No backup index exists (it was deleted after failed verification)
         self.client.indices.refresh(index=index_name)
         final_count = self.client.count(index=index_name)["count"]
-        assert final_count == 1  # Should only have original capture
+        assert final_count == 1  # Original index unchanged
 
-    def test_failed_reindex(self):
-        """Test handling of failed document reindex."""
+        # assert that the original index mapping is unchanged
+        # checking a specific field not in the og mapping, but in the new mapping
+        current_mapping = self.client.indices.get_mapping(index=index_name)
+        capture_props = current_mapping[index_name]["mappings"]["properties"][
+            "capture_props"
+        ]["properties"]
+        assert "coordinates" not in capture_props
+
+        # Verify backup index was deleted
+        backup_indices = self.client.indices.get(index=f"{index_name}-backup-*")
+        assert len(backup_indices) == 0
+
+    def test_fail_state_reset_to_original(self):
+        """Test that the reindex fails and is reset to original state."""
         index_name = f"{self.test_index_prefix}{self.capture.capture_type}"
 
-        # Create a document that will fail to reindex
-        bad_doc = {
-            "capture_props": {"invalid": {"nested": "data"}},
-            "channel": "test",
-            "scan_group": "test",
-        }
-        self.client.index(index=index_name, body=bad_doc, id="bad-doc")
-        self.client.indices.refresh(index=index_name)
+        # Get initial state - should have 1 document (our test capture)
+        initial_count = self.client.count(index=index_name)["count"]
+        assert initial_count == 1
 
-        # Mock user input to skip manual reindex
-        with unittest.mock.patch("builtins.input", return_value="n"):
+        # Get initial mapping to verify reset later
+        initial_mapping = self.client.indices.get_mapping(
+            index=index_name,
+        )[index_name]["mappings"]
+
+        # Mock user inputs and the mapping function
+        with (
+            mock.patch("builtins.input", side_effect=["n", "y"]),
+            mock.patch(
+                "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type"
+            ) as mock_mapping,
+        ):
+            # Return an invalid mapping that will cause reindex to fail
+            mock_mapping.return_value = {
+                "properties": {
+                    "capture_props": {
+                        "type": "keyword"  # This conflicts with nested type
+                    }
+                }
+            }
+
+            # Run reset_index command
             call_command(
-                "reset_indices",
+                "reset_index",
                 index_name=index_name,
                 capture_type=self.capture.capture_type,
             )
 
-        # Verify only valid document was reindexed
+        # Verify final state
         self.client.indices.refresh(index=index_name)
-        final_docs = self.client.search(
-            index=index_name, body={"query": {"match_all": {}}}
-        )
-        assert final_docs["hits"]["total"]["value"] == 1
-        assert final_docs["hits"]["hits"][0]["_id"] == str(self.capture.uuid)
+        final_count = self.client.count(index=index_name)["count"]
+        assert final_count == 1  # Original document count preserved
 
-    def test_new_mapping_fields(self):
-        """Test detection and handling of new mapping fields."""
-        index_name = f"{self.test_index_prefix}{self.capture.capture_type}"
+        # Verify mapping was reset to original
+        final_mapping = self.client.indices.get_mapping(
+            index=index_name,
+        )[index_name]["mappings"]
+        assert final_mapping == initial_mapping
 
-        # Get initial mapping
-        initial_mapping = self.client.indices.get_mapping(index=index_name)
-
-        # Add new field to mapping
-        new_mapping = initial_mapping[index_name]["mappings"]
-        new_mapping["properties"]["new_field"] = {"type": "keyword"}
-
-        # Update mapping
-        self.client.indices.put_mapping(index=index_name, body=new_mapping)
-
-        # Run reset_indices
-        call_command(
-            "reset_indices",
-            index_name=index_name,
-            capture_type=self.capture.capture_type,
-        )
-
-        # Verify new field in mapping
-        final_mapping = self.client.indices.get_mapping(index=index_name)
-        assert "new_field" in final_mapping[index_name]["mappings"]["properties"]
+        # Verify no backup indices remain
+        backup_indices = self.client.indices.get(index=f"{index_name}-backup-*")
+        assert len(backup_indices) == 0
 
     def tearDown(self):
         """Clean up test data."""

@@ -44,11 +44,13 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
             raise UnknownIndexError(msg)
 
         document = {
-            "capture_props": capture_props,
             "capture_type": capture.capture_type,
             "channel": capture.channel,
             "created_at": capture.created_at,
+            "is_deleted": capture.is_deleted,
+            "deleted_at": capture.deleted_at,
             "scan_group": capture.scan_group,
+            "capture_props": capture_props,
         }
 
         # index capture
