@@ -136,10 +136,8 @@ class CaptureTestCases(APITestCase):
 
     def _cleanup_opensearch_documents(self) -> None:
         """Clean up OpenSearch documents."""
-        # By default delete does not accept wildcards,
-        # so we need to delete each index individually.
-        self.opensearch.indices.delete(index=f"{self.test_index_prefix}-rh")
-        self.opensearch.indices.delete(index=f"{self.test_index_prefix}-drf")
+        # Delete test indices
+        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
 
     def _setup_opensearch_indices(self) -> None:
         """Set up OpenSearch indices with proper mappings."""
