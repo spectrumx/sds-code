@@ -25,24 +25,22 @@ class Command(BaseCommand):
     field_transforms = {
         "capture_props.coordinates": {
             "source": """
-                if (ctx._source.capture_props != null) {
-                    if (ctx._source.capture_props.latitude != null &&
+                if (ctx._source.capture_props.latitude != null &&
                     ctx._source.capture_props.longitude != null &&
                     ctx._source.capture_props.coordinates == null) {
-                        ctx._source.capture_props.coordinates = [
-                            ctx._source.capture_props.longitude,
-                            ctx._source.capture_props.latitude
-                        ];
-                    }
+                    ctx._source.capture_props.coordinates = [
+                        ctx._source.capture_props.longitude,
+                        ctx._source.capture_props.latitude
+                    ];
                 }
-            """,
+            """.strip(),
             "lang": "painless",
         }
     }
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--index-name",
+            "--index_name",
             type=str,
             help="Index name to reset",
             required=True,
@@ -125,6 +123,9 @@ class Command(BaseCommand):
 
     def reindex_single_capture(self, capture: Capture) -> bool | None:
         """Reindex a capture."""
+        self.stdout.write(
+            self.style.WARNING(f"Reindexing capture manually: '{capture.uuid}'...")
+        )
         capture_viewset = CaptureViewSet()
         try:
             capture_viewset.ingest_capture(
@@ -173,31 +174,16 @@ class Command(BaseCommand):
             # Perform reindex operation
             body = {"source": {"index": source_index}, "dest": {"index": dest_index}}
 
-            response = client.reindex(body=body)
+            client.reindex(body=body)
 
-            if response.get("failures"):
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"Some documents failed to reindex: {response['failures']}"
-                    )
-                )
+            # Refresh destination index to make documents searchable
+            client.indices.refresh(index=dest_index)
 
-                # prompt input to reindex the failed documents
-                manual_reindex = (
-                    input("Reindex failed documents manually? (y/N): ").lower() == "y"
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Successfully reindexed from {source_index} to {dest_index}"
                 )
-                if manual_reindex == "y":
-                    # manually index the failed documents, skipping deleted captures
-                    for failure in response["failures"]:
-                        capture = Capture.objects.get(uuid=failure["_id"])
-                        if not capture.is_deleted:
-                            self.reindex_single_capture(capture)
-            else:
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Successfully reindexed from {source_index} to {dest_index}"
-                    )
-                )
+            )
 
             # Check for new fields and apply transforms
             new_fields = self.get_new_fields(client, source_index, dest_index)
@@ -207,6 +193,30 @@ class Command(BaseCommand):
 
         except (RequestError, OpensearchConnectionError, NotFoundError) as e:
             self.stdout.write(self.style.ERROR(f"Error during reindex: {e!s}"))
+            if isinstance(e, RequestError) and e.info.get("failures"):
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Some documents failed to reindex: {e.info['failures']}"
+                    )
+                )
+
+                # prompt input to reindex the failed documents
+                manual_reindex = (
+                    input("Reindex failed documents manually? (y/N): ").lower() == "y"
+                )
+                self.stdout.write(
+                    self.style.WARNING(f"Manual reindex: {manual_reindex}")
+                )
+                if manual_reindex:
+                    self.stdout.write(
+                        self.style.WARNING("Reindexing failed documents manually...")
+                    )
+
+                    # manually index the failed documents, skipping deleted captures
+                    for failure in e.info["failures"]:
+                        capture = Capture.objects.get(uuid=failure["id"])
+                        if not capture.is_deleted:
+                            self.reindex_single_capture(capture)
 
     def clone_index_mapping(
         self, client: OpenSearch, source_index: str, dest_index: str
@@ -219,8 +229,20 @@ class Command(BaseCommand):
 
             # Create new index with the same mapping
             create_response = client.indices.create(
-                index=dest_index, body={"mappings": source_mapping}
+                index=dest_index,
+                body={
+                    "mappings": source_mapping,
+                    "settings": {
+                        "index": {
+                            "number_of_shards": 1,
+                            "number_of_replicas": 1,
+                        }
+                    },
+                },
             )
+
+            # Refresh index after creation
+            client.indices.refresh(index=dest_index)
 
             if create_response.get("acknowledged"):
                 self.stdout.write(
@@ -269,7 +291,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         """Execute the command."""
         client: OpenSearch = get_opensearch_client()
-
         capture_type = options["capture_type"]
         index_name = options["index_name"]
         new_index_config = {
@@ -297,6 +318,9 @@ class Command(BaseCommand):
         # create backup index with same mapping
         self.clone_index_mapping(client, index_name, backup_index_name)
 
+        # index documents into backup index
+        self.reindex_with_mapping(client, index_name, backup_index_name)
+
         # Verify backup was successful
         backup_count = self.get_doc_count(client, backup_index_name)
         if backup_count != original_count:
@@ -307,18 +331,10 @@ class Command(BaseCommand):
                 )
             )
 
-            # Ask user whether to proceed
-            proceed = (
-                input("Document counts don't match. Proceed anyway? (y/N): ").lower()
-                == "y"
-            )
-            if not proceed:
-                msg = (
-                    f"Skipping {index_name}. "
-                    f"Backup index {backup_index_name} preserved."
-                )
-                self.stdout.write(self.style.WARNING(msg))
-                return
+            self.delete_index(client, backup_index_name)
+            msg = f"Skipping {index_name}. Backup index {backup_index_name} deleted."
+            self.stdout.write(self.style.WARNING(msg))
+            return
 
         # delete original index and recreate it with new mapping
         self.delete_index(client, index_name)
@@ -336,11 +352,29 @@ class Command(BaseCommand):
                     f"Original: {original_count}, New: {new_count}"
                 )
             )
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Keeping backup index {backup_index_name} for manual verification."
-                )
+            recall_index_mapping = (
+                input(
+                    "Would you like to reset the index to its original form? (y/N): "
+                ).lower()
+                == "y"
             )
+            if recall_index_mapping:
+                self.delete_index(client, index_name)
+                self.clone_index_mapping(client, backup_index_name, index_name)
+                self.reindex_with_mapping(client, backup_index_name, index_name)
+                self.delete_index(client, backup_index_name)
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Successfully reset {index_name} to its original form."
+                    )
+                )
+            else:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Keeping backup index {backup_index_name} "
+                        "for manual verification."
+                    )
+                )
             return
 
         # Only delete backup if document counts match
