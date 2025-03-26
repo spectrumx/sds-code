@@ -5,13 +5,14 @@ from opensearchpy import OpenSearch
 from opensearchpy import exceptions as os_exceptions
 
 from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_index_mapping_by_type as md_props_by_type,
-)
+from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 
 
-def create_index(client: OpenSearch, index_name: str, capture_type: str) -> None:
+def create_index(
+    client: OpenSearch, index_name: str, capture_type: CaptureType
+) -> None:
     try:
         # Define the index settings and mappings
         index_body = {
@@ -19,17 +20,7 @@ def create_index(client: OpenSearch, index_name: str, capture_type: str) -> None
                 "number_of_shards": 1,
                 "number_of_replicas": 0,
             },
-            "mappings": {
-                "properties": {
-                    "channel": {"type": "keyword"},
-                    "capture_type": {"type": "keyword"},
-                    "created_at": {"type": "date"},
-                    "capture_props": {
-                        "type": "nested",
-                        "properties": md_props_by_type[capture_type],
-                    },
-                },
-            },
+            "mappings": get_mapping_by_capture_type(capture_type),
         }
         client.indices.create(index=index_name, body=index_body)
         msg = f"Index '{index_name}' created."
@@ -53,11 +44,13 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
             raise UnknownIndexError(msg)
 
         document = {
-            "capture_props": capture_props,
             "capture_type": capture.capture_type,
             "channel": capture.channel,
             "created_at": capture.created_at,
+            "is_deleted": capture.is_deleted,
+            "deleted_at": capture.deleted_at,
             "scan_group": capture.scan_group,
+            "capture_props": capture_props,
         }
 
         # index capture

@@ -1,6 +1,9 @@
 # ruff: noqa: E501
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/digital-rf/README.md
 # the mapping below is used for drf capture metadata parsing in extract_drf_metadata.py
+
+from sds_gateway.api_methods.models import CaptureType
+
 drf_capture_metadata_schema = {
     "properties": {
         "H5Tget_class": {
@@ -166,7 +169,7 @@ drf_capture_index_mapping = {
         "type": "integer",
     },
     "center_freq": {
-        "type": "integer",
+        "type": "double",
     },
     "span": {
         "type": "integer",
@@ -184,18 +187,44 @@ drf_capture_index_mapping = {
 rh_capture_index_mapping = {
     "metadata": {
         "type": "nested",
+        "properties": {
+            "archive_result": {
+                "type": "boolean",
+            },
+            "data_type": {
+                "type": "keyword",
+            },
+            "fmax": {
+                "type": "double",
+            },
+            "fmin": {
+                "type": "double",
+            },
+            "gps_lock": {
+                "type": "boolean",
+            },
+            "nfft": {
+                "type": "integer",
+            },
+            "scan_time": {
+                "type": "float",
+            },
+        },
     },
     "sample_rate": {
         "type": "integer",
     },
     "center_frequency": {
-        "type": "float",
+        "type": "double",
     },
     "latitude": {
         "type": "float",
     },
     "longitude": {
         "type": "float",
+    },
+    "coordinates": {
+        "type": "geo_point",
     },
     "altitude": {
         "type": "float",
@@ -217,6 +246,29 @@ base_index_fields = [
 ]
 
 capture_index_mapping_by_type = {
-    "drf": drf_capture_index_mapping,
-    "rh": rh_capture_index_mapping,
+    CaptureType.DigitalRF: drf_capture_index_mapping,
+    CaptureType.RadioHound: rh_capture_index_mapping,
 }
+
+base_properties = {
+    "channel": {"type": "keyword"},
+    "scan_group": {"type": "keyword"},
+    "capture_type": {"type": "keyword"},
+    "created_at": {"type": "date"},
+    "is_deleted": {"type": "boolean"},
+    "deleted_at": {"type": "date"},
+}
+
+
+def get_mapping_by_capture_type(capture_type: CaptureType) -> dict:
+    """Get the mapping for a given capture type."""
+
+    return {
+        "properties": {
+            **base_properties,
+            "capture_props": {
+                "type": "nested",
+                "properties": capture_index_mapping_by_type[capture_type],
+            },
+        },
+    }

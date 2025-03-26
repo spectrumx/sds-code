@@ -17,9 +17,7 @@ from rest_framework.test import APITestCase
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_index_mapping_by_type as md_props_by_type,
-)
+from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.users.models import UserAPIKey
 
@@ -43,6 +41,7 @@ class CaptureTestCases(APITestCase):
 
         # Then set up new test data
         self.client = APIClient()
+        self.test_index_prefix = "captures-test"
         self.scan_group = uuid.uuid4()
         self.user = User.objects.create(
             email="testuser@example.com",
@@ -70,14 +69,14 @@ class CaptureTestCases(APITestCase):
         self.drf_capture = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,
             channel="ch0",
-            index_name="captures-drf",
+            index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
             top_level_dir="test-dir",
         )
 
         self.rh_capture = Capture.objects.create(
             capture_type=CaptureType.RadioHound,
-            index_name="captures-rh",
+            index_name=f"{self.test_index_prefix}-rh",
             owner=self.user,
             scan_group=self.scan_group,
             top_level_dir="test-dir",
@@ -136,29 +135,8 @@ class CaptureTestCases(APITestCase):
 
     def _cleanup_opensearch_documents(self) -> None:
         """Clean up OpenSearch documents."""
-        test_captures = [
-            getattr(self, "drf_capture", None),
-            getattr(self, "rh_capture", None),
-        ]
-        for capture in test_captures:
-            if capture:
-                try:
-                    self.opensearch.delete_by_query(
-                        index=capture.index_name,
-                        body={
-                            "query": {
-                                "term": {
-                                    "_id": str(capture.uuid),
-                                },
-                            },
-                        },
-                        refresh=True,  # pyright: ignore[reportCallIssue]
-                        conflicts="proceed",  # pyright: ignore[reportCallIssue]
-                    )
-                    self.opensearch.indices.refresh(index=capture.index_name)
-
-                except os_exceptions.OpenSearchException as e:
-                    logger.debug("Error cleaning up test documents: %s", e)
+        # Delete test indices
+        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
 
     def _setup_opensearch_indices(self) -> None:
         """Set up OpenSearch indices with proper mappings."""
@@ -168,11 +146,6 @@ class CaptureTestCases(APITestCase):
         ]:
             assert capture.index_name, "Test capture is missing index_name."
             if not self.opensearch.indices.exists(index=capture.index_name):
-                # Create mapping without supports_range field
-                mapping_properties = {}
-                for field, config in md_props_by_type[metadata_type].items():
-                    mapping_properties[field] = {"type": config["type"]}
-
                 self.opensearch.indices.create(
                     index=capture.index_name,
                     body={
@@ -180,17 +153,7 @@ class CaptureTestCases(APITestCase):
                             "number_of_shards": 1,
                             "number_of_replicas": 0,
                         },
-                        "mappings": {
-                            "properties": {
-                                "channel": {"type": "keyword"},
-                                "capture_type": {"type": "keyword"},
-                                "created_at": {"type": "date"},
-                                "capture_props": {
-                                    "type": "nested",
-                                    "properties": mapping_properties,
-                                },
-                            },
-                        },
+                        "mappings": get_mapping_by_capture_type(metadata_type),
                     },
                 )
 
