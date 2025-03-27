@@ -136,6 +136,33 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
             self._errors = {"capture_type": ["Invalid capture type."]}
             return super().is_valid(raise_exception=raise_exception)
 
+        # check that if capture_type is DigitalRF,
+        # then channel and top_level_dir are unique
+        if capture_type == CaptureType.DigitalRF:
+            if Capture.objects.filter(
+                channel=initial_data["channel"],
+                top_level_dir=initial_data["top_level_dir"],
+                capture_type=CaptureType.DigitalRF,
+                is_deleted=False,
+                owner=self.context["request_user"],
+            ).exists():
+                self._errors = {
+                    "channel": [
+                        "This channel and top level directory are already in use."
+                    ]
+                }
+
+        # check that if capture_type is RadioHound,
+        # then scan_group is unique
+        if capture_type == CaptureType.RadioHound:
+            if Capture.objects.filter(
+                scan_group=initial_data["scan_group"],
+                capture_type=CaptureType.RadioHound,
+                is_deleted=False,
+                owner=self.context["request_user"],
+            ).exists():
+                self._errors = {"scan_group": ["This scan group is already in use."]}
+
         # check that the required fields are in the initial data
         for field in self.get_required_fields(capture_type):
             if field not in initial_data:
