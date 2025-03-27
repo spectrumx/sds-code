@@ -44,6 +44,7 @@ class CaptureTestCases(APITestCase):
         # Then set up new test data
         self.client = APIClient()
         self.scan_group = uuid.uuid4()
+        self.channel = "ch0"
         self.user = User.objects.create(
             email="testuser@example.com",
             password="testpassword",  # noqa: S106
@@ -69,10 +70,10 @@ class CaptureTestCases(APITestCase):
         # Create test captures without metadata
         self.drf_capture = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,
-            channel="ch0",
+            channel=self.channel,
             index_name="captures-drf",
             owner=self.user,
-            top_level_dir="test-dir",
+            top_level_dir="test-dir-drf",
         )
 
         self.rh_capture = Capture.objects.create(
@@ -80,7 +81,7 @@ class CaptureTestCases(APITestCase):
             index_name="captures-rh",
             owner=self.user,
             scan_group=self.scan_group,
-            top_level_dir="test-dir",
+            top_level_dir="test-dir-rh",
         )
 
         # Define test metadata
@@ -234,6 +235,9 @@ class CaptureTestCases(APITestCase):
 
     def test_create_drf_capture_201(self) -> None:
         """Test creating drf capture returns metadata."""
+        unique_channel = "ch1"
+        unique_top_level_dir = "test-dir-drf-1"
+
         with patch(
             "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
             return_value=self.drf_metadata,
@@ -242,21 +246,72 @@ class CaptureTestCases(APITestCase):
                 self.list_url,
                 data={
                     "capture_type": CaptureType.DigitalRF,
-                    "channel": "ch0",
-                    "top_level_dir": "/files/testuser@example.com/test-dir",
+                    "channel": unique_channel,
+                    "top_level_dir": unique_top_level_dir,
                     "index_name": "captures-drf",
                 },
             )
             assert response.status_code == status.HTTP_201_CREATED
             assert response.json()["capture_props"] == self.drf_metadata
-            assert response.json()["channel"] == "ch0"
+            assert response.json()["channel"] == unique_channel
+            assert response.json()["top_level_dir"] == unique_top_level_dir
+            assert response.json()["capture_type"] == CaptureType.DigitalRF
+
+    def test_create_rh_capture_201(self) -> None:
+        """Test creating rh capture returns metadata."""
+        unique_scan_group = uuid.uuid4()
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.find_rh_metadata_file",
+                return_value="mock_path",
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.load_rh_file",
+                return_value=type(
+                    "MockRHData",
+                    (),
+                    {"model_dump": lambda mode: self.rh_metadata},
+                ),
+            ),
+        ):
+            response = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.RadioHound,
+                    "scan_group": str(unique_scan_group),
+                    "index_name": "captures-rh",
+                    "top_level_dir": "test-dir-rh",
+                },
+            )
+            assert response.status_code == status.HTTP_201_CREATED
+            assert response.json()["capture_props"] == self.rh_metadata
+            assert response.json()["capture_type"] == CaptureType.RadioHound
             assert (
                 response.json()["top_level_dir"]
                 == "/files/testuser@example.com/test-dir"
             )
-            assert response.json()["capture_type"] == CaptureType.DigitalRF
 
-    def test_create_rh_capture_201(self) -> None:
+    def test_create_drf_capture_already_exists(self) -> None:
+        """Test creating drf capture returns metadata."""
+        with patch(
+            "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+            return_value=self.drf_metadata,
+        ):
+            response = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": self.channel,
+                    "top_level_dir": "test-dir-drf",
+                    "index_name": "captures-drf",
+                },
+            )
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert response.json()["channel"] == [
+                "This channel and top level directory are already in use."
+            ]
+
+    def test_create_rh_capture_already_exists(self) -> None:
         """Test creating rh capture returns metadata."""
         with (
             patch(
@@ -278,16 +333,13 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.RadioHound,
                     "scan_group": str(self.scan_group),
                     "index_name": "captures-rh",
-                    "top_level_dir": "/files/testuser@example.com/test-dir",
+                    "top_level_dir": "test-dir-rh",
                 },
             )
-            assert response.status_code == status.HTTP_201_CREATED
-            assert response.json()["capture_props"] == self.rh_metadata
-            assert response.json()["capture_type"] == CaptureType.RadioHound
-            assert (
-                response.json()["top_level_dir"]
-                == "/files/testuser@example.com/test-dir"
-            )
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert response.json()["scan_group"] == [
+                "This scan group is already in use."
+            ]
 
     def test_update_capture_404(self) -> None:
         """Test updating a non-existent capture returns 404."""
