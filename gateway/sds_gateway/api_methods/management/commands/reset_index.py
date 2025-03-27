@@ -56,7 +56,7 @@ class Command(BaseCommand):
     def get_new_fields(
         self, client: OpenSearch, old_index: str, new_index: str
     ) -> list:
-        """Compare mappings and return list of new fields."""
+        """Compare mappings and return list of new fields not in old mapping."""
         try:
             old_mapping = client.indices.get_mapping(index=old_index)[old_index][
                 "mappings"
@@ -90,7 +90,7 @@ class Command(BaseCommand):
         for field in fields:
             if field in self.field_transforms:
                 try:
-                    self.stdout.write(f"Applying transform for field '{field}'...")
+                    self.stdout.write(f"Applying transform for new field '{field}'...")
 
                     body = {"script": self.field_transforms[field]}
 
@@ -121,7 +121,7 @@ class Command(BaseCommand):
                         )
                     )
 
-    def reindex_single_capture(self, capture: Capture) -> bool | None:
+    def reindex_single_capture(self, capture: Capture) -> bool:
         """Reindex a capture."""
         self.stdout.write(
             self.style.WARNING(f"Reindexing capture manually: '{capture.uuid}'...")
@@ -165,6 +165,52 @@ class Command(BaseCommand):
                 f"Successfully created index '{index_name}'",
             ),
         )
+
+    def clone_index(self, client: OpenSearch, source_index: str, target_index: str):
+        """Clone an index."""
+
+        def raise_target_exists():
+            raise RequestError(
+                400,
+                f"Target index '{target_index}' already exists",
+                {"error": "index_already_exists_exception"},
+            )
+
+        try:
+            # Check if target index already exists
+            if client.indices.exists(index=target_index):
+                raise_target_exists()
+
+            # First block writes on the source index
+            # Clone only works from a read-only index
+            try:
+                client.indices.put_settings(
+                    index=source_index, body={"settings": {"index.blocks.write": True}}
+                )
+            except NotFoundError as e:
+                raise RequestError(
+                    404,
+                    f"Source index '{source_index}' does not exist",
+                    {"error": "index_not_found_exception"},
+                ) from e
+
+            # Clone the index
+            client.indices.clone(index=source_index, target=target_index)
+
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Successfully cloned {source_index} to {target_index}"
+                )
+            )
+
+        except (RequestError, OpensearchConnectionError) as e:
+            self.stdout.write(self.style.ERROR(f"Error cloning index: {e!s}"))
+            raise
+        finally:
+            # Always re-enable writes on the source index
+            client.indices.put_settings(
+                index=source_index, body={"settings": {"index.blocks.write": None}}
+            )
 
     def reindex_with_mapping(
         self, client: OpenSearch, source_index: str, dest_index: str
@@ -217,49 +263,6 @@ class Command(BaseCommand):
                         capture = Capture.objects.get(uuid=failure["id"])
                         if not capture.is_deleted:
                             self.reindex_single_capture(capture)
-
-    def clone_index_mapping(
-        self, client: OpenSearch, source_index: str, dest_index: str
-    ):
-        """Create a new index using mapping from an existing index."""
-        try:
-            # Get mapping from source index
-            mapping = client.indices.get_mapping(index=source_index)
-            source_mapping = mapping[source_index]["mappings"]
-
-            # Create new index with the same mapping
-            create_response = client.indices.create(
-                index=dest_index,
-                body={
-                    "mappings": source_mapping,
-                    "settings": {
-                        "index": {
-                            "number_of_shards": 1,
-                            "number_of_replicas": 1,
-                        }
-                    },
-                },
-            )
-
-            # Refresh index after creation
-            client.indices.refresh(index=dest_index)
-
-            if create_response.get("acknowledged"):
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Successfully created {dest_index} "
-                        f"with mapping from {source_index}"
-                    )
-                )
-            else:
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"Index created but not acknowledged: {create_response}"
-                    )
-                )
-
-        except (RequestError, OpensearchConnectionError, NotFoundError) as e:
-            self.stdout.write(self.style.ERROR(f"Error cloning index mapping: {e!s}"))
 
     def get_doc_count(self, client: OpenSearch, index_name: str) -> int:
         """Get the number of documents in an index."""
@@ -316,32 +319,26 @@ class Command(BaseCommand):
             return
 
         # create backup index with same mapping
-        self.clone_index_mapping(client, index_name, backup_index_name)
-
-        # index documents into backup index
-        self.reindex_with_mapping(client, index_name, backup_index_name)
-
-        # Verify backup was successful
-        backup_count = self.get_doc_count(client, backup_index_name)
-        if backup_count != original_count:
-            self.stdout.write(
-                self.style.ERROR(
-                    f"Backup verification failed for {index_name}! "
-                    f"Original: {original_count}, Backup: {backup_count}"
-                )
-            )
-
-            self.delete_index(client, backup_index_name)
-            msg = f"Skipping {index_name}. Backup index {backup_index_name} deleted."
-            self.stdout.write(self.style.WARNING(msg))
+        try:
+            self.clone_index(client, index_name, backup_index_name)
+        except (RequestError, OpensearchConnectionError) as e:
+            self.stdout.write(self.style.ERROR(f"Failed to create backup index: {e!s}"))
             return
 
         # delete original index and recreate it with new mapping
         self.delete_index(client, index_name)
         self.create_index(client, index_name, new_index_config)
 
-        # reindex from backup index to original index
-        self.reindex_with_mapping(client, backup_index_name, index_name)
+        # get queryset of captures to reindex
+        captures = Capture.objects.filter(
+            capture_type=capture_type,
+            index_name=index_name,
+            is_deleted=False,
+        )
+
+        # reindex captures
+        for capture in captures:
+            self.reindex_single_capture(capture)
 
         # Verify reindex was successful
         new_count = self.get_doc_count(client, index_name)
@@ -360,8 +357,7 @@ class Command(BaseCommand):
             )
             if recall_index_mapping:
                 self.delete_index(client, index_name)
-                self.clone_index_mapping(client, backup_index_name, index_name)
-                self.reindex_with_mapping(client, backup_index_name, index_name)
+                self.clone_index(client, backup_index_name, index_name)
                 self.delete_index(client, backup_index_name)
                 self.stdout.write(
                     self.style.SUCCESS(
@@ -377,8 +373,6 @@ class Command(BaseCommand):
                 )
             return
 
-        # Only delete backup if document counts match
-        self.delete_index(client, backup_index_name)
         self.stdout.write(
             self.style.SUCCESS(
                 f"Successfully updated {index_name} with {new_count} documents"
