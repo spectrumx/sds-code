@@ -223,9 +223,6 @@ rh_capture_index_mapping = {
     "longitude": {
         "type": "float",
     },
-    "coordinates": {
-        "type": "geo_point",
-    },
     "altitude": {
         "type": "float",
     },
@@ -269,6 +266,21 @@ def get_mapping_by_capture_type(capture_type: CaptureType) -> dict:
             "capture_props": {
                 "type": "nested",
                 "properties": capture_index_mapping_by_type[capture_type],
+            },
+            "search_props": {
+                "type": "nested",
+                "properties": {
+                    "center_frequency": {"type": "double"},
+                    "frequency_start": {"type": "double"},
+                    "frequency_end": {"type": "double"},
+                    "start_time": {"type": "date"},
+                    "end_time": {"type": "date"},
+                    "span": {"type": "integer"},
+                    "gain": {"type": "float"},
+                    "bandwidth": {"type": "integer"},
+                    "coordinates": {"type": "geo_point"},
+                    "sample_rate": {"type": "integer"},
+                },
             },
         },
     }
