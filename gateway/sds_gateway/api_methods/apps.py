@@ -18,8 +18,15 @@ def silence_unwanted_logs() -> None:
     """Usually for modules that are too verbose."""
     log.info("Silencing unwanted logs.")
     log_map: dict[int, list[str]] = {
-        logging.ERROR: ["boto3", "botocore"],
-        logging.WARNING: ["opensearch", "urllib3"],
+        logging.ERROR: [
+            "boto3",
+            "botocore",
+        ],
+        logging.WARNING: [
+            "opensearch",
+            "s3transfer",
+            "urllib3",
+        ],
     }
     for log_level, loggers in log_map.items():
         for logger in loggers:

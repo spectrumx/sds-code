@@ -9,6 +9,8 @@ from typing import Any
 
 import environ
 
+from config.settings.logs import ColoredFormatter
+
 env = environ.Env()
 
 BASE_DIR: Path = Path(__file__).resolve(strict=True).parent.parent.parent
@@ -303,15 +305,18 @@ LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {
-            "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s",
+        # "verbose": {
+        #     "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s",
+        # },
+        "colored": {
+            "()": ColoredFormatter,
         },
     },
     "handlers": {
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "formatter": "colored",
         },
     },
     "root": {"level": "DEBUG", "handlers": ["console"]},
