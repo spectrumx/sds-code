@@ -421,9 +421,17 @@ class CaptureTestCases(APITestCase):
             deleted_at=datetime.datetime.now(datetime.UTC),
         )
 
-        response = self.client.get(self.list_url)
-        assert response.status_code == status.HTTP_200_OK
-        assert response.json() == [], "Expected no captures"
+        response_raw = self.client.get(self.list_url)
+        assert response_raw.status_code == status.HTTP_200_OK
+        response = response_raw.json()
+        assert "count" in response, "Expected 'count' in response"
+        assert response["count"] == 0, "Expected count to be 0"
+        assert "results" in response, "Expected 'results' in response"
+        assert response["results"] == [], "Expected results to be empty list"
+        assert "next" in response, "Expected 'next' in response"
+        assert response["next"] is None, "Expected 'next' to be None"
+        assert "previous" in response, "Expected 'previous' in response"
+        assert response["previous"] is None, "Expected 'previous' to be None"
 
     def test_list_captures_no_metadata_200(self) -> None:
         """Listing captures when metadata is missing should not fail."""
