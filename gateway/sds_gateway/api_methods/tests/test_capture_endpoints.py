@@ -305,7 +305,7 @@ class CaptureTestCases(APITestCase):
             "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
             return_value=self.drf_metadata,
         ):
-            response = self.client.post(
+            response_raw = self.client.post(
                 self.list_url,
                 data={
                     "capture_type": CaptureType.DigitalRF,
@@ -313,10 +313,12 @@ class CaptureTestCases(APITestCase):
                     "top_level_dir": "test-dir-drf",
                 },
             )
-            assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert response.json()["channel"] == [
-                "This channel and top level directory are already in use.",
-            ]
+            assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
+            response = response_raw.json()
+            assert (
+                "channel and top level directory are already in use"
+                in response["detail"]
+            ), f"Unexpected error message: {response['detail']}"
 
     def test_create_rh_capture_scan_group_conflict(self) -> None:
         """Test creating rh capture with existing scan group returns error."""
