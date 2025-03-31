@@ -410,18 +410,27 @@ class CaptureTestCases(APITestCase):
 
     def test_list_captures_by_type_200(self) -> None:
         """Test filtering captures by type returns correct metadata."""
-        response = self.client.get(
+        response_raw = self.client.get(
             f"{self.list_url}?capture_type={CaptureType.DigitalRF}",
         )
-        assert response.status_code == status.HTTP_200_OK
+        assert response_raw.status_code == status.HTTP_200_OK
 
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["capture_type"] == CaptureType.DigitalRF
+        response = response_raw.json()
+        assert "count" in response, "Expected 'count' in response"
+        assert response["count"] == 1, "Expected count to be 1"
+        assert "results" in response, "Expected 'results' in response"
+        assert len(response["results"]) == 1, "Expected results to be 1"
+        assert "next" in response, "Expected 'next' in response"
+        assert "previous" in response, "Expected 'previous' in response"
 
-        # Verify metadata is correctly retrieved for filtered list
-        assert data[0]["capture_props"] == self.drf_metadata
-        assert data[0]["channel"] == "ch0"
+        results = response["results"]
+
+        assert all(
+            capture["capture_type"] == CaptureType.DigitalRF for capture in results
+        ), "Expected all captures to be of type DigitalRF"
+
+        assert results[0]["capture_props"] == self.drf_metadata
+        assert results[0]["channel"] == "ch0"
 
     def test_list_captures_by_type_empty_list_200(self) -> None:
         """Test filtering captures by type that doesn't exist returns empty list."""
