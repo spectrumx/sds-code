@@ -86,23 +86,23 @@ class CaptureTestCases(APITestCase):
 
         # Define test metadata
         self.drf_metadata = {
-            "center_freq": 2000000000,
-            "bandwidth": 20000000,
+            "center_freq": 2_000_000_000,
+            "bandwidth": 20_000_000,
             "gain": 20.5,
         }
 
         self.rh_metadata = {
             "altitude": 2.0,
             "batch": 0,
-            "center_frequency": 2000000000.0,
+            "center_frequency": 2_000_000_000.0,
             "scan_group": str(self.scan_group),
             "custom_fields": {
                 "requested": {
-                    "fmax": 2010000000,
-                    "fmin": 1990000000,
+                    "fmax": 2_010_000_000,
+                    "fmin": 1_990_000_000,
                     "gain": 1,
                     "samples": 1024,
-                    "span": 20000000,
+                    "span": 20_000_000,
                 },
             },
             "gain": 1.0,
@@ -116,13 +116,13 @@ class CaptureTestCases(APITestCase):
             "metadata": {
                 "archive_result": True,
                 "data_type": "periodogram",
-                "fmax": 2012000000,
-                "fmin": 1988000000,
+                "fmax": 2_012_000_000,
+                "fmin": 1_988_000_000,
                 "gps_lock": False,
                 "nfft": 1024,
                 "scan_time": 0.07766938209533691,
             },
-            "sample_rate": 24000000,
+            "sample_rate": 24_000_000,
             "short_name": "WI-Lab V3.4-025 #6",
             "software_version": "v0.10b30",
             "timestamp": "2025-01-10T15:48:07.100486Z",
@@ -308,7 +308,7 @@ class CaptureTestCases(APITestCase):
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
             assert response.json()["channel"] == [
-                "This channel and top level directory are already in use."
+                "This channel and top level directory are already in use.",
             ]
 
     def test_create_rh_capture_already_exists(self) -> None:
@@ -338,7 +338,7 @@ class CaptureTestCases(APITestCase):
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
             assert response.json()["scan_group"] == [
-                "This scan group is already in use."
+                "This scan group is already in use.",
             ]
 
     def test_update_capture_404(self) -> None:
@@ -352,7 +352,7 @@ class CaptureTestCases(APITestCase):
         """Test updating a capture returns 200 with new metadata."""
         # update the metadata dict and insert into the capture update payload
         new_metadata = self.drf_metadata.copy()
-        new_metadata["center_freq"] = 1500000000
+        new_metadata["center_freq"] = 1_500_000_000
         new_metadata["gain"] = 10.5
 
         with patch(
@@ -448,7 +448,7 @@ class CaptureTestCases(APITestCase):
         Test listing captures with metadata filters returns captures
         with matching metadata, without type distinction.
         """
-        center_freq = 2000000000
+        center_freq = 2_000_000_000
         metadata_filters = [
             {
                 "field_path": "capture_props.center_freq",
@@ -461,7 +461,9 @@ class CaptureTestCases(APITestCase):
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["count"] == 1, "Expected to find the DRF capture"
+        assert data["count"] == 1, (
+            f"Expected to find the DRF capture, got count: {data['count']}"
+        )
         returned_center_freq = data["results"][0]["capture_props"]["center_freq"]
         assert returned_center_freq == center_freq, (
             "Center frequency should be equal to the filter value: "
@@ -473,7 +475,7 @@ class CaptureTestCases(APITestCase):
         Test listing captures with metadata filters returns
         the rh capture with matching metadata.
         """
-        center_freq = 2000000000
+        center_freq = 2_000_000_000
         metadata_filters = [
             {
                 "field_path": "capture_props.metadata.fmax",

@@ -280,7 +280,8 @@ class CaptureViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
     def _validate_metadata_filters(
-        self, metadata_filters_str: str | None
+        self,
+        metadata_filters_str: str | None,
     ) -> list[dict[str, Any]] | None:
         """Parse and validate metadata filters from request."""
         if not metadata_filters_str:
@@ -289,17 +290,19 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             metadata_filters = json.loads(metadata_filters_str)
             if not isinstance(metadata_filters, list):
-                msg = "metadata_filters must be a list."
+                msg = "'metadata_filters' must be a list."
                 log.error(msg)
                 raise TypeError(msg)
             return metadata_filters  # noqa: TRY300
         except json.JSONDecodeError as err:
-            msg = "metadata_filters could not be parsed."
-            log.error(msg)
+            msg = "'metadata_filters' could not be parsed from request"
+            log.warning(msg)
             raise ValueError(msg) from err
 
     def _paginate_captures(
-        self, captures: QuerySet[Capture], request: Request
+        self,
+        captures: QuerySet[Capture],
+        request: Request,
     ) -> Response:
         """Paginate and serialize capture results."""
         paginator = CapturePagination()
@@ -365,27 +368,23 @@ class CaptureViewSet(viewsets.ViewSet):
     )
     def list(self, request: Request) -> Response:
         """List captures with optional metadata filtering."""
-        capture_type = request.GET.get("capture_type", None)
-        owned_captures = Capture.objects.filter(
-            owner=request.user,
-            is_deleted=False,
-        )
-        if capture_type:
-            owned_captures = owned_captures.filter(capture_type=capture_type)
-
-        if not owned_captures.exists():
-            return Response([], status=status.HTTP_200_OK)
+        capture_type_raw = request.GET.get("capture_type", None)
+        capture_type = CaptureType(capture_type_raw) if capture_type_raw else None
 
         try:
             metadata_filters = self._validate_metadata_filters(
-                request.GET.get("metadata_filters")
+                request.GET.get("metadata_filters"),
             )
-            captures = search_captures(request.user, capture_type, metadata_filters)
-            return self._paginate_captures(captures, request)
+            captures = search_captures(
+                capture_type=capture_type,
+                metadata_filters=metadata_filters,
+                owner=cast("User", request.user),
+            )
+            return self._paginate_captures(captures=captures, request=request)
         except (ValueError, TypeError) as err:
             return Response(
                 {"detail": str(err)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status=status.HTTP_400_BAD_REQUEST,
             )
         except os_exceptions.ConnectionError as err:
             try:
