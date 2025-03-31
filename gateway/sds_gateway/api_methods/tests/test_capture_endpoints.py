@@ -311,8 +311,9 @@ class CaptureTestCases(APITestCase):
                 "This channel and top level directory are already in use.",
             ]
 
-    def test_create_rh_capture_already_exists(self) -> None:
-        """Test creating rh capture returns metadata."""
+    def test_create_rh_capture_scan_group_conflict(self) -> None:
+        """Test creating rh capture with existing scan group returns error."""
+        # ARRANGE
         with (
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.find_rh_metadata_file",
@@ -327,19 +328,27 @@ class CaptureTestCases(APITestCase):
                 ),
             ),
         ):
-            response = self.client.post(
+            # ACT
+            response_raw = self.client.post(
                 self.list_url,
                 data={
                     "capture_type": CaptureType.RadioHound,
                     "scan_group": str(self.scan_group),
-                    "index_name": "captures-rh",
                     "top_level_dir": "test-dir-rh",
                 },
             )
-            assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert response.json()["scan_group"] == [
+
+            # ASSERT
+            assert response_raw.status_code == status.HTTP_400_BAD_REQUEST, (
+                f"Unexpected status code: {response_raw.status_code}"
+            )
+            response = response_raw.json()
+            assert "scan_group" in response, (
+                f"'scan_group' key missing in response: {response}"
+            )
+            assert response["scan_group"] == [
                 "This scan group is already in use.",
-            ]
+            ], f"Unexpected error message: {response['scan_group']}"
 
     def test_update_capture_404(self) -> None:
         """Test updating a non-existent capture returns 404."""
