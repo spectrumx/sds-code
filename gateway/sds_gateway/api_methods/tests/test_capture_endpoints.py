@@ -274,21 +274,29 @@ class CaptureTestCases(APITestCase):
                 ),
             ),
         ):
-            response = self.client.post(
+            response_raw = self.client.post(
                 self.list_url,
                 data={
                     "capture_type": CaptureType.RadioHound,
                     "scan_group": str(unique_scan_group),
-                    "index_name": "captures-rh",
                     "top_level_dir": "test-dir-rh",
                 },
             )
-            assert response.status_code == status.HTTP_201_CREATED
-            assert response.json()["capture_props"] == self.rh_metadata
-            assert response.json()["capture_type"] == CaptureType.RadioHound
-            assert (
-                response.json()["top_level_dir"]
-                == "/files/testuser@example.com/test-dir"
+            assert response_raw.status_code == status.HTTP_201_CREATED, (
+                f"Unexpected status code: {response_raw.status_code}"
+            )
+            response = response_raw.json()
+            assert response["scan_group"] == str(
+                unique_scan_group,
+            ), f"Unexpected scan group: {response['scan_group']}"
+            assert response["capture_props"] == self.rh_metadata, (
+                f"Unexpected metadata: {response['capture_props']}"
+            )
+            assert response["capture_type"] == CaptureType.RadioHound, (
+                f"Unexpected capture type: {response['capture_type']}"
+            )
+            assert response["top_level_dir"] == "test-dir-rh", (
+                f"Unexpected top level dir: {response['top_level_dir']}"
             )
 
     def test_create_drf_capture_already_exists(self) -> None:
@@ -303,7 +311,6 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": self.channel,
                     "top_level_dir": "test-dir-drf",
-                    "index_name": "captures-drf",
                 },
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
