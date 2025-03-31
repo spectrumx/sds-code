@@ -17,5 +17,11 @@ class ApiMethodsConfig(AppConfig):
 def silence_unwanted_logs() -> None:
     """Usually for modules that are too verbose."""
     log.info("Silencing unwanted logs.")
-    logging.getLogger("botocore").setLevel(logging.ERROR)
-    logging.getLogger("boto3").setLevel(logging.ERROR)
+    log_map: dict[int, list[str]] = {
+        logging.ERROR: ["boto3", "botocore"],
+        logging.WARNING: ["opensearch", "urllib3"],
+    }
+    for log_level, loggers in log_map.items():
+        for logger in loggers:
+            logging.getLogger(logger).setLevel(log_level)
+            log.debug(f"Silencing {logger} at level {log_level}.")
