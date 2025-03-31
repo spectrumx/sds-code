@@ -170,7 +170,7 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
         summary="Create Capture",
     )
-    def create(self, request: Request) -> Response:
+    def create(self, request: Request) -> Response:  # noqa: PLR0911
         """Create a capture object, connecting files and indexing the metadata."""
         drf_channel = request.data.get("channel", None)
         rh_scan_group = request.data.get("scan_group", None)
@@ -194,7 +194,10 @@ class CaptureViewSet(viewsets.ViewSet):
             )
 
         requester = cast("User", request.user)
-        request_data = request.data.copy()
+        request_data = _infer_index_name(
+            request_data=request.data.copy(),
+            capture_type=capture_type,
+        )
         post_serializer = CapturePostSerializer(
             data=request_data,
             context={"request_user": request.user},
@@ -204,6 +207,20 @@ class CaptureViewSet(viewsets.ViewSet):
             log.error(f"Capture POST serializer errors: {errors}")
             return Response(
                 {"detail": errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        capture_candidate: dict[str, Any] = post_serializer.validated_data
+
+        # check capture creation constraints and form error message to end-user
+        try:
+            _check_capture_creation_constraints(capture_candidate, owner=requester)
+        except ValueError as err:
+            msg = "One or more capture creation constraints violated:"
+            for error in err.args[0].splitlines():
+                msg += f"\n\t{error}"
+            log.info(msg)
+            return Response(
+                {"detail": msg},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -522,3 +539,131 @@ class CaptureViewSet(viewsets.ViewSet):
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _infer_index_name(
+    request_data: dict[str, Any],
+    capture_type: str | None,
+) -> dict[str, Any]:
+    """Automatically infers the index name based on the capture type."""
+    if capture_type is None:
+        log.warning("Capture type is None. Cannot determine index name.")
+        return request_data
+
+    # Populate index_name based on capture type
+    match capture_type:
+        case CaptureType.DigitalRF:
+            request_data["index_name"] = f"captures-{CaptureType.DigitalRF}"
+        case CaptureType.RadioHound:
+            request_data["index_name"] = f"captures-{CaptureType.RadioHound}"
+        case _:
+            msg = f"Invalid capture type: {capture_type}"
+            log.error(msg)
+            raise ValueError(msg)
+
+    return request_data
+
+
+def _check_capture_creation_constraints(
+    capture_candidate: dict[str, Any],
+    owner: User,
+) -> None:
+    """Check constraints for capture creation. Raise ValueError if any are violated.
+
+    The serializer validation (`is_valid()`) doesn't have the context of which operation
+        is being performed (create or update), so we're checking these constraints
+        below for capture creations.
+
+    Args:
+        capture_candidate:  The capture dict after serializer's validation
+                            (`serializer.validated_data`) to check constraints against.
+    Raises:
+        ValueError:         If any of the constraints are violated.
+        AssertionError:     If an internal assertion fails.
+    """
+
+    log.error(capture_candidate)
+    capture_type = capture_candidate.get("capture_type")
+    top_level_dir = capture_candidate.get("top_level_dir")
+    _errors: dict[str, str] = {}
+
+    required_fields = {
+        "capture_type": capture_type,
+        "top_level_dir": top_level_dir,
+    }
+
+    _errors.update(
+        {
+            field: f"'{field}' is required."
+            for field, value in required_fields.items()
+            if value is None
+        },
+    )
+
+    if _errors:
+        msg = "Capture creation constraints violated:" + "".join(
+            f"\n\t{rule}: {error}" for rule, error in _errors.items()
+        )
+        log.error(msg)
+        raise AssertionError(msg)
+
+    # capture creation constraints
+
+    # CONSTRAINT: DigitalRF captures must have unique channel and top_level_dir
+    if capture_type == CaptureType.DigitalRF:
+        channel = capture_candidate.get("channel")
+        cap_qs: QuerySet[Capture] = Capture.objects.filter(
+            channel=channel,
+            top_level_dir=top_level_dir,
+            capture_type=CaptureType.DigitalRF,
+            is_deleted=False,
+            owner=owner,
+        )
+        if not channel:
+            log.error(
+                "No channel provided for DigitalRF capture. This missing"
+                "value should have been caught by the serializer validator.",
+            )
+        elif cap_qs.exists():
+            _errors.update(
+                {
+                    "drf_unique_channel_and_tld": "This channel and top level "
+                    "directory are already in use.",
+                },
+            )
+        else:
+            log.debug(
+                "No `channel` and `top_level_dir` conflicts for current user's "
+                "DigitalRF captures.",
+            )
+
+    # CONSTRAINT: RadioHound captures must have unique scan group
+    if capture_type == CaptureType.RadioHound:
+        scan_group: str | None = capture_candidate.get("scan_group")
+        cap_qs: QuerySet[Capture] = Capture.objects.filter(
+            scan_group=scan_group,
+            capture_type=CaptureType.RadioHound,
+            is_deleted=False,
+            owner=owner,
+        )
+        if scan_group is None:
+            log.debug(
+                "No scan group provided for RadioHound capture.",
+            )
+        elif cap_qs.exists():
+            _errors.update(
+                {
+                    "rh_unique_scan_group": "This scan group is already in use.",
+                },
+            )
+        else:
+            log.debug(
+                "No `scan_group` conflicts for current user's captures.",
+            )
+
+    if _errors:
+        msg = "Capture creation constraints violated:"
+        for rule, error in _errors.items():
+            msg += f"\n\t{rule}: {error}"
+        log.error(msg)
+        raise ValueError(msg)
