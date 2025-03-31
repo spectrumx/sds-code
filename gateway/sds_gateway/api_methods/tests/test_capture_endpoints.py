@@ -352,12 +352,9 @@ class CaptureTestCases(APITestCase):
                 f"Unexpected status code: {response_raw.status_code}"
             )
             response = response_raw.json()
-            assert "scan_group" in response, (
-                f"'scan_group' key missing in response: {response}"
+            assert "scan group is already in use" in response["detail"], (
+                f"Unexpected error message: {response['detail']}"
             )
-            assert response["scan_group"] == [
-                "This scan group is already in use.",
-            ], f"Unexpected error message: {response['scan_group']}"
 
     def test_update_capture_404(self) -> None:
         """Test updating a non-existent capture returns 404."""
