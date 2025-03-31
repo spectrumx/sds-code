@@ -24,12 +24,12 @@ class FileCaptureListSerializer(serializers.ModelSerializer[File]):
         ]
 
 
-class CaptureGetSerializer(serializers.ModelSerializer):
+class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     owner = UserGetSerializer()
     capture_props = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
 
-    def get_files(self, capture: Capture) -> ReturnList:
+    def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
 
         Returns:
@@ -44,7 +44,7 @@ class CaptureGetSerializer(serializers.ModelSerializer):
             many=True,
             context=self.context,
         )
-        return cast("ReturnList", serializer.data)
+        return cast("ReturnList[File]", serializer.data)
 
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:
@@ -58,8 +58,8 @@ class CaptureGetSerializer(serializers.ModelSerializer):
             return retrieve_indexed_metadata(capture)
 
         # cache the metadata for all objects if not already done
-        if not hasattr(self.parent, "capture_props_cache"):
-            # Convert QuerySet to list if needed
+        if not hasattr(self.parent, "capture_props_cache") and self.parent.instance:
+            # convert QuerySet to list if needed
             instances: list[Capture] = cast(
                 "list[Capture]",
                 list(self.parent.instance)
@@ -136,6 +136,8 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
             self._errors = {"capture_type": ["Invalid capture type."]}
             return super().is_valid(raise_exception=raise_exception)
 
+        # capture creation constraints
+
         # check that if capture_type is DigitalRF,
         # then channel and top_level_dir are unique
         if capture_type == CaptureType.DigitalRF:
@@ -148,8 +150,8 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
             ).exists():
                 self._errors = {
                     "channel": [
-                        "This channel and top level directory are already in use."
-                    ]
+                        "This channel and top level directory are already in use.",
+                    ],
                 }
 
         # check that if capture_type is RadioHound,
