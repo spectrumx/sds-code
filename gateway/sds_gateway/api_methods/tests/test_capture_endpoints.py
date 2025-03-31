@@ -384,28 +384,45 @@ class CaptureTestCases(APITestCase):
 
     def test_list_captures_200(self) -> None:
         """Test listing captures returns metadata for all captures."""
-        response = self.client.get(self.list_url)
-        assert response.status_code == status.HTTP_200_OK
+        response_raw = self.client.get(self.list_url)
+        assert response_raw.status_code == status.HTTP_200_OK
 
-        data = response.json()
-        assert len(data) == TOTAL_TEST_CAPTURES
+        response = response_raw.json()
+        assert all(
+            field in response for field in ["count", "results", "next", "previous"]
+        ), "Expected 'count', 'results', 'next', and 'previous' in response"
+        assert response["count"] == TOTAL_TEST_CAPTURES, (
+            f"Expected {TOTAL_TEST_CAPTURES} captures, got {response['count']}"
+        )
+        assert "results" in response, "Expected 'results' in response"
+        results = response["results"]
 
-        # Verify metadata for each capture type is correctly retrieved in bulk
+        # verify metadata for each capture type is correctly retrieved in bulk
         drf_capture = next(
-            c for c in data if c["capture_type"] == CaptureType.DigitalRF
+            c for c in results if c["capture_type"] == CaptureType.DigitalRF
         )
         rh_capture = next(
-            c for c in data if c["capture_type"] == CaptureType.RadioHound
+            c for c in results if c["capture_type"] == CaptureType.RadioHound
         )
 
-        # Verify the metadata matches what was indexed
-        assert drf_capture["capture_props"] == self.drf_metadata
-        assert rh_capture["capture_props"] == self.rh_metadata
+        # verify the metadata matches what was indexed
+        assert drf_capture["capture_props"] == self.drf_metadata, (
+            f"Expected {self.drf_metadata}, got {drf_capture['capture_props']}"
+        )
+        assert rh_capture["capture_props"] == self.rh_metadata, (
+            f"Expected {self.rh_metadata}, got {rh_capture['capture_props']}"
+        )
 
-        # Verify other fields are present
-        assert drf_capture["channel"] == "ch0"
-        assert drf_capture["top_level_dir"] == "test-dir"
-        assert rh_capture["channel"] == ""
+        # verify other fields are present
+        assert drf_capture["channel"] == "ch0", (
+            f"Expected channel 'ch0', got {drf_capture['channel']}"
+        )
+        assert drf_capture["top_level_dir"] == "test-dir-drf", (
+            f"Expected top level dir 'test-dir-drf', got {drf_capture['top_level_dir']}"
+        )
+        assert rh_capture["channel"] == "", (
+            f"Expected empty channel for RH capture, got {rh_capture['channel']}"
+        )
 
     def test_list_captures_by_type_200(self) -> None:
         """Test filtering captures by type returns correct metadata."""

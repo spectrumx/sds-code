@@ -188,7 +188,7 @@ def get_capture_queryset(
             raise ValueError(UNKNOWN_CAPTURE_TYPE)
         capture_queryset = capture_queryset.filter(capture_type=capture_type)
 
-    return capture_queryset
+    return capture_queryset.order_by("-updated_at")
 
 
 def search_captures(
