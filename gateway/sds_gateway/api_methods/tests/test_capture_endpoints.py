@@ -448,11 +448,15 @@ class CaptureTestCases(APITestCase):
         assert results[0]["capture_props"] == self.drf_metadata
         assert results[0]["channel"] == "ch0"
 
-    def test_list_captures_by_type_empty_list_200(self) -> None:
-        """Test filtering captures by type that doesn't exist returns empty list."""
-        response = self.client.get(f"{self.list_url}?capture_type=fake_type")
-        assert response.status_code == status.HTTP_200_OK
-        assert response.json() == []
+    def test_list_captures_by_invalid_type_400(self) -> None:
+        """Test filtering captures by an invalid type returns 400."""
+        fake_type: str = "fake_type"
+        response_raw = self.client.get(f"{self.list_url}?capture_type={fake_type}")
+        assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
+        response = response_raw.json()
+        assert f"{fake_type}" in response["detail"].lower(), (
+            f"Expected '{fake_type}' in error message, got {response['detail']}"
+        )
 
     def test_list_captures_empty_list_200(self) -> None:
         """Test list captures returns 200 when no captures exist."""

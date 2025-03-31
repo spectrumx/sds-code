@@ -386,9 +386,9 @@ class CaptureViewSet(viewsets.ViewSet):
     def list(self, request: Request) -> Response:
         """List captures with optional metadata filtering."""
         capture_type_raw = request.GET.get("capture_type", None)
-        capture_type = CaptureType(capture_type_raw) if capture_type_raw else None
 
         try:
+            capture_type = CaptureType(capture_type_raw) if capture_type_raw else None
             metadata_filters = self._validate_metadata_filters(
                 request.GET.get("metadata_filters"),
             )

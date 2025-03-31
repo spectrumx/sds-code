@@ -202,10 +202,10 @@ def search_captures(
         owner:              user who owns the captures
         capture_type:       type of capture to filter by
         metadata_filters:   dict of metadata field names and their filter values
+    Raises:
+        ValueError:         when the index was not found
     Returns:
         QuerySet of Capture objects matching the criteria
-    Raises:
-        ValueError: If the capture type is invalid
     """
 
     capture_queryset: QuerySet[Capture] = get_capture_queryset(
