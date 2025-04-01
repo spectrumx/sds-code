@@ -98,7 +98,8 @@ def _build_os_metadata_query(
             )
             log.warning(msg)
 
-        if levels_nested := field_path.count(".") > 0:
+        levels_nested = field_path.count(".")
+        if levels_nested > 0:
             metadata_queries.append(
                 handle_nested_query(
                     field_path=field_path,
