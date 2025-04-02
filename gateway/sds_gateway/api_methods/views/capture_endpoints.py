@@ -468,7 +468,7 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
         summary="Update Capture",
     )
-    def update(self, request: Request, pk: str | None = None) -> Response:
+    def update(self, request: Request, pk: str | None = None) -> Response:  # noqa: PLR0911
         """Update a capture by adding files or re-indexing metadata."""
         if pk is None:
             return Response(
