@@ -20,9 +20,9 @@ build:
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) pull --ignore-buildable
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) build $(ARGS)
 
-up:
-	@echo "Starting sds-gateway"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) up -d $(ARGS)
+down:
+	@echo "Stopping sds-gateway"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) down $(ARGS)
 
 logs:
 	@echo "Showing sds-gateway logs…"
@@ -32,9 +32,8 @@ logs-once:
 	@echo "Showing gateway logs once…"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) logs $(ARGS)
 
-down:
-	@echo "Stopping sds-gateway"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) down $(ARGS)
+pre-commit:
+	uv run --dev pre-commit run --all-files
 
 restart:
 	@echo "Restarting sds-gateway"
@@ -44,3 +43,7 @@ test:
 	@echo "Running tests"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --force-color
+
+up:
+	@echo "Starting sds-gateway"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) up -d $(ARGS)
