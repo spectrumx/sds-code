@@ -4,6 +4,7 @@ from datetime import UTC
 from datetime import datetime
 
 from django.core.management.base import BaseCommand
+from django.db.models import Count
 from opensearchpy import AuthenticationException
 from opensearchpy import ConnectionError as OpensearchConnectionError
 from opensearchpy import NotFoundError
@@ -134,22 +135,29 @@ class Command(BaseCommand):
 
         # get rh captures that have the same scan_group
         if capture_type == CaptureType.RadioHound:
-            rh_scan_groups = captures.values_list("scan_group", flat=True)
-            duplicate_scan_groups = rh_scan_groups.value_counts().loc[lambda x: x > 1]
-            for scan_group in duplicate_scan_groups.index:
+            duplicate_scan_groups = (
+                captures.values("scan_group")
+                .annotate(count=Count("uuid"))
+                .filter(count__gt=1)
+                .values_list("scan_group", flat=True)
+            )
+
+            for scan_group in duplicate_scan_groups:
                 duplicate_capture_groups[scan_group] = captures.filter(
                     scan_group=scan_group
                 ).order_by("created_at")
+
         elif capture_type == CaptureType.DigitalRF:
-            drf_channel_top_level_dirs = captures.values_list(
-                "channel", "top_level_dir"
+            duplicate_pairs = (
+                captures.values("channel", "top_level_dir")
+                .annotate(count=Count("uuid"))
+                .filter(count__gt=1)
             )
-            duplicate_channel_top_level_dirs = (
-                drf_channel_top_level_dirs.value_counts().loc[lambda x: x > 1]
-            )
-            for channel, top_level_dir in duplicate_channel_top_level_dirs.index:
-                duplicate_capture_groups[(channel, top_level_dir)] = captures.filter(
-                    channel=channel, top_level_dir=top_level_dir
+
+            for pair in duplicate_pairs:
+                key = (pair["channel"], pair["top_level_dir"])
+                duplicate_capture_groups[key] = captures.filter(
+                    channel=pair["channel"], top_level_dir=pair["top_level_dir"]
                 ).order_by("created_at")
 
         return duplicate_capture_groups
@@ -453,6 +461,9 @@ class Command(BaseCommand):
         # reindex captures
         for capture in captures:
             self.reindex_single_capture(capture)
+
+        # Refresh newn index to make documents searchable
+        client.indices.refresh(index=index_name)
 
         # Verify reindex was successful
         new_count = self.get_doc_count(client, index_name)

@@ -237,7 +237,7 @@ class OpenSearchIndexResetTest(APITestCase):
 
         # Mock user inputs and the mapping function
         with (
-            mock.patch("builtins.input", side_effect=["n", "y"]),
+            mock.patch("builtins.input", return_value="y"),
             mock.patch(
                 "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type"
             ) as mock_mapping,
@@ -273,12 +273,55 @@ class OpenSearchIndexResetTest(APITestCase):
         backup_indices = self.client.indices.get(index=f"{index_name}-backup-*")
         assert len(backup_indices) == 0
 
+    def test_duplicate_capture_deletion(self):
+        """Test that duplicate captures are deleted."""
+        index_name = f"{self.test_index_prefix}{self.capture.capture_type}"
+
+        # Get initial document
+        initial_response = self.client.search(
+            index=index_name, body={"query": {"match": {"_id": str(self.capture.uuid)}}}
+        )
+        assert initial_response["hits"]["total"]["value"] == 1
+
+        # Create duplicate capture
+        self._create_test_capture()
+        self._index_test_capture()
+
+        # Verify duplicate capture was created
+        duplicate_capture = (
+            Capture.objects.filter(
+                scan_group=self.scan_group,
+                capture_type=self.capture.capture_type,
+            )
+            .exclude(uuid=self.capture.uuid)
+            .first()
+        )
+        assert duplicate_capture is not None
+
+        # Run reset_indices command with test prefix
+        call_command(
+            "reset_index",
+            index_name=index_name,
+            capture_type=self.capture.capture_type,
+        )
+
+        # Verify duplicate captures are deleted
+        final_response = self.client.search(
+            index=index_name, body={"query": {"match": {"_id": str(self.capture.uuid)}}}
+        )
+        assert final_response["hits"]["total"]["value"] == 1
+
     def tearDown(self):
         """Clean up test data."""
         # Delete test indices
         self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
 
-        # Clean up test objects
-        self.capture.delete()
+        # Clean up test objects in correct order
+        # First delete captures that reference the user
+        Capture.objects.all().delete()
+
+        # Then delete the file
         self.file.delete()
+
+        # Finally delete the user
         self.user.delete()
