@@ -11,6 +11,7 @@ from opensearchpy import OpenSearch
 from opensearchpy import RequestError
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
@@ -120,6 +121,115 @@ class Command(BaseCommand):
                             f"Error applying transform for field '{field}': {e!s}"
                         )
                     )
+
+    def find_duplicate_captures(self, capture_type: CaptureType, index_name: str):
+        """Find duplicate captures in the database."""
+        # get all captures in the index
+        captures = Capture.objects.filter(
+            index_name=index_name,
+            is_deleted=False,
+            capture_type=capture_type,
+        )
+        duplicate_capture_groups = {}
+
+        # get rh captures that have the same scan_group
+        if capture_type == CaptureType.RadioHound:
+            rh_scan_groups = captures.values_list("scan_group", flat=True)
+            duplicate_scan_groups = rh_scan_groups.value_counts().loc[lambda x: x > 1]
+            for scan_group in duplicate_scan_groups.index:
+                duplicate_capture_groups[scan_group] = captures.filter(
+                    scan_group=scan_group
+                ).order_by("created_at")
+        elif capture_type == CaptureType.DigitalRF:
+            drf_channel_top_level_dirs = captures.values_list(
+                "channel", "top_level_dir"
+            )
+            duplicate_channel_top_level_dirs = (
+                drf_channel_top_level_dirs.value_counts().loc[lambda x: x > 1]
+            )
+            for channel, top_level_dir in duplicate_channel_top_level_dirs.index:
+                duplicate_capture_groups[(channel, top_level_dir)] = captures.filter(
+                    channel=channel, top_level_dir=top_level_dir
+                ).order_by("created_at")
+
+        return duplicate_capture_groups
+
+    def delete_duplicate_captures(
+        self, client: OpenSearch, capture_type: CaptureType, index_name: str
+    ):
+        """Delete duplicate captures from an index."""
+        duplicate_capture_groups = self.find_duplicate_captures(
+            capture_type, index_name
+        )
+
+        # delete duplicate rh captures
+        for capture_group in duplicate_capture_groups.values():
+            # assert that the capture group is sorted by created_at
+            assert capture_group.sort_values("created_at").equals(capture_group), (
+                "Capture group is not sorted by created_at"
+            )
+
+            # assert that the first capture is the oldest
+            assert capture_group.iloc[0].created_at == capture_group.created_at.min(), (
+                "First capture is not the oldest"
+            )
+
+            if capture_type == CaptureType.RadioHound:
+                # assert that the captures in the group belong to the same scan_group
+                assert capture_group.scan_group.nunique() == 1, (
+                    "Captures in the group do not belong to the same scan_group"
+                )
+            elif capture_type == CaptureType.DigitalRF:
+                # assert that the captures in the group belong
+                # to the same channel and top_level_dir
+                assert capture_group.channel.nunique() == 1, (
+                    "Captures in the group do not belong to the same channel"
+                )
+                assert capture_group.top_level_dir.nunique() == 1, (
+                    "Captures in the group do not belong to the same top_level_dir"
+                )
+
+            # keep the first capture and delete the rest
+            for capture in capture_group[1:]:
+                # assert that the capture is not the oldest capture in the group
+                assert capture.created_at != capture_group.created_at.min(), (
+                    "Capture is the oldest capture in the group"
+                )
+
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Deleting duplicate capture '{capture.uuid}'..."
+                    )
+                )
+                self.delete_doc_by_capture_uuid(client, index_name, capture.uuid)
+                capture.delete()
+
+    def delete_doc_by_capture_uuid(
+        self, client: OpenSearch, index_name: str, capture_uuid: str
+    ):
+        """Delete a document by capture UUID."""
+        try:
+            # try to get the document
+            client.get(index=index_name, id=capture_uuid)
+        except NotFoundError:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Document by capture UUID: '{capture_uuid}' not found"
+                )
+            )
+            return
+        else:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Deleting document by capture UUID: '{capture_uuid}'..."
+                )
+            )
+            client.delete(index=index_name, id=capture_uuid)
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Successfully deleted document by capture UUID: '{capture_uuid}'"
+                )
+            )
 
     def reindex_single_capture(self, capture: Capture) -> bool:
         """Reindex a capture."""
@@ -296,6 +406,17 @@ class Command(BaseCommand):
         client: OpenSearch = get_opensearch_client()
         capture_type = options["capture_type"]
         index_name = options["index_name"]
+
+        # delete duplicate captures, including docs in the original index
+        self.delete_duplicate_captures(client, capture_type, index_name)
+
+        # get queryset of captures to reindex
+        captures = Capture.objects.filter(
+            capture_type=capture_type,
+            index_name=index_name,
+            is_deleted=False,
+        )
+
         new_index_config = {
             "mappings": get_mapping_by_capture_type(capture_type),
             "settings": {
@@ -328,13 +449,6 @@ class Command(BaseCommand):
         # delete original index and recreate it with new mapping
         self.delete_index(client, index_name)
         self.create_index(client, index_name, new_index_config)
-
-        # get queryset of captures to reindex
-        captures = Capture.objects.filter(
-            capture_type=capture_type,
-            index_name=index_name,
-            is_deleted=False,
-        )
 
         # reindex captures
         for capture in captures:
