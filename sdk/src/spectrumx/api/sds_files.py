@@ -149,6 +149,7 @@ def list_files(
     Returns:
         A paginator for the files in the given SDS path.
     """
+    sds_path = PurePosixPath(sds_path)
     if client.dry_run:
         log_user("Dry run enabled: files will be simulated")
     pagination: Paginator[File] = Paginator(
