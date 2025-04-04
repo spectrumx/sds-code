@@ -71,55 +71,54 @@ class Command(BaseCommand):
     rh_field_transforms = {
         "search_props.center_frequency": {
             "source": """
-                if (ctx._source.capture_props.center_frequency != null &&
-                    ctx._source.search_props.center_frequency == null) {
+                if (ctx._source.capture_props.center_frequency != null) {
                     ctx._source.search_props.center_frequency = (
                         ctx._source.capture_props.center_frequency
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.frequency_min": {
             "source": """
-                if (ctx._source.capture_props.fmin != null &&
-                    ctx._source.search_props.frequency_min == null) {
+                if (ctx._source.capture_props.metadata.fmin != null) {
                     ctx._source.search_props.frequency_min = (
-                        ctx._source.capture_props.fmin
+                        ctx._source.capture_props.metadata.fmin
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.frequency_max": {
             "source": """
-                if (ctx._source.capture_props.fmax != null &&
-                    ctx._source.search_props.frequency_max == null) {
+                if (ctx._source.capture_props.metadata.fmax != null) {
                     ctx._source.search_props.frequency_max = (
-                        ctx._source.capture_props.fmax
+                        ctx._source.capture_props.metadata.fmax
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.span": {
             "source": """
-                if (ctx._source.capture_props.span != null &&
-                    ctx._source.search_props.span == null) {
+                if (ctx._source.capture_props.span != null) {
                     ctx._source.search_props.span = ctx._source.capture_props.span;
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.gain": {
             "source": """
-                if (ctx._source.capture_props.gain != null &&
-                    ctx._source.search_props.gain == null) {
+                if (ctx._source.capture_props.gain != null) {
                     ctx._source.search_props.gain = ctx._source.capture_props.gain;
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.coordinates": {
             "source": """
                 if (ctx._source.capture_props.latitude != null &&
-                    ctx._source.capture_props.longitude != null &&
-                    ctx._source.search_props.coordinates == null) {
+                ctx._source.capture_props.longitude != null) {
                     ctx._source.search_props.coordinates = [
                         ctx._source.capture_props.longitude,
                         ctx._source.capture_props.latitude
@@ -130,26 +129,26 @@ class Command(BaseCommand):
         },
         "search_props.sample_rate": {
             "source": """
-                if (ctx._source.capture_props.sample_rate != null &&
-                    ctx._source.search_props.sample_rate == null) {
+                if (ctx._source.capture_props.sample_rate != null) {
                     ctx._source.search_props.sample_rate = (
                         ctx._source.capture_props.sample_rate
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
     }
 
     drf_field_transforms = {
         "search_props.center_frequency": {
             "source": """
-                if (ctx._source.capture_props.center_freq != null &&
-                    ctx._source.search_props.center_frequency == null) {
+                if (ctx._source.capture_props.center_freq != null) {
                     ctx._source.search_props.center_frequency = (
                         ctx._source.capture_props.center_freq
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.frequency_min": {
             "source": """
@@ -162,6 +161,7 @@ class Command(BaseCommand):
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.frequency_max": {
             "source": """
@@ -174,6 +174,7 @@ class Command(BaseCommand):
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.start_time": {
             "source": """
@@ -184,6 +185,7 @@ class Command(BaseCommand):
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.end_time": {
             "source": """
@@ -194,6 +196,7 @@ class Command(BaseCommand):
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.span": {
             "source": """
@@ -202,6 +205,7 @@ class Command(BaseCommand):
                     ctx._source.search_props.span = ctx._source.capture_props.span;
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.gain": {
             "source": """
@@ -210,6 +214,7 @@ class Command(BaseCommand):
                     ctx._source.search_props.gain = ctx._source.capture_props.gain;
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.bandwidth": {
             "source": """
@@ -220,6 +225,7 @@ class Command(BaseCommand):
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
         "search_props.sample_rate": {
             "source": """
@@ -231,6 +237,7 @@ class Command(BaseCommand):
                     );
                 }
             """.strip(),
+            "lang": "painless",
         },
     }
 
@@ -258,10 +265,51 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(f"Unknown capture type: {capture_type}"))
         return {}
 
+    def init_search_props(self, client: OpenSearch, index_name: str):
+        """Initialize search_props if it doesn't exist."""
+        # First initialize search_props if it doesn't exist
+        init_search_props = {
+            "script": """
+                if (ctx._source.search_props == null) {
+                    ctx._source.search_props = [:];
+                }
+            """.strip(),
+            "lang": "painless",
+        }
+
+        try:
+            self.stdout.write("Initializing search_props structure...")
+            response = client.update_by_query(
+                index=index_name, body=init_search_props, conflicts="proceed"
+            )
+
+            if response.get("failures"):
+                self.stdout.write(
+                    self.style.WARNING(
+                        "Some updates failed initializing search_props: "
+                        f"{response['failures']}"
+                    )
+                )
+            else:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "Successfully initialized search_props in "
+                        f"{response['updated']} documents"
+                    )
+                )
+        except (RequestError, OpensearchConnectionError) as e:
+            self.stdout.write(
+                self.style.ERROR(f"Error initializing search_props: {e!s}")
+            )
+            return
+
     def apply_field_transforms(
         self, client: OpenSearch, index_name: str, field_transforms: dict
     ):
         """Apply transforms for new fields."""
+
+        self.init_search_props(client, index_name)
+
         for field, transform in field_transforms.items():
             try:
                 self.stdout.write(f"Applying transform for field '{field}'...")
