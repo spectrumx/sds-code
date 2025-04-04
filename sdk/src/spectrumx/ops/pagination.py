@@ -41,17 +41,17 @@ class Paginator(Generic[T]):
     ## Usage example
 
     ```
-    paginator = Paginator[File](
+    file_paginator = Paginator[File](
         Entry=File,
         gateway=gateway,
         sds_path="/path/to/files",
         dry_run=False,
         verbose=True,
     )
-    print(f"Total files matched: {len(paginator)}")
+    print(f"Total files matched: {len(file_paginator)}")
     # len() will fetch the first page
 
-    for my_file in paginator:
+    for my_file in file_paginator:
         print(f"Processing file: {my_file.name}")
         process_file(my_file)
         # new pages are fetched automatically
@@ -77,14 +77,14 @@ class Paginator(Generic[T]):
         """Initializes the paginator with the required parameters.
 
         Args:
-            Entry:      The model class to use when parsing the entries.
-            gateway:    The gateway client to use for fetching pages.
-            sds_path:   The SDS path to paginate through.
-            dry_run:    If True, will generate synthetic pages instead of fetching.
-            page_size:  The number of entries to fetch per page.
-            start_page: The page number to start fetching from.
-            total_matches: The total number of entries to expect.
-            verbose:    If True, will log more information about the pagination.
+            Entry:          The SDSModel subclass to use when parsing the entries.
+            gateway:        The gateway client to use for fetching pages.
+            sds_path:       The SDS path to paginate through.
+            dry_run:        If True, will generate synthetic pages instead of fetching.
+            page_size:      The number of entries to fetch per page.
+            start_page:     The page number to start fetching from.
+            total_matches:  The total number of entries across all pages.
+            verbose:        If True, will log more information about the pagination.
         """
 
         if page_size <= 0:  # pragma: no cover
@@ -98,8 +98,8 @@ class Paginator(Generic[T]):
         ):  # pragma: no cover
             msg = "Total matches must be an integer."
             raise ValueError(msg)
-        if not isinstance(sds_path, (PurePosixPath, str)):  # pragma: no cover
-            msg = "SDS path must be a PurePosixPath or str."
+        if not isinstance(sds_path, (PurePosixPath, Path, str)):  # pragma: no cover
+            msg = "SDS path must be a PurePosixPath, Path, or str."
             raise TypeError(msg)
         if not isinstance(gateway, GatewayClient):  # pragma: no cover
             msg = "Gateway client must be provided."
