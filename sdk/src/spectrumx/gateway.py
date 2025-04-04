@@ -539,7 +539,7 @@ class GatewayClient:
         Raises:
             GatewayError: If the deletion request fails.
         """
-        endpoint = f"/captures/{capture_uuid}"
+        endpoint = f"{Endpoints.CAPTURES}/{capture_uuid.hex}"
         log.debug(f"Sending DELETE request to {endpoint}")
 
         response = self._request(
