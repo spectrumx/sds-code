@@ -29,6 +29,8 @@ class OpenSearchIndexResetTest(APITestCase):
     def setUp(self):
         self.client = get_opensearch_client()
         self.test_index_prefix = "captures-test-"
+
+        # Keep the original (old) mapping structure to test migration
         self.original_index_mapping = {
             "properties": {
                 "channel": {"type": "keyword"},
@@ -43,15 +45,15 @@ class OpenSearchIndexResetTest(APITestCase):
                             "properties": {
                                 "archive_result": {"type": "boolean"},
                                 "data_type": {"type": "keyword"},
-                                "fmax": {"type": "float"},
-                                "fmin": {"type": "float"},
+                                "fmax": {"type": "float"},  # Old type: float
+                                "fmin": {"type": "float"},  # Old type: float
                                 "gps_lock": {"type": "boolean"},
                                 "nfft": {"type": "integer"},
                                 "scan_time": {"type": "float"},
                             },
                         },
-                        "sample_rate": {"type": "integer"},
-                        "center_frequency": {"type": "float"},
+                        "sample_rate": {"type": "integer"},  # Old type: integer
+                        "center_frequency": {"type": "float"},  # Old type: float
                         "latitude": {"type": "float"},
                         "longitude": {"type": "float"},
                         "altitude": {"type": "float"},
@@ -59,6 +61,7 @@ class OpenSearchIndexResetTest(APITestCase):
                         "short_name": {"type": "text"},
                     },
                 },
+                # Intentionally omitting search_props to test migration
             },
         }
 
@@ -71,7 +74,9 @@ class OpenSearchIndexResetTest(APITestCase):
 
         # Setup test data and create initial capture
         self._setup_test_data()
-        self._create_test_capture()
+        self.capture = self._create_test_capture()
+        self._initialize_test_index()
+        self._index_test_capture()
 
     def _setup_test_data(self):
         """Setup test data for RH capture."""
@@ -143,16 +148,13 @@ class OpenSearchIndexResetTest(APITestCase):
 
     def _create_test_capture(self):
         """Create and index a test capture."""
-        self.capture = Capture.objects.create(
+        return Capture.objects.create(
             owner=self.user,
             scan_group=self.scan_group,
             capture_type=CaptureType.RadioHound,
             index_name=f"{self.test_index_prefix}{CaptureType.RadioHound}",
             top_level_dir=self.top_level_dir,
         )
-
-        self._initialize_test_index()
-        self._index_test_capture()
 
     def _initialize_test_index(self):
         """Initialize test index with mapping."""
@@ -200,9 +202,9 @@ class OpenSearchIndexResetTest(APITestCase):
         )
         assert initial_response["hits"]["total"]["value"] == 1
 
-        # Run reset_indices command with test prefix
+        # Run replace_index command with test prefix
         call_command(
-            "reset_index",
+            "replace_index",
             index_name=index_name,
             capture_type=self.capture.capture_type,
         )
@@ -251,9 +253,9 @@ class OpenSearchIndexResetTest(APITestCase):
                 }
             }
 
-            # Run reset_index command
+            # Run replace_index command
             call_command(
-                "reset_index",
+                "replace_index",
                 index_name=index_name,
                 capture_type=self.capture.capture_type,
             )
@@ -298,9 +300,9 @@ class OpenSearchIndexResetTest(APITestCase):
         )
         assert duplicate_capture is not None
 
-        # Run reset_indices command with test prefix
+        # Run replace_index command with test prefix
         call_command(
-            "reset_index",
+            "replace_index",
             index_name=index_name,
             capture_type=self.capture.capture_type,
         )
