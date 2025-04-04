@@ -281,3 +281,41 @@ def test_capture_string_representation(sample_capture_data: dict[str, Any]) -> N
     assert f"files={len(capture.files)}" in capture_str
     assert capture.__class__.__name__ in capture_repr
     assert str(capture.uuid) in capture_repr
+
+
+def test_delete_capture(client: Client, responses: responses.RequestsMock) -> None:
+    """Test deleting a capture."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    capture_uuid = uuidlib.uuid4()
+
+    # Mock response
+    responses.add(
+        method=responses.DELETE,
+        url=get_captures_endpoint(client, capture_id=capture_uuid.hex),
+        status=204,
+    )
+
+    # ACT
+    result = client.captures.delete(capture_uuid=capture_uuid)
+
+    # ASSERT
+    assert result is True
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.method == "DELETE"
+    assert responses.calls[0].request.url == get_captures_endpoint(
+        client, capture_id=capture_uuid.hex
+    )
+
+
+def test_delete_capture_dry_run(client: Client) -> None:
+    """Test deleting a capture in dry run mode."""
+    # ARRANGE
+    client.dry_run = True
+    capture_uuid = uuidlib.uuid4()
+
+    # ACT
+    result = client.captures.delete(capture_uuid=capture_uuid)
+
+    # ASSERT
+    assert result is True  # Dry run should simulate success

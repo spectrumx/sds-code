@@ -130,6 +130,16 @@ class PassthruEndpoints:
             for hostname_and_port in passthru_hostnames
         ]
 
+    @staticmethod
+    def capture_deletion() -> list[Pattern[str]]:
+        """Passthrough for capture deletion by UUID."""
+        return [
+            re.compile(
+                rf"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}{Endpoints.CAPTURES}/{uuid_v4_regex}/"
+            )
+            for hostname_and_port in passthru_hostnames
+        ]
+
     @classmethod
     def capture_listing(cls) -> list[str]:
         """Passthrough for capture creation and listing."""
