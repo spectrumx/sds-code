@@ -19,9 +19,53 @@ from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
 
 
 class Command(BaseCommand):
-    """Initialize OpenSearch indices for different capture types."""
+    """
+    Replace an OpenSearch index with a new mapping when updating
+    the mapping schema is not possible.
 
-    help = "Initialize or update OpenSearch indices with mappings"
+    This command will:
+    - find and delete duplicate captures in the database and the index
+    - create a backup of the existing index
+    - delete the existing index
+    - create a new index with the new mapping
+    - reindex the captures in the new index (skipping deleted captures)
+    - apply field transforms as necessary to the new index
+    - refresh the new index
+    - verify the reindex was successful
+    - prompt the user to reset the index to its original form
+    if the reindex was not successful
+    - OR if any errors occur, the command will rollback the index to its original form
+    - The backup index will be kept for reference, this command will not delete it
+
+    This command is useful when the mapping schema is updated
+    and the existing index cannot be updated.
+
+    !!WARNING!!
+    Use this command with caution, it will DELETE the existing index
+    and create a new one with an incompatible mapping.
+    It will also hard DELETE (duplicate) captures from the index and database.
+    ONLY use if init_indices fails to update the index.
+
+    **Make sure to back up the existing OpenSearch and PostgreSQL databases
+    before running this command.**
+
+    While this command includes a backup and restore process and defensive measures,
+    it is still possible to lose data, so use at your own risk!
+    """
+
+    help = """
+    Replace an OpenSearch index with a new one
+    when updating the mapping schema is not possible.
+
+    !!WARNING!!
+    Use this command with caution, it will DELETE the existing index
+    and create a new one with an incompatible mapping.
+    It will also hard DELETE (duplicate) captures from the index and database.
+    ONLY use if init_indices fails to update the index.
+
+    **Make sure to back up the existing OpenSearch and PostgreSQL databases
+    before running this command.**
+    """
 
     # Define transform scripts for different field updates
     rh_field_transforms = {
@@ -296,7 +340,7 @@ class Command(BaseCommand):
     def delete_duplicate_captures(
         self, client: OpenSearch, capture_type: CaptureType, index_name: str
     ):
-        """Delete duplicate captures from an index."""
+        """Delete duplicate captures from an index and database."""
         duplicate_capture_groups = self.find_duplicate_captures(
             capture_type, index_name
         )
@@ -360,7 +404,7 @@ class Command(BaseCommand):
     def delete_doc_by_capture_uuid(
         self, client: OpenSearch, index_name: str, capture_uuid: str
     ):
-        """Delete a document by capture UUID."""
+        """Delete an OpenSearch document based on capture UUID."""
         try:
             # try to get the document
             client.get(index=index_name, id=capture_uuid)
@@ -475,6 +519,17 @@ class Command(BaseCommand):
                 index=source_index, body={"settings": {"index.blocks.write": None}}
             )
 
+    def rollback_index(
+        self, client: OpenSearch, index_name: str, backup_index_name: str
+    ):
+        """Restore an index from a backup."""
+        self.stdout.write(f"Restoring index '{index_name}' to its original state...")
+        self.delete_index(client, index_name)
+        self.clone_index(client, backup_index_name, index_name)
+        self.stdout.write(
+            self.style.SUCCESS(f"Successfully reset {index_name} to its original form.")
+        )
+
     def reindex_with_mapping(
         self,
         client: OpenSearch,
@@ -561,104 +616,114 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Execute the command."""
+        response = input(
+            "WARNING: This command is potentially destructive to existing "
+            "Capture and OpenSearch index data and should be used with "
+            "extreme caution.\n"
+            "Are you sure you want to continue? (y/N): "
+        ).lower()
+        if response != "y":
+            self.stdout.write(self.style.WARNING("Command cancelled."))
+            return
+
         client: OpenSearch = get_opensearch_client()
         capture_type = options["capture_type"]
         index_name = options["index_name"]
-
-        # delete duplicate captures, including docs in the original index
-        self.delete_duplicate_captures(client, capture_type, index_name)
-
-        # get queryset of captures to reindex
-        captures = Capture.objects.filter(
-            capture_type=capture_type,
-            index_name=index_name,
-            is_deleted=False,
-        )
-
-        new_index_config = {
-            "mappings": get_mapping_by_capture_type(capture_type),
-            "settings": {
-                "index": {
-                    "number_of_shards": 1,
-                    "number_of_replicas": 1,
-                },
-            },
-        }
 
         # Use timezone-aware datetime
         timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         backup_index_name = f"{index_name}-backup-{timestamp}"
 
-        # Get original document count
-        original_count = self.get_doc_count(client, index_name)
-        if original_count < 0:
-            self.stdout.write(
-                self.style.ERROR(f"Skipping {index_name} due to count error")
-            )
-            return
-
-        # create backup index with same mapping
         try:
-            self.clone_index(client, index_name, backup_index_name)
-        except (RequestError, OpensearchConnectionError) as e:
-            self.stdout.write(self.style.ERROR(f"Failed to create backup index: {e!s}"))
-            return
+            # delete duplicate captures, including docs in the original index
+            self.delete_duplicate_captures(client, capture_type, index_name)
 
-        # delete original index and recreate it with new mapping
-        self.delete_index(client, index_name)
-        self.create_index(client, index_name, new_index_config)
-
-        # reindex captures
-        for capture in captures:
-            self.reindex_single_capture(capture)
-
-        # Refresh newn index to make documents searchable
-        client.indices.refresh(index=index_name)
-
-        # Get the transform scripts based on capture type
-        transform_scripts = self.get_transform_scripts(capture_type)
-
-        # Apply field transforms
-        if transform_scripts:
-            self.apply_field_transforms(client, index_name, transform_scripts)
-        else:
-            self.stdout.write(self.style.WARNING("No field transforms to apply."))
-
-        # Verify reindex was successful
-        new_count = self.get_doc_count(client, index_name)
-        if new_count != original_count:
-            self.stdout.write(
-                self.style.ERROR(
-                    f"Reindex verification failed for {index_name}! "
-                    f"Original: {original_count}, New: {new_count}"
-                )
+            # get queryset of captures to reindex
+            captures = Capture.objects.filter(
+                capture_type=capture_type,
+                index_name=index_name,
+                is_deleted=False,
             )
-            recall_index_mapping = (
-                input(
-                    "Would you like to reset the index to its original form? (y/N): "
-                ).lower()
-                == "y"
-            )
-            if recall_index_mapping:
-                self.delete_index(client, index_name)
-                self.clone_index(client, backup_index_name, index_name)
-                self.delete_index(client, backup_index_name)
+
+            new_index_config = {
+                "mappings": get_mapping_by_capture_type(capture_type),
+                "settings": {
+                    "index": {
+                        "number_of_shards": 1,
+                        "number_of_replicas": 1,
+                    },
+                },
+            }
+
+            # Get original document count
+            original_count = self.get_doc_count(client, index_name)
+            if original_count < 0:
                 self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Successfully reset {index_name} to its original form."
-                    )
+                    self.style.ERROR(f"Skipping {index_name} due to count error")
                 )
+                return
+
+            # create backup index with same mapping
+            try:
+                self.clone_index(client, index_name, backup_index_name)
+            except (RequestError, OpensearchConnectionError) as e:
+                self.stdout.write(
+                    self.style.ERROR(f"Failed to create backup index: {e!s}")
+                )
+                return
+
+            # delete original index and recreate it with new mapping
+            self.delete_index(client, index_name)
+            self.create_index(client, index_name, new_index_config)
+
+            # reindex captures
+            for capture in captures:
+                self.reindex_single_capture(capture)
+
+            # Refresh newn index to make documents searchable
+            client.indices.refresh(index=index_name)
+
+            # Get the transform scripts based on capture type
+            transform_scripts = self.get_transform_scripts(capture_type)
+
+            # Apply field transforms
+            if transform_scripts:
+                self.apply_field_transforms(client, index_name, transform_scripts)
             else:
+                self.stdout.write(self.style.WARNING("No field transforms to apply."))
+
+            # Verify reindex was successful
+            new_count = self.get_doc_count(client, index_name)
+            if new_count != original_count:
                 self.stdout.write(
-                    self.style.WARNING(
-                        f"Keeping backup index {backup_index_name} "
-                        "for manual verification."
+                    self.style.ERROR(
+                        f"Reindex verification failed for {index_name}! "
+                        f"Original: {original_count}, New: {new_count}"
                     )
                 )
-            return
+                rollback_index = (
+                    input(
+                        "Would you like to reset the index "
+                        "to its original form? (Y/n): ",
+                    ).lower()
+                    or "y"
+                ) == "y"
+                if rollback_index:
+                    self.rollback_index(client, index_name, backup_index_name)
+                else:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Keeping backup index {backup_index_name} "
+                            "for manual verification."
+                        )
+                    )
+                return
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Successfully updated {index_name} with {new_count} documents"
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Successfully updated {index_name} with {new_count} documents"
+                )
             )
-        )
+        except Exception as e:  # noqa: BLE001
+            self.stdout.write(self.style.ERROR(f"Error during reindex: {e!s}"))
+            self.rollback_index(client, index_name, backup_index_name)
