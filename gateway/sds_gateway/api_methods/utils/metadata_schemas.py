@@ -144,7 +144,7 @@ drf_capture_metadata_schema = {
         "center_freq",
         "span",
         "gain",
-        "resolution_bandwidth",
+        "bandwidth",
         "antenna",
         "indoor_outdoor",
         "antenna_direction",
@@ -153,20 +153,68 @@ drf_capture_metadata_schema = {
 
 # fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
 drf_capture_index_mapping = {
-    "sample_rate_numerator": {
+    "H5Tget_class": {
         "type": "integer",
+    },
+    "H5Tget_size": {
+        "type": "integer",
+    },
+    "H5Tget_order": {
+        "type": "integer",
+    },
+    "H5Tget_precision": {
+        "type": "integer",
+    },
+    "H5Tget_offset": {
+        "type": "integer",
+    },
+    "subdir_cadence_secs": {
+        "type": "integer",
+    },
+    "file_cadence_millisecs": {
+        "type": "integer",
+    },
+    "sample_rate_numerator": {
+        "type": "long",
     },
     "sample_rate_denominator": {
-        "type": "integer",
+        "type": "long",
     },
     "samples_per_second": {
-        "type": "integer",
+        "type": "long",
     },
     "start_bound": {
-        "type": "integer",
+        "type": "long",
     },
     "end_bound": {
+        "type": "long",
+    },
+    "is_complex": {
+        "type": "boolean",
+    },
+    "is_continuous": {
+        "type": "boolean",
+    },
+    "epoch": {
+        "type": "keyword",
+    },
+    "digital_rf_time_description": {
+        "type": "keyword",
+    },
+    "digital_rf_version": {
+        "type": "keyword",
+    },
+    "sequence_num": {
         "type": "integer",
+    },
+    "init_utc_timestamp": {
+        "type": "integer",
+    },
+    "computer_time": {
+        "type": "integer",
+    },
+    "uuid_str": {
+        "type": "keyword",
     },
     "center_freq": {
         "type": "double",
@@ -179,6 +227,18 @@ drf_capture_index_mapping = {
     },
     "bandwidth": {
         "type": "integer",
+    },
+    "antenna": {
+        "type": "text",
+    },
+    "indoor_outdoor": {
+        "type": "keyword",
+    },
+    "antenna_direction": {
+        "type": "float",
+    },
+    "custom_attrs": {
+        "type": "nested",
     },
 }
 
@@ -212,7 +272,7 @@ rh_capture_index_mapping = {
         },
     },
     "sample_rate": {
-        "type": "integer",
+        "type": "long",
     },
     "center_frequency": {
         "type": "double",
@@ -231,6 +291,46 @@ rh_capture_index_mapping = {
     },
     "short_name": {
         "type": "text",
+    },
+    "custom_fields": {
+        "type": "nested",
+        "properties": {
+            "requested": {
+                "type": "nested",
+                "properties": {
+                    "fmax": {
+                        "type": "double",
+                    },
+                    "fmin": {
+                        "type": "double",
+                    },
+                    "gain": {
+                        "type": "float",
+                    },
+                    "samples": {
+                        "type": "integer",
+                    },
+                },
+            }
+        },
+    },
+    "hardware_board_id": {
+        "type": "keyword",
+    },
+    "hardware_version": {
+        "type": "keyword",
+    },
+    "software_version": {
+        "type": "keyword",
+    },
+    "timestamp": {
+        "type": "date",
+    },
+    "type": {
+        "type": "keyword",
+    },
+    "version": {
+        "type": "keyword",
     },
 }
 
@@ -256,6 +356,19 @@ base_properties = {
     "deleted_at": {"type": "date"},
 }
 
+search_properties = {
+    "center_frequency": {"type": "double"},
+    "frequency_min": {"type": "double"},
+    "frequency_max": {"type": "double"},
+    "start_time": {"type": "long"},  # unix timestamp
+    "end_time": {"type": "long"},  # unix timestamp
+    "span": {"type": "integer"},
+    "gain": {"type": "float"},
+    "bandwidth": {"type": "integer"},
+    "coordinates": {"type": "geo_point"},
+    "sample_rate": {"type": "long"},
+}
+
 
 def get_mapping_by_capture_type(capture_type: CaptureType) -> dict:
     """Get the mapping for a given capture type."""
@@ -269,18 +382,7 @@ def get_mapping_by_capture_type(capture_type: CaptureType) -> dict:
             },
             "search_props": {
                 "type": "nested",
-                "properties": {
-                    "center_frequency": {"type": "double"},
-                    "frequency_start": {"type": "double"},
-                    "frequency_end": {"type": "double"},
-                    "start_time": {"type": "date"},
-                    "end_time": {"type": "date"},
-                    "span": {"type": "integer"},
-                    "gain": {"type": "float"},
-                    "bandwidth": {"type": "integer"},
-                    "coordinates": {"type": "geo_point"},
-                    "sample_rate": {"type": "integer"},
-                },
+                "properties": search_properties,
             },
         },
     }

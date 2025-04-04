@@ -24,20 +24,170 @@ class Command(BaseCommand):
     help = "Initialize or update OpenSearch indices with mappings"
 
     # Define transform scripts for different field updates
-    field_transforms = {
-        "capture_props.coordinates": {
+    rh_field_transforms = {
+        "search_props.center_frequency": {
+            "source": """
+                if (ctx._source.capture_props.center_frequency != null &&
+                    ctx._source.search_props.center_frequency == null) {
+                    ctx._source.search_props.center_frequency = (
+                        ctx._source.capture_props.center_frequency
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.frequency_min": {
+            "source": """
+                if (ctx._source.capture_props.fmin != null &&
+                    ctx._source.search_props.frequency_min == null) {
+                    ctx._source.search_props.frequency_min = (
+                        ctx._source.capture_props.fmin
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.frequency_max": {
+            "source": """
+                if (ctx._source.capture_props.fmax != null &&
+                    ctx._source.search_props.frequency_max == null) {
+                    ctx._source.search_props.frequency_max = (
+                        ctx._source.capture_props.fmax
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.span": {
+            "source": """
+                if (ctx._source.capture_props.span != null &&
+                    ctx._source.search_props.span == null) {
+                    ctx._source.search_props.span = ctx._source.capture_props.span;
+                }
+            """.strip(),
+        },
+        "search_props.gain": {
+            "source": """
+                if (ctx._source.capture_props.gain != null &&
+                    ctx._source.search_props.gain == null) {
+                    ctx._source.search_props.gain = ctx._source.capture_props.gain;
+                }
+            """.strip(),
+        },
+        "search_props.coordinates": {
             "source": """
                 if (ctx._source.capture_props.latitude != null &&
                     ctx._source.capture_props.longitude != null &&
-                    ctx._source.capture_props.coordinates == null) {
-                    ctx._source.capture_props.coordinates = [
+                    ctx._source.search_props.coordinates == null) {
+                    ctx._source.search_props.coordinates = [
                         ctx._source.capture_props.longitude,
                         ctx._source.capture_props.latitude
                     ];
                 }
             """.strip(),
             "lang": "painless",
-        }
+        },
+        "search_props.sample_rate": {
+            "source": """
+                if (ctx._source.capture_props.sample_rate != null &&
+                    ctx._source.search_props.sample_rate == null) {
+                    ctx._source.search_props.sample_rate = (
+                        ctx._source.capture_props.sample_rate
+                    );
+                }
+            """.strip(),
+        },
+    }
+
+    drf_field_transforms = {
+        "search_props.center_frequency": {
+            "source": """
+                if (ctx._source.capture_props.center_freq != null &&
+                    ctx._source.search_props.center_frequency == null) {
+                    ctx._source.search_props.center_frequency = (
+                        ctx._source.capture_props.center_freq
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.frequency_min": {
+            "source": """
+                if (ctx._source.capture_props.center_freq != null &&
+                    ctx._source.capture_props.span != null &&
+                    ctx._source.search_props.frequency_min == null) {
+                    ctx._source.search_props.frequency_min = (
+                        ctx._source.capture_props.center_freq -
+                        (ctx._source.capture_props.span / 2)
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.frequency_max": {
+            "source": """
+                if (ctx._source.capture_props.center_freq != null &&
+                    ctx._source.capture_props.span != null &&
+                    ctx._source.search_props.frequency_max == null) {
+                    ctx._source.search_props.frequency_max = (
+                        ctx._source.capture_props.center_freq +
+                        (ctx._source.capture_props.span / 2)
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.start_time": {
+            "source": """
+                if (ctx._source.capture_props.start_bound != null &&
+                    ctx._source.search_props.start_time == null) {
+                    ctx._source.search_props.start_time = (
+                        ctx._source.capture_props.start_bound
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.end_time": {
+            "source": """
+                if (ctx._source.capture_props.end_bound != null &&
+                    ctx._source.search_props.end_time == null) {
+                    ctx._source.search_props.end_time = (
+                        ctx._source.capture_props.end_bound
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.span": {
+            "source": """
+                if (ctx._source.capture_props.span != null &&
+                    ctx._source.search_props.span == null) {
+                    ctx._source.search_props.span = ctx._source.capture_props.span;
+                }
+            """.strip(),
+        },
+        "search_props.gain": {
+            "source": """
+                if (ctx._source.capture_props.gain != null &&
+                    ctx._source.search_props.gain == null) {
+                    ctx._source.search_props.gain = ctx._source.capture_props.gain;
+                }
+            """.strip(),
+        },
+        "search_props.bandwidth": {
+            "source": """
+                if (ctx._source.capture_props.bandwidth != null &&
+                    ctx._source.search_props.bandwidth == null) {
+                    ctx._source.search_props.bandwidth = (
+                        ctx._source.capture_props.bandwidth
+                    );
+                }
+            """.strip(),
+        },
+        "search_props.sample_rate": {
+            "source": """
+                if (ctx._source.capture_props.sample_rate_numerator != null &&
+                    ctx._source.search_props.sample_rate == null) {
+                    ctx._source.search_props.sample_rate = (
+                        ctx._source.capture_props.sample_rate_numerator /
+                        ctx._source.capture_props.sample_rate_denominator
+                    );
+                }
+            """.strip(),
+        },
     }
 
     def add_arguments(self, parser):
@@ -55,73 +205,51 @@ class Command(BaseCommand):
             required=True,
         )
 
-    def get_new_fields(
-        self, client: OpenSearch, old_index: str, new_index: str
-    ) -> list:
-        """Compare mappings and return list of new fields not in old mapping."""
-        try:
-            old_mapping = client.indices.get_mapping(index=old_index)[old_index][
-                "mappings"
-            ]
-            new_mapping = client.indices.get_mapping(index=new_index)[new_index][
-                "mappings"
-            ]
+    def get_transform_scripts(self, capture_type: CaptureType) -> dict:
+        """Get the transform scripts based on capture type."""
+        if capture_type == CaptureType.RadioHound:
+            return self.rh_field_transforms
+        if capture_type == CaptureType.DigitalRF:
+            return self.drf_field_transforms
+        self.stdout.write(self.style.WARNING(f"Unknown capture type: {capture_type}"))
+        return {}
 
-            # Helper function to flatten nested mappings
-            def flatten_mapping(mapping: dict, prefix="") -> set:
-                fields = set()
-                for key, value in mapping.get("properties", {}).items():
-                    full_path = f"{prefix}{key}" if prefix else key
-                    if "properties" in value:
-                        fields.update(flatten_mapping(value, f"{full_path}."))
-                    else:
-                        fields.add(full_path)
-                return fields
-
-            old_fields = flatten_mapping(old_mapping)
-            new_fields = flatten_mapping(new_mapping)
-
-            return list(new_fields - old_fields)
-
-        except (NotFoundError, RequestError, OpensearchConnectionError) as e:
-            self.stdout.write(self.style.ERROR(f"Error comparing mappings: {e!s}"))
-            return []
-
-    def apply_field_transforms(self, client: OpenSearch, index_name: str, fields: list):
+    def apply_field_transforms(
+        self, client: OpenSearch, index_name: str, field_transforms: dict
+    ):
         """Apply transforms for new fields."""
-        for field in fields:
-            if field in self.field_transforms:
-                try:
-                    self.stdout.write(f"Applying transform for new field '{field}'...")
+        for field, transform in field_transforms.items():
+            try:
+                self.stdout.write(f"Applying transform for field '{field}'...")
 
-                    body = {"script": self.field_transforms[field]}
+                body = {"script": transform["source"]}
 
-                    response = client.update_by_query(
-                        index=index_name, body=body, conflicts="proceed"
-                    )
+                response = client.update_by_query(
+                    index=index_name, body=body, conflicts="proceed"
+                )
 
-                    if response.get("failures"):
-                        failures = response["failures"]
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f"Some updates failed for field '{field}': {failures}"
-                            )
-                        )
-                    else:
-                        updated = response["updated"]
-                        self.stdout.write(
-                            self.style.SUCCESS(
-                                f"Successfully transformed field '{field}' "
-                                f"in {updated} documents"
-                            )
-                        )
-
-                except (RequestError, OpensearchConnectionError) as e:
+                if response.get("failures"):
+                    failures = response["failures"]
                     self.stdout.write(
-                        self.style.ERROR(
-                            f"Error applying transform for field '{field}': {e!s}"
+                        self.style.WARNING(
+                            f"Some updates failed for field '{field}': {failures}"
                         )
                     )
+                else:
+                    updated = response["updated"]
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"Successfully transformed field '{field}' "
+                            f"in {updated} documents"
+                        )
+                    )
+
+            except (RequestError, OpensearchConnectionError) as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Error applying transform for field '{field}': {e!s}"
+                    )
+                )
 
     def find_duplicate_captures(self, capture_type: CaptureType, index_name: str):
         """Find duplicate captures in the database."""
@@ -146,7 +274,6 @@ class Command(BaseCommand):
                 duplicate_capture_groups[scan_group] = captures.filter(
                     scan_group=scan_group
                 ).order_by("created_at")
-
         elif capture_type == CaptureType.DigitalRF:
             duplicate_pairs = (
                 captures.values("channel", "top_level_dir")
@@ -159,6 +286,10 @@ class Command(BaseCommand):
                 duplicate_capture_groups[key] = captures.filter(
                     channel=pair["channel"], top_level_dir=pair["top_level_dir"]
                 ).order_by("created_at")
+        else:
+            self.stdout.write(
+                self.style.WARNING(f"Unknown capture type: {capture_type}")
+            )
 
         return duplicate_capture_groups
 
@@ -170,40 +301,54 @@ class Command(BaseCommand):
             capture_type, index_name
         )
 
-        # delete duplicate rh captures
+        # if the dictionary is empty, return
+        if not duplicate_capture_groups:
+            self.stdout.write(self.style.WARNING("No duplicate captures found"))
+            return
+
+        # delete duplicate captures
         for capture_group in duplicate_capture_groups.values():
-            # assert that the capture group is sorted by created_at
-            assert capture_group.sort_values("created_at").equals(capture_group), (
+            # if the capture group is not sorted by created_at, sort it
+            assert capture_group.order_by("created_at") == capture_group, (
                 "Capture group is not sorted by created_at"
             )
 
-            # assert that the first capture is the oldest
-            assert capture_group.iloc[0].created_at == capture_group.created_at.min(), (
-                "First capture is not the oldest"
-            )
+            # Get the oldest capture's created_at
+            oldest_created_at = capture_group.first().created_at
+
+            # Get all captures except the oldest one
+            duplicates_to_delete = capture_group.exclude(created_at=oldest_created_at)
 
             if capture_type == CaptureType.RadioHound:
-                # assert that the captures in the group belong to the same scan_group
-                assert capture_group.scan_group.nunique() == 1, (
+                # Verify all captures have the same scan_group
+                distinct_scan_groups = capture_group.values_list(
+                    "scan_group", flat=True
+                ).distinct()
+                assert len(distinct_scan_groups) == 1, (
                     "Captures in the group do not belong to the same scan_group"
                 )
             elif capture_type == CaptureType.DigitalRF:
-                # assert that the captures in the group belong
-                # to the same channel and top_level_dir
-                assert capture_group.channel.nunique() == 1, (
+                # Verify all captures have the same channel and top_level_dir
+                distinct_channels = capture_group.values_list(
+                    "channel", flat=True
+                ).distinct()
+                distinct_dirs = capture_group.values_list(
+                    "top_level_dir", flat=True
+                ).distinct()
+                assert len(distinct_channels) == 1, (
                     "Captures in the group do not belong to the same channel"
                 )
-                assert capture_group.top_level_dir.nunique() == 1, (
+                assert len(distinct_dirs) == 1, (
                     "Captures in the group do not belong to the same top_level_dir"
                 )
-
-            # keep the first capture and delete the rest
-            for capture in capture_group[1:]:
-                # assert that the capture is not the oldest capture in the group
-                assert capture.created_at != capture_group.created_at.min(), (
-                    "Capture is the oldest capture in the group"
+            else:
+                self.stdout.write(
+                    self.style.WARNING(f"Unknown capture type: {capture_type}")
                 )
+                return
 
+            # Delete all duplicates (keeping the oldest)
+            for capture in duplicates_to_delete:
                 self.stdout.write(
                     self.style.WARNING(
                         f"Deleting duplicate capture '{capture.uuid}'..."
@@ -331,7 +476,11 @@ class Command(BaseCommand):
             )
 
     def reindex_with_mapping(
-        self, client: OpenSearch, source_index: str, dest_index: str
+        self,
+        client: OpenSearch,
+        source_index: str,
+        dest_index: str,
+        capture_type: CaptureType,
     ):
         """Reindex documents with mapping changes."""
         try:
@@ -349,11 +498,12 @@ class Command(BaseCommand):
                 )
             )
 
-            # Check for new fields and apply transforms
-            new_fields = self.get_new_fields(client, source_index, dest_index)
-            if new_fields:
-                self.stdout.write(f"Found new fields: {new_fields}")
-                self.apply_field_transforms(client, dest_index, new_fields)
+            # Apply field transforms
+            transform_scripts = self.get_transform_scripts(capture_type)
+            if transform_scripts:
+                self.apply_field_transforms(client, dest_index, transform_scripts)
+            else:
+                self.stdout.write(self.style.WARNING("No field transforms to apply"))
 
         except (RequestError, OpensearchConnectionError, NotFoundError) as e:
             self.stdout.write(self.style.ERROR(f"Error during reindex: {e!s}"))
@@ -464,6 +614,15 @@ class Command(BaseCommand):
 
         # Refresh newn index to make documents searchable
         client.indices.refresh(index=index_name)
+
+        # Get the transform scripts based on capture type
+        transform_scripts = self.get_transform_scripts(capture_type)
+
+        # Apply field transforms
+        if transform_scripts:
+            self.apply_field_transforms(client, index_name, transform_scripts)
+        else:
+            self.stdout.write(self.style.WARNING("No field transforms to apply."))
 
         # Verify reindex was successful
         new_count = self.get_doc_count(client, index_name)
