@@ -226,6 +226,13 @@ def check_capture_usage() -> None:
     for capture in my_rh_captures:
         print(f"Capture {capture.uuid}: {capture.capture_props}")
 
+    is_deleted = sds.captures.delete(
+        new_capture.uuid  # retain as positional arg
+    )
+    print(f"Deleted capture {new_capture.uuid}: {is_deleted}")
+    # double deleting a capture raises a CaptureError, unless in dry_run mode
+    # (then the SDK can't determine whether the capture exists or not)
+
 
 @dataclass
 class CheckCaller:
