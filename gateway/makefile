@@ -42,5 +42,9 @@ restart:
 
 test:
 	@echo "Running tests"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --force-color
+
+	# we currently don't have tests for pytest, so we're ignoring its return code with `|| true`
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest || true
+
+	# the real tests are using Django's test runner
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --force-color --verbosity 0
