@@ -132,16 +132,17 @@ class CaptureViewSet(viewsets.ViewSet):
                     rh_scan_group=rh_scan_group,
                 )
 
-                # Connect the files to the capture
-                for cur_file in files_to_connect:
-                    cur_file.capture = capture
-                    cur_file.save()
-
+                # try to validate and index metadata before connecting files
                 self._validate_and_index_metadata(
                     capture=capture,
                     data_path=tmp_dir_path,
                     drf_channel=drf_channel,
                 )
+
+                # Connect the files to the capture
+                for cur_file in files_to_connect:
+                    cur_file.capture = capture
+                    cur_file.save()
 
     @extend_schema(
         request=CapturePostSerializer,

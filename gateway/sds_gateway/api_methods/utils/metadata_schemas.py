@@ -1,6 +1,9 @@
 # ruff: noqa: E501
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/digital-rf/README.md
 # the mapping below is used for drf capture metadata parsing in extract_drf_metadata.py
+
+from sds_gateway.api_methods.models import CaptureType
+
 drf_capture_metadata_schema = {
     "properties": {
         "H5Tget_class": {
@@ -141,7 +144,7 @@ drf_capture_metadata_schema = {
         "center_freq",
         "span",
         "gain",
-        "resolution_bandwidth",
+        "bandwidth",
         "antenna",
         "indoor_outdoor",
         "antenna_direction",
@@ -150,23 +153,71 @@ drf_capture_metadata_schema = {
 
 # fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
 drf_capture_index_mapping = {
-    "sample_rate_numerator": {
+    "H5Tget_class": {
         "type": "integer",
+    },
+    "H5Tget_size": {
+        "type": "integer",
+    },
+    "H5Tget_order": {
+        "type": "integer",
+    },
+    "H5Tget_precision": {
+        "type": "integer",
+    },
+    "H5Tget_offset": {
+        "type": "integer",
+    },
+    "subdir_cadence_secs": {
+        "type": "integer",
+    },
+    "file_cadence_millisecs": {
+        "type": "integer",
+    },
+    "sample_rate_numerator": {
+        "type": "long",
     },
     "sample_rate_denominator": {
-        "type": "integer",
+        "type": "long",
     },
     "samples_per_second": {
-        "type": "integer",
+        "type": "long",
     },
     "start_bound": {
-        "type": "integer",
+        "type": "long",
     },
     "end_bound": {
+        "type": "long",
+    },
+    "is_complex": {
+        "type": "boolean",
+    },
+    "is_continuous": {
+        "type": "boolean",
+    },
+    "epoch": {
+        "type": "keyword",
+    },
+    "digital_rf_time_description": {
+        "type": "keyword",
+    },
+    "digital_rf_version": {
+        "type": "keyword",
+    },
+    "sequence_num": {
         "type": "integer",
     },
-    "center_freq": {
+    "init_utc_timestamp": {
         "type": "integer",
+    },
+    "computer_time": {
+        "type": "integer",
+    },
+    "uuid_str": {
+        "type": "keyword",
+    },
+    "center_freq": {
+        "type": "double",
     },
     "span": {
         "type": "integer",
@@ -177,6 +228,18 @@ drf_capture_index_mapping = {
     "bandwidth": {
         "type": "integer",
     },
+    "antenna": {
+        "type": "text",
+    },
+    "indoor_outdoor": {
+        "type": "keyword",
+    },
+    "antenna_direction": {
+        "type": "float",
+    },
+    "custom_attrs": {
+        "type": "nested",
+    },
 }
 
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/radiohound/v0/schema.json
@@ -184,12 +247,35 @@ drf_capture_index_mapping = {
 rh_capture_index_mapping = {
     "metadata": {
         "type": "nested",
+        "properties": {
+            "archive_result": {
+                "type": "boolean",
+            },
+            "data_type": {
+                "type": "keyword",
+            },
+            "fmax": {
+                "type": "double",
+            },
+            "fmin": {
+                "type": "double",
+            },
+            "gps_lock": {
+                "type": "boolean",
+            },
+            "nfft": {
+                "type": "integer",
+            },
+            "scan_time": {
+                "type": "float",
+            },
+        },
     },
     "sample_rate": {
-        "type": "integer",
+        "type": "long",
     },
     "center_frequency": {
-        "type": "float",
+        "type": "double",
     },
     "latitude": {
         "type": "float",
@@ -206,6 +292,46 @@ rh_capture_index_mapping = {
     "short_name": {
         "type": "text",
     },
+    "custom_fields": {
+        "type": "nested",
+        "properties": {
+            "requested": {
+                "type": "nested",
+                "properties": {
+                    "fmax": {
+                        "type": "double",
+                    },
+                    "fmin": {
+                        "type": "double",
+                    },
+                    "gain": {
+                        "type": "float",
+                    },
+                    "samples": {
+                        "type": "integer",
+                    },
+                },
+            }
+        },
+    },
+    "hardware_board_id": {
+        "type": "keyword",
+    },
+    "hardware_version": {
+        "type": "keyword",
+    },
+    "software_version": {
+        "type": "keyword",
+    },
+    "timestamp": {
+        "type": "date",
+    },
+    "type": {
+        "type": "keyword",
+    },
+    "version": {
+        "type": "keyword",
+    },
 }
 
 base_index_fields = [
@@ -217,6 +343,46 @@ base_index_fields = [
 ]
 
 capture_index_mapping_by_type = {
-    "drf": drf_capture_index_mapping,
-    "rh": rh_capture_index_mapping,
+    CaptureType.DigitalRF: drf_capture_index_mapping,
+    CaptureType.RadioHound: rh_capture_index_mapping,
 }
+
+base_properties = {
+    "channel": {"type": "keyword"},
+    "scan_group": {"type": "keyword"},
+    "capture_type": {"type": "keyword"},
+    "created_at": {"type": "date"},
+    "is_deleted": {"type": "boolean"},
+    "deleted_at": {"type": "date"},
+}
+
+search_properties = {
+    "center_frequency": {"type": "double"},
+    "frequency_min": {"type": "double"},
+    "frequency_max": {"type": "double"},
+    "start_time": {"type": "long"},  # unix timestamp
+    "end_time": {"type": "long"},  # unix timestamp
+    "span": {"type": "integer"},
+    "gain": {"type": "float"},
+    "bandwidth": {"type": "integer"},
+    "coordinates": {"type": "geo_point"},
+    "sample_rate": {"type": "long"},
+}
+
+
+def get_mapping_by_capture_type(capture_type: CaptureType) -> dict:
+    """Get the mapping for a given capture type."""
+
+    return {
+        "properties": {
+            **base_properties,
+            "capture_props": {
+                "type": "nested",
+                "properties": capture_index_mapping_by_type[capture_type],
+            },
+            "search_props": {
+                "type": "nested",
+                "properties": search_properties,
+            },
+        },
+    }
