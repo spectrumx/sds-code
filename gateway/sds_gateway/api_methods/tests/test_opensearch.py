@@ -317,8 +317,7 @@ class OpenSearchIndexResetTest(APITestCase):
         self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
 
         # Clean up test objects in correct order
-        # First delete captures that reference the user
-        Capture.objects.all().delete()
+        self.capture.delete()
 
         # Then delete the file
         self.file.delete()
