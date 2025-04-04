@@ -22,6 +22,7 @@ from pydantic import Field
 from spectrumx.models.captures import CaptureType
 
 from .errors import AuthError
+from .errors import CaptureError
 from .errors import FileError
 from .models.files import File
 from .models.files import FileUpload
@@ -409,10 +410,8 @@ class GatewayClient:
         Args:
             uuid: The UUID of the file to delete as a hex string.
             verbose: Whether to log the request.
-
         Returns:
             True if the file was deleted successfully.
-
         Raises:
             FileError: If the file could not be deleted.
         """
@@ -531,3 +530,22 @@ class GatewayClient:
         )
         network.success_or_raise(response, ContextException=FileError)
         return response.content
+
+    def delete_capture(self, *, capture_uuid: uuid.UUID) -> None:
+        """Deletes a capture from SDS by its UUID.
+
+        Args:
+            capture_uuid: The UUID of the capture to delete.
+        Raises:
+            GatewayError: If the deletion request fails.
+        """
+        endpoint = f"/captures/{capture_uuid}"
+        log.debug(f"Sending DELETE request to {endpoint}")
+
+        response = self._request(
+            method=HTTPMethods.DELETE,
+            endpoint=Endpoints.CAPTURES,
+            asset_id=capture_uuid.hex,
+        )
+        network.success_or_raise(response, ContextException=CaptureError)
+        log.debug(f"Capture with UUID {capture_uuid} deleted successfully")

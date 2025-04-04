@@ -425,6 +425,37 @@ def test_capture_reading_drf(integration_client: Client) -> None:
     )
 
 
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.capture_deletion(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_deletion(integration_client: Client) -> None:
+    """Tests deleting a capture."""
+
+    # ARRANGE
+    # Create a capture to delete
+    capture = integration_client.captures.create(
+        top_level_dir=PurePosixPath("/test/capture/directory"),
+        capture_type=CaptureType.DigitalRF,
+    )
+
+    # ACT
+    result = integration_client.captures.delete(capture_uuid=capture.uuid)
+
+    # ASSERT
+    assert result is True, "Capture deletion should return True"
+    # Additional assertions can be added to verify the capture no longer exists
+
+
 def _upload_assets(
     integration_client: Client,
     sds_path: Path | PurePosixPath,
