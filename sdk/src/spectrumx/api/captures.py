@@ -153,7 +153,6 @@ class CaptureAPI:
 
     def update(
         self,
-        *,
         capture_uuid: uuid.UUID,
     ) -> None:
         """Updates a capture in SDS by re-discovering and re-indexing the files.
@@ -180,7 +179,6 @@ class CaptureAPI:
 
     def read(
         self,
-        *,
         capture_uuid: uuid.UUID,
     ) -> Capture:
         """Reads a specific capture from SDS.
@@ -201,7 +199,7 @@ class CaptureAPI:
         log.debug(f"Capture read with UUID {capture.uuid}")
         return capture
 
-    def delete(self, *, capture_uuid: uuid.UUID) -> bool:
+    def delete(self, capture_uuid: uuid.UUID) -> bool:
         """Deletes a capture from SDS by its UUID.
 
         Args:
