@@ -71,37 +71,40 @@ class Command(BaseCommand):
     rh_field_transforms = {
         "search_props.center_frequency": {
             "source": """
-                if (ctx._source.capture_props.center_frequency != null) {
-                    ctx._source.search_props.center_frequency = (
-                        ctx._source.capture_props.center_frequency
-                    );
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.center_frequency != null) {
+                    ctx._source.search_props.center_frequency =
+                        ctx._source.capture_props.center_frequency;
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.frequency_min": {
             "source": """
-                if (ctx._source.capture_props.metadata.fmin != null) {
-                    ctx._source.search_props.frequency_min = (
-                        ctx._source.capture_props.metadata.fmin
-                    );
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.metadata != null &&
+                    ctx._source.capture_props.metadata.fmin != null) {
+                    ctx._source.search_props.frequency_min =
+                        ctx._source.capture_props.metadata.fmin;
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.frequency_max": {
             "source": """
-                if (ctx._source.capture_props.metadata.fmax != null) {
-                    ctx._source.search_props.frequency_max = (
-                        ctx._source.capture_props.metadata.fmax
-                    );
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.metadata != null &&
+                    ctx._source.capture_props.metadata.fmax != null) {
+                    ctx._source.search_props.frequency_max =
+                        ctx._source.capture_props.metadata.fmax;
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.span": {
             "source": """
-                if (ctx._source.capture_props.span != null) {
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.span != null) {
                     ctx._source.search_props.span = ctx._source.capture_props.span;
                 }
             """.strip(),
@@ -109,7 +112,8 @@ class Command(BaseCommand):
         },
         "search_props.gain": {
             "source": """
-                if (ctx._source.capture_props.gain != null) {
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.gain != null) {
                     ctx._source.search_props.gain = ctx._source.capture_props.gain;
                 }
             """.strip(),
@@ -117,8 +121,9 @@ class Command(BaseCommand):
         },
         "search_props.coordinates": {
             "source": """
-                if (ctx._source.capture_props.latitude != null &&
-                ctx._source.capture_props.longitude != null) {
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.latitude != null &&
+                    ctx._source.capture_props.longitude != null) {
                     ctx._source.search_props.coordinates = [
                         ctx._source.capture_props.longitude,
                         ctx._source.capture_props.latitude
@@ -129,10 +134,10 @@ class Command(BaseCommand):
         },
         "search_props.sample_rate": {
             "source": """
-                if (ctx._source.capture_props.sample_rate != null) {
-                    ctx._source.search_props.sample_rate = (
-                        ctx._source.capture_props.sample_rate
-                    );
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.sample_rate != null) {
+                    ctx._source.search_props.sample_rate =
+                        ctx._source.capture_props.sample_rate;
                 }
             """.strip(),
             "lang": "painless",
@@ -142,65 +147,66 @@ class Command(BaseCommand):
     drf_field_transforms = {
         "search_props.center_frequency": {
             "source": """
-                if (ctx._source.capture_props.center_freq != null) {
-                    ctx._source.search_props.center_frequency = (
-                        ctx._source.capture_props.center_freq
-                    );
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.center_freq != null) {
+                    ctx._source.search_props.center_frequency =
+                        ctx._source.capture_props.center_freq;
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.frequency_min": {
             "source": """
-                if (ctx._source.capture_props.center_freq != null &&
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.center_freq != null &&
                     ctx._source.capture_props.span != null &&
                     ctx._source.search_props.frequency_min == null) {
-                    ctx._source.search_props.frequency_min = (
+                    ctx._source.search_props.frequency_min =
                         ctx._source.capture_props.center_freq -
-                        (ctx._source.capture_props.span / 2)
-                    );
+                        (ctx._source.capture_props.span / 2);
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.frequency_max": {
             "source": """
-                if (ctx._source.capture_props.center_freq != null &&
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.center_freq != null &&
                     ctx._source.capture_props.span != null &&
                     ctx._source.search_props.frequency_max == null) {
-                    ctx._source.search_props.frequency_max = (
+                    ctx._source.search_props.frequency_max =
                         ctx._source.capture_props.center_freq +
-                        (ctx._source.capture_props.span / 2)
-                    );
+                        (ctx._source.capture_props.span / 2);
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.start_time": {
             "source": """
-                if (ctx._source.capture_props.start_bound != null &&
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.start_bound != null &&
                     ctx._source.search_props.start_time == null) {
-                    ctx._source.search_props.start_time = (
-                        ctx._source.capture_props.start_bound
-                    );
+                    ctx._source.search_props.start_time =
+                        ctx._source.capture_props.start_bound;
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.end_time": {
             "source": """
-                if (ctx._source.capture_props.end_bound != null &&
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.end_bound != null &&
                     ctx._source.search_props.end_time == null) {
-                    ctx._source.search_props.end_time = (
-                        ctx._source.capture_props.end_bound
-                    );
+                    ctx._source.search_props.end_time =
+                        ctx._source.capture_props.end_bound;
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.span": {
             "source": """
-                if (ctx._source.capture_props.span != null &&
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.span != null &&
                     ctx._source.search_props.span == null) {
                     ctx._source.search_props.span = ctx._source.capture_props.span;
                 }
@@ -209,7 +215,8 @@ class Command(BaseCommand):
         },
         "search_props.gain": {
             "source": """
-                if (ctx._source.capture_props.gain != null &&
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.gain != null &&
                     ctx._source.search_props.gain == null) {
                     ctx._source.search_props.gain = ctx._source.capture_props.gain;
                 }
@@ -218,23 +225,24 @@ class Command(BaseCommand):
         },
         "search_props.bandwidth": {
             "source": """
-                if (ctx._source.capture_props.bandwidth != null &&
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.bandwidth != null &&
                     ctx._source.search_props.bandwidth == null) {
-                    ctx._source.search_props.bandwidth = (
-                        ctx._source.capture_props.bandwidth
-                    );
+                    ctx._source.search_props.bandwidth =
+                        ctx._source.capture_props.bandwidth;
                 }
             """.strip(),
             "lang": "painless",
         },
         "search_props.sample_rate": {
             "source": """
-                if (ctx._source.capture_props.sample_rate_numerator != null &&
+                if (ctx._source.capture_props != null &&
+                    ctx._source.capture_props.sample_rate_numerator != null &&
+                    ctx._source.capture_props.sample_rate_denominator != null &&
                     ctx._source.search_props.sample_rate == null) {
-                    ctx._source.search_props.sample_rate = (
+                    ctx._source.search_props.sample_rate =
                         ctx._source.capture_props.sample_rate_numerator /
-                        ctx._source.capture_props.sample_rate_denominator
-                    );
+                        ctx._source.capture_props.sample_rate_denominator;
                 }
             """.strip(),
             "lang": "painless",
@@ -265,75 +273,74 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(f"Unknown capture type: {capture_type}"))
         return {}
 
-    def init_search_props(self, client: OpenSearch, index_name: str):
-        """Initialize search_props if it doesn't exist."""
-        # First initialize search_props if it doesn't exist
-        init_search_props = {
-            "script": """
-                if (ctx._source.search_props == null) {
-                    ctx._source.search_props = [:];
-                }
-            """.strip(),
-            "lang": "painless",
-        }
-
+    def init_search_props(self, client: OpenSearch, index_name: str, capture_uuid: str):
+        """Initialize the search_props field."""
         try:
-            self.stdout.write("Initializing search_props structure...")
-            response = client.update_by_query(
-                index=index_name, body=init_search_props, conflicts="proceed"
+            self.stdout.write(
+                f"Initializing search_props for capture '{capture_uuid}'..."
             )
 
-            if response.get("failures"):
-                self.stdout.write(
-                    self.style.WARNING(
-                        "Some updates failed initializing search_props: "
-                        f"{response['failures']}"
-                    )
-                )
-            else:
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        "Successfully initialized search_props in "
-                        f"{response['updated']} documents"
-                    )
-                )
+            init_script = {
+                "script": {
+                    "source": """
+                    if (ctx._source.search_props == null) {
+                        ctx._source.search_props = new HashMap();
+                    }
+                    """.strip(),
+                    "lang": "painless",
+                }
+            }
+
+            response = client.update(
+                index=index_name, id=capture_uuid, body=init_script
+            )
+            self.stdout.write(f"Update response: {response}")
         except (RequestError, OpensearchConnectionError) as e:
             self.stdout.write(
                 self.style.ERROR(f"Error initializing search_props: {e!s}")
             )
-            return
 
     def apply_field_transforms(
-        self, client: OpenSearch, index_name: str, field_transforms: dict
+        self,
+        client: OpenSearch,
+        index_name: str,
+        field_transforms: dict,
+        capture_uuid: str,
     ):
-        """Apply transforms for new fields."""
+        """Apply transforms for new fields.
 
-        self.init_search_props(client, index_name)
+        Args:
+            client: OpenSearch client
+            index_name: Name of the index to apply transforms to
+            field_transforms: Dictionary of field transforms to apply
+            capture_uuid: UUID of the specific capture to transform.
+        """
+        # initialize the search_props field on the document
+        # (presumes it doesn't exist)
+        self.init_search_props(client, index_name, capture_uuid)
 
         for field, transform in field_transforms.items():
             try:
                 self.stdout.write(f"Applying transform for field '{field}'...")
-
-                body = {"script": transform["source"]}
-
-                response = client.update_by_query(
-                    index=index_name, body=body, conflicts="proceed"
-                )
-
-                if response.get("failures"):
-                    failures = response["failures"]
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"Some updates failed for field '{field}': {failures}"
-                        )
+                # update the document with script
+                try:
+                    response = client.update(
+                        index=index_name,
+                        id=capture_uuid,
+                        body={
+                            "script": {
+                                "source": transform["source"],
+                                "lang": transform["lang"],
+                            }
+                        },
                     )
-                else:
-                    updated = response["updated"]
+                    self.stdout.write(f"Update response: {response}")
                     self.stdout.write(
-                        self.style.SUCCESS(
-                            f"Successfully transformed field '{field}' "
-                            f"in {updated} documents"
-                        )
+                        self.style.SUCCESS(f"Successfully transformed field '{field}'")
+                    )
+                except (RequestError, OpensearchConnectionError) as e:
+                    self.stdout.write(
+                        self.style.ERROR(f"Error with direct update: {e!s}")
                     )
 
             except (RequestError, OpensearchConnectionError) as e:
@@ -490,6 +497,17 @@ class Command(BaseCommand):
                 requester=capture.owner,
                 top_level_dir=capture.top_level_dir,
             )
+
+            # Apply field transforms for this specific capture
+            client = get_opensearch_client()
+            transform_scripts = self.get_transform_scripts(capture.capture_type)
+            if transform_scripts:
+                self.apply_field_transforms(
+                    client=client,
+                    index_name=capture.index_name,
+                    field_transforms=transform_scripts,
+                    capture_uuid=str(capture.uuid),
+                )
         except (RequestError, OpensearchConnectionError) as e:
             self.stdout.write(
                 self.style.ERROR(f"Error reindexing capture '{capture.uuid}': {e!s}")
@@ -730,15 +748,6 @@ class Command(BaseCommand):
 
             # Refresh newn index to make documents searchable
             client.indices.refresh(index=index_name)
-
-            # Get the transform scripts based on capture type
-            transform_scripts = self.get_transform_scripts(capture_type)
-
-            # Apply field transforms
-            if transform_scripts:
-                self.apply_field_transforms(client, index_name, transform_scripts)
-            else:
-                self.stdout.write(self.style.WARNING("No field transforms to apply."))
 
             # Verify reindex was successful
             new_count = self.get_doc_count(client, index_name)

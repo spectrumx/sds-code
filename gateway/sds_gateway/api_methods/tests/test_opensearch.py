@@ -202,12 +202,16 @@ class OpenSearchIndexResetTest(APITestCase):
         )
         assert initial_response["hits"]["total"]["value"] == 1
 
-        # Run replace_index command with test prefix
-        call_command(
-            "replace_index",
-            index_name=index_name,
-            capture_type=self.capture.capture_type,
-        )
+        # Mock user inputs and the mapping function
+        with (
+            mock.patch("builtins.input", return_value="y"),
+        ):
+            # Run replace_index command
+            call_command(
+                "replace_index",
+                index_name=index_name,
+                capture_type=self.capture.capture_type,
+            )
 
         # Verify reindex
         self.client.indices.refresh(index=index_name)
