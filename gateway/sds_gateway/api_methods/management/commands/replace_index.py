@@ -400,6 +400,13 @@ class Command(BaseCommand):
             capture_type, index_name
         )
 
+        self.stdout.write(
+            self.style.WARNING(
+                f"Found {len(duplicate_capture_groups)} duplicate capture groups: "
+                f"{duplicate_capture_groups}"
+            )
+        )
+
         # if the dictionary is empty, return
         if not duplicate_capture_groups:
             self.stdout.write(self.style.WARNING("No duplicate captures found"))
@@ -408,9 +415,9 @@ class Command(BaseCommand):
         # delete duplicate captures
         for capture_group in duplicate_capture_groups.values():
             # if the capture group is not sorted by created_at, sort it
-            assert capture_group.order_by("created_at") == capture_group, (
-                "Capture group is not sorted by created_at"
-            )
+            assert (
+                capture_group.order_by("created_at").first() == capture_group.first()
+            ), "Capture group is not sorted by created_at"
 
             # Get the oldest capture's created_at
             oldest_created_at = capture_group.first().created_at
@@ -420,10 +427,12 @@ class Command(BaseCommand):
 
             if capture_type == CaptureType.RadioHound:
                 # Verify all captures have the same scan_group
-                distinct_scan_groups = capture_group.values_list(
-                    "scan_group", flat=True
-                ).distinct()
-                assert len(distinct_scan_groups) == 1, (
+                scan_groups = capture_group.values_list("scan_group", flat=True)
+
+                # Convert to a set to ensure uniqueness
+                unique_scan_groups = set(scan_groups)
+
+                assert len(unique_scan_groups) == 1, (
                     "Captures in the group do not belong to the same scan_group"
                 )
             elif capture_type == CaptureType.DigitalRF:
@@ -703,7 +712,17 @@ class Command(BaseCommand):
         try:
             # delete duplicate captures, including docs in the original index
             self.delete_duplicate_captures(client, capture_type, index_name)
+        except Exception as e:  # noqa: BLE001
+            self.stdout.write(
+                self.style.ERROR(f"Error deleting duplicate captures: {e!s}")
+            )
+            self.stdout.write(self.style.WARNING("Aborting command..."))
+            return
 
+        # refresh the index
+        client.indices.refresh(index=index_name)
+
+        try:
             # get queryset of captures to reindex
             captures = Capture.objects.filter(
                 capture_type=capture_type,

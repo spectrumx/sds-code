@@ -76,7 +76,7 @@ class OpenSearchIndexResetTest(APITestCase):
         self._setup_test_data()
         self.capture = self._create_test_capture()
         self._initialize_test_index()
-        self._index_test_capture()
+        self._index_test_capture(self.capture)
 
     def _setup_test_data(self):
         """Setup test data for RH capture."""
@@ -176,11 +176,11 @@ class OpenSearchIndexResetTest(APITestCase):
             body=original_index_config,
         )
 
-    def _index_test_capture(self):
+    def _index_test_capture(self, capture: Capture):
         """Index test capture metadata."""
         capture_viewset = CaptureViewSet()
         capture_viewset.ingest_capture(
-            capture=self.capture,
+            capture=capture,
             drf_channel=None,
             rh_scan_group=self.scan_group,
             requester=self.user,
@@ -202,7 +202,7 @@ class OpenSearchIndexResetTest(APITestCase):
         )
         assert initial_response["hits"]["total"]["value"] == 1
 
-        # Mock user inputs and the mapping function
+        # Mock user input
         with (
             mock.patch("builtins.input", return_value="y"),
         ):
@@ -220,13 +220,17 @@ class OpenSearchIndexResetTest(APITestCase):
         )
         assert after_response["hits"]["total"]["value"] == 1
 
-        # Verify metadata preserved
+        # Verify metadata transformed
         doc = after_response["hits"]["hits"][0]["_source"]
         assert (
-            doc["capture_props"]["center_frequency"]
+            doc["search_props"]["center_frequency"]
             == self.json_file["center_frequency"]
         )
-        assert doc["capture_props"]["sample_rate"] == self.json_file["sample_rate"]
+        assert doc["search_props"]["sample_rate"] == self.json_file["sample_rate"]
+        assert doc["search_props"]["coordinates"] == [
+            self.json_file["longitude"],
+            self.json_file["latitude"],
+        ]
 
     def test_fail_state_reset_to_original(self):
         """Test that the reindex fails and is reset to original state."""
@@ -275,9 +279,9 @@ class OpenSearchIndexResetTest(APITestCase):
         )[index_name]["mappings"]
         assert final_mapping == initial_mapping
 
-        # Verify no backup indices remain
+        # Verify backup index remains
         backup_indices = self.client.indices.get(index=f"{index_name}-backup-*")
-        assert len(backup_indices) == 0
+        assert len(backup_indices) == 1
 
     def test_duplicate_capture_deletion(self):
         """Test that duplicate captures are deleted."""
@@ -290,8 +294,8 @@ class OpenSearchIndexResetTest(APITestCase):
         assert initial_response["hits"]["total"]["value"] == 1
 
         # Create duplicate capture
-        self._create_test_capture()
-        self._index_test_capture()
+        duplicate_capture = self._create_test_capture()
+        self._index_test_capture(duplicate_capture)
 
         # Verify duplicate capture was created
         duplicate_capture = (
@@ -304,16 +308,20 @@ class OpenSearchIndexResetTest(APITestCase):
         )
         assert duplicate_capture is not None
 
-        # Run replace_index command with test prefix
-        call_command(
-            "replace_index",
-            index_name=index_name,
-            capture_type=self.capture.capture_type,
-        )
+        # Mock user input
+        with (
+            mock.patch("builtins.input", return_value="y"),
+        ):
+            # Run replace_index command
+            call_command(
+                "replace_index",
+                index_name=index_name,
+                capture_type=self.capture.capture_type,
+            )
 
-        # Verify duplicate captures are deleted
+        # Verify the scan group only has one capture
         final_response = self.client.search(
-            index=index_name, body={"query": {"match": {"_id": str(self.capture.uuid)}}}
+            index=index_name, body={"query": {"match": {"scan_group": self.scan_group}}}
         )
         assert final_response["hits"]["total"]["value"] == 1
 
@@ -323,7 +331,7 @@ class OpenSearchIndexResetTest(APITestCase):
         self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
 
         # Clean up test objects in correct order
-        self.capture.delete()
+        self.user.captures.all().delete()
 
         # Then delete the file
         self.file.delete()
