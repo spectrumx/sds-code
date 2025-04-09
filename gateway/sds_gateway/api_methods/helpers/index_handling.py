@@ -6,6 +6,7 @@ from opensearchpy import exceptions as os_exceptions
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.utils.metadata_schemas import base_properties
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 
@@ -44,14 +45,9 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
             raise UnknownIndexError(msg)
 
         document = {
-            "capture_type": capture.capture_type,
-            "channel": capture.channel,
-            "created_at": capture.created_at,
-            "is_deleted": capture.is_deleted,
-            "deleted_at": capture.deleted_at,
-            "scan_group": capture.scan_group,
-            "capture_props": capture_props,
+            base_prop: getattr(capture, base_prop) for base_prop in base_properties
         }
+        document["capture_props"] = capture_props
 
         # index capture
         client.index(

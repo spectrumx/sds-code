@@ -362,29 +362,34 @@ class Command(BaseCommand):
 
         # get rh captures that have the same scan_group
         if capture_type == CaptureType.RadioHound:
-            duplicate_scan_groups = (
-                captures.values("scan_group")
+            duplicate_pairs = (
+                captures.values("owner", "scan_group")
                 .annotate(count=Count("uuid"))
                 .filter(count__gt=1)
-                .values_list("scan_group", flat=True)
+                .values_list("owner", "scan_group")
             )
 
-            for scan_group in duplicate_scan_groups:
-                duplicate_capture_groups[scan_group] = captures.filter(
-                    scan_group=scan_group
+            for owner, scan_group in duplicate_pairs:
+                duplicate_capture_groups[(owner, scan_group)] = captures.filter(
+                    owner=owner,
+                    scan_group=scan_group,
                 ).order_by("created_at")
         elif capture_type == CaptureType.DigitalRF:
             duplicate_pairs = (
-                captures.values("channel", "top_level_dir")
+                captures.values("owner", "channel", "top_level_dir")
                 .annotate(count=Count("uuid"))
                 .filter(count__gt=1)
+                .values_list("owner", "channel", "top_level_dir")
             )
 
-            for pair in duplicate_pairs:
-                key = (pair["channel"], pair["top_level_dir"])
-                duplicate_capture_groups[key] = captures.filter(
-                    channel=pair["channel"], top_level_dir=pair["top_level_dir"]
-                ).order_by("created_at")
+            for owner, channel, top_level_dir in duplicate_pairs:
+                duplicate_capture_groups[(owner, channel, top_level_dir)] = (
+                    captures.filter(
+                        owner=owner,
+                        channel=channel,
+                        top_level_dir=top_level_dir,
+                    ).order_by("created_at")
+                )
         else:
             self.stdout.write(
                 self.style.WARNING(f"Unknown capture type: {capture_type}")
@@ -419,6 +424,12 @@ class Command(BaseCommand):
                 capture_group.order_by("created_at").first() == capture_group.first()
             ), "Capture group is not sorted by created_at"
 
+            owners = capture_group.values_list("owner", flat=True)
+            unique_owners = set(owners)
+            assert len(unique_owners) == 1, (
+                "Captures in the group do not belong to the same owner"
+            )
+
             # Get the oldest capture's created_at
             oldest_created_at = capture_group.first().created_at
 
@@ -430,19 +441,19 @@ class Command(BaseCommand):
                 scan_groups = capture_group.values_list("scan_group", flat=True)
 
                 # Convert to a set to ensure uniqueness
-                unique_scan_groups = set(scan_groups)
+                distinct_scan_groups = set(scan_groups)
 
-                assert len(unique_scan_groups) == 1, (
+                assert len(distinct_scan_groups) == 1, (
                     "Captures in the group do not belong to the same scan_group"
                 )
             elif capture_type == CaptureType.DigitalRF:
                 # Verify all captures have the same channel and top_level_dir
-                distinct_channels = capture_group.values_list(
-                    "channel", flat=True
-                ).distinct()
-                distinct_dirs = capture_group.values_list(
-                    "top_level_dir", flat=True
-                ).distinct()
+                channels = capture_group.values_list("channel", flat=True)
+                dirs = capture_group.values_list("top_level_dir", flat=True)
+
+                distinct_channels = set(channels)
+                distinct_dirs = set(dirs)
+
                 assert len(distinct_channels) == 1, (
                     "Captures in the group do not belong to the same channel"
                 )
@@ -705,10 +716,6 @@ class Command(BaseCommand):
         capture_type = options["capture_type"]
         index_name = options["index_name"]
 
-        # Use timezone-aware datetime
-        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-        backup_index_name = f"{index_name}-backup-{timestamp}"
-
         try:
             # delete duplicate captures, including docs in the original index
             self.delete_duplicate_captures(client, capture_type, index_name)
@@ -723,6 +730,10 @@ class Command(BaseCommand):
         client.indices.refresh(index=index_name)
 
         try:
+            # Use timezone-aware datetime
+            timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+            backup_index_name = f"{index_name}-backup-{timestamp}"
+
             # get queryset of captures to reindex
             captures = Capture.objects.filter(
                 capture_type=capture_type,

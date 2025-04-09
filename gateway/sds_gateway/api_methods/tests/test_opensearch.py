@@ -25,10 +25,12 @@ class OpenSearchHealthCheckTest(APITestCase):
         assert self.client.ping()
 
 
-class OpenSearchIndexResetTest(APITestCase):
+class OpenSearchRHIndexResetTest(APITestCase):
     def setUp(self):
         self.client = get_opensearch_client()
         self.test_index_prefix = "captures-test-"
+        self.capture_type = CaptureType.RadioHound
+        self.index_name = f"{self.test_index_prefix}{self.capture_type}"
 
         # Keep the original (old) mapping structure to test migration
         self.original_index_mapping = {
@@ -74,7 +76,7 @@ class OpenSearchIndexResetTest(APITestCase):
 
         # Setup test data and create initial capture
         self._setup_test_data()
-        self.capture = self._create_test_capture()
+        self.capture = self._create_test_capture(self.user, self.top_level_dir)
         self._initialize_test_index()
         self._index_test_capture(self.capture)
 
@@ -126,6 +128,19 @@ class OpenSearchIndexResetTest(APITestCase):
             "version": "v0",
         }
 
+        self.file = self._create_test_file(self.user)
+
+    def _create_test_capture(self, owner: User, top_level_dir: str):
+        """Create and index a test capture."""
+        return Capture.objects.create(
+            owner=owner,
+            scan_group=self.scan_group,
+            capture_type=self.capture_type,
+            index_name=self.index_name,
+            top_level_dir=top_level_dir,
+        )
+
+    def _create_test_file(self, owner: User):
         # Create File object in MinIO/DB
         json_content = json.dumps(self.json_file).encode("utf-8")
         self.uploaded_file = SimpleUploadedFile(
@@ -137,24 +152,14 @@ class OpenSearchIndexResetTest(APITestCase):
             "file": self.uploaded_file,
             "media_type": "application/json",
             "name": "test.rh.json",
-            "owner": self.user.pk,
+            "owner": owner.pk,
         }
         serializer = FilePostSerializer(
             data=file_data,
-            context={"request_user": self.user},
+            context={"request_user": owner},
         )
         serializer.is_valid(raise_exception=True)
-        self.file = serializer.save()
-
-    def _create_test_capture(self):
-        """Create and index a test capture."""
-        return Capture.objects.create(
-            owner=self.user,
-            scan_group=self.scan_group,
-            capture_type=CaptureType.RadioHound,
-            index_name=f"{self.test_index_prefix}{CaptureType.RadioHound}",
-            top_level_dir=self.top_level_dir,
-        )
+        return serializer.save()
 
     def _initialize_test_index(self):
         """Initialize test index with mapping."""
@@ -192,13 +197,21 @@ class OpenSearchIndexResetTest(APITestCase):
             index=f"{self.test_index_prefix}{self.capture.capture_type}"
         )
 
+    def _call_replace_index(self):
+        """Call replace_index command."""
+        call_command(
+            "replace_index",
+            index_name=self.index_name,
+            capture_type=self.capture_type,
+        )
+
     def test_successful_reindex(self):
         """Test successful reindex with matching document counts."""
-        index_name = f"{self.test_index_prefix}{self.capture.capture_type}"
 
         # Get initial document
         initial_response = self.client.search(
-            index=index_name, body={"query": {"match": {"_id": str(self.capture.uuid)}}}
+            index=self.index_name,
+            body={"query": {"match": {"_id": str(self.capture.uuid)}}},
         )
         assert initial_response["hits"]["total"]["value"] == 1
 
@@ -207,16 +220,13 @@ class OpenSearchIndexResetTest(APITestCase):
             mock.patch("builtins.input", return_value="y"),
         ):
             # Run replace_index command
-            call_command(
-                "replace_index",
-                index_name=index_name,
-                capture_type=self.capture.capture_type,
-            )
+            self._call_replace_index()
 
         # Verify reindex
-        self.client.indices.refresh(index=index_name)
+        self.client.indices.refresh(index=self.index_name)
         after_response = self.client.search(
-            index=index_name, body={"query": {"match": {"_id": str(self.capture.uuid)}}}
+            index=self.index_name,
+            body={"query": {"match": {"_id": str(self.capture.uuid)}}},
         )
         assert after_response["hits"]["total"]["value"] == 1
 
@@ -234,16 +244,15 @@ class OpenSearchIndexResetTest(APITestCase):
 
     def test_fail_state_reset_to_original(self):
         """Test that the reindex fails and is reset to original state."""
-        index_name = f"{self.test_index_prefix}{self.capture.capture_type}"
 
         # Get initial state - should have 1 document (our test capture)
-        initial_count = self.client.count(index=index_name)["count"]
+        initial_count = self.client.count(index=self.index_name)["count"]
         assert initial_count == 1
 
         # Get initial mapping to verify reset later
         initial_mapping = self.client.indices.get_mapping(
-            index=index_name,
-        )[index_name]["mappings"]
+            index=self.index_name,
+        )[self.index_name]["mappings"]
 
         # Mock user inputs and the mapping function
         with (
@@ -262,39 +271,35 @@ class OpenSearchIndexResetTest(APITestCase):
             }
 
             # Run replace_index command
-            call_command(
-                "replace_index",
-                index_name=index_name,
-                capture_type=self.capture.capture_type,
-            )
+            self._call_replace_index()
 
         # Verify final state
-        self.client.indices.refresh(index=index_name)
-        final_count = self.client.count(index=index_name)["count"]
+        self.client.indices.refresh(index=self.index_name)
+        final_count = self.client.count(index=self.index_name)["count"]
         assert final_count == 1  # Original document count preserved
 
         # Verify mapping was reset to original
         final_mapping = self.client.indices.get_mapping(
-            index=index_name,
-        )[index_name]["mappings"]
+            index=self.index_name,
+        )[self.index_name]["mappings"]
         assert final_mapping == initial_mapping
 
         # Verify backup index remains
-        backup_indices = self.client.indices.get(index=f"{index_name}-backup-*")
+        backup_indices = self.client.indices.get(index=f"{self.index_name}-backup-*")
         assert len(backup_indices) == 1
 
     def test_duplicate_capture_deletion(self):
         """Test that duplicate captures are deleted."""
-        index_name = f"{self.test_index_prefix}{self.capture.capture_type}"
 
         # Get initial document
         initial_response = self.client.search(
-            index=index_name, body={"query": {"match": {"_id": str(self.capture.uuid)}}}
+            index=self.index_name,
+            body={"query": {"match": {"_id": str(self.capture.uuid)}}},
         )
         assert initial_response["hits"]["total"]["value"] == 1
 
         # Create duplicate capture
-        duplicate_capture = self._create_test_capture()
+        duplicate_capture = self._create_test_capture(self.user, self.top_level_dir)
         self._index_test_capture(duplicate_capture)
 
         # Verify duplicate capture was created
@@ -302,6 +307,7 @@ class OpenSearchIndexResetTest(APITestCase):
             Capture.objects.filter(
                 scan_group=self.scan_group,
                 capture_type=self.capture.capture_type,
+                owner=self.user,
             )
             .exclude(uuid=self.capture.uuid)
             .first()
@@ -313,17 +319,57 @@ class OpenSearchIndexResetTest(APITestCase):
             mock.patch("builtins.input", return_value="y"),
         ):
             # Run replace_index command
-            call_command(
-                "replace_index",
-                index_name=index_name,
-                capture_type=self.capture.capture_type,
-            )
+            self._call_replace_index()
 
         # Verify the scan group only has one capture
         final_response = self.client.search(
-            index=index_name, body={"query": {"match": {"scan_group": self.scan_group}}}
+            index=self.index_name,
+            body={"query": {"match": {"scan_group": self.scan_group}}},
         )
         assert final_response["hits"]["total"]["value"] == 1
+
+    def test_no_capture_deletion_multiple_owners(self):
+        """
+        Test that captures with similar attributes are not deleted
+        if they belong to different owners.
+        """
+        # Create a second user
+        other_user = User.objects.create(email="otheruser@example.com")
+        other_top_level_dir = f"/files/{other_user.email}/{self.scan_group}"
+        expected_count = 2
+
+        # Create a duplicate capture for the second user
+        non_duplicate_capture = self._create_test_capture(
+            other_user, other_top_level_dir
+        )
+        self._index_test_capture(non_duplicate_capture)
+        self._create_test_file(other_user)
+
+        # Get initial document
+        initial_response = self.client.search(
+            index=self.index_name,
+            body={"query": {"match": {"_id": str(self.capture.uuid)}}},
+        )
+        assert initial_response["hits"]["total"]["value"] == 1
+
+        with mock.patch("builtins.input", return_value="y"):
+            # Run replace_index command
+            self._call_replace_index()
+
+        # Verify the scan group has two captures
+        final_response = self.client.search(
+            index=self.index_name,
+            body={"query": {"match": {"scan_group": self.scan_group}}},
+        )
+        assert final_response["hits"]["total"]["value"] == expected_count
+
+        # Verify that there is only one capture per owner
+        # (checking top_level_dir which contains owner in the path)
+        for hit in final_response["hits"]["hits"]:
+            assert hit["_source"]["top_level_dir"] in [
+                self.top_level_dir,
+                other_top_level_dir,
+            ]
 
     def tearDown(self):
         """Clean up test data."""
@@ -335,6 +381,336 @@ class OpenSearchIndexResetTest(APITestCase):
 
         # Then delete the file
         self.file.delete()
+
+        # Finally delete the user
+        self.user.delete()
+
+
+class OpenSearchDRFIndexResetTest(APITestCase):
+    def setUp(self):
+        self.client = get_opensearch_client()
+        self.capture_type = CaptureType.DigitalRF
+        self.test_index_prefix = "captures-test-"
+        self.index_name = f"{self.test_index_prefix}{self.capture_type}"
+
+        # Keep the original (old) mapping structure to test migration
+        self.original_index_mapping = {
+            "properties": {
+                "channel": {"type": "keyword"},
+                "scan_group": {"type": "keyword"},
+                "capture_type": {"type": "keyword"},
+                "created_at": {"type": "date"},
+                "capture_props": {
+                    "type": "nested",
+                    "properties": {
+                        "sample_rate_numerator": {"type": "long"},
+                        "sample_rate_denominator": {"type": "long"},
+                        "samples_per_second": {"type": "long"},
+                        "start_bound": {"type": "long"},
+                        "end_bound": {"type": "long"},
+                        "init_utc_timestamp": {"type": "integer"},
+                        "computer_time": {"type": "integer"},
+                        "uuid_str": {"type": "keyword"},
+                        "center_freq": {"type": "double"},
+                        "span": {"type": "integer"},
+                        "gain": {"type": "float"},
+                        "bandwidth": {"type": "integer"},
+                        "antenna": {"type": "text"},
+                        "indoor_outdoor": {"type": "keyword"},
+                        "antenna_direction": {"type": "float"},
+                        "custom_attrs": {"type": "nested"},
+                    },
+                },
+                # Intentionally omitting search_props to test migration
+            },
+        }
+
+        # Create test user
+        self.user = User.objects.create(email="testuser@example.com")
+
+        # Create test channel and top level directory
+        self.channel = "test_channel"
+        self.top_level_dir = f"/files/{self.user.email}/{self.channel}"
+
+        # Setup test data and create initial capture
+        self._setup_test_data()
+        self.capture = self._create_test_capture(self.user, self.top_level_dir)
+        self._initialize_test_index()
+        self._index_test_capture(self.capture)
+
+    def _setup_test_data(self):
+        """Setup test data for DRF capture."""
+        # Create DRF metadata JSON with test data
+        self.json_file = {
+            "H5Tget_class": 1,
+            "H5Tget_size": 8,
+            "H5Tget_order": 0,
+            "H5Tget_precision": 64,
+            "H5Tget_offset": 0,
+            "subdir_cadence_secs": 3600,
+            "file_cadence_millisecs": 1000,
+            "sample_rate_numerator": 24000000,
+            "sample_rate_denominator": 1,
+            "samples_per_second": 24000000,
+            "start_bound": 1705000000,
+            "end_bound": 1705003600,
+            "is_complex": True,
+            "is_continuous": True,
+            "epoch": "1970-01-01T00:00:00Z",
+            "digital_rf_time_description": "Unix time",
+            "digital_rf_version": "0.10.0",
+            "sequence_num": 1,
+            "init_utc_timestamp": 1705000000,
+            "computer_time": 1705000000,
+            "uuid_str": str(uuid.uuid4()),
+            "center_freq": 2000000000,
+            "span": 20000000,
+            "gain": 1.0,
+            "bandwidth": 1000000,
+            "antenna": "Test Antenna",
+            "indoor_outdoor": "indoor",
+            "antenna_direction": 0.0,
+            "custom_attrs": {"test_attr": "test_value"},
+        }
+
+    def _create_test_capture(self, owner: User, top_level_dir: str):
+        """Create and index a test capture."""
+        return Capture.objects.create(
+            owner=owner,
+            channel=self.channel,
+            capture_type=self.capture_type,
+            index_name=self.index_name,
+            top_level_dir=top_level_dir,
+        )
+
+    def _initialize_test_index(self):
+        """Initialize test index with mapping."""
+        # initialize test index with old mapping
+        original_index_config = {
+            "mappings": self.original_index_mapping,
+            "settings": {
+                "index": {
+                    "number_of_shards": 1,
+                    "number_of_replicas": 1,
+                },
+            },
+        }
+        self.client.indices.create(
+            index=self.capture.index_name,
+            body=original_index_config,
+        )
+
+    # for drf tests, skip file validation to avoid dealing with HDF5 files
+    def _mock_metadata_validation(self):
+        """Mock metadata validation."""
+        return mock.patch(
+            "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+            return_value=self.json_file,
+        )
+
+    def _call_replace_index(self):
+        """Call replace_index command."""
+        call_command(
+            "replace_index",
+            index_name=self.index_name,
+            capture_type=self.capture_type,
+        )
+
+    def _index_test_capture(self, capture: Capture):
+        """Index test capture metadata."""
+        capture_viewset = CaptureViewSet()
+
+        # Mock metadata validation
+        with self._mock_metadata_validation():
+            capture_viewset.ingest_capture(
+                capture=capture,
+                drf_channel=self.channel,
+                rh_scan_group=None,
+                requester=self.user,
+                top_level_dir=Path(self.top_level_dir),
+            )
+
+        # Refresh index
+        self.client.indices.refresh(index=self.index_name)
+
+    def test_successful_reindex(self):
+        """Test successful reindex with matching document counts."""
+
+        # Get initial document
+        initial_response = self.client.search(
+            index=self.index_name,
+            body={"query": {"match": {"_id": str(self.capture.uuid)}}},
+        )
+        assert initial_response["hits"]["total"]["value"] == 1
+
+        # Mock user input and metadata validation
+        with (
+            mock.patch("builtins.input", return_value="y"),
+            self._mock_metadata_validation(),
+        ):
+            # Run replace_index command
+            self._call_replace_index()
+
+        # Verify reindex
+        self.client.indices.refresh(index=self.index_name)
+        after_response = self.client.search(
+            index=self.index_name,
+            body={"query": {"match": {"_id": str(self.capture.uuid)}}},
+        )
+        assert after_response["hits"]["total"]["value"] == 1
+
+        # Verify metadata transformed
+        doc = after_response["hits"]["hits"][0]["_source"]
+        assert doc["search_props"]["center_frequency"] == self.json_file["center_freq"]
+        assert doc["search_props"]["sample_rate"] == (
+            self.json_file["sample_rate_numerator"]
+            / self.json_file["sample_rate_denominator"]
+        )
+        assert doc["search_props"]["frequency_min"] == self.json_file["center_freq"] - (
+            self.json_file["span"] / 2
+        )
+        assert doc["search_props"]["frequency_max"] == self.json_file["center_freq"] + (
+            self.json_file["span"] / 2
+        )
+        assert doc["search_props"]["start_time"] == self.json_file["start_bound"]
+        assert doc["search_props"]["end_time"] == self.json_file["end_bound"]
+
+    def test_fail_state_reset_to_original(self):
+        """Test that the reindex fails and is reset to original state."""
+
+        # Get initial state - should have 1 document (our test capture)
+        initial_count = self.client.count(index=self.index_name)["count"]
+        assert initial_count == 1
+
+        # Get initial mapping to verify reset later
+        initial_mapping = self.client.indices.get_mapping(
+            index=self.index_name,
+        )[self.index_name]["mappings"]
+
+        # Mock user inputs, the mapping function, and metadata validation
+        with (
+            mock.patch("builtins.input", return_value="y"),
+            mock.patch(
+                "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type"
+            ) as mock_mapping,
+            self._mock_metadata_validation(),
+        ):
+            # Return an invalid mapping that will cause reindex to fail
+            mock_mapping.return_value = {
+                "properties": {
+                    "capture_props": {
+                        "type": "keyword"  # This conflicts with nested type
+                    }
+                }
+            }
+
+            # Run replace_index command
+            self._call_replace_index()
+
+        # Verify final state
+        self.client.indices.refresh(index=self.index_name)
+        final_count = self.client.count(index=self.index_name)["count"]
+        assert final_count == 1  # Original document count preserved
+
+        # Verify mapping was reset to original
+        final_mapping = self.client.indices.get_mapping(
+            index=self.index_name,
+        )[self.index_name]["mappings"]
+        assert final_mapping == initial_mapping
+
+        # Verify backup index remains
+        backup_indices = self.client.indices.get(index=f"{self.index_name}-backup-*")
+        assert len(backup_indices) == 1
+
+    def test_duplicate_capture_deletion(self):
+        """Test that duplicate captures are deleted."""
+
+        # Get initial document
+        initial_response = self.client.search(
+            index=self.index_name,
+            body={"query": {"match": {"_id": str(self.capture.uuid)}}},
+        )
+        assert initial_response["hits"]["total"]["value"] == 1
+
+        # Create duplicate capture
+        duplicate_capture = self._create_test_capture(self.user, self.top_level_dir)
+        self._index_test_capture(duplicate_capture)
+
+        # Verify duplicate capture was created
+        duplicate_capture = (
+            Capture.objects.filter(
+                channel=self.channel,
+                capture_type=self.capture.capture_type,
+                owner=self.user,
+            )
+            .exclude(uuid=self.capture.uuid)
+            .first()
+        )
+        assert duplicate_capture is not None
+
+        # Mock user input and metadata validation
+        with (
+            mock.patch("builtins.input", return_value="y"),
+            self._mock_metadata_validation(),
+        ):
+            # Run replace_index command
+            self._call_replace_index()
+
+        # Verify the channel only has one capture
+        final_response = self.client.search(
+            index=self.index_name, body={"query": {"match": {"channel": self.channel}}}
+        )
+        assert final_response["hits"]["total"]["value"] == 1
+
+    def test_no_capture_deletion_multiple_owners(self):
+        """
+        Test that captures with similar attributes are not deleted
+        if they belong to different owners.
+        """
+        # Create a second user
+        other_user = User.objects.create(email="otheruser@example.com")
+        other_top_level_dir = f"/files/{other_user.email}/{self.channel}"
+        expected_count = 2
+        # Create a duplicate capture for the second user
+        duplicate_capture = self._create_test_capture(other_user, other_top_level_dir)
+        self._index_test_capture(duplicate_capture)
+
+        # Get initial document
+        initial_response = self.client.search(
+            index=self.index_name,
+            body={"query": {"match": {"_id": str(self.capture.uuid)}}},
+        )
+        assert initial_response["hits"]["total"]["value"] == 1
+
+        # Mock user input and metadata validation
+        with (
+            mock.patch("builtins.input", return_value="y"),
+            self._mock_metadata_validation(),
+        ):
+            # Run replace_index command
+            self._call_replace_index()
+
+        # Verify the channel has two captures
+        final_response = self.client.search(
+            index=self.index_name, body={"query": {"match": {"channel": self.channel}}}
+        )
+        assert final_response["hits"]["total"]["value"] == expected_count
+
+        # Verify that there is only one capture per owner
+        # (checking top_level_dir which contains owner in the path)
+        for hit in final_response["hits"]["hits"]:
+            assert hit["_source"]["top_level_dir"] in [
+                self.top_level_dir,
+                other_top_level_dir,
+            ]
+
+    def tearDown(self):
+        """Clean up test data."""
+        # Delete test indices
+        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
+
+        # Clean up test objects in correct order
+        self.user.captures.all().delete()
 
         # Finally delete the user
         self.user.delete()

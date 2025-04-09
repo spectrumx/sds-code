@@ -349,6 +349,7 @@ capture_index_mapping_by_type = {
 
 base_properties = {
     "channel": {"type": "keyword"},
+    "top_level_dir": {"type": "keyword"},
     "scan_group": {"type": "keyword"},
     "capture_type": {"type": "keyword"},
     "created_at": {"type": "date"},
