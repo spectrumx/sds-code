@@ -2,10 +2,10 @@
     authors = [{ name = "Center for Research Computing | UND", email = "crcsupport@nd.edu" }]
     dependencies = [
         "argon2-cffi>=23.1.0",
-        "blake3>=0.4.1",
+        "blake3>=1.0.4",
         "celery>=5.4.0",
         "crispy-bootstrap5>=2024.10",
-        "digital-rf>=2.6.9",
+        "digital-rf>=2.6.11",
         "django-allauth[socialaccount]>=64.2.1",
         "django-allauth>=65.1",
         "django-celery-beat>=2.7.0",
@@ -25,7 +25,7 @@
         "hiredis>=3.0.0",
         "loguru>=0.7.2",
         "minio>=7.2.9",
-        "numpy~=1.26",                           # upgrade to numpy v2 when digital-rf (from PyPI) supports it
+        "numpy~=2.2.4",
         "opensearch-py>=2.7.1",
         "pillow>=11.0.0",
         "pydantic>=2.10.0",
