@@ -1,0 +1,110 @@
+# Workflow to run pre-commit checks, django tests and template validations for the Gateway
+# GitHub Action Workflow validator: https://rhysd.github.io/actionlint/
+name: gateway-checks
+
+on:
+    workflow_dispatch:
+        # To manually trigger the workflow
+        # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch
+    push:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - gateway/**
+        branches:
+            - main
+            - master
+    pull_request:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - gateway/**
+        branches:
+            - main
+            - master
+        types:
+            # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#pull_request
+            - ready_for_review
+            - synchronize
+
+env:
+    DOCKER_BUILDKIT: 1
+    COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+    # Run pre-commit checks on all files using the project's python version
+    pre-commit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install rust toolchain for the 'blake3' dependency
+              uses: actions-rust-lang/setup-rust-toolchain@v1
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
+              # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Install pre-commit
+              working-directory: ./gateway
+              run: uv tool install pre-commit
+
+            - name: Cache pre-commit hooks
+              id: cache-pre-commit
+              uses: actions/cache@v4
+              # https://github.com/actions/cache/blob/main/examples.md#python---pip
+              with:
+                  key: pre-commit-gateway-${{ hashFiles('gateway/.pre-commit-config.yaml') }}
+                  path: ~/.cache/pre-commit/
+
+            - name: Install hooks
+              working-directory: ./gateway
+              run: uv run pre-commit install --install-hooks
+
+            - name: Run pre-commit
+              working-directory: ./gateway
+              run: uv run pre-commit run --all-files
+
+    # Run static analysis with pyright
+    pyright:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v3
+
+            - name: Install system dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y python3-dev libpq-dev
+
+            - name: Install packages
+              working-directory: ./gateway
+              run: uv sync --frozen --extra local
+
+            - uses: jakebailey/pyright-action@v2
+              # https://github.com/jakebailey/pyright-action#options
+              with:
+                  pylance-version: latest-release
+                  working-directory: ./gateway
+                  python-path: ./.venv/bin/python
+
+    # Run Django tests
+    django-tests:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install dependencies
+              run: sudo apt update && sudo apt install -y rsync
+
+            - name: Copying example files
+              run: rsync -aP ./.envs/example/ ./.envs/local
+
+            - name: Build a local deploy
+              run: make build
+
+            - name: Run deploy
+              run: make up
+
+            - name: Run tests
+              run: make test
