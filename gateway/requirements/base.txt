@@ -17,6 +17,7 @@ loguru==0.7.2
 minio==7.2.9 # https://github.com/minio/minio-py
 pydantic==2.10.0  # https://github.com/pydantic/pydantic
 rich==13.9.3  # https://github.com/Textualize/rich
+sentry-sdk[django]==2.25.1
 
 # Django
 # ------------------------------------------------------------------------------

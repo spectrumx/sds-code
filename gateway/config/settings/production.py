@@ -3,6 +3,8 @@
 # pyright: reportArgumentType=false
 # django-environ has no type hints
 
+from socket import gethostname
+
 from .base import *  # noqa: F403 pylint: disable=wildcard-import,unused-wildcard-import
 from .base import DATABASES
 from .base import INSTALLED_APPS
@@ -163,6 +165,30 @@ LOGGING: dict[str, Any] = {
 }
 
 # ⚠️ Setting overrides for PRODUCTION
+
+# SENTRY
+# ------------------------------------------------------------------------------
+# https://docs.sentry.io/platforms/python/guides/django/
+#   The following parts of this Django project are monitored:
+#       + Middleware stack
+#       + Signals
+#       + Database queries
+#       + Redis commands
+#       + Access to Django caches
+SENTRY_DSN: str = env("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    import sentry_sdk
+
+    _hostname: str = gethostname()
+    _is_staging: bool = "-qa" in _hostname or "-dev" in _hostname
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment="staging" if _is_staging else "production",
+        # whether to add data like request headers and IP for users,
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        send_default_pii=False,
+    )
 
 # django-rest-framework
 # -------------------------------------------------------------------------------

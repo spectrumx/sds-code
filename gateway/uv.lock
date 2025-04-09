@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.12"
 
 [[package]]
@@ -1946,6 +1947,7 @@ dependencies = [
     { name = "python-slugify" },
     { name = "redis" },
     { name = "rich" },
+    { name = "sentry-sdk", extra = ["django"] },
     { name = "uvicorn" },
     { name = "uvicorn-worker" },
     { name = "whitenoise" },
@@ -2040,6 +2042,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.9.3" },
     { name = "rich", marker = "extra == 'local'", specifier = ">=13.9.3" },
     { name = "ruff", marker = "extra == 'local'", specifier = ">=0.7" },
+    { name = "sentry-sdk", extras = ["django"], specifier = ">=2.25.1" },
     { name = "sphinx", marker = "extra == 'local'", specifier = ">=8.1" },
     { name = "sphinx-autobuild", marker = "extra == 'local'", specifier = ">=2024.10" },
     { name = "uvicorn", specifier = ">=0.32.0" },
@@ -2047,6 +2050,25 @@ requires-dist = [
     { name = "watchfiles", marker = "extra == 'local'", specifier = ">=0.24.0" },
     { name = "werkzeug", extras = ["watchdog"], marker = "extra == 'local'", specifier = ">=3.0.4" },
     { name = "whitenoise", specifier = ">=6.7.0" },
+]
+provides-extras = ["local", "production"]
+
+[[package]]
+name = "sentry-sdk"
+version = "2.25.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/85/2f/a0f732270cc7c1834f5ec45539aec87c360d5483a8bd788217a9102ccfbd/sentry_sdk-2.25.1.tar.gz", hash = "sha256:f9041b7054a7cf12d41eadabe6458ce7c6d6eea7a97cfe1b760b6692e9562cf0", size = 322190 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/96/b6/84049ab0967affbc7cc7590d86ae0170c1b494edb69df8786707100420e5/sentry_sdk-2.25.1-py2.py3-none-any.whl", hash = "sha256:60b016d0772789454dc55a284a6a44212044d4a16d9f8448725effee97aaf7f6", size = 339851 },
+]
+
+[package.optional-dependencies]
+django = [
+    { name = "django" },
 ]
 
 [[package]]

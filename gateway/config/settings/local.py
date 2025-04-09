@@ -87,6 +87,21 @@ if env("USE_DOCKER") == "yes":
         # The node container isn't started (yet?)
         pass
 
+# SENTRY
+# ------------------------------------------------------------------------------
+# https://docs.sentry.io/platforms/python/guides/django/
+SENTRY_DSN: str = env("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment="local",
+        # whether to add data like request headers and IP for users,
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/
+        send_default_pii=False,
+    )
+
 # Celery
 # ------------------------------------------------------------------------------
 
