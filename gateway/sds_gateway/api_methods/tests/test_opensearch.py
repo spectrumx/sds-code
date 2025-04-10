@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import uuid
 from pathlib import Path
 from unittest import mock
@@ -7,14 +8,18 @@ from unittest import mock
 import numpy as np
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from opensearchpy.exceptions import RequestError
 from rest_framework.test import APITestCase
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
+from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
 from sds_gateway.users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 class OpenSearchHealthCheckTest(APITestCase):
@@ -79,6 +84,20 @@ class OpenSearchRHIndexResetTest(APITestCase):
         self.capture = self._create_test_capture(self.user, self.top_level_dir)
         self._initialize_test_index()
         self._index_test_capture(self.capture)
+
+    def tearDown(self):
+        """Clean up test data"""
+        # Delete test indices
+        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
+
+        # Clean up test objects in correct order
+        self.user.captures.all().delete()
+
+        # Then delete the file
+        self.file.delete()
+
+        # Finally delete the user
+        self.user.delete()
 
     def _setup_test_data(self):
         """Setup test data for RH capture."""
@@ -205,6 +224,20 @@ class OpenSearchRHIndexResetTest(APITestCase):
             capture_type=self.capture_type,
         )
 
+    def _raises_mapper_parsing_exception(self, new_index_config: dict):
+        """Put mapping on index and return True if it fails."""
+        try:
+            self.client.indices.put_mapping(
+                index=self.index_name,
+                body=new_index_config,
+            )
+        except RequestError as e:
+            if "mapper_parsing_exception" in str(e):
+                msg = f"Mapper parsing exception: {e}"
+                logger.warning(msg)
+                return True
+        return False
+
     def test_successful_reindex(self):
         """Test successful reindex with matching document counts."""
 
@@ -215,6 +248,29 @@ class OpenSearchRHIndexResetTest(APITestCase):
         )
         assert initial_response["hits"]["total"]["value"] == 1
 
+        new_index_mapping = get_mapping_by_capture_type(self.capture_type)
+        new_index_config = {
+            "mappings": new_index_mapping,
+            "settings": {
+                "index": {
+                    "number_of_shards": 1,
+                    "number_of_replicas": 1,
+                },
+            },
+        }
+
+        # assert that the current index mapping is not the new mapping
+        old_index_mapping = self.client.indices.get_mapping(index=self.index_name)
+        assert old_index_mapping != new_index_mapping, (
+            "Index mapping is already the new mapping"
+        )
+
+        # assert that the put_mapping operation fails
+        # this means we need to use replace_index
+        assert self._raises_mapper_parsing_exception(new_index_config), (
+            "put_mapping operation should fail"
+        )
+
         # Mock user input
         with (
             mock.patch("builtins.input", return_value="y"),
@@ -222,13 +278,36 @@ class OpenSearchRHIndexResetTest(APITestCase):
             # Run replace_index command
             self._call_replace_index()
 
-        # Verify reindex
+        # Verify document reindexed
         self.client.indices.refresh(index=self.index_name)
         after_response = self.client.search(
             index=self.index_name,
             body={"query": {"match": {"_id": str(self.capture.uuid)}}},
         )
-        assert after_response["hits"]["total"]["value"] == 1
+        assert after_response["hits"]["total"]["value"] == 1, (
+            "Document was not reindexed"
+        )
+
+        # Verify mapping was updated
+        current_index_mapping = self.client.indices.get_mapping(index=self.index_name)[
+            self.index_name
+        ]["mappings"]
+        assert current_index_mapping != old_index_mapping, (
+            "Index mapping was not updated"
+        )
+
+        # check that the current mapping includes all the fields in the new mapping
+        # exact match is unreliable because of opensearch dynamic templates
+
+        # get the keys of the current mapping
+        current_mapping_keys = current_index_mapping["properties"].keys()
+        new_mapping_keys = new_index_mapping["properties"].keys()
+        assert all(key in current_mapping_keys for key in new_mapping_keys), (
+            "Current index mapping does not include all fields in the new mapping"
+        )
+
+        msg = f"New index mapping is correct: {new_index_mapping}"
+        logger.info(msg)
 
         # Verify metadata transformed
         doc = after_response["hits"]["hits"][0]["_source"]
@@ -371,20 +450,6 @@ class OpenSearchRHIndexResetTest(APITestCase):
                 other_top_level_dir,
             ]
 
-    def tearDown(self):
-        """Clean up test data."""
-        # Delete test indices
-        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
-
-        # Clean up test objects in correct order
-        self.user.captures.all().delete()
-
-        # Then delete the file
-        self.file.delete()
-
-        # Finally delete the user
-        self.user.delete()
-
 
 class OpenSearchDRFIndexResetTest(APITestCase):
     def setUp(self):
@@ -437,6 +502,17 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         self.capture = self._create_test_capture(self.user, self.top_level_dir)
         self._initialize_test_index()
         self._index_test_capture(self.capture)
+
+    def tearDown(self):
+        """Clean up test data."""
+        # Delete test indices
+        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
+
+        # Clean up test objects in correct order
+        self.user.captures.all().delete()
+
+        # Finally delete the user
+        self.user.delete()
 
     def _setup_test_data(self):
         """Setup test data for DRF capture."""
@@ -533,6 +609,20 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         # Refresh index
         self.client.indices.refresh(index=self.index_name)
 
+    def _raises_mapper_parsing_exception(self, new_index_config: dict):
+        """Put mapping on index and return True if it fails."""
+        try:
+            self.client.indices.put_mapping(
+                index=self.index_name,
+                body=new_index_config,
+            )
+        except RequestError as e:
+            if "mapper_parsing_exception" in str(e):
+                msg = f"Mapper parsing exception: {e}"
+                logger.warning(msg)
+                return True
+        return False
+
     def test_successful_reindex(self):
         """Test successful reindex with matching document counts."""
 
@@ -543,7 +633,30 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         )
         assert initial_response["hits"]["total"]["value"] == 1
 
-        # Mock user input and metadata validation
+        new_index_mapping = get_mapping_by_capture_type(self.capture_type)
+        new_index_config = {
+            "mappings": new_index_mapping,
+            "settings": {
+                "index": {
+                    "number_of_shards": 1,
+                    "number_of_replicas": 1,
+                },
+            },
+        }
+
+        # assert that the current index mapping is not the new mapping
+        old_index_mapping = self.client.indices.get_mapping(index=self.index_name)
+        assert old_index_mapping != new_index_mapping, (
+            "Index mapping is already the new mapping"
+        )
+
+        # assert that the put_mapping operation fails
+        # this means we need to use replace_index
+        assert self._raises_mapper_parsing_exception(new_index_config), (
+            "put_mapping operation should fail"
+        )
+
+        # Mock user input
         with (
             mock.patch("builtins.input", return_value="y"),
             self._mock_metadata_validation(),
@@ -551,13 +664,36 @@ class OpenSearchDRFIndexResetTest(APITestCase):
             # Run replace_index command
             self._call_replace_index()
 
-        # Verify reindex
+        # Verify document reindexed
         self.client.indices.refresh(index=self.index_name)
         after_response = self.client.search(
             index=self.index_name,
             body={"query": {"match": {"_id": str(self.capture.uuid)}}},
         )
-        assert after_response["hits"]["total"]["value"] == 1
+        assert after_response["hits"]["total"]["value"] == 1, (
+            "Document was not reindexed"
+        )
+
+        # Verify mapping was updated
+        current_index_mapping = self.client.indices.get_mapping(index=self.index_name)[
+            self.index_name
+        ]["mappings"]
+        assert current_index_mapping != old_index_mapping, (
+            "Index mapping was not updated"
+        )
+
+        # check that the current mapping includes all the fields in the new mapping
+        # exact match is unreliable because of opensearch dynamic templates
+
+        # get the keys of the current mapping
+        current_mapping_keys = current_index_mapping["properties"].keys()
+        new_mapping_keys = new_index_mapping["properties"].keys()
+        assert all(key in current_mapping_keys for key in new_mapping_keys), (
+            "Current index mapping does not include all fields in the new mapping"
+        )
+
+        msg = f"New index mapping is correct: {new_index_mapping}"
+        logger.info(msg)
 
         # Verify metadata transformed
         doc = after_response["hits"]["hits"][0]["_source"]
@@ -616,7 +752,9 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         final_mapping = self.client.indices.get_mapping(
             index=self.index_name,
         )[self.index_name]["mappings"]
-        assert final_mapping == initial_mapping
+        assert final_mapping == initial_mapping, (
+            "Index mapping was not reset to original"
+        )
 
         # Verify backup index remains
         backup_indices = self.client.indices.get(index=f"{self.index_name}-backup-*")
@@ -703,14 +841,3 @@ class OpenSearchDRFIndexResetTest(APITestCase):
                 self.top_level_dir,
                 other_top_level_dir,
             ]
-
-    def tearDown(self):
-        """Clean up test data."""
-        # Delete test indices
-        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
-
-        # Clean up test objects in correct order
-        self.user.captures.all().delete()
-
-        # Finally delete the user
-        self.user.delete()

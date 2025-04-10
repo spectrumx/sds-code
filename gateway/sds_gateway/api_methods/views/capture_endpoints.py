@@ -38,6 +38,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSe
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
+from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
@@ -537,6 +538,19 @@ class CaptureViewSet(viewsets.ViewSet):
             is_deleted=False,
         )
         target_capture.soft_delete()
+
+        # set these properties on OpenSearch document
+        opensearch_client = get_opensearch_client()
+        opensearch_client.update(
+            index=target_capture.index_name,
+            id=target_capture.uuid,
+            body={
+                "doc": {
+                    "is_deleted": target_capture.is_deleted,
+                    "deleted_at": target_capture.deleted_at,
+                },
+            },
+        )
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)

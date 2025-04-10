@@ -677,10 +677,21 @@ class Command(BaseCommand):
                     )
 
                     # manually index the failed documents, skipping deleted captures
+                    failed_captures = []
                     for failure in e.info["failures"]:
                         capture = Capture.objects.get(uuid=failure["id"])
                         if not capture.is_deleted:
-                            self.reindex_single_capture(capture)
+                            reindexed = self.reindex_single_capture(capture)
+                            if not reindexed:
+                                failed_captures.append(capture)
+
+                    if failed_captures:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Failed to reindex {len(failed_captures)} "
+                                f"captures: {failed_captures}"
+                            )
+                        )
 
     def get_doc_count(self, client: OpenSearch, index_name: str) -> int:
         """Get the number of documents in an index."""
@@ -777,13 +788,29 @@ class Command(BaseCommand):
                 )
                 return
 
+            # verify backup index count matches original index count before continuing
+            assert self.get_doc_count(client, backup_index_name) == original_count, (
+                "Backup index count does not match original index count"
+            )
+
             # delete original index and recreate it with new mapping
             self.delete_index(client, index_name)
             self.create_index(client, index_name, new_index_config)
 
             # reindex captures
+            failed_captures = []
             for capture in captures:
-                self.reindex_single_capture(capture)
+                capture_reindexed = self.reindex_single_capture(capture)
+                if not capture_reindexed:
+                    failed_captures.append(capture)
+
+            if failed_captures:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to reindex {len(failed_captures)} "
+                        f"captures: {failed_captures}"
+                    )
+                )
 
             # Refresh newn index to make documents searchable
             client.indices.refresh(index=index_name)
