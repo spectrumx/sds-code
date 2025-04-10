@@ -620,6 +620,8 @@ class Command(BaseCommand):
         """Combine transform scripts into one source string."""
         return ";".join([script["source"] for script in transform_scripts.values()])
 
+    # This function uses the reindex API to reindex documents with mapping changes.
+    # It is kept here for reference, but is not used in the command.
     def reindex_with_mapping(
         self,
         client: OpenSearch,
