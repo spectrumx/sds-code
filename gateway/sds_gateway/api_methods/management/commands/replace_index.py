@@ -616,6 +616,10 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"Successfully reset {index_name} to its original form.")
         )
 
+    def combine_scripts(self, transform_scripts: dict) -> list:
+        """Combine transform scripts into one source string."""
+        return ";".join([script["source"] for script in transform_scripts.values()])
+
     def reindex_with_mapping(
         self,
         client: OpenSearch,
@@ -625,8 +629,18 @@ class Command(BaseCommand):
     ):
         """Reindex documents with mapping changes."""
         try:
-            # Perform reindex operation
-            body = {"source": {"index": source_index}, "dest": {"index": dest_index}}
+            # Get the transform scripts
+            transform_scripts = self.get_transform_scripts(capture_type)
+
+            # Perform reindex operation with combined transform scripts
+            body = {
+                "source": {"index": source_index},
+                "dest": {"index": dest_index},
+                "script": {
+                    "source": self.combine_scripts(transform_scripts),
+                    "lang": "painless",
+                },
+            }
 
             client.reindex(body=body)
 
@@ -638,13 +652,6 @@ class Command(BaseCommand):
                     f"Successfully reindexed from {source_index} to {dest_index}"
                 )
             )
-
-            # Apply field transforms
-            transform_scripts = self.get_transform_scripts(capture_type)
-            if transform_scripts:
-                self.apply_field_transforms(client, dest_index, transform_scripts)
-            else:
-                self.stdout.write(self.style.WARNING("No field transforms to apply"))
 
         except (RequestError, OpensearchConnectionError, NotFoundError) as e:
             self.stdout.write(self.style.ERROR(f"Error during reindex: {e!s}"))
