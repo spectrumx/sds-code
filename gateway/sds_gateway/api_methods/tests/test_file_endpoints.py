@@ -2,12 +2,14 @@
 
 import time
 import uuid
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import cast
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractBaseUser
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from rest_framework import status
@@ -22,6 +24,48 @@ if TYPE_CHECKING:
     from rest_framework_api_key.models import AbstractAPIKey
 
 User = get_user_model()
+
+
+def create_db_file(
+    owner: AbstractBaseUser,
+    content: bytes | None = None,
+    extras: Mapping[str, Any] | None = None,
+) -> File:
+    """File instance fixture through post serializer, saved to the DB.
+
+    Args:
+        owner:      The user instance owner of the file.
+        content:    The raw contents of the file.
+        extras:     Mapping of (serialized) attributes to add
+                    to the file, as sent to the REST API.
+    Returns:
+        File:       The file instance created and saved to the DB.
+    """
+    random_suffix = uuid.uuid4().hex
+    default_file_name = f"dummyfile-{random_suffix}.txt"
+    default_sds_path = "/dummy/path/to/files"
+    default_contents = b"dummy_content_for_testing"
+    default_media_type = "text/plain"
+    file_contents = SimpleUploadedFile(
+        name=default_file_name,
+        content=default_contents if content is None else content,
+        content_type=default_media_type,
+    )
+    file_payload_map = {
+        "directory": default_sds_path,
+        "file": file_contents,
+        "media_type": default_media_type,
+        "name": default_file_name,
+        "owner": owner.pk,
+    }
+    if extras:
+        file_payload_map.update(extras)
+    serializer = FilePostSerializer(
+        data=file_payload_map,
+        context={"request_user": owner},
+    )
+    serializer.is_valid(raise_exception=True)
+    return serializer.save()
 
 
 class FileTestCases(APITestCase):

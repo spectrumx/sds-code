@@ -10,6 +10,7 @@ from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
 from django.db import models
 from django.db.models import ProtectedError
+from django.db.models import QuerySet
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
@@ -66,6 +67,16 @@ class BaseModel(models.Model):
         self.save()
 
 
+class ProtectedFileQuerySet(QuerySet["File"]):
+    """Custom QuerySet to protect against deletion of files."""
+
+    def delete(self) -> tuple[int, dict[str, int]]:
+        """Override the delete method to raise ProtectedError if needed."""
+        for obj in self:
+            raise_if_file_deletion_is_blocked(instance=obj)
+        return super().delete()
+
+
 class File(BaseModel):
     """
     Model to define files uploaded through the API.
@@ -104,6 +115,9 @@ class File(BaseModel):
         related_name="files",
         on_delete=models.SET_NULL,
     )
+
+    # manager override
+    objects = ProtectedFileQuerySet.as_manager()
 
     def __str__(self) -> str:
         return f"{self.directory}{self.name}"
