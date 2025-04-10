@@ -9,6 +9,9 @@ from pathlib import Path
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
 from django.db import models
+from django.db.models import ProtectedError
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 
 
 class CaptureType(StrEnum):
@@ -121,6 +124,41 @@ class File(BaseModel):
         for chunk in file.chunks():
             checksum.update(chunk)
         return checksum.hexdigest()
+
+    def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
+        """Prevents file deletion when associated with capture or dataset."""
+        raise_if_file_deletion_is_blocked(instance=self)
+        return super().delete(*args, **kwargs)
+
+
+def raise_if_file_deletion_is_blocked(instance: File) -> None:
+    """Raises an error if the file passed can't be deleted.
+
+    Raises:
+        ProtectedError if the file is associated with a capture or dataset.
+    """
+    associations: list[str] = []
+    if instance.capture and not instance.capture.is_deleted:
+        associations.append(f"capture ({instance.capture.uuid})")
+    if instance.dataset and not instance.dataset.is_deleted:
+        associations.append(f"dataset ({instance.dataset.uuid})")
+    if not associations:
+        return
+    msg = (
+        f"Cannot delete file '{instance.name}': it is "
+        f"associated with {' and '.join(associations)}."
+        " Delete the associated object(s) first."
+    )
+    raise ProtectedError(msg, protected_objects={instance})
+
+
+@receiver(pre_delete, sender=File)
+def prevent_file_deletion(sender, instance: File, **kwargs) -> None:
+    """Prevents deletion of files associated with captures or datasets.
+
+    Version to cover bulk deletions from querysets.
+    """
+    raise_if_file_deletion_is_blocked(instance=instance)
 
 
 class Capture(BaseModel):
