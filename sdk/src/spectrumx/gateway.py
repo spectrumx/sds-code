@@ -22,6 +22,7 @@ from pydantic import Field
 from spectrumx.models.captures import CaptureType
 
 from .errors import AuthError
+from .errors import CaptureError
 from .errors import FileError
 from .models.files import File
 from .models.files import FileUpload
@@ -409,10 +410,8 @@ class GatewayClient:
         Args:
             uuid: The UUID of the file to delete as a hex string.
             verbose: Whether to log the request.
-
         Returns:
             True if the file was deleted successfully.
-
         Raises:
             FileError: If the file could not be deleted.
         """
@@ -465,7 +464,7 @@ class GatewayClient:
             data=payload,
             verbose=verbose,
         )
-        network.success_or_raise(response=response, ContextException=FileError)
+        network.success_or_raise(response=response, ContextException=CaptureError)
         return response.content
 
     def read_capture(
@@ -487,7 +486,7 @@ class GatewayClient:
             asset_id=capture_uuid.hex,
             verbose=verbose,
         )
-        network.success_or_raise(response, ContextException=FileError)
+        network.success_or_raise(response, ContextException=CaptureError)
         return response.content
 
     def list_captures(
@@ -507,7 +506,7 @@ class GatewayClient:
             verbose=verbose,
             params={"capture_type": capture_type},
         )
-        network.success_or_raise(response, ContextException=FileError)
+        network.success_or_raise(response, ContextException=CaptureError)
         return response.content
 
     def update_capture(
@@ -529,5 +528,24 @@ class GatewayClient:
             asset_id=capture_uuid.hex,
             verbose=verbose,
         )
-        network.success_or_raise(response, ContextException=FileError)
+        network.success_or_raise(response, ContextException=CaptureError)
         return response.content
+
+    def delete_capture(self, *, capture_uuid: uuid.UUID) -> None:
+        """Deletes a capture from SDS by its UUID.
+
+        Args:
+            capture_uuid: The UUID of the capture to delete.
+        Raises:
+            GatewayError: If the deletion request fails.
+        """
+        endpoint = f"{Endpoints.CAPTURES}/{capture_uuid.hex}"
+        log.debug(f"Sending DELETE request to {endpoint}")
+
+        response = self._request(
+            method=HTTPMethods.DELETE,
+            endpoint=Endpoints.CAPTURES,
+            asset_id=capture_uuid.hex,
+        )
+        network.success_or_raise(response, ContextException=CaptureError)
+        log.debug(f"Capture with UUID {capture_uuid} deleted successfully")

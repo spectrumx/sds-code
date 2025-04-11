@@ -153,7 +153,6 @@ class CaptureAPI:
 
     def update(
         self,
-        *,
         capture_uuid: uuid.UUID,
     ) -> None:
         """Updates a capture in SDS by re-discovering and re-indexing the files.
@@ -180,7 +179,6 @@ class CaptureAPI:
 
     def read(
         self,
-        *,
         capture_uuid: uuid.UUID,
     ) -> Capture:
         """Reads a specific capture from SDS.
@@ -200,6 +198,26 @@ class CaptureAPI:
         capture = Capture.model_validate_json(capture_raw)
         log.debug(f"Capture read with UUID {capture.uuid}")
         return capture
+
+    def delete(self, capture_uuid: uuid.UUID) -> bool:
+        """Deletes a capture from SDS by its UUID.
+
+        Args:
+            capture_uuid:   The UUID of the capture to delete.
+        Returns:
+            True if the capture was deleted successfully, or if in dry run mode.
+        Raises:
+            CaptureError: If the capture couldn't be deleted e.g.: if it doesn't exist;
+                if it has already been deleted; if this user doesn't own it.
+        """
+        log.debug(f"Deleting capture with UUID {capture_uuid}")
+
+        if self.dry_run:
+            log.debug(f"Dry run enabled: would delete capture {capture_uuid}")
+            return True
+        self.gateway.delete_capture(capture_uuid=capture_uuid)
+        log.debug(f"Capture deleted with UUID {capture_uuid}")
+        return True
 
 
 def _extract_page_from_payload(
