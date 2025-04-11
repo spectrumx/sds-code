@@ -38,6 +38,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSe
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
+from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
@@ -132,16 +133,17 @@ class CaptureViewSet(viewsets.ViewSet):
                     rh_scan_group=rh_scan_group,
                 )
 
-                # Connect the files to the capture
-                for cur_file in files_to_connect:
-                    cur_file.capture = capture
-                    cur_file.save()
-
+                # try to validate and index metadata before connecting files
                 self._validate_and_index_metadata(
                     capture=capture,
                     data_path=tmp_dir_path,
                     drf_channel=drf_channel,
                 )
+
+                # Connect the files to the capture
+                for cur_file in files_to_connect:
+                    cur_file.capture = capture
+                    cur_file.save()
 
     @extend_schema(
         request=CapturePostSerializer,
@@ -536,6 +538,19 @@ class CaptureViewSet(viewsets.ViewSet):
             is_deleted=False,
         )
         target_capture.soft_delete()
+
+        # set these properties on OpenSearch document
+        opensearch_client = get_opensearch_client()
+        opensearch_client.update(
+            index=target_capture.index_name,
+            id=target_capture.uuid,
+            body={
+                "doc": {
+                    "is_deleted": target_capture.is_deleted,
+                    "deleted_at": target_capture.deleted_at,
+                },
+            },
+        )
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
