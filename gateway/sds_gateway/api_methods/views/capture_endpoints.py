@@ -662,10 +662,13 @@ def _check_capture_creation_constraints(
                 "value should have been caught by the serializer validator.",
             )
         elif cap_qs.exists():
+            conflicting_capture = cap_qs.first()
+            assert conflicting_capture is not None, "QuerySet should not be empty here."
             _errors.update(
                 {
                     "drf_unique_channel_and_tld": "This channel and top level "
-                    "directory are already in use.",
+                    "directory are already in use by "
+                    f"another capture: {conflicting_capture.pk}",
                 },
             )
         else:
@@ -688,9 +691,12 @@ def _check_capture_creation_constraints(
                 "No scan group provided for RadioHound capture.",
             )
         elif cap_qs.exists():
+            conflicting_capture = cap_qs.first()
+            assert conflicting_capture is not None, "QuerySet should not be empty here."
             _errors.update(
                 {
-                    "rh_unique_scan_group": "This scan group is already in use.",
+                    "rh_unique_scan_group": f"This scan group is already in use by "
+                    f"another capture: {conflicting_capture.pk}",
                 },
             )
         else:
