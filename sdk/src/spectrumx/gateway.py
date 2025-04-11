@@ -464,7 +464,7 @@ class GatewayClient:
             data=payload,
             verbose=verbose,
         )
-        network.success_or_raise(response=response, ContextException=FileError)
+        network.success_or_raise(response=response, ContextException=CaptureError)
         return response.content
 
     def read_capture(
@@ -486,7 +486,7 @@ class GatewayClient:
             asset_id=capture_uuid.hex,
             verbose=verbose,
         )
-        network.success_or_raise(response, ContextException=FileError)
+        network.success_or_raise(response, ContextException=CaptureError)
         return response.content
 
     def list_captures(
@@ -506,7 +506,7 @@ class GatewayClient:
             verbose=verbose,
             params={"capture_type": capture_type},
         )
-        network.success_or_raise(response, ContextException=FileError)
+        network.success_or_raise(response, ContextException=CaptureError)
         return response.content
 
     def update_capture(
@@ -528,7 +528,7 @@ class GatewayClient:
             asset_id=capture_uuid.hex,
             verbose=verbose,
         )
-        network.success_or_raise(response, ContextException=FileError)
+        network.success_or_raise(response, ContextException=CaptureError)
         return response.content
 
     def delete_capture(self, *, capture_uuid: uuid.UUID) -> None:
