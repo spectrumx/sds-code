@@ -140,9 +140,14 @@ class File(BaseModel):
         return checksum.hexdigest()
 
     def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
-        """Prevents file deletion when associated with capture or dataset."""
+        """Hard delete this record after checking for blockers."""
         raise_if_file_deletion_is_blocked(instance=self)
         return super().delete(*args, **kwargs)
+
+    def soft_delete(self) -> None:
+        """Soft delete this record after checking for blockers."""
+        raise_if_file_deletion_is_blocked(instance=self)
+        return super().soft_delete()
 
 
 def raise_if_file_deletion_is_blocked(instance: File) -> None:

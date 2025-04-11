@@ -187,3 +187,40 @@ class FileProtectionTest(APITestCase):
         # ASSERT: ensure none of the files exist
         for file_instance in files:
             assert not File.objects.filter(pk=file_instance.pk).exists()
+
+    def test_soft_deletion_is_protected(self) -> None:
+        """Soft deletion of files associated with captures or datasets must fail."""
+        # ARRANGE: create capture and dataset, and associate file with both
+        protected_files = [
+            self.files_with_capture[0],
+            self.files_with_dataset[0],
+            self.files_with_capture_and_dataset[0],
+        ]
+
+        # ACT and ASSERT ensure soft deletion attempt raises ProtectedError
+        for file_instance in protected_files:
+            with pytest.raises(ProtectedError):
+                file_instance.soft_delete()
+
+        # ASSERT each file still exists and is not marked as deleted
+        for file_instance in protected_files:
+            q_set = File.objects.filter(pk=file_instance.pk)
+            assert q_set.exists(), "File should exist in the database."
+            target_file = q_set.first()
+            assert target_file is not None, "File should exist in the database."
+            assert not target_file.is_deleted, "File should not be marked as deleted."
+
+    def test_soft_deletion_is_allowed(self) -> None:
+        """Soft deletion of files without any associations should succeed."""
+        # ARRANGE: create file without associations
+        file_instance = self.files_without_associations[0]
+
+        # ACT by soft-deleting the file
+        file_instance.soft_delete()
+
+        # ASSERT the file is marked as deleted
+        sd_file = File.objects.filter(pk=file_instance.pk).first()
+        assert sd_file is not None, "Soft-deleted file not found in the database."
+        assert sd_file.is_deleted, (
+            "File should be marked as deleted after soft deletion."
+        )
