@@ -7,7 +7,9 @@ from pathlib import PurePosixPath
 
 import pytest
 from loguru import logger as log
+from pydantic import BaseModel
 from spectrumx.client import Client
+from spectrumx.errors import CaptureError
 from spectrumx.models.captures import CaptureType
 from spectrumx.utils import get_random_line
 
@@ -57,8 +59,51 @@ def test_capture_creation_drf(integration_client: Client) -> None:
     """Tests creating a Digital-RF capture."""
 
     # ARRANGE
+    cap_data = _upload_drf_capture_test_assets(integration_client)
 
-    # metadata in this digital-rf capture in test data
+    # ACT
+
+    # create a capture
+    capture = integration_client.captures.create(
+        top_level_dir=cap_data.capture_top_level,
+        channel=cap_data.drf_channel,
+        capture_type=CaptureType.DigitalRF,
+    )
+
+    # ASSERT
+
+    # basic capture information
+    assert capture.uuid is not None, "Capture UUID should not be None"
+    assert capture.capture_type == CaptureType.DigitalRF
+    assert capture.channel == drf_channel
+    assert capture.top_level_dir == cap_data.capture_top_level
+
+    # test capture properties
+    assert capture.capture_props["start_bound"] == cap_data.cap_start_bound
+    assert capture.capture_props["is_continuous"] == cap_data.cap_is_continuous
+    assert (
+        capture.capture_props["custom_attrs"]["receiver/info/mboard_serial"]
+        == cap_data.cap_serial
+    )
+
+
+class DRFCaptureAssets(BaseModel):
+    """Holds Digital-RF capture assets to ease uploads and capture creations."""
+
+    cap_is_continuous: bool
+    cap_serial: str
+    cap_start_bound: int
+    drf_channel: str
+    path_after_capture_data: PurePosixPath
+
+    @property
+    def capture_top_level(self) -> PurePosixPath:
+        """Constructs the full path for the capture on the SDS."""
+        return PurePosixPath("/") / self.path_after_capture_data
+
+
+def _upload_drf_capture_test_assets(integration_client: Client) -> DRFCaptureAssets:
+    """Helper to package and upload Digital-RF capture assets to SDS."""
     cap_start_bound: int = 1_719_499_740
     cap_is_continuous: bool = True
     cap_serial: str = "31649FE"
@@ -85,30 +130,12 @@ def test_capture_creation_drf(integration_client: Client) -> None:
         local_path=dir_top_level,
     )
 
-    # ACT
-
-    # create a capture
-    capture_top_level = PurePosixPath("/") / path_after_capture_data
-    capture = integration_client.captures.create(
-        top_level_dir=capture_top_level,
-        channel=drf_channel,
-        capture_type=CaptureType.DigitalRF,
-    )
-
-    # ASSERT
-
-    # basic capture information
-    assert capture.uuid is not None, "Capture UUID should not be None"
-    assert capture.capture_type == CaptureType.DigitalRF
-    assert capture.channel == drf_channel
-    assert capture.top_level_dir == capture_top_level
-
-    # test capture properties
-    assert capture.capture_props["start_bound"] == cap_start_bound
-    assert capture.capture_props["is_continuous"] == cap_is_continuous
-    assert (
-        capture.capture_props["custom_attrs"]["receiver/info/mboard_serial"]
-        == cap_serial
+    return DRFCaptureAssets(
+        cap_is_continuous=cap_is_continuous,
+        cap_serial=cap_serial,
+        cap_start_bound=cap_start_bound,
+        drf_channel=drf_channel,
+        path_after_capture_data=path_after_capture_data,
     )
 
 
@@ -155,6 +182,13 @@ def test_capture_creation_rh(integration_client: Client) -> None:
 
     with radiohound_file.open("r") as fp_json:
         radiohound_data = json.load(fp_json)
+    scan_group = radiohound_data["scan_group"]
+
+    # delete all captures with that scan group to avoid conflicts
+    _delete_rh_captures_by_scan_group(
+        integration_client=integration_client,
+        scan_group=scan_group,
+    )
 
     # create a capture
     capture_top_level = PurePosixPath("/") / rel_path_capture
@@ -305,11 +339,19 @@ def test_capture_update_rh(integration_client: Client) -> None:
     with radiohound_file.open("r") as fp_json:
         radiohound_data = json.load(fp_json)
 
+    scan_group = radiohound_data["scan_group"]
+
+    # delete all captures with that scan group to avoid conflicts
+    _delete_rh_captures_by_scan_group(
+        integration_client=integration_client,
+        scan_group=scan_group,
+    )
+
     # create a capture
     capture_top_level = PurePosixPath("/") / rh_capture_update_sds_path
     capture = integration_client.captures.create(
         top_level_dir=capture_top_level,
-        scan_group=radiohound_data["scan_group"],
+        scan_group=scan_group,
         capture_type=CaptureType.RadioHound,
     )
 
@@ -352,6 +394,27 @@ def test_capture_update_rh(integration_client: Client) -> None:
 
     # if no exceptions occurred, the test passes
     assert True
+
+
+def _delete_rh_captures_by_scan_group(
+    integration_client: Client, scan_group: str
+) -> None:
+    """Helper to delete all RadioHound captures with a specific scan group."""
+    captures = integration_client.captures.listing(
+        capture_type=CaptureType.RadioHound,
+    )
+    same_scan_group_caps = [
+        capture for capture in captures if str(capture.scan_group) == scan_group
+    ]
+    if not same_scan_group_caps:
+        log.debug("No captures to delete")
+        return
+    log.warning(
+        f"Deleting {len(same_scan_group_caps)} captures with scan group '{scan_group}'"
+    )
+    for capture in same_scan_group_caps:
+        log.warning(f"Deleting capture: {capture.uuid}")
+        integration_client.captures.delete(capture_uuid=capture.uuid)
 
 
 @pytest.mark.integration
@@ -433,6 +496,9 @@ def test_capture_reading_drf(integration_client: Client) -> None:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
             *PassthruEndpoints.capture_deletion(),
         ]
     ],
@@ -442,10 +508,14 @@ def test_capture_deletion(integration_client: Client) -> None:
     """Tests deleting a capture."""
 
     # ARRANGE
-    # Create a capture to delete
+    # create capture contents on SDS
+    cap_data = _upload_drf_capture_test_assets(integration_client)
+
+    # create a capture to delete
     capture = integration_client.captures.create(
-        top_level_dir=PurePosixPath("/test/capture/directory"),
+        top_level_dir=cap_data.capture_top_level,
         capture_type=CaptureType.DigitalRF,
+        channel=cap_data.drf_channel,
     )
 
     # ACT
@@ -453,7 +523,10 @@ def test_capture_deletion(integration_client: Client) -> None:
 
     # ASSERT
     assert result is True, "Capture deletion should return True"
-    # Additional assertions can be added to verify the capture no longer exists
+    with pytest.raises(CaptureError):
+        integration_client.captures.read(
+            capture_uuid=capture.uuid,
+        )
 
 
 def _upload_assets(
