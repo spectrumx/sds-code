@@ -10,6 +10,7 @@ Metadata management and web interface for SDS.
     + [Local deploy](#local-deploy)
     + [Debugging tips](#debugging-tips)
     + [Production deploy](#production-deploy)
+    + [OpenSearch Query Tips](#opensearch-query-tips)
 
 ## Development environment
 
@@ -91,14 +92,14 @@ For the local deploy:
 3. Make Django migrations and run them:
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py makemigrations
-    docker exec -it sds-gateway-local-app python manage.py migrate
+    docker exec -it sds-gateway-local-app uv run python manage.py makemigrations
+    docker exec -it sds-gateway-local-app uv run python manage.py migrate
     ```
 
 4. Create the first superuser:
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py createsuperuser
+    docker exec -it sds-gateway-local-app uv run python manage.py createsuperuser
     ```
 
 5. Access the web interface:
@@ -114,7 +115,7 @@ For the local deploy:
 7. Run the test suite:
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py test --force-color
+    docker exec -it sds-gateway-local-app uv run python manage.py test --force-color
     ```
 
     Tests that run:
@@ -133,7 +134,7 @@ For the local deploy:
 8. Run template checks:
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py validate_templates
+    docker exec -it sds-gateway-local-app uv run python manage.py validate_templates
     ```
 
 ## Debugging tips
@@ -141,7 +142,7 @@ For the local deploy:
 + Where are my static files served from?
     + See [localhost:3000/webpack-dev-server](http://localhost:3000/webpack-dev-server).
 + What is the URL to X / how to see my routing table?
-    + `docker exec -it sds-gateway-local-app python manage.py show_urls`.
+    + `docker exec -it sds-gateway-local-app uv run python manage.py show_urls`.
     + `show_urls` is provided by `django-extensions`.
 
 ## Production deploy
@@ -240,13 +241,13 @@ Keep this in mind, however:
     Optionally, just run them in case you have a staging deploy and would like to test new migrations first.
 
     ```bash
-    docker exec -it sds-gateway-prod-app bash -c "python manage.py makemigrations && python manage.py migrate"
+    docker exec -it sds-gateway-prod-app bash -c "uv run python manage.py makemigrations && uv run python manage.py migrate"
     ```
 
 4. Create the first **superuser**:
 
     ```bash
-    docker exec -it sds-gateway-prod-app python manage.py createsuperuser
+    docker exec -it sds-gateway-prod-app uv run python manage.py createsuperuser
 
     # if you forget or lose the superuser password, you can reset it with:
     docker exec -it sds-gateway-prod-app python manage.py changepassword <email>
@@ -307,7 +308,7 @@ Keep this in mind, however:
 9. Run the **test** suite:
 
     ```bash
-    docker exec -it sds-gateway-prod-app python manage.py test
+    docker exec -it sds-gateway-prod-app uv run python manage.py test
     ```
 
 10. Don't forget to **approve users** to allow them to create API keys.

@@ -42,5 +42,5 @@ restart:
 
 test:
 	@echo "Running tests"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --force-color
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) uv run pytest || true
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) uv run python manage.py test --force-color

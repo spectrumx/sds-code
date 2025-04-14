@@ -4,11 +4,17 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+echo "Updating installed dependencies..."
+uv sync --frozen --extra local
+
+sleep 3600
+
 # Run migrations
-python manage.py migrate
+echo "Running database migrations..."
+uv run python manage.py migrate
 
 echo "Initializing OpenSearch indices..."
-python manage.py init_indices
+uv run python manage.py init_indices
 
-# Start the application
-exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
+echo "Starting the application..."
+exec uv run uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
