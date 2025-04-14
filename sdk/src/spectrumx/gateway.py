@@ -22,6 +22,7 @@ from pydantic import Field
 from spectrumx.models.captures import CaptureType
 
 from .errors import AuthError
+from .errors import CaptureError
 from .errors import FileError
 from .models.files import File
 from .models.files import FileUpload
@@ -508,6 +509,35 @@ class GatewayClient:
             params={"capture_type": capture_type},
         )
         network.success_or_raise(response, ContextException=FileError)
+        return response.content
+
+    def search_captures(
+        self,
+        *,
+        field_path: str,
+        query_type: str,
+        filter_value: str | dict[str, Any],
+        verbose: bool = False,
+    ) -> bytes:
+        """Searches captures on the SDS API.
+
+        Returns:
+            The response content from SDS Gateway.
+        """
+        metadata_filters = [
+            {
+                "field_path": field_path,
+                "query_type": query_type,
+                "filter_value": filter_value,
+            }
+        ]
+        response = self._request(
+            method=HTTPMethods.GET,
+            endpoint=Endpoints.CAPTURES,
+            verbose=verbose,
+            params={"metadata_filters": metadata_filters},
+        )
+        network.success_or_raise(response, ContextException=CaptureError)
         return response.content
 
     def update_capture(
