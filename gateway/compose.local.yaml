@@ -53,7 +53,6 @@ services:
             - ./.envs/local/opensearch.env
         ports:
             - "8000:8000" # make sure this port matches traefik's config, if used
-        command: /start
         networks:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net

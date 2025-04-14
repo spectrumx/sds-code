@@ -94,15 +94,14 @@ For the local deploy:
 3. Make Django migrations and run them:
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py makemigrations
-    docker exec -it sds-gateway-local-app python manage.py migrate
+    docker exec -it sds-gateway-local-app uv run manage.py makemigrations
+    docker exec -it sds-gateway-local-app uv run manage.py migrate
     ```
 
 4. Create the first superuser:
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py createsuperuser
-    # follow the prompts to set the username/email and password
+    docker exec -it sds-gateway-local-app uv run manage.py createsuperuser
     ```
 
 5. Initialize OpenSearch indices
@@ -136,12 +135,12 @@ For the local deploy:
     Alternatively, run them as:
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py validate_templates
-    docker exec -it sds-gateway-local-app pytest
+    docker exec -it sds-gateway-local-app uv run manage.py validate_templates
+    docker exec -it sds-gateway-local-app uv run pytest
 
     # or with a production setting:
-    docker exec -it sds-gateway-prod-app python manage.py validate_templates
-    docker exec -it sds-gateway-prod-app pytest
+    docker exec -it sds-gateway-prod-app uv run manage.py validate_templates
+    docker exec -it sds-gateway-prod-app uv run pytest
     ```
 
 ## Debugging tips
@@ -149,7 +148,7 @@ For the local deploy:
 + Where are my static files served from?
     + See [localhost:3000/webpack-dev-server](http://localhost:3000/webpack-dev-server).
 + What is the URL to X / how to see my routing table?
-    + `docker exec -it sds-gateway-local-app python manage.py show_urls`.
+    + `docker exec -it sds-gateway-local-app uv run manage.py show_urls`.
     + `show_urls` is provided by `django-extensions`.
 
 ## Production deploy
@@ -250,16 +249,16 @@ Keep this in mind, however:
     Optionally, just run them in case you have a staging deploy and would like to test new migrations first.
 
     ```bash
-    docker exec -it sds-gateway-prod-app bash -c "python manage.py makemigrations && python manage.py migrate"
+    docker exec -it sds-gateway-prod-app bash -c "uv run manage.py makemigrations && uv run manage.py migrate"
     ```
 
 4. Create the first **superuser**:
 
     ```bash
-    docker exec -it sds-gateway-prod-app python manage.py createsuperuser
+    docker exec -it sds-gateway-prod-app uv run manage.py createsuperuser
 
     # if you forget or lose the superuser password, you can reset it with:
-    docker exec -it sds-gateway-prod-app python manage.py changepassword <email>
+    docker exec -it sds-gateway-prod-app uv run manage.py changepassword <email>
     ```
 
 5. Try the **web interface** and **admin panel**:
@@ -400,7 +399,7 @@ Keep this in mind, however:
 9. Run the **test** suite:
 
     ```bash
-    docker exec -it sds-gateway-prod-app python manage.py test
+    docker exec -it sds-gateway-prod-app uv run manage.py test
     ```
 
 10. Don't forget to **approve users** to allow them to create API keys.

@@ -62,10 +62,10 @@ test:
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py validate_templates
 
 	@echo "Running tests"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest $(ARGS)
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) uv run pytest $(ARGS)
 
 	@# Django's test runner: obsolete, subset of pytest tests, left as reference.
-	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0
+	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) uv run manage.py test --no-input --force-color --verbosity 0
 
 update:
 	@# uv sync --upgrade # re-enable when uv integration is done
