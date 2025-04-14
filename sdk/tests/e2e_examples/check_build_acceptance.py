@@ -234,6 +234,18 @@ def check_capture_usage() -> None:
     # (then the SDK can't determine whether the capture exists or not)
 
 
+def check_experiments() -> None:
+    """Basic experimental features usage example."""
+    sds = Client(host=SDS_HOST)
+
+    from spectrumx import experiments
+
+    assert not hasattr(sds.captures, "search"), "Search should not be defined yet"
+    experiments.enable_capture_search()
+    assert isinstance(sds.captures.search, Callable), "Search should be callable"
+    print(sds.captures.search.__doc__)
+
+
 @dataclass
 class CheckCaller:
     call_fn: Callable[[], None]
@@ -261,6 +273,7 @@ def main() -> None:
         CheckCaller(call_fn=check_error_handling, name="Error handling"),
         CheckCaller(call_fn=check_file_listing_usage, name="File listing usage"),
         CheckCaller(call_fn=check_capture_usage, name="Capture usage"),
+        CheckCaller(call_fn=check_experiments, name="Experimental features"),
     ]
     for check in all_checks:
         log_header(f"Running {check.name} check...".upper())

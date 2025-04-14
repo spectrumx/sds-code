@@ -11,6 +11,7 @@ import responses
 from loguru import logger as log
 from pydantic import UUID4
 from spectrumx import Client
+from spectrumx.api.captures import _enable_experimental_search
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
@@ -319,3 +320,108 @@ def test_delete_capture_dry_run(client: Client) -> None:
 
     # ASSERT
     assert result is True  # Dry run should simulate success
+
+
+def test_search_captures_freq_range(
+    client: Client,
+    responses: responses.RequestsMock,
+    sample_capture_data: dict[str, Any],
+) -> None:
+    """Test searching captures with a frequency range query."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    _enable_experimental_search()  # Enable the experimental search feature
+
+    search_response = [sample_capture_data]
+    field_path = "capture_props.center_freq"
+    query_type = "range"
+    filter_value = {"gte": 1990000000, "lte": 2010000000}
+    search_endpoint = get_captures_endpoint(client)
+
+    responses.add(
+        method=responses.GET,
+        url=search_endpoint,
+        status=200,
+        json=search_response,
+    )
+
+    # ACT
+    captures = client.captures.search(
+        field_path=field_path,
+        query_type=query_type,
+        filter_value=filter_value,
+    )
+
+    # ASSERT
+    assert len(captures) == 1
+    assert str(captures[0].uuid) == sample_capture_data["uuid"]
+    assert captures[0].capture_type.value == sample_capture_data["capture_type"]
+    assert len(captures[0].files) == len(sample_capture_data["files"])
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.method == "GET"
+
+
+def test_search_captures_dry_run(client: Client) -> None:
+    """Test searching captures in dry run mode."""
+    # ARRANGE
+    client.dry_run = True
+    _enable_experimental_search()
+
+    field_path = "capture_props.center_freq"
+    query_type = "range"
+    filter_value = {"gte": 1990000000, "lte": 2010000000}
+
+    # ACT
+    captures = client.captures.search(
+        field_path=field_path,
+        query_type=query_type,
+        filter_value=filter_value,
+    )
+
+    # ASSERT
+    num_dry_run_captures_for_search = 5
+    assert isinstance(captures, list)
+    assert len(captures) == num_dry_run_captures_for_search
+    for capture in captures:
+        assert isinstance(capture, Capture)
+        assert capture.uuid is not None
+        assert hasattr(capture, "capture_type")
+
+
+def test_search_captures_exact_match(
+    client: Client,
+    responses: responses.RequestsMock,
+    sample_capture_data: dict[str, Any],
+) -> None:
+    """Test searching captures with an exact match query."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    _enable_experimental_search()  # Enable the experimental search feature
+
+    search_response = [sample_capture_data]
+    field_path = "capture_props.channel"
+    query_type = "term"
+    filter_value = {"value": "channel1"}
+    search_endpoint = get_captures_endpoint(client)
+
+    responses.add(
+        method=responses.GET,
+        url=search_endpoint,
+        status=200,
+        json=search_response,
+    )
+
+    # ACT
+    matched_caps = client.captures.search(
+        field_path=field_path,
+        query_type=query_type,
+        filter_value=filter_value,
+    )
+
+    # ASSERT
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.method == "GET"
+    assert len(matched_caps) == 1
+    capture = matched_caps[0]
+    assert str(capture.uuid) == sample_capture_data["uuid"]
+    assert capture.capture_type.value == sample_capture_data["capture_type"]

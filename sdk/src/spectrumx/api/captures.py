@@ -220,6 +220,60 @@ class CaptureAPI:
         return True
 
 
+def _enable_experimental_search() -> None:
+    """Enables the experimental search feature."""
+
+    def search(
+        self: CaptureAPI,
+        *,
+        field_path: str,
+        query_type: str,
+        filter_value: dict[str, Any],
+    ) -> list[Capture]:
+        """Searches for captures in SDS based on a query string.
+
+        More details on OpenSearch querying:
+        https://github.com/spectrumx/sds-code/tree/master/gateway#opensearch-query-tips
+
+        Args:
+            query: The search query string.
+            limit: The maximum number of results to return.
+        Returns:
+            A list of captures matching the query.
+        """
+
+        if self.dry_run:
+            log.debug("Dry run enabled: simulating search results")
+            rng = random.Random()  # noqa: S311
+            return [
+                _generate_capture(capture_type=rng.choice(list(CaptureType)))
+                for _ in range(5)
+            ]
+
+        search_results_raw = self.gateway.search_captures(
+            field_path=field_path,
+            query_type=query_type,
+            filter_value=filter_value,
+        )
+        search_results = json.loads(search_results_raw)
+        captures: list[Capture] = []
+        for result_raw in search_results:
+            try:
+                capture = Capture.model_validate(result_raw)
+                captures.append(capture)
+            except pydantic.ValidationError as err:
+                log_user_warning(
+                    f"Validation error loading search result: {result_raw}"
+                )
+                log.exception(err)
+                continue
+        log.debug(f"Search returned {len(captures)} captures")
+        return captures
+
+    CaptureAPI.search = search
+    log.info("Experimental search feature enabled for CaptureAPI")
+
+
 def _extract_page_from_payload(
     capture_result_raw: bytes,
 ) -> tuple[list[dict[str, Any]], bool | None]:

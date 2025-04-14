@@ -16,6 +16,8 @@ except ImportError:
 
 import importlib.metadata
 
+from spectrumx.utils import log_user_error
+
 LIB_NAME: str = "spectrumx"
 
 # disables the loguru logger if it is not imported
@@ -29,6 +31,32 @@ except ImportError:
     pass
 
 __version__ = importlib.metadata.version(LIB_NAME)
+
+# -------------------
+# experimental features
+
+
+class Experiments:
+    def enable_capture_search(self) -> None:
+        """Enables the experimental capture search feature.
+
+        This feature is experimental and may change or be removed in future versions.
+        """
+        try:
+            from spectrumx.api.captures import (
+                _enable_experimental_search,  # pyright: ignore[reportPrivateUsage]
+            )
+
+            _enable_experimental_search()
+        except ImportError as err:
+            log_user_error(
+                "Failed to import OpenSearch DSL module. Ensure it is installed."
+            )
+            msg = "OpenSearch DSL module is required for this feature."
+            raise ImportError(msg) from err
+
+
+experiments = Experiments()
 
 # -------------------
 # package imports
@@ -65,6 +93,7 @@ __all__ = [
     "Client",
     "__version__",
     "enable_logging",
+    "experiments",
     "models",
 ]
 
