@@ -53,10 +53,10 @@ jobs:
               run: docker compose -f compose.docs.yaml build docs
 
             - name: Run DB Migrations
-              run: docker compose -f compose.local.yaml run --rm django python manage.py migrate
+              run: docker compose -f compose.local.yaml run --rm django uv run python manage.py migrate
 
             - name: Run Django Tests
-              run: docker compose -f compose.local.yaml run django pytest
+              run: docker compose -f compose.local.yaml run --rm django uv run python manage.py test
 
             - name: Tear down the Stack
               run: docker compose -f compose.local.yaml down
