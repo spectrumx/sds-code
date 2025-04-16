@@ -485,12 +485,15 @@ class Command(BaseCommand):
         marked_for_deletion: list[Capture] = []
         for capture in captures:
             all_files = cast("QuerySet[File]", capture.files.all())
-            if (
-                not all_files
-                or all_files.count() == 0
-                or all(file_obj.is_deleted for file_obj in all_files)
-            ):
+            has_files = all_files and all_files.count() > 0
+            has_files_but_all_missing = has_files and all(
+                file_obj.is_deleted for file_obj in all_files
+            )
+            if has_files_but_all_missing:
                 marked_for_deletion.append(capture)
+            # Note that captures without any files are NOT marked for deletion.
+            # This is to facilitate tests and to reduce the impact of the index
+            # replacement procedure.
         if not marked_for_deletion:
             return
 
@@ -498,9 +501,16 @@ class Command(BaseCommand):
             f"Deleting {len(marked_for_deletion)} captures "
             "that only have missing files linked to them.",
         )
+
+        # remove capture references in index
+        for capture in marked_for_deletion:
+            self._delete_doc_by_capture_uuid(capture_uuid=capture.uuid)
+
+        # remove captures from DB
         Capture.objects.filter(
             uuid__in=[capture.uuid for capture in marked_for_deletion],
         ).delete()
+
         log.success(
             f"Successfully deleted {len(marked_for_deletion)} captures.",
         )
