@@ -12,7 +12,9 @@ from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_clien
 
 
 def create_index(
-    client: OpenSearch, index_name: str, capture_type: CaptureType
+    client: OpenSearch,
+    index_name: str,
+    capture_type: CaptureType,
 ) -> None:
     try:
         # Define the index settings and mappings

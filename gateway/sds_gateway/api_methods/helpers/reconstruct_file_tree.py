@@ -60,7 +60,7 @@ def reconstruct_tree(
             directory__startswith=str(virtual_top_dir).rstrip("/"),  # parent dir match
         ),
     }
-    # Get all files owned by user in this directory
+    # get all files owned by user in this directory
     user_file_queryset = File.objects.filter(
         owner=owner,
         is_deleted=False,
