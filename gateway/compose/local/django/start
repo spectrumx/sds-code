@@ -1,14 +1,16 @@
 #!/bin/bash
 
-set -o errexit
-set -o pipefail
-set -o nounset
+set -euo pipefail
 
-# Run migrations
+echo "Running database migrations..."
 python manage.py migrate
 
 echo "Initializing OpenSearch indices..."
-python manage.py init_indices
+python manage.py init_indices || {
+    echo >&2 "Failed to initialize OpenSearch indices. Waiting for manual input."
+    sleep 3600
+    exit 1
+}
 
-# Start the application
+echo "Starting Uvicorn workers..."
 exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
