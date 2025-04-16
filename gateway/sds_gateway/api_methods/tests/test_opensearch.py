@@ -337,7 +337,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
         with (
             mock.patch("builtins.input", return_value="y"),
             mock.patch(
-                "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type"
+                "sds_gateway.api_methods.management.commands.replace_index.get_mapping_by_capture_type"
             ) as mock_mapping,
         ):
             # Return an invalid mapping that will cause reindex to fail
@@ -727,7 +727,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         with (
             mock.patch("builtins.input", return_value="y"),
             mock.patch(
-                "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type"
+                "sds_gateway.api_methods.management.commands.replace_index.get_mapping_by_capture_type"
             ) as mock_mapping,
             self._mock_metadata_validation(),
         ):
