@@ -131,7 +131,7 @@ class CaptureViewSet(viewsets.ViewSet):
 
         # normalize top level directory under user
         user_file_prefix = f"/files/{requester.email!s}"
-        if not top_level_dir.startswith(user_file_prefix):
+        if not str(top_level_dir).startswith(user_file_prefix):
             top_level_dir = Path(f"{user_file_prefix!s}{top_level_dir!s}")
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -143,11 +143,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 drf_capture_type=capture.capture_type,
                 rh_scan_group=rh_scan_group,
             )
-
-            if not files_to_connect:
-                msg = f"No files found for capture '{capture.uuid}'"
-                log.warning(msg)
-                raise FileNotFoundError(msg)
 
             # try to validate and index metadata before connecting files
             self._validate_and_index_metadata(
@@ -161,9 +156,16 @@ class CaptureViewSet(viewsets.ViewSet):
                 cur_file.capture = capture
                 cur_file.save()
 
-            log.info(
-                f"Connected {len(files_to_connect)} files to capture '{capture.uuid}'",
-            )
+            if not files_to_connect:
+                msg = (
+                    f"No files found for capture '{capture.uuid}' at '{top_level_dir}'"
+                )
+                log.warning(msg)
+            else:
+                log.info(
+                    f"Connected {len(files_to_connect)} "
+                    f"files to capture '{capture.uuid}'",
+                )
 
     @extend_schema(
         request=CapturePostSerializer,

@@ -2,6 +2,8 @@
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/digital-rf/README.md
 # the mapping below is used for drf capture metadata parsing in extract_drf_metadata.py
 
+from typing import Any
+
 from sds_gateway.api_methods.models import CaptureType
 
 drf_capture_metadata_schema = {
@@ -311,7 +313,7 @@ rh_capture_index_mapping = {
                         "type": "integer",
                     },
                 },
-            }
+            },
         },
     },
     "hardware_board_id": {
@@ -371,7 +373,9 @@ search_properties = {
 }
 
 
-def get_mapping_by_capture_type(capture_type: CaptureType) -> dict:
+def get_mapping_by_capture_type(
+    capture_type: CaptureType,
+) -> dict[str, str | dict[str, Any]]:
     """Get the mapping for a given capture type."""
 
     return {
