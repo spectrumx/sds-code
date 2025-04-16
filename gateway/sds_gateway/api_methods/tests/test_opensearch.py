@@ -307,14 +307,20 @@ class OpenSearchRHIndexResetTest(APITestCase):
         # exact match is unreliable because of opensearch dynamic templates
 
         # get the keys of the current mapping
-        current_mapping_keys = current_index_mapping["properties"].keys()
-        new_mapping_keys = new_index_mapping["properties"].keys()
-        assert all(key in current_mapping_keys for key in new_mapping_keys), (
-            "Current index mapping does not include all fields in the new mapping"
+        current_mapping_keys = set(current_index_mapping["properties"].keys())
+        new_mapping_keys = set(new_index_mapping["properties"].keys())
+        missing_from_current = new_mapping_keys - current_mapping_keys
+        missing_from_new = current_mapping_keys - new_mapping_keys
+        assert not missing_from_new, (
+            "Current index mapping is missing fields from the new mapping: "
+            f"{missing_from_new}"
         )
-
-        msg = f"New index mapping is correct: {new_index_mapping}"
-        logger.info(msg)
+        assert not missing_from_current, (
+            "Current index mapping has extra fields not in the new mapping: "
+            f"{missing_from_current}"
+        )
+        msg = "New index mapping is correct"
+        logger.debug(msg)
 
         # Verify metadata transformed
         doc = after_response["hits"]["hits"][0]["_source"]
@@ -343,7 +349,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
         with (
             mock.patch("builtins.input", return_value="y"),
             mock.patch(
-                "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type",
+                "sds_gateway.api_methods.management.commands.replace_index.get_mapping_by_capture_type",
             ) as mock_mapping,
         ):
             # return an invalid mapping that will cause reindex to fail
@@ -590,6 +596,10 @@ class OpenSearchDRFIndexResetTest(APITestCase):
 
     def _call_replace_index(self) -> None:
         """Call replace_index command."""
+        logger.debug(
+            "Calling 'replace_index' for index "
+            f"'{self.index_name}' and '{self.capture_type}'",
+        )
         call_command(
             "replace_index",
             index_name=self.index_name,
@@ -669,6 +679,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
             self._mock_metadata_validation(),
         ):
             # Run replace_index command
+            logger.debug("Calling 'replace_index' command")
             self._call_replace_index()
 
         # Verify document reindexed
@@ -681,7 +692,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
             "Document was not reindexed"
         )
 
-        # Verify mapping was updated
+        # verify mapping was updated
         current_index_mapping = self.client.indices.get_mapping(index=self.index_name)[
             self.index_name
         ]["mappings"]
@@ -693,16 +704,23 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         # exact match is unreliable because of opensearch dynamic templates
 
         # get the keys of the current mapping
-        current_mapping_keys = current_index_mapping["properties"].keys()
-        new_mapping_keys = new_index_mapping["properties"].keys()
-        assert all(key in current_mapping_keys for key in new_mapping_keys), (
-            "Current index mapping does not include all fields in the new mapping"
+        _current_mapping_keys = set(current_index_mapping["properties"].keys())
+        _new_mapping_keys = set(new_index_mapping["properties"].keys())
+        missing_from_current = _new_mapping_keys - _current_mapping_keys
+        missing_from_new = _current_mapping_keys - _new_mapping_keys
+
+        # ASSERT the current mapping includes all the fields in the new mapping
+        assert not missing_from_current, (
+            f"Missing fields in current mapping: {missing_from_current}"
+        )
+        assert not missing_from_new, (
+            f"Extra fields in current mapping: {missing_from_new}"
         )
 
-        msg = f"New index mapping is correct: {new_index_mapping}"
-        logger.info(msg)
+        msg = "New index mapping is correct"
+        logger.debug(msg)
 
-        # Verify metadata transformed
+        # ASSERT metadata is transformed
         doc = after_response["hits"]["hits"][0]["_source"]
         assert doc["search_props"]["center_frequency"] == self.json_file["center_freq"]
         assert doc["search_props"]["sample_rate"] == (
@@ -733,7 +751,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         with (
             mock.patch("builtins.input", return_value="y"),
             mock.patch(
-                "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type",
+                "sds_gateway.api_methods.management.commands.replace_index.get_mapping_by_capture_type",
             ) as mock_mapping,
             self._mock_metadata_validation(),
         ):
