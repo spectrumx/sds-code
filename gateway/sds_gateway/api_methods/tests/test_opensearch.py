@@ -1,37 +1,39 @@
+"""Tests for OpenSearch index reset and reindexing."""
+
 import base64
 import json
-import logging
 import uuid
 from pathlib import Path
+from typing import cast
 from unittest import mock
 
 import numpy as np
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from loguru import logger
 from opensearchpy.exceptions import RequestError
 from rest_framework.test import APITestCase
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
 from sds_gateway.users.models import User
 
-logger = logging.getLogger(__name__)
-
 
 class OpenSearchHealthCheckTest(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = get_opensearch_client()
 
-    def test_opensearch_health_check(self):
+    def test_opensearch_health_check(self) -> None:
         assert self.client.ping()
 
 
 class OpenSearchRHIndexResetTest(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = get_opensearch_client()
         self.test_index_prefix = "captures-test-"
         self.capture_type = CaptureType.RadioHound
@@ -85,25 +87,24 @@ class OpenSearchRHIndexResetTest(APITestCase):
         self._initialize_test_index()
         self._index_test_capture(self.capture)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up test data"""
-        # Delete test indices
-        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
+        self.client.indices.delete(
+            index=f"{self.test_index_prefix}*",
+            ignore_unavailable=True,  # pyright: ignore[reportCallIssue]
+        )
 
-        # Clean up test objects in correct order
+        # clean up test objects in correct order
         self.user.captures.all().delete()
-
-        # Then delete the file
         self.file.delete()
-
-        # Finally delete the user
         self.user.delete()
 
-    def _setup_test_data(self):
+    def _setup_test_data(self) -> None:
         """Setup test data for RH capture."""
         # Create a simple array of 10 float32 values
         test_data = np.array(
-            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0], dtype=np.float32
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+            dtype=np.float32,
         )
         # Convert to bytes and base64 encode
         data_bytes = test_data.tobytes()
@@ -120,7 +121,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
                     "gain": 1,
                     "samples": 1024,
                     "span": 20000000,
-                }
+                },
             },
             "data": data_base64,
             "gain": 1.0,
@@ -149,7 +150,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
 
         self.file = self._create_test_file(self.user)
 
-    def _create_test_capture(self, owner: User, top_level_dir: str):
+    def _create_test_capture(self, owner: User, top_level_dir: str) -> Capture:
         """Create and index a test capture."""
         return Capture.objects.create(
             owner=owner,
@@ -159,11 +160,13 @@ class OpenSearchRHIndexResetTest(APITestCase):
             top_level_dir=top_level_dir,
         )
 
-    def _create_test_file(self, owner: User):
+    def _create_test_file(self, owner: User) -> File:
         # Create File object in MinIO/DB
         json_content = json.dumps(self.json_file).encode("utf-8")
         self.uploaded_file = SimpleUploadedFile(
-            "test.rh.json", json_content, content_type="application/json"
+            "test.rh.json",
+            json_content,
+            content_type="application/json",
         )
 
         file_data = {
@@ -180,7 +183,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
         serializer.is_valid(raise_exception=True)
         return serializer.save()
 
-    def _initialize_test_index(self):
+    def _initialize_test_index(self) -> None:
         """Initialize test index with mapping."""
 
         # initialize test index with old mapping
@@ -200,20 +203,20 @@ class OpenSearchRHIndexResetTest(APITestCase):
             body=original_index_config,
         )
 
-    def _index_test_capture(self, capture: Capture):
+    def _index_test_capture(self, capture: Capture) -> None:
         """Index test capture metadata."""
         capture_viewset = CaptureViewSet()
         capture_viewset.ingest_capture(
             capture=capture,
             drf_channel=None,
-            rh_scan_group=self.scan_group,
+            rh_scan_group=uuid.UUID(self.scan_group),
             requester=self.user,
             top_level_dir=Path(self.top_level_dir),
         )
 
         # Refresh index
         self.client.indices.refresh(
-            index=f"{self.test_index_prefix}{self.capture.capture_type}"
+            index=f"{self.test_index_prefix}{self.capture.capture_type}",
         )
 
     def _call_replace_index(self):
@@ -224,7 +227,10 @@ class OpenSearchRHIndexResetTest(APITestCase):
             capture_type=self.capture_type,
         )
 
-    def _raises_mapper_parsing_exception(self, new_index_config: dict):
+    def _raises_mapper_parsing_exception(
+        self,
+        new_index_config: dict[str, str],
+    ) -> bool:
         """Put mapping on index and return True if it fails."""
         try:
             self.client.indices.put_mapping(
@@ -238,7 +244,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
                 return True
         return False
 
-    def test_successful_reindex(self):
+    def test_successful_reindex(self) -> None:
         """Test successful reindex with matching document counts."""
 
         # Get initial document
@@ -272,7 +278,8 @@ class OpenSearchRHIndexResetTest(APITestCase):
         )
 
         # Mock user input
-        with (
+        with cast(
+            "mock._patch",  # noqa: SLF001 # pyright: ignore[reportPrivateUsage,reportMissingTypeArgument]
             mock.patch("builtins.input", return_value="y"),
         ):
             # Run replace_index command
@@ -321,53 +328,50 @@ class OpenSearchRHIndexResetTest(APITestCase):
             self.json_file["latitude"],
         ]
 
-    def test_fail_state_reset_to_original(self):
+    def test_fail_state_reset_to_original(self) -> None:
         """Test that the reindex fails and is reset to original state."""
 
-        # Get initial state - should have 1 document (our test capture)
         initial_count = self.client.count(index=self.index_name)["count"]
-        assert initial_count == 1
+        assert initial_count == 1, (
+            "Initial index state should have 1 document: the test capture"
+        )
 
-        # Get initial mapping to verify reset later
         initial_mapping = self.client.indices.get_mapping(
             index=self.index_name,
         )[self.index_name]["mappings"]
 
-        # Mock user inputs and the mapping function
         with (
             mock.patch("builtins.input", return_value="y"),
             mock.patch(
-                "sds_gateway.api_methods.management.commands.replace_index.get_mapping_by_capture_type"
+                "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type",
             ) as mock_mapping,
         ):
-            # Return an invalid mapping that will cause reindex to fail
+            # return an invalid mapping that will cause reindex to fail
             mock_mapping.return_value = {
                 "properties": {
                     "capture_props": {
-                        "type": "keyword"  # This conflicts with nested type
-                    }
-                }
+                        "type": "keyword",  # this conflicts with nested type
+                    },
+                },
             }
 
-            # Run replace_index command
             self._call_replace_index()
 
-        # Verify final state
         self.client.indices.refresh(index=self.index_name)
         final_count = self.client.count(index=self.index_name)["count"]
-        assert final_count == 1  # Original document count preserved
-
-        # Verify mapping was reset to original
         final_mapping = self.client.indices.get_mapping(
             index=self.index_name,
         )[self.index_name]["mappings"]
-        assert final_mapping == initial_mapping
 
-        # Verify backup index remains
+        assert final_count == 1, "Document count should be preserved after failure"
+        assert final_mapping == initial_mapping, (
+            "Index mapping was not reset to original: "
+            f"{initial_mapping} != {final_mapping}"
+        )
         backup_indices = self.client.indices.get(index=f"{self.index_name}-backup-*")
-        assert len(backup_indices) == 1
+        assert len(backup_indices) == 1, "Backup index should remain after failure"
 
-    def test_duplicate_capture_deletion(self):
+    def test_duplicate_capture_deletion(self) -> None:
         """Test that duplicate captures are deleted."""
 
         # Get initial document
@@ -394,7 +398,8 @@ class OpenSearchRHIndexResetTest(APITestCase):
         assert duplicate_capture is not None
 
         # Mock user input
-        with (
+        with cast(
+            "mock._patch",  # noqa: SLF001 # pyright: ignore[reportPrivateUsage,reportMissingTypeArgument]
             mock.patch("builtins.input", return_value="y"),
         ):
             # Run replace_index command
@@ -407,7 +412,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
         )
         assert final_response["hits"]["total"]["value"] == 1
 
-    def test_no_capture_deletion_multiple_owners(self):
+    def test_no_capture_deletion_multiple_owners(self) -> None:
         """
         Test that captures with similar attributes are not deleted
         if they belong to different owners.
@@ -419,7 +424,8 @@ class OpenSearchRHIndexResetTest(APITestCase):
 
         # Create a duplicate capture for the second user
         non_duplicate_capture = self._create_test_capture(
-            other_user, other_top_level_dir
+            owner=other_user,
+            top_level_dir=other_top_level_dir,
         )
         self._index_test_capture(non_duplicate_capture)
         self._create_test_file(other_user)
@@ -452,7 +458,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
 
 
 class OpenSearchDRFIndexResetTest(APITestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.client = get_opensearch_client()
         self.capture_type = CaptureType.DigitalRF
         self.test_index_prefix = "captures-test-"
@@ -490,28 +496,26 @@ class OpenSearchDRFIndexResetTest(APITestCase):
             },
         }
 
-        # Create test user
         self.user = User.objects.create(email="testuser@example.com")
-
-        # Create test channel and top level directory
         self.channel = "test_channel"
         self.top_level_dir = f"/files/{self.user.email}/{self.channel}"
 
-        # Setup test data and create initial capture
+        # setup test data and create initial capture
         self._setup_test_data()
         self.capture = self._create_test_capture(self.user, self.top_level_dir)
         self._initialize_test_index()
         self._index_test_capture(self.capture)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up test data."""
-        # Delete test indices
-        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
+        # delete test indices
+        self.client.indices.delete(
+            index=f"{self.test_index_prefix}*",
+            ignore_unavailable=True,  # pyright: ignore[reportCallIssue]
+        )
 
-        # Clean up test objects in correct order
+        # clean up test objects in correct order
         self.user.captures.all().delete()
-
-        # Finally delete the user
         self.user.delete()
 
     def _setup_test_data(self):
@@ -559,7 +563,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
             top_level_dir=top_level_dir,
         )
 
-    def _initialize_test_index(self):
+    def _initialize_test_index(self) -> None:
         """Initialize test index with mapping."""
         # initialize test index with old mapping
         original_index_config = {
@@ -577,14 +581,14 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         )
 
     # for drf tests, skip file validation to avoid dealing with HDF5 files
-    def _mock_metadata_validation(self):
+    def _mock_metadata_validation(self) -> "mock._patch":  # pyright: ignore[reportPrivateUsage, reportMissingTypeArgument]
         """Mock metadata validation."""
         return mock.patch(
             "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
             return_value=self.json_file,
         )
 
-    def _call_replace_index(self):
+    def _call_replace_index(self) -> None:
         """Call replace_index command."""
         call_command(
             "replace_index",
@@ -592,7 +596,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
             capture_type=self.capture_type,
         )
 
-    def _index_test_capture(self, capture: Capture):
+    def _index_test_capture(self, capture: Capture) -> None:
         """Index test capture metadata."""
         capture_viewset = CaptureViewSet()
 
@@ -609,7 +613,10 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         # Refresh index
         self.client.indices.refresh(index=self.index_name)
 
-    def _raises_mapper_parsing_exception(self, new_index_config: dict):
+    def _raises_mapper_parsing_exception(
+        self,
+        new_index_config: dict[str, str],
+    ) -> bool:
         """Put mapping on index and return True if it fails."""
         try:
             self.client.indices.put_mapping(
@@ -623,7 +630,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
                 return True
         return False
 
-    def test_successful_reindex(self):
+    def test_successful_reindex(self) -> None:
         """Test successful reindex with matching document counts."""
 
         # Get initial document
@@ -711,56 +718,52 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         assert doc["search_props"]["start_time"] == self.json_file["start_bound"]
         assert doc["search_props"]["end_time"] == self.json_file["end_bound"]
 
-    def test_fail_state_reset_to_original(self):
+    def test_fail_state_reset_to_original(self) -> None:
         """Test that the reindex fails and is reset to original state."""
 
-        # Get initial state - should have 1 document (our test capture)
         initial_count = self.client.count(index=self.index_name)["count"]
-        assert initial_count == 1
+        assert initial_count == 1, (
+            "Initial index state should have 1 document: the test capture"
+        )
 
-        # Get initial mapping to verify reset later
         initial_mapping = self.client.indices.get_mapping(
             index=self.index_name,
         )[self.index_name]["mappings"]
 
-        # Mock user inputs, the mapping function, and metadata validation
         with (
             mock.patch("builtins.input", return_value="y"),
             mock.patch(
-                "sds_gateway.api_methods.management.commands.replace_index.get_mapping_by_capture_type"
+                "sds_gateway.api_methods.utils.metadata_schemas.get_mapping_by_capture_type",
             ) as mock_mapping,
             self._mock_metadata_validation(),
         ):
-            # Return an invalid mapping that will cause reindex to fail
+            # return an invalid mapping that will cause reindex to fail
             mock_mapping.return_value = {
                 "properties": {
                     "capture_props": {
-                        "type": "keyword"  # This conflicts with nested type
-                    }
-                }
+                        "type": "keyword",  # this conflicts with nested type
+                    },
+                },
             }
 
-            # Run replace_index command
+            # run replace_index command
             self._call_replace_index()
 
-        # Verify final state
+        # verify final state
         self.client.indices.refresh(index=self.index_name)
         final_count = self.client.count(index=self.index_name)["count"]
-        assert final_count == 1  # Original document count preserved
-
-        # Verify mapping was reset to original
         final_mapping = self.client.indices.get_mapping(
             index=self.index_name,
         )[self.index_name]["mappings"]
+        backup_indices = self.client.indices.get(index=f"{self.index_name}-backup-*")
+
+        assert final_count == 1, "Document count should be preserved after failure"
         assert final_mapping == initial_mapping, (
             "Index mapping was not reset to original"
         )
+        assert len(backup_indices) == 1, "Backup index should remain after failure"
 
-        # Verify backup index remains
-        backup_indices = self.client.indices.get(index=f"{self.index_name}-backup-*")
-        assert len(backup_indices) == 1
-
-    def test_duplicate_capture_deletion(self):
+    def test_duplicate_capture_deletion(self) -> None:
         """Test that duplicate captures are deleted."""
 
         # Get initial document
@@ -796,11 +799,12 @@ class OpenSearchDRFIndexResetTest(APITestCase):
 
         # Verify the channel only has one capture
         final_response = self.client.search(
-            index=self.index_name, body={"query": {"match": {"channel": self.channel}}}
+            index=self.index_name,
+            body={"query": {"match": {"channel": self.channel}}},
         )
         assert final_response["hits"]["total"]["value"] == 1
 
-    def test_no_capture_deletion_multiple_owners(self):
+    def test_no_capture_deletion_multiple_owners(self) -> None:
         """
         Test that captures with similar attributes are not deleted
         if they belong to different owners.
@@ -830,7 +834,8 @@ class OpenSearchDRFIndexResetTest(APITestCase):
 
         # Verify the channel has two captures
         final_response = self.client.search(
-            index=self.index_name, body={"query": {"match": {"channel": self.channel}}}
+            index=self.index_name,
+            body={"query": {"match": {"channel": self.channel}}},
         )
         assert final_response["hits"]["total"]["value"] == expected_count
 
