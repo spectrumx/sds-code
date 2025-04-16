@@ -92,7 +92,10 @@ def validate_metadata_by_channel(
     """Validates the metadata for a given channel."""
     # use the drf_capture_metadata_schema to validate the metadata
     validated_props = {}
-    props_by_channel = read_metadata_by_channel(data_path, channel_name)
+    props_by_channel = read_metadata_by_channel(
+        data_path=data_path,
+        channel_name=channel_name,
+    )
     props_pending_validation = list(props_by_channel.keys())
     required_props = drf_capture_metadata_schema["required"]
 
