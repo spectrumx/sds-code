@@ -1,12 +1,16 @@
 #!/bin/bash
 
-set -o errexit
-set -o pipefail
-set -o nounset
+set -euo pipefail
 
+echo "Collecting static files..."
 python /app/manage.py collectstatic --noinput
 
 echo "Initializing OpenSearch indices..."
-python manage.py init_indices
+python manage.py init_indices || {
+    echo >&2 "Failed to initialize OpenSearch indices. Waiting for manual input."
+    sleep 3600
+    exit 1
+}
 
+echo "Starting Gunicorn server..."
 exec /usr/local/bin/gunicorn config.asgi --bind 0.0.0.0:18000 --chdir=/app -k uvicorn_worker.UvicornWorker
