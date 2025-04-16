@@ -36,12 +36,15 @@ logger = logging.getLogger(__name__)
 class CaptureTestCases(APITestCase):
     def setUp(self) -> None:
         """Set up test data."""
-        # First clean up any existing test data
-        self._cleanup_opensearch_documents()
-
-        # Then set up new test data
-        self.client = APIClient()
+        # bootstrapping instance attributes
         self.test_index_prefix = "captures-test"
+        self.opensearch = get_opensearch_client()
+
+        # clean up any existing test indices
+        self._cleanup_opensearch_test_indices()
+
+        # set up new test data
+        self.client = APIClient()
         self.scan_group = uuid.uuid4()
         self.channel = "ch0"
         self.user = User.objects.create(
@@ -129,15 +132,18 @@ class CaptureTestCases(APITestCase):
             "version": "v0",
         }
 
-        # Get OpenSearch client and ensure indices exist
-        self.opensearch = get_opensearch_client()
+        # make sure indices exist
         self._setup_opensearch_indices()
         self._index_test_metadata()
 
-    def _cleanup_opensearch_documents(self) -> None:
-        """Clean up OpenSearch documents."""
-        # Delete test indices
-        self.client.indices.delete(index=f"{self.test_index_prefix}*", ignore=[404])
+    def _cleanup_opensearch_test_indices(self) -> None:
+        """Clean up OpenSearch documents from tests."""
+        if not hasattr(self, "opensearch"):
+            self.opensearch = get_opensearch_client()
+        self.opensearch.indices.delete(
+            index=f"{self.test_index_prefix}*",
+            ignore_unavailable=True,  # pyright: ignore[reportCallIssue]
+        )
 
     def _setup_opensearch_indices(self) -> None:
         """Set up OpenSearch indices with proper mappings."""
@@ -194,7 +200,7 @@ class CaptureTestCases(APITestCase):
         super().tearDown()
 
         # Clean up OpenSearch documents
-        self._cleanup_opensearch_documents()
+        self._cleanup_opensearch_test_indices()
 
     def test_create_drf_capture_201(self) -> None:
         """Test creating drf capture returns metadata."""
