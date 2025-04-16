@@ -65,6 +65,8 @@ class CaptureViewSet(viewsets.ViewSet):
             capture:        The capture to validate and index metadata for
             data_path:      Path to directory containing metadata or metadata file
             drf_channel:    Channel name for DigitalRF captures
+        Raises:
+            ValueError:     If metadata is invalid or not found
         """
         capture_props: dict[str, Any] = {}
 
@@ -77,7 +79,7 @@ class CaptureViewSet(viewsets.ViewSet):
                         channel_name=drf_channel,
                     )
                 else:
-                    msg = "Channel is required for DigitalRF captures"
+                    msg = "Channel is required for Digital-RF captures"
                     log.warning(msg)
                     raise ValueError(msg)
             case CaptureType.RadioHound:
@@ -103,6 +105,7 @@ class CaptureViewSet(viewsets.ViewSet):
     def ingest_capture(
         self,
         capture: Capture,
+        *,
         drf_channel: str | None,
         requester: User,
         rh_scan_group: uuid.UUID | None,
@@ -120,30 +123,47 @@ class CaptureViewSet(viewsets.ViewSet):
             rh_scan_group:  Optional scan group UUID for RH captures
             top_level_dir:  Path to directory containing files to connect to capture
         """
+        # check if the top level directory was passed
+        if not top_level_dir:
+            msg = "No top level directory provided for capture ingestion"
+            log.warning(msg)
+            raise ValueError(msg)
 
-        # Handle file connections if top_level_dir provided
-        if top_level_dir:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Reconstruct the file tree in a temporary directory
-                tmp_dir_path, files_to_connect = reconstruct_tree(
-                    target_dir=Path(temp_dir),
-                    virtual_top_dir=top_level_dir,
-                    owner=requester,
-                    drf_capture_type=capture.capture_type,
-                    rh_scan_group=rh_scan_group,
-                )
+        # normalize top level directory under user
+        user_file_prefix = f"/files/{requester.email!s}"
+        if not top_level_dir.startswith(user_file_prefix):
+            top_level_dir = Path(f"{user_file_prefix!s}{top_level_dir!s}")
 
-                # try to validate and index metadata before connecting files
-                self._validate_and_index_metadata(
-                    capture=capture,
-                    data_path=tmp_dir_path,
-                    drf_channel=drf_channel,
-                )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # reconstruct the file tree in a temporary directory
+            tmp_dir_path, files_to_connect = reconstruct_tree(
+                target_dir=Path(temp_dir),
+                virtual_top_dir=top_level_dir,
+                owner=requester,
+                drf_capture_type=capture.capture_type,
+                rh_scan_group=rh_scan_group,
+            )
 
-                # Connect the files to the capture
-                for cur_file in files_to_connect:
-                    cur_file.capture = capture
-                    cur_file.save()
+            if not files_to_connect:
+                msg = f"No files found for capture '{capture.uuid}'"
+                log.warning(msg)
+                raise FileNotFoundError(msg)
+
+            # try to validate and index metadata before connecting files
+            self._validate_and_index_metadata(
+                capture=capture,
+                data_path=tmp_dir_path,
+                drf_channel=drf_channel,
+            )
+
+            # connect the files to the capture
+            for cur_file in files_to_connect:
+                cur_file.capture = capture
+                cur_file.save()
+
+            log.info(
+                f"Connected {len(files_to_connect)} files to capture '{capture.uuid}'",
+            )
 
     @extend_schema(
         request=CapturePostSerializer,
