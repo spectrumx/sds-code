@@ -7,8 +7,10 @@ from typing import NoReturn
 from typing import cast
 
 from django.core.management.base import BaseCommand
+from django.core.management.base import CommandParser
 from django.db.models import Count
 from django.db.models import QuerySet
+from loguru import logger as log
 from opensearchpy import AuthenticationException
 from opensearchpy import ConnectionError as OpensearchConnectionError
 from opensearchpy import NotFoundError
@@ -21,6 +23,8 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
+
+from . import transforms
 
 # maximum size (doc count) of OpenSearch searches
 MAX_OS_SIZE = 10_000
@@ -75,189 +79,8 @@ class Command(BaseCommand):
     before running this command.**
     """
 
-    # Define transform scripts for different field updates
-    rh_field_transforms = {
-        "search_props.center_frequency": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.center_frequency != null) {
-                    ctx._source.search_props.center_frequency =
-                        ctx._source.capture_props.center_frequency;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.frequency_min": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.metadata != null &&
-                    ctx._source.capture_props.metadata.fmin != null) {
-                    ctx._source.search_props.frequency_min =
-                        ctx._source.capture_props.metadata.fmin;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.frequency_max": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.metadata != null &&
-                    ctx._source.capture_props.metadata.fmax != null) {
-                    ctx._source.search_props.frequency_max =
-                        ctx._source.capture_props.metadata.fmax;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.span": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.span != null) {
-                    ctx._source.search_props.span = ctx._source.capture_props.span;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.gain": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.gain != null) {
-                    ctx._source.search_props.gain = ctx._source.capture_props.gain;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.coordinates": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.latitude != null &&
-                    ctx._source.capture_props.longitude != null) {
-                    ctx._source.search_props.coordinates = [
-                        ctx._source.capture_props.longitude,
-                        ctx._source.capture_props.latitude
-                    ];
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.sample_rate": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.sample_rate != null) {
-                    ctx._source.search_props.sample_rate =
-                        ctx._source.capture_props.sample_rate;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-    }
-
-    drf_field_transforms = {
-        "search_props.center_frequency": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.center_freq != null) {
-                    ctx._source.search_props.center_frequency =
-                        ctx._source.capture_props.center_freq;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.frequency_min": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.center_freq != null &&
-                    ctx._source.capture_props.span != null &&
-                    ctx._source.search_props.frequency_min == null) {
-                    ctx._source.search_props.frequency_min =
-                        ctx._source.capture_props.center_freq -
-                        (ctx._source.capture_props.span / 2);
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.frequency_max": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.center_freq != null &&
-                    ctx._source.capture_props.span != null &&
-                    ctx._source.search_props.frequency_max == null) {
-                    ctx._source.search_props.frequency_max =
-                        ctx._source.capture_props.center_freq +
-                        (ctx._source.capture_props.span / 2);
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.start_time": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.start_bound != null &&
-                    ctx._source.search_props.start_time == null) {
-                    ctx._source.search_props.start_time =
-                        ctx._source.capture_props.start_bound;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.end_time": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.end_bound != null &&
-                    ctx._source.search_props.end_time == null) {
-                    ctx._source.search_props.end_time =
-                        ctx._source.capture_props.end_bound;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.span": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.span != null &&
-                    ctx._source.search_props.span == null) {
-                    ctx._source.search_props.span = ctx._source.capture_props.span;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.gain": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.gain != null &&
-                    ctx._source.search_props.gain == null) {
-                    ctx._source.search_props.gain = ctx._source.capture_props.gain;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.bandwidth": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.bandwidth != null &&
-                    ctx._source.search_props.bandwidth == null) {
-                    ctx._source.search_props.bandwidth =
-                        ctx._source.capture_props.bandwidth;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-        "search_props.sample_rate": {
-            "source": """
-                if (ctx._source.capture_props != null &&
-                    ctx._source.capture_props.sample_rate_numerator != null &&
-                    ctx._source.capture_props.sample_rate_denominator != null &&
-                    ctx._source.search_props.sample_rate == null) {
-                    ctx._source.search_props.sample_rate =
-                        ctx._source.capture_props.sample_rate_numerator /
-                        ctx._source.capture_props.sample_rate_denominator;
-                }
-            """.strip(),
-            "lang": "painless",
-        },
-    }
-
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
+        """Arguments for this command."""
         parser.add_argument(
             "--index_name",
             type=str,
@@ -272,195 +95,66 @@ class Command(BaseCommand):
             required=True,
         )
 
-    def get_transform_scripts(
-        self,
-        capture_type: CaptureType,
-    ) -> dict[str, dict[str, str]]:
-        """Get the transform scripts based on capture type."""
-        match capture_type:
-            case CaptureType.RadioHound:
-                return self.rh_field_transforms
-            case CaptureType.DigitalRF:
-                return self.drf_field_transforms
-            case _:
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"Unknown capture type: {capture_type}",
-                    ),
-                )
-                return {}
+    def attempt_reindexing(self, backup_index_name: str) -> None:
+        """Attempts to reindex the OpenSearch index."""
 
-    def init_search_props(
-        self,
-        client: OpenSearch,
-        index_name: str,
-        capture_uuid: str,
-    ) -> None:
-        """Initialize the search_props field."""
-        try:
-            self.stdout.write(
-                f"Initializing search_props for capture '{capture_uuid}'...",
+        self._recreate_index()
+        self._reindex_valid_captures()
+        self.client.indices.refresh(index=self.index_name)
+        self._delete_captures_with_only_missing_files()
+
+        is_reindex_successful, reasons = self._was_reindexing_successful()
+        if not is_reindex_successful:
+            return self._ask_confirmation_and_rollback(
+                backup_index_name=backup_index_name,
+                reasons=reasons,
             )
+        new_count = self._get_doc_count()
+        log.success(
+            f"Successfully UPDATED index '{self.index_name}' with {new_count} docs",
+        )
+        return None
 
-            init_script = {
-                "script": {
-                    "source": """
-                    if (ctx._source.search_props == null) {
-                        ctx._source.search_props = new HashMap();
-                    }
-                    """.strip(),
-                    "lang": "painless",
-                },
-            }
-
-            _response = client.update(
-                index=index_name,
-                id=capture_uuid,
-                body=init_script,
-            )
-            if _response.get("result") != "updated":
-                self.stdout.write(
-                    self.style.ERROR(
-                        "Failed to initialize search_props for "
-                        f"cap={capture_uuid}: {_response!s}",
-                    ),
-                )
-        except (RequestError, OpensearchConnectionError) as e:
-            self.stdout.write(
-                self.style.ERROR(f"Error initializing search_props: {e!s}"),
-            )
-
-    def apply_field_transforms(
-        self,
-        client: OpenSearch,
-        index_name: str,
-        field_transforms: dict[str, dict[str, str]],
-        capture_uuid: str,
-    ) -> None:
-        """Apply transforms for new fields.
+    def backup_index(self, backup_index_name: str) -> bool:
+        """Create a backup of the current index.
 
         Args:
-            client: OpenSearch client
-            index_name: Name of the index to apply transforms to
-            field_transforms: Dictionary of field transforms to apply
-            capture_uuid: UUID of the specific capture to transform.
+            backup_index_name: Name of the backup index to create.
+        Returns:
+            True if the backup was created and it's consistent. False otherwise.
+        Raises:
+            RequestError: If the index does not exist or an error occurs.
+            OpensearchConnectionError: If the client cannot connect to OpenSearch.
         """
-        # initialize the search_props field on the document
-        # (presumes it doesn't exist)
-        self.init_search_props(
-            client=client,
-            index_name=index_name,
-            capture_uuid=capture_uuid,
+        self._clone_index(
+            source_index=self.index_name,
+            target_index=backup_index_name,
         )
 
-        for field, transform in field_transforms.items():
-            try:
-                try:
-                    _response = client.update(
-                        index=index_name,
-                        id=capture_uuid,
-                        body={
-                            "script": {
-                                "source": transform["source"],
-                                "lang": transform["lang"],
-                            },
-                        },
-                    )
-                    if _response.get("result") != "updated":
-                        self.stdout.write(
-                            self.style.ERROR(
-                                f"Failed to transform field '{field}': {_response!s}",
-                            ),
-                        )
-                        continue
-                    self.stdout.write(
-                        f"Successfully TRANSFORMED field '{field}'",
-                    )
-                except (RequestError, OpensearchConnectionError) as e:
-                    self.stdout.write(
-                        self.style.ERROR(f"Error with direct update: {e!s}"),
-                    )
+        # verify backup index count matches original index count before continuing
+        # get original document count
+        original_count = self._get_doc_count()
+        if original_count < 0:
+            log.error(f"Skipping '{self.index_name}' due to count error")
+            return False
 
-            except (RequestError, OpensearchConnectionError) as e:
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"Error applying transform for field '{field}': {e!s}",
-                    ),
-                )
-
-    def find_duplicate_captures(
-        self,
-        capture_type: CaptureType,
-        index_name: str,
-    ) -> dict[tuple[str], QuerySet[Capture]]:
-        """Find duplicate captures in the database."""
-        # get all captures in the index
-        captures = Capture.objects.filter(
-            index_name=index_name,
-            is_deleted=False,
-            capture_type=capture_type,
+        assert self._get_doc_count(backup_index_name) == original_count, (
+            "Backup index count does not match original index count"
         )
-        duplicate_capture_groups = {}
+        return True
 
-        # get rh captures that have the same scan_group
-        if capture_type == CaptureType.RadioHound:
-            duplicate_pairs = (
-                captures.values("owner", "scan_group")
-                .annotate(count=Count("uuid"))
-                .filter(count__gt=1)
-                .values_list("owner", "scan_group")
-            )
+    def delete_duplicate_captures_and_doc_refs(self) -> None:
+        """Delete duplicate captures from index and database."""
+        duplicate_capture_groups = self._find_duplicate_captures()
 
-            for owner, scan_group in duplicate_pairs:
-                duplicate_capture_groups[(owner, scan_group)] = captures.filter(
-                    owner=owner,
-                    scan_group=scan_group,
-                ).order_by("created_at")
-        elif capture_type == CaptureType.DigitalRF:
-            duplicate_pairs = (
-                captures.values("owner", "channel", "top_level_dir")
-                .annotate(count=Count("uuid"))
-                .filter(count__gt=1)
-                .values_list("owner", "channel", "top_level_dir")
-            )
-
-            for owner, channel, top_level_dir in duplicate_pairs:
-                duplicate_capture_groups[(owner, channel, top_level_dir)] = (
-                    captures.filter(
-                        owner=owner,
-                        channel=channel,
-                        top_level_dir=top_level_dir,
-                    ).order_by("created_at")
-                )
-        else:
-            self.stdout.write(
-                self.style.ERROR(f"Unknown capture type: {capture_type}"),
-            )
-
-        return duplicate_capture_groups
-
-    def delete_duplicate_captures(
-        self,
-        client: OpenSearch,
-        capture_type: CaptureType,
-        index_name: str,
-    ):
-        """Delete duplicate captures from an index and database."""
-        duplicate_capture_groups = self.find_duplicate_captures(
-            capture_type=capture_type,
-            index_name=index_name,
-        )
-
-        self.stdout.write(
-            self.style.WARNING(
-                f"Found {len(duplicate_capture_groups)} duplicate capture groups: "
-                f"{duplicate_capture_groups}",
-            ),
+        log.warning(
+            f"Found {len(duplicate_capture_groups)} duplicate capture groups: "
+            f"{duplicate_capture_groups}",
         )
 
         # if the dictionary is empty, return
         if not duplicate_capture_groups:
-            self.stdout.write("No duplicate captures found")
+            log.info("No duplicate captures found")
             return
 
         # delete duplicate captures
@@ -478,23 +172,18 @@ class Command(BaseCommand):
 
             oldest_capture = capture_group.first()
             if oldest_capture is None:
-                self.stdout.write(
-                    self.style.ERROR(
-                        "Capture group is empty, skipping deduplication...",
-                    ),
+                log.error(
+                    "Capture group is empty, skipping deduplication...",
                 )
                 continue
             if capture_group.count() <= 1:
-                self.stdout.write(
-                    self.style.WARNING(
-                        "Capture group has 1 or fewer "
-                        "captures, skipping deduplication...",
-                    ),
+                log.warning(
+                    "Capture group has 1 or fewer captures, skipping deduplication...",
                 )
                 continue
             duplicates_to_delete = capture_group.exclude(pk=oldest_capture.pk)
 
-            match capture_type:
+            match self.capture_type:
                 case CaptureType.RadioHound:
                     scan_groups = capture_group.values_list("scan_group", flat=True)
                     distinct_scan_groups = set(scan_groups)
@@ -515,295 +204,41 @@ class Command(BaseCommand):
                         "Captures in the group do not belong to the same top_level_dir"
                     )
                 case _:
-                    self.stdout.write(
-                        self.style.ERROR(f"Unknown capture type: {capture_type}"),
-                    )
+                    log.error(f"Unknown capture type: {self.capture_type}")
                     return
 
             # delete all duplicates, keeping the oldest in each group
             for capture in duplicates_to_delete:
-                self.delete_doc_by_capture_uuid(
-                    client=client,
-                    index_name=index_name,
+                self._delete_doc_by_capture_uuid(
                     capture_uuid=capture.uuid,
                 )
                 capture.delete()
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Successfully DELETED duplicate capture '{capture.uuid}'",
-                    ),
+                log.success(
+                    f"Successfully DELETED duplicate capture '{capture.uuid}'",
                 )
+            self.client.indices.refresh(index=self.index_name)
 
-    def delete_doc_by_capture_uuid(
-        self,
-        client: OpenSearch,
-        index_name: str,
-        capture_uuid: str,
-    ) -> None:
-        """Delete an OpenSearch document based on capture UUID."""
-        try:
-            # try to get the document
-            client.get(index=index_name, id=capture_uuid)
-        except NotFoundError:
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Document by capture UUID: '{capture_uuid}' not found",
-                ),
-            )
-            return
-        else:
-            client.delete(index=index_name, id=capture_uuid)
-
-    def reindex_single_capture(self, client: OpenSearch, capture: Capture) -> bool:
-        """Reindex a capture."""
-        self.stdout.write(
-            self.style.WARNING(f"Reindexing capture manually: '{capture.uuid}'..."),
-        )
-        capture_viewset = CaptureViewSet()
-        try:
-            capture_viewset.ingest_capture(
-                capture=capture,
-                drf_channel=capture.channel,
-                rh_scan_group=capture.scan_group,
-                requester=capture.owner,
-                top_level_dir=capture.top_level_dir,
-            )
-            transform_scripts = self.get_transform_scripts(capture.capture_type)
-            if transform_scripts:
-                self.apply_field_transforms(
-                    client=client,
-                    index_name=capture.index_name,
-                    field_transforms=transform_scripts,
-                    capture_uuid=str(capture.uuid),
-                )
-        except FileNotFoundError as e:
-            self.stdout.write(
-                self.style.ERROR(f"File not found for capture '{capture.uuid}': {e!s}"),
-            )
-            return False
-        except (RequestError, OpensearchConnectionError) as e:
-            self.stdout.write(
-                self.style.ERROR(f"Error reindexing capture '{capture.uuid}': {e!s}"),
-            )
-            self.stdout.write(
-                self.style.WARNING(f"Skipping capture '{capture.uuid}'..."),
-            )
-            return False
-        else:
-            return True
-
-    def delete_index(self, client: OpenSearch, index_name: str) -> None:
+    def delete_index(self, index_name: str) -> None:
         """Delete an index."""
-        self.stdout.write(f"Deleting index '{index_name}'...")
-        client.indices.delete(index=index_name)
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Successfully DELETED index '{index_name}'",
-            ),
+        log.info(f"Deleting index '{index_name}'...")
+        self.client.indices.delete(index=index_name)
+        log.success(
+            f"Successfully DELETED index '{index_name}'",
         )
 
-    def create_index(
-        self,
-        client: OpenSearch,
-        index_name: str,
-        index_config: dict[str, Any],
-    ) -> None:
-        """Create an index."""
-        self.stdout.write(f"Creating index '{index_name}'...")
-        client.indices.create(index=index_name, body=index_config)
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Successfully CREATED index '{index_name}'",
-            ),
-        )
-
-    def clone_index(
-        self,
-        client: OpenSearch,
-        source_index: str,
-        target_index: str,
-    ) -> None:
-        """Clone an index."""
-
-        def raise_target_exists() -> NoReturn:
-            raise RequestError(
-                400,
-                f"Target index '{target_index}' already exists",
-                {"error": "index_already_exists_exception"},
+    def get_indices_stats(self) -> dict[str, dict[str, Any]]:
+        """Shows number of docs across stats indices and returns their mapping."""
+        maps = self.client.indices.get_mapping("*")
+        for index_name in maps:
+            doc_count = self._get_doc_count(index_name)
+            log.warning(
+                f"{index_name:>60} index: {doc_count:>6} documents",
             )
 
-        try:
-            # Check if target index already exists
-            if client.indices.exists(index=target_index):
-                raise_target_exists()
-
-            # First block writes on the source index
-            # Clone only works from a read-only index
-            try:
-                client.indices.put_settings(
-                    index=source_index,
-                    body={"settings": {"index.blocks.write": True}},
-                )
-            except NotFoundError as e:
-                raise RequestError(
-                    404,
-                    f"Source index '{source_index}' does not exist",
-                    {"error": "index_not_found_exception"},
-                ) from e
-
-            # Clone the index
-            client.indices.clone(index=source_index, target=target_index)
-
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Successfully CLONED {source_index} to {target_index}",
-                ),
-            )
-
-        except (RequestError, OpensearchConnectionError) as e:
-            self.stdout.write(self.style.ERROR(f"Error cloning index: {e!s}"))
-            raise
-        finally:
-            # Always re-enable writes on the source index
-            client.indices.put_settings(
-                index=source_index,
-                body={"settings": {"index.blocks.write": None}},
-            )
-
-    def rollback_index(
-        self,
-        client: OpenSearch,
-        index_name: str,
-        backup_index_name: str,
-    ):
-        """Restore an index from a backup."""
-        self.stdout.write(f"Restoring index '{index_name}' to its original state...")
-        self.delete_index(client, index_name)
-        self.clone_index(client, backup_index_name, index_name)
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Successfully RESET {index_name} to its original form.",
-            ),
-        )
-
-    def combine_scripts(self, transform_scripts: dict[str, dict[str, str]]) -> str:
-        """Combine transform scripts into one source string."""
-        return ";".join([script["source"] for script in transform_scripts.values()])
-
-    # This function uses the reindex API to reindex documents with mapping changes.
-    # It is kept here for reference, but is not used in the command.
-    def reindex_with_mapping(
-        self,
-        client: OpenSearch,
-        source_index: str,
-        dest_index: str,
-        capture_type: CaptureType,
-    ):
-        """Reindex documents with mapping changes."""
-        try:
-            # Get the transform scripts
-            transform_scripts = self.get_transform_scripts(capture_type)
-
-            # Perform reindex operation with combined transform scripts
-            body = {
-                "source": {"index": source_index},
-                "dest": {"index": dest_index},
-                "script": {
-                    "source": self.combine_scripts(transform_scripts),
-                    "lang": "painless",
-                },
-            }
-
-            client.reindex(body=body)
-
-            # Refresh destination index to make documents searchable
-            client.indices.refresh(index=dest_index)
-
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Successfully REINDEXED from {source_index} to {dest_index}",
-                ),
-            )
-
-        except (RequestError, OpensearchConnectionError, NotFoundError) as err:
-            self.stdout.write(self.style.ERROR(f"Error during reindex: {err!s}"))
-            if isinstance(err, RequestError) and err.info.get("failures"):
-                failures = err.info.get("failures", [])
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"Some documents failed to reindex: {failures}",
-                    ),
-                )
-
-                # prompt input to reindex the failed documents
-                manual_reindex = (
-                    input("Reindex failed documents manually? (y/N): ").lower() == "y"
-                )
-                self.stdout.write(
-                    self.style.WARNING(f"Manual reindex: {manual_reindex}"),
-                )
-                if manual_reindex:
-                    self.stdout.write(
-                        self.style.WARNING("Reindexing failed documents manually..."),
-                    )
-
-                    # manually index the failed documents, skipping deleted captures
-                    failed_captures = []
-                    success_captures = []
-                    for failure in failures:
-                        capture = Capture.objects.get(uuid=failure["id"])
-                        if not capture.is_deleted:
-                            reindexed = self.reindex_single_capture(
-                                capture=capture,
-                                client=client,
-                            )
-                            if not reindexed:
-                                failed_captures.append(capture)
-                            else:
-                                success_captures.append(capture)
-
-                    if failed_captures:
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f"Failed to reindex {len(failed_captures)} "
-                                f"captures: {failed_captures}",
-                            ),
-                        )
-                    self.stdout.write(
-                        self.style.SUCCESS(
-                            f"Successfully REINDEXED {len(success_captures)} captures",
-                        ),
-                    )
-
-    def get_doc_count(self, client: OpenSearch, index_name: str) -> int:
-        """Get the number of documents in an index."""
-        try:
-            return client.count(index=index_name)["count"]
-        except NotFoundError:
-            self.stdout.write(self.style.ERROR(f"Index '{index_name}' not found"))
-            return -1
-        except OpensearchConnectionError as e:
-            self.stdout.write(
-                self.style.ERROR(
-                    f"Connection error while accessing '{index_name}': {e!s}",
-                ),
-            )
-            return -1
-        except AuthenticationException as e:
-            self.stdout.write(
-                self.style.ERROR(f"Authentication failed for '{index_name}': {e!s}"),
-            )
-            return -1
-        except (RequestError, ValueError) as e:
-            self.stdout.write(
-                self.style.ERROR(
-                    f"Unexpected error getting count for '{index_name}': {e!s}",
-                ),
-            )
-            return -1
+        return maps
 
     def handle(self, *args, **options) -> None:
-        """Execute the command."""
+        """Executes the replace index command."""
         response = input(
             "WARNING: This command is potentially destructive to existing "
             "Capture and OpenSearch index data and should be used with "
@@ -811,223 +246,240 @@ class Command(BaseCommand):
             "Are you sure you want to continue? (y/N): ",
         ).lower()
         if response != "y":
-            self.stdout.write(self.style.WARNING("Command cancelled."))
-            return
+            log.warning("Command cancelled.")
+            return None
 
-        client: OpenSearch = get_opensearch_client()
-        capture_type = options["capture_type"]
-        index_name = options["index_name"]
+        # set shared variables
+        self.client: OpenSearch = get_opensearch_client()
+        self.capture_type = options["capture_type"]
+        self.index_name = options["index_name"]
 
-        try:
-            # delete duplicate captures, including docs in the original index
-            self.delete_duplicate_captures(
-                client=client,
-                capture_type=capture_type,
-                index_name=index_name,
-            )
-        except Exception as err:
-            self.stdout.write(
-                self.style.ERROR(f"Error deleting duplicate captures: {err!s}"),
-            )
-            self.stdout.write(self.style.WARNING("Aborting command..."))
-            raise
-
-        # refresh the index
-        client.indices.refresh(index=index_name)
-        indices_mapping = self.get_indice_stats(client)
-        self.offer_backup_restoration(
-            client=client,
-            index_name=index_name,
-            maps=indices_mapping,
-        )
+        # initial cleanup
+        self.delete_duplicate_captures_and_doc_refs()
+        indices_mapping = self.get_indices_stats()
+        self.offer_backup_restoration(maps=indices_mapping)
 
         # use timezone-aware datetime without colon and lowercase (opensearch rules)
         _timestamp = datetime.now(UTC).strftime("%Y-%m-%d_t_%H-%M-%S")
-        backup_index_name = f"{index_name}-backup-{_timestamp}"
+        backup_index_name = f"{self.index_name}-backup-{_timestamp}"
+        self.backup_index(backup_index_name=backup_index_name)
 
         try:
-            # get queryset of captures to reindex
-            total_capture_count = Capture.objects.all().count()
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Total capture count: {total_capture_count}",
-                ),
-            )
-            captures = Capture.objects.filter(
-                capture_type=capture_type,
-                index_name=index_name,
-                is_deleted=False,
-            )
-
-            # log the number of captures to be reindexed
-            total_captures = captures.count()
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Number of captures to reindex: {total_captures}",
-                ),
-            )
-
-            new_index_config = {
-                "mappings": get_mapping_by_capture_type(capture_type),
-                "settings": {
-                    "index": {
-                        "number_of_shards": 1,
-                        "number_of_replicas": 1,
-                    },
-                },
-            }
-
-            # Get original document count
-            original_count = self.get_doc_count(client, index_name)
-            if original_count < 0:
-                self.stdout.write(
-                    self.style.ERROR(f"Skipping {index_name} due to count error"),
-                )
-                return
-
-            # create backup index with same mapping
-            try:
-                self.clone_index(
-                    client=client,
-                    source_index=index_name,
-                    target_index=backup_index_name,
-                )
-            except (RequestError, OpensearchConnectionError) as err:
-                self.stdout.write(
-                    self.style.ERROR(f"Failed to create backup index: {err!s}"),
-                )
-                return
-
-            # verify backup index count matches original index count before continuing
-            assert self.get_doc_count(client, backup_index_name) == original_count, (
-                "Backup index count does not match original index count"
-            )
-
-            # delete original index and recreate it with new mapping
-            self.delete_index(client=client, index_name=index_name)
-            self.create_index(
-                client=client,
-                index_name=index_name,
-                index_config=new_index_config,
-            )
-
-            client.indices.refresh(index=index_name)
-
-            # reindex captures
-            failed_captures = []
-            successful_captures = []
-            for capture in captures:
-                capture_reindexed = self.reindex_single_capture(
-                    capture=capture,
-                    client=client,
-                )
-                if not capture_reindexed:
-                    failed_captures.append(capture)
-                else:
-                    successful_captures.append(capture)
-
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Successfully REINDEXED {len(successful_captures)} "
-                    f"captures / {total_captures}",
-                ),
-            )
-            if failed_captures:
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"Failed to reindex {len(failed_captures)} / {total_captures} "
-                        f"captures: {failed_captures}",
-                    ),
-                )
-
-            client.indices.refresh(index=index_name)
-
-            # now that all captures should be reindexed, delete
-            # captures which linked files are still all missing
-            self.delete_captures_with_only_missing_files(
-                capture_type=capture_type,
-                index_name=index_name,
-            )
-
-            is_reindex_successful, reasons = self.was_reindexing_successful(
-                index_name=index_name,
-                client=client,
-            )
-            if is_reindex_successful:
-                new_count = self.get_doc_count(client=client, index_name=index_name)
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        "Successfully UPDATED index "
-                        f"'{index_name}' with {new_count} docs",
-                    ),
-                )
-            else:
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"Reindex verification failed for '{index_name}' with reasons:",
-                    ),
-                )
-                for reason in reasons:
-                    self.stdout.write(self.style.ERROR(f" - {reason}"))
-                rollback_index = (
-                    input(
-                        "Would you like to reset the index "
-                        "to its original form? (Y/n): ",
-                    ).lower()
-                    or "y"
-                ) == "y"
-                if rollback_index:
-                    self.rollback_index(
-                        client=client,
-                        index_name=index_name,
-                        backup_index_name=backup_index_name,
-                    )
-                else:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f"Keeping backup index {backup_index_name} "
-                            "for manual verification.",
-                        ),
-                    )
-                return
-
+            return self.attempt_reindexing(backup_index_name=backup_index_name)
         except Exception as err:
-            self.stdout.write(
-                self.style.ERROR(f"Uncaught error during reindex: {err!s}"),
-            )
+            log.error(f"Uncaught error during reindex: {err!s}")
             self.rollback_index(
-                client=client,
-                index_name=index_name,
                 backup_index_name=backup_index_name,
             )
             raise
 
-    def delete_captures_with_only_missing_files(
+    def offer_backup_restoration(
         self,
-        capture_type: CaptureType,
+        maps: dict[str, dict[str, Any]],
+    ) -> None:
+        """Offers to restore a backed up index if found to have more documents."""
+        target_index_doc_count = self._get_doc_count()
+        backups_of_target_index = [
+            name for name in maps if name.startswith(f"{self.index_name}-backup-")
+        ]
+        if not backups_of_target_index:
+            # no backups found
+            return
+
+        backup_doc_counts = {
+            name: self._get_doc_count() for name in backups_of_target_index
+        }
+        max_backup_name, max_backup_count = max(
+            backup_doc_counts.items(),
+            key=lambda item: item[1],
+        )
+
+        if max_backup_count <= target_index_doc_count:
+            # no good restoration candidate
+            return
+
+        log.warning(
+            f"WARNING: '{self.index_name}' has a backup '{max_backup_name}' with "
+            f"more docs than it ({max_backup_count} > {target_index_doc_count})",
+        )
+        response = (
+            input(
+                f"Would you like to restore '{self.index_name}' "
+                f"from its backup '{max_backup_name}' before continuing? (y/N): ",
+            )
+            .strip()
+            .lower()
+        )
+
+        if response == "y":
+            self._restore_index_from_backup(
+                backup_index_name=max_backup_name,
+            )
+
+    def rollback_index(
+        self,
+        backup_index_name: str,
+    ):
+        """Restore an index from a backup, setting it as self.index_name."""
+        log.info(
+            f"Restoring index '{self.index_name}' to its original state...",
+        )
+        self.delete_index(self.index_name)
+        self._clone_index(source_index=backup_index_name, target_index=self.index_name)
+        log.success(
+            f"Successfully RESET {self.index_name} to its original form.",
+        )
+
+    def _apply_field_transforms(
+        self,
         index_name: str,
+        field_transforms: dict[str, dict[str, str]],
+        capture_uuid: str,
+    ) -> None:
+        """Apply transforms for new fields.
+
+        Args:
+            client: OpenSearch client
+            index_name: Name of the index to apply transforms to
+            field_transforms: Dictionary of field transforms to apply
+            capture_uuid: UUID of the specific capture to transform.
+        """
+        # initialize the search_props field on the document
+        # (presumes it doesn't exist)
+        self._init_search_props(
+            client=self.client,
+            index_name=index_name,
+            capture_uuid=capture_uuid,
+        )
+
+        for field, transform in field_transforms.items():
+            try:
+                try:
+                    _response = self.client.update(
+                        index=index_name,
+                        id=capture_uuid,
+                        body={
+                            "script": {
+                                "source": transform["source"],
+                                "lang": transform["lang"],
+                            },
+                        },
+                    )
+                    if _response.get("result") != "updated":
+                        log.error(
+                            f"Failed to transform field '{field}': {_response!s}",
+                        )
+                        continue
+                    log.info(
+                        f"Successfully TRANSFORMED field '{field}'",
+                    )
+                except (RequestError, OpensearchConnectionError) as e:
+                    log.error(f"Error with direct update: {e!s}")
+
+            except (RequestError, OpensearchConnectionError) as e:
+                log.error(
+                    f"Error applying transform for field '{field}': {e!s}",
+                )
+
+    def _ask_confirmation_and_rollback(
+        self,
+        backup_index_name: str,
+        reasons: list[str],
+    ) -> None:
+        """Asks for confirmation before rollbacking the index.
+
+        Used when a partially successful reindexing operation, giving the user
+        the option to rollback to the backup index or to retain the current state.
+        """
+        log.error(
+            f"Reindex verification failed for '{self.index_name}' with reasons:",
+        )
+        for reason in reasons:
+            log.error(f" - {reason}")
+        rollback_index = (
+            input(
+                "Would you like to reset the index to its original form? (Y/n): ",
+            ).lower()
+            or "y"
+        ) == "y"
+        if rollback_index:
+            self.rollback_index(backup_index_name=backup_index_name)
+        else:
+            log.warning(
+                f"Keeping backup index {backup_index_name} for manual verification.",
+            )
+
+    def _clone_index(
+        self,
+        source_index: str,
+        target_index: str,
+    ) -> None:
+        """Clones an OpenSearch index.
+
+        Args:
+            source_index: Name of the source index to clone from.
+            target_index: Name of the target index to clone to.
+        Raises:
+            RequestError: If the source index does not exist or an error occurs.
+            OpensearchConnectionError: If the client cannot connect to OpenSearch.
+            Other OpenSearch errors, if any.
+        """
+
+        # check if target index already exists
+        if self.client.indices.exists(index=target_index):
+            raise_target_exists(target_index)
+
+        try:
+            # first block writes on the source index
+            # clone only works from a read-only index
+            try:
+                self.client.indices.put_settings(
+                    index=source_index,
+                    body={"settings": {"index.blocks.write": True}},
+                )
+            except NotFoundError as err:
+                raise RequestError(
+                    404,
+                    f"Source index '{source_index}' does not exist",
+                    {"error": "index_not_found_exception"},
+                ) from err
+
+            self.client.indices.clone(index=source_index, target=target_index)
+
+            log.success(
+                f"Successfully CLONED {source_index} to {target_index}",
+            )
+
+        except (RequestError, OpensearchConnectionError) as err:
+            log.error(f"Error cloning index: {err!s}")
+            raise
+        finally:
+            # always re-enable writes on the source index
+            self.client.indices.put_settings(
+                index=source_index,
+                body={"settings": {"index.blocks.write": None}},
+            )
+
+    def _delete_captures_with_only_missing_files(
+        self,
     ) -> None:
         """Delete captures that have only missing files (should not exist).
 
         Run this after the reindex operation to make sure the database is clean.
         """
-        self.stdout.write(
-            self.style.WARNING(
-                "Deleting captures with only missing files...",
-            ),
+        log.warning(
+            "Deleting captures with only missing files...",
         )
-        self.stdout.write(
-            self.style.WARNING(
-                f"Capture cleanup for index '{index_name}'...",
-            ),
+        log.warning(
+            f"Capture cleanup for index '{self.index_name}'...",
         )
         captures = Capture.objects.filter(
-            index_name=index_name,
+            index_name=self.index_name,
             is_deleted=False,
-            capture_type=capture_type,
+            capture_type=self.capture_type,
         )
         if not captures:
-            self.stdout.write("No captures to delete.")
+            log.info("No captures to delete.")
             return
 
         marked_for_deletion: list[Capture] = []
@@ -1042,25 +494,281 @@ class Command(BaseCommand):
         if not marked_for_deletion:
             return
 
-        self.stdout.write(
-            self.style.WARNING(
-                f"Deleting {len(marked_for_deletion)} captures "
-                "that only have missing files linked to them.",
-            ),
+        log.warning(
+            f"Deleting {len(marked_for_deletion)} captures "
+            "that only have missing files linked to them.",
         )
         Capture.objects.filter(
             uuid__in=[capture.uuid for capture in marked_for_deletion],
         ).delete()
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Successfully deleted {len(marked_for_deletion)} captures.",
-            ),
+        log.success(
+            f"Successfully deleted {len(marked_for_deletion)} captures.",
         )
 
-    def was_reindexing_successful(
+    def _delete_doc_by_capture_uuid(
         self,
-        index_name: str,
+        capture_uuid: str,
+    ) -> None:
+        """Delete an OpenSearch document based on capture UUID."""
+        try:
+            # try to get the document
+            self.client.get(index=self.index_name, id=capture_uuid)
+        except NotFoundError:
+            log.warning(
+                f"Document by capture UUID: '{capture_uuid}' not found",
+            )
+            return
+        else:
+            self.client.delete(index=self.index_name, id=capture_uuid)
+
+    def _find_duplicate_captures(self) -> dict[tuple[str], QuerySet[Capture]]:
+        """Find duplicate captures in the database.
+
+        Uses per-capture type logic to find duplicates.
+        Returns:
+            A dictionary of duplicate capture groups, where the key is a tuple
+            of common attributes for the captures in the group,
+            and the value is a queryset of the captures in that group.
+        """
+        # get all captures in the index
+        captures = Capture.objects.filter(
+            index_name=self.index_name,
+            is_deleted=False,
+            capture_type=self.capture_type,
+        )
+        duplicate_capture_groups = {}
+
+        # get rh captures that have the same scan_group
+        match self.capture_type:
+            case CaptureType.RadioHound:
+                duplicate_pairs = (
+                    captures.values("owner", "scan_group")
+                    .annotate(count=Count("uuid"))
+                    .filter(count__gt=1)
+                    .values_list("owner", "scan_group")
+                )
+
+                for owner, scan_group in duplicate_pairs:
+                    duplicate_capture_groups[(owner, scan_group)] = captures.filter(
+                        owner=owner,
+                        scan_group=scan_group,
+                    ).order_by("created_at")
+            case CaptureType.DigitalRF:
+                duplicate_pairs = (
+                    captures.values("owner", "channel", "top_level_dir")
+                    .annotate(count=Count("uuid"))
+                    .filter(count__gt=1)
+                    .values_list("owner", "channel", "top_level_dir")
+                )
+
+                for owner, channel, top_level_dir in duplicate_pairs:
+                    duplicate_capture_groups[(owner, channel, top_level_dir)] = (
+                        captures.filter(
+                            owner=owner,
+                            channel=channel,
+                            top_level_dir=top_level_dir,
+                        ).order_by("created_at")
+                    )
+            case _:
+                log.error(f"Unknown capture type: {self.capture_type}")
+
+        return duplicate_capture_groups
+
+    def _get_doc_count(self, target_index: str | None = None) -> int:
+        """Get the number of documents in an index.
+
+        Args:
+            target_index: Name of the index to get the document count for.
+                If None, defaults to the index_name attribute of the class.
+        Returns:
+            The number of documents in the index.
+            -1 if the index does not exist or an error occurs.
+        """
+        index_name = target_index or self.index_name
+        try:
+            return self.client.count(index=index_name)["count"]
+        except NotFoundError:
+            log.error(f"Index '{index_name}' not found")
+            return -1
+        except OpensearchConnectionError as e:
+            log.error(
+                f"Connection error while accessing '{index_name}': {e!s}",
+            )
+            return -1
+        except AuthenticationException as e:
+            log.error(
+                f"Authentication failed for '{index_name}': {e!s}",
+            )
+            return -1
+        except (RequestError, ValueError) as e:
+            log.error(
+                f"Unexpected error getting count for '{index_name}': {e!s}",
+            )
+            return -1
+
+    def _get_transform_scripts(
+        self,
+        capture_type: CaptureType,
+    ) -> dict[str, dict[str, str]]:
+        """Get the transform scripts based on capture type."""
+        match capture_type:
+            case CaptureType.RadioHound:
+                return transforms.rh_field_transforms
+            case CaptureType.DigitalRF:
+                return transforms.drf_field_transforms
+            case _:
+                log.error(
+                    f"Unknown capture type: {capture_type}",
+                )
+                return {}
+
+    def _init_search_props(
+        self,
         client: OpenSearch,
+        index_name: str,
+        capture_uuid: str,
+    ) -> None:
+        """Initialize the search_props field."""
+        try:
+            log.info(
+                f"Initializing search_props for capture '{capture_uuid}'...",
+            )
+
+            init_script = {
+                "script": {
+                    "source": """
+                    if (ctx._source.search_props == null) {
+                        ctx._source.search_props = new HashMap();
+                    }
+                    """.strip(),
+                    "lang": "painless",
+                },
+            }
+
+            _response = client.update(
+                index=index_name,
+                id=capture_uuid,
+                body=init_script,
+            )
+            if _response.get("result") != "updated":
+                log.error(
+                    "Failed to initialize search_props for "
+                    f"cap={capture_uuid}: {_response!s}",
+                )
+        except (RequestError, OpensearchConnectionError) as e:
+            log.error(f"Error initializing search_props: {e!s}")
+
+    def _recreate_index(
+        self,
+    ) -> None:
+        """Recreates the OpenSearch index."""
+        log.info(f"Recreating index '{self.index_name}'...")
+        new_index_config = {
+            "mappings": get_mapping_by_capture_type(self.capture_type),
+            "settings": {
+                "index": {
+                    "number_of_shards": 1,
+                    "number_of_replicas": 1,
+                },
+            },
+        }
+
+        self.delete_index(index_name=self.index_name)
+        self.client.indices.create(index=self.index_name, body=new_index_config)
+        self.client.indices.refresh(index=self.index_name)
+
+        log.success(
+            f"Successfully CREATED index '{self.index_name}'",
+        )
+
+    def _reindex_single_capture(self, capture: Capture) -> bool:
+        """Reindex a capture."""
+        log.warning(f"Reindexing capture manually: '{capture.uuid}'...")
+        capture_viewset = CaptureViewSet()
+        try:
+            capture_viewset.ingest_capture(
+                capture=capture,
+                drf_channel=capture.channel,
+                rh_scan_group=capture.scan_group,
+                requester=capture.owner,
+                top_level_dir=capture.top_level_dir,
+            )
+            transform_scripts = self._get_transform_scripts(capture.capture_type)
+            if transform_scripts:
+                self._apply_field_transforms(
+                    index_name=capture.index_name,
+                    field_transforms=transform_scripts,
+                    capture_uuid=str(capture.uuid),
+                )
+        except FileNotFoundError as e:
+            log.error(f"File not found for capture '{capture.uuid}': {e!s}")
+            return False
+        except (RequestError, OpensearchConnectionError) as e:
+            log.error(f"Error reindexing capture '{capture.uuid}': {e!s}")
+            log.warning(f"Skipping capture '{capture.uuid}'...")
+            return False
+        else:
+            return True
+
+    def _reindex_valid_captures(
+        self,
+    ) -> None:
+        """Reindexes captures individually, by re-linking files."""
+        captures_to_reindex = Capture.objects.filter(
+            capture_type=self.capture_type,
+            index_name=self.index_name,
+            is_deleted=False,
+        )
+
+        log.info(
+            "# of captures to reindex: "
+            f"{captures_to_reindex.count()} / {Capture.objects.all().count()}",
+        )
+
+        failed_captures = []
+        successful_captures = []
+        for capture in captures_to_reindex:
+            capture_reindexed = self._reindex_single_capture(
+                capture=capture,
+            )
+            if not capture_reindexed:
+                failed_captures.append(capture)
+            else:
+                successful_captures.append(capture)
+
+        log.success(
+            f"Successfully REINDEXED {len(successful_captures)}"
+            f" / {captures_to_reindex.count()} captures",
+        )
+        if failed_captures:
+            log.warning(
+                "Failed to reindex "
+                f"{len(failed_captures)} / {captures_to_reindex.count()}"
+                f" captures",
+            )
+            for capture in failed_captures:
+                log.warning(f"Failed to reindex capture '{capture.uuid}'")
+
+    def _restore_index_from_backup(
+        self,
+        backup_index_name: str,
+    ) -> None:
+        """Restores an index from one of its backups."""
+        log.info(
+            f"Restoring index '{self.index_name}' from backup '{backup_index_name}'...",
+        )
+        self.delete_index(index_name=self.index_name)
+        self._clone_index(
+            source_index=backup_index_name,
+            target_index=self.index_name,
+        )
+        log.success(
+            f"Successfully RESTORED {self.index_name} from {backup_index_name}",
+        )
+        self.client.indices.refresh(index=self.index_name)
+
+    def _was_reindexing_successful(
+        self,
     ) -> tuple[bool, list[str]]:
         """Checks the database is consistent with this index state.
 
@@ -1071,21 +779,21 @@ class Command(BaseCommand):
             Whether the index is consistent with database
             A list of reasons it is not (if any)
         """
-        client.indices.refresh(index=index_name)
+        self.client.indices.refresh(index=self.index_name)
         valid_captures = Capture.objects.filter(
-            index_name=index_name,
+            index_name=self.index_name,
             is_deleted=False,
         )
         capture_uuids_from_db = {
             str(uuid) for uuid in valid_captures.values_list("uuid", flat=True)
         }
         try:
-            all_docs = client.search(
-                index=index_name,
+            all_docs = self.client.search(
+                index=self.index_name,
                 size=MAX_OS_SIZE,  # pyright: ignore[reportCallIssue]
             )
         except RequestError as e:
-            self.stdout.write(self.style.ERROR(f"Error searching index: {e!s}"))
+            log.error(f"Error searching index: {e!s}")
             return False, []
         capture_uuids_from_opensearch = {
             str(doc["_id"]) for doc in all_docs["hits"]["hits"]
@@ -1093,16 +801,13 @@ class Command(BaseCommand):
 
         # make sure we're fetching all document IDs from this index
         if len(capture_uuids_from_opensearch) > 0.9 * MAX_OS_SIZE:
-            self.stdout.write(
+            log.warning(
                 f"Approaching OpenSearch search size limit of {MAX_OS_SIZE} docs:"
                 " we'll need to write a lazy-loaded approach soon.",
             )
-        assert self.get_doc_count(
-            client=client,
-            index_name=index_name,
-        ) == len(capture_uuids_from_opensearch), (
+        assert self._get_doc_count() == len(capture_uuids_from_opensearch), (
             "Document count does not match the number of documents in the index: "
-            f"{self.get_doc_count(client, index_name)} != "
+            f"{self._get_doc_count()} != "
             f"{len(capture_uuids_from_opensearch)}"
         )
 
@@ -1120,91 +825,80 @@ class Command(BaseCommand):
             reasons += [f"Missing from DB:\t\t'{uuid}'" for uuid in missing_from_db]
         return False, reasons
 
-    def get_indice_stats(self, client: OpenSearch) -> dict[str, dict[str, Any]]:
-        """Shows number of docs across stats indices and returns their mapping."""
-        maps = client.indices.get_mapping("*")
-        for index_name in maps:
-            doc_count = self.get_doc_count(client=client, index_name=index_name)
-            self.stdout.write(
-                self.style.WARNING(
-                    f"{index_name:>60} index: {doc_count:>6} documents",
-                ),
-            )
+    def __combine_scripts(self, transform_scripts: dict[str, dict[str, str]]) -> str:
+        """Combine transform scripts into one source string."""
+        return ";".join([script["source"] for script in transform_scripts.values()])
 
-        return maps
-
-    def restore_index_from_backup(
+    def __reindex_with_mapping(
         self,
-        client: OpenSearch,
-        index_name: str,
-        backup_index_name: str,
+        source_index: str,
+        dest_index: str,
+        capture_type: CaptureType,
     ) -> None:
-        """Restores an index from one of its backups."""
-        self.stdout.write(
-            f"Restoring index '{index_name}' from backup '{backup_index_name}'...",
-        )
-        self.delete_index(client=client, index_name=index_name)
-        self.clone_index(
-            client=client,
-            source_index=backup_index_name,
-            target_index=index_name,
-        )
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Successfully RESTORED {index_name} from {backup_index_name}",
-            ),
-        )
-        client.indices.refresh(index=index_name)
+        """Reindex documents with mapping changes.
 
-    def offer_backup_restoration(
-        self,
-        client: OpenSearch,
-        index_name: str,
-        maps: dict[str, dict[str, Any]],
-    ) -> None:
-        """Offers to restore a backed up index if found to have more documents."""
-        target_index_doc_count = self.get_doc_count(
-            client=client,
-            index_name=index_name,
-        )
-        backups_of_target_index = [
-            name for name in maps if name.startswith(f"{index_name}-backup-")
-        ]
-        if not backups_of_target_index:
-            # no backups found
-            return
+        It uses the reindex API to reindex documents with mapping changes and it
+            is kept here for reference, but is not used by handle().
+        """
+        try:
+            # Get the transform scripts
+            transform_scripts = self._get_transform_scripts(capture_type)
 
-        backup_doc_counts = {
-            name: self.get_doc_count(client=client, index_name=name)
-            for name in backups_of_target_index
-        }
-        max_backup_name, max_backup_count = max(
-            backup_doc_counts.items(),
-            key=lambda item: item[1],
-        )
+            # Perform reindex operation with combined transform scripts
+            body = {
+                "source": {"index": source_index},
+                "dest": {"index": dest_index},
+                "script": {
+                    "source": self.__combine_scripts(transform_scripts),
+                    "lang": "painless",
+                },
+            }
 
-        if max_backup_count <= target_index_doc_count:
-            # no good restoration candidate
-            return
-
-        self.stdout.write(
-            self.style.WARNING(
-                f"WARNING: '{index_name}' has a backup '{max_backup_name}' with more "
-                f"documents than it ({max_backup_count} > {target_index_doc_count})",
-            ),
-        )
-        response = (
-            input(
-                f"Would you like to restore '{index_name}' "
-                f"from its backup '{max_backup_name}' before continuing? (y/N): ",
+            self.client.reindex(body=body)
+            self.client.indices.refresh(index=dest_index)
+            log.success(
+                f"Successfully REINDEXED from {source_index} to {dest_index}",
             )
-            .strip()
-            .lower()
-        )
 
-        if response == "y":
-            self.restore_index_from_backup(
-                client=client,
-                index_name=index_name,
-                backup_index_name=max_backup_name,
+        except RequestError as err:
+            failures = err.info.get("failures", [])
+            log.error(f"Some documents failed to reindex: {failures}")
+
+            # prompt input to reindex the failed documents
+            manual_reindex = (
+                input("Reindex failed documents manually? (y/N): ").lower() == "y"
             )
+            log.warning(f"Manual reindex: {manual_reindex}")
+            if not manual_reindex:
+                return
+            log.warning("Reindexing failed documents manually...")
+
+            # manually index the failed documents, skipping deleted captures
+            failed_captures = []
+            success_captures = []
+            for failure in failures:
+                capture = Capture.objects.get(uuid=failure["id"])
+                if capture.is_deleted:
+                    continue
+                reindexed = self._reindex_single_capture(capture=capture)
+                if not reindexed:
+                    failed_captures.append(capture)
+                else:
+                    success_captures.append(capture)
+
+            if failed_captures:
+                log.warning(
+                    f"Failed to reindex {len(failed_captures)} "
+                    f"captures: {failed_captures}",
+                )
+            log.success(
+                f"Successfully REINDEXED {len(success_captures)} captures",
+            )
+
+
+def raise_target_exists(target_index: str) -> NoReturn:
+    raise RequestError(
+        400,
+        f"Target index '{target_index}' already exists",
+        {"error": "index_already_exists_exception"},
+    )
