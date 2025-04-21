@@ -269,7 +269,7 @@ $lfs-grey: #6C757D;
   height: 100%;
   overflow: visible;
   margin: 0;
-  
+
   table {
     margin-bottom: 0;
     background: white !important;
@@ -281,13 +281,13 @@ $lfs-grey: #6C757D;
   .table {
     background-color: white !important;
     color: #212529;
-    
+
     thead {
       position: sticky;
       top: 0;
       z-index: 2;
       background: white !important;
-      
+
       &::after {
         content: '';
         position: absolute;
@@ -312,15 +312,15 @@ $lfs-grey: #6C757D;
     tbody {
       tr {
         background-color: white !important;
-        
+
         &:nth-child(even) {
           background-color: #f8f9fa !important;
         }
-        
+
         &:hover {
           background-color: #f8f9fa !important;
         }
-        
+
         td {
           padding: 12px;
           border: none;
@@ -341,7 +341,7 @@ $lfs-grey: #6C757D;
   height: calc(100vh - 380px);
   overflow-y: auto;
   border: none;
-  margin-top: 45px; 
+  margin-top: 45px;
 
   .filters-section {
     margin-bottom: 20px;
@@ -464,35 +464,35 @@ $lfs-grey: #6C757D;
   margin-left: 4px;
   text-decoration: none;
   color: inherit;
-  
+
   .sort-icons {
     display: inline-flex;
     flex-direction: column;
-    margin-top: 3px;    
+    margin-top: 3px;
     line-height: 0.5;
     position: relative;
     width: 14px;
-    height: 28px;        
-    
+    height: 28px;
+
     i {
       font-size: 14px;
       color: #ccc;
       position: absolute;
-      
+
       &.bi-caret-up-fill {
-        top: 4px;        
+        top: 4px;
       }
-      
+
       &.bi-caret-down-fill {
-        bottom: 4px;     
+        bottom: 4px;
       }
-      
+
       &.active {
         color: #000;
       }
     }
   }
-  
+
   &:hover {
     color: inherit;
     text-decoration: none;
@@ -517,10 +517,10 @@ $lfs-grey: #6C757D;
     margin: 0;
     display: flex;
     gap: 0.25rem;
-    
+
     .page-item {
       margin: 0 0.25rem;
-      
+
       .page-link {
         width: 2.5rem;
         height: 2.5rem;
@@ -533,14 +533,14 @@ $lfs-grey: #6C757D;
         color: #6c757d;
         background-color: #fff;
         transition: all 0.2s ease-in-out;
-        
+
         &:hover {
           background-color: #f8f9fa;
           border-color: #dee2e6;
           color: #495057;
         }
       }
-      
+
       &.active .page-link {
         background-color: #007bff;
         border-color: #007bff;
@@ -567,35 +567,35 @@ $lfs-grey: #6C757D;
   margin-left: 4px;
   text-decoration: none;
   color: inherit;
-  
+
   .sort-icons {
     display: inline-flex;
     flex-direction: column;
-    margin-top: 10px;     
+    margin-top: 10px;
     line-height: 0.5;
     position: relative;
     width: 14px;
-    height: 30px;        
-    
+    height: 30px;
+
     i {
       font-size: 14px;
       color: #ccc;
       position: absolute;
-      
+
       &.bi-caret-up-fill {
-        top: 4px;        
+        top: 4px;
       }
-      
+
       &.bi-caret-down-fill {
-        bottom: 4px;     
+        bottom: 4px;
       }
-      
+
       &.active {
         color: #000;
       }
     }
   }
-  
+
   &:hover {
     color: inherit;
     text-decoration: none;
