@@ -219,10 +219,11 @@ class CaptureViewSet(viewsets.ViewSet):
             )
 
         requester = cast("User", request.user)
-        request_data = _handle_capture_type(
-            request_data=request.data.copy(),
-            capture_type=capture_type,
-        )
+
+        # Populate index_name based on capture type
+        request_data = request.data.copy()
+        request_data["index_name"] = infer_index_name(capture_type)
+
         post_serializer = CapturePostSerializer(
             data=request_data,
             context={"request_user": request.user},
@@ -577,21 +578,6 @@ class CaptureViewSet(viewsets.ViewSet):
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-def _handle_capture_type(
-    request_data: dict[str, Any],
-    capture_type: str | None,
-) -> dict[str, Any]:
-    """Automatically infers the index name based on the capture type."""
-    if capture_type is None:
-        log.warning("Capture type is None. Cannot determine index name.")
-        return request_data
-
-    # Populate index_name based on capture type
-    request_data["index_name"] = infer_index_name(capture_type)
-
-    return request_data
 
 
 def _check_capture_creation_constraints(
