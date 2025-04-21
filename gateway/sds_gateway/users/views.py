@@ -23,11 +23,17 @@ from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 
+from sds_gateway.api_methods.models import Capture
+#from sds_gateway.api_methods.serializers import CaptureGetSerializer
+# new
+from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
+
+
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):
     model = User
     slug_field = "id"
-    slug_url_kwarg = "id"
+    slug_url_arg = "id"
 
 
 user_detail_view = UserDetailView.as_view()
@@ -127,22 +133,67 @@ user_generate_api_key_view = GenerateAPIKeyView.as_view()
 
 class ListFilesView(Auth0LoginRequiredMixin, View):
     template_name = "users/file_list.html"
+    items_per_page = 25
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
-        files = request.user.files.filter(
-            is_deleted=False,
-        ).order_by("-created_at")
-        serializer = FileGetSerializer(files, many=True)
+        # Get query parameters
+        page = int(request.GET.get('page', 1))
+        sort_by = request.GET.get('sort_by', 'created_at')
+        sort_order = request.GET.get('sort_order', 'desc')
+        
+        # Get filter parameters
+        search = request.GET.get('search', '')
+        date_start = request.GET.get('date_start', '')
+        date_end = request.GET.get('date_end', '')
+        center_freq = request.GET.get('center_freq', '')
+        bandwidth = request.GET.get('bandwidth', '')
+        location = request.GET.get('location', '')
 
-        paginator = Paginator(serializer.data, per_page=30)
-        page_number = request.GET.get("page")
-        page_obj = paginator.get_page(page_number)
+        # Base queryset
+        files_qs = request.user.files.filter(is_deleted=False)
+
+        # Apply search filter
+        if search:
+            files_qs = files_qs.filter(name__icontains=search)
+
+        # Apply date range filter
+        if date_start:
+            files_qs = files_qs.filter(created_at__gte=date_start)
+        if date_end:
+            files_qs = files_qs.filter(created_at__lte=date_end)
+
+        # Apply other filters
+        if center_freq:
+            files_qs = files_qs.filter(center_frequency=center_freq)
+        if bandwidth:
+            files_qs = files_qs.filter(bandwidth=bandwidth)
+        if location:
+            files_qs = files_qs.filter(location=location)
+
+        # Handle sorting
+        if sort_by:
+            if sort_order == 'desc':
+                files_qs = files_qs.order_by(f'-{sort_by}')
+            else:
+                files_qs = files_qs.order_by(sort_by)
+
+        # Paginate the results
+        paginator = Paginator(files_qs, self.items_per_page)
+        try:
+            files_page = paginator.page(page)
+        except:
+            files_page = paginator.page(1)
 
         return render(
             request,
             template_name=self.template_name,
             context={
-                "page_obj": page_obj,
+                'files': files_page,
+                'total_pages': paginator.num_pages,
+                'current_page': page,
+                'total_items': paginator.count,
+                'sort_by': sort_by,
+                'sort_order': sort_order
             },
         )
 
@@ -178,3 +229,69 @@ class FileDetailView(Auth0LoginRequiredMixin, DetailView):
 
 
 user_file_detail_view = FileDetailView.as_view()
+
+class ListCapturesView(Auth0LoginRequiredMixin, View):
+    template_name = "users/file_list.html"    
+    items_per_page = 25
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+       
+        page       = int(request.GET.get("page", 1))
+        sort_by    = request.GET.get("sort_by", "created_at")
+        sort_order = request.GET.get("sort_order", "desc")
+        search     = request.GET.get("search", "")
+        date_start = request.GET.get("date_start", "")
+        date_end   = request.GET.get("date_end", "")
+        cap_type   = request.GET.get("capture_type", "")
+
+       
+        qs = request.user.captures.filter(is_deleted=False)
+
+        # 3) apply filters
+        if search:
+            qs = qs.filter(channel__icontains=search)
+        if date_start:
+            qs = qs.filter(created_at__gte=date_start)
+        if date_end:
+            qs = qs.filter(created_at__lte=date_end)
+        if cap_type:
+            qs = qs.filter(capture_type=cap_type)
+
+        # 4) apply sorting
+        if sort_order == "desc":
+            qs = qs.order_by(f"-{sort_by}")
+        else:
+            qs = qs.order_by(sort_by)
+
+     
+        paginator = Paginator(qs, self.items_per_page)
+        try:
+            page_obj = paginator.page(page)
+        except:
+            page_obj = paginator.page(1)
+
+
+        serializer = CaptureGetSerializer(
+            page_obj, many=True, context={"request": request}
+        )
+
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "captures":       page_obj,
+                "captures_data":  serializer.data,
+                "sort_by":        sort_by,
+                "sort_order":     sort_order,
+                "search":         search,
+                "date_start":     date_start,
+                "date_end":       date_end,
+                "capture_type":   cap_type,
+            },
+        )
+
+
+
+user_capture_list_view = ListCapturesView.as_view()
+
