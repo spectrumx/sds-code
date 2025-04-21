@@ -1,300 +1,310 @@
 {# templates/users/file_list.html #}
 {% extends "base.html" %}
+
 {% load static %}
 
-{% block bodyclass %}hero-white-page{% endblock %}
-
+{% block bodyclass %}
+    hero-white-page
+{% endblock bodyclass %}
 {% block content %}
-<div class="content-wrapper">
-  <div class="content-grid">
-    <!-- Filters Panel -->
-    <div class="filters-panel">
-      <!-- Center of Frequency Filter -->
-      <div class="filters-section">
-        <h3 class="filter-header" data-bs-toggle="collapse" data-bs-target="#frequencyCollapse" aria-expanded="true">
-          <span>CENTER FREQUENCY</span>
-          <i class="bi bi-chevron-down"></i>
-        </h3>
-        <div class="collapse show" id="frequencyCollapse">
-          <div class="filter-content">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="freq1">
-              <label class="form-check-label" for="freq1">Frequency</label>
+    <div class="content-wrapper">
+        <div class="content-grid">
+            <!-- Filters Panel -->
+            <div class="filters-panel">
+                <!-- Center of Frequency Filter -->
+                <div class="filters-section">
+                    <h3 class="filter-header"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#frequencyCollapse"
+                        aria-expanded="true">
+                        <span>CENTER FREQUENCY</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </h3>
+                    <div class="collapse show" id="frequencyCollapse">
+                        <div class="filter-content">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="freq1" />
+                                <label class="form-check-label" for="freq1">Frequency</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="freq2" />
+                                <label class="form-check-label" for="freq2">{Category}</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="freq3" />
+                                <label class="form-check-label" for="freq3">{Category}</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Date Range Filter -->
+                <div class="filters-section">
+                    <h3 class="filter-header"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#dateCollapse"
+                        aria-expanded="true">
+                        <span>DATE RANGE</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </h3>
+                    <div class="collapse show" id="dateCollapse">
+                        <div class="filter-content">
+                            <div class="date-range">
+                                <div class="form-group">
+                                    <label for="start_date" class="form-label">Start Date</label>
+                                    <input type="date"
+                                           class="form-control form-control-sm"
+                                           id="start_date"
+                                           name="start_date" />
+                                </div>
+                                <div class="form-group">
+                                    <label for="end_date" class="form-label">End Date</label>
+                                    <input type="date"
+                                           class="form-control form-control-sm"
+                                           id="end_date"
+                                           name="end_date" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Resolution Bandwidth Filter -->
+                <div class="filters-section">
+                    <h3 class="filter-header"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#bandwidthCollapse"
+                        aria-expanded="true">
+                        <span>RESOLUTION BANDWIDTH</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </h3>
+                    <div class="collapse show" id="bandwidthCollapse">
+                        <div class="filter-content">
+                            <select class="form-select form-select-sm" id="bandwidthSelect">
+                                <option value="">Select Bandwidth</option>
+                                <option value="1">1 MHz</option>
+                                <option value="2">2 MHz</option>
+                                <option value="5">5 MHz</option>
+                                <option value="10">10 MHz</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <!-- Indoor/Outdoor Filter -->
+                <div class="filters-section">
+                    <h3 class="filter-header"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#locationCollapse"
+                        aria-expanded="true">
+                        <span>INDOOR/OUTDOOR</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </h3>
+                    <div class="collapse show" id="locationCollapse">
+                        <div class="filter-content">
+                            <select class="form-select form-select-sm" id="locationSelect">
+                                <option value="">Select Location</option>
+                                <option value="indoor">Indoor</option>
+                                <option value="outdoor">Outdoor</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="freq2">
-              <label class="form-check-label" for="freq2">{Category}</label>
+            <!-- Main Content Area -->
+            <div class="main-content-area">
+                <!-- Search Bar -->
+                <div class="search-container">
+                    <div class="input-group">
+                        <input type="text"
+                               class="form-control"
+                               placeholder="Search captures..."
+                               id="search-input"
+                               name="search"
+                               value="{{ request.GET.search|default_if_none:'' }}" />
+                    </div>
+                </div>
+                <!-- AJAX‑Updatable Table & Pagination -->
+                <div id="dynamic-table-container" class="table-and-pagination">
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>
+                                            Channel
+                                            <a href="#"
+                                               class="sort-link {% if sort_by == 'channel' %}active{% endif %}"
+                                               data-sort-by="channel"
+                                               data-sort-order="{% if sort_by == 'channel' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
+                                                <span class="sort-icons">
+                                                    <i class="bi bi-caret-up-fill {% if sort_by == 'channel' and sort_order == 'asc' %}active{% endif %}"></i>
+                                                    <i class="bi bi-caret-down-fill {% if sort_by == 'channel' and sort_order == 'desc' %}active{% endif %}"></i>
+                                                </span>
+                                            </a>
+                                        </th>
+                                        <th>
+                                            Capture Type
+                                            <a href="#"
+                                               class="sort-link {% if sort_by == 'capture_type' %}active{% endif %}"
+                                               data-sort-by="capture_type"
+                                               data-sort-order="{% if sort_by == 'capture_type' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
+                                                <span class="sort-icons">
+                                                    <i class="bi bi-caret-up-fill {% if sort_by == 'capture_type' and sort_order == 'asc' %}active{% endif %}"></i>
+                                                    <i class="bi bi-caret-down-fill {% if sort_by == 'capture_type' and sort_order == 'desc' %}active{% endif %}"></i>
+                                                </span>
+                                            </a>
+                                        </th>
+                                        <th>
+                                            Created At
+                                            <a href="#"
+                                               class="sort-link {% if sort_by == 'created_at' %}active{% endif %}"
+                                               data-sort-by="created_at"
+                                               data-sort-order="{% if sort_by == 'created_at' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
+                                                <span class="sort-icons">
+                                                    <i class="bi bi-caret-up-fill {% if sort_by == 'created_at' and sort_order == 'asc' %}active{% endif %}"></i>
+                                                    <i class="bi bi-caret-down-fill {% if sort_by == 'created_at' and sort_order == 'desc' %}active{% endif %}"></i>
+                                                </span>
+                                            </a>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if captures %}
+                                        {% for cap in captures %}
+                                            <tr>
+                                                <td>{{ cap.channel }}</td>
+                                                <td>{{ cap.capture_type }}</td>
+                                                <td>{{ cap.created_at|date:"Y-m-d H:i:s" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="3" class="text-center py-4">
+                                                <p class="alert alert-debug italic-text mb-0">No captures found.</p>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Pagination -->
+                    <div class="pagination-container">
+                        {% if captures %}
+                            <nav aria-label="Page navigation">
+                                <ul class="pagination">
+                                    {% if captures.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link"
+                                               href="?page={{ captures.previous_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">
+                                                ‹
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                    {% for num in captures.paginator.page_range %}
+                                        <li class="page-item {% if num == captures.number %}active{% endif %}">
+                                            <a class="page-link"
+                                               href="?page={{ num }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">
+                                                {{ num }}
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                    {% if captures.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link"
+                                               href="?page={{ captures.next_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">
+                                                ›
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="freq3">
-              <label class="form-check-label" for="freq3">{Category}</label>
-            </div>
-          </div>
         </div>
-      </div>
-
-      <!-- Date Range Filter -->
-      <div class="filters-section">
-        <h3 class="filter-header" data-bs-toggle="collapse" data-bs-target="#dateCollapse" aria-expanded="true">
-          <span>DATE RANGE</span>
-          <i class="bi bi-chevron-down"></i>
-        </h3>
-        <div class="collapse show" id="dateCollapse">
-          <div class="filter-content">
-            <div class="date-range">
-              <div class="form-group">
-                <label for="start_date" class="form-label">Start Date</label>
-                <input type="date" class="form-control form-control-sm" id="start_date" name="start_date">
-              </div>
-              <div class="form-group">
-                <label for="end_date" class="form-label">End Date</label>
-                <input type="date" class="form-control form-control-sm" id="end_date" name="end_date">
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Resolution Bandwidth Filter -->
-      <div class="filters-section">
-        <h3 class="filter-header" data-bs-toggle="collapse" data-bs-target="#bandwidthCollapse" aria-expanded="true">
-          <span>RESOLUTION BANDWIDTH</span>
-          <i class="bi bi-chevron-down"></i>
-        </h3>
-        <div class="collapse show" id="bandwidthCollapse">
-          <div class="filter-content">
-            <select class="form-select form-select-sm" id="bandwidthSelect">
-              <option value="">Select Bandwidth</option>
-              <option value="1">1 MHz</option>
-              <option value="2">2 MHz</option>
-              <option value="5">5 MHz</option>
-              <option value="10">10 MHz</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Indoor/Outdoor Filter -->
-      <div class="filters-section">
-        <h3 class="filter-header" data-bs-toggle="collapse" data-bs-target="#locationCollapse" aria-expanded="true">
-          <span>INDOOR/OUTDOOR</span>
-          <i class="bi bi-chevron-down"></i>
-        </h3>
-        <div class="collapse show" id="locationCollapse">
-          <div class="filter-content">
-            <select class="form-select form-select-sm" id="locationSelect">
-              <option value="">Select Location</option>
-              <option value="indoor">Indoor</option>
-              <option value="outdoor">Outdoor</option>
-            </select>
-          </div>
-        </div>
-      </div>
     </div>
-
-    <!-- Main Content Area -->
-    <div class="main-content-area">
-      <!-- Search Bar -->
-      <div class="search-container">
-        <div class="input-group">
-          <input
-            type="text"
-            class="form-control"
-            placeholder="Search captures..."
-            id="search-input"
-            name="search"
-            value="{{ request.GET.search|default_if_none:'' }}">
-        </div>
-      </div>
-
-      <!-- AJAX‑Updatable Table & Pagination -->
-      <div id="dynamic-table-container" class="table-and-pagination">
-        <div class="table-container">
-          <div class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>
-                    Channel
-                    <a href="#"
-                       class="sort-link {% if sort_by == 'channel' %}active{% endif %}"
-                       data-sort-by="channel"
-                       data-sort-order="{% if sort_by == 'channel' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
-                      <span class="sort-icons">
-                        <i class="bi bi-caret-up-fill {% if sort_by == 'channel' and sort_order == 'asc' %}active{% endif %}"></i>
-                        <i class="bi bi-caret-down-fill {% if sort_by == 'channel' and sort_order == 'desc' %}active{% endif %}"></i>
-                      </span>
-                    </a>
-                  </th>
-                  <th>
-                    Capture Type
-                    <a href="#"
-                       class="sort-link {% if sort_by == 'capture_type' %}active{% endif %}"
-                       data-sort-by="capture_type"
-                       data-sort-order="{% if sort_by == 'capture_type' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
-                      <span class="sort-icons">
-                        <i class="bi bi-caret-up-fill {% if sort_by == 'capture_type' and sort_order == 'asc' %}active{% endif %}"></i>
-                        <i class="bi bi-caret-down-fill {% if sort_by == 'capture_type' and sort_order == 'desc' %}active{% endif %}"></i>
-                      </span>
-                    </a>
-                  </th>
-                  <th>
-                    Created At
-                    <a href="#"
-                       class="sort-link {% if sort_by == 'created_at' %}active{% endif %}"
-                       data-sort-by="created_at"
-                       data-sort-order="{% if sort_by == 'created_at' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
-                      <span class="sort-icons">
-                        <i class="bi bi-caret-up-fill {% if sort_by == 'created_at' and sort_order == 'asc' %}active{% endif %}"></i>
-                        <i class="bi bi-caret-down-fill {% if sort_by == 'created_at' and sort_order == 'desc' %}active{% endif %}"></i>
-                      </span>
-                    </a>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {% if captures %}
-                  {% for cap in captures %}
-                    <tr>
-                      <td>{{ cap.channel }}</td>
-                      <td>{{ cap.capture_type }}</td>
-                      <td>{{ cap.created_at|date:"Y-m-d H:i:s" }}</td>
-                    </tr>
-                  {% endfor %}
-                {% else %}
-                  <tr>
-                    <td colspan="3" class="text-center py-4">
-                      <p class="alert alert-debug italic-text mb-0">
-                        No captures found.
-                      </p>
-                    </td>
-                  </tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Pagination -->
-        <div class="pagination-container">
-          {% if captures %}
-            <nav aria-label="Page navigation">
-              <ul class="pagination">
-                {% if captures.has_previous %}
-                  <li class="page-item">
-                    <a class="page-link"
-                       href="?page={{ captures.previous_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">
-                      ‹
-                    </a>
-                  </li>
-                {% endif %}
-                {% for num in captures.paginator.page_range %}
-                  <li class="page-item {% if num == captures.number %}active{% endif %}">
-                    <a class="page-link"
-                       href="?page={{ num }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">
-                      {{ num }}
-                    </a>
-                  </li>
-                {% endfor %}
-                {% if captures.has_next %}
-                  <li class="page-item">
-                    <a class="page-link"
-                       href="?page={{ captures.next_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">
-                      ›
-                    </a>
-                  </li>
-                {% endif %}
-              </ul>
-            </nav>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 {% endblock content %}
-
 {% block inline_javascript %}
-  {{ block.super }}
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script>
-  (function($) {
-    'use strict';
-    // update sorting icons correctly when soring is clicked
-    function updateSortIcons(sortBy, sortOrder) {
-      $('.sort-link').each(function() {
-        const $a = $(this);
-        const field = $a.data('sort-by');
-        const $icon = $a.find('.sort-icon').empty();
-        if (field === sortBy) {
-          const cls = sortOrder === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down';
-          $icon.append(`<i class="bi ${cls}"></i>`);
-          $a.addClass('active');
-          
-          $a.data('sort-order', sortOrder === 'asc' ? 'desc' : 'asc');
-        } else {
-          $a.removeClass('active');
-        }
-      });
-    }
+    {{ block.super }}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        (function($) {
+            'use strict';
+            // update sorting icons correctly when soring is clicked
+            function updateSortIcons(sortBy, sortOrder) {
+                $('.sort-link').each(function() {
+                    const $a = $(this);
+                    const field = $a.data('sort-by');
+                    const $icon = $a.find('.sort-icon').empty();
+                    if (field === sortBy) {
+                        const cls = sortOrder === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down';
+                        $icon.append(`<i class="bi ${cls}"></i>`);
+                        $a.addClass('active');
 
-    // handle sorting without reloading entire page
-    $('#dynamic-table-container').on('click', '.sort-link', function(e) {
-      e.preventDefault();
-      const sortBy = $(this).data('sort-by');
-      const sortOrder = $(this).data('sort-order');
-      const payload = {
-        page: 1,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-        search: $('#search-input').val() || ''
-      };
-      $.ajax({
-        url: window.location.pathname,
-        data: payload,
-        dataType: 'html',
-        success(html) {
-          $('#dynamic-table-container').html(
-            $(html).find('#dynamic-table-container').html()
-          );
-          updateSortIcons(payload.sort_by, payload.sort_order);
-          history.pushState(null, '', '?' + $.param(payload));
-        },
-        error(xhr, status, err) {
-          console.error('Error loading table:', err);
-        }
-      });
-    });
+                        $a.data('sort-order', sortOrder === 'asc' ? 'desc' : 'asc');
+                    } else {
+                        $a.removeClass('active');
+                    }
+                });
+            }
 
-    // handle pagination without reloading entire page
-    $('#dynamic-table-container').on('click', '.page-link', function(e) {
-      e.preventDefault();
-      const params = new URLSearchParams($(this).attr('href').split('?')[1]);
-      const payload = {
-        page: params.get('page'),
-        sort_by: params.get('sort_by') || '{{ sort_by }}',
-        sort_order: params.get('sort_order') || '{{ sort_order }}',
-        search: $('#search-input').val() || ''
-      };
-      $.ajax({
-        url: window.location.pathname,
-        data: payload,
-        dataType: 'html',
-        success(html) {
-          $('#dynamic-table-container').html(
-            $(html).find('#dynamic-table-container').html()
-          );
-          updateSortIcons(payload.sort_by, payload.sort_order);
-          history.pushState(null, '', '?' + $.param(payload));
-        },
-        error(xhr, status, err) {
-          console.error('Error loading page:', err);
-        }
-      });
-    });
+            // handle sorting without reloading entire page
+            $('#dynamic-table-container').on('click', '.sort-link', function(e) {
+                e.preventDefault();
+                const sortBy = $(this).data('sort-by');
+                const sortOrder = $(this).data('sort-order');
+                const payload = {
+                    page: 1,
+                    sort_by: sortBy,
+                    sort_order: sortOrder,
+                    search: $('#search-input').val() || ''
+                };
+                $.ajax({
+                    url: window.location.pathname,
+                    data: payload,
+                    dataType: 'html',
+                    success(html) {
+                        $('#dynamic-table-container').html(
+                            $(html).find('#dynamic-table-container').html()
+                        );
+                        updateSortIcons(payload.sort_by, payload.sort_order);
+                        history.pushState(null, '', '?' + $.param(payload));
+                    },
+                    error(xhr, status, err) {
+                        console.error('Error loading table:', err);
+                    }
+                });
+            });
 
-    // Initialize sort icons on page load
-    updateSortIcons('{{ sort_by }}', '{{ sort_order }}');
-  })(jQuery);
-  </script>
+            // handle pagination without reloading entire page
+            $('#dynamic-table-container').on('click', '.page-link', function(e) {
+                e.preventDefault();
+                const params = new URLSearchParams($(this).attr('href').split('?')[1]);
+                const payload = {
+                    page: params.get('page'),
+                    sort_by: params.get('sort_by') || '{{ sort_by }}',
+                    sort_order: params.get('sort_order') || '{{ sort_order }}',
+                    search: $('#search-input').val() || ''
+                };
+                $.ajax({
+                    url: window.location.pathname,
+                    data: payload,
+                    dataType: 'html',
+                    success(html) {
+                        $('#dynamic-table-container').html(
+                            $(html).find('#dynamic-table-container').html()
+                        );
+                        updateSortIcons(payload.sort_by, payload.sort_order);
+                        history.pushState(null, '', '?' + $.param(payload));
+                    },
+                    error(xhr, status, err) {
+                        console.error('Error loading page:', err);
+                    }
+                });
+            });
+
+            // Initialize sort icons on page load
+            updateSortIcons('{{ sort_by }}', '{{ sort_order }}');
+        })(jQuery);
+    </script>
 {% endblock inline_javascript %}
