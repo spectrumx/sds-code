@@ -9,6 +9,7 @@ from .views import user_generate_api_key_view
 from .views import user_group_captures_view
 from .views import user_redirect_view
 from .views import user_update_view
+from .views import ListCapturesView
 
 app_name = "users"
 urlpatterns = [
