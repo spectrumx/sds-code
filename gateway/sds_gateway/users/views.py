@@ -32,6 +32,7 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
+from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
@@ -41,12 +42,6 @@ from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FormSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
-
-from sds_gateway.api_methods.models import Capture
-#from sds_gateway.api_methods.serializers import CaptureGetSerializer
-# new
-from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
-
 
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -156,17 +151,17 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
         # Get query parameters
-        page = int(request.GET.get('page', 1))
-        sort_by = request.GET.get('sort_by', 'created_at')
-        sort_order = request.GET.get('sort_order', 'desc')
-        
+        page = int(request.GET.get("page", 1))
+        sort_by = request.GET.get("sort_by", "created_at")
+        sort_order = request.GET.get("sort_order", "desc")
+
         # Get filter parameters
-        search = request.GET.get('search', '')
-        date_start = request.GET.get('date_start', '')
-        date_end = request.GET.get('date_end', '')
-        center_freq = request.GET.get('center_freq', '')
-        bandwidth = request.GET.get('bandwidth', '')
-        location = request.GET.get('location', '')
+        search = request.GET.get("search", "")
+        date_start = request.GET.get("date_start", "")
+        date_end = request.GET.get("date_end", "")
+        center_freq = request.GET.get("center_freq", "")
+        bandwidth = request.GET.get("bandwidth", "")
+        location = request.GET.get("location", "")
 
         # Base queryset
         files_qs = request.user.files.filter(is_deleted=False)
@@ -191,8 +186,8 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
 
         # Handle sorting
         if sort_by:
-            if sort_order == 'desc':
-                files_qs = files_qs.order_by(f'-{sort_by}')
+            if sort_order == "desc":
+                files_qs = files_qs.order_by(f"-{sort_by}")
             else:
                 files_qs = files_qs.order_by(sort_by)
 
@@ -200,19 +195,19 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
         paginator = Paginator(files_qs, self.items_per_page)
         try:
             files_page = paginator.page(page)
-        except:
+        except (EmptyPage, PageNotAnInteger):
             files_page = paginator.page(1)
 
         return render(
             request,
             template_name=self.template_name,
             context={
-                'files': files_page,
-                'total_pages': paginator.num_pages,
-                'current_page': page,
-                'total_items': paginator.count,
-                'sort_by': sort_by,
-                'sort_order': sort_order
+                "files": files_page,
+                "total_pages": paginator.num_pages,
+                "current_page": page,
+                "total_items": paginator.count,
+                "sort_by": sort_by,
+                "sort_order": sort_order,
             },
         )
 
@@ -608,20 +603,18 @@ user_dataset_list_view = ListDatasetsView.as_view()
 
 
 class ListCapturesView(Auth0LoginRequiredMixin, View):
-    template_name = "users/file_list.html"    
+    template_name = "users/file_list.html"
     items_per_page = 25
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
-       
-        page       = int(request.GET.get("page", 1))
-        sort_by    = request.GET.get("sort_by", "created_at")
+        page = int(request.GET.get("page", 1))
+        sort_by = request.GET.get("sort_by", "created_at")
         sort_order = request.GET.get("sort_order", "desc")
-        search     = request.GET.get("search", "")
+        search = request.GET.get("search", "")
         date_start = request.GET.get("date_start", "")
-        date_end   = request.GET.get("date_end", "")
-        cap_type   = request.GET.get("capture_type", "")
+        date_end = request.GET.get("date_end", "")
+        cap_type = request.GET.get("capture_type", "")
 
-       
         qs = request.user.captures.filter(is_deleted=False)
 
         # 3) apply filters
@@ -640,31 +633,28 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         else:
             qs = qs.order_by(sort_by)
 
-     
         paginator = Paginator(qs, self.items_per_page)
         try:
             page_obj = paginator.page(page)
-        except:
+        except (EmptyPage, PageNotAnInteger):
             page_obj = paginator.page(1)
-
 
         serializer = CaptureGetSerializer(
             page_obj, many=True, context={"request": request}
         )
 
-
         return render(
             request,
             self.template_name,
             {
-                "captures":       page_obj,
-                "captures_data":  serializer.data,
-                "sort_by":        sort_by,
-                "sort_order":     sort_order,
-                "search":         search,
-                "date_start":     date_start,
-                "date_end":       date_end,
-                "capture_type":   cap_type,
+                "captures": page_obj,
+                "captures_data": serializer.data,
+                "sort_by": sort_by,
+                "sort_order": sort_order,
+                "search": search,
+                "date_start": date_start,
+                "date_end": date_end,
+                "capture_type": cap_type,
             },
         )
 
