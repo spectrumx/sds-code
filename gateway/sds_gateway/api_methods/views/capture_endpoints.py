@@ -38,6 +38,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSe
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
+from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
@@ -218,7 +219,7 @@ class CaptureViewSet(viewsets.ViewSet):
             )
 
         requester = cast("User", request.user)
-        request_data = _infer_index_name(
+        request_data = _handle_capture_type(
             request_data=request.data.copy(),
             capture_type=capture_type,
         )
@@ -578,7 +579,7 @@ class CaptureViewSet(viewsets.ViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-def _infer_index_name(
+def _handle_capture_type(
     request_data: dict[str, Any],
     capture_type: str | None,
 ) -> dict[str, Any]:
@@ -588,15 +589,7 @@ def _infer_index_name(
         return request_data
 
     # Populate index_name based on capture type
-    match capture_type:
-        case CaptureType.DigitalRF:
-            request_data["index_name"] = f"captures-{CaptureType.DigitalRF}"
-        case CaptureType.RadioHound:
-            request_data["index_name"] = f"captures-{CaptureType.RadioHound}"
-        case _:
-            msg = f"Invalid capture type: {capture_type}"
-            log.error(msg)
-            raise ValueError(msg)
+    request_data["index_name"] = infer_index_name(capture_type)
 
     return request_data
 

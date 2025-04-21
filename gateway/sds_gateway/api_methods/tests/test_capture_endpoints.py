@@ -15,6 +15,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.test import APITestCase
 
+from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
@@ -110,10 +111,8 @@ class CaptureTestCases(APITestCase):
             "gain": 1.0,
             "hardware_board_id": "025",
             "hardware_version": "3.4",
-            "coordinates": {
-                "lat": 41.699584,
-                "lon": -86.237237,
-            },
+            "latitude": 41.699584,
+            "longitude": -86.237237,
             "mac_address": "f4e11ea46780",
             "metadata": {
                 "archive_result": True,
@@ -167,49 +166,38 @@ class CaptureTestCases(APITestCase):
     def _index_test_metadata(self) -> None:
         """Index test metadata into OpenSearch."""
         # Index DRF capture metadata
-        self.opensearch.index(
-            index=self.drf_capture.index_name,
-            id=str(self.drf_capture.uuid),
-            body={
-                "channel": self.drf_capture.channel,
-                "capture_type": self.drf_capture.capture_type,
-                "created_at": self.drf_capture.created_at,
-                "capture_props": self.drf_metadata,
-            },
-            version=1,  # pyright: ignore[reportCallIssue]
-            version_type="external",  # pyright: ignore[reportCallIssue]
-        )
+        index_capture_metadata(self.drf_capture, self.drf_metadata)
         self.opensearch.indices.refresh(index=self.drf_capture.index_name)
 
         # Index RH capture metadata
-        self.opensearch.index(
-            index=self.rh_capture.index_name,
-            id=str(self.rh_capture.uuid),
-            body={
-                "channel": self.rh_capture.channel,
-                "capture_type": self.rh_capture.capture_type,
-                "created_at": self.rh_capture.created_at,
-                "capture_props": self.rh_metadata,
-            },
-        )
+        index_capture_metadata(self.rh_capture, self.rh_metadata)
         # Ensure immediate visibility
         self.opensearch.indices.refresh(index=self.rh_capture.index_name)
 
     def tearDown(self) -> None:
         """Clean up test data."""
-        super().tearDown()
 
         # Clean up OpenSearch documents
         self._cleanup_opensearch_test_indices()
+
+        # clean up test objects in correct order
+        self.user.captures.all().delete()
+        self.user.delete()
 
     def test_create_drf_capture_201(self) -> None:
         """Test creating drf capture returns metadata."""
         unique_channel = "ch1"
         unique_top_level_dir = "test-dir-drf-1"
 
-        with patch(
-            "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
-            return_value=self.drf_metadata,
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture.index_name,
+            ),
         ):
             response = self.client.post(
                 self.list_url,
@@ -217,7 +205,6 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": unique_channel,
                     "top_level_dir": unique_top_level_dir,
-                    "index_name": "captures-drf",
                 },
             )
             assert response.status_code == status.HTTP_201_CREATED
@@ -229,6 +216,9 @@ class CaptureTestCases(APITestCase):
     def test_create_rh_capture_201(self) -> None:
         """Test creating rh capture returns metadata."""
         unique_scan_group = uuid.uuid4()
+        unique_rh_metadata = self.rh_metadata.copy()
+        unique_rh_metadata["scan_group"] = str(unique_scan_group)
+
         with (
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.find_rh_metadata_file",
@@ -239,8 +229,12 @@ class CaptureTestCases(APITestCase):
                 return_value=type(
                     "MockRHData",
                     (),
-                    {"model_dump": lambda mode: self.rh_metadata},
+                    {"model_dump": lambda mode: unique_rh_metadata},
                 ),
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.rh_capture.index_name,
             ),
         ):
             response_raw = self.client.post(
@@ -258,7 +252,7 @@ class CaptureTestCases(APITestCase):
             assert response["scan_group"] == str(
                 unique_scan_group,
             ), f"Unexpected scan group: {response['scan_group']}"
-            assert response["capture_props"] == self.rh_metadata, (
+            assert response["capture_props"] == unique_rh_metadata, (
                 f"Unexpected metadata: {response['capture_props']}"
             )
             assert response["capture_type"] == CaptureType.RadioHound, (
@@ -270,9 +264,15 @@ class CaptureTestCases(APITestCase):
 
     def test_create_drf_capture_already_exists(self) -> None:
         """Test creating drf capture returns metadata."""
-        with patch(
-            "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
-            return_value=self.drf_metadata,
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture.index_name,
+            ),
         ):
             response_raw = self.client.post(
                 self.list_url,
@@ -292,6 +292,7 @@ class CaptureTestCases(APITestCase):
     def test_create_rh_capture_scan_group_conflict(self) -> None:
         """Test creating rh capture with existing scan group returns error."""
         # ARRANGE
+
         with (
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.find_rh_metadata_file",
@@ -304,6 +305,10 @@ class CaptureTestCases(APITestCase):
                     (),
                     {"model_dump": lambda mode: self.rh_metadata},
                 ),
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.rh_capture.index_name,
             ),
         ):
             # ACT
@@ -471,26 +476,39 @@ class CaptureTestCases(APITestCase):
         with matching metadata, without type distinction.
         """
         center_freq = 2_000_000_000
+        total_captures = 2
         metadata_filters = [
             {
-                "field_path": "capture_props.center_freq",
+                "field_path": "search_props.center_frequency",
                 "query_type": "match",
                 "filter_value": center_freq,
             },
         ]
+
         response = self.client.get(
             f"{self.list_url}?metadata_filters={json.dumps(metadata_filters)}",
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["count"] == 1, (
-            f"Expected to find the DRF capture, got count: {data['count']}"
+
+        # assert that both DRF and RH captures are returned
+        # with no type distinction, search_props.center_frequency is present in both
+        assert data["count"] == total_captures, (
+            f"Expected to find {total_captures} captures, "
+            f"DRF and RH, got count: {data['count']}"
         )
-        returned_center_freq = data["results"][0]["capture_props"]["center_freq"]
-        assert returned_center_freq == center_freq, (
-            "Center frequency should be equal to the filter value: "
-            f"{returned_center_freq} == {center_freq}"
+
+        # get the DRF capture
+        drf_capture = next(
+            c for c in data["results"] if c["capture_type"] == CaptureType.DigitalRF
         )
+        assert drf_capture["capture_props"]["center_freq"] == center_freq
+
+        # get the RH capture
+        rh_capture = next(
+            c for c in data["results"] if c["capture_type"] == CaptureType.RadioHound
+        )
+        assert rh_capture["capture_props"]["center_frequency"] == center_freq
 
     def test_list_captures_with_metadata_filters_rh_200(self) -> None:
         """
@@ -500,16 +518,22 @@ class CaptureTestCases(APITestCase):
         center_freq = 2_000_000_000
         metadata_filters = [
             {
-                "field_path": "capture_props.metadata.fmax",
+                "field_path": "search_props.frequency_max",
                 "query_type": "range",
                 "filter_value": {
                     "gt": center_freq,
                 },
             },
         ]
-        response = self.client.get(
-            f"{self.list_url}?capture_type={CaptureType.RadioHound}&metadata_filters={json.dumps(metadata_filters)}",
-        )
+
+        with patch(
+            "sds_gateway.api_methods.helpers.search_captures.infer_index_name",
+            return_value=self.rh_capture.index_name,
+        ):
+            response = self.client.get(
+                f"{self.list_url}?capture_type={CaptureType.RadioHound}&metadata_filters={json.dumps(metadata_filters)}",
+            )
+
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["count"] == 1, "Expected to find the RH capture"
@@ -529,7 +553,7 @@ class CaptureTestCases(APITestCase):
         bottom_right_lon = -85
         metadata_filters = [
             {
-                "field_path": "capture_props.coordinates",
+                "field_path": "search_props.coordinates",
                 "query_type": "geo_bounding_box",
                 "filter_value": {
                     "top_left": {
@@ -549,22 +573,23 @@ class CaptureTestCases(APITestCase):
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["count"] == 1, "Expected to find the RH capture"
-        coordinates = data["results"][0]["capture_props"]["coordinates"]
-        assert coordinates["lat"] <= top_left_lat, (
+        latitude = data["results"][0]["capture_props"]["latitude"]
+        longitude = data["results"][0]["capture_props"]["longitude"]
+        assert latitude <= top_left_lat, (
             "Latitude should be less than or equal to top left latitude: "
-            f"{coordinates['lat']} <= {top_left_lat}"
+            f"{latitude} <= {top_left_lat}"
         )
-        assert coordinates["lon"] >= top_left_lon, (
+        assert longitude >= top_left_lon, (
             "Longitude should be greater than or equal to top left longitude: "
-            f"{coordinates['lon']} >= {top_left_lon}"
+            f"{longitude} >= {top_left_lon}"
         )
-        assert coordinates["lat"] >= bottom_right_lat, (
+        assert latitude >= bottom_right_lat, (
             "Latitude should be greater than or equal to bottom right latitude: "
-            f"{coordinates['lat']} >= {bottom_right_lat}"
+            f"{latitude} >= {bottom_right_lat}"
         )
-        assert coordinates["lon"] <= bottom_right_lon, (
+        assert longitude <= bottom_right_lon, (
             "Longitude should be less than or equal to bottom right longitude: "
-            f"{coordinates['lon']} <= {bottom_right_lon}"
+            f"{longitude} <= {bottom_right_lon}"
         )
 
     def test_retrieve_capture_200(self) -> None:

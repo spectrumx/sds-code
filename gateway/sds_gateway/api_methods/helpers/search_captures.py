@@ -14,6 +14,7 @@ from sds_gateway.api_methods.utils.metadata_schemas import base_index_fields
 from sds_gateway.api_methods.utils.metadata_schemas import (
     capture_index_mapping_by_type as md_props_by_type,  # type: dict[CaptureType, dict[str, Any]]
 )
+from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.users.models import User
 
@@ -220,6 +221,7 @@ def search_captures(
     if not metadata_queries:
         log.debug("No metadata queries provided. Returning all captures.")
         return capture_queryset
+
     os_query = _build_os_query_for_captures(
         capture_type=capture_type,
         metadata_queries=metadata_queries,
@@ -227,7 +229,7 @@ def search_captures(
 
     client = get_opensearch_client()
     index_name: str = (
-        "captures-*" if capture_type is None else f"captures-{capture_type}"
+        "captures-*" if capture_type is None else infer_index_name(capture_type)
     )
 
     try:

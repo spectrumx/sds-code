@@ -4,6 +4,7 @@ from loguru import logger as log
 from opensearchpy import OpenSearch
 from opensearchpy import exceptions as os_exceptions
 
+from sds_gateway.api_methods.helpers.transforms import Transforms
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.metadata_schemas import base_properties
@@ -57,6 +58,13 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
             id=capture.uuid,
             body=document,
         )
+
+        # apply field transforms to create search_props fields
+        Transforms(capture.capture_type).apply_field_transforms(
+            index_name=capture.index_name,
+            capture_uuid=str(capture.uuid),
+        )
+
         msg = (
             f"Metadata for capture '{capture.uuid}' indexed in '{capture.index_name}'."
         )
