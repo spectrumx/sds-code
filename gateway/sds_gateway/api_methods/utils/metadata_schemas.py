@@ -2,9 +2,12 @@
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/digital-rf/README.md
 # the mapping below is used for drf capture metadata parsing in extract_drf_metadata.py
 
+import logging
 from typing import Any
 
 from sds_gateway.api_methods.models import CaptureType
+
+log = logging.getLogger(__name__)
 
 drf_capture_metadata_schema = {
     "properties": {
@@ -391,3 +394,17 @@ def get_mapping_by_capture_type(
             },
         },
     }
+
+
+def infer_index_name(capture_type: CaptureType) -> str:
+    """Infer the index name for a given capture."""
+    # Populate index_name based on capture type
+    match capture_type:
+        case CaptureType.DigitalRF:
+            return f"captures-{CaptureType.DigitalRF}"
+        case CaptureType.RadioHound:
+            return f"captures-{CaptureType.RadioHound}"
+        case _:
+            msg = f"Invalid capture type: {capture_type}"
+            log.error(msg)
+            raise ValueError(msg)

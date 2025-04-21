@@ -17,14 +17,13 @@ from opensearchpy import NotFoundError
 from opensearchpy import OpenSearch
 from opensearchpy import RequestError
 
+from sds_gateway.api_methods.helpers.transforms import Transforms
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
-
-from . import transforms
 
 # maximum size (doc count) of OpenSearch searches
 MAX_OS_SIZE = 10_000
@@ -330,57 +329,6 @@ class Command(BaseCommand):
             f"Successfully RESET {self.index_name} to its original form.",
         )
 
-    def _apply_field_transforms(
-        self,
-        index_name: str,
-        field_transforms: dict[str, dict[str, str]],
-        capture_uuid: str,
-    ) -> None:
-        """Apply transforms for new fields.
-
-        Args:
-            client: OpenSearch client
-            index_name: Name of the index to apply transforms to
-            field_transforms: Dictionary of field transforms to apply
-            capture_uuid: UUID of the specific capture to transform.
-        """
-        # initialize the search_props field on the document
-        # (presumes it doesn't exist)
-        self._init_search_props(
-            client=self.client,
-            index_name=index_name,
-            capture_uuid=capture_uuid,
-        )
-
-        for field, transform in field_transforms.items():
-            try:
-                try:
-                    _response = self.client.update(
-                        index=index_name,
-                        id=capture_uuid,
-                        body={
-                            "script": {
-                                "source": transform["source"],
-                                "lang": transform["lang"],
-                            },
-                        },
-                    )
-                    if _response.get("result") != "updated":
-                        log.error(
-                            f"Failed to transform field '{field}': {_response!s}",
-                        )
-                        continue
-                    log.info(
-                        f"Successfully TRANSFORMED field '{field}'",
-                    )
-                except (RequestError, OpensearchConnectionError) as e:
-                    log.error(f"Error with direct update: {e!s}")
-
-            except (RequestError, OpensearchConnectionError) as e:
-                log.error(
-                    f"Error applying transform for field '{field}': {e!s}",
-                )
-
     def _ask_confirmation_and_rollback(
         self,
         backup_index_name: str,
@@ -616,58 +564,6 @@ class Command(BaseCommand):
             )
             return -1
 
-    def _get_transform_scripts(
-        self,
-        capture_type: CaptureType,
-    ) -> dict[str, dict[str, str]]:
-        """Get the transform scripts based on capture type."""
-        match capture_type:
-            case CaptureType.RadioHound:
-                return transforms.rh_field_transforms
-            case CaptureType.DigitalRF:
-                return transforms.drf_field_transforms
-            case _:
-                log.error(
-                    f"Unknown capture type: {capture_type}",
-                )
-                return {}
-
-    def _init_search_props(
-        self,
-        client: OpenSearch,
-        index_name: str,
-        capture_uuid: str,
-    ) -> None:
-        """Initialize the search_props field."""
-        try:
-            log.info(
-                f"Initializing search_props for capture '{capture_uuid}'...",
-            )
-
-            init_script = {
-                "script": {
-                    "source": """
-                    if (ctx._source.search_props == null) {
-                        ctx._source.search_props = new HashMap();
-                    }
-                    """.strip(),
-                    "lang": "painless",
-                },
-            }
-
-            _response = client.update(
-                index=index_name,
-                id=capture_uuid,
-                body=init_script,
-            )
-            if _response.get("result") != "updated":
-                log.error(
-                    "Failed to initialize search_props for "
-                    f"cap={capture_uuid}: {_response!s}",
-                )
-        except (RequestError, OpensearchConnectionError) as e:
-            log.error(f"Error initializing search_props: {e!s}")
-
     def _recreate_index(
         self,
     ) -> None:
@@ -703,13 +599,15 @@ class Command(BaseCommand):
                 requester=capture.owner,
                 top_level_dir=capture.top_level_dir,
             )
-            transform_scripts = self._get_transform_scripts(capture.capture_type)
-            if transform_scripts:
-                self._apply_field_transforms(
-                    index_name=capture.index_name,
-                    field_transforms=transform_scripts,
-                    capture_uuid=str(capture.uuid),
-                )
+
+            # apply field transforms to search_props fields
+            Transforms(
+                capture_type=capture.capture_type,
+            ).apply_field_transforms(
+                index_name=capture.index_name,
+                capture_uuid=str(capture.uuid),
+            )
+
         except FileNotFoundError as e:
             log.error(f"File not found for capture '{capture.uuid}': {e!s}")
             return False
@@ -852,7 +750,9 @@ class Command(BaseCommand):
         """
         try:
             # Get the transform scripts
-            transform_scripts = self._get_transform_scripts(capture_type)
+            transform_scripts = Transforms(
+                capture_type=capture_type
+            ).get_transform_scripts()
 
             # Perform reindex operation with combined transform scripts
             body = {

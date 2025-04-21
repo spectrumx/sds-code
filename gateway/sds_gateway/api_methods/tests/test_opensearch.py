@@ -113,14 +113,14 @@ class OpenSearchRHIndexResetTest(APITestCase):
         # Create RH metadata JSON with simple test data
         self.json_file = {
             "altitude": 2.0,
-            "center_frequency": 2000000000.0,
+            "center_frequency": 2_000_000_000.0,
             "custom_fields": {
                 "requested": {
-                    "fmax": 2010000000,
-                    "fmin": 1990000000,
+                    "fmax": 2_010_000_000.0,
+                    "fmin": 1_990_000_000.0,
                     "gain": 1,
                     "samples": 1024,
-                    "span": 20000000,
+                    "span": 20_000_000,
                 },
             },
             "data": data_base64,
@@ -133,13 +133,13 @@ class OpenSearchRHIndexResetTest(APITestCase):
             "metadata": {
                 "archive_result": True,
                 "data_type": "periodogram",
-                "fmax": 2012000000.0,
-                "fmin": 1988000000.0,
+                "fmax": 2_012_000_000.0,
+                "fmin": 1_988_000_000.0,
                 "gps_lock": False,
                 "nfft": 1024,
                 "scan_time": 0.07766938209533691,
             },
-            "sample_rate": 24000000,
+            "sample_rate": 24_000_000,
             "scan_group": self.scan_group,
             "short_name": "WI-Lab V3.4-025 #6",
             "software_version": "v0.10b30",
