@@ -5,6 +5,8 @@ from typing import cast
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
@@ -41,7 +43,7 @@ from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 
 
-class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
+class UserDetailView(Auth0LoginRequiredMixin, DetailView[User]):
     model = User
     slug_field = "id"
     slug_url_arg = "id"
@@ -212,7 +214,7 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
 user_file_list_view = ListFilesView.as_view()
 
 
-class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
+class FileDetailView(Auth0LoginRequiredMixin, DetailView[File]):
     model = File
     slug_field = "uuid"
     slug_url_kwarg = "uuid"

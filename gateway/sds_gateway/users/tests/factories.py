@@ -8,7 +8,7 @@ from factory.django import DjangoModelFactory
 from sds_gateway.users.models import User
 
 
-class UserFactory(DjangoModelFactory):  # pyright: ignore[reportMissingTypeArgument]
+class UserFactory(DjangoModelFactory[User]):
     email = Faker("email")
     name = Faker("name")
 
