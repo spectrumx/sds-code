@@ -39,8 +39,8 @@ fi
 source "${COMMON_SCRIPT}"
 
 if [[ ! -f "${COMMON_VARS}" ]]; then
-    log_err "Common variables script not found: '${COMMON_VARS}'"
-    log_err "Please run e.g. 'cp ${COMMON_VARS}.example ${COMMON_VARS}' to create it, then modify its variables."
+    log_error "Common variables script not found: '${COMMON_VARS}'"
+    log_error "Please run e.g. 'cp ${COMMON_VARS}.example ${COMMON_VARS}' to create it, then modify its variables."
     exit 1
 fi
 # shellcheck disable=SC1090
@@ -172,10 +172,12 @@ function transfer_to_qa_when_prod() {
 
 function main() {
     log_header "Starting $(basename "$0")…"
+    log_warning "This script is under development and might not snapshot all SDS services at the moment."
+    log_warning "Data of MinIO objects is not included or planned to be in this snapshot."
     pre_checks || log_fatal_and_exit "Pre-checks failed."
     snapshot_postgres || log_fatal_and_exit "Postgres snapshot failed."
-    make_read_only_when_prod || log_err "Failed to set read-only permissions."
-    snapshot_stats || log_err "Snapshot stats failed."
+    make_read_only_when_prod || log_error "Failed to set read-only permissions."
+    snapshot_stats || log_error "Snapshot stats failed."
     transfer_to_qa_when_prod || log_fatal_and_exit "Transfer to QA failed."
 }
 
