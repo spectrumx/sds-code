@@ -250,9 +250,16 @@ def search_captures(
         log.exception(msg)
         raise
     except os_exceptions.RequestError as err:
-        msg = f"OpenSearch request error: {err}"
-        log.exception(msg)
-        raise
+        # raise ValueError to trigger a 400 HTTP response
+        # and pass the information to the client about what
+        # went wrong with the query they provided
+        context_for_user = "Query error"
+        info = err.info
+        root_causes: list[dict[str, str]] = info.get("error", {}).get("root_cause", [])
+        root_cause_reason: str = root_causes[0].get("reason", "") if root_causes else ""
+        reason = str(root_cause_reason) if root_cause_reason else str(info)
+        msg = f"{context_for_user}: {reason}"
+        raise ValueError(msg) from err
     except os_exceptions.OpenSearchException as err:
         msg = f"OpenSearch generic error: {err}"
         log.exception(msg)
