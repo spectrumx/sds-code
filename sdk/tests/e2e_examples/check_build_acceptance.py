@@ -226,6 +226,7 @@ def check_capture_usage() -> None:
     for capture in my_rh_captures:
         print(f"Capture {capture.uuid}: {capture.capture_props}")
 
+    assert new_capture.uuid is not None, "Capture ID should not be None"
     is_deleted = sds.captures.delete(
         new_capture.uuid  # retain as positional arg
     )

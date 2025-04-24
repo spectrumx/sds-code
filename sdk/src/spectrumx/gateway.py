@@ -1,5 +1,6 @@
 """Lower level module for interaction with the SpectrumX Data System."""
 
+import json
 import sys
 import uuid
 from collections.abc import Iterator
@@ -166,9 +167,9 @@ class GatewayClient:
         if self.verbose or verbose:
             debug_str = f"GWY req: {method} {payload['url']}"
             if "params" in kwargs:
-                debug_str += f" params={kwargs['params']}"
+                debug_str += f"\nparams={kwargs['params']}"
             if "asset_id" in kwargs:
-                debug_str += f" asset_id={kwargs['asset_id']}"
+                debug_str += f"\nasset_id={kwargs['asset_id']}"
             log.opt(depth=1).debug(debug_str)
 
         return requests.request(
@@ -509,7 +510,7 @@ class GatewayClient:
         network.success_or_raise(response, ContextException=CaptureError)
         return response.content
 
-    def search_captures(
+    def captures_advanced_search(
         self,
         *,
         field_path: str,
@@ -517,10 +518,12 @@ class GatewayClient:
         filter_value: str | dict[str, Any],
         verbose: bool = False,
     ) -> bytes:
-        """Searches captures on the SDS API.
+        """Advanced searches for captures using the SDS API.
 
         Returns:
             The response content from SDS Gateway.
+        Raises:
+            CaptureError: If the search request fails.
         """
         metadata_filters = [
             {
@@ -533,7 +536,7 @@ class GatewayClient:
             method=HTTPMethods.GET,
             endpoint=Endpoints.CAPTURES,
             verbose=verbose,
-            params={"metadata_filters": metadata_filters},
+            params={"metadata_filters": json.dumps(metadata_filters)},
         )
         network.success_or_raise(response, ContextException=CaptureError)
         return response.content

@@ -13,6 +13,7 @@ from uuid import uuid4
 import pydantic
 from loguru import logger as log
 
+from spectrumx.errors import CaptureError
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
@@ -254,6 +255,8 @@ def _enable_experimental_advanced_search() -> None:
             A list of captures matching the query.
         """
 
+        # TODO: adapt this function to return a Paginator[Capture] object
+
         if self.dry_run:
             log.debug("Dry run enabled: simulating search results")
             rng = random.Random()  # noqa: S311
@@ -262,23 +265,28 @@ def _enable_experimental_advanced_search() -> None:
                 for _ in range(5)
             ]
 
-        search_results_raw = self.gateway.search_captures(
+        search_results_raw = self.gateway.captures_advanced_search(
             field_path=field_path,
             query_type=query_type,
             filter_value=filter_value,
         )
-        search_results = json.loads(search_results_raw)
+        search_results_obj = json.loads(search_results_raw)
         captures: list[Capture] = []
+        if "results" not in search_results_obj:
+            msg = "Unexpected search result format."
+            raise CaptureError(msg)
+        search_results = search_results_obj["results"]
         for result_raw in search_results:
             try:
                 capture = Capture.model_validate(result_raw)
-                captures.append(capture)
             except pydantic.ValidationError as err:
                 log_user_warning(
                     f"Validation error loading search result: {result_raw}"
                 )
                 log.exception(err)
                 continue
+            else:
+                captures.append(capture)
         log.debug(f"Search returned {len(captures)} captures")
         return captures
 
