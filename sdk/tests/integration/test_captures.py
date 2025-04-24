@@ -8,7 +8,9 @@ from pathlib import PurePosixPath
 import pytest
 from loguru import logger as log
 from pydantic import BaseModel
-from spectrumx.api.captures import _enable_experimental_advanced_search
+from spectrumx.api.captures import (
+    _enable_experimental_advanced_search,  # pyright: ignore[reportPrivateUsage]
+)
 from spectrumx.client import Client
 from spectrumx.errors import CaptureError
 from spectrumx.models.captures import CaptureType
@@ -415,6 +417,7 @@ def _delete_rh_captures_by_scan_group(
     )
     for capture in same_scan_group_caps:
         log.warning(f"Deleting capture: {capture.uuid}")
+        assert capture.uuid is not None, "Capture UUID should not be None"
         integration_client.captures.delete(capture_uuid=capture.uuid)
 
 
@@ -458,17 +461,14 @@ def test_capture_reading_drf(integration_client: Client) -> None:
         sds_path=path_after_capture_data,
         local_path=dir_top_level,
     )
-
-    # create a capture
     capture = integration_client.captures.create(
         top_level_dir=Path(f"/{path_after_capture_data}"),
         channel=drf_channel,
         capture_type=CaptureType.DigitalRF,
     )
+    assert capture.uuid is not None, "UUID of new capture should not be None"
 
     # ACT
-
-    # read the capture
     read_capture = integration_client.captures.read(
         capture_uuid=capture.uuid,
     )
@@ -517,6 +517,7 @@ def test_capture_deletion(integration_client: Client) -> None:
     )
 
     # ACT
+    assert capture.uuid is not None, "UUID of new capture should not be None"
     result = integration_client.captures.delete(capture_uuid=capture.uuid)
 
     # ASSERT
@@ -597,8 +598,56 @@ def test_capture_advanced_search_frequency_range(integration_client: Client) -> 
     ],
     indirect=True,
 )
-def test_capture_advanced_search_exact_match(integration_client: Client) -> None:
-    """Tests searching captures with an exact match query."""
+def test_capture_advanced_search_full_text_search(integration_client: Client) -> None:
+    """Tests searching captures with a full-text search query.
+
+    Digital-RF capture props example for reference:
+
+    ```
+    'capture_props': {
+        'samples_per_second': 2500000,
+        'start_bound': 1719499740,
+        'end_bound': 1719499741,
+        'is_complex': True,
+        'is_continuous': True,
+        'center_freq': 1024000000,
+        'bandwidth': 100000000,
+        'custom_attrs': {
+            'num_subchannels': 1,
+            'index': 4298748970000000,
+            'processing/channelizer_filter_taps': [],
+            'processing/decimation': 1,
+            'processing/interpolation': 1,
+            'processing/resampling_filter_taps': [],
+            'processing/scaling': 1.0,
+            'receiver/center_freq': 1024000000.4842604,
+            'receiver/clock_rate': 125000000.0,
+            'receiver/clock_source': 'external',
+            'receiver/dc_offset': False,
+            'receiver/description': 'UHD USRP source using GNU Radio',
+            'receiver/id': '172.16.20.43',
+            'receiver/info/mboard_id': 'n310',
+            'receiver/info/mboard_name': 'n/a',
+            'receiver/info/mboard_serial': '31649FE',
+            'receiver/info/rx_antenna': 'RX2',
+            'receiver/info/rx_id': '336',
+            'receiver/info/rx_serial': '3162222',
+            'receiver/info/rx_subdev_name': 'Magnesium',
+            'receiver/info/rx_subdev_spec': 'A:0 A:1',
+            'receiver/iq_balance': '',
+            'receiver/lo_export': '',
+            'receiver/lo_offset': 624999.4039535522,
+            'receiver/lo_source': '',
+            'receiver/otw_format': 'sc16',
+            'receiver/samp_rate': 2500000.0,
+            'receiver/stream_args': '',
+            'receiver/subdev': 'A:0',
+            'receiver/time_source': 'external',
+        },
+    },
+    ```
+
+    """
     # ARRANGE
     _enable_experimental_advanced_search()  # Enable the experimental search feature
     cap_data = _upload_drf_capture_test_assets(integration_client)
@@ -609,9 +658,9 @@ def test_capture_advanced_search_exact_match(integration_client: Client) -> None
     )
 
     # ACT
-    field_path = "capture_props.tags"
-    query_type = "term"
-    filter_value = {"capture_props.channel": drf_channel}
+    field_path = "capture_props.custom_attrs.receiver/description"
+    query_type = "match"  # 'match' for full-text search
+    filter_value = "UHD USRP"
 
     matched_caps = integration_client.captures.advanced_search(
         field_path=field_path,
