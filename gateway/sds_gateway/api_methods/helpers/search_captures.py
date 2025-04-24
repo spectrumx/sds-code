@@ -21,6 +21,9 @@ from sds_gateway.users.models import User
 RangeValue = dict[str, int | float]
 UNKNOWN_CAPTURE_TYPE = "Unknown capture type"
 
+# maximum size (doc count) of OpenSearch searches
+MAX_OS_SIZE = 10_000
+
 
 def handle_nested_query(
     field_path: str,
@@ -236,6 +239,7 @@ def search_captures(
         response = client.search(
             index=index_name,
             body=os_query,
+            size=MAX_OS_SIZE,  # pyright: ignore[reportCallIssue]
         )
     except os_exceptions.NotFoundError as err:
         msg = f"Index '{index_name}' not found"
@@ -255,6 +259,13 @@ def search_captures(
         raise
     else:
         matching_uuids = [hit["_id"] for hit in response["hits"]["hits"]]
+        num_hits = len(matching_uuids)
+        if num_hits > 0.9 * MAX_OS_SIZE:
+            log.warning(
+                f"OpenSearch returned {num_hits:,} hits, which is close to the "
+                f"maximum size of {MAX_OS_SIZE:,}. Consider refactoring.",
+            )
+        log.debug(f"Found {len(matching_uuids)} matching captures.")
         return capture_queryset.filter(uuid__in=matching_uuids).order_by("-updated_at")
 
 
