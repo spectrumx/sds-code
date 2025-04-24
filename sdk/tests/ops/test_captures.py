@@ -348,7 +348,7 @@ def test_search_captures_freq_range(
     )
 
     # ACT
-    captures = client.captures.search(
+    captures = client.captures.advanced_search(
         field_path=field_path,
         query_type=query_type,
         filter_value=filter_value,
@@ -374,7 +374,7 @@ def test_search_captures_dry_run(client: Client) -> None:
     filter_value = {"gte": 1990000000, "lte": 2010000000}
 
     # ACT
-    captures = client.captures.search(
+    captures = client.captures.advanced_search(
         field_path=field_path,
         query_type=query_type,
         filter_value=filter_value,
@@ -414,7 +414,7 @@ def test_search_captures_exact_match(
     )
 
     # ACT
-    matched_caps = client.captures.search(
+    matched_caps = client.captures.advanced_search(
         field_path=field_path,
         query_type=query_type,
         filter_value=filter_value,
