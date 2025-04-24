@@ -241,9 +241,11 @@ def check_experiments() -> None:
     from spectrumx import experiments
 
     assert not hasattr(sds.captures, "search"), "Search should not be defined yet"
-    experiments.enable_capture_search()
-    assert isinstance(sds.captures.search, Callable), "Search should be callable"
-    print(sds.captures.search.__doc__)
+    experiments.enable_capture_advanced_search()
+    assert isinstance(sds.captures.advanced_search, Callable), (
+        "Advanced search should be callable"
+    )
+    print(sds.captures.advanced_search.__doc__)
 
 
 @dataclass

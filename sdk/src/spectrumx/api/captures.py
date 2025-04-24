@@ -220,24 +220,36 @@ class CaptureAPI:
         return True
 
 
-def _enable_experimental_search() -> None:
+def _enable_experimental_advanced_search() -> None:
     """Enables the experimental search feature."""
 
-    def search(
+    def advanced_search(
         self: CaptureAPI,
         *,
         field_path: str,
         query_type: str,
         filter_value: dict[str, Any],
     ) -> list[Capture]:
-        """Searches for captures in SDS based on a query string.
+        """Advanced searches for RF captures in SDS.
 
-        More details on OpenSearch querying:
+        SDS querying examples:
         https://github.com/spectrumx/sds-code/tree/master/gateway#opensearch-query-tips
 
+        OpenSearch query DSL documentation:
+        https://docs.opensearch.org/docs/latest/query-dsl/
+
         Args:
-            query: The search query string.
-            limit: The maximum number of results to return.
+            field_path:     The field to search captures by e.g.:
+                            `capture_props.center_freq`, `created_at`
+            query_type:     The type of query to perform e.g.:
+                            `range`, `geo_bounding_box`, `term`, `match`, `wildcard`
+            filter_value:   The value(s) to filter by e.g.:
+                            ```
+                            {
+                                "gte": 1990000000,
+                                "lte": 2010000000
+                            }
+                            ```
         Returns:
             A list of captures matching the query.
         """
@@ -270,7 +282,7 @@ def _enable_experimental_search() -> None:
         log.debug(f"Search returned {len(captures)} captures")
         return captures
 
-    CaptureAPI.search = search
+    CaptureAPI.advanced_search = advanced_search
     log.info("Experimental search feature enabled for CaptureAPI")
 
 

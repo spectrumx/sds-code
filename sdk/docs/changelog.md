@@ -1,6 +1,12 @@
 # SpectrumX SDK Changelog
 
-## `0.1.9` - Future
+## `0.1.9` - 2025-04-XX
+
++ Features and improvements:
+    + Captures may now be deleted using the SDK.
+    + SDK methods that receive a single UUID as an argument now allow it to be passed as a positional argument.
+    + Experimental support for capture searches using OpenSearch queries has been introduced.
+        + Enable it by calling `spectrumx.experiments.enable_capture_advanced_search()` before calling the search method.
 
 ## `0.1.8` - 2025-03-24
 
