@@ -275,21 +275,21 @@ capture_list_request_example_schema = {
     "capture_type": CaptureType.DigitalRF,
     "metadata_filters": [
         {
-            "field": "capture_props.start_bound",
+            "field_path": "capture_props.start_bound",
             "query_type": "range",
             "filter_value": {
                 "gte": 1515000000,
             },
         },
         {
-            "field": "capture_props.end_bound",
+            "field_path": "capture_props.end_bound",
             "query_type": "range",
             "filter_value": {
                 "lte": 1515005000,
             },
         },
         {
-            "field": "capture_props.center_freq",
+            "field_path": "capture_props.center_freq",
             "query_type": "match",
             "filter_value": 1024000000,
         },
