@@ -8,6 +8,7 @@ from pathlib import PurePosixPath
 import pytest
 from loguru import logger as log
 from pydantic import BaseModel
+from spectrumx.api.captures import _enable_experimental_advanced_search
 from spectrumx.client import Client
 from spectrumx.errors import CaptureError
 from spectrumx.models.captures import CaptureType
@@ -508,10 +509,7 @@ def test_capture_deletion(integration_client: Client) -> None:
     """Tests deleting a capture."""
 
     # ARRANGE
-    # create capture contents on SDS
     cap_data = _upload_drf_capture_test_assets(integration_client)
-
-    # create a capture to delete
     capture = integration_client.captures.create(
         top_level_dir=cap_data.capture_top_level,
         capture_type=CaptureType.DigitalRF,
@@ -527,6 +525,109 @@ def test_capture_deletion(integration_client: Client) -> None:
         integration_client.captures.read(
             capture_uuid=capture.uuid,
         )
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
+            *PassthruEndpoints.capture_search(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_advanced_search_frequency_range(integration_client: Client) -> None:
+    """Tests searching captures with a frequency range query."""
+    # ARRANGE to create a capture
+    _enable_experimental_advanced_search()
+    cap_data = _upload_drf_capture_test_assets(integration_client)
+    capture = integration_client.captures.create(
+        top_level_dir=cap_data.capture_top_level,
+        channel=cap_data.drf_channel,
+        capture_type=CaptureType.DigitalRF,
+    )
+    center_freq = capture.capture_props["center_freq"]
+    test_freq_lower = center_freq - 1_234_567
+    test_freq_upper = center_freq + 1_000_000
+
+    # ACT by searching the new capture
+    field_path = "capture_props.center_freq"
+    query_type = "range"
+    filter_value = {"gte": test_freq_lower, "lte": test_freq_upper}
+
+    matched_caps = integration_client.captures.advanced_search(
+        field_path=field_path,
+        query_type=query_type,
+        filter_value=filter_value,
+    )
+    is_capture_found = any(match.uuid == capture.uuid for match in matched_caps)
+
+    # ASSERT the capture was found
+    assert capture.uuid is not None, "UUID of new capture should not be None"
+    assert len(matched_caps) > 0, (
+        "Should find at least one capture in the frequency range"
+    )
+    assert is_capture_found, (
+        f"Should find our test capture (UUID: {capture.uuid}) in search results"
+    )
+
+    integration_client.captures.delete(capture_uuid=capture.uuid)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
+            *PassthruEndpoints.capture_search(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_advanced_search_exact_match(integration_client: Client) -> None:
+    """Tests searching captures with an exact match query."""
+    # ARRANGE
+    _enable_experimental_advanced_search()  # Enable the experimental search feature
+    cap_data = _upload_drf_capture_test_assets(integration_client)
+    capture = integration_client.captures.create(
+        top_level_dir=cap_data.capture_top_level,
+        channel=cap_data.drf_channel,
+        capture_type=CaptureType.DigitalRF,
+    )
+
+    # ACT
+    field_path = "capture_props.tags"
+    query_type = "term"
+    filter_value = {"capture_props.channel": drf_channel}
+
+    matched_caps = integration_client.captures.advanced_search(
+        field_path=field_path,
+        query_type=query_type,
+        filter_value=filter_value,
+    )
+    is_capture_found = any(match.uuid == capture.uuid for match in matched_caps)
+
+    # ASSERT
+    assert len(matched_caps) > 0, "Should find at least one capture with the tag"
+    assert is_capture_found, (
+        f"Could not find our test capture '{capture.uuid}' in search results"
+    )
+
+    if capture.uuid:
+        integration_client.captures.delete(capture_uuid=capture.uuid)
 
 
 def _upload_assets(
@@ -547,3 +648,13 @@ def _upload_assets(
         f"No failed uploads should be present: {failed_results}"
     )
     log.debug(f"Uploaded {len(success_results)} assets.")
+
+
+def __clean_all_captures(integration_client: Client) -> None:
+    """Helper to delete all captures of this user in the SDS."""
+    captures = integration_client.captures.listing()
+    log.error(len(captures))
+    for cap in captures:
+        if cap.uuid is None:
+            continue
+        integration_client.captures.delete(capture_uuid=cap.uuid)
