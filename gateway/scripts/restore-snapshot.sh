@@ -9,7 +9,7 @@ POSTGRES_DUMP_NAME="pg_dumpall.sql.gz"
 DIR_SCRIPT=
 DIR_SCRIPT="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 DIR_GATEWAY="$(dirname "${DIR_SCRIPT}")"
-DIR_ALL_BACKUPS="${DIR_GATEWAY}/data/backups"
+DIR_ALL_BACKUPS="${DIR_GATEWAY}/data/prod-backups"
 
 # source environment variables (contains HOSTNAME_QA)
 # shellcheck disable=SC1091
