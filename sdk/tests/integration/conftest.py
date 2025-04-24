@@ -142,7 +142,12 @@ class PassthruEndpoints:
 
     @classmethod
     def capture_listing(cls) -> list[str]:
-        """Passthrough for capture creation and listing."""
+        """Passthrough for capture listing (same as capture creation)."""
+        return cls.capture_creation()
+
+    @classmethod
+    def capture_search(cls) -> list[str]:
+        """Passthrough for capture search (same as capture creation)."""
         return cls.capture_creation()
 
     @staticmethod
