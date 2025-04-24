@@ -2,6 +2,8 @@
 
 import sys
 
+from spectrumx.models.base import SDSModel
+
 if sys.version_info < (3, 11):  # noqa: UP036
     from backports.strenum import StrEnum  # noqa: UP035 # Required backport
 else:
@@ -56,7 +58,7 @@ class CaptureFile(BaseModel):
     ]
 
 
-class Capture(BaseModel):
+class Capture(SDSModel):
     """A capture in SDS. A collection of spectrum data files that is indexed."""
 
     capture_props: Annotated[dict[str, Any], Field(description=_d_capture_props)]
@@ -64,7 +66,6 @@ class Capture(BaseModel):
     index_name: Annotated[str, Field(max_length=255, description=_d_index_name)]
     origin: Annotated[CaptureOrigin, Field(description=_d_origin)]
     top_level_dir: Annotated[PurePosixPath, Field(description=_d_top_level_dir)]
-    uuid: Annotated[UUID4, Field(description=_d_uuid)]
     files: Annotated[list[CaptureFile], Field(description=_d_capture_files)]
 
     # optional fields

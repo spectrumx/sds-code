@@ -87,6 +87,8 @@ class Paginator(Generic[T]):
             verbose:        If True, will log more information about the pagination.
         """
 
+        # TODO: generalize this to any SDSModel subclass (too coupled to File now)
+
         if page_size <= 0:  # pragma: no cover
             msg = "Page size must be a positive integer."
             raise ValueError(msg)
