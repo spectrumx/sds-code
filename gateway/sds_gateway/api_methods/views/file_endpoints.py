@@ -359,6 +359,11 @@ class FileViewSet(ViewSet):
         )
 
         unsafe_path = request.data.get("directory", None)
+        if unsafe_path is None:
+            return Response(
+                {"detail": "No directory provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         user_rel_path = sanitize_path_rel_to_user(
             unsafe_path=unsafe_path,
             request=request,

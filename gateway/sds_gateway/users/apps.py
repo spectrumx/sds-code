@@ -10,4 +10,4 @@ class UsersConfig(AppConfig):
 
     def ready(self):
         with contextlib.suppress(ImportError):
-            import sds_gateway.users.signals  # noqa: F401
+            import sds_gateway.users.signals  # pyright: ignore[reportMissingImports]  # noqa: F401

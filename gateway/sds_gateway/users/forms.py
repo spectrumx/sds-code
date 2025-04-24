@@ -7,13 +7,13 @@ from django.utils.translation import gettext_lazy as _
 from .models import User
 
 
-class UserAdminChangeForm(admin_forms.UserChangeForm):
+class UserAdminChangeForm(admin_forms.UserChangeForm[User]):
     class Meta(admin_forms.UserChangeForm.Meta):  # type: ignore[name-defined]
         model = User
         field_classes = {"email": EmailField}
 
 
-class UserAdminCreationForm(admin_forms.UserCreationForm):
+class UserAdminCreationForm(admin_forms.UserCreationForm[User]):
     """
     Form for User Creation in the Admin Area.
     To change user signup, see UserSignupForm and UserSocialSignupForm.

@@ -205,6 +205,12 @@ class CaptureViewSet(viewsets.ViewSet):
         log.debug(f"\tchannel: '{drf_channel}' {type(drf_channel)}")
         log.debug(f"\tscan_group: '{rh_scan_group}' {type(rh_scan_group)}")
 
+        if capture_type is None:
+            return Response(
+                {"detail": "The `capture_type` field is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         unsafe_top_level_dir = request.data.get("top_level_dir", "")
 
         # sanitize top_level_dir

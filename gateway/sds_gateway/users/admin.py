@@ -21,7 +21,7 @@ admin.site.unregister(APIKey)
 
 
 @admin.register(User)
-class UserAdmin(auth_admin.UserAdmin):
+class UserAdmin(auth_admin.UserAdmin[User]):
     form = UserAdminChangeForm
     add_form = UserAdminCreationForm
     fieldsets = (
@@ -57,7 +57,7 @@ class UserAdmin(auth_admin.UserAdmin):
 
 
 @admin.register(UserAPIKey)
-class APIKeyAdmin(admin.ModelAdmin):
+class APIKeyAdmin(admin.ModelAdmin[UserAPIKey]):
     list_display = [
         "prefix",
         "name",

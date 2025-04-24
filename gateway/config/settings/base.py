@@ -1,17 +1,14 @@
 """Base settings to build other settings files upon."""
-# ruff: noqa: ERA001, E501
-# pyright: reportArgumentType=false
-# django-environ has no type hints and the project seems stale for over a year:
-#   Track https://github.com/joke2k/django-environ/issues/533
+# ruff: noqa: ERA001
 
 from pathlib import Path
 from typing import Any
 
-import environ
+from environs import env
 
 from config.settings.logs import ColoredFormatter
 
-env = environ.Env()
+env.read_env()
 
 BASE_DIR: Path = Path(__file__).resolve(strict=True).parent.parent.parent
 
@@ -27,7 +24,7 @@ OPENSEARCH_INITIAL_ADMIN_PASSWORD: str = env.str(
 )
 OPENSEARCH_USE_SSL: bool = env.bool("OPENSEARCH_USE_SSL", default=False)
 OPENSEARCH_VERIFY_CERTS: bool = env.bool("OPENSEARCH_VERIFY_CERTS", default=False)
-OPENSEARCH_CA_CERTS: str = env.str("OPENSEARCH_CA_CERTS", default=None)
+OPENSEARCH_CA_CERTS: str | None = env.str("OPENSEARCH_CA_CERTS", default=None)
 
 # MinIO configuration
 STORAGES = {
@@ -91,7 +88,7 @@ LOCALE_PATHS: list[str] = [str(BASE_DIR / "locale")]
 # DATABASES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
-DATABASES: dict[str, Any] = {"default": env.db("DATABASE_URL")}
+DATABASES: dict[str, Any] = {"default": env.dj_db_url("DATABASE_URL")}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD: str = "django.db.models.BigAutoField"
@@ -174,7 +171,7 @@ PASSWORD_HASHERS: list[str] = [
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS: list[dict[str, str]] = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",  # noqa: E501
     },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
@@ -305,9 +302,6 @@ LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        # "verbose": {
-        #     "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s",
-        # },
         "colored": {
             "()": ColoredFormatter,
         },

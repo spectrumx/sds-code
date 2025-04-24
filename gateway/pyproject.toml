@@ -5,18 +5,17 @@
         "blake3>=0.4.1",
         "celery>=5.4.0",
         "crispy-bootstrap5>=2024.10",
-        "digital-rf>=2.6.9",
+        "digital-rf>=2.6.11",
         "django-allauth[socialaccount]>=64.2.1",
         "django-allauth>=65.1",
         "django-celery-beat>=2.7.0",
         "django-cors-headers>=4.5.0",
         "django-crispy-forms>=2.3",
-        "django-environ>=0.11.2",
         "django-model-utils>=5.0.0",
         "django-redis>=5.4.0",
         "django-storages[boto3]>=1.14.4",
         "django-webpack-loader>=3.1.1",
-        "django~=4.2", # Upgrade from 4.2 LTS -> 5.2 LTS when available
+        "django~=4.2",                           # Upgrade from 4.2 LTS -> 5.2 LTS when available
         "djangorestframework-api-key>=3.0.0",
         "djangorestframework>=3.15.2",
         "drf-spectacular>=0.27.2",
@@ -25,7 +24,7 @@
         "hiredis>=3.0.0",
         "loguru>=0.7.2",
         "minio>=7.2.9",
-        "numpy~=1.26", # upgrade to numpy v2 when digital-rf (from PyPI) supports it
+        "numpy>=2.2.5",                          # upgrade to numpy v2 when digital-rf (from PyPI) supports it
         "opensearch-py>=2.7.1",
         "pillow>=11.0.0",
         "pydantic>=2.10.0",
@@ -38,7 +37,8 @@
         "h5py>=3.12.1",
         "django-extensions>=3.2.3",
         "sentry-sdk[django]>=2.25.1",
-]
+        "environs[django]>=14.1.1",
+    ]
     description = "Gateway for SpectrumX Data System"
     name = "sds_gateway"
     requires-python = ">=3.12"
@@ -373,6 +373,13 @@
 
 [tool.pyright]
     # https://github.com/microsoft/pyright/blob/main/docs/configuration.md
+
+    ignore           = ["**/.venv/**"]
+    include          = [".", "tests", "sds_gateway"]
+    pythonPlatform   = "Linux"
+    stubPath         = "./typings"                   # defaults to ./typings
+    typeCheckingMode = "standard"                    # "off", "basic", "standard", "strict"
+
     exclude = [
         "*.proto",
         "*.pyc",
@@ -400,25 +407,22 @@
         "**/tmp/",
         "**/venv/",
     ]
-    include = [".", "tests", "sds_gateway"]
+
     # Pylint rule list:
     # https://pylint.readthedocs.io/en/stable/user_guide/checkers/features.html
     lint.ignore = [
         # "E501", # line too long
         "R0903", # too few public methods
     ]
-    pythonPlatform = "Linux"
-    # "none", "warning", "information", or "error"
-    reportMissingTypeArgument = "information"
-    reportPrivateUsage        = "information"
-    stubPath                  = "./typings"   # defaults to ./typings
-    typeCheckingMode          = "standard"    # "off", "basic", "standard", "strict"
 
     # Reports:
     #   https://github.com/microsoft/pyright/blob/main/docs/configuration.md#type-check-diagnostics-settings
+    # "none", "warning", "information", or "error"
     # place ignored rules here
-    reportAttributeAccessIssue         = false # too many false positives with Django models
-    reportIncompatibleVariableOverride = false # false positives with Meta classes in Django
+    reportAttributeAccessIssue         = "none"        # too many false positives with Django models
+    reportIncompatibleVariableOverride = "none"        # false positives with Meta classes in Django
+    reportMissingTypeArgument          = "information"
+    reportPrivateUsage                 = "information"
 
 [tool.ruff]
     # Exclude a variety of commonly ignored directories.

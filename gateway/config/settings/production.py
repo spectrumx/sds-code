@@ -1,7 +1,5 @@
 """⚠️ Setting overrides for PRODUCTION ⚠️"""
-# ruff: noqa: F405, ERA001, E501
-# pyright: reportArgumentType=false
-# django-environ has no type hints
+# ruff: noqa: F405, ERA001
 
 from socket import gethostname
 
@@ -185,8 +183,8 @@ if SENTRY_DSN:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         environment="staging" if _is_staging else "production",
-        # whether to add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        # whether to add data like request headers and IP for users, for more info
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/
         send_default_pii=False,
     )
 

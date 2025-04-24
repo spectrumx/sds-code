@@ -1,7 +1,5 @@
 """With these settings, tests run faster."""
 # ruff: noqa: F405
-# pyright: reportArgumentType=false
-# django-environ has no type hints
 
 from .base import *  # noqa: F403 pylint: disable=wildcard-import,unused-wildcard-import
 from .base import TEMPLATES

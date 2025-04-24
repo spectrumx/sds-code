@@ -9,7 +9,7 @@ from sds_gateway.users.models import User
 @pytest.mark.django_db
 class TestUserManager:
     def test_create_user(self):
-        user = User.objects.create_user(
+        user = User.objects.create_user(  # pyright: ignore[reportCallIssue]
             email="john@example.com",
             password="something-r@nd0m!",  # noqa: S106
         )
@@ -20,7 +20,7 @@ class TestUserManager:
         assert user.username is None
 
     def test_create_superuser(self):
-        user = User.objects.create_superuser(
+        user = User.objects.create_superuser(  # pyright: ignore[reportCallIssue]
             email="admin@example.com",
             password="something-r@nd0m!",  # noqa: S106
         )
@@ -30,7 +30,7 @@ class TestUserManager:
         assert user.username is None
 
     def test_create_superuser_username_ignored(self):
-        user = User.objects.create_superuser(
+        user = User.objects.create_superuser(  # pyright: ignore[reportCallIssue]
             email="test@example.com",
             password="something-r@nd0m!",  # noqa: S106
         )

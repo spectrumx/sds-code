@@ -1,7 +1,5 @@
 """Setting overrides for local development."""
-# ruff: noqa: F405, ERA001
-# pyright: reportArgumentType=false
-# django-environ has no type hints
+# ruff: noqa: F405
 
 import django_stubs_ext
 
@@ -106,7 +104,7 @@ if SENTRY_DSN:
 # ------------------------------------------------------------------------------
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
-# CELERY_TASK_EAGER_PROPAGATES: bool = True
+# CELERY_TASK_EAGER_PROPAGATES: bool = True  # noqa: ERA001
 # django-webpack-loader
 # ------------------------------------------------------------------------------
 WEBPACK_LOADER["DEFAULT"]["CACHE"] = not DEBUG

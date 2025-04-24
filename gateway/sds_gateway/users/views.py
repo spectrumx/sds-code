@@ -2,6 +2,8 @@ import datetime
 from typing import Any
 from typing import cast
 
+from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import Paginator
 from django.db.models.query import QuerySet as Queryset
@@ -24,7 +26,7 @@ from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 
 
-class UserDetailView(Auth0LoginRequiredMixin, DetailView):
+class UserDetailView(Auth0LoginRequiredMixin, DetailView[User]):
     model = User
     slug_field = "id"
     slug_url_kwarg = "id"
@@ -33,7 +35,7 @@ class UserDetailView(Auth0LoginRequiredMixin, DetailView):
 user_detail_view = UserDetailView.as_view()
 
 
-class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView):  # pyright: ignore[reportMissingTypeArgument]
     model = User
     fields = ["name"]
     success_message = _("Information successfully updated")
@@ -43,7 +45,7 @@ class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         assert self.request.user.is_authenticated
         return self.request.user.get_absolute_url()
 
-    def get_object(self):
+    def get_object(self, queryset=None) -> AbstractBaseUser | AnonymousUser:
         return self.request.user
 
 
@@ -150,7 +152,7 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
 user_file_list_view = ListFilesView.as_view()
 
 
-class FileDetailView(Auth0LoginRequiredMixin, DetailView):
+class FileDetailView(Auth0LoginRequiredMixin, DetailView[File]):
     model = File
     slug_field = "uuid"
     slug_url_kwarg = "uuid"
