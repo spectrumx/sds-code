@@ -10,6 +10,9 @@ redeploy: build down up logs
 APP_CONTAINER := sds-gateway-local-app
 COMPOSE_FILE := compose.local.yaml
 ENV_FILE := .envs/local/opensearch.env
+ENV := local
+LOG_DIR := ./logs/snapshots
+LOG_FILE := "$(LOG_DIR)/$(ENV)-snapshot-$(shell date +%Y-%m-%d_%H-%M-%S).log"
 
 build-full:
 	@echo "Pulling and building sds-gateway WITHOUT CACHE"
@@ -48,6 +51,11 @@ serve-coverage:
 	@echo "Serving coverage reports"
 	@COMPOSE_FILE=$(COMPOSE_FILE) python -m http.server 1313 -d ./htmlcov
 
+snapshot:
+	@echo "Creating a snapshot of '$(ENV)' data"
+	@mkdir -p $(LOG_DIR)
+	./scripts/create-snapshot.sh $(ENV) 2>&1 | tee $(LOG_FILE)
+	@echo "Snapshot created. See '$(LOG_FILE)'"
 test:
 
 	@echo "Validating templates"
