@@ -17,13 +17,13 @@ DATASET_NAME_LENGTH_ERROR = "Dataset name is required."
 AUTHOR_NAME_LENGTH_ERROR = "Author name is required."
 
 
-class UserAdminChangeForm(admin_forms.UserChangeForm):  # pyright: ignore[reportMissingTypeArgument]
+class UserAdminChangeForm(admin_forms.UserChangeForm[User]):
     class Meta(admin_forms.UserChangeForm.Meta):  # type: ignore[name-defined]
         model = User
         field_classes = {"email": EmailField}
 
 
-class UserAdminCreationForm(admin_forms.UserCreationForm):  # pyright: ignore[reportMissingTypeArgument]
+class UserAdminCreationForm(admin_forms.UserCreationForm[User]):
     """
     Form for User Creation in the Admin Area.
     To change user signup, see UserSignupForm and UserSocialSignupForm.

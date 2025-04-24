@@ -21,7 +21,7 @@ admin.site.unregister(APIKey)
 
 
 @admin.register(User)
-class UserAdmin(auth_admin.UserAdmin):  # pyright: ignore[reportMissingTypeArgument]
+class UserAdmin(auth_admin.UserAdmin[User]):
     form = UserAdminChangeForm
     add_form = UserAdminCreationForm
     fieldsets = (
@@ -57,7 +57,7 @@ class UserAdmin(auth_admin.UserAdmin):  # pyright: ignore[reportMissingTypeArgum
 
 
 @admin.register(UserAPIKey)
-class APIKeyAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
+class APIKeyAdmin(admin.ModelAdmin[UserAPIKey]):
     list_display = [
         "prefix",
         "name",
