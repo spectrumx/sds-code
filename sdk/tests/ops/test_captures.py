@@ -334,7 +334,12 @@ def test_search_captures_freq_range(
     client.dry_run = DRY_RUN
     _enable_experimental_advanced_search()  # Enable the experimental search feature
 
-    search_response = [sample_capture_data]
+    search_response = {
+        "results": [sample_capture_data],
+        "next": None,
+        "previous": None,
+        "count": 1,
+    }
     field_path = "capture_props.center_freq"
     query_type = "range"
     filter_value = {"gte": 1990000000, "lte": 2010000000}
@@ -400,7 +405,12 @@ def test_search_captures_exact_match(
     client.dry_run = DRY_RUN
     _enable_experimental_advanced_search()  # Enable the experimental search feature
 
-    search_response = [sample_capture_data]
+    search_response = {
+        "results": [sample_capture_data],
+        "next": None,
+        "previous": None,
+        "count": 1,
+    }
     field_path = "capture_props.channel"
     query_type = "term"
     filter_value = {"value": "channel1"}
