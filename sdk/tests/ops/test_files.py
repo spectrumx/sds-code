@@ -17,6 +17,7 @@ from spectrumx.api.sds_files import delete_file
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.ops.files import get_file_permissions
 
+from tests.conftest import get_content_check_endpoint
 from tests.conftest import get_files_endpoint
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
@@ -32,14 +33,6 @@ def _download_file_endpoint(client: Client, file_id: str) -> str:
 def _get_file_id_endpoint(client: Client, file_id: str) -> str:
     """Returns the endpoint for getting a file."""
     return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/"
-
-
-def _get_content_check_endpoint(client: Client) -> str:
-    """Returns the endpoint for the content check API."""
-    return (
-        client.base_url
-        + f"/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist/"
-    )
 
 
 @pytest.mark.linux
@@ -183,7 +176,7 @@ def test_large_file_upload_mocked(
     }
     responses.add(
         method=responses.POST,
-        url=_get_content_check_endpoint(client),
+        url=get_content_check_endpoint(client),
         status=201,
         json=mocked_file_content_check_json,
     )

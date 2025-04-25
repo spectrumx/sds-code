@@ -227,6 +227,14 @@ def get_files_endpoint(client: Client) -> str:
     return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/"
 
 
+def get_content_check_endpoint(client: Client) -> str:
+    """Returns the endpoint for the content check API."""
+    return (
+        client.base_url
+        + f"/api/{API_TARGET_VERSION}/assets/utils/check_contents_exist/"
+    )
+
+
 def random_bytes_generator(size: int, chunk: int = 1024) -> Generator[bytes]:
     """Generates random binary data for tests."""
     for _ in range(size // chunk):
