@@ -22,17 +22,16 @@ log.trace("Placeholder log avoid reimporting or resolving unused import warnings
 
 # paths with test data
 dir_integration_data = Path(__file__).parent / "data"
-dir_local_drf_top_level = dir_integration_data / "captures" / "drf" / "westford-vpol"
 drf_channel = "cap-2024-06-27T14-00-00"
 
 
 @pytest.fixture
-def _capture_test() -> Generator[None]:
+def _capture_test(drf_sample_top_level_dir: Path) -> Generator[None]:
     """Choose to run capture test or not, based on existing data."""
-    if not dir_local_drf_top_level.exists():
+    if not drf_sample_top_level_dir.exists():
         pytest.skip(
             "Capture test SKIPPED. Test data does not "
-            f"exist at: '{dir_local_drf_top_level}'"
+            f"exist at: '{drf_sample_top_level_dir}'"
         )
 
     # yield control to the test
@@ -41,6 +40,18 @@ def _capture_test() -> Generator[None]:
     # teardown code for integration tests
 
     return
+
+
+@pytest.fixture
+def rh_sample_top_level_dir() -> Path:
+    """Fixture to provide the RadioHound sample top-level directory."""
+    return dir_integration_data / "captures" / "radiohound"
+
+
+@pytest.fixture
+def drf_sample_top_level_dir() -> Path:
+    """Fixture to provide the Digital-RF sample top-level directory."""
+    return dir_integration_data / "captures" / "drf" / "westford-vpol"
 
 
 @pytest.mark.integration
@@ -58,11 +69,16 @@ def _capture_test() -> Generator[None]:
     ],
     indirect=True,
 )
-def test_capture_creation_drf(integration_client: Client) -> None:
+def test_capture_creation_drf(
+    integration_client: Client, drf_sample_top_level_dir: Path
+) -> None:
     """Tests creating a Digital-RF capture."""
 
     # ARRANGE
-    cap_data = _upload_drf_capture_test_assets(integration_client)
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
 
     # ACT
 
@@ -105,15 +121,18 @@ class DRFCaptureAssets(BaseModel):
         return PurePosixPath("/") / self.path_after_capture_data
 
 
-def _upload_drf_capture_test_assets(integration_client: Client) -> DRFCaptureAssets:
+def _upload_drf_capture_test_assets(
+    integration_client: Client,
+    drf_sample_top_level_dir: Path,
+) -> DRFCaptureAssets:
     """Helper to package and upload Digital-RF capture assets to SDS."""
     cap_start_bound: int = 1_719_499_740
     cap_is_continuous: bool = True
     cap_serial: str = "31649FE"
 
     # define paths in the context of a capture
-    dir_top_level = dir_local_drf_top_level
-    dir_channel = dir_top_level / drf_channel
+    dir_top_level = drf_sample_top_level_dir
+    dir_channel = drf_sample_top_level_dir / drf_channel
     dir_metadata = dir_channel / "metadata"
     assert dir_metadata.is_dir(), (
         "Metadata directory should exist; check that "
@@ -157,28 +176,28 @@ def _upload_drf_capture_test_assets(integration_client: Client) -> DRFCaptureAss
     ],
     indirect=True,
 )
-def test_capture_creation_rh(integration_client: Client) -> None:
+def test_capture_creation_rh(
+    integration_client: Client,
+    rh_sample_top_level_dir: Path,
+) -> None:
     """Tests creating a RadioHound capture."""
 
     # ARRANGE
-
-    # define paths in the context of a capture
-    dir_top_level = dir_integration_data / "captures" / "radiohound"
-    radiohound_file = dir_top_level / "reference-v0.rh.json"
+    radiohound_file = rh_sample_top_level_dir / "reference-v0.rh.json"
     assert radiohound_file.is_file(), (
         "Reference file should exist; check that "
         f"you have the right paths set: '{radiohound_file}'"
     )
 
     # suffix path_after_capture_data with a random name to avoid conflicts between runs
-    rel_path_capture = dir_top_level.relative_to(dir_integration_data)
+    rel_path_capture = rh_sample_top_level_dir.relative_to(dir_integration_data)
     random_suffix = get_random_line(10, include_punctuation=False)
     rel_path_capture = PurePosixPath(rel_path_capture) / f"test-{random_suffix}"
 
     _upload_assets(
         integration_client=integration_client,
         sds_path=rel_path_capture,
-        local_path=dir_top_level,
+        local_path=rh_sample_top_level_dir,
     )
 
     # ACT
@@ -193,7 +212,6 @@ def test_capture_creation_rh(integration_client: Client) -> None:
         scan_group=scan_group,
     )
 
-    # create a capture
     capture_top_level = PurePosixPath("/") / rel_path_capture
     capture = integration_client.captures.create(
         top_level_dir=capture_top_level,
@@ -313,21 +331,25 @@ def test_capture_listing_all(integration_client: Client) -> None:
     ],
     indirect=True,
 )
-def test_capture_update_rh(integration_client: Client) -> None:
+def test_capture_update_rh(
+    integration_client: Client,
+    rh_sample_top_level_dir: Path,
+) -> None:
     """Tests updating a RadioHound capture."""
 
     # ARRANGE
 
     # define paths in the context of a capture
-    dir_top_level = dir_integration_data / "captures" / "radiohound"
-    radiohound_file = dir_top_level / "reference-v0.rh.json"
+    radiohound_file = rh_sample_top_level_dir / "reference-v0.rh.json"
     assert radiohound_file.is_file(), (
         "Reference file should exist; check that "
         f"you have the right paths set: '{radiohound_file}'"
     )
 
     # suffix path_after_capture_data with a random name to avoid conflicts between runs
-    rh_capture_update_sds_path = dir_top_level.relative_to(dir_integration_data)
+    rh_capture_update_sds_path = rh_sample_top_level_dir.relative_to(
+        dir_integration_data
+    )
     random_suffix = get_random_line(10, include_punctuation=False)
     rh_capture_update_sds_path = (
         PurePosixPath(rh_capture_update_sds_path) / f"test-{random_suffix}"
@@ -336,7 +358,7 @@ def test_capture_update_rh(integration_client: Client) -> None:
     _upload_assets(
         integration_client=integration_client,
         sds_path=rh_capture_update_sds_path,
-        local_path=dir_top_level,
+        local_path=rh_sample_top_level_dir,
     )
 
     with radiohound_file.open("r") as fp_json:
@@ -350,7 +372,6 @@ def test_capture_update_rh(integration_client: Client) -> None:
         scan_group=scan_group,
     )
 
-    # create a capture
     capture_top_level = PurePosixPath("/") / rh_capture_update_sds_path
     capture = integration_client.captures.create(
         top_level_dir=capture_top_level,
@@ -360,12 +381,9 @@ def test_capture_update_rh(integration_client: Client) -> None:
 
     # ASSERT
 
-    # basic capture information
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == CaptureType.RadioHound
     assert capture.top_level_dir == capture_top_level
-
-    # test capture metadata
     assert capture.capture_props, "Capture properties should not be empty"
     assert capture.capture_props == radiohound_data, (
         "Capture props doesn't match the reference data: \n"
@@ -399,26 +417,154 @@ def test_capture_update_rh(integration_client: Client) -> None:
     assert True
 
 
-def _delete_rh_captures_by_scan_group(
-    integration_client: Client, scan_group: str
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_upload_drf(
+    integration_client: Client,
+    drf_sample_top_level_dir: Path,
 ) -> None:
-    """Helper to delete all RadioHound captures with a specific scan group."""
-    captures = integration_client.captures.listing(
+    """Tests uploading and creating a Digital-RF capture in one operation."""
+    # ARRANGE a new directory to upload as capture
+    test_dir = drf_sample_top_level_dir
+    random_suffix = get_random_line(10, include_punctuation=False)
+    sds_path = f"/test-upload-capture-{random_suffix}"
+    capture_type = CaptureType.DigitalRF
+
+    # ACT by uploading the capture
+    capture = integration_client.upload_capture(
+        local_path=test_dir,
+        sds_path=sds_path,
+        capture_type=capture_type,
+        channel=drf_channel,
+    )
+
+    # ASSERT capture was correctly created
+    assert capture is not None
+    assert capture.uuid is not None, "Capture UUID should not be None"
+    assert capture.capture_type == capture_type
+    assert capture.channel == drf_channel
+    assert str(capture.top_level_dir) == sds_path
+    assert capture.capture_props["is_continuous"] is True
+    assert "start_bound" in capture.capture_props
+    assert "custom_attrs" in capture.capture_props
+
+    # Clean up
+    integration_client.captures.delete(capture_uuid=capture.uuid)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_upload_rh(integration_client: Client) -> None:
+    """Tests uploading and creating a RadioHound capture in one operation."""
+    # ARRANGE
+    dir_top_level = dir_integration_data / "captures" / "radiohound"
+    radiohound_file = dir_top_level / "reference-v0.rh.json"
+    assert radiohound_file.is_file(), (
+        f"Reference file should exist at '{radiohound_file}'"
+    )
+
+    with radiohound_file.open("r") as fp_json:
+        radiohound_data = json.load(fp_json)
+
+    scan_group = radiohound_data["scan_group"]
+    _delete_rh_captures_by_scan_group(
+        integration_client=integration_client,
+        scan_group=scan_group,
+    )
+    random_suffix = get_random_line(10, include_punctuation=False)
+    sds_path = f"/test-upload-rh-{random_suffix}"
+
+    # ACT
+    capture = integration_client.upload_capture(
+        local_path=dir_top_level,
+        sds_path=sds_path,
         capture_type=CaptureType.RadioHound,
+        scan_group=scan_group,
     )
-    same_scan_group_caps = [
-        capture for capture in captures if str(capture.scan_group) == scan_group
-    ]
-    if not same_scan_group_caps:
-        log.debug("No captures to delete")
-        return
-    log.warning(
-        f"Deleting {len(same_scan_group_caps)} captures with scan group '{scan_group}'"
+
+    # ASSERT
+    assert capture is not None
+    assert capture.uuid is not None, "Capture UUID should not be None"
+    assert capture.capture_type == CaptureType.RadioHound
+    assert str(capture.top_level_dir) == sds_path
+    assert str(capture.scan_group) == scan_group
+
+    # Test capture props match the reference data
+    assert capture.capture_props == radiohound_data, (
+        "Capture props doesn't match the reference data"
     )
-    for capture in same_scan_group_caps:
-        log.warning(f"Deleting capture: {capture.uuid}")
-        assert capture.uuid is not None, "Capture UUID should not be None"
-        integration_client.captures.delete(capture_uuid=capture.uuid)
+
+    # Clean up
+    integration_client.captures.delete(capture_uuid=capture.uuid)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_upload_missing_required_fields_drf(
+    integration_client: Client, drf_sample_top_level_dir: Path
+) -> None:
+    """When lacking required fields, a DRF capture creation will fail.
+
+    Note the file uploads are still expected to succeed.
+    """
+    # ARRANGE to upload assets for a Digital-RF capture
+    test_dir = drf_sample_top_level_dir
+    random_suffix = get_random_line(10, include_punctuation=False)
+    sds_path = PurePosixPath(f"/test-upload-capture-{random_suffix}")
+    capture_type = CaptureType.DigitalRF
+    _upload_assets(
+        integration_client=integration_client,
+        sds_path=sds_path,
+        local_path=test_dir,
+    )
+
+    # ACT & ASSERT - Missing channel for DigitalRF
+    with pytest.raises(CaptureError):
+        integration_client.upload_capture(
+            local_path=test_dir,
+            sds_path=sds_path,
+            capture_type=capture_type,
+            # Missing required channel parameter
+        )
 
 
 @pytest.mark.integration
@@ -437,13 +583,16 @@ def _delete_rh_captures_by_scan_group(
     ],
     indirect=True,
 )
-def test_capture_reading_drf(integration_client: Client) -> None:
+def test_capture_reading_drf(
+    integration_client: Client,
+    drf_sample_top_level_dir: Path,
+) -> None:
     """Tests reading a specific Digital-RF capture."""
 
     # ARRANGE
 
     # define paths in the context of a capture
-    dir_top_level = dir_local_drf_top_level
+    dir_top_level = drf_sample_top_level_dir
     dir_channel = dir_top_level / drf_channel
     dir_metadata = dir_channel / "metadata"
     assert dir_metadata.is_dir(), (
@@ -505,11 +654,16 @@ def test_capture_reading_drf(integration_client: Client) -> None:
     ],
     indirect=True,
 )
-def test_capture_deletion(integration_client: Client) -> None:
+def test_capture_deletion(
+    integration_client: Client, drf_sample_top_level_dir: Path
+) -> None:
     """Tests deleting a capture."""
 
     # ARRANGE
-    cap_data = _upload_drf_capture_test_assets(integration_client)
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
     capture = integration_client.captures.create(
         top_level_dir=cap_data.capture_top_level,
         capture_type=CaptureType.DigitalRF,
@@ -544,11 +698,17 @@ def test_capture_deletion(integration_client: Client) -> None:
     ],
     indirect=True,
 )
-def test_capture_advanced_search_frequency_range(integration_client: Client) -> None:
+def test_capture_advanced_search_frequency_range(
+    integration_client: Client,
+    drf_sample_top_level_dir: Path,
+) -> None:
     """Tests searching captures with a frequency range query."""
     # ARRANGE to create a capture
     _enable_experimental_advanced_search()
-    cap_data = _upload_drf_capture_test_assets(integration_client)
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
     capture = integration_client.captures.create(
         top_level_dir=cap_data.capture_top_level,
         channel=cap_data.drf_channel,
@@ -598,7 +758,9 @@ def test_capture_advanced_search_frequency_range(integration_client: Client) -> 
     ],
     indirect=True,
 )
-def test_capture_advanced_search_full_text_search(integration_client: Client) -> None:
+def test_capture_advanced_search_full_text_search(
+    integration_client: Client, drf_sample_top_level_dir: Path
+) -> None:
     """Tests searching captures with a full-text search query.
 
     Digital-RF capture props example for reference:
@@ -650,7 +812,10 @@ def test_capture_advanced_search_full_text_search(integration_client: Client) ->
     """
     # ARRANGE
     _enable_experimental_advanced_search()  # Enable the experimental search feature
-    cap_data = _upload_drf_capture_test_assets(integration_client)
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
     capture = integration_client.captures.create(
         top_level_dir=cap_data.capture_top_level,
         channel=cap_data.drf_channel,
@@ -697,6 +862,28 @@ def _upload_assets(
         f"No failed uploads should be present: {failed_results}"
     )
     log.debug(f"Uploaded {len(success_results)} assets.")
+
+
+def _delete_rh_captures_by_scan_group(
+    integration_client: Client, scan_group: str
+) -> None:
+    """Helper to delete all RadioHound captures with a specific scan group."""
+    captures = integration_client.captures.listing(
+        capture_type=CaptureType.RadioHound,
+    )
+    same_scan_group_caps = [
+        capture for capture in captures if str(capture.scan_group) == str(scan_group)
+    ]
+    if not same_scan_group_caps:
+        log.debug("No captures to delete")
+        return
+    log.warning(
+        f"Deleting {len(same_scan_group_caps)} captures with scan group '{scan_group}'"
+    )
+    for capture in same_scan_group_caps:
+        log.warning(f"Deleting capture: {capture.uuid}")
+        assert capture.uuid is not None, "Capture UUID should not be None"
+        integration_client.captures.delete(capture_uuid=capture.uuid)
 
 
 def __clean_all_captures(integration_client: Client) -> None:
