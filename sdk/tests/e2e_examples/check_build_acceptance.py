@@ -213,9 +213,11 @@ def check_capture_usage() -> None:
     sds = Client(host=SDS_HOST)
     sds.authenticate()
 
+    capture_sds_dir = Path("/location/in/sds/")
+
     new_capture = sds.captures.create(
         capture_type=CaptureType.RadioHound,
-        top_level_dir=Path("/location/in/sds/"),
+        top_level_dir=capture_sds_dir,
     )
     print(f"New capture ID: {new_capture.uuid}")
 
@@ -233,6 +235,17 @@ def check_capture_usage() -> None:
     print(f"Deleted capture {new_capture.uuid}: {is_deleted}")
     # double deleting a capture raises a CaptureError, unless in dry_run mode
     # (then the SDK can't determine whether the capture exists or not)
+
+    local_dir = Path("my_spectrum_files")
+    sds.upload_capture(
+        local_path=local_dir,
+        sds_path=capture_sds_dir,
+        capture_type=CaptureType.RadioHound,
+        index_name="",  # automatically inferred from capture type
+        channel=None,
+        scan_group=None,
+        verbose=True,
+    )
 
 
 def check_experiments() -> None:

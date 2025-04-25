@@ -12,6 +12,8 @@ from pydantic import UUID4
 from spectrumx.api.captures import CaptureAPI
 from spectrumx.errors import Result
 from spectrumx.errors import SDSError
+from spectrumx.models.captures import Capture
+from spectrumx.models.captures import CaptureType
 from spectrumx.ops.pagination import Paginator
 
 from . import __version__
@@ -396,6 +398,82 @@ class Client:
             local_file=local_file,
             sds_path=sds_path,
         )
+
+    def upload_capture(
+        self,
+        *,
+        local_path: Path | str,
+        sds_path: PurePosixPath | Path | str = "/",
+        capture_type: CaptureType,
+        index_name: str = "",
+        channel: str | None = None,
+        scan_group: str | None = None,
+        verbose: bool = True,
+        raise_on_error: bool = True,
+    ) -> Capture | None:
+        """Uploads a local directory and creates a capture using those files.
+
+        This method effectively combines `Client.upload()` and
+            `Client.captures.create_capture()` into one call. For a more fine-grained
+            control, call each method separately.
+
+        Args:
+            local_path:     The local path of the directory to upload.
+            sds_path:       The virtual directory on SDS to upload the file to.
+            capture_type:   One of `spectrumx.models.captures.CaptureType`.
+            index_name:     The SDS index name. Leave empty to automatically select.
+            channel:        (For Digital-RF) the DRF channel name to index.
+            scan_group:     (For RadioHound) UUIDv4 that groups RH files.
+            verbose:        Show progress bar and failure messages, if any.
+            raise_on_error: When True, raises an exception if any file upload fails.
+                            If False, the method will return None and log the errors.
+        Returns:
+            The created capture object when all operations succeed.
+        Raises:
+            When `raise_on_error` is True.
+            FileError:      If any file upload fails.
+            CaptureError:   If the capture creation fails.
+        """
+
+        upload_results = self.upload(
+            local_path=local_path,
+            sds_path=sds_path,
+            verbose=verbose,
+        )
+
+        successful_uploads = [res.unwrap() for res in upload_results if res]
+        failed_uploads = [res for res in upload_results if not res]
+        if failed_uploads:
+            if raise_on_error:
+                # then raise the first exception in failed results
+                for res in failed_uploads:
+                    exception = res.exception_or(SDSError("File Upload Failed"))
+                    if exception:
+                        raise exception
+            if verbose:
+                log_user_error(
+                    f"Failed to upload the following files: {failed_uploads}"
+                )
+            return None
+        if not successful_uploads:
+            if verbose:
+                log_user_error("No files uploaded, unable to create capture.")
+            return None
+
+        capture = self.captures.create(
+            top_level_dir=PurePosixPath(sds_path),
+            capture_type=capture_type,
+            index_name=index_name,
+            channel=channel,
+            scan_group=scan_group,
+        )
+
+        if capture is None:
+            if verbose:
+                log_user_error("Failed to create capture.")
+            return None
+
+        return capture
 
 
 __all__ = ["Client"]

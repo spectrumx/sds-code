@@ -7,6 +7,7 @@
     + SDK methods that receive a single UUID as an argument now allow it to be passed as a positional argument.
     + Experimental support for capture searches using OpenSearch queries has been introduced.
         + Enable it by calling `spectrumx.experiments.enable_capture_advanced_search()` before calling the search method.
+    + New high-level method that combines a directory upload with a capture creation: `sds_client.upload_capture()`.
 
 ## `0.1.8` - 2025-03-24
 

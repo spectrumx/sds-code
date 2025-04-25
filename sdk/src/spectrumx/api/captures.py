@@ -71,6 +71,9 @@ class CaptureAPI:
             scan_group:     (For RadioHound) UUIDv4 that groups RH files.
         Returns:
             The created capture object.
+        Raises:
+            CaptureError: If the capture couldn't be created e.g.: if it already exists,
+                or the user doesn't have permission to create it.
         """
         if index_name:
             log.warning(
