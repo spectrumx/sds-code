@@ -143,6 +143,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 owner=requester,
                 drf_capture_type=capture.capture_type,
                 rh_scan_group=rh_scan_group,
+                verbose=True,
             )
 
             # try to validate and index metadata before connecting files
@@ -236,7 +237,7 @@ class CaptureViewSet(viewsets.ViewSet):
         )
         if not post_serializer.is_valid():
             errors = post_serializer.errors
-            log.error(f"Capture POST serializer errors: {errors}")
+            log.warning(f"Capture POST serializer errors: {errors}")
             return Response(
                 {"detail": errors},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -340,7 +341,7 @@ class CaptureViewSet(viewsets.ViewSet):
             metadata_filters = json.loads(metadata_filters_str)
             if not isinstance(metadata_filters, list):
                 msg = "'metadata_filters' must be a list."
-                log.error(msg)
+                log.warning(msg)
                 raise TypeError(msg)
             return metadata_filters  # noqa: TRY300
         except json.JSONDecodeError as err:
@@ -604,7 +605,6 @@ def _check_capture_creation_constraints(
         AssertionError:     If an internal assertion fails.
     """
 
-    log.error(capture_candidate)
     capture_type = capture_candidate.get("capture_type")
     top_level_dir = capture_candidate.get("top_level_dir")
     _errors: dict[str, str] = {}
@@ -626,7 +626,7 @@ def _check_capture_creation_constraints(
         msg = "Capture creation constraints violated:" + "".join(
             f"\n\t{rule}: {error}" for rule, error in _errors.items()
         )
-        log.error(msg)
+        log.warning(msg)
         raise AssertionError(msg)
 
     # capture creation constraints
@@ -643,7 +643,7 @@ def _check_capture_creation_constraints(
         )
         if not channel:
             log.error(
-                "No channel provided for DigitalRF capture. This missing"
+                "No channel provided for DigitalRF capture. This missing "
                 "value should have been caught by the serializer validator.",
             )
         elif cap_qs.exists():
@@ -693,5 +693,5 @@ def _check_capture_creation_constraints(
         msg = "Capture creation constraints violated:"
         for rule, error in _errors.items():
             msg += f"\n\t{rule}: {error}"
-        log.error(msg)
+        log.warning(msg)  # error for user, warning on server
         raise ValueError(msg)

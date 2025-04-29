@@ -132,7 +132,6 @@ def filter_rh_files_by_scan_group(
     """
     matching_files: list[File] = []
     file_count = 0
-    log.error(tmp_dir_path)
     if verbose:
         log.debug(f"Listing files in {tmp_dir_path}")
         for path in tmp_dir_path.iterdir():
