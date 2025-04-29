@@ -129,38 +129,35 @@
                                 <thead>
                                     <tr>
                                         <th>
-                                            Channel
                                             <a href="#"
                                                class="sort-link {% if sort_by == 'channel' %}active{% endif %}"
                                                data-sort-by="channel"
                                                data-sort-order="{% if sort_by == 'channel' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
+                                                Channel
                                                 <span class="sort-icons">
-                                                    <i class="bi bi-caret-up-fill {% if sort_by == 'channel' and sort_order == 'asc' %}active{% endif %}"></i>
-                                                    <i class="bi bi-caret-down-fill {% if sort_by == 'channel' and sort_order == 'desc' %}active{% endif %}"></i>
+                                                    <i class="bi {% if sort_by == 'channel' %}{% if sort_order == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}{% else %}bi-caret-down-fill{% endif %}"></i>
                                                 </span>
                                             </a>
                                         </th>
                                         <th>
-                                            Capture Type
                                             <a href="#"
                                                class="sort-link {% if sort_by == 'capture_type' %}active{% endif %}"
                                                data-sort-by="capture_type"
                                                data-sort-order="{% if sort_by == 'capture_type' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
+                                                Capture Type
                                                 <span class="sort-icons">
-                                                    <i class="bi bi-caret-up-fill {% if sort_by == 'capture_type' and sort_order == 'asc' %}active{% endif %}"></i>
-                                                    <i class="bi bi-caret-down-fill {% if sort_by == 'capture_type' and sort_order == 'desc' %}active{% endif %}"></i>
+                                                    <i class="bi {% if sort_by == 'capture_type' %}{% if sort_order == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}{% else %}bi-caret-down-fill{% endif %}"></i>
                                                 </span>
                                             </a>
                                         </th>
                                         <th>
-                                            Created At
                                             <a href="#"
                                                class="sort-link {% if sort_by == 'created_at' %}active{% endif %}"
                                                data-sort-by="created_at"
                                                data-sort-order="{% if sort_by == 'created_at' and sort_order == 'asc' %}desc{% else %}asc{% endif %}">
+                                                Created At
                                                 <span class="sort-icons">
-                                                    <i class="bi bi-caret-up-fill {% if sort_by == 'created_at' and sort_order == 'asc' %}active{% endif %}"></i>
-                                                    <i class="bi bi-caret-down-fill {% if sort_by == 'created_at' and sort_order == 'desc' %}active{% endif %}"></i>
+                                                    <i class="bi {% if sort_by == 'created_at' %}{% if sort_order == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}{% else %}bi-caret-down-fill{% endif %}"></i>
                                                 </span>
                                             </a>
                                         </th>
@@ -235,14 +232,14 @@
                 $('.sort-link').each(function() {
                     const $a = $(this);
                     const field = $a.data('sort-by');
-                    const $icon = $a.find('.sort-icon').empty();
-                    if (field === sortBy) {
-                        const cls = sortOrder === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down';
-                        $icon.append(`<i class="bi ${cls}"></i>`);
-                        $a.addClass('active');
+                    const $icon = $a.find('.sort-icons i');
 
-                        $a.data('sort-order', sortOrder === 'asc' ? 'desc' : 'asc');
+                    if (field === sortBy) {
+                        const iconClass = sortOrder === 'asc' ? 'bi-caret-up-fill' : 'bi-caret-down-fill';
+                        $icon.removeClass('bi-caret-down-fill').addClass(iconClass);
+                        $a.addClass('active');
                     } else {
+                        $icon.removeClass('bi-caret-up-fill bi-caret-down-fill').addClass('bi-caret-down-fill');
                         $a.removeClass('active');
                     }
                 });
