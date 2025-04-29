@@ -1,9 +1,12 @@
 """Custom exceptions for the SDS SDK."""
 
 import sys
+from collections.abc import Sequence
 from typing import Any
 from typing import Generic
 from typing import TypeVar
+
+from spectrumx.utils import log_user_error
 
 if sys.version_info < (3, 11):  # noqa: UP036
     from typing_extensions import Self  # noqa: UP035 # Required backport
@@ -230,3 +233,40 @@ class Result(Generic[T]):
     def unwrap(self) -> T:
         """Alias for `self()`. Raises if the result is an exception."""
         return self()
+
+
+def process_upload_results(
+    upload_results: Sequence[Result],  # pyright: ignore[reportMissingTypeArgument]
+    *,
+    verbose: bool,
+    raise_on_error: bool,
+) -> bool:
+    """Process the results of a batch upload, raising if any has failed.
+
+    Args:
+        upload_results:     A sequence of Result objects.
+        verbose:            Whether to log errors.
+        raise_on_error:     Whether to raise an exception on failure.
+    Raises:
+        The first SDSError wrapped as upload_results if any upload has failed and
+        raise_on_error is True.
+    Returns:
+        bool: True if all uploads were successful, False otherwise.
+    """
+    successful_uploads = [res.unwrap() for res in upload_results if res]
+    failed_uploads = [res for res in upload_results if not res]
+    if failed_uploads:
+        if raise_on_error:
+            # then raise the first exception in failed results
+            for res in failed_uploads:
+                exception = res.exception_or(SDSError("File Upload Failed"))
+                if exception:
+                    raise exception
+        if verbose:
+            log_user_error(f"Failed to upload the following files: {failed_uploads}")
+        return False
+    if not successful_uploads:
+        if verbose:
+            log_user_error("No files uploaded, unable to create capture.")
+        return False
+    return True

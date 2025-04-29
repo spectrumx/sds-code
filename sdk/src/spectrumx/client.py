@@ -12,6 +12,7 @@ from pydantic import UUID4
 from spectrumx.api.captures import CaptureAPI
 from spectrumx.errors import Result
 from spectrumx.errors import SDSError
+from spectrumx.errors import process_upload_results
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureType
 from spectrumx.ops.pagination import Paginator
@@ -441,39 +442,29 @@ class Client:
             verbose=verbose,
         )
 
-        successful_uploads = [res.unwrap() for res in upload_results if res]
-        failed_uploads = [res for res in upload_results if not res]
-        if failed_uploads:
+        if not process_upload_results(
+            upload_results,
+            raise_on_error=raise_on_error,
+            verbose=verbose,
+        ):
+            return None
+
+        try:
+            capture = self.captures.create(
+                top_level_dir=PurePosixPath(sds_path),
+                capture_type=capture_type,
+                index_name=index_name,
+                channel=channel,
+                scan_group=scan_group,
+            )
+        except SDSError:
             if raise_on_error:
-                # then raise the first exception in failed results
-                for res in failed_uploads:
-                    exception = res.exception_or(SDSError("File Upload Failed"))
-                    if exception:
-                        raise exception
-            if verbose:
-                log_user_error(
-                    f"Failed to upload the following files: {failed_uploads}"
-                )
-            return None
-        if not successful_uploads:
-            if verbose:
-                log_user_error("No files uploaded, unable to create capture.")
-            return None
-
-        capture = self.captures.create(
-            top_level_dir=PurePosixPath(sds_path),
-            capture_type=capture_type,
-            index_name=index_name,
-            channel=channel,
-            scan_group=scan_group,
-        )
-
-        if capture is None:
+                raise
             if verbose:
                 log_user_error("Failed to create capture.")
             return None
-
-        return capture
+        else:
+            return capture
 
 
 __all__ = ["Client"]
