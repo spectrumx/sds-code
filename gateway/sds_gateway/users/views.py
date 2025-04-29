@@ -245,7 +245,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
 
         qs = request.user.captures.filter(is_deleted=False)
 
-        # 3) apply filters
+        # apply filters
         if search:
             qs = qs.filter(channel__icontains=search)
         if date_start:
@@ -255,7 +255,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         if cap_type:
             qs = qs.filter(capture_type=cap_type)
 
-        # 4) apply sorting
+        #  apply sorting
         if sort_order == "desc":
             qs = qs.order_by(f"-{sort_by}")
         else:

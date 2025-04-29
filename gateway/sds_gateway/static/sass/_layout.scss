@@ -53,6 +53,9 @@
     z-index: 1000;
     padding: 0 0 4px 0;
     margin-top: 4px;
+    position: fixed;
+    top: 4px; /* Height of rainbow bar */
+    left: 0;
   }
 
   .header-content {
@@ -92,6 +95,8 @@
   main{
     min-height: calc(100vh - 60px);
     background-color: var(--white);
+    padding-top: 60px; /* Height of header */
+    margin-top: 0; /* Remove the margin that was causing the white space */
 
     .main-white-page & {
       background-color: var(--white);
