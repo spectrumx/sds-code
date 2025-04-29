@@ -43,7 +43,7 @@ from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 
 
-class UserDetailView(Auth0LoginRequiredMixin, DetailView[User]):
+class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
     model = User
     slug_field = "id"
     slug_url_arg = "id"
@@ -214,7 +214,7 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
 user_file_list_view = ListFilesView.as_view()
 
 
-class FileDetailView(Auth0LoginRequiredMixin, DetailView[File]):
+class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
     model = File
     slug_field = "uuid"
     slug_url_kwarg = "uuid"
