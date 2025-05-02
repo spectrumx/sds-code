@@ -37,9 +37,9 @@ class Client:
 
     host: str
     is_authenticated: bool
-    verbose: bool = False
     captures: CaptureAPI
 
+    _verbose: bool = False
     _gateway: GatewayClient
     _config: SDSConfig
 
@@ -58,7 +58,7 @@ class Client:
 
         self.host = host
         self.is_authenticated = False
-        self.verbose = verbose
+        self._verbose = verbose
         self._config = SDSConfig(
             env_file=env_file,
             env_config=env_config,
@@ -94,6 +94,20 @@ class Client:
             )
         if self.dry_run:
             log_user("Dry run enabled: no SDS requests will be made or files written")
+
+    @property
+    def verbose(self) -> bool:
+        """When True, shows verbose output."""
+        return self._verbose
+
+    @verbose.setter
+    def verbose(self, value: bool) -> None:
+        """Sets the verbose mode for the client and internal API instances."""
+        self._verbose = bool(value)
+        self._gateway.verbose = self._verbose
+        self.captures.verbose = self._verbose
+        self.captures.verbose = self._verbose
+        # add future API instances here
 
     @property
     def dry_run(self) -> bool:
@@ -343,17 +357,19 @@ class Client:
         local_path: Path | str,
         sds_path: PurePosixPath | Path | str = "/",
         verbose: bool = True,
+        warn_skipped: bool = True,
     ) -> list[Result[File]]:
         """Uploads a file or directory to SDS.
 
         Args:
-            local_path: The local path of the file or directory to upload.
-            sds_path:   The virtual directory on SDS to upload the file to, \
-                            where '/' is the user root.
-            verbose:    Show a progress bar.
+            local_path:     The local path of the file or directory to upload.
+            sds_path:       The virtual directory on SDS to upload the file to, \
+                                where '/' is the user root.
+            verbose:        Show a progress bar.
+            warn_skipped:   Display warnings for skipped files.
         """
         local_path = Path(local_path) if isinstance(local_path, str) else local_path
-        valid_files = files.get_valid_files(local_path, warn_skipped=True)
+        valid_files = files.get_valid_files(local_path, warn_skipped=warn_skipped)
         prog_bar = get_prog_bar(valid_files, desc="Uploading", disable=not verbose)
         upload_results: list[Result[File]] = []
         for file_path in prog_bar:
@@ -410,6 +426,7 @@ class Client:
         channel: str | None = None,
         scan_group: str | None = None,
         verbose: bool = True,
+        warn_skipped: bool = False,
         raise_on_error: bool = True,
     ) -> Capture | None:
         """Uploads a local directory and creates a capture using those files.
@@ -440,6 +457,7 @@ class Client:
             local_path=local_path,
             sds_path=sds_path,
             verbose=verbose,
+            warn_skipped=warn_skipped,
         )
 
         if not process_upload_results(

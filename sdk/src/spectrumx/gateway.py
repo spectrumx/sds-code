@@ -572,7 +572,8 @@ class GatewayClient:
             GatewayError: If the deletion request fails.
         """
         endpoint = f"{Endpoints.CAPTURES}/{capture_uuid.hex}"
-        log.debug(f"Sending DELETE request to {endpoint}")
+        if self.verbose:
+            log.debug(f"Sending DELETE request to {endpoint}")
 
         response = self._request(
             method=HTTPMethods.DELETE,
@@ -580,4 +581,5 @@ class GatewayClient:
             asset_id=capture_uuid.hex,
         )
         network.success_or_raise(response, ContextException=CaptureError)
-        log.debug(f"Capture with UUID {capture_uuid} deleted successfully")
+        if self.verbose:
+            log.debug(f"Capture with UUID {capture_uuid} deleted successfully")

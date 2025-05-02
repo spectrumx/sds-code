@@ -31,12 +31,20 @@ index_mapping = {
 
 
 class CaptureAPI:
-    client: GatewayClient
+    gateway: GatewayClient
+    verbose: bool = False
 
-    def __init__(self, *, gateway: GatewayClient, dry_run: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        gateway: GatewayClient,
+        dry_run: bool = True,
+        verbose: bool = False,
+    ) -> None:
         """Initializes the CaptureAPI."""
         self.dry_run = dry_run
         self.gateway = gateway
+        self.verbose = verbose
 
     def create(
         self,
@@ -85,10 +93,11 @@ class CaptureAPI:
             log.warning(f"Could not find an index for {capture_type=}")
 
         top_level_dir = PurePosixPath(top_level_dir)
-        log.debug(
-            f"Creating capture with {top_level_dir=}, "
-            f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}"
-        )
+        if self.verbose:
+            log.debug(
+                f"Creating capture with {top_level_dir=}, "
+                f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}"
+            )
 
         if self.dry_run:
             log.debug("Dry run enabled: simulating the capture creation")
@@ -111,7 +120,8 @@ class CaptureAPI:
             top_level_dir=top_level_dir,
         )
         capture = Capture.model_validate_json(capture_raw)
-        log.debug(f"Capture created with UUID {capture.uuid}")
+        if self.verbose:
+            log.debug(f"Capture created with UUID {capture.uuid}")
         return capture
 
     def listing(self, *, capture_type: CaptureType | None = None) -> list[Capture]:
@@ -125,7 +135,8 @@ class CaptureAPI:
         Returns:
             A list of the RF captures found owned by the requesting user.
         """
-        log.debug(f"Listing captures of type {capture_type}")
+        if self.verbose:
+            log.debug(f"Listing captures of type {capture_type}")
         if self.dry_run:
             log.debug("Dry run enabled: simulating capture listing")
             num_captures: int = 3
@@ -152,7 +163,8 @@ class CaptureAPI:
                 log_user_warning(f"Validation error loading capture: {captures_raw}")
                 log.exception(err)
                 continue
-        log.debug(f"Listing {len(captures)} captures")
+        if self.verbose:
+            log.debug(f"Listing {len(captures)} captures")
         return captures
 
     def update(
@@ -168,7 +180,8 @@ class CaptureAPI:
         Returns:
             None
         """
-        log.debug(f"Updating capture with UUID {capture_uuid}")
+        if self.verbose:
+            log.debug(f"Updating capture with UUID {capture_uuid}")
 
         if self.dry_run:
             log.debug(f"Dry run enabled: simulating capture update {capture_uuid}")
@@ -179,7 +192,8 @@ class CaptureAPI:
             verbose=True,
         )
         capture = Capture.model_validate_json(capture_raw)
-        log.debug(f"Capture updated with UUID {capture.uuid}")
+        if self.verbose:
+            log.debug(f"Capture updated with UUID {capture.uuid}")
 
     def read(
         self,
@@ -196,11 +210,13 @@ class CaptureAPI:
         Returns:
             The capture object.
         """
-        log.debug(f"Reading capture with UUID {capture_uuid}")
+        if self.verbose:
+            log.debug(f"Reading capture with UUID {capture_uuid}")
 
         capture_raw = self.gateway.read_capture(capture_uuid=capture_uuid)
         capture = Capture.model_validate_json(capture_raw)
-        log.debug(f"Capture read with UUID {capture.uuid}")
+        if self.verbose:
+            log.debug(f"Capture read with UUID {capture.uuid}")
         return capture
 
     def delete(self, capture_uuid: uuid.UUID) -> bool:
@@ -214,13 +230,15 @@ class CaptureAPI:
             CaptureError: If the capture couldn't be deleted e.g.: if it doesn't exist;
                 if it has already been deleted; if this user doesn't own it.
         """
-        log.debug(f"Deleting capture with UUID {capture_uuid}")
+        if self.verbose:
+            log.debug(f"Deleting capture with UUID {capture_uuid}")
 
         if self.dry_run:
             log.debug(f"Dry run enabled: would delete capture {capture_uuid}")
             return True
         self.gateway.delete_capture(capture_uuid=capture_uuid)
-        log.debug(f"Capture deleted with UUID {capture_uuid}")
+        if self.verbose:
+            log.debug(f"Capture deleted with UUID {capture_uuid}")
         return True
 
 
@@ -290,7 +308,8 @@ def _enable_experimental_advanced_search() -> None:
                 continue
             else:
                 captures.append(capture)
-        log.debug(f"Search returned {len(captures)} captures")
+        if self.verbose:
+            log.debug(f"Search returned {len(captures)} captures")
         return captures
 
     CaptureAPI.advanced_search = advanced_search
