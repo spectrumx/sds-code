@@ -153,6 +153,12 @@ class CaptureViewSet(viewsets.ViewSet):
                 drf_channel=drf_channel,
             )
 
+            # disconnect files that are no longer in the capture
+            for cur_file in capture.files.all():
+                if cur_file not in files_to_connect:
+                    cur_file.capture = None
+                    cur_file.save()
+
             # connect the files to the capture
             for cur_file in files_to_connect:
                 cur_file.capture = capture
