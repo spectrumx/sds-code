@@ -145,6 +145,27 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
         return super().is_valid(raise_exception=raise_exception)
 
     def create(self, validated_data: dict[str, Any]) -> Capture:
-        # Set the owner to the request user
+        # set the owner to the request user
         validated_data["owner"] = self.context["request_user"]
-        return super().create(validated_data)
+        validated_data["top_level_dir"] = normalize_top_level_dir(
+            validated_data["top_level_dir"],
+        )
+        return super().create(validated_data=validated_data)
+
+    def update(self, instance: Capture, validated_data: dict[str, Any]) -> Capture:
+        validated_data["top_level_dir"] = normalize_top_level_dir(
+            validated_data["top_level_dir"],
+        )
+        return super().update(instance=instance, validated_data=validated_data)
+
+
+def normalize_top_level_dir(unknown_path: str) -> str:
+    """Normalize the top level directory path."""
+    valid_path = str(unknown_path)
+
+    # top level dir must start with '/'
+    if not valid_path.startswith("/"):
+        valid_path = "/" + valid_path
+
+    # top level dir must not end with '/'
+    return valid_path.rstrip("/")
