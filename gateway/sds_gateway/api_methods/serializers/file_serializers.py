@@ -2,7 +2,6 @@
 
 import uuid
 from pathlib import Path
-from pathlib import PurePosixPath
 from typing import Any
 
 from django.http import QueryDict
@@ -13,6 +12,7 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
+from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
 BAD_REQUEST = 400
@@ -105,28 +105,11 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
     def create(self, validated_data: dict[str, Any]) -> File:
         """Creates a new file instance validating and saving the data."""
 
-        # set the owner to the request user
         validated_data["owner"] = self.context["request_user"]
-        user_files_dir = f"/files/{validated_data['owner'].email}"
-
-        # ensure directory is not a relative path
-        if not PurePosixPath(validated_data["directory"]).is_absolute():
-            raise serializers.ValidationError(
-                {"detail": "Relative paths are not allowed."},
-                code=str(BAD_REQUEST),
-            )
-
-        # ensure the resolved path is within the user's files directory
-        validated_data["directory"] = f"{user_files_dir}{validated_data['directory']}/"
-        resolved_dir = Path(validated_data["directory"]).resolve(strict=False)
-        resolved_user_files_dir = Path(user_files_dir).resolve(strict=False)
-        if not resolved_dir.is_relative_to(resolved_user_files_dir):
-            raise serializers.ValidationError(
-                {
-                    "detail": f"The provided directory must be in the user's files directory: {user_files_dir}",  # noqa: E501
-                },
-                code=str(BAD_REQUEST),
-            )
+        validated_data["directory"] = sanitize_path_rel_to_user(
+            unsafe_path=validated_data["directory"],
+            user=validated_data["owner"],
+        )
 
         if "media_type" not in validated_data:
             validated_data["media_type"] = ""
