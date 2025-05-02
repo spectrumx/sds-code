@@ -1,6 +1,6 @@
 # SpectrumX SDK Changelog
 
-## `0.1.9` - 2025-04-XX
+## `0.1.9` - 2025-05-XX
 
 + Features and improvements:
     + Captures may now be deleted using the SDK.
@@ -8,6 +8,7 @@
     + Experimental support for capture searches using OpenSearch queries has been introduced.
         + Enable it by calling `spectrumx.experiments.enable_capture_advanced_search()` before calling the search method.
     + New high-level method that combines a directory upload with a capture creation: `sds_client.upload_capture()`.
+    + Bugfix: fixed local destination path not being respected in some cases when downloading single files.
 
 ## `0.1.8` - 2025-03-24
 

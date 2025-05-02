@@ -76,63 +76,31 @@ def download_file(
     """
     # prepare file instance
     if isinstance(file_instance, File):
-        if file_instance.uuid is None:
-            msg = "The file passed is a local reference and cannot be downloaded."
-            raise ValueError(msg)
-        if file_instance.local_path is None and warn_missing_path:
-            msg = (
-                "The file instance passed is missing a local path to "
-                "download to. A temporary file will be created on disk."
+        file_instance, valid_uuid, valid_local_path_or_none = (
+            __extract_download_info_from_file_instance(
+                file_instance=file_instance,
+                to_local_path=to_local_path,
+                warn_missing_path=warn_missing_path,
             )
-            log_user_warning(msg)
-        if skip_contents:
-            msg = (
-                "A file instance was provided and skip_contents "
-                "is True: nothing to download."
-            )
-            log_user_warning(msg)
-            return file_instance
-        valid_uuid = file_instance.uuid
-        valid_local_path_or_none = file_instance.local_path
-
-    # or get the file info and create a new instance
-    else:
-        if file_uuid is None:
-            msg = "Expected a file instance or UUID to download."
-            raise ValueError(msg)
-        if to_local_path is None and warn_missing_path:
-            msg = "The file will be downloaded as temporary."
-            log_user_warning(msg)
-
-        valid_local_path_or_none = Path(to_local_path) if to_local_path else None
-
-        # download file metadata
-        valid_uuid: UUID4 = (
-            uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
         )
-        if client.dry_run:
-            log_user("Dry run enabled: a sample file is being returned instead")
-            file_instance = files.generate_sample_file(valid_uuid)
-        else:
-            file_bytes = client._gateway.get_file_by_id(uuid=valid_uuid.hex)
-            file_instance = File.model_validate_json(file_bytes)
-
-    # download the file contents
-    if not skip_contents:
-        if client.dry_run:
-            file_instance.local_path = valid_local_path_or_none
-            log_user(
-                "Dry run enabled: file contents would be "
-                f"downloaded as {file_instance.local_path}"
-            )
-        else:
-            downloaded_path = __download_file_contents(
+    # or fetch file info from SDS creating a new instance
+    else:
+        file_instance, valid_uuid, valid_local_path_or_none = (
+            __pre_fetch_file_for_download(
                 client=client,
-                file_uuid=valid_uuid,
-                target_path=valid_local_path_or_none,
-                contents_lock=file_instance.contents_lock,  # pyright: ignore[reportPrivateUsage]
+                file_uuid=file_uuid,
+                to_local_path=to_local_path,
+                warn_missing_path=warn_missing_path,
             )
-            file_instance.local_path = downloaded_path
+        )
+
+    __download_file_contents_if_applicable(
+        client=client,
+        file_instance=file_instance,
+        valid_uuid=valid_uuid,
+        valid_local_path_or_none=valid_local_path_or_none,
+        skip_contents=skip_contents,
+    )
     return file_instance
 
 
@@ -228,6 +196,37 @@ def delete_file(client: Client, file_uuid: UUID4 | str) -> bool:
     return client._gateway.delete_file_by_id(uuid=uuid_to_delete.hex)
 
 
+def __download_file_contents_if_applicable(
+    client: Client,
+    file_instance: File,
+    *,
+    valid_uuid: UUID4,
+    valid_local_path_or_none: Path | None,
+    skip_contents: bool = False,
+) -> None:
+    if skip_contents:
+        msg = (
+            "A file instance was provided and skip_contents "
+            "is True: nothing to download."
+        )
+        log_user_warning(msg)
+        return
+    if client.dry_run:
+        file_instance.local_path = valid_local_path_or_none
+        log_user(
+            "Dry run enabled: file contents would be "
+            f"downloaded as {file_instance.local_path}"
+        )
+        return
+    downloaded_path: Path = __download_file_contents(
+        client=client,
+        file_uuid=valid_uuid,
+        target_path=valid_local_path_or_none,
+        contents_lock=file_instance.contents_lock,  # pyright: ignore[reportPrivateUsage]
+    )
+    file_instance.local_path = downloaded_path
+
+
 def __download_file_contents(
     *,
     client,
@@ -264,13 +263,114 @@ def __download_file_contents(
     return target_path
 
 
-def __upload_file_mux(*, client: Client, file_instance: File) -> File:
+def __extract_download_info_from_file_instance(
+    file_instance: File,
+    *,
+    to_local_path: Path | str | None,
+    warn_missing_path: bool,
+) -> tuple[File, UUID4, Path | None]:
+    """Extracts from a file instance the info needed to download file contents."""
+    if file_instance.uuid is None:
+        msg = "The file passed is a local reference and cannot be downloaded."
+        raise ValueError(msg)
+    if to_local_path:
+        file_instance.local_path = Path(to_local_path)
+    if file_instance.local_path is None and warn_missing_path:
+        msg = (
+            "The file instance passed is missing a local path to "
+            "download to. A temporary file will be created on disk."
+        )
+        log_user_warning(msg)
+    valid_uuid = file_instance.uuid
+    valid_local_path_or_none = file_instance.local_path
+    return file_instance, valid_uuid, valid_local_path_or_none
+
+
+def __get_upload_mode_and_asset(
+    *, client: Client, file_instance: File
+) -> tuple[FileUploadMode, uuid.UUID | None]:
+    """Determines how to upload a file into SDS.
+
+    Args:
+        file_instance:  The file instance to get the upload mode for.
+    Returns:
+        The mode to upload the file in. Modes are:
+            FileUploadMode.SKIP
+            FileUploadMode.UPLOAD_CONTENTS_AND_METADATA
+            FileUploadMode.UPLOAD_METADATA_ONLY
+        Asset ID: The asset ID of the file in SDS, if it exists.
+
+    SKIP is used when the file already exists in SDS and no changes are needed.
+    UPLOAD_CONTENTS_AND_METADATA is used when the file is new or its contents
+        have changed; it will create a new file entry with new contents.
+    UPLOAD_METADATA_ONLY is used when the file contents are already in SDS, and
+        it will create a new file entry while reusing existing contents from a
+        sibling file.
+    ---
+    UPDATE_METADATA_ONLY is NOT returned here, as it might cause unintended changes.
+        For this reason, "update" methods should be explicitly called by UUID.
+    ---
+    A "File" in SDS has immutable contents, so there is no "UPDATE_CONTENTS_ONLY".
+    Note upload_* methods / modes create new assets in SDS, while update_* don't.
+    """
+    # always assume upload is needed in dry-run, since we can't contact the server
+    if client.dry_run:
+        return (
+            FileUploadMode.UPLOAD_CONTENTS_AND_METADATA,
+            None,
+        )
+
+    file_contents_check = client._gateway.check_file_contents_exist(
+        file_instance=file_instance
+    )
+    asset_id = file_contents_check.asset_id
+
+    if file_contents_check.file_exists_in_tree:
+        return FileUploadMode.SKIP, asset_id
+    if file_contents_check.file_contents_exist_for_user:
+        return FileUploadMode.UPLOAD_METADATA_ONLY, asset_id
+    return FileUploadMode.UPLOAD_CONTENTS_AND_METADATA, asset_id
+
+
+def __pre_fetch_file_for_download(
+    client: Client,
+    file_uuid: UUID4 | str | None,
+    to_local_path: Path | str | None,
+    *,
+    warn_missing_path: bool,
+) -> tuple[File, UUID4, Path | None]:
+    """Pre-fetches file metadata from SDS to get info for downloading contents."""
+    if file_uuid is None:
+        msg = "Expected a file instance or UUID to download."
+        raise ValueError(msg)
+    if to_local_path is None and warn_missing_path:
+        msg = "The file will be downloaded as temporary."
+        log_user_warning(msg)
+
+    valid_local_path_or_none: Path | None = (
+        Path(to_local_path) if to_local_path else None
+    )
+
+    valid_uuid: UUID4 = (
+        uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
+    )
+    if client.dry_run:
+        log_user("Dry run enabled: a sample file is being returned instead")
+        file_instance: File = files.generate_sample_file(valid_uuid)
+    else:
+        file_bytes: bytes = client._gateway.get_file_by_id(uuid=valid_uuid.hex)
+        file_instance: File = File.model_validate_json(file_bytes)
+    return file_instance, valid_uuid, valid_local_path_or_none
+
+
+def __upload_file_mux(*, client: Client, file_instance: File) -> File:  # noqa: C901
     """Uploads a file instance to SDS, choosing the right upload mode."""
     file_path = file_instance.local_path
     # check whether sds already has this file for this user
     upload_mode, asset_id = __get_upload_mode_and_asset(
         client=client, file_instance=file_instance
     )
+    verbose = client.verbose
 
     if client.dry_run:
         log_user(f"Dry run enabled: skipping upload of '{file_path}'")
@@ -278,18 +378,21 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:
 
     match upload_mode:
         case FileUploadMode.SKIP:
-            log_user(f"Skipping upload of existing '{file_path}'")
+            if verbose:
+                log_user(f"Skipping upload of existing '{file_path}'")
             return file_instance
         case FileUploadMode.UPLOAD_CONTENTS_AND_METADATA:
-            log_user(f"Uploading C&M '{file_path}'")
+            if verbose:
+                log_user(f"Uploading contents and metadata for '{file_path}'")
             return __upload_contents_and_metadata(
                 client=client, file_instance=file_instance
             )
         case FileUploadMode.UPLOAD_METADATA_ONLY:
-            log_user(f"Uploading only metadata for '{file_path}'")
-            log.debug(
-                f"Uploading only metadata '{file_path}' with sibling '{asset_id}'"
-            )
+            if verbose:
+                log_user(f"Uploading only metadata for '{file_path}'")
+                log.debug(
+                    f"Uploading only metadata '{file_path}' with sibling '{asset_id}'"
+                )
             if asset_id is None:
                 msg = "Expected an asset ID when uploading metadata only"
                 raise SDSError(msg)
@@ -297,8 +400,9 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:
                 client=client, file_instance=file_instance, sibling_uuid=asset_id
             )
         case FileUploadMode.UPDATE_METADATA_ONLY:  # pragma: no cover
-            log_user(f"Updating metadata for '{file_path}'")
-            log.debug(f"Updating metadata '{file_path}' with asset '{asset_id}'")
+            if verbose:
+                log_user(f"Updating metadata for '{file_path}'")
+                log.debug(f"Updating metadata '{file_path}' with asset '{asset_id}'")
             assert asset_id is not None, "Expected an asset ID when updating metadata"
             return __update_existing_file_metadata_only(
                 client=client, file_instance=file_instance, asset_id=asset_id
@@ -308,10 +412,15 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:
             raise SDSError(msg)
 
 
-def __upload_contents_and_metadata(*, client: Client, file_instance: File) -> File:
+def __upload_contents_and_metadata(
+    *,
+    client: Client,
+    file_instance: File,
+) -> File:
     """UPLOADS a new file instance to SDS with contents and metadata.
 
     Args:
+        client:         The SDS client instance.
         file_instance:  The file instance to upload.
     Returns:
         The file instance with updated attributes.
@@ -394,49 +503,3 @@ def __upload_new_file_metadata_only(
     uploaded_file = File.model_validate_json(file_response)
     uploaded_file.local_path = file_instance.local_path
     return uploaded_file
-
-
-def __get_upload_mode_and_asset(
-    *, client: Client, file_instance: File
-) -> tuple[FileUploadMode, uuid.UUID | None]:
-    """Determines how to upload a file into SDS.
-
-    Args:
-        file_instance:  The file instance to get the upload mode for.
-    Returns:
-        The mode to upload the file in. Modes are:
-            FileUploadMode.SKIP
-            FileUploadMode.UPLOAD_CONTENTS_AND_METADATA
-            FileUploadMode.UPLOAD_METADATA_ONLY
-        Asset ID: The asset ID of the file in SDS, if it exists.
-
-    SKIP is used when the file already exists in SDS and no changes are needed.
-    UPLOAD_CONTENTS_AND_METADATA is used when the file is new or its contents
-        have changed; it will create a new file entry with new contents.
-    UPLOAD_METADATA_ONLY is used when the file contents are already in SDS, and
-        it will create a new file entry while reusing existing contents from a
-        sibling file.
-    ---
-    UPDATE_METADATA_ONLY is NOT returned here, as it might cause unintended changes.
-        For this reason, "update" methods should be explicitly called by UUID.
-    ---
-    A "File" in SDS has immutable contents, so there is no "UPDATE_CONTENTS_ONLY".
-    Note upload_* methods / modes create new assets in SDS, while update_* don't.
-    """
-    # always assume upload is needed in dry-run, since we can't contact the server
-    if client.dry_run:
-        return (
-            FileUploadMode.UPLOAD_CONTENTS_AND_METADATA,
-            None,
-        )
-
-    file_contents_check = client._gateway.check_file_contents_exist(
-        file_instance=file_instance
-    )
-    asset_id = file_contents_check.asset_id
-
-    if file_contents_check.file_exists_in_tree:
-        return FileUploadMode.SKIP, asset_id
-    if file_contents_check.file_contents_exist_for_user:
-        return FileUploadMode.UPLOAD_METADATA_ONLY, asset_id
-    return FileUploadMode.UPLOAD_CONTENTS_AND_METADATA, asset_id
