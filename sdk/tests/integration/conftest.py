@@ -22,6 +22,11 @@ uuid_v4_regex = (
     r"{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}"
 )
 
+dir_integration_data = Path(__file__).parent / "data"
+assert dir_integration_data.exists(), (
+    f"Integration test data directory '{dir_integration_data}' does not exist."
+)
+
 # add more hostnames here to bypass `responses` when running integration tests.
 # these servers will receive the actual requests from integration tests:
 passthru_hostnames = [
@@ -274,3 +279,15 @@ def inline_auth_integration_client() -> Client:
     ), "Client didn't load the API key."
     assert _integration_client.dry_run is False, "Dry run mode should be disabled."
     return _integration_client
+
+
+@pytest.fixture
+def rh_sample_top_level_dir() -> Path:
+    """Fixture to provide the RadioHound sample top-level directory."""
+    return dir_integration_data / "captures" / "radiohound"
+
+
+@pytest.fixture
+def drf_sample_top_level_dir() -> Path:
+    """Fixture to provide the Digital-RF sample top-level directory."""
+    return dir_integration_data / "captures" / "drf" / "westford-vpol"

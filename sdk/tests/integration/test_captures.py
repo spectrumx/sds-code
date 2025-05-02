@@ -4,6 +4,7 @@ import json
 from collections.abc import Generator
 from pathlib import Path
 from pathlib import PurePosixPath
+from typing import Any
 
 import pytest
 from loguru import logger as log
@@ -17,11 +18,11 @@ from spectrumx.models.captures import CaptureType
 from spectrumx.utils import get_random_line
 
 from tests.integration.conftest import PassthruEndpoints
+from tests.integration.conftest import dir_integration_data
 
 log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")
 
 # paths with test data
-dir_integration_data = Path(__file__).parent / "data"
 drf_channel = "cap-2024-06-27T14-00-00"
 
 
@@ -40,18 +41,6 @@ def _capture_test(drf_sample_top_level_dir: Path) -> Generator[None]:
     # teardown code for integration tests
 
     return
-
-
-@pytest.fixture
-def rh_sample_top_level_dir() -> Path:
-    """Fixture to provide the RadioHound sample top-level directory."""
-    return dir_integration_data / "captures" / "radiohound"
-
-
-@pytest.fixture
-def drf_sample_top_level_dir() -> Path:
-    """Fixture to provide the Digital-RF sample top-level directory."""
-    return dir_integration_data / "captures" / "drf" / "westford-vpol"
 
 
 @pytest.mark.integration
@@ -183,11 +172,8 @@ def test_capture_creation_rh(
     """Tests creating a RadioHound capture."""
 
     # ARRANGE
-    radiohound_file = rh_sample_top_level_dir / "reference-v0.rh.json"
-    assert radiohound_file.is_file(), (
-        "Reference file should exist; check that "
-        f"you have the right paths set: '{radiohound_file}'"
-    )
+    radiohound_data = load_rh_data(rh_sample_top_level_dir)
+    scan_group = radiohound_data["scan_group"]
 
     # suffix path_after_capture_data with a random name to avoid conflicts between runs
     rel_path_capture = rh_sample_top_level_dir.relative_to(dir_integration_data)
@@ -202,10 +188,6 @@ def test_capture_creation_rh(
 
     # ACT
 
-    with radiohound_file.open("r") as fp_json:
-        radiohound_data = json.load(fp_json)
-    scan_group = radiohound_data["scan_group"]
-
     # delete all captures with that scan group to avoid conflicts
     _delete_rh_captures_by_scan_group(
         integration_client=integration_client,
@@ -215,7 +197,7 @@ def test_capture_creation_rh(
     capture_top_level = PurePosixPath("/") / rel_path_capture
     capture = integration_client.captures.create(
         top_level_dir=capture_top_level,
-        scan_group=radiohound_data["scan_group"],
+        scan_group=scan_group,
         capture_type=CaptureType.RadioHound,
     )
 
@@ -337,14 +319,8 @@ def test_capture_update_rh(
 ) -> None:
     """Tests updating a RadioHound capture."""
 
-    # ARRANGE
-
-    # define paths in the context of a capture
-    radiohound_file = rh_sample_top_level_dir / "reference-v0.rh.json"
-    assert radiohound_file.is_file(), (
-        "Reference file should exist; check that "
-        f"you have the right paths set: '{radiohound_file}'"
-    )
+    # ARRANGE by uploading capture data and creating one
+    radiohound_data = load_rh_data(rh_sample_top_level_dir)
 
     # suffix path_after_capture_data with a random name to avoid conflicts between runs
     rh_capture_update_sds_path = rh_sample_top_level_dir.relative_to(
@@ -361,12 +337,11 @@ def test_capture_update_rh(
         local_path=rh_sample_top_level_dir,
     )
 
-    with radiohound_file.open("r") as fp_json:
-        radiohound_data = json.load(fp_json)
-
-    scan_group = radiohound_data["scan_group"]
-
     # delete all captures with that scan group to avoid conflicts
+    assert "scan_group" in radiohound_data, (
+        "Expected 'scan_group' in the RadioHound data"
+    )
+    scan_group = radiohound_data["scan_group"]
     _delete_rh_captures_by_scan_group(
         integration_client=integration_client,
         scan_group=scan_group,
@@ -379,8 +354,7 @@ def test_capture_update_rh(
         capture_type=CaptureType.RadioHound,
     )
 
-    # ASSERT
-
+    # certify the capture was created
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == CaptureType.RadioHound
     assert capture.top_level_dir == capture_top_level
@@ -404,17 +378,35 @@ def test_capture_update_rh(
         local_path=new_dir_top_level,
     )
 
-    # ACT
+    # ACT by updating the capture
 
     # update the capture
     integration_client.captures.update(
         capture_uuid=capture.uuid,
     )
 
-    # ASSERT
+    # ASSERT capture was updated
 
-    # if no exceptions occurred, the test passes
-    assert True
+    # reading the capture should now return 2 files
+    read_capture = integration_client.captures.read(
+        capture_uuid=capture.uuid,
+    )
+    assert read_capture.files, "Expected a list of files associated to this capture"
+    num_files = 2  # the original file + the new one
+    assert len(read_capture.files) == num_files, (
+        "Expected 2 files associated to this capture after update"
+    )
+
+
+def load_rh_data(rh_top_level_dir: Path) -> dict[str, Any]:
+    """Helper to load RadioHound data from a top-level directory."""
+    radiohound_file = rh_top_level_dir / "reference-v0.rh.json"
+    assert radiohound_file.is_file(), (
+        "Reference file should exist; check that "
+        f"you have the right paths set: '{radiohound_file}'"
+    )
+    with radiohound_file.open("r") as fp_json:
+        return json.load(fp_json)
 
 
 @pytest.mark.integration
@@ -853,7 +845,7 @@ def _upload_assets(
     log.debug(f"Uploading assets as '/{sds_path}'")
     upload_results = integration_client.upload(
         local_path=local_path,
-        sds_path=f"/{sds_path}",
+        sds_path=sds_path,
         verbose=False,
     )
     success_results = [success for success in upload_results if success]
