@@ -6,6 +6,11 @@ from sds_gateway.api_methods.models import Dataset
 
 
 class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
+    authors = serializers.SerializerMethodField()
+
+    def get_authors(self, obj):
+        return obj.authors[0] if obj.authors else None
+
     class Meta:
         model = Dataset
         fields = "__all__"

@@ -54,6 +54,7 @@ class BaseModel(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(blank=True, null=True)
     is_deleted = models.BooleanField(default=False)
+    is_public = models.BooleanField(default=False)
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         """Allows this class to be abstract."""
@@ -215,6 +216,13 @@ class Capture(BaseModel):
         max_length=255,
         choices=ORIGIN_CHOICES,
         default=CaptureOrigin.User,
+    )
+    dataset = models.ForeignKey(
+        "Dataset",
+        blank=True,
+        null=True,
+        related_name="captures",
+        on_delete=models.SET_NULL,
     )
 
     def __str__(self):
