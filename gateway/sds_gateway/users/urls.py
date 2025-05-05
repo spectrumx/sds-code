@@ -4,6 +4,7 @@ from .api.views import GetAPIKeyView
 from .views import ListCapturesView
 from .views import user_dataset_list_view
 from .views import ListCapturesView
+from .views import user_dataset_list_view
 from .views import user_detail_view
 from .views import user_file_detail_view
 from .views import user_generate_api_key_view

@@ -7,6 +7,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
@@ -33,6 +34,7 @@ from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
+from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
@@ -659,3 +661,222 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         )
 
 user_capture_list_view = ListCapturesView.as_view()
+
+
+class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
+    template_name = "users/group_captures.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "dataset_form": DatasetInfoForm(user=self.request.user),
+                "capture_search_form": CaptureSearchForm(),
+                "file_search_form": FileSearchForm(),
+            }
+        )
+        return context
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            try:
+                if "search_captures" in request.GET:
+                    form = CaptureSearchForm(request.GET)
+                    if form.is_valid():
+                        captures = self.search_captures(form.cleaned_data)
+                        return JsonResponse(self.get_paginated_response(captures))
+                    return JsonResponse({"error": form.errors}, status=400)
+
+                if "search_files" in request.GET:
+                    base_dir = f"files/{request.user.email}/"
+                    form = FileSearchForm(request.GET)
+                    if form.is_valid():
+                        files = self.search_files(form.cleaned_data)
+                        return JsonResponse(
+                            {
+                                "tree": self._get_directory_tree(files, base_dir),
+                                "current_dir": base_dir,
+                            }
+                        )
+                    return JsonResponse({"error": form.errors}, status=400)
+            except (OSError, DatabaseError) as e:
+                return JsonResponse({"error": str(e)}, status=500)
+
+        return super().get(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        """Handle dataset creation with selected captures and files."""
+        try:
+            # Process the dataset form
+            dataset_form = DatasetInfoForm(request.POST, user=request.user)
+            if not dataset_form.is_valid():
+                return JsonResponse(
+                    {"success": False, "errors": dataset_form.errors}, status=400
+                )
+
+            # Get selected captures and files from hidden fields
+            selected_captures = request.POST.get("selected_captures", "").split(",")
+            selected_files = request.POST.get("selected_files", "").split(",")
+
+            # Filter out empty strings
+            selected_captures = [c for c in selected_captures if c]
+            selected_files = [f for f in selected_files if f]
+
+            # Validate that at least one capture or file is selected
+            if not selected_captures and not selected_files:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "errors": {
+                            "non_field_errors": [
+                                "Please select at least one capture or file."
+                            ]
+                        },
+                    },
+                    status=400,
+                )
+
+            # Create the dataset
+            dataset = Dataset.objects.create(
+                name=dataset_form.cleaned_data["name"],
+                description=dataset_form.cleaned_data["description"],
+                authors=[dataset_form.cleaned_data["author"]],
+                owner=request.user,
+            )
+
+            # Add selected captures to the dataset
+            if selected_captures:
+                captures = Capture.objects.filter(uuid__in=selected_captures)
+                dataset.captures.add(*captures)
+
+            # Add selected files to the dataset
+            if selected_files:
+                files = File.objects.filter(uuid__in=selected_files)
+                dataset.files.add(*files)
+
+            # Return success response with redirect URL
+            return JsonResponse(
+                {"success": True, "redirect_url": reverse("users:dataset_list")}
+            )
+
+        except (DatabaseError, IntegrityError) as e:
+            return JsonResponse(
+                {"success": False, "errors": {"non_field_errors": [str(e)]}}, status=500
+            )
+
+    def _get_directory_tree(self, files, base_dir):
+        """Build a nested directory tree structure."""
+        tree = {}
+
+        # Add files in base directory if they exist
+        tree["files"] = self._add_files_to_tree(files, base_dir)
+
+        # Get all directories that start with base_dir
+        distinct_file_paths = (
+            files.filter(directory__startswith=base_dir)
+            .values_list("directory", flat=True)
+            .distinct()
+        )
+
+        for file_path in distinct_file_paths:
+            # Skip if it's the base directory itself
+            if file_path == base_dir:
+                continue
+
+            # Get relative path from base_dir
+            rel_path = file_path.replace(base_dir, "").strip("/")
+            if not rel_path:
+                continue
+
+            # Split path into parts and build nested structure
+            path_parts = rel_path.split("/")
+            current_dict = tree
+
+            # Build the path one level at a time
+            current_path = base_dir
+            for part in path_parts:
+                current_path = f"{current_path}{part}/"
+
+                if part not in current_dict:
+                    current_dict[part] = {
+                        "type": "directory",
+                        "name": part,
+                        "path": current_path,
+                        "children": {},
+                        "files": [],
+                        "size": 0,
+                        "created_at": None,
+                    }
+                    # Add files for this directory level
+                    current_dict[part]["files"] = self._add_files_to_tree(
+                        files, current_path
+                    )
+                    current_dict[part]["size"], current_dict[part]["created_at"] = (
+                        self._calculate_directory_stats(current_dict[part])
+                    )
+
+                # Move to the children dictionary for the next iteration
+                current_dict = current_dict[part]["children"]
+
+        return tree
+
+    def _add_files_to_tree(self, files, directory):
+        files_in_directory = files.filter(directory=directory)
+        return [
+            {
+                "id": str(file.uuid),
+                "name": file.name,
+                "type": "file",
+                "media_type": file.media_type,
+                "size": file.size,
+                "created_at": file.created_at,
+            }
+            for file in files_in_directory
+        ]
+
+    def _calculate_directory_stats(self, tree):
+        """Calculate size and earliest created_at for directories."""
+        total_size = 0
+        earliest_date = None
+
+        # Process files in current directory
+        for file in tree.get("files", []):
+            total_size += file["size"]
+            if file["created_at"]:
+                if not earliest_date or file["created_at"] < earliest_date:
+                    earliest_date = file["created_at"]
+
+        # Process subdirectories recursively
+        for _dir_name, dir_data in tree.get("children", {}).values():
+            size, date = self.calculate_directory_stats(dir_data)
+            total_size += size
+            if date:
+                if not earliest_date or date < earliest_date:
+                    earliest_date = date
+            dir_data["size"] = size
+            dir_data["created_at"] = date
+
+        return total_size, earliest_date
+
+
+user_group_captures_view = GroupCapturesView.as_view()
+
+
+class ListDatasetsView(Auth0LoginRequiredMixin, View):
+    template_name = "users/dataset_list.html"
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+        datasets = request.user.datasets.filter(is_deleted=False).all()
+        serializer = DatasetGetSerializer(datasets, many=True)
+        paginator = Paginator(serializer.data, per_page=30)
+        page_number = request.GET.get("page")
+        page_obj = paginator.get_page(page_number)
+        return render(
+            request,
+            template_name=self.template_name,
+            context={
+                "page_obj": page_obj,
+            },
+        )
+
+user_dataset_list_view = ListDatasetsView.as_view()
