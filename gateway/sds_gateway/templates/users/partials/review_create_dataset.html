@@ -1,0 +1,77 @@
+{% load custom_filters %}
+
+<!-- Dataset Information -->
+<div class="col-3 mb-4">
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Dataset Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="fw-bold">Dataset Name</label>
+                <p class="mb-0 dataset-name"></p>
+            </div>
+            <div class="mb-3">
+                <label class="fw-bold">Dataset Author</label>
+                <p class="mb-0 dataset-author"></p>
+            </div>
+            <div class="mb-0">
+                <label class="fw-bold">Description</label>
+                <p class="mb-0 dataset-description"></p>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="col-7 mb-4">
+    <!-- Selected Captures -->
+    <div class="card mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Selected Captures</h5>
+            <span class="badge bg-primary captures-count">0 selected</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 captures-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Directory</th>
+                            <th>Channel</th>
+                            <th>Scan Group</th>
+                            <th>Created At</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- Selected Files -->
+    <div class="card">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Selected Files</h5>
+            <span class="badge bg-primary files-count">0 selected</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 files-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Path</th>
+                            <th>Size</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

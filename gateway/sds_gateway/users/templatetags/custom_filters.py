@@ -35,3 +35,26 @@ def human_readable_permissions(perm_string):
         f"Group: {parse_perms(group_perms)} | "
         f"Others: {parse_perms(other_perms)}"
     )
+
+
+@register.filter
+def split(value, args):
+    """
+    Split a string by delimiter and return either all parts or a specific index.
+    Usage:
+        {{ value|split:"/" }} - returns list of all parts
+        {{ value|split:"/,0" }} - returns first part
+        {{ value|split:"/,-1" }} - returns last part
+    """
+    if not value:
+        return value
+
+    if "," in args:
+        delimiter, index = args.split(",")
+        try:
+            index = int(index)
+            return value.split(delimiter)[index]
+        except (ValueError, IndexError):
+            return value
+    else:
+        return value.split(args)
