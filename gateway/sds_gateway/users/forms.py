@@ -1,5 +1,3 @@
-import re
-
 from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from django import forms
@@ -11,17 +9,12 @@ from django.utils.translation import gettext_lazy as _
 from .models import User
 
 # Constants for validation
-MIN_DATASET_NAME_LENGTH = 3
-MIN_AUTHOR_NAME_LENGTH = 2
-MAX_DESCRIPTION_LENGTH = 1000
+MIN_DATASET_NAME_LENGTH = 0
+MIN_AUTHOR_NAME_LENGTH = 0
 
 # Error messages
-DATASET_NAME_LENGTH_ERROR = "Dataset name must be at least 3 characters long."
-DATASET_NAME_CHARS_ERROR = (
-    "Dataset name can only contain letters, numbers, spaces, hyphens, and underscores"
-)
-AUTHOR_NAME_LENGTH_ERROR = "Author name must be at least 2 characters long."
-DESCRIPTION_LENGTH_ERROR = "Description cannot exceed 1000 characters."
+DATASET_NAME_LENGTH_ERROR = "Dataset name is required."
+AUTHOR_NAME_LENGTH_ERROR = "Author name is required."
 
 
 class UserAdminChangeForm(admin_forms.UserChangeForm):  # pyright: ignore[reportMissingTypeArgument]
@@ -91,10 +84,6 @@ class DatasetInfoForm(forms.Form):
         if len(name.strip()) < MIN_DATASET_NAME_LENGTH:
             raise ValidationError(DATASET_NAME_LENGTH_ERROR)
 
-        # Check if name contains only valid characters
-        if not re.match(r"^[a-zA-Z0-9\s\-_]+$", name):
-            raise ValidationError(DATASET_NAME_CHARS_ERROR)
-
         return name.strip()
 
     def clean_author(self):
@@ -106,10 +95,7 @@ class DatasetInfoForm(forms.Form):
 
     def clean_description(self):
         """Clean and validate the description."""
-        description = self.cleaned_data.get("description", "").strip()
-        if description and len(description) > MAX_DESCRIPTION_LENGTH:
-            raise ValidationError(DESCRIPTION_LENGTH_ERROR)
-        return description
+        return self.cleaned_data.get("description", "").strip()
 
 
 class CaptureSearchForm(forms.Form):

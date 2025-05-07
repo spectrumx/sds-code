@@ -33,13 +33,17 @@
                             <button class="btn btn-outline-primary disabled" id="step3-tab">
                                 <span class="step-number">3</span> Select Files
                             </button>
+                            <button class="btn btn-outline-primary disabled" id="step4-tab">
+                                <span class="step-number">4</span> Review and Create
+                            </button>
                         </div>
                     </div>
                     <form method="post" id="datasetForm">
                         {% csrf_token %}
                         <!-- Error alert container -->
                         <div id="formErrors"
-                             class="alert alert-danger bg-danger-subtle text-danger mb-4 form-error-container d-none">
+                             class="alert alert-danger bg-danger-subtle text-danger mb-4 form-error-container"
+                             style="display: none">
                             <div class="d-flex align-items-center">
                                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
                                 <div class="error-content"></div>
@@ -93,8 +97,7 @@
                             <!-- Step 2: Captures Selection -->
                             <div class="tab-pane fade" id="step2">
                                 <div class="row g-4">
-                                    <div class="col-md-1"></div>
-                                    <div class="col-md-10">
+                                    <div class="col-md-8">
                                         <div class="card">
                                             <div class="card-header">
                                                 <h5 class="mb-0">
@@ -133,15 +136,20 @@
                                     <div class="col-md-10">{% include "users/partials/file_browser.html" %}</div>
                                 </div>
                             </div>
+                            <!-- Step 4: Review and Create -->
+                            <div class="tab-pane fade" id="step4">
+                                <div class="row g-4">
+                                    <div class="col-md-1"></div>
+                                    {% include "users/partials/review_create_dataset.html" %}
+                                </div>
+                            </div>
                         </div>
                         <!-- Navigation Buttons -->
                         <div class="row mt-4">
                             <div class="col-md-10 d-flex justify-content-end">
-                                <button type="button"
-                                        class="btn btn-outline-secondary me-2 d-none"
-                                        id="prevStep">Previous</button>
+                                <button type="button" class="btn btn-outline-secondary me-2" id="prevStep">Previous</button>
                                 <button type="button" class="btn btn-primary me-2" id="nextStep">Next</button>
-                                <button type="submit" class="btn btn-success d-none" id="submitForm">Create Dataset</button>
+                                <button type="submit" class="btn btn-success" id="submitForm">Create Dataset</button>
                             </div>
                         </div>
                     </form>
@@ -163,31 +171,35 @@
                         // Initialize form handler first
                         const formHandler = new FormHandler({
                             formId: 'datasetForm',
-                            steps: ['step1', 'step2', 'step3'],
+                            steps: ['step1', 'step2', 'step3', 'step4'],
                             onStepChange: (step) => {
                                 if (step === 1) {
-                                    const searchHandler = new SearchHandler({
-                                        searchFormId: 'captures-search-form',
-                                        searchButtonId: 'search-captures',
-                                        clearButtonId: 'clear-captures-search',
-                                        tableBodyId: 'captures-table-body',
-                                        paginationContainerId: 'captures-pagination',
-                                        type: 'captures',
-                                        formHandler: formHandler
-                                    });
-                                    searchHandler.initializeCapturesSearch();
+                                    if (!formHandler.capturesSearchHandler) {
+                                        formHandler.capturesSearchHandler = new SearchHandler({
+                                            searchFormId: 'captures-search-form',
+                                            searchButtonId: 'search-captures',
+                                            clearButtonId: 'clear-captures-search',
+                                            tableBodyId: 'captures-table-body',
+                                            paginationContainerId: 'captures-pagination',
+                                            type: 'captures',
+                                            formHandler: formHandler
+                                        });
+                                        formHandler.capturesSearchHandler.initializeCapturesSearch();
+                                    }
                                 } else if (step === 2) {
-                                    const searchHandler = new SearchHandler({
-                                        searchFormId: 'files-search-form',
-                                        searchButtonId: 'search-files',
-                                        clearButtonId: 'clear-files-search',
-                                        tableBodyId: 'file-tree-table',
-                                        paginationContainerId: 'files-pagination',
-                                        type: 'files',
-                                        confirmFileSelectionId: 'confirm-file-selection',
-                                        formHandler: formHandler
-                                    });
-                                    searchHandler.loadFileTree();
+                                    if (!formHandler.filesSearchHandler) {
+                                        formHandler.filesSearchHandler = new SearchHandler({
+                                            searchFormId: 'files-search-form',
+                                            searchButtonId: 'search-files',
+                                            clearButtonId: 'clear-files-search',
+                                            tableBodyId: 'file-tree-table',
+                                            paginationContainerId: 'files-pagination',
+                                            type: 'files',
+                                            confirmFileSelectionId: 'confirm-file-selection',
+                                            formHandler: formHandler
+                                        });
+                                        formHandler.filesSearchHandler.loadFileTree();
+                                    }
                                 }
                             }
                         });
