@@ -668,11 +668,35 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Get form
+        if self.request.method == "POST":
+            dataset_form = DatasetInfoForm(self.request.POST, user=self.request.user)
+        else:
+            dataset_form = DatasetInfoForm(user=self.request.user)
+
+        # Get selected captures
+        selected_captures = []
+        selected_captures_ids = self.request.POST.get("selected_captures", "").split(
+            ","
+        )
+        if selected_captures_ids and selected_captures_ids[0]:
+            selected_captures = Capture.objects.filter(uuid__in=selected_captures_ids)
+
+        # Get selected files
+        selected_files = []
+        selected_files_ids = self.request.POST.get("selected_files", "").split(",")
+        if selected_files_ids and selected_files_ids[0]:
+            selected_files = File.objects.filter(uuid__in=selected_files_ids)
+
         context.update(
             {
-                "dataset_form": DatasetInfoForm(user=self.request.user),
+                "dataset_form": dataset_form,
                 "capture_search_form": CaptureSearchForm(),
                 "file_search_form": FileSearchForm(),
+                "selectedCaptures": selected_captures,
+                "selectedFiles": selected_files,
+                "form": dataset_form,
             }
         )
         return context
@@ -707,7 +731,61 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         """Handle dataset creation with selected captures and files."""
         try:
-            # Process the dataset form
+            # Check if this is an AJAX request for review step
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                # Get form data
+                dataset_form = DatasetInfoForm(request.POST, user=request.user)
+                if not dataset_form.is_valid():
+                    return JsonResponse(
+                        {"success": False, "errors": dataset_form.errors}, status=400
+                    )
+
+                # Get selected captures
+                selected_captures = []
+                selected_captures_ids = request.POST.get("selected_captures", "").split(
+                    ","
+                )
+                if selected_captures_ids and selected_captures_ids[0]:
+                    selected_captures = list(
+                        Capture.objects.filter(uuid__in=selected_captures_ids).values(
+                            "uuid",
+                            "capture_type",
+                            "top_level_dir",
+                            "channel",
+                            "scan_group",
+                            "created_at",
+                        )
+                    )
+
+                # Get selected files
+                selected_files = []
+                selected_files_ids = request.POST.get("selected_files", "").split(",")
+                if selected_files_ids and selected_files_ids[0]:
+                    selected_files = list(
+                        File.objects.filter(uuid__in=selected_files_ids).values(
+                            "uuid",
+                            "name",
+                            "media_type",
+                            "directory",
+                            "size",
+                            "created_at",
+                        )
+                    )
+
+                return JsonResponse(
+                    {
+                        "success": True,
+                        "form": {
+                            "name": dataset_form.cleaned_data["name"],
+                            "author": dataset_form.cleaned_data["author"],
+                            "description": dataset_form.cleaned_data["description"],
+                        },
+                        "selectedCaptures": selected_captures,
+                        "selectedFiles": selected_files,
+                    }
+                )
+
+            # Process the dataset form for actual submission
             dataset_form = DatasetInfoForm(request.POST, user=request.user)
             if not dataset_form.is_valid():
                 return JsonResponse(
@@ -866,7 +944,9 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
     template_name = "users/dataset_list.html"
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
-        datasets = request.user.datasets.filter(is_deleted=False).all()
+        datasets = (
+            request.user.datasets.filter(is_deleted=False).all().order_by("-created_at")
+        )
         serializer = DatasetGetSerializer(datasets, many=True)
         paginator = Paginator(serializer.data, per_page=30)
         page_number = request.GET.get("page")
