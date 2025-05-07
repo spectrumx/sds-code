@@ -2,6 +2,7 @@ import secrets
 from datetime import timedelta
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import DatabaseError
@@ -21,6 +22,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         try:
+            if not settings.DEBUG:
+                self.stdout.write(
+                    self.style.ERROR(
+                        "This command can only be run in local development environment"
+                    )
+                )
+                return
             user = self._get_or_create_test_user()
             self._create_test_files(user)
             self._create_test_captures(user)
