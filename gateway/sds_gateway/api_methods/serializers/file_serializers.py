@@ -1,7 +1,6 @@
 """File serializers for the SDS Gateway API methods."""
 
 import uuid
-from pathlib import Path
 from typing import Any
 
 from django.http import QueryDict
@@ -213,17 +212,14 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
             identical_user_owned_file.first() if file_contents_exist_for_user else None
         )
 
-        # TODO: refactor this block to a helper function so all dirs are standardized
-        user_root = Path("/") / "files" / user.email
-        if not Path(directory).is_relative_to(user_root):
-            directory = f"{user_root}/{directory}/"
-            # can't use / operator above: need to force a str concatenation
-        # make sure path ends in a slash
-        directory = directory.rstrip("/") + "/"
+        safe_dir = sanitize_path_rel_to_user(
+            unsafe_path=directory,
+            user=user,
+        )
 
-        log.debug(f"Checking file contents for user in directory: {directory}")
-        identical_file = identical_user_owned_file.filter(
-            directory=directory,
+        log.debug(f"Checking file contents for user in directory: {safe_dir}")
+        identical_file: File | None = identical_user_owned_file.filter(
+            directory=safe_dir,
             name=name,
         ).first()
 
@@ -236,7 +232,7 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
             # we can narrow down the asset to an exact match
             asset = identical_file
             # these attrs were already checked in query
-            skipped_attrs = ["name", "directory"]
+            skipped_attrs: list[str] = ["name", "directory"]
             for attr in self.Meta.user_mutable_fields:
                 if attr in skipped_attrs or attr not in request_data:
                     continue
