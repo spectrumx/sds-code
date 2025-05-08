@@ -256,7 +256,10 @@ class FileViewSet(ViewSet):
             inferred_user_rel_path = user_rel_path.parent
             exact_match_query = all_valid_user_owned_files.filter(
                 name=basename,
-                directory=str(inferred_user_rel_path) + "/",
+                directory__in=[
+                    str(inferred_user_rel_path),
+                    str(inferred_user_rel_path) + "/",
+                ],
             ).order_by(
                 "-created_at",
             )[
