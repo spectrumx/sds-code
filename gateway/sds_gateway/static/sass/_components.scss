@@ -308,6 +308,8 @@ $lfs-grey: #6C757D;
   height: 100%;
   overflow: auto;
   margin: 0;
+  overflow-x: auto;
+  max-width: 100%;
 
   table {
     margin-bottom: 0;
@@ -620,4 +622,97 @@ html, body {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+
+/* Captures Table Styles */
+#captures-table {
+  tbody {
+    tr {
+      &.table-warning {
+        --bs-table-bg: var(--bs-warning-bg-subtle);
+        background-color: var(--bs-warning-bg-subtle) !important;
+      }
+
+      &.capture-row {
+        cursor: pointer;
+      }
+    }
+  }
+}
+
+/* Selected Captures and Review Tables */
+#selected-captures-pane,
+#step3,
+#step4 .card {
+  .card-header {
+    border-radius: 0.5rem 0.5rem 0 0;
+  }
+
+  .card-body {
+    border-radius: 0 0 0.5rem 0.5rem;
+    overflow: hidden;
+  }
+
+  .table {
+    margin-bottom: 0;
+  }
+}
+
+/* Group Captures Card Styles */
+#group-captures-card {
+  height: calc(80vh - 4rem);
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+  overflow-y: hidden;
+
+  .card-header {
+    flex-shrink: 0;
+  }
+
+  .card-body {
+    flex: 1;
+    width: 100%;
+    overflow-y: auto;
+    max-height: 100%;
+    padding: 0;  /* Remove default padding */
+  }
+
+  .card-footer {
+    flex-shrink: 0;
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    padding: 0.5rem;
+  }
+}
+
+/* Step tabs sticky header */
+#stepTabs-container {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: white;
+  padding: 1.25rem;
+  border-bottom: 1px solid #dee2e6;
+  margin-bottom: 0;
+}
+
+/* Content below sticky header */
+#stepTabsContent {
+  padding: 1.25rem;
+}
+
+#captures-search-form {
+  padding: 1.25rem;
+}
+
+/* Review page specific styles */
+#step4 {
+  .card {
+    .card-body {
+      &:not(.p-0) {
+        padding: 1.25rem;
+      }
+    }
+  }
 }

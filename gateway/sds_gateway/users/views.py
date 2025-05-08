@@ -358,7 +358,6 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                         return JsonResponse(
                             {
                                 "tree": self._get_directory_tree(files, base_dir),
-                                "current_dir": base_dir,
                             }
                         )
                     return JsonResponse({"error": form.errors}, status=400)
@@ -434,10 +433,6 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             # Get selected captures and files from hidden fields
             selected_captures = request.POST.get("selected_captures", "").split(",")
             selected_files = request.POST.get("selected_files", "").split(",")
-
-            # Filter out empty strings
-            selected_captures = [c for c in selected_captures if c]
-            selected_files = [f for f in selected_files if f]
 
             # Validate that at least one capture or file is selected
             if not selected_captures and not selected_files:
@@ -565,7 +560,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
         # Process subdirectories recursively
         for _dir_name, dir_data in tree.get("children", {}).values():
-            size, date = self.calculate_directory_stats(dir_data)
+            size, date = self._calculate_directory_stats(dir_data)
             total_size += size
             if date:
                 if not earliest_date or date < earliest_date:
@@ -587,7 +582,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             request.user.datasets.filter(is_deleted=False).all().order_by("-created_at")
         )
         serializer = DatasetGetSerializer(datasets, many=True)
-        paginator = Paginator(serializer.data, per_page=30)
+        paginator = Paginator(serializer.data, per_page=15)
         page_number = request.GET.get("page")
         page_obj = paginator.get_page(page_number)
         return render(
