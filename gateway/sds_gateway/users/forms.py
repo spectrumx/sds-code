@@ -106,7 +106,7 @@ class CaptureSearchForm(forms.Form):
             attrs={
                 "class": "form-control",
                 "id": "search_directory_captures",
-                "placeholder": "Search by top level directory",
+                "placeholder": "Search by directory",
             }
         ),
     )
