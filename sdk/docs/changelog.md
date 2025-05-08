@@ -11,6 +11,11 @@
     + [**Allowing positional args:**](https://github.com/spectrumx/sds-code/pull/84) SDK methods that receive a single UUID as an argument now allow it to be passed as a positional argument e.g. `sds_client.get_file(<uuid>)` is equivalent to `sds_client.get_file(uuid=<uuid>)`.
     + [**Capture uploads:**](https://github.com/spectrumx/sds-code/pull/93) new high-level method that combines the upload of a directory of files with a capture creation: `sds_client.upload_capture()`.
     + [**Usage guide updates:**](https://github.com/spectrumx/sds-code/blob/master/sdk/docs/README.md) the SDK usage guide now includes information on how to check the results returned by a directory upload.
+    + [**Logging control:**](https://github.com/spectrumx/sds-code/pull/95): client's verbose flag propagates to submodules and sub-APIs.
++ Bugfixes and reliability improvements:
+    + [**Bugfix:**](https://github.com/spectrumx/sds-code/pull/95) `File.local_path` attribute of some downloaded files was not correctly set.
+    + [**Path usage tests:**](https://github.com/spectrumx/sds-code/pull/95): new tests to cover regressions of different ways to use paths from SDK methods.
+    + [**Capture read test:**](https://github.com/spectrumx/sds-code/pull/95) tests for `client.capture.read()` now check the number of files associated to the capture is correct.
 
 ## `0.1.8` - 2025-03-24
 
