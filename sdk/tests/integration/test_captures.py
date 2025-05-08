@@ -9,9 +9,6 @@ from typing import Any
 import pytest
 from loguru import logger as log
 from pydantic import BaseModel
-from spectrumx.api.captures import (
-    _enable_experimental_advanced_search,  # pyright: ignore[reportPrivateUsage]
-)
 from spectrumx.client import Client
 from spectrumx.errors import CaptureError
 from spectrumx.models.captures import CaptureType
@@ -696,7 +693,6 @@ def test_capture_advanced_search_frequency_range(
 ) -> None:
     """Tests searching captures with a frequency range query."""
     # ARRANGE to create a capture
-    _enable_experimental_advanced_search()
     cap_data = _upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
@@ -803,7 +799,6 @@ def test_capture_advanced_search_full_text_search(
 
     """
     # ARRANGE
-    _enable_experimental_advanced_search()  # Enable the experimental search feature
     cap_data = _upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,

@@ -11,9 +11,6 @@ import responses
 from loguru import logger as log
 from pydantic import UUID4
 from spectrumx import Client
-from spectrumx.api.captures import (
-    _enable_experimental_advanced_search,  # pyright: ignore[reportPrivateUsage]
-)
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
@@ -332,7 +329,6 @@ def test_search_captures_freq_range(
     """Test searching captures with a frequency range query."""
     # ARRANGE
     client.dry_run = DRY_RUN
-    _enable_experimental_advanced_search()  # Enable the experimental search feature
 
     search_response = {
         "results": [sample_capture_data],
@@ -372,7 +368,6 @@ def test_search_captures_dry_run(client: Client) -> None:
     """Test searching captures in dry run mode."""
     # ARRANGE
     client.dry_run = True
-    _enable_experimental_advanced_search()
 
     field_path = "capture_props.center_freq"
     query_type = "range"
@@ -403,7 +398,6 @@ def test_search_captures_exact_match(
     """Test searching captures with an exact match query."""
     # ARRANGE
     client.dry_run = DRY_RUN
-    _enable_experimental_advanced_search()  # Enable the experimental search feature
 
     search_response = {
         "results": [sample_capture_data],

@@ -241,16 +241,12 @@ class CaptureAPI:
             log.debug(f"Capture deleted with UUID {capture_uuid}")
         return True
 
-
-def _enable_experimental_advanced_search() -> None:
-    """Enables the experimental search feature."""
-
     def advanced_search(
         self: CaptureAPI,
         *,
         field_path: str,
         query_type: str,
-        filter_value: dict[str, Any],
+        filter_value: str | dict[str, Any],
     ) -> list[Capture]:
         """Advanced searches for RF captures in SDS.
 
@@ -311,9 +307,6 @@ def _enable_experimental_advanced_search() -> None:
         if self.verbose:
             log.debug(f"Search returned {len(captures)} captures")
         return captures
-
-    CaptureAPI.advanced_search = advanced_search
-    log.info("Experimental search feature enabled for CaptureAPI")
 
 
 def _extract_page_from_payload(

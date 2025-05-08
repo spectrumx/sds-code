@@ -16,8 +16,6 @@ except ImportError:
 
 import importlib.metadata
 
-from spectrumx.utils import log_user_error
-
 LIB_NAME: str = "spectrumx"
 
 # disables the loguru logger if it is not imported
@@ -37,33 +35,7 @@ __version__ = importlib.metadata.version(LIB_NAME)
 
 
 class Experiments:
-    def enable_capture_advanced_search(self) -> None:
-        """Enables the experimental advanced capture search feature.
-
-        This feature is experimental and may change or be removed in future versions.
-
-        Usage after activation:
-
-        ```
-        from spectrumx import client
-        sds = client(...)
-        sds.captures.advanced_search(...)
-
-        # to read docstring with usage:
-        print(sds.captures.advanced_search.__doc__)
-        ```
-
-        """
-        try:
-            from spectrumx.api.captures import (
-                _enable_experimental_advanced_search,  # pyright: ignore[reportPrivateUsage]
-            )
-
-            _enable_experimental_advanced_search()
-        except ImportError as err:
-            msg = "Failed to import the experimental advanced search."
-            log_user_error(msg)
-            raise ImportError(msg) from err
+    """Methods that enable experimental features."""
 
 
 experiments = Experiments()
