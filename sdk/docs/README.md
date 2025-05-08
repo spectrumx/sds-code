@@ -98,11 +98,17 @@ uv add spectrumx
 
     # upload all files in a directory to the SDS
     # sds.dry_run = False   # uncomment to actually upload the files
-    sds.upload(
+    upload_results = sds.upload(
         local_path=local_dir,  # may be a single file or a directory
         sds_path=reference_name,  # files will be created under this virtual directory
         verbose=True,  # shows a progress bar (default)
     )
+    success_results = [success for success in upload_results if success]
+    failed_results = [success for success in upload_results if not success]
+    assert len(failed_results) == 0, (
+        f"No failed uploads should be present: {failed_results}"
+    )
+    log.debug(f"Uploaded {len(success_results)} assets.")
 
     # download the files from an SDS directory
     # sds.dry_run = False
@@ -146,40 +152,69 @@ except AuthError as err:
 # ======== File operations ========
 
 from time import sleep
-from spectrumx.errors import NetworkError, SDSError, ServiceError
+from spectrumx.errors import NetworkError
+from spectrumx.errors import Result
+from spectrumx.errors import SDSError
+from spectrumx.errors import ServiceError
+from loguru import logger as log
 
 # ...
 local_dir: Path = Path("my_spectrum_files")
 reference_name: str = "my_spectrum_files"
-is_success = False
 retries_left: int = 5
+is_success: bool = False
+uploaded_files: list[File] = []
 while not is_success and retries_left > 0:
     try:
         retries_left -= 1
-        # the sds.upload will restart a partial file transfer from zero,
+
+        # `sds.upload()` will restart a partial file transfer from zero,
         # but it won't re-upload already finished files.
-        sds.upload(
+        upload_results: list[Result[File]] = sds.upload(
             local_path=local_dir,
             sds_path=reference_name,
             verbose=True,
         )
-        is_success = True
+
+        # Since `upload()` is a batch operation, some files may succeed and some
+        #   may fail. The return value of `sds.upload` stored in `upload_results`
+        #   is a list of `Result` objects:
+        # A `Result` wraps either the value of a variable (in this case the File
+        #   object that was uploaded) or an exception. Here's how we can check if
+        #   there were any failed uploads:
+        success_results = [success for success in upload_results if success]
+        failed_results = [success for success in upload_results if not success]
+
+        log.debug(f"Uploaded {len(success_results)} assets.")
+        log.warning(f"Failed to upload {len(failed_results)} assets")
+
+        # calling a successful result will return the value it holds
+        uploaded_files = [result() for result in success_results]
+
+        # And calling a failed result will raise the exception it holds.
+        # Here we re-raise it to handle retries with the except blocks below,
+        #   based on the exception raised:
+        for result in failed_results:
+            result()  # will raise
+
     except (NetworkError, ServiceError) as err:
         # NetworkError refers to connection issues between client and SDS Gateway
         # ServiceError refers to issues with the SDS Gateway itself (e.g. HTTP 500)
         # sleep longer with each retry, at least 5s, up to 5min
         sleep_time = max(5, 5 / (retries_left**2) * 60)
-        print(f"Failed to reach the gateway; sleeping {sleep_time}s")
-        print(f"Error: {err}")
+        log.error(f"Error: {err}")
+        log.warning(f"Failed to reach the gateway; sleeping {sleep_time}s")
         if retries_left > 0:
             sleep(sleep_time)
         continue
     except SDSError as err:
-        print(f"Another SDS error occurred: {err}")
+        log.error(f"Another SDS error occurred: {err}")
         # other errors might include e.g. OSError
         #   if listed files cannot be found.
         # TODO: take action or break
         break
+
+log.debug(f"Uploaded files: {uploaded_files}")
 ```
 
 ## Concurrent Access

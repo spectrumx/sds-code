@@ -1,14 +1,16 @@
 # SpectrumX SDK Changelog
 
-## `0.1.9` - 2025-05-XX
+## `0.1.10` - 2025-xx-xx
 
-+ Features and improvements:
-    + Captures may now be deleted using the SDK.
-    + SDK methods that receive a single UUID as an argument now allow it to be passed as a positional argument.
-    + Experimental support for capture searches using OpenSearch queries has been introduced.
-        + Enable it by calling `spectrumx.experiments.enable_capture_advanced_search()` before calling the search method.
-    + New high-level method that combines a directory upload with a capture creation: `sds_client.upload_capture()`.
-    + Bugfix: fixed local destination path not being respected in some cases when downloading single files.
+## `0.1.9` - 2025-05-08
+
++ Features:
+    + [**Capture deletions:**](https://github.com/spectrumx/sds-code/pull/84) captures may now be deleted using the SDK with `sds_client.captures.delete()`.
+    + [**Advanced searches:**](https://github.com/spectrumx/sds-code/pull/90) introducing preliminary support for *advanced capture searches* using OpenSearch queries. See the [OpenSearch Query Tips](https://github.com/spectrumx/sds-code/tree/master/gateway#opensearch-query-tips) for details about the syntax. The SDK endpoint is `sds_client.captures.advanced_search()`: the method's docstring has information on arguments and links to documentation.
++ Usage improvements:
+    + [**Allowing positional args:**](https://github.com/spectrumx/sds-code/pull/84) SDK methods that receive a single UUID as an argument now allow it to be passed as a positional argument e.g. `sds_client.get_file(<uuid>)` is equivalent to `sds_client.get_file(uuid=<uuid>)`.
+    + [**Capture uploads:**](https://github.com/spectrumx/sds-code/pull/93) new high-level method that combines the upload of a directory of files with a capture creation: `sds_client.upload_capture()`.
+    + [**Usage guide updates:**](https://github.com/spectrumx/sds-code/blob/master/sdk/docs/README.md) the SDK usage guide now includes information on how to check the results returned by a directory upload.
 
 ## `0.1.8` - 2025-03-24
 

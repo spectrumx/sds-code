@@ -132,40 +132,69 @@ def check_error_handling() -> None:
     # ======== File operations ========
 
     from time import sleep
-    from spectrumx.errors import NetworkError, SDSError, ServiceError
+    from spectrumx.errors import NetworkError
+    from spectrumx.errors import Result
+    from spectrumx.errors import SDSError
+    from spectrumx.errors import ServiceError
+    from loguru import logger as log
 
     # ...
     local_dir: Path = Path("my_spectrum_files")
     reference_name: str = "my_spectrum_files"
-    is_success = False
     retries_left: int = 5
+    is_success: bool = False
+    uploaded_files: list[File] = []
     while not is_success and retries_left > 0:
         try:
             retries_left -= 1
-            # the sds.upload will restart a partial file transfer from zero,
+
+            # `sds.upload()` will restart a partial file transfer from zero,
             # but it won't re-upload already finished files.
-            sds.upload(
+            upload_results: list[Result[File]] = sds.upload(
                 local_path=local_dir,
                 sds_path=reference_name,
                 verbose=True,
             )
-            is_success = True
+
+            # Since `upload()` is a batch operation, some files may succeed and some
+            #   may fail. The return value of `sds.upload` stored in `upload_results`
+            #   is a list of `Result` objects:
+            # A `Result` wraps either the value of a variable (in this case the File
+            #   object that was uploaded) or an exception. Here's how we can check if
+            #   there were any failed uploads:
+            success_results = [success for success in upload_results if success]
+            failed_results = [success for success in upload_results if not success]
+
+            log.debug(f"Uploaded {len(success_results)} assets.")
+            log.warning(f"Failed to upload {len(failed_results)} assets")
+
+            # calling a successful result will return the value it holds
+            uploaded_files = [result() for result in success_results]
+
+            # And calling a failed result will raise the exception it holds.
+            # Here we re-raise it to handle retries with the except blocks below,
+            #   based on the exception raised:
+            for result in failed_results:
+                result()  # will raise
+
         except (NetworkError, ServiceError) as err:
             # NetworkError refers to connection issues between client and SDS Gateway
             # ServiceError refers to issues with the SDS Gateway itself (e.g. HTTP 500)
             # sleep longer with each retry, at least 5s, up to 5min
             sleep_time = max(5, 5 / (retries_left**2) * 60)
-            print(f"Failed to reach the gateway; sleeping {sleep_time}s")
-            print(f"Error: {err}")
+            log.error(f"Error: {err}")
+            log.warning(f"Failed to reach the gateway; sleeping {sleep_time}s")
             if retries_left > 0:
                 sleep(sleep_time)
             continue
         except SDSError as err:
-            print(f"Another SDS error occurred: {err}")
+            log.error(f"Another SDS error occurred: {err}")
             # other errors might include e.g. OSError
             #   if listed files cannot be found.
             # TODO: take action or break
             break
+
+    log.debug(f"Uploaded files: {uploaded_files}")
 
 
 def check_file_listing_usage() -> None:
@@ -250,16 +279,13 @@ def check_capture_usage() -> None:
 
 def check_experiments() -> None:
     """Basic experimental features usage example."""
-    sds = Client(host=SDS_HOST)
+    # sds = Client(host=SDS_HOST)
 
-    from spectrumx import experiments
+    # from spectrumx import experiments
+    # experiments.enable_experimental_xxxxx()
 
-    assert not hasattr(sds.captures, "search"), "Search should not be defined yet"
-    experiments.enable_capture_advanced_search()
-    assert isinstance(sds.captures.advanced_search, Callable), (
-        "Advanced search should be callable"
-    )
-    print(sds.captures.advanced_search.__doc__)
+    # # ASSERT experimental methods exist
+    # print(sds.new_method.__doc__)
 
 
 @dataclass
