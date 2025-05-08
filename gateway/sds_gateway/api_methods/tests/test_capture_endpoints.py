@@ -199,7 +199,7 @@ class CaptureTestCases(APITestCase):
                 return_value=self.drf_capture.index_name,
             ),
         ):
-            response = self.client.post(
+            response_raw = self.client.post(
                 self.list_url,
                 data={
                     "capture_type": CaptureType.DigitalRF,
@@ -207,17 +207,30 @@ class CaptureTestCases(APITestCase):
                     "top_level_dir": unique_top_level_dir,
                 },
             )
-            assert response.status_code == status.HTTP_201_CREATED
-            assert response.json()["capture_props"] == self.drf_metadata
-            assert response.json()["channel"] == unique_channel
-            assert response.json()["top_level_dir"] == unique_top_level_dir
-            assert response.json()["capture_type"] == CaptureType.DigitalRF
+            assert response_raw.status_code == status.HTTP_201_CREATED, (
+                f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
+            )
+            response = response_raw.json()
+            assert response["capture_props"] == self.drf_metadata, (
+                f"Props {response['capture_props']} != {self.drf_metadata}"
+            )
+            assert response["channel"] == unique_channel, (
+                f"Channel {response['channel']} != {unique_channel}"
+            )
+            assert response["top_level_dir"] == "/" + unique_top_level_dir, (
+                "Gateway should normalize to an absolute path: "
+                f"{response['top_level_dir']}"
+            )
+            assert response["capture_type"] == CaptureType.DigitalRF, (
+                f"Capture type: {response['capture_type']} != {CaptureType.DigitalRF}"
+            )
 
     def test_create_rh_capture_201(self) -> None:
         """Test creating rh capture returns metadata."""
         unique_scan_group = uuid.uuid4()
         unique_rh_metadata = self.rh_metadata.copy()
         unique_rh_metadata["scan_group"] = str(unique_scan_group)
+        test_dir_rh = "test-dir-rh"
 
         with (
             patch(
@@ -242,7 +255,7 @@ class CaptureTestCases(APITestCase):
                 data={
                     "capture_type": CaptureType.RadioHound,
                     "scan_group": str(unique_scan_group),
-                    "top_level_dir": "test-dir-rh",
+                    "top_level_dir": test_dir_rh,
                 },
             )
             assert response_raw.status_code == status.HTTP_201_CREATED, (
@@ -253,13 +266,13 @@ class CaptureTestCases(APITestCase):
                 unique_scan_group,
             ), f"Unexpected scan group: {response['scan_group']}"
             assert response["capture_props"] == unique_rh_metadata, (
-                f"Unexpected metadata: {response['capture_props']}"
+                f"{response['capture_props']} != {unique_rh_metadata}"
             )
             assert response["capture_type"] == CaptureType.RadioHound, (
-                f"Unexpected capture type: {response['capture_type']}"
+                f"{response['capture_type']} != {CaptureType.RadioHound}"
             )
-            assert response["top_level_dir"] == "test-dir-rh", (
-                f"Unexpected top level dir: {response['top_level_dir']}"
+            assert response["top_level_dir"] == "/" + test_dir_rh, (
+                f"Expected Gateway to normalize the path: {response['top_level_dir']}"
             )
 
     def test_create_drf_capture_already_exists(self) -> None:
