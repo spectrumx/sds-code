@@ -35,11 +35,25 @@ def sanitize_path_rel_to_user(
         )
         log.warning(msg)
         return None
-    unsafe_concat_path = Path(
-        f"{user_root_path}/{unsafe_path}",
-        # needs to be a concatenation, as we want to remain under the user's files dir
-    )
+
+    unsafe_path_obj = Path(unsafe_path)
+    del unsafe_path
+
+    # if unsafe_path is not already relative to user_root_path,
+    # append the received path to the user's root path
+    if not unsafe_path_obj.is_relative_to(user_root_path):
+        unsafe_concat_path = Path(
+            f"{user_root_path}/{unsafe_path_obj}",
+            # needs to be a concatenation, as we want to remain under user_root_path
+        )
+    # otherwise, just use the unsafe_path as received
+    else:
+        unsafe_concat_path = Path(unsafe_path_obj)
+
+    # resolve path and make sure it's still relative to the user's root path
     user_rel_path = unsafe_concat_path.resolve(strict=False)
     if not user_rel_path.is_relative_to(user_root_path):
         return None
+
+    # path must be safe here
     return user_rel_path
