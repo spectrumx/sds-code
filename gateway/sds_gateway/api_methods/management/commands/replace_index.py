@@ -405,7 +405,7 @@ class Command(BaseCommand):
             # always re-enable writes on the source index
             self.client.indices.put_settings(
                 index=source_index,
-                body={"settings": {"index.blocks.write": None}},
+                body={"settings": {"index.blocks.write": False}},
             )
 
     def _delete_captures_with_only_missing_files(
@@ -751,7 +751,7 @@ class Command(BaseCommand):
         try:
             # Get the transform scripts
             transform_scripts = Transforms(
-                capture_type=capture_type
+                capture_type=capture_type,
             ).get_transform_scripts()
 
             # Perform reindex operation with combined transform scripts
