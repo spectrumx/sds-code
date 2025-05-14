@@ -369,60 +369,6 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         """Handle dataset creation with selected captures and files."""
         try:
-            # Check if this is an AJAX request for review step
-            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                # Get form data
-                dataset_form = DatasetInfoForm(request.POST, user=request.user)
-                if not dataset_form.is_valid():
-                    return JsonResponse(
-                        {"success": False, "errors": dataset_form.errors}, status=400
-                    )
-
-                # Get selected captures
-                selected_captures = []
-                selected_captures_ids = request.POST.get("selected_captures", "").split(
-                    ","
-                )
-                if selected_captures_ids and selected_captures_ids[0]:
-                    selected_captures = list(
-                        Capture.objects.filter(uuid__in=selected_captures_ids).values(
-                            "uuid",
-                            "capture_type",
-                            "top_level_dir",
-                            "channel",
-                            "scan_group",
-                            "created_at",
-                        )
-                    )
-
-                # Get selected files
-                selected_files = []
-                selected_files_ids = request.POST.get("selected_files", "").split(",")
-                if selected_files_ids and selected_files_ids[0]:
-                    selected_files = list(
-                        File.objects.filter(uuid__in=selected_files_ids).values(
-                            "uuid",
-                            "name",
-                            "media_type",
-                            "directory",
-                            "size",
-                            "created_at",
-                        )
-                    )
-
-                return JsonResponse(
-                    {
-                        "success": True,
-                        "form": {
-                            "name": dataset_form.cleaned_data["name"],
-                            "author": dataset_form.cleaned_data["author"],
-                            "description": dataset_form.cleaned_data["description"],
-                        },
-                        "selectedCaptures": selected_captures,
-                        "selectedFiles": selected_files,
-                    }
-                )
-
             # Process the dataset form for actual submission
             dataset_form = DatasetInfoForm(request.POST, user=request.user)
             if not dataset_form.is_valid():
@@ -431,11 +377,19 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 )
 
             # Get selected captures and files from hidden fields
-            selected_captures = request.POST.get("selected_captures", "").split(",")
-            selected_files = request.POST.get("selected_files", "").split(",")
+            # Note: .split(",") on an empty string
+            # returns an array with one empty string
+            selected_captures = request.POST.get(
+                "selected_captures",
+                "",
+            ).split(",")
+            selected_files = request.POST.get(
+                "selected_files",
+                "",
+            ).split(",")
 
             # Validate that at least one capture or file is selected
-            if not selected_captures and not selected_files:
+            if not selected_captures[0] and not selected_files[0]:
                 return JsonResponse(
                     {
                         "success": False,
@@ -457,12 +411,12 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             )
 
             # Add selected captures to the dataset
-            if selected_captures:
+            if selected_captures[0]:
                 captures = Capture.objects.filter(uuid__in=selected_captures)
                 dataset.captures.add(*captures)
 
             # Add selected files to the dataset
-            if selected_files:
+            if selected_files[0]:
                 files = File.objects.filter(uuid__in=selected_files)
                 dataset.files.add(*files)
 
