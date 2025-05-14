@@ -12,6 +12,19 @@ from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
 
 
+def is_metadata_file(file_name: str, capture_type: CaptureType) -> bool:
+    if capture_type == CaptureType.RadioHound:
+        return file_name.endswith(".rh.json")
+
+    if capture_type == CaptureType.DigitalRF:
+        # DigitalRF metadata files contain "properties" in the name
+        # drf_properties.h5 and dmd_properties.h5 are metadata files
+        return "properties" in file_name
+
+    msg = f"Invalid capture type: {capture_type}"
+    raise ValueError(msg)
+
+
 def reconstruct_tree(
     target_dir: Path,
     virtual_top_dir: Path,
@@ -90,11 +103,18 @@ def reconstruct_tree(
         local_file_path.parent.mkdir(parents=True, exist_ok=True)
         if verbose:
             log.debug(f"Pulling {file_obj.file.name} as {local_file_path}")
-        minio_client.fget_object(
-            bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
-            object_name=file_obj.file.name,
-            file_path=str(local_file_path),
-        )
+
+        # If the file is a metadata file,
+        # we need to download the file contents from MinIO
+        # else, create a dummy file with the file name
+        if is_metadata_file(file_obj.name, drf_capture_type):
+            minio_client.fget_object(
+                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                object_name=file_obj.file.name,
+                file_path=str(local_file_path),
+            )
+        else:
+            local_file_path.touch()
 
     # If scan_group provided, filter files by it
     if rh_scan_group and drf_capture_type == CaptureType.RadioHound:
