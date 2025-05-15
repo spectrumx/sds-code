@@ -21,7 +21,8 @@ def is_metadata_file(file_name: str, capture_type: CaptureType) -> bool:
         # drf_properties.h5 and dmd_properties.h5 are metadata files
         return "properties" in file_name
 
-    msg = f"Invalid capture type: {capture_type}"
+    log.error(f"Invalid/unimplemented capture type: {capture_type}")
+    msg = f"Invalid/unimplemented capture type: {capture_type}"
     raise ValueError(msg)
 
 
