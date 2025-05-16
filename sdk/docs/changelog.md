@@ -2,6 +2,9 @@
 
 ## `0.1.10` - 2025-xx-xx
 
++ Features:
+    + [**Added `created_at` to captures:**](https://github.com/spectrumx/sds-code/pull/): captures now feature a `created_at` datetime attribute when this information is available.
+
 ## `0.1.9` - 2025-05-08
 
 + Features:
