@@ -1,6 +1,7 @@
 """Capture model for SpectrumX."""
 
 import sys
+from datetime import datetime
 
 from spectrumx.models.base import SDSModel
 
@@ -34,6 +35,7 @@ class CaptureOrigin(StrEnum):
     User = "user"
 
 
+_d_capture_created_at = "The time the capture was created"
 _d_capture_props = "The indexed metadata for the capture"
 _d_capture_type = f"The type of capture {', '.join([x.value for x in CaptureType])}"
 _d_index_name = "The name of the SDS index associated with the capture"
@@ -69,6 +71,9 @@ class Capture(SDSModel):
     files: Annotated[list[CaptureFile], Field(description=_d_capture_files)]
 
     # optional fields
+    created_at: Annotated[
+        datetime | None, Field(description=_d_capture_created_at, default=None)
+    ]
     channel: Annotated[
         str | None, Field(max_length=255, description=_d_channel, default=None)
     ]
@@ -79,7 +84,8 @@ class Capture(SDSModel):
         return (
             f"Capture(uuid={self.uuid}, "
             f"type={self.capture_type}, "
-            f"files={len(self.files)})"
+            f"files={len(self.files)}, "
+            f"created_at={self.created_at})"
         )
 
     @property
@@ -88,7 +94,11 @@ class Capture(SDSModel):
         return self.capture_type.value
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} {self.uuid} files={len(self.files)}>"
+        # break up the line to avoid exceeding line length limits
+        return (
+            f"<{self.__class__.__name__} {self.uuid} "
+            f"files={len(self.files)} created_at={self.created_at}>"
+        )
 
 
 __all__ = [

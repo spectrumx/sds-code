@@ -3,6 +3,7 @@
 
 import json
 import uuid as uuidlib
+from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -116,6 +117,9 @@ def test_create_capture_dry_run(client: Client) -> None:
     assert capture.uuid is not None
     assert capture.capture_type == capture_type
     assert capture.top_level_dir == top_level_dir
+    assert isinstance(capture.created_at, datetime), (
+        "Expected created_at to be a datetime object"
+    )
     assert len(capture.files) == 0
 
 
