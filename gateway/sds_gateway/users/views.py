@@ -70,7 +70,7 @@ user_update_view = UserUpdateView.as_view()
 class UserRedirectView(Auth0LoginRequiredMixin, RedirectView):
     permanent = False
 
-    def get_redirect_url(self):
+    def get_redirect_url(self) -> str:
         return reverse("users:generate_api_key")
 
 
@@ -280,7 +280,9 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             page_obj = paginator.page(1)
 
         serializer = CaptureGetSerializer(
-            page_obj, many=True, context={"request": request}
+            page_obj,
+            many=True,
+            context={"request": request},
         )
 
         return render(
@@ -317,7 +319,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         # Get selected captures
         selected_captures = []
         selected_captures_ids = self.request.POST.get("selected_captures", "").split(
-            ","
+            ",",
         )
         if selected_captures_ids and selected_captures_ids[0]:
             selected_captures = Capture.objects.filter(uuid__in=selected_captures_ids)
@@ -336,7 +338,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 "selectedCaptures": selected_captures,
                 "selectedFiles": selected_files,
                 "form": dataset_form,
-            }
+            },
         )
         return context
 
@@ -358,7 +360,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                         return JsonResponse(
                             {
                                 "tree": self._get_directory_tree(files, base_dir),
-                            }
+                            },
                         )
                     return JsonResponse({"error": form.errors}, status=400)
             except (OSError, DatabaseError) as e:
@@ -373,7 +375,8 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             dataset_form = DatasetInfoForm(request.POST, user=request.user)
             if not dataset_form.is_valid():
                 return JsonResponse(
-                    {"success": False, "errors": dataset_form.errors}, status=400
+                    {"success": False, "errors": dataset_form.errors},
+                    status=400,
                 )
 
             # Get selected captures and files from hidden fields
@@ -395,8 +398,8 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                         "success": False,
                         "errors": {
                             "non_field_errors": [
-                                "Please select at least one capture or file."
-                            ]
+                                "Please select at least one capture or file.",
+                            ],
                         },
                     },
                     status=400,
@@ -422,12 +425,13 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
             # Return success response with redirect URL
             return JsonResponse(
-                {"success": True, "redirect_url": reverse("users:dataset_list")}
+                {"success": True, "redirect_url": reverse("users:dataset_list")},
             )
 
         except (DatabaseError, IntegrityError) as e:
             return JsonResponse(
-                {"success": False, "errors": {"non_field_errors": [str(e)]}}, status=500
+                {"success": False, "errors": {"non_field_errors": [str(e)]}},
+                status=500,
             )
 
     def _get_directory_tree(self, files, base_dir):
@@ -475,7 +479,8 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                     }
                     # Add files for this directory level
                     current_dict[part]["files"] = self._add_files_to_tree(
-                        files, current_path
+                        files,
+                        current_path,
                     )
                     current_dict[part]["size"], current_dict[part]["created_at"] = (
                         self._calculate_directory_stats(current_dict[part])

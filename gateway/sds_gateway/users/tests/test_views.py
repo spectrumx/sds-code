@@ -1,6 +1,7 @@
 """Tests for user views."""
 
 from http import HTTPStatus
+from typing import TYPE_CHECKING
 
 import pytest
 from django.conf import settings
@@ -12,6 +13,7 @@ from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.test import RequestFactory
+from django.urls import NoReverseMatch
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -21,6 +23,9 @@ from sds_gateway.users.tests.factories import UserFactory
 from sds_gateway.users.views import UserRedirectView
 from sds_gateway.users.views import UserUpdateView
 from sds_gateway.users.views import user_detail_view
+
+if TYPE_CHECKING:
+    from django.core.handlers.wsgi import WSGIRequest
 
 pytestmark = pytest.mark.django_db
 
@@ -41,7 +46,7 @@ class TestUserUpdateView:
 
     def test_get_success_url(self, user: User, rf: RequestFactory) -> None:
         view = UserUpdateView()
-        request = rf.get("/fake-url/")
+        request: WSGIRequest = rf.get("/fake-url/")
         request.user = user
 
         view.request = request
@@ -49,7 +54,7 @@ class TestUserUpdateView:
 
     def test_get_object(self, user: User, rf: RequestFactory) -> None:
         view = UserUpdateView()
-        request = rf.get("/fake-url/")
+        request: WSGIRequest = rf.get("/fake-url/")
         request.user = user
 
         view.request = request
@@ -58,7 +63,7 @@ class TestUserUpdateView:
 
     def test_form_valid(self, user: User, rf: RequestFactory) -> None:
         view = UserUpdateView()
-        request = rf.get("/fake-url/")
+        request: WSGIRequest = rf.get("/fake-url/")
 
         # Add the session/message middleware to the request
         SessionMiddleware(self.dummy_get_response).process_request(request)
@@ -79,19 +84,20 @@ class TestUserUpdateView:
 
 class TestUserRedirectView:
     def test_get_redirect_url(self, user: User, rf: RequestFactory) -> None:
-        """Expects the user to be redirected to their detail page."""
+        """Expects the user to be redirected to the API key generation page."""
         view = UserRedirectView()
-        request = rf.get("/fake-url")
+        redirect_to: str = reverse("users:generate_api_key")
+        request: WSGIRequest = rf.get("/fake-url")
         request.user = user
 
         view.request = request
-        assert view.get_redirect_url() == f"/users/{user.pk}/"
+        assert view.get_redirect_url() == redirect_to
 
 
 class TestUserDetailView:
     def test_authenticated_get_works(self, user: User, rf: RequestFactory) -> None:
         """Expects the user to be able to access the view."""
-        request = rf.get("/fake-url/")
+        request: WSGIRequest = rf.get("/fake-url/")
         request.user = UserFactory()
         response = user_detail_view(request, pk=user.pk)
 
@@ -106,7 +112,10 @@ class TestUserDetailView:
         request = rf.get("/fake-url/")
         request.user = AnonymousUser()
         response = user_detail_view(request, pk=user.pk)
-        login_url = reverse(settings.LOGIN_URL)
+        try:
+            login_url = reverse("auth0_login")
+        except NoReverseMatch:
+            login_url = reverse(settings.LOGIN_URL)
 
         assert isinstance(response, HttpResponseRedirect)
         assert response.status_code == HTTPStatus.FOUND
