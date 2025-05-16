@@ -829,7 +829,7 @@ class SearchHandler {
 					<a class="page-link" href="#" data-page="1">First</a>
 				</li>
 				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.previous_page_number}">Previous</a>
+					<a class="page-link" href="#" data-page="${pagination.number - 1}">Previous</a>
 				</li>
 			`;
 		}
@@ -850,7 +850,7 @@ class SearchHandler {
 		if (pagination.has_next) {
 			ul.innerHTML += `
 				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.next_page_number}">Next</a>
+					<a class="page-link" href="#" data-page="${pagination.number + 1}">Next</a>
 				</li>
 				<li class="page-item">
 					<a class="page-link" href="#" data-page="${pagination.num_pages}">Last</a>
