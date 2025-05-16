@@ -20,9 +20,15 @@ class FormHandler {
 		this.selectedCapturesField = document.getElementById("selected_captures");
 		this.selectedFilesField = document.getElementById("selected_files");
 
-		// Initialize selections
-		this.selectedCaptures = new Set();
-		this.selectedFiles = new Set();
+		// Initialize selections with initial values if provided
+		this.selectedCaptures = config.initialCaptures || new Set();
+		this.selectedFiles = config.initialFiles || new Set();
+		this.selectedCaptureDetails = new Map(
+			Object.entries(config.initialCaptureDetails || {}),
+		);
+
+		// Update hidden fields with initial values
+		this.updateHiddenFields();
 
 		// Store references to required fields
 		this.nameField = document.getElementById("id_name");
@@ -39,6 +45,7 @@ class FormHandler {
 			this.capturesSearchHandler = searchHandler;
 		} else if (type === "files") {
 			this.filesSearchHandler = searchHandler;
+			this.filesSearchHandler.updateSelectedFilesList();
 		}
 		this.searchHandler = searchHandler;
 	}
@@ -231,7 +238,6 @@ class FormHandler {
 							<td>${file.media_type || "Unknown"}</td>
 							<td>${file.relativePath}</td>
 							<td>${this.formatFileSize(file.size)}</td>
-							<td>${new Date(file.created_at).toLocaleString()}</td>
 							<td>
 								<button class="btn btn-sm btn-danger remove-file" data-id="${file.id}">
 									Remove
@@ -309,11 +315,18 @@ class FormHandler {
 	updateNavigation() {
 		// Update step tabs
 		this.stepTabs.forEach((tab, index) => {
-			tab.classList.remove("active", "disabled");
+			tab.classList.remove("btn-outline-primary", "btn-primary");
+			tab.style.opacity = "1";
+			tab.style.pointerEvents = "none";
 			if (index === this.currentStep) {
-				tab.classList.add("active");
+				tab.classList.add("btn-primary");
 			} else if (index > this.currentStep) {
-				tab.classList.add("disabled");
+				tab.classList.add("btn-outline-primary");
+				tab.style.opacity = "0.65";
+			} else {
+				// Previous tabs get a light blue color and are disabled
+				tab.classList.add("btn-primary");
+				tab.style.opacity = "0.65";
 			}
 		});
 
@@ -478,14 +491,18 @@ class SearchHandler {
 			config.paginationContainerId,
 		);
 		this.type = config.type;
-		this.selectedFiles = new Map();
+		this.selectedFiles = new Map(
+			Object.entries(config.initialFileDetails || {}),
+		);
 		this.confirmFileSelection = document.getElementById(
 			config.confirmFileSelectionId,
 		);
 		this.currentTree = null;
 		this.formHandler = config.formHandler;
 		this.currentFilters = {}; // Store current capture filters
-		this.selectedCaptureDetails = new Map(); // Add storage for capture details
+		this.selectedCaptureDetails = new Map(
+			Object.entries(config.initialCaptureDetails || {}),
+		);
 
 		// Set the form handler's reference to this SearchHandler instance
 		if (config.formHandler) {
@@ -686,7 +703,10 @@ class SearchHandler {
 			button.addEventListener("click", () => {
 				const captureId = button.dataset.id;
 				this.formHandler.selectedCaptures.delete(captureId);
-				this.selectedCaptureDetails.delete(captureId);
+				// Only remove from selectedCaptureDetails if it wasn't part of the initial selection
+				if (!this.formHandler.selectedCaptureDetails.has(captureId)) {
+					this.selectedCaptureDetails.delete(captureId);
+				}
 
 				// Update checkbox if visible
 				const checkbox = document.querySelector(
@@ -746,7 +766,7 @@ class SearchHandler {
 				if (checkbox.checked) {
 					this.formHandler.selectedCaptures.add(captureId);
 					row.classList.add("table-warning");
-					// Store capture details when selected
+					// Store capture details when selected, maintaining the same format as from Django
 					this.selectedCaptureDetails.set(captureId, {
 						type:
 							capture.capture_type === "rh"
@@ -762,7 +782,10 @@ class SearchHandler {
 				} else {
 					this.formHandler.selectedCaptures.delete(captureId);
 					row.classList.remove("table-warning");
-					this.selectedCaptureDetails.delete(captureId);
+					// Only remove from selectedCaptureDetails if it wasn't part of the initial selection
+					if (!this.formHandler.selectedCaptureDetails.has(captureId)) {
+						this.selectedCaptureDetails.delete(captureId);
+					}
 				}
 
 				this.formHandler.updateHiddenFields();
@@ -963,7 +986,7 @@ class SearchHandler {
 		if (selectedFilesBody) {
 			if (this.selectedFiles.size === 0) {
 				selectedFilesBody.innerHTML =
-					'<tr><td colspan="4" class="text-center">No files selected</td></tr>';
+					'<tr><td colspan="5" class="text-center">No files selected</td></tr>';
 			} else {
 				selectedFilesBody.innerHTML = Array.from(this.selectedFiles.entries())
 					.map(

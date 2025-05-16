@@ -1,4 +1,5 @@
 import datetime
+import json
 from typing import Any
 from typing import cast
 
@@ -9,12 +10,14 @@ from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
 from django.db.models.query import QuerySet as Queryset
 from django.db.utils import IntegrityError
 from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -309,36 +312,133 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        base_dir = f"files/{self.request.user.email}/"
+
+        # Check if we're editing an existing dataset
+        dataset_uuid = self.request.GET.get("dataset_uuid", None)
+        existing_dataset = None
+        if dataset_uuid:
+            existing_dataset = get_object_or_404(
+                Dataset, uuid=dataset_uuid, owner=self.request.user
+            )
 
         # Get form
         if self.request.method == "POST":
             dataset_form = DatasetInfoForm(self.request.POST, user=self.request.user)
         else:
-            dataset_form = DatasetInfoForm(user=self.request.user)
+            initial_data = {}
+            if existing_dataset:
+                initial_data = {
+                    "name": existing_dataset.name,
+                    "description": existing_dataset.description,
+                    "author": existing_dataset.authors[0]
+                    if existing_dataset.authors
+                    else self.request.user.name,
+                }
+            dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
         # Get selected captures
         selected_captures = []
-        selected_captures_ids = self.request.POST.get("selected_captures", "").split(
-            ",",
-        )
-        if selected_captures_ids and selected_captures_ids[0]:
-            selected_captures = Capture.objects.filter(uuid__in=selected_captures_ids)
+        selected_captures_details = {}
+        if existing_dataset:
+            captures_queryset = existing_dataset.captures.all()
+            # Prepare capture details for JavaScript
+            for capture in captures_queryset:
+                selected_captures.append(str(capture.uuid))
+                selected_captures_details[str(capture.uuid)] = {
+                    "type": "RadioHound"
+                    if capture.capture_type == "rh"
+                    else "DigitalRF"
+                    if capture.capture_type == "drf"
+                    else capture.capture_type,
+                    "directory": capture.top_level_dir.split("/")[-1],
+                    "channel": capture.channel or "-",
+                    "scan_group": capture.scan_group or "-",
+                    "created_at": capture.created_at.isoformat(),
+                }
+        else:
+            selected_captures_ids = self.request.POST.get(
+                "selected_captures", ""
+            ).split(",")
+            if selected_captures_ids and selected_captures_ids[0]:
+                captures_queryset = Capture.objects.filter(
+                    uuid__in=selected_captures_ids
+                )
+                # Prepare capture details for JavaScript
+                for capture in captures_queryset:
+                    selected_captures.append(str(capture.uuid))
+                    selected_captures_details[str(capture.uuid)] = {
+                        "type": "RadioHound"
+                        if capture.capture_type == "rh"
+                        else "DigitalRF"
+                        if capture.capture_type == "drf"
+                        else capture.capture_type,
+                        "directory": capture.top_level_dir.split("/")[-1],
+                        "channel": capture.channel or "-",
+                        "scan_group": capture.scan_group or "-",
+                        "created_at": capture.created_at.isoformat(),
+                    }
 
         # Get selected files
         selected_files = []
-        selected_files_ids = self.request.POST.get("selected_files", "").split(",")
-        if selected_files_ids and selected_files_ids[0]:
-            selected_files = File.objects.filter(uuid__in=selected_files_ids)
+        selected_files_details = {}
+        if existing_dataset:
+            files_queryset = existing_dataset.files.all()
+            # Prepare file details for JavaScript
+            for file in files_queryset:
+                selected_files.append(
+                    {
+                        "id": str(file.uuid),
+                        "name": file.name,
+                        "media_type": file.media_type,
+                        "size": file.size,
+                        "relativePath": f"{file.directory.replace(base_dir, '')}",
+                    }
+                )
 
+                selected_files_details[str(file.uuid)] = {
+                    "name": file.name,
+                    "media_type": file.media_type,
+                    "size": file.size,
+                    "relativePath": f"{file.directory.replace(base_dir, '')}",
+                }
+
+        else:
+            selected_files_ids = self.request.POST.get("selected_files", "").split(",")
+            if selected_files_ids and selected_files_ids[0]:
+                files_queryset = File.objects.filter(uuid__in=selected_files_ids)
+                for file in files_queryset:
+                    selected_files.append(
+                        {
+                            "id": str(file.uuid),
+                        }
+                    )
+                    selected_files_details[str(file.uuid)] = {
+                        "name": file.name,
+                        "media_type": file.media_type,
+                        "size": file.size,
+                        "relativePath": f"/{file.directory.replace(base_dir, '')}",
+                    }
+
+        # Add to context
         context.update(
             {
                 "dataset_form": dataset_form,
                 "capture_search_form": CaptureSearchForm(),
                 "file_search_form": FileSearchForm(),
-                "selectedCaptures": selected_captures,
-                "selectedFiles": selected_files,
+                "selectedCaptures": json.dumps(
+                    selected_captures, cls=DjangoJSONEncoder
+                ),
+                "selectedFiles": json.dumps(selected_files, cls=DjangoJSONEncoder),
                 "form": dataset_form,
-            },
+                "existing_dataset": existing_dataset,
+                "selected_captures_details_json": json.dumps(
+                    selected_captures_details, cls=DjangoJSONEncoder
+                ),
+                "selected_files_details_json": json.dumps(
+                    selected_files_details, cls=DjangoJSONEncoder
+                ),
+            }
         )
         return context
 
@@ -369,7 +469,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         return super().get(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        """Handle dataset creation with selected captures and files."""
+        """Handle dataset creation/update with selected captures and files."""
         try:
             # Process the dataset form for actual submission
             dataset_form = DatasetInfoForm(request.POST, user=request.user)
@@ -380,16 +480,8 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 )
 
             # Get selected captures and files from hidden fields
-            # Note: .split(",") on an empty string
-            # returns an array with one empty string
-            selected_captures = request.POST.get(
-                "selected_captures",
-                "",
-            ).split(",")
-            selected_files = request.POST.get(
-                "selected_files",
-                "",
-            ).split(",")
+            selected_captures = request.POST.get("selected_captures", "").split(",")
+            selected_files = request.POST.get("selected_files", "").split(",")
 
             # Validate that at least one capture or file is selected
             if not selected_captures[0] and not selected_files[0]:
@@ -405,13 +497,28 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                     status=400,
                 )
 
-            # Create the dataset
-            dataset = Dataset.objects.create(
-                name=dataset_form.cleaned_data["name"],
-                description=dataset_form.cleaned_data["description"],
-                authors=[dataset_form.cleaned_data["author"]],
-                owner=request.user,
-            )
+            # Check if we're editing an existing dataset
+            dataset_uuid = request.GET.get("dataset_uuid", None)
+            if dataset_uuid:
+                dataset = get_object_or_404(
+                    Dataset, uuid=dataset_uuid, owner=request.user
+                )
+                dataset.name = dataset_form.cleaned_data["name"]
+                dataset.description = dataset_form.cleaned_data["description"]
+                dataset.authors = [dataset_form.cleaned_data["author"]]
+                dataset.save()
+
+                # Clear existing relationships
+                dataset.captures.clear()
+                dataset.files.clear()
+            else:
+                # Create new dataset
+                dataset = Dataset.objects.create(
+                    name=dataset_form.cleaned_data["name"],
+                    description=dataset_form.cleaned_data["description"],
+                    authors=[dataset_form.cleaned_data["author"]],
+                    owner=request.user,
+                )
 
             # Add selected captures to the dataset
             if selected_captures[0]:
