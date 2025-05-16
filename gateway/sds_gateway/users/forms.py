@@ -69,6 +69,7 @@ class DatasetInfoForm(forms.Form):
     author = forms.CharField(
         label="Author",
         required=True,
+        disabled=True,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
 

@@ -20,9 +20,15 @@ class FormHandler {
 		this.selectedCapturesField = document.getElementById("selected_captures");
 		this.selectedFilesField = document.getElementById("selected_files");
 
-		// Initialize selections
-		this.selectedCaptures = new Set();
-		this.selectedFiles = new Set();
+		// Initialize selections with initial values if provided
+		this.selectedCaptures = config.initialCaptures || new Set();
+		this.selectedFiles = config.initialFiles || new Set();
+		this.selectedCaptureDetails = new Map(
+			Object.entries(config.initialCaptureDetails || {}),
+		);
+
+		// Update hidden fields with initial values
+		this.updateHiddenFields();
 
 		// Store references to required fields
 		this.nameField = document.getElementById("id_name");
@@ -39,6 +45,7 @@ class FormHandler {
 			this.capturesSearchHandler = searchHandler;
 		} else if (type === "files") {
 			this.filesSearchHandler = searchHandler;
+			this.filesSearchHandler.updateSelectedFilesList();
 		}
 		this.searchHandler = searchHandler;
 	}
@@ -229,9 +236,8 @@ class FormHandler {
 						<tr>
 							<td>${file.name}</td>
 							<td>${file.media_type || "Unknown"}</td>
-							<td>${file.relativePath}</td>
+							<td>${file.relative_path}</td>
 							<td>${this.formatFileSize(file.size)}</td>
-							<td>${new Date(file.created_at).toLocaleString()}</td>
 							<td>
 								<button class="btn btn-sm btn-danger remove-file" data-id="${file.id}">
 									Remove
@@ -309,11 +315,18 @@ class FormHandler {
 	updateNavigation() {
 		// Update step tabs
 		this.stepTabs.forEach((tab, index) => {
-			tab.classList.remove("active", "disabled");
+			tab.classList.remove("btn-outline-primary", "btn-primary");
+			tab.style.opacity = "1";
+			tab.style.pointerEvents = "none";
 			if (index === this.currentStep) {
-				tab.classList.add("active");
+				tab.classList.add("btn-primary");
 			} else if (index > this.currentStep) {
-				tab.classList.add("disabled");
+				tab.classList.add("btn-outline-primary");
+				tab.style.opacity = "0.65";
+			} else {
+				// Previous tabs get a light blue color and are disabled
+				tab.classList.add("btn-primary");
+				tab.style.opacity = "0.65";
 			}
 		});
 
@@ -478,14 +491,18 @@ class SearchHandler {
 			config.paginationContainerId,
 		);
 		this.type = config.type;
-		this.selectedFiles = new Map();
+		this.selectedFiles = new Map(
+			Object.entries(config.initialFileDetails || {}),
+		);
 		this.confirmFileSelection = document.getElementById(
 			config.confirmFileSelectionId,
 		);
 		this.currentTree = null;
 		this.formHandler = config.formHandler;
 		this.currentFilters = {}; // Store current capture filters
-		this.selectedCaptureDetails = new Map(); // Add storage for capture details
+		this.selectedCaptureDetails = new Map(
+			Object.entries(config.initialCaptureDetails || {}),
+		);
 
 		// Set the form handler's reference to this SearchHandler instance
 		if (config.formHandler) {
@@ -746,7 +763,7 @@ class SearchHandler {
 				if (checkbox.checked) {
 					this.formHandler.selectedCaptures.add(captureId);
 					row.classList.add("table-warning");
-					// Store capture details when selected
+					// Store capture details when selected, maintaining the same format as from Django
 					this.selectedCaptureDetails.set(captureId, {
 						type:
 							capture.capture_type === "rh"
@@ -806,7 +823,7 @@ class SearchHandler {
 					<a class="page-link" href="#" data-page="1">First</a>
 				</li>
 				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.previous_page_number}">Previous</a>
+					<a class="page-link" href="#" data-page="${pagination.number - 1}">Previous</a>
 				</li>
 			`;
 		}
@@ -827,7 +844,7 @@ class SearchHandler {
 		if (pagination.has_next) {
 			ul.innerHTML += `
 				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.next_page_number}">Next</a>
+					<a class="page-link" href="#" data-page="${pagination.number + 1}">Next</a>
 				</li>
 				<li class="page-item">
 					<a class="page-link" href="#" data-page="${pagination.num_pages}">Last</a>
@@ -963,7 +980,7 @@ class SearchHandler {
 		if (selectedFilesBody) {
 			if (this.selectedFiles.size === 0) {
 				selectedFilesBody.innerHTML =
-					'<tr><td colspan="4" class="text-center">No files selected</td></tr>';
+					'<tr><td colspan="5" class="text-center">No files selected</td></tr>';
 			} else {
 				selectedFilesBody.innerHTML = Array.from(this.selectedFiles.entries())
 					.map(
@@ -971,7 +988,7 @@ class SearchHandler {
 					<tr>
 						<td>${file.name}</td>
 						<td>${file.media_type}</td>
-						<td>${file.relativePath}</td>
+						<td>${file.relative_path}</td>
 						<td>${this.formHandler.formatFileSize(file.size)}</td>
 						<td>
 							<button class="btn btn-sm btn-danger remove-selected-file" data-id="${id}">
@@ -1191,7 +1208,7 @@ class SearchHandler {
 					if (checkbox.checked) {
 						this.selectedFiles.set(file.id, {
 							...file,
-							relativePath: filePath,
+							relative_path: filePath,
 						});
 					} else {
 						this.selectedFiles.delete(file.id);
