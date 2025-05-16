@@ -179,28 +179,13 @@
                         clearInterval(interval);
 
                         // Get initial selected captures and files
-                        const initialCaptures = {
-                            {
-                                selected_captures | safe
-                            }
-                        };
-                        const initialFiles = {
-                            {
-                                selected_files | safe
-                            }
-                        };
+                        const initialCaptures = {{ selected_captures|safe }};
+                        const initialFiles = {{ selected_files|safe }};
 
                         // Get initial capture details from Django context
-                        const initialCaptureDetails = {
-                            {
-                                selected_captures_details_json | safe
-                            }
-                        };
-                        const initialFileDetails = {
-                            {
-                                selected_files_details_json | safe
-                            }
-                        };
+                        const initialCaptureDetails = {{ selected_captures_details_json|safe }};
+                        const initialFileDetails = {{ selected_files_details_json|safe }};
+                        
                         // Initialize form handler with initial values
                         const formHandler = new FormHandler({
                             formId: 'datasetForm',
