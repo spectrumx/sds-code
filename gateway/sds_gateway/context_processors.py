@@ -2,9 +2,8 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from django.http import HttpRequest
 
@@ -18,7 +17,7 @@ class Notification:
     # level is one of the alert-* classes from Bootstrap
 
 
-eastern = timezone(timedelta(hours=-5))
+eastern = ZoneInfo("America/New_York")
 
 
 def system_notifications(_request: HttpRequest) -> dict[str, list[Notification]]:
