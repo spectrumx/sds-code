@@ -624,6 +624,27 @@ html, body {
   padding: 0;
 }
 
+.step-number {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+/* Step number colors for different button states */
+.btn-primary .step-number {
+  background-color: #fff;
+  color: #0d6efd;
+}
+
+.btn-outline-primary .step-number {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
 /* Captures Table Styles */
 #captures-table {
   tbody {
