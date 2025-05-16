@@ -779,10 +779,7 @@ class SearchHandler {
 				} else {
 					this.formHandler.selectedCaptures.delete(captureId);
 					row.classList.remove("table-warning");
-					// Only remove from selectedCaptureDetails if it wasn't part of the initial selection
-					if (!this.formHandler.selectedCaptureDetails.has(captureId)) {
-						this.selectedCaptureDetails.delete(captureId);
-					}
+					this.selectedCaptureDetails.delete(captureId);
 				}
 
 				this.formHandler.updateHiddenFields();
