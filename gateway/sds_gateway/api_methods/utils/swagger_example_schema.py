@@ -179,7 +179,7 @@ minio_file_url = f"http://minio:9000/spectrumx/files/{example_checksum}?X-Amz-Ex
 
 # file post/get/put example schema
 file_post_request_example_schema = {
-    "file": example_file_obj,
+    "file": example_file_obj.read(),
     "directory": "/path/to/file",
     "media_type": "application/x-hdf5",
     "permissions": "rw-r--r--",

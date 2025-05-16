@@ -41,10 +41,12 @@ restart:
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) restart $(ARGS)
 
 test:
+
+	@echo "Validating templates"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py validate_templates
+
 	@echo "Running tests"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest
 
-	# we currently don't have tests for pytest, so we're ignoring its return code with `|| true`
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest || true
-
-	# the real tests are using Django's test runner
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --force-color --verbosity 0
+	# Django's test runner: obsolete, subset of pytest tests, left as reference.
+	# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0

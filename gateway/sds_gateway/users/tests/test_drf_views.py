@@ -1,10 +1,13 @@
 """Tests for the DRF views of the users app."""
 
 import pytest
+from django.conf import settings
 from rest_framework.test import APIRequestFactory
 
 from sds_gateway.users.api.views import UserViewSet
 from sds_gateway.users.models import User
+
+API_VERSION = settings.API_VERSION
 
 
 class TestUserViewSet:
@@ -31,6 +34,6 @@ class TestUserViewSet:
         response = view.me(request)  # type: ignore[call-arg, arg-type, misc]
 
         assert response.data == {
-            "url": f"http://testserver/api/users/{user.pk}/",
+            "url": f"http://testserver/api/{API_VERSION}/users/{user.pk}/",
             "name": user.name,
         }

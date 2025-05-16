@@ -16,8 +16,9 @@ if settings.DJANGO_ADMIN_FORCE_ALLAUTH:
     admin.autodiscover()
     admin.site.login = secure_admin_login(admin.site.login)  # type: ignore[method-assign]
 
-# Unregister the existing APIKey model
-admin.site.unregister(APIKey)
+# unregister the existing APIKey model only if it is registered
+if APIKey in admin.site._registry:  # noqa: SLF001
+    admin.site.unregister(APIKey)
 
 
 @admin.register(User)
