@@ -703,10 +703,7 @@ class SearchHandler {
 			button.addEventListener("click", () => {
 				const captureId = button.dataset.id;
 				this.formHandler.selectedCaptures.delete(captureId);
-				// Only remove from selectedCaptureDetails if it wasn't part of the initial selection
-				if (!this.formHandler.selectedCaptureDetails.has(captureId)) {
-					this.selectedCaptureDetails.delete(captureId);
-				}
+				this.selectedCaptureDetails.delete(captureId);
 
 				// Update checkbox if visible
 				const checkbox = document.querySelector(
