@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import random
 import uuid
+from datetime import UTC
+from datetime import datetime
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from typing import Any
@@ -111,6 +113,7 @@ class CaptureAPI:
                 top_level_dir=top_level_dir,
                 uuid=uuid4(),
                 files=[],
+                created_at=datetime.now(UTC),
             )
         capture_raw = self.gateway.create_capture(
             capture_type=capture_type,
