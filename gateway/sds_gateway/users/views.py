@@ -331,9 +331,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 initial_data = {
                     "name": existing_dataset.name,
                     "description": existing_dataset.description,
-                    "author": existing_dataset.authors[0]
-                    if existing_dataset.authors
-                    else self.request.user.name,
+                    "author": existing_dataset.owner.name,
                 }
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
@@ -392,7 +390,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                         "name": file.name,
                         "media_type": file.media_type,
                         "size": file.size,
-                        "relativePath": f"{file.directory.replace(base_dir, '')}",
+                        "relative_path": f"{file.directory.replace(base_dir, '')}",
                     }
                 )
 
@@ -400,7 +398,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                     "name": file.name,
                     "media_type": file.media_type,
                     "size": file.size,
-                    "relativePath": f"{file.directory.replace(base_dir, '')}",
+                    "relative_path": f"{file.directory.replace(base_dir, '')}",
                 }
 
         else:
@@ -417,7 +415,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                         "name": file.name,
                         "media_type": file.media_type,
                         "size": file.size,
-                        "relativePath": f"/{file.directory.replace(base_dir, '')}",
+                        "relative_path": f"/{file.directory.replace(base_dir, '')}",
                     }
 
         # Add to context
@@ -426,10 +424,10 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 "dataset_form": dataset_form,
                 "capture_search_form": CaptureSearchForm(),
                 "file_search_form": FileSearchForm(),
-                "selectedCaptures": json.dumps(
+                "selected_captures": json.dumps(
                     selected_captures, cls=DjangoJSONEncoder
                 ),
-                "selectedFiles": json.dumps(selected_files, cls=DjangoJSONEncoder),
+                "selected_files": json.dumps(selected_files, cls=DjangoJSONEncoder),
                 "form": dataset_form,
                 "existing_dataset": existing_dataset,
                 "selected_captures_details_json": json.dumps(

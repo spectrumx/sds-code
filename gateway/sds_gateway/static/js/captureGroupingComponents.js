@@ -236,7 +236,7 @@ class FormHandler {
 						<tr>
 							<td>${file.name}</td>
 							<td>${file.media_type || "Unknown"}</td>
-							<td>${file.relativePath}</td>
+							<td>${file.relative_path}</td>
 							<td>${this.formatFileSize(file.size)}</td>
 							<td>
 								<button class="btn btn-sm btn-danger remove-file" data-id="${file.id}">
@@ -994,7 +994,7 @@ class SearchHandler {
 					<tr>
 						<td>${file.name}</td>
 						<td>${file.media_type}</td>
-						<td>${file.relativePath}</td>
+						<td>${file.relative_path}</td>
 						<td>${this.formHandler.formatFileSize(file.size)}</td>
 						<td>
 							<button class="btn btn-sm btn-danger remove-selected-file" data-id="${id}">
@@ -1214,7 +1214,7 @@ class SearchHandler {
 					if (checkbox.checked) {
 						this.selectedFiles.set(file.id, {
 							...file,
-							relativePath: filePath,
+							relative_path: filePath,
 						});
 					} else {
 						this.selectedFiles.delete(file.id);
