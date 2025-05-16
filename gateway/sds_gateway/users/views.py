@@ -331,7 +331,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 initial_data = {
                     "name": existing_dataset.name,
                     "description": existing_dataset.description,
-                    "author": existing_dataset.owner.name,
+                    "author": existing_dataset.authors[0],
                 }
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
