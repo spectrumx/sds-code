@@ -36,6 +36,9 @@ down:
 	@echo "Stopping sds-gateway"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) down $(ARGS)
 
+pre-commit:
+	uv run --dev pre-commit run --all-files
+
 restart:
 	@echo "Restarting sds-gateway"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) restart $(ARGS)
