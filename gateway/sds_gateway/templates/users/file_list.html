@@ -58,6 +58,10 @@
   .sidebar-filters .btn-primary:hover {
     background: #1a2136;
   }
+  .table-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
 </style>
 <div class="container-fluid py-4">
   <div class="row">
@@ -157,18 +161,14 @@
     <!-- Main Content -->
     <main class="col-md-9">
       <!-- Search Bar -->
-      <form class="input-group mb-3" method="get">
-        <input type="text" class="form-control" placeholder="Search captures..." name="search" value="{{ request.GET.search|default_if_none:'' }}">
-        <button class="btn btn-outline-secondary" type="submit">Search</button>
-        {% if request.GET.search %}
-          <a href="{% url 'users:file_list' %}" class="btn btn-outline-danger">Clear</a>
-        {% endif %}
-      </form>
+      <div class="input-group mb-3">
+        <input type="text" class="form-control" placeholder="Search captures..." id="search-input">
+      </div>
 
       <!-- Captures Table -->
       <div class="card">
         <div class="card-body p-0">
-          <div class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
+          <div class="table-responsive table-scroll">
             <table class="table table-hover align-middle mb-0">
               <thead class="table-light">
                 <tr>
@@ -181,7 +181,11 @@
                 {% if captures %}
                   {% for cap in captures %}
                   <tr>
-                    <td>{{ cap.channel }}</td>
+                    <td>
+                      <a href="#" class="channel-link" data-channel="{{ cap.channel }}" data-capture-type="{{ cap.capture_type }}" data-created-at="{{ cap.created_at|date:'Y-m-d H:i:s' }}">
+                        {{ cap.channel }}
+                      </a>
+                    </td>
                     <td>{{ cap.capture_type }}</td>
                     <td>{{ cap.created_at|date:"Y-m-d H:i:s" }}</td>
                   </tr>
@@ -223,4 +227,52 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Script loaded!');
+  const searchInput = document.getElementById('search-input');
+  if (!searchInput) return;
+  searchInput.addEventListener('input', function() {
+    const query = this.value.toLowerCase();
+    document.querySelectorAll('table tbody tr').forEach(row => {
+      // Skip the "No captures found" row
+      if (row.querySelector('.text-center.text-muted')) return;
+      const rowText = row.textContent.toLowerCase();
+      row.style.display = rowText.includes(query) ? '' : 'none';
+    });
+  });
+
+  // Modal logic for channel info
+  document.querySelectorAll('.channel-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const channel = this.getAttribute('data-channel');
+      const captureType = this.getAttribute('data-capture-type');
+      const createdAt = this.getAttribute('data-created-at');
+      document.getElementById('channelModalBody').innerHTML = `
+        <strong>Channel:</strong> ${channel}<br>
+        <strong>Capture Type:</strong> ${captureType}<br>
+        <strong>Created At:</strong> ${createdAt}
+      `;
+      var modal = new bootstrap.Modal(document.getElementById('channelModal'));
+      modal.show();
+    });
+  });
+});
+</script>
+
+<!-- Channel Info Modal -->
+<div class="modal fade" id="channelModal" tabindex="-1" aria-labelledby="channelModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="channelModalLabel">Channel Information</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="channelModalBody">
+        <!-- Channel info will be inserted here -->
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
