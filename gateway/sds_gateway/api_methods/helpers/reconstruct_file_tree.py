@@ -4,6 +4,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db.models import Q
+from django.db.models import QuerySet
 from loguru import logger as log
 
 from sds_gateway.api_methods.models import CaptureType
@@ -12,7 +13,7 @@ from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
 
 
-def is_metadata_file(file_name: str, capture_type: CaptureType) -> bool:
+def _is_metadata_file(file_name: str, capture_type: CaptureType) -> bool:
     if capture_type == CaptureType.RadioHound:
         return file_name.endswith(".rh.json")
 
@@ -24,6 +25,95 @@ def is_metadata_file(file_name: str, capture_type: CaptureType) -> bool:
     log.error(f"Invalid/unimplemented capture type: {capture_type}")
     msg = f"Invalid/unimplemented capture type: {capture_type}"
     raise ValueError(msg)
+
+
+def _get_drf_sample_file_name_bounds(file_queryset: QuerySet[File]) -> tuple[str, str]:
+    """Get the timestamp of the first file in the given directory."""
+    # get the rf data file names
+    # all rf data files start with rf@ per the notes here:
+    # https://github.com/MITHaystack/digital_rf/blob/master/python/digital_rf/digital_rf_hdf5.py#L793
+    drf_file_objs = file_queryset.filter(
+        name__startswith="rf@",
+    )
+
+    # sort the rf data file objs
+    # use the same sorting as in ilsdrf():
+    # https://github.com/MITHaystack/digital_rf/blob/ca7d715f27d527a11125dbd4c5971627c30efe31/python/digital_rf/list_drf.py#L253
+    # should return the lowest timestamp first
+    drf_file_objs = drf_file_objs.order_by("name")
+
+    # get the first and last rf data file names
+    first_drf_data_file_name = drf_file_objs.first().name
+    last_drf_data_file_name = drf_file_objs.last().name
+
+    return first_drf_data_file_name, last_drf_data_file_name
+
+
+def _get_dmd_first_sample_file_name(file_queryset: QuerySet[File]) -> str:
+    """Get the first sample file name for a DigitalRF capture."""
+    # follows the process for getting the bounds from DigitalMetadataReader.read_flatdict()
+    # https://github.com/MITHaystack/digital_rf/blob/ca7d715f27d527a11125dbd4c5971627c30efe31/python/digital_rf/digital_metadata.py#L627
+    dmd_file_objs = file_queryset.filter(
+        name__startswith="metadata@",
+    )
+
+    # sort the dmd file objs
+    dmd_file_objs = dmd_file_objs.order_by("name")
+
+    # get the first dmd file name
+    return dmd_file_objs.first().name
+
+
+def _check_fetch_conditions(
+    file_name: str, capture_type: CaptureType, file_queryset: QuerySet[File]
+) -> bool:
+    """
+    Check if the contents of the given files should be added to the given directory from MinIO.
+
+    Args:
+        file_name: The name of the file to check
+        capture_type: The type of capture
+        file_queryset: The queryset of files to get the bounds and first sample file name from
+    Returns:
+        True if the file should be fetched, False otherwise
+    """
+    first_drf_data_file_name = None
+    last_drf_data_file_name = None
+    first_dmd_data_file_name = None
+
+    # if capture type is digital rf, get the first and last rf data file names
+    if capture_type == CaptureType.DigitalRF:
+        first_drf_data_file_name, last_drf_data_file_name = (
+            _get_drf_sample_file_name_bounds(file_queryset)
+        )
+        first_dmd_data_file_name = _get_dmd_first_sample_file_name(file_queryset)
+
+        if None in (
+            first_drf_data_file_name,
+            last_drf_data_file_name,
+            first_dmd_data_file_name,
+        ):
+            msg = f"""
+                Some files are missing to get sample bounds for DRF capture:
+                RF data start file: {first_drf_data_file_name or "Not found"}
+                RF data end file: {last_drf_data_file_name or "Not found"}
+                Metadata start file: {first_dmd_data_file_name or "Not found"}
+                Metadata extraction will fail without these file contents loaded correctly.
+            """
+            log.error(msg)
+            raise ValueError(msg)
+
+    match (file_name, _is_metadata_file(file_name, capture_type)):
+        case (name, _) if name in (
+            first_drf_data_file_name,
+            last_drf_data_file_name,
+            first_dmd_data_file_name,
+        ):
+            return True
+        case (_, True):
+            return True
+        case _:
+            return False
 
 
 def reconstruct_tree(
@@ -108,7 +198,12 @@ def reconstruct_tree(
         # If the file is a metadata file,
         # we need to download the file contents from MinIO
         # else, create a dummy file with the file name
-        if is_metadata_file(file_obj.name, drf_capture_type):
+        fetch_file_contents = _check_fetch_conditions(
+            file_obj.name,
+            drf_capture_type,
+            user_file_queryset,
+        )
+        if fetch_file_contents:
             minio_client.fget_object(
                 bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
                 object_name=file_obj.file.name,
