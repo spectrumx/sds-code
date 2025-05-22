@@ -56,7 +56,11 @@ class FormSearchMixin:
         return queryset.filter(q_objects).order_by("-created_at")
 
     def search_files(self, search_data):
-        queryset = File.objects.filter(owner=self.request.user)
+        # Only show files that are not associated with a capture
+        queryset = File.objects.filter(
+            owner=self.request.user,
+            capture__isnull=True,
+        )
 
         if search_data.get("search_term"):
             queryset = queryset.filter(Q(name__icontains=search_data["search_term"]))

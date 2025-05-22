@@ -312,7 +312,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        base_dir = f"files/{self.request.user.email}/"
+        base_dir = f"/files/{self.request.user.email}"
 
         # Check if we're editing an existing dataset
         dataset_uuid = self.request.GET.get("dataset_uuid", None)
@@ -375,7 +375,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                     return JsonResponse({"error": form.errors}, status=400)
 
                 if "search_files" in request.GET:
-                    base_dir = f"files/{request.user.email}/"
+                    base_dir = f"/files/{request.user.email}"
                     form = FileSearchForm(request.GET)
                     if form.is_valid():
                         files = self.search_files(form.cleaned_data)
@@ -470,6 +470,9 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         # Add files in base directory if they exist
         tree["files"] = self._add_files_to_tree(files, base_dir)
 
+        # Initialize the children
+        tree["children"] = {}
+
         # Get all directories that start with base_dir
         distinct_file_paths = (
             files.filter(directory__startswith=base_dir)
@@ -489,12 +492,14 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
             # Split path into parts and build nested structure
             path_parts = rel_path.split("/")
-            current_dict = tree
+
+            # initialize the children
+            current_dict = tree["children"]
 
             # Build the path one level at a time
             current_path = base_dir
             for part in path_parts:
-                current_path = f"{current_path}{part}/"
+                current_path = f"{current_path}/{part}"
 
                 if part not in current_dict:
                     current_dict[part] = {
@@ -511,14 +516,42 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                         files,
                         current_path,
                     )
-                    current_dict[part]["size"], current_dict[part]["created_at"] = (
-                        self._calculate_directory_stats(current_dict[part])
-                    )
 
                 # Move to the children dictionary for the next iteration
                 current_dict = current_dict[part]["children"]
 
+        # Now that the tree is built, calculate stats for all directories
+        self._update_directory_stats(tree)
         return tree
+
+    def _update_directory_stats(self, tree):
+        """Update size and date stats for all directories in the tree."""
+        # Process all directories first
+        for dir_data in tree.get("children", {}).values():
+            self._update_directory_stats(dir_data)
+
+        # Then calculate stats for current directory
+        total_size = 0
+        earliest_date = None
+
+        # Process files in current directory
+        for file in tree.get("files", []):
+            total_size += file["size"]
+            if file["created_at"]:
+                if not earliest_date or file["created_at"] < earliest_date:
+                    earliest_date = file["created_at"]
+
+        # Add stats from all subdirectories
+        for dir_data in tree.get("children", {}).values():
+            total_size += dir_data["size"]
+            dir_date = dir_data["created_at"]
+            if dir_date:
+                if not earliest_date or dir_date < earliest_date:
+                    earliest_date = dir_date
+
+        # Update current directory stats
+        tree["size"] = total_size
+        tree["created_at"] = earliest_date
 
     def _add_files_to_tree(self, files, directory):
         files_in_directory = files.filter(directory=directory)
@@ -533,30 +566,6 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             }
             for file in files_in_directory
         ]
-
-    def _calculate_directory_stats(self, tree):
-        """Calculate size and earliest created_at for directories."""
-        total_size = 0
-        earliest_date = None
-
-        # Process files in current directory
-        for file in tree.get("files", []):
-            total_size += file["size"]
-            if file["created_at"]:
-                if not earliest_date or file["created_at"] < earliest_date:
-                    earliest_date = file["created_at"]
-
-        # Process subdirectories recursively
-        for _dir_name, dir_data in tree.get("children", {}).values():
-            size, date = self._calculate_directory_stats(dir_data)
-            total_size += size
-            if date:
-                if not earliest_date or date < earliest_date:
-                    earliest_date = date
-            dir_data["size"] = size
-            dir_data["created_at"] = date
-
-        return total_size, earliest_date
 
     def _get_file_context(self, existing_dataset, base_dir):
         # Get selected files
@@ -583,23 +592,6 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                     "relative_path": f"{file.directory.replace(base_dir, '')}",
                 }
 
-        else:
-            selected_files_ids = self.request.POST.get("selected_files", "").split(",")
-            if selected_files_ids and selected_files_ids[0]:
-                files_queryset = File.objects.filter(uuid__in=selected_files_ids)
-                for file in files_queryset:
-                    selected_files.append(
-                        {
-                            "id": str(file.uuid),
-                        }
-                    )
-                    selected_files_details[str(file.uuid)] = {
-                        "name": file.name,
-                        "media_type": file.media_type,
-                        "size": file.size,
-                        "relative_path": f"/{file.directory.replace(base_dir, '')}",
-                    }
-
         return selected_files, selected_files_details
 
     def _get_capture_context(self, existing_dataset):
@@ -622,28 +614,6 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                     "scan_group": capture.scan_group or "-",
                     "created_at": capture.created_at.isoformat(),
                 }
-        else:
-            selected_captures_ids = self.request.POST.get(
-                "selected_captures", ""
-            ).split(",")
-            if selected_captures_ids and selected_captures_ids[0]:
-                captures_queryset = Capture.objects.filter(
-                    uuid__in=selected_captures_ids
-                )
-                # Prepare capture details for JavaScript
-                for capture in captures_queryset:
-                    selected_captures.append(str(capture.uuid))
-                    selected_captures_details[str(capture.uuid)] = {
-                        "type": "RadioHound"
-                        if capture.capture_type == "rh"
-                        else "DigitalRF"
-                        if capture.capture_type == "drf"
-                        else capture.capture_type,
-                        "directory": capture.top_level_dir.split("/")[-1],
-                        "channel": capture.channel or "-",
-                        "scan_group": capture.scan_group or "-",
-                        "created_at": capture.created_at.isoformat(),
-                    }
 
         return selected_captures, selected_captures_details
 
