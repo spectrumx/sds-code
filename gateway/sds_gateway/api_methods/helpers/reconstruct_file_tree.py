@@ -44,7 +44,7 @@ def _get_drf_sample_file_name_bounds(
     # should return the lowest timestamp first
     drf_file_objs = drf_file_objs.order_by("name")
 
-    if drf_file_objs.count() == 0:
+    if not drf_file_objs.exists():
         msg = "No RF sample data files found"
         log.error(msg)
         return None, None
@@ -68,7 +68,7 @@ def _get_dmd_first_sample_file_name(file_queryset: QuerySet[File]) -> str | None
     # sort the dmd file objs
     dmd_file_objs = dmd_file_objs.order_by("name")
 
-    if dmd_file_objs.count() == 0:
+    if not dmd_file_objs.exists():
         msg = "No metadata sample files found"
         log.error(msg)
         return None
