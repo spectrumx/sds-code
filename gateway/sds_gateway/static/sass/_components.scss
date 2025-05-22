@@ -764,3 +764,27 @@ html, body {
     }
   }
 }
+
+.display-block {
+  display: block;
+}
+
+.display-table-row {
+  display: table-row;
+}
+
+.display-none {
+  display: none;
+}
+
+.active-tab {
+  opacity: 1;
+}
+
+.inactive-tab {
+  opacity: 0.65;
+}
+
+.btn-group-disabled {
+  pointer-events: none;
+}

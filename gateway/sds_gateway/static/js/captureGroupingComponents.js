@@ -101,8 +101,18 @@ class FormHandler {
 	initializeErrorContainer() {
 		const errorContainer = document.getElementById("formErrors");
 		if (errorContainer) {
-			errorContainer.style.display = "none";
+			this.hide(errorContainer);
 		}
+	}
+
+	show(container, showClass = "display-block") {
+		container.classList.remove("display-none");
+		container.classList.add(showClass);
+	}
+
+	hide(container, showClass = "display-block") {
+		container.classList.remove(showClass);
+		container.classList.add("display-none");
 	}
 
 	updateHiddenFields() {
@@ -323,18 +333,19 @@ class FormHandler {
 	updateNavigation() {
 		// Update step tabs
 		this.stepTabs.forEach((tab, index) => {
-			tab.classList.remove("btn-outline-primary", "btn-primary");
-			tab.style.opacity = "1";
-			tab.style.pointerEvents = "none";
+			tab.classList.remove(
+				"btn-outline-primary",
+				"btn-primary",
+				"active-tab",
+				"inactive-tab",
+			);
 			if (index === this.currentStep) {
-				tab.classList.add("btn-primary");
+				tab.classList.add("btn-primary", "active-tab");
 			} else if (index > this.currentStep) {
-				tab.classList.add("btn-outline-primary");
-				tab.style.opacity = "0.65";
+				tab.classList.add("btn-outline-primary", "inactive-tab");
 			} else {
 				// Previous tabs get a light blue color and are disabled
-				tab.classList.add("btn-primary");
-				tab.style.opacity = "0.65";
+				tab.classList.add("btn-primary", "inactive-tab");
 			}
 		});
 
@@ -348,19 +359,19 @@ class FormHandler {
 
 		// Update navigation buttons
 		if (this.prevBtn) {
-			this.prevBtn.style.display = this.currentStep > 0 ? "block" : "none";
+			this.currentStep > 0 ? this.show(this.prevBtn) : this.hide(this.prevBtn);
 		}
 
 		// Update next/submit buttons and validate current step
 		const isValid = this.validateCurrentStep();
 		if (this.nextBtn) {
 			const isLastStep = this.currentStep === this.steps.length - 1;
-			this.nextBtn.style.display = isLastStep ? "none" : "block";
+			isLastStep ? this.hide(this.nextBtn) : this.show(this.nextBtn);
 			this.nextBtn.disabled = !isValid;
 		}
 		if (this.submitBtn) {
 			const isLastStep = this.currentStep === this.steps.length - 1;
-			this.submitBtn.style.display = isLastStep ? "block" : "none";
+			isLastStep ? this.show(this.submitBtn) : this.hide(this.submitBtn);
 			this.submitBtn.disabled = !isValid;
 		}
 	}
@@ -417,7 +428,7 @@ class FormHandler {
 			const errorContainer = document.getElementById("formErrors");
 			const errorContent = errorContainer?.querySelector(".error-content");
 			if (errorContainer && errorContent) {
-				errorContainer.style.display = "none";
+				this.hide(errorContainer);
 				errorContent.innerHTML = "";
 			}
 
@@ -451,7 +462,7 @@ class FormHandler {
 
 						if (errorContainer && errorContent) {
 							errorContent.innerHTML = errorHtml;
-							errorContainer.style.display = "block";
+							this.show(errorContainer);
 							errorContainer.scrollIntoView({
 								behavior: "smooth",
 								block: "start",
@@ -472,7 +483,7 @@ class FormHandler {
 				if (errorContainer && errorContent) {
 					errorContent.innerHTML =
 						'<ul class="mb-0 list-unstyled"><li>An unexpected error occurred. Please try again.</li></ul>';
-					errorContainer.style.display = "block";
+					this.show(errorContainer);
 					errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
 				}
 			}
@@ -1081,9 +1092,9 @@ class SearchHandler {
 	// Helper function to get relative path
 	getRelativePath(file, currentPath = "") {
 		if (!currentPath) {
-			return file.name;
+			return "";
 		}
-		return `${currentPath}/${file.name}`;
+		return `/${currentPath}`;
 	}
 
 	renderFileTree(tree, parentElement = null, level = 0, currentPath = "") {
@@ -1108,8 +1119,7 @@ class SearchHandler {
 		}
 
 		// First render directories
-		const directories = { ...tree };
-		directories.files = undefined; // Use undefined instead of delete
+		const directories = { ...tree.children };
 		for (const [name, content] of Object.entries(directories)) {
 			if (
 				name === "files" ||
@@ -1139,7 +1149,7 @@ class SearchHandler {
 			// Create container for nested content
 			const nestedContainer = document.createElement("tr");
 			nestedContainer.className = "nested-row";
-			nestedContainer.style.display = "none";
+			this.formHandler.hide(nestedContainer);
 			nestedContainer.innerHTML = `
 				<td colspan="5">
 					<div class="nested-content">
@@ -1165,20 +1175,18 @@ class SearchHandler {
 
 				if (expandable) {
 					toggle.textContent = isExpanded ? "▶" : "▼";
-					nestedContainer.style.display = isExpanded ? "none" : "table-row";
+					isExpanded
+						? this.formHandler.hide(nestedContainer, "display-table-row")
+						: this.formHandler.show(nestedContainer, "display-table-row");
 				} else {
 					toggle.textContent = "▶";
-					nestedContainer.style.display = "none";
+					this.formHandler.hide(nestedContainer, "display-table-row");
 				}
 
 				// Load nested content if not already loaded
 				if (expandable && !isExpanded && !nestedContainer.dataset.loaded) {
-					const subTree = {
-						files: content.files || [],
-						...content.children,
-					};
 					this.renderFileTree(
-						subTree,
+						content,
 						nestedContainer.querySelector("tbody"),
 						level + 1,
 						newPath,
@@ -1264,7 +1272,7 @@ class SearchHandler {
 		const errorContent = errorContainer?.querySelector(".error-content");
 		if (errorContainer && errorContent) {
 			errorContent.innerHTML = `<ul class="mb-0 list-unstyled"><li>${message}</li></ul>`;
-			errorContainer.style.display = "block";
+			this.formHandler.show(errorContainer);
 			errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
 		}
 	}
