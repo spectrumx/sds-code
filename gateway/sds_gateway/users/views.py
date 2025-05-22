@@ -335,88 +335,12 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 }
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
-        # Get selected captures
-        selected_captures = []
-        selected_captures_details = {}
-        if existing_dataset:
-            captures_queryset = existing_dataset.captures.all()
-            # Prepare capture details for JavaScript
-            for capture in captures_queryset:
-                selected_captures.append(str(capture.uuid))
-                selected_captures_details[str(capture.uuid)] = {
-                    "type": "RadioHound"
-                    if capture.capture_type == "rh"
-                    else "DigitalRF"
-                    if capture.capture_type == "drf"
-                    else capture.capture_type,
-                    "directory": capture.top_level_dir.split("/")[-1],
-                    "channel": capture.channel or "-",
-                    "scan_group": capture.scan_group or "-",
-                    "created_at": capture.created_at.isoformat(),
-                }
-        else:
-            selected_captures_ids = self.request.POST.get(
-                "selected_captures", ""
-            ).split(",")
-            if selected_captures_ids and selected_captures_ids[0]:
-                captures_queryset = Capture.objects.filter(
-                    uuid__in=selected_captures_ids
-                )
-                # Prepare capture details for JavaScript
-                for capture in captures_queryset:
-                    selected_captures.append(str(capture.uuid))
-                    selected_captures_details[str(capture.uuid)] = {
-                        "type": "RadioHound"
-                        if capture.capture_type == "rh"
-                        else "DigitalRF"
-                        if capture.capture_type == "drf"
-                        else capture.capture_type,
-                        "directory": capture.top_level_dir.split("/")[-1],
-                        "channel": capture.channel or "-",
-                        "scan_group": capture.scan_group or "-",
-                        "created_at": capture.created_at.isoformat(),
-                    }
-
-        # Get selected files
-        selected_files = []
-        selected_files_details = {}
-        if existing_dataset:
-            files_queryset = existing_dataset.files.all()
-            # Prepare file details for JavaScript
-            for file in files_queryset:
-                selected_files.append(
-                    {
-                        "id": str(file.uuid),
-                        "name": file.name,
-                        "media_type": file.media_type,
-                        "size": file.size,
-                        "relative_path": f"{file.directory.replace(base_dir, '')}",
-                    }
-                )
-
-                selected_files_details[str(file.uuid)] = {
-                    "name": file.name,
-                    "media_type": file.media_type,
-                    "size": file.size,
-                    "relative_path": f"{file.directory.replace(base_dir, '')}",
-                }
-
-        else:
-            selected_files_ids = self.request.POST.get("selected_files", "").split(",")
-            if selected_files_ids and selected_files_ids[0]:
-                files_queryset = File.objects.filter(uuid__in=selected_files_ids)
-                for file in files_queryset:
-                    selected_files.append(
-                        {
-                            "id": str(file.uuid),
-                        }
-                    )
-                    selected_files_details[str(file.uuid)] = {
-                        "name": file.name,
-                        "media_type": file.media_type,
-                        "size": file.size,
-                        "relative_path": f"/{file.directory.replace(base_dir, '')}",
-                    }
+        selected_files, selected_files_details = self._get_file_context(
+            existing_dataset, base_dir
+        )
+        selected_captures, selected_captures_details = self._get_capture_context(
+            existing_dataset
+        )
 
         # Add to context
         context.update(
@@ -633,6 +557,95 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             dir_data["created_at"] = date
 
         return total_size, earliest_date
+
+    def _get_file_context(self, existing_dataset, base_dir):
+        # Get selected files
+        selected_files = []
+        selected_files_details = {}
+        if existing_dataset:
+            files_queryset = existing_dataset.files.all()
+            # Prepare file details for JavaScript
+            for file in files_queryset:
+                selected_files.append(
+                    {
+                        "id": str(file.uuid),
+                        "name": file.name,
+                        "media_type": file.media_type,
+                        "size": file.size,
+                        "relative_path": f"{file.directory.replace(base_dir, '')}",
+                    }
+                )
+
+                selected_files_details[str(file.uuid)] = {
+                    "name": file.name,
+                    "media_type": file.media_type,
+                    "size": file.size,
+                    "relative_path": f"{file.directory.replace(base_dir, '')}",
+                }
+
+        else:
+            selected_files_ids = self.request.POST.get("selected_files", "").split(",")
+            if selected_files_ids and selected_files_ids[0]:
+                files_queryset = File.objects.filter(uuid__in=selected_files_ids)
+                for file in files_queryset:
+                    selected_files.append(
+                        {
+                            "id": str(file.uuid),
+                        }
+                    )
+                    selected_files_details[str(file.uuid)] = {
+                        "name": file.name,
+                        "media_type": file.media_type,
+                        "size": file.size,
+                        "relative_path": f"/{file.directory.replace(base_dir, '')}",
+                    }
+
+        return selected_files, selected_files_details
+
+    def _get_capture_context(self, existing_dataset):
+        # Get selected captures
+        selected_captures = []
+        selected_captures_details = {}
+        if existing_dataset:
+            captures_queryset = existing_dataset.captures.all()
+            # Prepare capture details for JavaScript
+            for capture in captures_queryset:
+                selected_captures.append(str(capture.uuid))
+                selected_captures_details[str(capture.uuid)] = {
+                    "type": "RadioHound"
+                    if capture.capture_type == "rh"
+                    else "DigitalRF"
+                    if capture.capture_type == "drf"
+                    else capture.capture_type,
+                    "directory": capture.top_level_dir.split("/")[-1],
+                    "channel": capture.channel or "-",
+                    "scan_group": capture.scan_group or "-",
+                    "created_at": capture.created_at.isoformat(),
+                }
+        else:
+            selected_captures_ids = self.request.POST.get(
+                "selected_captures", ""
+            ).split(",")
+            if selected_captures_ids and selected_captures_ids[0]:
+                captures_queryset = Capture.objects.filter(
+                    uuid__in=selected_captures_ids
+                )
+                # Prepare capture details for JavaScript
+                for capture in captures_queryset:
+                    selected_captures.append(str(capture.uuid))
+                    selected_captures_details[str(capture.uuid)] = {
+                        "type": "RadioHound"
+                        if capture.capture_type == "rh"
+                        else "DigitalRF"
+                        if capture.capture_type == "drf"
+                        else capture.capture_type,
+                        "directory": capture.top_level_dir.split("/")[-1],
+                        "channel": capture.channel or "-",
+                        "scan_group": capture.scan_group or "-",
+                        "created_at": capture.created_at.isoformat(),
+                    }
+
+        return selected_captures, selected_captures_details
 
 
 user_group_captures_view = GroupCapturesView.as_view()

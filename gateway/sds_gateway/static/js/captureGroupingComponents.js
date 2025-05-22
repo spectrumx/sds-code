@@ -35,6 +35,7 @@ class FormHandler {
 		this.authorField = document.getElementById("id_author");
 
 		this.initializeEventListeners();
+		this.initializeErrorContainer();
 		this.validateCurrentStep(); // Initial validation
 		this.updateNavigation(); // Initial navigation button display
 	}
@@ -95,6 +96,13 @@ class FormHandler {
 				this.updateHiddenFields();
 			}
 		});
+	}
+
+	initializeErrorContainer() {
+		const errorContainer = document.getElementById("formErrors");
+		if (errorContainer) {
+			errorContainer.style.display = "none";
+		}
 	}
 
 	updateHiddenFields() {
