@@ -94,7 +94,7 @@ def _check_fetch_conditions(
             first_dmd_data_file_name,
         ):
             msg = f"""
-                Some files are missing to get sample bounds for DRF capture:
+                Some files that are required to get sample bounds for DRF captures are missing:
                 RF data start file: {first_drf_data_file_name or "Not found"}
                 RF data end file: {last_drf_data_file_name or "Not found"}
                 Metadata start file: {first_dmd_data_file_name or "Not found"}
