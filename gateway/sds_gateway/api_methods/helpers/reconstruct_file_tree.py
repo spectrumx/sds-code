@@ -27,20 +27,27 @@ def _is_metadata_file(file_name: str, capture_type: CaptureType) -> bool:
     raise ValueError(msg)
 
 
-def _get_drf_sample_file_name_bounds(file_queryset: QuerySet[File]) -> tuple[str, str]:
+def _get_drf_sample_file_name_bounds(
+    file_queryset: QuerySet[File],
+) -> tuple[str, str] | tuple[None, None]:
     """Get the timestamp of the first file in the given directory."""
     # get the rf data file names
     # all rf data files start with rf@ per the notes here:
-    # https://github.com/MITHaystack/digital_rf/blob/master/python/digital_rf/digital_rf_hdf5.py#L793
+    # https://github.com/MITHaystack/digital_rf/blob/master/python/digital_rf/digital_rf_hdf5.py#L793 #noqa: E501
     drf_file_objs = file_queryset.filter(
         name__startswith="rf@",
     )
 
     # sort the rf data file objs
     # use the same sorting as in ilsdrf():
-    # https://github.com/MITHaystack/digital_rf/blob/ca7d715f27d527a11125dbd4c5971627c30efe31/python/digital_rf/list_drf.py#L253
+    # https://github.com/MITHaystack/digital_rf/blob/ca7d715f27d527a11125dbd4c5971627c30efe31/python/digital_rf/list_drf.py#L253 #noqa: E501
     # should return the lowest timestamp first
     drf_file_objs = drf_file_objs.order_by("name")
+
+    if drf_file_objs.count() == 0:
+        msg = "No RF sample data files found"
+        log.error(msg)
+        return None, None
 
     # get the first and last rf data file names
     first_drf_data_file_name = drf_file_objs.first().name
@@ -49,10 +56,11 @@ def _get_drf_sample_file_name_bounds(file_queryset: QuerySet[File]) -> tuple[str
     return first_drf_data_file_name, last_drf_data_file_name
 
 
-def _get_dmd_first_sample_file_name(file_queryset: QuerySet[File]) -> str:
+def _get_dmd_first_sample_file_name(file_queryset: QuerySet[File]) -> str | None:
     """Get the first sample file name for a DigitalRF capture."""
-    # follows the process for getting the bounds from DigitalMetadataReader.read_flatdict()
-    # https://github.com/MITHaystack/digital_rf/blob/ca7d715f27d527a11125dbd4c5971627c30efe31/python/digital_rf/digital_metadata.py#L627
+    # follows the process for getting the bounds from
+    # DigitalMetadataReader read_flatdict() function
+    # https://github.com/MITHaystack/digital_rf/blob/ca7d715f27d527a11125dbd4c5971627c30efe31/python/digital_rf/digital_metadata.py#L627 #noqa: E501
     dmd_file_objs = file_queryset.filter(
         name__startswith="metadata@",
     )
@@ -60,20 +68,29 @@ def _get_dmd_first_sample_file_name(file_queryset: QuerySet[File]) -> str:
     # sort the dmd file objs
     dmd_file_objs = dmd_file_objs.order_by("name")
 
+    if dmd_file_objs.count() == 0:
+        msg = "No metadata sample files found"
+        log.error(msg)
+        return None
+
     # get the first dmd file name
     return dmd_file_objs.first().name
 
 
 def _check_fetch_conditions(
-    file_name: str, capture_type: CaptureType, file_queryset: QuerySet[File]
+    file_name: str,
+    capture_type: CaptureType,
+    file_queryset: QuerySet[File],
 ) -> bool:
     """
-    Check if the contents of the given files should be added to the given directory from MinIO.
+    Check if the contents of the given files should be added
+    to the given directory from MinIO.
 
     Args:
         file_name: The name of the file to check
         capture_type: The type of capture
-        file_queryset: The queryset of files to get the bounds and first sample file name from
+        file_queryset: The queryset of files to get the bounds
+        and first sample file name from
     Returns:
         True if the file should be fetched, False otherwise
     """
@@ -94,11 +111,13 @@ def _check_fetch_conditions(
             first_dmd_data_file_name,
         ):
             msg = f"""
-                Some files that are required to get sample bounds for DRF captures are missing:
+                Some files that are required to get sample bounds for DRF captures
+                are missing:
                 RF data start file: {first_drf_data_file_name or "Not found"}
                 RF data end file: {last_drf_data_file_name or "Not found"}
                 Metadata start file: {first_dmd_data_file_name or "Not found"}
-                Metadata extraction will fail without these file contents loaded correctly.
+                Metadata extraction will fail without these file contents
+                loaded correctly.
             """
             log.error(msg)
             raise ValueError(msg)
