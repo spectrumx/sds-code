@@ -49,8 +49,7 @@
                             {% csrf_token %}
                             <!-- Error alert container -->
                             <div id="formErrors"
-                                 class="alert alert-danger bg-danger-subtle text-danger mb-4 form-error-container"
-                                 style="display: none">
+                                 class="alert alert-danger bg-danger-subtle text-danger mb-4 form-error-container">
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-exclamation-triangle-fill me-2"></i>
                                     <div class="error-content"></div>
@@ -171,12 +170,17 @@
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script src="{% static 'webpack_bundles/js/vendors.js' %}"></script>
         <script src="{% static 'webpack_bundles/js/project.js' %}"></script>
+        {# djlint:off #}
         <script>
             document.addEventListener('DOMContentLoaded', () => {
                 // Wait for webpack bundles to load
                 const interval = setInterval(() => {
                     if (window.SearchHandler && window.FormHandler) {
                         clearInterval(interval);
+
+                        // Note: the linter's formatting fixes break the page
+                        // Causes - Uncaught SyntaxError: expected property name, got '{'
+                        // Template literals need exact formatting
 
                         // Get initial selected captures and files
                         const initialCaptures = {{ selected_captures|safe }};
@@ -185,7 +189,7 @@
                         // Get initial capture details from Django context
                         const initialCaptureDetails = {{ selected_captures_details_json|safe }};
                         const initialFileDetails = {{ selected_files_details_json|safe }};
-                        
+
                         // Initialize form handler with initial values
                         const formHandler = new FormHandler({
                             formId: 'datasetForm',
@@ -235,6 +239,7 @@
                     }
                 }, 100);
             });
-        </script>
+</script>
+        {# djlint:on #}
     {% endblock extra_js %}
 {% endblock content %}
