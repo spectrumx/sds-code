@@ -48,5 +48,5 @@ test:
 	@echo "Running tests"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest
 
-	# Django's test runner: obsolete, subset of pytest tests, left as reference.
-	# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0
+	@# Django's test runner: obsolete, subset of pytest tests, left as reference.
+	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0
