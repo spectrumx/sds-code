@@ -34,6 +34,7 @@ from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
@@ -312,7 +313,10 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        base_dir = f"/files/{self.request.user.email}"
+        base_dir = sanitize_path_rel_to_user(
+            unsafe_path="/",
+            request=self.request,
+        )
 
         # Check if we're editing an existing dataset
         dataset_uuid = self.request.GET.get("dataset_uuid", None)
@@ -375,7 +379,10 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                     return JsonResponse({"error": form.errors}, status=400)
 
                 if "search_files" in request.GET:
-                    base_dir = f"/files/{request.user.email}"
+                    base_dir = sanitize_path_rel_to_user(
+                        unsafe_path="/",
+                        request=self.request,
+                    )
                     form = FileSearchForm(request.GET)
                     if form.is_valid():
                         files = self.search_files(form.cleaned_data)
