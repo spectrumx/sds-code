@@ -91,6 +91,61 @@ def test_paginator_dry_run_ingest(gateway: GatewayClient) -> None:
 @pytest.mark.parametrize(
     argnames="fake_files",
     argvalues=[
+        {"file_count": 3},  # change `target_count` below
+    ],
+    indirect=True,
+)
+def test_paginator_bool_non_empty(
+    gateway: GatewayClient, fake_files: Generator[File]
+) -> None:
+    """A non-empty paginator should evaluate to True."""
+    raw_first_page = _get_raw_page(
+        fake_files=fake_files,
+        target_count=3,
+        page_size=3,
+    )
+    non_empty_paginator = Paginator[File](
+        Entry=File,
+        gateway=gateway,
+        sds_path="/path/to/files",
+        page_size=3,
+        dry_run=False,
+    )
+
+    with patch.object(gateway, attribute="list_files", return_value=raw_first_page):
+        assert non_empty_paginator, "Paginator should evaluate to True when not empty"
+
+
+@pytest.mark.parametrize(
+    argnames="fake_files",
+    argvalues=[
+        {"file_count": 0},  # change `target_count` below
+    ],
+    indirect=True,
+)
+def test_paginator_bool_empty(
+    gateway: GatewayClient, fake_files: Generator[File]
+) -> None:
+    """An empty paginator should evaluate to False."""
+    raw_empty_page = _get_raw_page(
+        fake_files=fake_files,
+        target_count=0,
+        page_size=3,
+    )
+    empty_paginator = Paginator[File](
+        Entry=File,
+        gateway=gateway,
+        sds_path="/path/to/files",
+        page_size=3,
+        dry_run=False,
+    )
+    with patch.object(gateway, attribute="list_files", return_value=raw_empty_page):
+        assert not empty_paginator, "Paginator should evaluate to False when empty"
+
+
+@pytest.mark.parametrize(
+    argnames="fake_files",
+    argvalues=[
         {"file_count": 4},  # change `target_count` below
     ],
     indirect=True,
@@ -191,9 +246,14 @@ def _get_raw_page(
 ) -> bytes:
     """Consumes the `fake_files` generator and returns a page of serialized files."""
     fake_files_iter: Generator[File] = iter(fake_files)
-    first_page_results = [
-        next(fake_files_iter).model_dump_json(indent=4) for _ in range(page_size)
-    ]
+    try:
+        first_page_results = [
+            next(fake_files_iter).model_dump_json(indent=4) for _ in range(page_size)
+        ]
+    except StopIteration:
+        # raised only when the generator is empty: the usual StopIteration
+        # (from exhausting a non-empty gen) will be caught by the for loop above.
+        first_page_results = []
     raw_page_prefix = f'{{"count": {target_count}, "results": ['
     raw_page_suffix = "]}"
     raw_page_str = raw_page_prefix + ",".join(first_page_results) + raw_page_suffix

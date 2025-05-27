@@ -157,6 +157,13 @@ class Paginator(Generic[T]):
             self._fetch_next_page()
         return self._total_matches
 
+    def __bool__(self) -> bool:
+        """Returns True if there are entries to iterate over."""
+        if not self._has_fetched:
+            self._debug("Fetching the first page of results.")
+            self._fetch_next_page()
+        return self._total_matches > 0
+
     @property
     def _total_pages(self) -> int:
         """Calculates the total number of pages."""
