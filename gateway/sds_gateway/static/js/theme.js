@@ -50,10 +50,10 @@ export const setBootstrapTheme = () => {
 			.querySelector("svg use")
 			.getAttribute("href");
 
-		document.querySelectorAll("[data-bs-theme-value]").forEach((element) => {
+		for (const element of document.querySelectorAll("[data-bs-theme-value]")) {
 			element.classList.remove("active");
 			element.setAttribute("aria-pressed", "false");
-		});
+		}
 
 		btnToActive.classList.add("active");
 		btnToActive.setAttribute("aria-pressed", "true");
@@ -78,13 +78,15 @@ export const setBootstrapTheme = () => {
 	window.addEventListener("DOMContentLoaded", () => {
 		showActiveTheme(getPreferredTheme());
 
-		document.querySelectorAll("[data-bs-theme-value]").forEach((toggle) => {
+		// use for...of for better readability and consistency
+		const themeToggles = document.querySelectorAll("[data-bs-theme-value]");
+		for (const toggle of themeToggles) {
 			toggle.addEventListener("click", () => {
 				const theme = toggle.getAttribute("data-bs-theme-value");
 				setStoredTheme(theme);
 				setTheme(theme);
 				showActiveTheme(theme, true);
 			});
-		});
+		}
 	});
 };
