@@ -20,7 +20,7 @@ install:
 gact:
 	# install gh-act with:
 	# 	gh extension install nektos/gh-act
-	echo Running GitHub Actions locally for "$(GIT_ROOT)";
+	@echo Running GitHub Actions locally for "$(GIT_ROOT)";
 	cd "$(GIT_ROOT)" && \
 	gh act \
 		--workflows "$(GIT_ROOT)/.github/workflows" \
@@ -28,7 +28,7 @@ gact:
 
 # CODE QUALITY
 pyright:
-	echo Running Pyright locally for "$(GIT_ROOT)";
+	@echo Running Pyright locally for "$(GIT_ROOT)";
 	cd "$(GIT_ROOT)" && \
 	gh act --workflows "$(GIT_ROOT)/.github/workflows" --job pyright
 
@@ -63,14 +63,14 @@ test-verbose:
 		--capture=no
 
 test-integration:
-	echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"; \
+	@echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"; \
 	echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
 	uv run --resolution highest -p $(PYTHON_VERSION) pytest \
 		-m "$(TEST_MARKER_INTEGRATION)" \
 		tests
 
 test-integration-verbose:
-	echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"; \
+	@echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"; \
 	echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
 	uv run --resolution highest -p $(PYTHON_VERSION) pytest \
 		-m "$(TEST_MARKER_INTEGRATION)" \
@@ -79,19 +79,20 @@ test-integration-verbose:
 		tests
 
 test-all:
-	echo -e "\n\t\033[34mRunning all local (non-integration) tests\033[0m\n"
-	echo -e "\n\t\033[34mRunning tests against the highest dep versions and generating reports\033[0m\n"
+	@echo -e "\n\t\033[34mRunning all local (non-integration) tests\033[0m\n"
+	@echo -e "\n\t\033[34mRunning tests against the highest dep versions and generating reports\033[0m\n"
 	$(MAKE) test
-	echo -e "\n\t\033[34mRunning tests against the lowest dep versions vs. all supported python versions\033[0m\n"
+	@echo -e "\n\t\033[34mRunning tests against the lowest dep versions vs. all supported python versions\033[0m\n"
 	for version in $(SUPPORTED_PYTHON_VERSIONS); do \
 		echo -e "\n\t\033[34mRunning lower bound tests against Python $$version\033[0m\n"; \
-		$(MAKE) test-lowest PYTHON_VERSION=$$version; \
+		$(MAKE) test-lowest PYTHON_VERSION=$$version || \
+		{ echo -e "\n\t\033[31mTests failed for Python $$version\033[0m\n"; exit 1; }; \
 	done
-	echo -e "\n\t\033[34mRestoring highest dep versions\033[0m\n"
+	@echo -e "\n\t\033[34mRestoring highest dep versions\033[0m\n"
 	uv sync --resolution highest --dev
 
 check-acceptance:
-	echo -e "\n\t\033[34mRunning acceptance checks using current environment \033[33m(NOT BUILT ARTIFACT)\033[0m\n"
+	@echo -e "\n\t\033[34mRunning acceptance checks using current environment \033[33m(NOT BUILT ARTIFACT)\033[0m\n"
 	uv run --no-cache -p $(PYTHON_VERSION) tests/e2e_examples/check_build_acceptance.py
 
 serve-coverage:
@@ -113,13 +114,13 @@ update:
 
 build:
 	uv build --no-cache
-	echo -e "\n\t\033[32mRunning smoke tests on the built package\033[0m\n"
+	@echo -e "\n\t\033[32mRunning smoke tests on the built package\033[0m\n"
 	uv run --no-cache --isolated --no-project -p $(PYTHON_VERSION) --with dist/*.tar.gz tests/e2e_examples/check_build_acceptance.py
 	# clean-up generated files
 	rm my_spectrum_files/rf_run_*.csv && rmdir my_spectrum_files
-	echo -e "\n\t\033[32mBuilt package:\033[0m\n"
+	@echo -e "\n\t\033[32mBuilt package:\033[0m\n"
 	tar -tvf dist/*.tar.gz | sort -k6
-	echo -e "\n\t\033[34mTo publish it, run 'make publish'.\033[0m\n\n"
+	@echo -e "\n\t\033[34mTo publish it, run 'make publish'.\033[0m\n\n"
 
 # PUBLISH
 publish:
