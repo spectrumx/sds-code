@@ -11,6 +11,7 @@ from loguru import logger as log
 from pydantic import BaseModel
 from spectrumx.client import Client
 from spectrumx.errors import CaptureError
+from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureType
 from spectrumx.utils import get_random_line
 
@@ -278,13 +279,23 @@ def test_capture_listing_rh(integration_client: Client) -> None:
     argvalues=[
         [
             *PassthruEndpoints.capture_listing(),
+            *PassthruEndpoints.capture_creation(),
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
         ]
     ],
     indirect=True,
 )
 def test_capture_listing_all(integration_client: Client) -> None:
     """Tests reading and listing all types of captures."""
+    # create a capture if none are present
     captures = integration_client.captures.listing()
+    if not captures:
+        _create_rh_capture(
+            rh_sample_top_level_dir=dir_integration_data / "captures" / "radiohound",
+            integration_client=integration_client,
+        )
+        captures = integration_client.captures.listing()
     assert len(captures) > 0, "At least one capture should be present"
     for capture in captures:
         assert capture.uuid is not None, "Capture UUID should not be None"
@@ -293,6 +304,9 @@ def test_capture_listing_all(integration_client: Client) -> None:
             f"{CaptureType.__members__.values()}"
         )
         assert capture.top_level_dir is not None, "Top level dir should not be None"
+        assert capture.created_at is not None, (
+            "Capture created_at timestamp should not be None"
+        )
 
 
 @pytest.mark.integration
@@ -849,6 +863,43 @@ def _upload_assets(
         f"No failed uploads should be present: {failed_results}"
     )
     log.debug(f"Uploaded {len(success_results)} assets.")
+
+
+def _create_rh_capture(
+    rh_sample_top_level_dir: Path,
+    integration_client: Client,
+) -> Capture:
+    """Helper to create a RadioHound capture.
+
+    Note this deletes all existing RH captures under this user with the same scan group.
+    """
+    # ARRANGE
+    radiohound_data = load_rh_data(rh_sample_top_level_dir)
+    scan_group = radiohound_data["scan_group"]
+
+    # suffix path_after_capture_data with a random name to avoid conflicts between runs
+    rel_path_capture = rh_sample_top_level_dir.relative_to(dir_integration_data)
+    random_suffix = get_random_line(10, include_punctuation=False)
+    rel_path_capture = PurePosixPath(rel_path_capture) / f"test-{random_suffix}"
+
+    _upload_assets(
+        integration_client=integration_client,
+        sds_path=rel_path_capture,
+        local_path=rh_sample_top_level_dir,
+    )
+
+    # delete all captures with that scan group to avoid conflicts
+    _delete_rh_captures_by_scan_group(
+        integration_client=integration_client,
+        scan_group=scan_group,
+    )
+
+    capture_top_level = PurePosixPath("/") / rel_path_capture
+    return integration_client.captures.create(
+        top_level_dir=capture_top_level,
+        scan_group=scan_group,
+        capture_type=CaptureType.RadioHound,
+    )
 
 
 def _delete_rh_captures_by_scan_group(
