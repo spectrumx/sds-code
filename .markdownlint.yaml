@@ -37,3 +37,6 @@ ul-indent:
 # MD004: Header style
 ul-style:
     style: consistent
+
+# MD059: Link text should be descriptive
+descriptive-link-text: false
