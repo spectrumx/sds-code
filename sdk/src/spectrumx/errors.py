@@ -8,6 +8,7 @@ from typing import TypeVar
 
 from spectrumx.utils import log_user_error
 
+# python 3.10 backport
 if sys.version_info < (3, 11):  # noqa: UP036
     from typing_extensions import Self  # noqa: UP035 # Required backport
 else:

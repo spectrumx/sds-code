@@ -5,6 +5,7 @@ from http import HTTPStatus
 
 from spectrumx.utils import is_test_env
 
+# python 3.11 backport
 # Backport fixes to older versions
 if sys.version_info < (3, 12):  # noqa: UP036 # pragma: no cover
     HTTPStatus.is_informational = property(lambda s: 100 <= s <= 199)  # noqa: PLR2004
