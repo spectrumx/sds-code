@@ -361,4 +361,5 @@ def _generate_capture(capture_type: CaptureType) -> Capture:
         top_level_dir=PurePosixPath("/"),
         uuid=uuid4(),
         files=[],
+        created_at=datetime.now(UTC),
     )
