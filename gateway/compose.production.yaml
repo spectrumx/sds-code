@@ -143,6 +143,7 @@ services:
             dockerfile: ./compose/production/postgres/Dockerfile
         image: sds-gateway-prod-postgres
         container_name: sds-gateway-prod-postgres
+        command: -c 'max_connections=300'
         volumes:
             - sds-gateway-prod-postgres-data:/var/lib/postgresql/data
             - sds-gateway-prod-postgres-data-backups:/backups
