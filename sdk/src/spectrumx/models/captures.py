@@ -5,6 +5,7 @@ from datetime import datetime
 
 from spectrumx.models.base import SDSModel
 
+# python 3.10 backport
 if sys.version_info < (3, 11):  # noqa: UP036
     from backports.strenum import StrEnum  # noqa: UP035 # Required backport
 else:

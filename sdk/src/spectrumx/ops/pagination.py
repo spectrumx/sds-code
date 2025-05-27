@@ -11,6 +11,7 @@ from typing import Any
 from typing import Generic
 from typing import TypeVar
 
+# python 3.10 backport
 if sys.version_info < (3, 11):  # noqa: UP036
     from typing_extensions import Self  # noqa: UP035 # Required backport
 else:
