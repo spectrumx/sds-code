@@ -47,8 +47,11 @@ def key_in_dict_partial(
     return None
 
 
-def read_metadata_by_channel(data_path: Path, channel_name: str):
-    """Reads Digital RF metadata file."""
+def read_metadata_by_channel(
+    data_path: Path,
+    channel_name: str,
+) -> dict[str, typing.Any]:
+    """Reads Digital RF metadata."""
 
     rf_reader = drf.DigitalRFReader(str(data_path))
     bounds_raw = rf_reader.get_bounds(channel_name)
@@ -66,17 +69,23 @@ def read_metadata_by_channel(data_path: Path, channel_name: str):
     drf_properties["end_bound"] = bounds.end / drf_properties["samples_per_second"]
 
     # initialize the digital metadata reader
-    md_reader = typing.cast(
-        "DigitalMetadataReader",
-        rf_reader.get_digital_metadata(channel_name),
-    )
-    dmd_properties = md_reader.read_flatdict(
-        start_sample=bounds.start,
-        method="ffill",
-    )
-    if not isinstance(dmd_properties, dict):
-        msg = "Expected dmd_properties to be a dictionary"
-        raise TypeError(msg)
+    dmd_properties = {}
+    try:
+        md_reader = typing.cast(
+            "DigitalMetadataReader",
+            rf_reader.get_digital_metadata(channel_name),
+        )
+    except OSError as e:
+        msg = f"No digital metadata for channel '{channel_name}': {e}"
+        log.warning(msg)
+    else:
+        dmd_properties = md_reader.read_flatdict(
+            start_sample=bounds.start,
+            method="ffill",
+        )
+        if not isinstance(dmd_properties, dict):
+            msg = "Expected dmd_properties to be a dictionary"
+            raise TypeError(msg)
 
     # Merge the flattened dictionaries
     return {
