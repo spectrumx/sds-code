@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 
 User = get_user_model()
 
+test_user_credentials = {
+    "email": "testuser@example.com",
+    "password": "testpassword",
+    "is_approved": True,
+}
+
 
 def try_get_bucket(client):
     try:
@@ -50,14 +56,12 @@ class ReconstructRHFileTreeTest(APITestCase):
         self.user = cast(
             "UserModel",
             User.objects.create(
-                email="testuser@example.com",
-                password="testpassword",  # noqa: S106
-                is_approved=True,
+                **test_user_credentials,
             ),
         )
 
         # Create test directory structure with user's email prefix
-        self.top_level_dir = Path("/files/testuser@example.com/rh_test_dir/")
+        self.top_level_dir = Path(f"/files/{self.user.email}/rh_test_dir/")
         self.rh_test_dir = "/rh_test_dir"
 
         # Create sample RH metadata files
@@ -172,7 +176,7 @@ class ReconstructRHFileTreeTest(APITestCase):
                 target_dir=Path(temp_dir),
                 virtual_top_dir=self.top_level_dir,
                 owner=self.user,
-                drf_capture_type=CaptureType.RadioHound,
+                capture_type=CaptureType.RadioHound,
                 rh_scan_group=self.scan_group,
                 verbose=True,
             )
@@ -185,12 +189,16 @@ class ReconstructRHFileTreeTest(APITestCase):
                 assert local_file in self.matching_files
                 assert local_file not in self.non_matching_files
 
-            # Verify files were reconstructed
+            # verify files were reconstructed
             for local_file in files:
                 reconstructed_path = reconstructed_root / local_file.name
                 assert reconstructed_path.exists()
 
-                # Verify content
+                # verify content
                 with reconstructed_path.open() as f:
                     content = json.load(f)
                     assert content["scan_group"] == str(self.scan_group)
+
+
+class ReconstructDRFFileTreeTest(APITestCase):
+    """TODO: Test reconstructing Digital RF file trees."""

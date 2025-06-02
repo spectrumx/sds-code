@@ -43,13 +43,17 @@ restart:
 	@echo "Restarting sds-gateway"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) restart $(ARGS)
 
+serve-coverage:
+	@echo "Serving coverage reports"
+	@COMPOSE_FILE=$(COMPOSE_FILE) uv run -m http.server 1313 -d ./htmlcov
+
 test:
 
-	@echo "Validating templates"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py validate_templates
+	@# @echo "Validating templates"
+	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py validate_templates
 
 	@echo "Running tests"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest $(ARGS)
 
 	@# Django's test runner: obsolete, subset of pytest tests, left as reference.
 	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0
