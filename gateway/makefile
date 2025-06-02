@@ -45,7 +45,7 @@ restart:
 
 serve-coverage:
 	@echo "Serving coverage reports"
-	@COMPOSE_FILE=$(COMPOSE_FILE) uv run -m http.server 1313 -d ./htmlcov
+	@COMPOSE_FILE=$(COMPOSE_FILE) python -m http.server 1313 -d ./htmlcov
 
 test:
 

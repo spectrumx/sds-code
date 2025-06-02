@@ -54,8 +54,8 @@ def _get_drf_sample_file_name_bounds(
         return None, None
 
     # get the first and last rf data file names
-    first_drf_data_file_name = drf_file_objs.first().name
-    last_drf_data_file_name = drf_file_objs.last().name
+    first_drf_data_file_name = drf_file_objs.first().name  # pyright: ignore[reportOptionalMemberAccess]
+    last_drf_data_file_name = drf_file_objs.last().name  # pyright: ignore[reportOptionalMemberAccess]
 
     return first_drf_data_file_name, last_drf_data_file_name
 
@@ -78,7 +78,7 @@ def _get_dmd_first_sample_file_name(file_queryset: QuerySet[File]) -> str | None
         return None
 
     # get the first dmd file name
-    return dmd_file_objs.first().name
+    return dmd_file_objs.first().name  # pyright: ignore[reportOptionalMemberAccess]
 
 
 def _get_list_of_capture_files(
@@ -127,24 +127,10 @@ def _get_list_of_capture_files(
     match capture_type:
         case CaptureType.DigitalRF:
             assert drf_channel, "drf_channel must be provided for DigitalRF captures"
-            if verbose:
-                # log each file in the queryset for debugging and traceability
-                for file_entry in user_file_queryset:
-                    log.warning(
-                        f"File entry: name={file_entry.name}, "
-                        f"directory={file_entry.directory}",
-                    )
             # filter files where the channel name appears as a directory component
             filtered_files = user_file_queryset.filter(
                 directory__regex=rf".*/{drf_channel}(/.*)?$",
             )
-            if verbose:
-                # log each file in the queryset for debugging and traceability
-                for file_entry in filtered_files:
-                    log.warning(
-                        f"File entry: name={file_entry.name}, "
-                        f"directory={file_entry.directory}",
-                    )
         case _:
             filtered_files = user_file_queryset
 
@@ -167,35 +153,33 @@ def _get_filenames_of_interest_for_capture(
     # if capture type is digital rf, get the first and last rf data file names
     match capture_type:
         case CaptureType.DigitalRF:
-            first_drf_data_file_name = None
-            last_drf_data_file_name = None
-            first_dmd_data_file_name = None
             first_drf_data_file_name, last_drf_data_file_name = (
                 _get_drf_sample_file_name_bounds(file_queryset)
             )
             first_dmd_data_file_name = _get_dmd_first_sample_file_name(file_queryset)
 
-            msg = ""
+            fatal_msg = ""
             if first_drf_data_file_name:
                 filenames_of_interest.add(first_drf_data_file_name)
             else:
-                msg += "No RF data start file found.\n"
+                fatal_msg += "No RF data start file found (e.g. matching 'rf@*.h5').\n"
             if last_drf_data_file_name:
                 filenames_of_interest.add(last_drf_data_file_name)
             else:
-                msg += "No RF data end file found.\n"
+                fatal_msg += "No RF data end file found (e.g. matching 'rf@*.h5').\n"
+
+            # metadata@ files are optional
             if first_dmd_data_file_name:
-                # this one is optional
                 filenames_of_interest.add(first_dmd_data_file_name)
 
-            if msg:
-                msg = (
+            if fatal_msg:
+                fatal_msg = (
                     "Some files that are required to get sample bounds for DRF captures"
-                    f"are missing:\n{msg.strip()}\nMetadata extraction will fail "
+                    f"are missing:\n{fatal_msg.strip()}\nMetadata extraction will fail "
                     "without these file contents loaded correctly."
                 )
-                log.warning(msg)
-                raise ValueError(msg)
+                log.warning(fatal_msg)
+                raise ValueError(fatal_msg)
 
     if verbose:
         log.debug(
