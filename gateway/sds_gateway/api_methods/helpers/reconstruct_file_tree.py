@@ -132,7 +132,7 @@ def _get_list_of_capture_files(
                 for file_entry in user_file_queryset:
                     log.warning(
                         f"File entry: name={file_entry.name}, "
-                        f"directory={file_entry.directory}, id={file_entry.id}",
+                        f"directory={file_entry.directory}",
                     )
             # filter files where the channel name appears as a directory component
             filtered_files = user_file_queryset.filter(
@@ -143,7 +143,7 @@ def _get_list_of_capture_files(
                 for file_entry in filtered_files:
                     log.warning(
                         f"File entry: name={file_entry.name}, "
-                        f"directory={file_entry.directory}, id={file_entry.id}",
+                        f"directory={file_entry.directory}",
                     )
         case _:
             filtered_files = user_file_queryset

@@ -628,7 +628,6 @@ def test_capture_reading_drf(
     # ASSERT
 
     # basic capture information
-    log.error(f"{read_capture!s}")
     assert read_capture.files, "Expected a list of files associated to this capture"
     assert read_capture.uuid == capture.uuid, "Capture UUID should match"
     assert read_capture.capture_type == CaptureType.DigitalRF

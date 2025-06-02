@@ -231,6 +231,11 @@ class CaptureViewSet(viewsets.ViewSet):
                 {"detail": "The provided `top_level_dir` is invalid."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if capture_type == CaptureType.DigitalRF and not drf_channel:
+            return Response(
+                {"detail": "The `channel` field is required for DigitalRF captures."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         requester = cast("User", request.user)
 
