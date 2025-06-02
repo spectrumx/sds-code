@@ -185,18 +185,15 @@ def _get_filenames_of_interest_for_capture(
             else:
                 msg += "No RF data end file found.\n"
             if first_dmd_data_file_name:
+                # this one is optional
                 filenames_of_interest.add(first_dmd_data_file_name)
-            else:
-                msg += "No metadata start file found.\n"
 
             if msg:
-                msg = f"""
-                    Some files that are required to get sample bounds for DRF captures
-                    are missing:
-                    {msg.strip()}
-                    Metadata extraction will fail without these file contents
-                    loaded correctly.
-                """
+                msg = (
+                    "Some files that are required to get sample bounds for DRF captures"
+                    f"are missing:\n{msg.strip()}\nMetadata extraction will fail "
+                    "without these file contents loaded correctly."
+                )
                 log.warning(msg)
                 raise ValueError(msg)
 
