@@ -1,5 +1,3 @@
-# ruff: noqa: ERA001
-
 import json
 import uuid
 from pathlib import Path
