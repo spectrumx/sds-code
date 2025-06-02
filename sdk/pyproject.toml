@@ -116,11 +116,13 @@
 [tool.ruff]
     # Exclude a variety of commonly ignored directories.
     exclude = [
+        "__pypackages__",
+        "_build",
         ".bzr",
         ".direnv",
         ".eggs",
-        ".git",
         ".git-rewrite",
+        ".git",
         ".hg",
         ".mypy_cache",
         ".nox",
@@ -130,12 +132,10 @@
         ".svn",
         ".tox",
         ".venv",
-        "__pypackages__",
-        "_build",
+        "*/migrations/*.py",
         "buck-out",
         "build",
         "dist",
-        "*/migrations/*.py",
         "docs/",
         "node_modules",
         "staticfiles/*",

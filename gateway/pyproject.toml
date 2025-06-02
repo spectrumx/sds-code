@@ -96,9 +96,28 @@
 [tool.coverage]
 
     [tool.coverage.run]
+        # https://coverage.readthedocs.io/en/latest/config.html#run
+        branch  = true
         include = ["sds_gateway/**"]
-        omit    = ["*/migrations/*", "*/tests/*"]
+        omit    = ["*/__init__.py", "*/__main__.py", "*/tests/**/*.py", "usage.py", "*/migrations/*"]
         plugins = ["django_coverage_plugin"]
+
+    [tool.coverage.html]
+        directory = "tests/coverage"
+
+    [tool.coverage.report]
+        exclude_also = [
+            "def __repr__",
+            "if self.debug:",
+            "if settings.DEBUG",
+            "raise AssertionError",
+            "raise NotImplementedError",
+            "if 0:",
+            "if __name__ == .__main__.:",
+            "if TYPE_CHECKING:",
+            "class .*\\bProtocol\\):",
+            "@(abc\\.)?abstractmethod",
+        ]
 
 # ==== LINTING AND FORMATTING ====
 [tool.django-stubs]
@@ -427,11 +446,13 @@
 [tool.ruff]
     # Exclude a variety of commonly ignored directories.
     exclude = [
+        "__pypackages__",
+        "_build",
         ".bzr",
         ".direnv",
         ".eggs",
-        ".git",
         ".git-rewrite",
+        ".git",
         ".hg",
         ".mypy_cache",
         ".nox",
@@ -441,23 +462,26 @@
         ".svn",
         ".tox",
         ".venv",
-        "__pypackages__",
-        "_build",
+        "*/migrations/*.py",
         "buck-out",
         "build",
         "dist",
+        "docs/",
         "node_modules",
-        "venv",
-        "*/migrations/*.py",
         "staticfiles/*",
+        "venv",
     ]
-    # Same as Django: https://github.com/cookiecutter/cookiecutter-django/issues/4792.
-    indent-width   = 4
-    line-length    = 88
+    indent-width = 4
+    line-length = 88 # Same as Django: https://github.com/cookiecutter/cookiecutter-django/issues/4792
+    # IMPORTANT: in src, use paths from the root of the repository (starting with /)
+    src            = ["/gateway/", "/sdk/", "/sdk/src/"]
     target-version = "py312"
 
     [tool.ruff.lint]
         ignore = [
+            # https://docs.astral.sh/ruff/settings/#lint_ignore
+            "COM812", # disabled following ruff's recommendation
+            "ISC001", # disabled following ruff's recommendation
             "N811",   # Constant imports aliased to non-constant-style names (false positives with django)
             "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
             "S101",   # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
@@ -465,7 +489,7 @@
             "SIM102", # sometimes it's better to nest
             "UP038",  # Checks for uses of isinstance/issubclass that take a tuple
             # of types for comparison.
-            # Deactivated because it can make the code slow:
+            # UP038 deactivated because it can make the code slow:
             # https://github.com/astral-sh/ruff/issues/7871
         ]
         select = [
@@ -537,11 +561,15 @@
         # Allow unused variables when underscore-prefixed.
         dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
+        [tool.ruff.lint.isort]
+            force-single-line = true
+
+        [tool.ruff.lint.pylint]
+            # Controls PLR0913
+            max-args = 9
+
     [tool.ruff.format]
         indent-style              = "space"
         line-ending               = "auto"
         quote-style               = "double"
         skip-magic-trailing-comma = false
-
-        [tool.ruff.lint.isort]
-            force-single-line = true
