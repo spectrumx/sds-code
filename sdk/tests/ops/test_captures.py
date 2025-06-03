@@ -4,6 +4,7 @@
 import json
 import uuid as uuidlib
 from datetime import datetime
+from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -12,11 +13,13 @@ import responses
 from loguru import logger as log
 from pydantic import UUID4
 from spectrumx import Client
+from spectrumx.errors import SDSError
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
 
 from tests.conftest import get_captures_endpoint
+from tests.conftest import get_content_check_endpoint
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
@@ -268,6 +271,94 @@ def test_update_capture_dry_run(client: Client, sample_capture_uuid: UUID4) -> N
 
     # ACT & ASSERT - should not raise an exception
     client.captures.update(capture_uuid=sample_capture_uuid)
+
+
+def test_upload_capture_dry_run(client: Client, tmp_path: Path) -> None:
+    """Test uploading capture in dry run mode."""
+    # ARRANGE
+    client.dry_run = True
+
+    test_dir = tmp_path / "test_capture_dry"
+    test_dir.mkdir()
+    test_file = test_dir / "test.txt"
+    test_file.write_text("capture upload - dry run test")
+
+    capture_type = CaptureType.DigitalRF
+
+    # ACT
+    capture = client.upload_capture(
+        local_path=test_dir,
+        sds_path="/test/capture/dry-run",
+        capture_type=capture_type,
+    )
+
+    # ASSERT
+    assert capture is not None
+    assert capture.uuid is not None
+    assert capture.capture_type == capture_type
+    assert len(capture.files) == 0  # Dry run simulates empty files list
+
+
+def test_upload_capture_upload_fails(
+    client: Client, responses: responses.RequestsMock, tmp_path: Path
+) -> None:
+    """Test handling when file upload fails."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+
+    test_dir = tmp_path / "test_capture_fail"
+    test_dir.mkdir()
+    test_file = test_dir / "test.txt"
+    test_file.write_text("capture upload - fail test")
+
+    # mock upload to fail with 500 error
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=500,
+        json={"error": "Server error"},
+    )
+
+    # ACT & ASSERT
+    with pytest.raises(SDSError):
+        client.upload_capture(
+            local_path=test_dir,
+            sds_path="/test/capture/fail",
+            capture_type=CaptureType.DigitalRF,
+            raise_on_error=True,
+        )
+
+    # Test with raise_on_error=False
+    result = client.upload_capture(
+        local_path=test_dir,
+        sds_path="/test/capture/fail",
+        capture_type=CaptureType.DigitalRF,
+        raise_on_error=False,
+        verbose=False,
+    )
+
+    assert result is None
+
+
+def test_upload_capture_no_files(client: Client, tmp_path: Path) -> None:
+    """Test upload capture with an empty directory."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+
+    # Create empty directory
+    empty_dir = tmp_path / "empty_dir"
+    empty_dir.mkdir()
+
+    # ACT
+    result = client.upload_capture(
+        local_path=empty_dir,
+        sds_path="/test/capture/empty",
+        capture_type=CaptureType.DigitalRF,
+        verbose=False,
+    )
+
+    # ASSERT
+    assert result is None
 
 
 def test_capture_string_representation(sample_capture_data: dict[str, Any]) -> None:
