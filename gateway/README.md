@@ -10,6 +10,7 @@ Metadata management and web interface for SDS.
     + [Local deploy](#local-deploy)
     + [Debugging tips](#debugging-tips)
     + [Production deploy](#production-deploy)
+    + [OpenSearch Query Tips](#opensearch-query-tips)
 
 ## Development environment
 
@@ -99,6 +100,7 @@ For the local deploy:
 
     ```bash
     docker exec -it sds-gateway-local-app python manage.py createsuperuser
+    # follow the prompts to set the username/email and password
     ```
 
 5. Access the web interface:
@@ -109,31 +111,27 @@ For the local deploy:
 
 6. Create the MinIO bucket:
 
-    Go to [localhost:9001](http://localhost:9001) and create a bucket named `spectrumx` with the credentials set in `minio.env`.
+    Go to [localhost:9001](http://localhost:9001) and create a bucket named `spectrumx` with the credentials set in `minio.env`. Optionally apply a storage quota to this bucket (you can modify it later if needed).
 
 7. Run the test suite:
 
+    For a local deploy:
+
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py test --force-color
+    make test
     ```
 
-    Tests that run:
+    Template checks are also run as part of `make test`.
 
-    + `test_authenticate`
-    + `test_create_file`
-    + `test_retrieve_file`
-    + `test_retrieve_latest_file`
-    + `test_update_file`
-    + `test_delete_file`
-    + `test_file_contents_check`
-    + `test_download_file`
-    + `test_minio_health_check`
-    + `test_opensearch_health_check`
-
-8. Run template checks:
+    Alternatively, run them as:
 
     ```bash
     docker exec -it sds-gateway-local-app python manage.py validate_templates
+    docker exec -it sds-gateway-local-app pytest
+
+    # or with a production setting:
+    docker exec -it sds-gateway-prod-app python manage.py validate_templates
+    docker exec -it sds-gateway-prod-app pytest
     ```
 
 ## Debugging tips
@@ -150,17 +148,19 @@ For the local deploy:
 >
 > The production deploy uses the same host ports as the local one, just prefixed with `1`: (`8000` → `18000`).
 >
-> This means you can deploy both on the same machine e.g. dev/test/QA/staging and production as "local" and "prod"
-> respectively. This works as they also use different docker container, network, volume, and image names.
-> Traefik may be configured to route e.g. `sds.example.com` and `sds-dev.example.com` to the respective
-> the prod and local services respectively, using different container names and ports.
+> This means you can deploy both on the same machine e.g. dev/test/QA/staging and
+> production as "local" and "prod" respectively. This works as they also use different
+> docker container, network, volume, and image names. Traefik may be configured to route
+> e.g. `sds.example.com` and `sds-dev.example.com` to the prod and local services
+> respectively, using different container names and ports.
 
 Keep this in mind, however:
 
 > [!CAUTION]
 >
-> Due to the bind mounts of the local deploy, it's still recommended to use different copies of the
-> source code between a local and production deploy, even if they are on the same machine.
+> Due to the bind mounts of the local deploy, it's still recommended to use different
+> copies of the source code between a 'local' and 'production' deploy, even if they are
+> on the same machine.
 >
 
 1. **Set secrets**:
