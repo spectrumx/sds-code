@@ -12,7 +12,7 @@ from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
-from django.db.models.query import QuerySet as Queryset
+from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
 from django.http import HttpRequest
 from django.http import HttpResponse
@@ -222,7 +222,7 @@ class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[re
     slug_url_kwarg = "uuid"
     template_name = "users/file_detail.html"
 
-    def get_queryset(self) -> Queryset[File]:
+    def get_queryset(self) -> QuerySet[File]:
         return self.request.user.files.filter(is_deleted=False).all()
 
     def get_context_data(self, **kwargs):
@@ -480,7 +480,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 status=500,
             )
 
-    def _get_directory_tree(self, files: Queryset[File], base_dir: str) -> dict:
+    def _get_directory_tree(self, files: QuerySet[File], base_dir: str) -> dict:
         """Build a nested directory tree structure."""
         tree = {}
 
@@ -570,7 +570,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         tree["size"] = total_size
         tree["created_at"] = earliest_date
 
-    def _add_files_to_tree(self, files: Queryset[File], directory: str) -> list[dict]:
+    def _add_files_to_tree(self, files: QuerySet[File], directory: str) -> list[dict]:
         files_in_directory = files.filter(directory=directory)
         return [
             {

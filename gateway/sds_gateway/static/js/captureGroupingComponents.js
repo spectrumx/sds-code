@@ -908,7 +908,6 @@ class SearchHandler {
 	}
 
 	async handleSearch() {
-		console.log("handleSearch");
 		try {
 			// Get all input elements within the search container
 			const searchContainer = this.searchForm;
