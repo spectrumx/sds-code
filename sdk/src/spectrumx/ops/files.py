@@ -116,7 +116,6 @@ def is_valid_file(
     """
     file_mime = get_file_media_type(file_path)
     disallowed_mimes = [
-        "application/octet-stream",  # generic binary
         "application/x-msdownload",  # .exe
         "application/x-msdos-program",  # .com
         "application/x-msi",  # .msi

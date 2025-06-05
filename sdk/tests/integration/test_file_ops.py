@@ -49,7 +49,6 @@ def test_is_valid_file_allowed(temp_file_with_text_contents) -> None:
 def test_is_valid_file_disallowed(temp_file_with_text_contents) -> None:
     """Test the file validation function."""
     disallowed_mime_types = [
-        "application/octet-stream",  # generic binary
         "application/x-msdownload",  # .exe
         "application/x-msdos-program",  # .com
         "application/x-msi",  # .msi
