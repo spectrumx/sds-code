@@ -23,7 +23,7 @@ build:
 
 up:
 	@echo "Starting sds-gateway"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) up -d $(ARGS)
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) up -d --remove-orphans $(ARGS)
 
 logs:
 	@echo "Showing sds-gateway logs…"
