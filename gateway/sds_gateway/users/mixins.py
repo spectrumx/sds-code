@@ -1,8 +1,12 @@
+from typing import Any
+
 from django.contrib import messages
 from django.contrib.auth.mixins import AccessMixin
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.db.models import QuerySet
+from django.http import HttpResponseRedirect
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -14,14 +18,15 @@ from sds_gateway.api_methods.models import File
 class ApprovedUserRequiredMixin(AccessMixin):
     """Verify that the current user is approved."""
 
-    def dispatch(self, request, *args, **kwargs):
+    def dispatch(self, request, *args, **kwargs) -> HttpResponseRedirect:
         if not request.user.is_authenticated:
             return self.handle_no_permission()
         if not request.user.is_approved:
             messages.error(
-                request,
-                _(
-                    "Your account is not approved to use API features. Please contact the administrator.",  # noqa: E501
+                request=request,
+                message=_(
+                    "Your account is not approved to use API features. "
+                    "Please contact the administrator.",
                 ),
             )
             return redirect(reverse("home"))
@@ -31,14 +36,14 @@ class ApprovedUserRequiredMixin(AccessMixin):
 class Auth0LoginRequiredMixin(LoginRequiredMixin):
     """Custom mixin that redirects to Auth0 login instead of the default login page"""
 
-    def get_login_url(self):
+    def get_login_url(self) -> str:
         return reverse("auth0_login")
 
 
 class FormSearchMixin:
     """Mixin for search form in group captures view"""
 
-    def search_captures(self, search_data):
+    def search_captures(self, search_data) -> QuerySet[Capture, Capture]:
         queryset = Capture.objects.filter(owner=self.request.user)
 
         # Build a Q object for complex queries
@@ -55,7 +60,7 @@ class FormSearchMixin:
 
         return queryset.filter(q_objects).order_by("-created_at")
 
-    def search_files(self, search_data):
+    def search_files(self, search_data: dict[str, Any]) -> QuerySet[File, File]:
         # Only show files that are not associated with a capture
         queryset = File.objects.filter(
             owner=self.request.user,
@@ -91,7 +96,9 @@ class FormSearchMixin:
             }
         return {}
 
-    def get_paginated_response(self, queryset, page_size=10, page_param="page"):
+    def get_paginated_response(
+        self, queryset, page_size=10, page_param="page"
+    ) -> dict[str, Any]:
         paginator = Paginator(queryset, page_size)
         page = paginator.get_page(self.request.GET.get(page_param, 1))
 

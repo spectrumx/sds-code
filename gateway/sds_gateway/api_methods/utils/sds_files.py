@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from django.http import HttpRequest
 from loguru import logger as log
 from rest_framework.request import Request
 
@@ -8,7 +9,7 @@ from sds_gateway.users.models import User
 
 def sanitize_path_rel_to_user(
     unsafe_path: str,
-    request: Request | None = None,
+    request: Request | HttpRequest | None = None,
     user: User | None = None,
 ) -> Path | None:
     """Ensures a path is safe by making it relative to the user's root in SDS.
