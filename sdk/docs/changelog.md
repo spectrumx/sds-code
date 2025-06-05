@@ -1,9 +1,12 @@
 # SpectrumX SDK Changelog
 
-## `0.1.10` - 2025-xx-xx
+## `0.1.11` - 2025-06-xx
+
+## `0.1.10` - 2025-06-05
 
 + Features:
     + [**Added `created_at` to captures:**](https://github.com/spectrumx/sds-code/pull/106): captures now feature a `created_at` datetime attribute when this information is available.
+    + [**Allowing upload of sigmf-data files**](https://github.com/spectrumx/sds-code/pull/110): removed restriction of octet-stream files in uploads.
 
 ## `0.1.9` - 2025-05-08
 
