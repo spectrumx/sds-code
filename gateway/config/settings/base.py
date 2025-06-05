@@ -316,7 +316,7 @@ LOGGING: dict[str, Any] = {
     "root": {"level": "DEBUG", "handlers": ["console"]},
 }
 
-# Celery
+# CELERY
 # ------------------------------------------------------------------------------
 # if USE_TZ:
 #     # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-timezone
@@ -418,8 +418,8 @@ WEBPACK_LOADER: dict[str, dict[str, Any]] = {
 }
 # ------------------------------------------------------------------------------
 
-# Auth0 Stuff
-# Auth0 Configuration
+# AUTH0
+# ------------------------------------------------------------------------------
 SOCIALACCOUNT_PROVIDERS = {
     "auth0": {
         "AUTH0_URL": env("AUTH0_DOMAIN"),
@@ -442,3 +442,11 @@ SVI_SERVER_EMAIL: str = env(
     default="svi-server@spectrumx.crc.nd.edu",
 )
 SVI_SERVER_API_KEY: str = env("SVI_SERVER_API_KEY", default="svi-server-api-key")
+
+# BUSINESS LOGIC
+# ------------------------------------------------------------------------------
+# Whether new users are approved to generate API keys on creation or not.
+SDS_NEW_USERS_APPROVED_ON_CREATION: bool = env.bool(
+    "SDS_NEW_USERS_APPROVED_ON_CREATION",
+    default=False,
+)

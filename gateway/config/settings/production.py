@@ -188,10 +188,20 @@ if SENTRY_DSN:
         send_default_pii=False,
     )
 
-# django-rest-framework
+# DJANGO-REST-FRAMEWORK
 # -------------------------------------------------------------------------------
 # Tools that generate code samples can use SERVERS to point to the correct domain
 SPECTACULAR_SETTINGS["SERVERS"] = [
     {"url": "https://sds.crc.nd.edu", "description": "Production server"},
 ]
 # ------------------------------------------------------------------------------
+
+# ⚠️ Setting overrides for PRODUCTION
+
+# BUSINESS LOGIC
+# ------------------------------------------------------------------------------
+# Whether new users are approved to generate API keys on creation or not.
+SDS_NEW_USERS_APPROVED_ON_CREATION: bool = env.bool(
+    "SDS_NEW_USERS_APPROVED_ON_CREATION",
+    default=False,
+)

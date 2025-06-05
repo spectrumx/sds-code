@@ -49,13 +49,13 @@ EMAIL_BACKEND: str = env(
     default="django.core.mail.backends.console.EmailBackend",
 )
 
-# WhiteNoise
+# WHITENOISE
 # ------------------------------------------------------------------------------
 # http://whitenoise.evans.io/en/latest/django.html#using-whitenoise-in-development
 INSTALLED_APPS: list[str] = ["whitenoise.runserver_nostatic", *INSTALLED_APPS]
 
 
-# django-debug-toolbar
+# DJANGO-DEBUG-TOOLBAR
 # ------------------------------------------------------------------------------
 # https://django-debug-toolbar.readthedocs.io/en/latest/installation.html#prerequisites
 INSTALLED_APPS.extend(["debug_toolbar"])
@@ -100,7 +100,7 @@ if SENTRY_DSN:
         send_default_pii=False,
     )
 
-# Celery
+# CELERY
 # ------------------------------------------------------------------------------
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
@@ -109,3 +109,11 @@ if SENTRY_DSN:
 # ------------------------------------------------------------------------------
 WEBPACK_LOADER["DEFAULT"]["CACHE"] = not DEBUG
 # ------------------------------------------------------------------------------
+
+# BUSINESS LOGIC
+# ------------------------------------------------------------------------------
+# Whether new users are approved to generate API keys on creation or not.
+SDS_NEW_USERS_APPROVED_ON_CREATION: bool = env.bool(
+    "SDS_NEW_USERS_APPROVED_ON_CREATION",
+    default=True,
+)
