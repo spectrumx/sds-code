@@ -340,7 +340,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
         selected_files, selected_files_details = self._get_file_context(
-            existing_dataset, base_dir
+            existing_dataset, str(base_dir)
         )
         selected_captures, selected_captures_details = self._get_capture_context(
             existing_dataset
@@ -351,7 +351,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             {
                 "dataset_form": dataset_form,
                 "capture_search_form": CaptureSearchForm(),
-                "file_search_form": FileSearchForm(),
+                "file_search_form": FileSearchForm(user=self.request.user),
                 "selected_captures": json.dumps(
                     selected_captures, cls=DjangoJSONEncoder
                 ),
@@ -383,12 +383,22 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                         unsafe_path="/",
                         request=self.request,
                     )
-                    form = FileSearchForm(request.GET)
+                    form = FileSearchForm(request.GET, user=self.request.user)
                     if form.is_valid():
                         files = self.search_files(form.cleaned_data)
                         return JsonResponse(
                             {
-                                "tree": self._get_directory_tree(files, base_dir),
+                                "tree": self._get_directory_tree(files, str(base_dir)),
+                                "extension_choices": form.fields[
+                                    "file_extension"
+                                ].choices,
+                                "search_values": {
+                                    "file_name": form.cleaned_data.get("file_name", ""),
+                                    "file_extension": form.cleaned_data.get(
+                                        "file_extension", ""
+                                    ),
+                                    "directory": form.cleaned_data.get("directory", ""),
+                                },
                             },
                         )
                     return JsonResponse({"error": form.errors}, status=400)
@@ -470,7 +480,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 status=500,
             )
 
-    def _get_directory_tree(self, files, base_dir):
+    def _get_directory_tree(self, files: Queryset[File], base_dir: str) -> dict:
         """Build a nested directory tree structure."""
         tree = {}
 
@@ -531,7 +541,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         self._update_directory_stats(tree)
         return tree
 
-    def _update_directory_stats(self, tree):
+    def _update_directory_stats(self, tree: dict) -> None:
         """Update size and date stats for all directories in the tree."""
         # Process all directories first
         for dir_data in tree.get("children", {}).values():
@@ -560,7 +570,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         tree["size"] = total_size
         tree["created_at"] = earliest_date
 
-    def _add_files_to_tree(self, files, directory):
+    def _add_files_to_tree(self, files: Queryset[File], directory: str) -> list[dict]:
         files_in_directory = files.filter(directory=directory)
         return [
             {
@@ -574,7 +584,9 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             for file in files_in_directory
         ]
 
-    def _get_file_context(self, existing_dataset, base_dir):
+    def _get_file_context(
+        self, existing_dataset: Dataset, base_dir: str
+    ) -> tuple[list[dict], dict]:
         # Get selected files
         selected_files = []
         selected_files_details = {}
@@ -601,7 +613,9 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
         return selected_files, selected_files_details
 
-    def _get_capture_context(self, existing_dataset):
+    def _get_capture_context(
+        self, existing_dataset: Dataset
+    ) -> tuple[list[dict], dict]:
         # Get selected captures
         selected_captures = []
         selected_captures_details = {}

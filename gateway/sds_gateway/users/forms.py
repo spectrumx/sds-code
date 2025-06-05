@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from django import forms
@@ -5,6 +7,8 @@ from django.contrib.auth import forms as admin_forms
 from django.core.exceptions import ValidationError
 from django.forms import EmailField
 from django.utils.translation import gettext_lazy as _
+
+from sds_gateway.api_methods.models import File
 
 from .models import User
 
@@ -144,14 +148,50 @@ class CaptureSearchForm(forms.Form):
 
 
 class FileSearchForm(forms.Form):
-    search_term = forms.CharField(
-        label="Search Files",
+    file_name = forms.CharField(
+        label="File Name",
         required=False,
         widget=forms.TextInput(
             attrs={
                 "class": "form-control",
                 "id": "file-search",
-                "placeholder": "Enter search terms...",
+                "placeholder": "Enter file name...",
             }
         ),
     )
+    directory = forms.CharField(
+        label="Directory",
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "id": "directory"}),
+    )
+    file_extension = forms.ChoiceField(
+        label="File Extension",
+        required=False,
+        choices=[("", "All Extensions")],  # Default empty choice
+        widget=forms.Select(attrs={"class": "form-select", "id": "file-extension"}),
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user:
+            # Get distinct file extensions from user's files
+            extensions = (
+                File.objects.filter(owner=user, is_deleted=False)
+                .exclude(name="")
+                .values_list("name", flat=True)
+                .distinct()
+            )
+
+            # Extract unique extensions
+            unique_extensions = {
+                Path(name).suffix.lower()
+                for name in extensions
+                if Path(name).suffix.lower()
+            }
+
+            # Sort extensions and create choices list
+            extension_choices = [("", "All Extensions")] + [
+                (ext, ext) for ext in sorted(unique_extensions)
+            ]
+
+            self.fields["file_extension"].choices = extension_choices

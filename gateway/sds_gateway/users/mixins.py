@@ -62,8 +62,12 @@ class FormSearchMixin:
             capture__isnull=True,
         )
 
-        if search_data.get("search_term"):
-            queryset = queryset.filter(Q(name__icontains=search_data["search_term"]))
+        if search_data.get("file_name"):
+            queryset = queryset.filter(Q(name__icontains=search_data["file_name"]))
+        if search_data.get("directory"):
+            queryset = queryset.filter(Q(directory__icontains=search_data["directory"]))
+        if search_data.get("file_extension"):
+            queryset = queryset.filter(Q(name__endswith=search_data["file_extension"]))
 
         return queryset.order_by("-created_at")
 
