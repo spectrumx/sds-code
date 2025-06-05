@@ -90,7 +90,7 @@
         log_cli_level        = "WARN"
         log_date_format      = "%Y-%m-%d %H:%M:%S"
         minversion           = "8.0"
-        testpaths            = ["tests"]
+        testpaths            = ["sds_gateway"]
         verbosity_test_cases = 2
 
 [tool.coverage]
