@@ -54,46 +54,59 @@
                         aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <!-- Search Form -->
-                <div class="mb-3" id="files-search-form">
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <div class="form-group">
-                                <label for="file-search" class="form-label">Search Files</label>
-                                <div class="input-group">
-                                    <input type="text"
-                                           class="form-control"
-                                           id="file-search"
-                                           name="search_term"
-                                           placeholder="Search files..." />
-                                    <button type="button" class="btn btn-primary" id="search-files">Search</button>
-                                    <button type="button"
-                                            class="btn btn-outline-secondary"
-                                            id="clear-files-search">Clear</button>
+                <div class="container-fluid">
+                    <!-- Search Form -->
+                    <div class="mb-3" id="files-search-form">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label for="file-search" class="form-label">Search Files</label>
+                                    <div class="input-group">
+                                        <input type="text"
+                                               class="form-control"
+                                               id="file-name"
+                                               name="file_name"
+                                               placeholder="Enter file name..." />
+                                        <input type="text"
+                                               class="form-control"
+                                               id="file-directory"
+                                               name="directory"
+                                               placeholder="Enter directory path..." />
+                                        <select class="form-select"
+                                                id="file-extension"
+                                                name="file_extension"
+                                                aria-label="File extension filter">
+                                            <!-- Options will be dynamically populated by FileSearchForm -->
+                                        </select>
+                                        <button type="button" class="btn btn-primary" id="search-files">Search</button>
+                                        <button type="button"
+                                                class="btn btn-outline-secondary"
+                                                id="clear-files-search">Clear</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                <!-- File Tree Table -->
-                <div class="table-responsive mt-3">
-                    <table class="table table-striped" id="file-tree-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="w-5"></th>
-                                <th class="w-30">Name</th>
-                                <th class="w-15">Type</th>
-                                <th class="w-20">Size</th>
-                                <th class="w-30">Created At</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- File tree will be dynamically inserted here -->
-                        </tbody>
-                    </table>
-                </div>
-                <div id="files-pagination" class="mt-3">
-                    <!-- Pagination will be dynamically inserted here -->
+                    <!-- File Tree Table with fixed height and scroll -->
+                    <div class="table-responsive file-tree-container">
+                        <table class="table table-striped" id="file-tree-table">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th class="w-5"></th>
+                                    <th class="w-30">Name</th>
+                                    <th class="w-15">Type</th>
+                                    <th class="w-20">Size</th>
+                                    <th class="w-30">Created At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- File tree will be dynamically inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="files-pagination" class="mt-3">
+                        <!-- Pagination will be dynamically inserted here -->
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

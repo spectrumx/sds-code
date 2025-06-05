@@ -888,12 +888,19 @@ class SearchHandler {
 					const data = await this.fetchCaptures(params);
 					this.updateCapturesTable(data);
 				} else {
-					const searchTerm =
-						document.getElementById("file-search")?.value || "";
-					const data = await this.fetchFiles({
-						search_term: searchTerm,
+					// Get current search values for files
+					const fileNameInput = document.getElementById("file-name");
+					const directoryInput = document.getElementById("file-directory");
+					const extensionSelect = document.getElementById("file-extension");
+
+					const params = {
+						file_name: fileNameInput?.value || "",
+						directory: directoryInput?.value || "",
+						file_extension: extensionSelect?.value || "",
 						page: page,
-					});
+					};
+
+					const data = await this.fetchFiles(params);
 					this.updateFilesTable(data);
 				}
 			});
@@ -901,6 +908,7 @@ class SearchHandler {
 	}
 
 	async handleSearch() {
+		console.log("handleSearch");
 		try {
 			// Get all input elements within the search container
 			const searchContainer = this.searchForm;
@@ -945,7 +953,39 @@ class SearchHandler {
 				this.updateCapturesTable(data);
 			} else {
 				if (data.tree) {
-					this.renderFileTree(data.tree);
+					// Update file extension select options while preserving current selection
+					const extensionSelect = document.getElementById("file-extension");
+					if (extensionSelect && data.extension_choices) {
+						const currentValue = extensionSelect.value;
+						extensionSelect.innerHTML = data.extension_choices
+							.map(
+								([value, label]) =>
+									`<option value="${value}" ${value === currentValue ? "selected" : ""}>${label}</option>`,
+							)
+							.join("");
+					}
+
+					// Restore search values if they exist
+					if (data.search_values) {
+						const fileNameInput = document.getElementById("file-name");
+						const directoryInput = document.getElementById("file-directory");
+
+						if (fileNameInput) {
+							fileNameInput.value = data.search_values.file_name || "";
+						}
+						if (extensionSelect) {
+							extensionSelect.value = data.search_values.file_extension || "";
+						}
+						if (directoryInput) {
+							directoryInput.value = data.search_values.directory || "";
+						}
+					}
+
+					const searchTermEntered =
+						data.search_values.file_name ||
+						data.search_values.directory ||
+						data.search_values.file_extension;
+					this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
 				}
 			}
 
@@ -1053,37 +1093,39 @@ class SearchHandler {
 		}
 	}
 
-	async loadFileTree(searchTerm = "") {
+	async loadFileTree() {
 		try {
-			const data = await this.fetchFiles({ search_term: searchTerm });
+			// Get current values from form fields
+			const fileNameInput = document.getElementById("file-name");
+			const directoryInput = document.getElementById("file-directory");
+			const extensionSelect = document.getElementById("file-extension");
+
+			const params = {
+				file_name: fileNameInput?.value || "",
+				directory: directoryInput?.value || "",
+				file_extension: extensionSelect?.value || "",
+			};
+
+			const data = await this.fetchFiles(params);
 			if (!data.tree) {
 				console.error("No tree data received:", data);
 				return;
 			}
-			this.renderFileTree(data.tree);
+
+			// Update file extension select options
+			if (extensionSelect && data.extension_choices) {
+				extensionSelect.innerHTML = data.extension_choices
+					.map(([value, label]) => `<option value="${value}">${label}</option>`)
+					.join("");
+			}
+
+			// Pass the search parameters to renderFileTree
+			const searchTermEntered =
+				params.file_name || params.directory || params.file_extension;
+			this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
 
 			// Initialize search handlers after tree is loaded
-			const searchBtn = document.getElementById("search-files-btn");
-			const clearBtn = document.getElementById("clear-search-btn");
-			const searchInput = document.getElementById("file-search");
-
-			if (searchBtn && clearBtn && searchInput) {
-				// Remove any existing listeners
-				const newSearchBtn = searchBtn.cloneNode(true);
-				const newClearBtn = clearBtn.cloneNode(true);
-				searchBtn.parentNode.replaceChild(newSearchBtn, searchBtn);
-				clearBtn.parentNode.replaceChild(newClearBtn, clearBtn);
-
-				// Add new listeners
-				newSearchBtn.addEventListener("click", () => {
-					this.loadFileTree(searchInput.value);
-				});
-
-				newClearBtn.addEventListener("click", () => {
-					searchInput.value = "";
-					this.loadFileTree();
-				});
-			}
+			this.initializeEventListeners();
 		} catch (error) {
 			console.error("Error loading file tree:", error);
 		}
@@ -1097,7 +1139,13 @@ class SearchHandler {
 		return `/${currentPath}`;
 	}
 
-	renderFileTree(tree, parentElement = null, level = 0, currentPath = "") {
+	renderFileTree(
+		tree,
+		parentElement = null,
+		level = 0,
+		currentPath = "",
+		searchTermEntered = false,
+	) {
 		this.currentTree = tree;
 		const targetElement =
 			parentElement || document.querySelector("#file-tree-table tbody");
@@ -1132,9 +1180,19 @@ class SearchHandler {
 			}
 			const row = document.createElement("tr");
 			row.className = "folder-row";
+
+			// Set initial toggle state based on search term
+			const initiallyExpanded = searchTermEntered;
+			const toggleSymbol = initiallyExpanded ? "▼" : "▶";
+
+			// Construct the path for this directory
+			const dirPath = currentPath
+				? `${currentPath}/${content.name || name}`
+				: content.name || name;
+
 			row.innerHTML = `
 				<td>
-					<span class="folder-toggle">▶</span>
+					<span class="folder-toggle">${toggleSymbol}</span>
 				</td>
 				<td class="${level > 0 ? `ps-${level * 3}` : ""}">
 					<i class="bi bi-folder me-2"></i>
@@ -1149,7 +1207,11 @@ class SearchHandler {
 			// Create container for nested content
 			const nestedContainer = document.createElement("tr");
 			nestedContainer.className = "nested-row";
-			this.formHandler.hide(nestedContainer);
+			if (!initiallyExpanded) {
+				this.formHandler.hide(nestedContainer);
+			} else {
+				this.formHandler.show(nestedContainer, "display-table-row");
+			}
 			nestedContainer.innerHTML = `
 				<td colspan="5">
 					<div class="nested-content">
@@ -1163,9 +1225,6 @@ class SearchHandler {
 
 			// Add click handler for folder
 			row.addEventListener("click", () => {
-				const newPath = currentPath
-					? `${currentPath}/${content.name}`
-					: content.name;
 				const hasChildren = Object.keys(content.children).length > 0;
 				const hasFiles = content.files && content.files.length > 0;
 				const expandable = hasChildren || hasFiles;
@@ -1189,11 +1248,24 @@ class SearchHandler {
 						content,
 						nestedContainer.querySelector("tbody"),
 						level + 1,
-						newPath,
+						dirPath,
+						searchTermEntered,
 					);
 					nestedContainer.dataset.loaded = "true";
 				}
 			});
+
+			// If there's a search term, automatically load and expand the content
+			if (searchTermEntered && !nestedContainer.dataset.loaded) {
+				this.renderFileTree(
+					content,
+					nestedContainer.querySelector("tbody"),
+					level + 1,
+					dirPath,
+					searchTermEntered,
+				);
+				nestedContainer.dataset.loaded = "true";
+			}
 		}
 
 		// Then render files
