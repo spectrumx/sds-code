@@ -1,6 +1,7 @@
 # Build and manage a local deploy of the SDS Gateway - NOT PRODUCTION READY
 
-.PHONY: all redeploy build build-full up logs logs-once down restart test
+.PHONY: all redeploy build build-full up logs logs-once down pre-commit restart \
+	serve-coverage test update
 
 all: build up logs
 redeploy: build down up logs
@@ -57,3 +58,7 @@ test:
 
 	@# Django's test runner: obsolete, subset of pytest tests, left as reference.
 	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0
+
+update:
+	@# uv sync --upgrade # re-enable when uv integration is done
+	uv run pre-commit autoupdate

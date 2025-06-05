@@ -7,7 +7,7 @@ TEST_MARKER_DEFAULT := not integration
 TEST_MARKER_INTEGRATION := integration
 
 .PHONY: all install gact pyright pre-commit test test-lowest test-verbose test-all test-integration \
-	test-integration-verbose serve-coverage clean update build publish
+	test-integration-verbose check-acceptance serve-coverage clean update build publish
 
 all: install test
 
@@ -107,11 +107,12 @@ clean:
 		./**/*.py.cover \
 		*.egg-info *.egg-info/
 
-# UPDATE
+# UPDATES
 update:
 	uv sync --upgrade
 	uv run pre-commit autoupdate
 
+# PACKAGING
 build:
 	uv build --no-cache
 	@echo -e "\n\t\033[32mRunning smoke tests on the built package\033[0m\n"
@@ -122,7 +123,6 @@ build:
 	tar -tvf dist/*.tar.gz | sort -k6
 	@echo -e "\n\t\033[34mTo publish it, run 'make publish'.\033[0m\n\n"
 
-# PUBLISH
 publish:
 	@if [ ! -d dist ]; then \
 		echo "Run 'make build' first."; \
