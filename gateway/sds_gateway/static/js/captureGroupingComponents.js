@@ -627,7 +627,7 @@ class SearchHandler {
 
 	initializeRemoveAllButton() {
 		const removeAllButton = document.getElementById(
-			"remove-all-selected-files-button",
+			"remove-all-selected-files-button"
 		);
 		if (removeAllButton) {
 			removeAllButton.addEventListener("click", () => {
