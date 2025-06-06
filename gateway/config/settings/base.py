@@ -352,24 +352,24 @@ LOGGING: dict[str, Any] = {
 
 # django-allauth
 # ------------------------------------------------------------------------------
+# https://cookiecutter-django.readthedocs.io/en/latest/1-getting-started/settings.html
 ACCOUNT_ALLOW_REGISTRATION: bool = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
+
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_AUTHENTICATION_METHOD: str = "email"
-# https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_EMAIL_REQUIRED: bool = True
-# https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_USERNAME_REQUIRED: bool = False
-# https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_USER_MODEL_USERNAME_FIELD: str | None = None
-# https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_EMAIL_VERIFICATION: str = "none"
-# https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER: str = "sds_gateway.users.adapters.AccountAdapter"
+
 # https://docs.allauth.org/en/latest/account/forms.html
-ACCOUNT_FORMS: dict[str, str] = {"signup": "sds_gateway.users.forms.UserSignupForm"}
+ACCOUNT_FORMS: dict[str, str] = {
+    "signup": "sds_gateway.users.forms.UserSignupForm",
+}
+
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_ADAPTER: str = "sds_gateway.users.adapters.SocialAccountAdapter"
-# https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_FORMS: dict[str, str] = {
     "signup": "sds_gateway.users.forms.UserSocialSignupForm",
 }
@@ -422,6 +422,7 @@ WEBPACK_LOADER: dict[str, dict[str, Any]] = {
 # ------------------------------------------------------------------------------
 SOCIALACCOUNT_PROVIDERS = {
     "auth0": {
+        # https://docs.allauth.org/en/dev/socialaccount/providers/auth0.html#auth0
         "AUTH0_URL": env("AUTH0_DOMAIN"),
         "OAUTH_PKCE_ENABLED": True,
         "SCOPE": [
