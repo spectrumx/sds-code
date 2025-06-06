@@ -627,7 +627,7 @@ class SearchHandler {
 
 	initializeRemoveAllButton() {
 		const removeAllButton = document.getElementById(
-			"remove-all-selected-files-button"
+			"remove-all-selected-files-button",
 		);
 		if (removeAllButton) {
 			removeAllButton.addEventListener("click", () => {
@@ -1038,6 +1038,7 @@ class SearchHandler {
 
 					// Initialize select all checkbox handler for the current file tree
 					this.initializeSelectAllCheckbox();
+
 					// Initialize remove all button handler for the current file tree
 					this.initializeRemoveAllButton();
 				}
@@ -1230,7 +1231,8 @@ class SearchHandler {
 		// Early return if no tree or if tree is empty
 		if (
 			!tree ||
-			((tree.files && tree.files.length === 0) && Object.keys(tree.children).length === 0)
+			((!tree.files || tree.files.length === 0) &&
+				(!tree.children || Object.keys(tree.children).length === 0))
 		) {
 			targetElement.innerHTML =
 				'<tr><td colspan="5" class="text-center">No files or directories found</td></tr>';
