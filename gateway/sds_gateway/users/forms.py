@@ -3,9 +3,11 @@ from pathlib import Path
 from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from django import forms
+from django.conf import settings
 from django.contrib.auth import forms as admin_forms
 from django.core.exceptions import ValidationError
 from django.forms import EmailField
+from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
 
 from sds_gateway.api_methods.models import File
@@ -47,15 +49,28 @@ class UserSignupForm(SignupForm):
     Form that will be rendered on a user sign up section/screen.
     Default fields will be added automatically.
     Check UserSocialSignupForm for accounts created from social.
+    See ACCOUNT_FORMS in settings.
     """
+
+    def save(self, request: HttpRequest) -> User:
+        user = super().save(request)
+        user.is_approved = settings.SDS_NEW_USERS_APPROVED_ON_CREATION
+        user.save()
+        return user
 
 
 class UserSocialSignupForm(SocialSignupForm):
     """
     Renders the form when user has signed up using social accounts.
-    Default fields will be added automatically.
-    See UserSignupForm otherwise.
+    Default fields will be added automatically. See UserSignupForm otherwise.
+    See SOCIALACCOUNT_FORMS in settings.
     """
+
+    def save(self, request: HttpRequest) -> User:
+        user = super().save(request)
+        user.is_approved = settings.SDS_NEW_USERS_APPROVED_ON_CREATION
+        user.save()
+        return user
 
 
 class DatasetInfoForm(forms.Form):
