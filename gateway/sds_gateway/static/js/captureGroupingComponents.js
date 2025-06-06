@@ -597,9 +597,52 @@ class SearchHandler {
 			this.clearButton.addEventListener("click", () => this.handleClear());
 		}
 		if (this.confirmFileSelection) {
-			this.confirmFileSelection.addEventListener("click", () =>
-				this.updateSelectedFilesList(),
-			);
+			this.confirmFileSelection.addEventListener("click", () => {
+				this.updateSelectedFilesList();
+				this.handleClear();
+			});
+		}
+	}
+
+	initializeSelectAllCheckbox() {
+		const selectAllCheckbox = document.getElementById(
+			"select-all-files-checkbox",
+		);
+		if (selectAllCheckbox) {
+			selectAllCheckbox.addEventListener("change", () => {
+				const isChecked = selectAllCheckbox.checked;
+				const fileCheckboxes = document.querySelectorAll(
+					'#file-tree-table tbody input[type="checkbox"]',
+				);
+
+				for (const checkbox of fileCheckboxes) {
+					if (checkbox.checked !== isChecked) {
+						checkbox.checked = isChecked;
+						checkbox.dispatchEvent(new Event("change"));
+					}
+				}
+			});
+		}
+	}
+
+	initializeRemoveAllButton() {
+		const removeAllButton = document.getElementById(
+			"remove-all-selected-files-button",
+		);
+		if (removeAllButton) {
+			removeAllButton.addEventListener("click", () => {
+				//deselect all files
+				const fileCheckboxes = document.querySelectorAll(
+					'#file-tree-table tbody input[type="checkbox"]',
+				);
+				for (const checkbox of fileCheckboxes) {
+					checkbox.checked = false;
+					checkbox.dispatchEvent(new Event("change"));
+				}
+
+				this.selectedFiles.clear();
+				this.updateSelectedFilesList();
+			});
 		}
 	}
 
@@ -951,6 +994,14 @@ class SearchHandler {
 			if (this.type === "captures") {
 				this.updateCapturesTable(data);
 			} else {
+				// Reset select all checkbox
+				const selectAllCheckbox = document.getElementById(
+					"select-all-files-checkbox",
+				);
+				if (selectAllCheckbox) {
+					selectAllCheckbox.checked = false;
+					selectAllCheckbox.indeterminate = false;
+				}
 				if (data.tree) {
 					// Update file extension select options while preserving current selection
 					const extensionSelect = document.getElementById("file-extension");
@@ -985,6 +1036,9 @@ class SearchHandler {
 						data.search_values.directory ||
 						data.search_values.file_extension;
 					this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
+
+					// Initialize select all checkbox handler for the current file tree
+					this.initializeSelectAllCheckbox();
 				}
 			}
 
@@ -1030,6 +1084,14 @@ class SearchHandler {
 		);
 		if (selectedFilesDisplay) {
 			selectedFilesDisplay.value = `${this.selectedFiles.size} file(s) selected`;
+		}
+
+		// Update Remove All button state
+		const removeAllButton = document.getElementById(
+			"remove-all-selected-files-button",
+		);
+		if (removeAllButton) {
+			removeAllButton.disabled = this.selectedFiles.size === 0;
 		}
 
 		// Update selected files table if it exists
@@ -1121,10 +1183,17 @@ class SearchHandler {
 			// Pass the search parameters to renderFileTree
 			const searchTermEntered =
 				params.file_name || params.directory || params.file_extension;
+
 			this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
 
-			// Initialize search handlers after tree is loaded
+			// Initialize search handler after tree is loaded
 			this.initializeEventListeners();
+
+			// Initialize select all checkbox handler for the current file tree
+			this.initializeSelectAllCheckbox();
+
+			// Initialize remove all button handler for the current file tree
+			this.initializeRemoveAllButton();
 		} catch (error) {
 			console.error("Error loading file tree:", error);
 		}
@@ -1153,20 +1222,30 @@ class SearchHandler {
 			return;
 		}
 
-		targetElement.innerHTML = "";
+		if (!parentElement) {
+			targetElement.innerHTML = "";
+		}
 
-		if (
-			!tree ||
-			((!tree.files || tree.files.length === 0) &&
-				Object.keys(tree).length === 0)
-		) {
+		// Early return if no tree or if tree is empty
+		if (!tree || Object.keys(tree).length === 0) {
 			targetElement.innerHTML =
 				'<tr><td colspan="5" class="text-center">No files or directories found</td></tr>';
 			return;
 		}
 
-		// First render directories
-		const directories = { ...tree.children };
+		// Show/hide select all checkbox based on search term
+		const selectAllContainer = document.getElementById("select-all-container");
+		const hasFiles = tree.files && tree.files.length > 0;
+		if (selectAllContainer) {
+			if (searchTermEntered && hasFiles) {
+				this.formHandler.show(selectAllContainer);
+			} else {
+				this.formHandler.hide(selectAllContainer);
+			}
+		}
+
+		// Render directories
+		const directories = tree.children || {};
 		for (const [name, content] of Object.entries(directories)) {
 			if (
 				name === "files" ||
@@ -1177,6 +1256,7 @@ class SearchHandler {
 			) {
 				continue;
 			}
+
 			const row = document.createElement("tr");
 			row.className = "folder-row";
 
@@ -1224,7 +1304,7 @@ class SearchHandler {
 
 			// Add click handler for folder
 			row.addEventListener("click", () => {
-				const hasChildren = Object.keys(content.children).length > 0;
+				const hasChildren = Object.keys(content.children || {}).length > 0;
 				const hasFiles = content.files && content.files.length > 0;
 				const expandable = hasChildren || hasFiles;
 
@@ -1267,7 +1347,7 @@ class SearchHandler {
 			}
 		}
 
-		// Then render files
+		// Render files
 		if (tree.files && tree.files.length > 0) {
 			for (const file of tree.files) {
 				const row = document.createElement("tr");
@@ -1300,6 +1380,7 @@ class SearchHandler {
 					} else {
 						this.selectedFiles.delete(file.id);
 					}
+					this.updateSelectAllCheckboxState();
 				});
 
 				// Add click handler for the row
@@ -1318,6 +1399,9 @@ class SearchHandler {
 				targetElement.appendChild(row);
 			}
 		}
+
+		// Update select all checkbox state when rendering new tree
+		this.updateSelectAllCheckboxState();
 	}
 
 	// Function to update files table
@@ -1345,6 +1429,30 @@ class SearchHandler {
 			errorContent.innerHTML = `<ul class="mb-0 list-unstyled"><li>${message}</li></ul>`;
 			this.formHandler.show(errorContainer);
 			errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+		}
+	}
+
+	// Helper function to update select all checkbox state
+	updateSelectAllCheckboxState() {
+		const selectAllCheckbox = document.getElementById(
+			"select-all-files-checkbox",
+		);
+		if (!selectAllCheckbox) return;
+
+		// Only count visible file checkboxes (not in hidden rows)
+		const fileCheckboxes = document.querySelectorAll(
+			'#file-tree-table tbody tr:not(.nested-row):not([style*="display: none"]) input[type="checkbox"]',
+		);
+		const checkedBoxes = document.querySelectorAll(
+			'#file-tree-table tbody tr:not(.nested-row):not([style*="display: none"]) input[type="checkbox"]:checked',
+		);
+
+		if (checkedBoxes.length === fileCheckboxes.length) {
+			selectAllCheckbox.checked = true;
+			selectAllCheckbox.indeterminate = false;
+		} else {
+			selectAllCheckbox.checked = false;
+			selectAllCheckbox.indeterminate = false;
 		}
 	}
 }
