@@ -1000,7 +1000,6 @@ class SearchHandler {
 				);
 				if (selectAllCheckbox) {
 					selectAllCheckbox.checked = false;
-					selectAllCheckbox.indeterminate = false;
 				}
 				if (data.tree) {
 					// Update file extension select options while preserving current selection
@@ -1449,10 +1448,8 @@ class SearchHandler {
 
 		if (checkedBoxes.length === fileCheckboxes.length) {
 			selectAllCheckbox.checked = true;
-			selectAllCheckbox.indeterminate = false;
 		} else {
 			selectAllCheckbox.checked = false;
-			selectAllCheckbox.indeterminate = false;
 		}
 	}
 }
