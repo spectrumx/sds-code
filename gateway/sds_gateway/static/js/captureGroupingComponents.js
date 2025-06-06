@@ -1038,6 +1038,8 @@ class SearchHandler {
 
 					// Initialize select all checkbox handler for the current file tree
 					this.initializeSelectAllCheckbox();
+					// Initialize remove all button handler for the current file tree
+					this.initializeRemoveAllButton();
 				}
 			}
 
