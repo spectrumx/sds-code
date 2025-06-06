@@ -1230,7 +1230,7 @@ class SearchHandler {
 		// Early return if no tree or if tree is empty
 		if (
 			!tree ||
-			(tree.files.length === 0 && Object.keys(tree.children).length === 0)
+			((tree.files && tree.files.length === 0) && Object.keys(tree.children).length === 0)
 		) {
 			targetElement.innerHTML =
 				'<tr><td colspan="5" class="text-center">No files or directories found</td></tr>';
