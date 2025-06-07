@@ -55,7 +55,7 @@
                                         <a href="{% url 'users:dataset_list' %}?page=1">My Datasets</a>
                                     </li>
                                     <li>
-                                        <a href="{% url 'users:file_list' %}?page=1">My Files</a>
+                                        <a href="{% url 'users:file_list' %}?page=1">My Captures</a>
                                     </li>
                                     <li>
                                         <a href="{% url 'users:generate_api_key' %}">API Key</a>
@@ -67,7 +67,7 @@
                                         </li>
                                     {% else %}
                                         <li class="nav-item">
-                                            <a class="nav-link" href="{% url 'account_logout' %}">Sign Out</a>
+                                            <a class="nav-link" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
                                         </li>
                                     {% endif %}
                                 </ul>

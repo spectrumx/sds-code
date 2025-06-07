@@ -12,10 +12,7 @@
         <div class="content-wrapper">
             <div class="main-content-area">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h1 style="text-align: left;
-                               padding: 0;
-                               font-size: 1.5rem;
-                               margin-bottom: 0px">Your Datasets</h1>
+                    <h1 class="page-title">Your Datasets</h1>
                     <a href="{% url 'users:group_captures' %}" class="btn btn-primary">
                         <i class="bi bi-plus-lg"></i> Add Dataset
                     </a>
@@ -51,7 +48,7 @@
                                     </thead>
                                     <tbody>
                                         {% for dataset in page_obj %}
-                                            <tr style="cursor: pointer">
+                                            <tr class="clickable-row">
                                                 <td>{{ dataset.name }}</td>
                                                 <td>{{ dataset.description|truncatechars:100 }}</td>
                                                 <td>{{ dataset.authors }}</td>
