@@ -3,6 +3,7 @@
 from typing import Any
 from typing import cast
 
+from django.db.models import Sum
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
@@ -28,6 +29,10 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     owner = UserGetSerializer()
     capture_props = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
+    center_frequency_ghz = serializers.SerializerMethodField()
+    sample_rate_mhz = serializers.SerializerMethodField()
+    files_count = serializers.SerializerMethodField()
+    total_file_size = serializers.SerializerMethodField()
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
@@ -45,6 +50,29 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             context=self.context,
         )
         return cast("ReturnList[File]", serializer.data)
+
+    @extend_schema_field(serializers.FloatField)
+    def get_center_frequency_ghz(self, capture: Capture) -> float | None:
+        """Get the center frequency in GHz from the capture model property."""
+        return capture.center_frequency_ghz
+
+    @extend_schema_field(serializers.FloatField)
+    def get_sample_rate_mhz(self, capture: Capture) -> float | None:
+        """Get the sample rate in MHz from the capture model property."""
+        return capture.sample_rate_mhz
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_files_count(self, capture: Capture) -> int:
+        """Get the count of files associated with this capture."""
+        return capture.files.filter(is_deleted=False).count()
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_total_file_size(self, capture: Capture) -> int:
+        """Get the total file size of all files associated with this capture."""
+        result = capture.files.filter(is_deleted=False).aggregate(
+            total_size=Sum("size")
+        )
+        return result["total_size"] or 0
 
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:

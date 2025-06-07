@@ -1,0 +1,288 @@
+/* File List Page Styles */
+
+/* ================================
+   CSS Custom Properties (Variables)
+   ================================ */
+:root {
+	--primary-color: #232d4b;
+	--primary-hover: #1a2136;
+	--light-gray: #f8f9fa;
+	--medium-gray: #e9ecef;
+	--text-muted: #6c757d;
+	--text-dark: #212529;
+	--text-secondary: #495057;
+	--border-radius: 8px;
+	--border-radius-lg: 16px;
+	--shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.2);
+	--shadow-md: 0 2px 12px rgba(0, 0, 0, 0.06);
+	--shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.15);
+	--transition: 0.2s ease;
+}
+
+/* ================================
+   Sidebar Filters
+   ================================ */
+.sidebar-filters {
+	background: #fff;
+	border-radius: var(--border-radius-lg);
+	box-shadow: var(--shadow-md);
+	padding: 2rem 1.5rem 1.5rem 1.5rem;
+	margin-bottom: 2rem;
+}
+
+.sidebar-filters h2 {
+	font-size: 2rem;
+	font-weight: 700;
+	margin-bottom: 1.5rem;
+}
+
+.sidebar-filters .accordion-item {
+	border: none;
+	margin-bottom: 0.5rem;
+	background: transparent;
+}
+
+.sidebar-filters .accordion-button {
+	background: var(--light-gray);
+	border-radius: var(--border-radius);
+	font-weight: 500;
+	font-size: 1.1rem;
+	box-shadow: none;
+	margin-bottom: 0.25rem;
+	border: none;
+	transition: background var(--transition), color var(--transition);
+}
+
+.sidebar-filters .accordion-button:not(.collapsed) {
+	background: var(--medium-gray);
+	color: var(--text-dark);
+}
+
+.sidebar-filters .accordion-body {
+	background: #fff;
+	border-radius: 0 0 var(--border-radius) var(--border-radius);
+	padding-top: 0.75rem;
+	padding-bottom: 0.75rem;
+}
+
+.sidebar-filters .btn {
+	font-weight: 600;
+	font-size: 1rem;
+	border-radius: var(--border-radius);
+	padding: 0.75rem 0;
+}
+
+.sidebar-filters .btn-primary {
+	background: var(--primary-color);
+	border: none;
+}
+
+.sidebar-filters .btn-primary:hover {
+	background: var(--primary-hover);
+}
+
+/* ================================
+   Table & Content
+   ================================ */
+.table-scroll {
+	max-height: 60vh;
+	overflow-y: auto;
+}
+
+.capture-row {
+	cursor: pointer;
+}
+
+.sortable-header {
+	transition: color var(--transition);
+}
+
+.sortable-header:hover {
+	color: #007bff !important;
+}
+
+.sort-icon {
+	margin-left: 5px;
+	font-size: 0.8em;
+}
+
+/* ================================
+   Dual Range Slider
+   ================================ */
+.dual-range-slider {
+	position: relative;
+	height: 6px;
+	background: var(--medium-gray);
+	border-radius: 3px;
+	margin: 20px 0;
+}
+
+.dual-range-slider .slider-track,
+.dual-range-slider .track {
+	position: absolute;
+	height: 100%;
+	background: var(--primary-color);
+	border-radius: 3px;
+	z-index: 1;
+	transition: all var(--transition);
+}
+
+.dual-range-slider input[type="range"] {
+	position: absolute;
+	width: 100%;
+	height: 6px;
+	background: transparent;
+	appearance: none;
+	pointer-events: none;
+	top: 0;
+}
+
+.dual-range-slider input[type="range"]::-webkit-slider-thumb {
+	appearance: none;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: var(--primary-color);
+	border: 2px solid #fff;
+	box-shadow: var(--shadow-sm);
+	cursor: pointer;
+	pointer-events: all;
+	position: relative;
+	z-index: 2;
+}
+
+.dual-range-slider input[type="range"]::-moz-range-thumb {
+	appearance: none;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: var(--primary-color);
+	border: 2px solid #fff;
+	box-shadow: var(--shadow-sm);
+	cursor: pointer;
+	pointer-events: all;
+	position: relative;
+	z-index: 2;
+}
+
+.dual-range-slider input[type="range"]::-webkit-slider-track,
+.dual-range-slider input[type="range"]::-moz-range-track {
+	appearance: none;
+	background: transparent;
+}
+
+.dual-range-values {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 10px;
+	font-size: 0.875rem;
+	color: var(--text-muted);
+}
+
+/* ================================
+   Modal Styling
+   ================================ */
+.modal-dialog {
+	max-width: 800px;
+}
+
+.modal-content {
+	border: none;
+	border-radius: var(--border-radius-lg);
+	box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+	background: linear-gradient(
+		135deg,
+		var(--primary-color) 0%,
+		var(--primary-hover) 100%
+	);
+	color: white;
+	border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+	padding: 1.5rem 2rem;
+	border-bottom: none;
+}
+
+.modal-title {
+	font-weight: 700;
+	font-size: 1.5rem;
+	margin: 0;
+}
+
+.modal-header .btn-close {
+	background: none;
+	border: none;
+	font-size: 0.5rem;
+	width: 0.8rem;
+	height: 0.8rem;
+	color: white;
+	opacity: 0.8;
+	background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ffffff'%3e%3cpath d='m.235.25 15.5 15.5c.17.17.17.42 0 .59-.17.17-.42.17-.59 0L.235.84C.065.67.065.42.235.25z'/%3e%3cpath d='m15.735.25L.235 15.75c-.17.17-.17.42 0 .59.17.17.42.17.59 0L15.735.84c.17-.17.17-.42 0-.59z'/%3e%3c/svg%3e");
+}
+
+.modal-header .btn-close:hover {
+	opacity: 1;
+}
+
+.modal-body {
+	padding: 2rem;
+	background: #fafbfc;
+}
+
+.modal-body h6 {
+	color: var(--primary-color);
+	font-weight: 700;
+	font-size: 1.1rem;
+	margin-bottom: 1rem;
+	padding-bottom: 0.5rem;
+	border-bottom: 2px solid var(--medium-gray);
+}
+
+.modal-body p {
+	margin-bottom: 0.75rem;
+	line-height: 1.6;
+}
+
+.modal-body strong {
+	color: var(--text-secondary);
+	font-weight: 600;
+	display: inline-block;
+	min-width: 140px;
+}
+
+.modal-body .row + .row {
+	border-top: 1px solid var(--medium-gray);
+	padding-top: 1.5rem;
+}
+
+.modal-body .col-md-6:first-child {
+	border-right: 1px solid var(--medium-gray);
+	padding-right: 2rem;
+}
+
+.modal-body .col-md-6:last-child {
+	padding-left: 2rem;
+}
+
+/* ================================
+   Responsive Design
+   ================================ */
+@media (max-width: 768px) {
+	.modal-dialog {
+		max-width: 95%;
+		margin: 1rem auto;
+	}
+
+	.modal-body .col-md-6:first-child {
+		border-right: none;
+		padding-right: 1rem;
+		margin-bottom: 1.5rem;
+		border-bottom: 1px solid var(--medium-gray);
+		padding-bottom: 1.5rem;
+	}
+
+	.modal-body .col-md-6:last-child {
+		padding-left: 1rem;
+	}
+}
