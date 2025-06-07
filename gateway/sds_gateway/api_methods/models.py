@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import logging
 import uuid
 from enum import StrEnum
 from pathlib import Path
@@ -13,6 +14,8 @@ from django.db.models import ProtectedError
 from django.db.models import QuerySet
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
+
+from .utils.opensearch_client import get_opensearch_client
 
 
 class CaptureType(StrEnum):
@@ -227,6 +230,368 @@ class Capture(BaseModel):
 
     def __str__(self):
         return f"{self.capture_type} capture for channel {self.channel} added on {self.created_at}"  # noqa: E501
+
+    @property
+    def center_frequency_ghz(self):
+        """Get center frequency in GHz from OpenSearch."""
+        frequency_data = self.get_opensearch_frequency_metadata()
+        center_freq_hz = frequency_data.get("center_frequency")
+        if center_freq_hz:
+            return center_freq_hz / 1e9
+        return None
+
+    @property
+    def sample_rate_mhz(self):
+        """Get sample rate in MHz from OpenSearch."""
+        frequency_data = self.get_opensearch_frequency_metadata()
+        sample_rate_hz = frequency_data.get("sample_rate")
+        if sample_rate_hz:
+            return sample_rate_hz / 1e6
+        return None
+
+    def get_opensearch_frequency_metadata(self):
+        """
+        Query OpenSearch for frequency metadata for this specific capture.
+
+        Returns:
+            dict: Frequency metadata (center_frequency, sample_rate, etc.)
+        """
+        logger = logging.getLogger(__name__)
+
+        try:
+            client = get_opensearch_client()
+
+            query = {
+                "query": {"term": {"_id": str(self.uuid)}},
+                "_source": ["search_props", "capture_props"],
+            }
+
+            # Get the index name for this capture type
+            # Handle both enum objects and string values from database
+            if hasattr(self.capture_type, "value"):
+                # It's an enum object
+                index_name = f"captures-{self.capture_type.value}"
+            else:
+                # It's already a string value
+                index_name = f"captures-{self.capture_type}"
+
+            logger.info(
+                "Querying OpenSearch index '%s' for capture %s", index_name, self.uuid
+            )
+
+            response = client.search(index=index_name, body=query, size=1)
+
+            if response["hits"]["total"]["value"] > 0:
+                source = response["hits"]["hits"][0]["_source"]
+                return self._extract_frequency_metadata_from_source(source)
+
+            logger.warning("No OpenSearch data found for capture %s", self.uuid)
+
+        except Exception:
+            logger.exception("Error querying OpenSearch for capture %s", self.uuid)
+
+        return {}
+
+    def _extract_frequency_metadata_from_source(self, source):
+        """Extract frequency metadata from OpenSearch source data."""
+        logger = logging.getLogger(__name__)
+
+        search_props = source.get("search_props", {})
+        logger.info("OpenSearch data for %s: search_props=%s", self.uuid, search_props)
+
+        # Try search_props first (preferred)
+        center_frequency = search_props.get("center_frequency")
+        sample_rate = search_props.get("sample_rate")
+
+        # If search_props missing, try to read from capture_props directly
+        if not center_frequency or not sample_rate:
+            capture_props = source.get("capture_props", {})
+            logger.info(
+                "search_props incomplete, checking capture_props: %s",
+                list(capture_props.keys()),
+            )
+
+            if self.capture_type == CaptureType.DigitalRF:
+                center_frequency, sample_rate = self._extract_drf_capture_props(
+                    capture_props, center_frequency, sample_rate
+                )
+            elif self.capture_type == CaptureType.RadioHound:
+                center_frequency, sample_rate = self._extract_radiohound_capture_props(
+                    capture_props, center_frequency, sample_rate
+                )
+
+        return {
+            "center_frequency": center_frequency,
+            "sample_rate": sample_rate,
+            "frequency_min": search_props.get("frequency_min"),
+            "frequency_max": search_props.get("frequency_max"),
+        }
+
+    def _extract_drf_capture_props(self, capture_props, center_frequency, sample_rate):
+        """Extract DRF-specific frequency properties."""
+        logger = logging.getLogger(__name__)
+
+        # For DRF: center_freq and calculated sample_rate
+        if not center_frequency:
+            center_frequency = capture_props.get("center_freq")
+        if not sample_rate:
+            # Try sample_rate_numerator/denominator first
+            numerator = capture_props.get("sample_rate_numerator")
+            denominator = capture_props.get("sample_rate_denominator")
+            if numerator and denominator and denominator != 0:
+                sample_rate = numerator / denominator
+                logger.info(
+                    "Calculated DRF sample_rate: %s/%s = %s",
+                    numerator,
+                    denominator,
+                    sample_rate,
+                )
+            # Fallback to samples_per_second if numerator/denominator missing
+            elif capture_props.get("samples_per_second"):
+                sample_rate = capture_props.get("samples_per_second")
+                logger.info("Using DRF samples_per_second: %s", sample_rate)
+
+        # If still no center_frequency, log warning but continue
+        if not center_frequency:
+            logger.warning(
+                "No center frequency found for DRF capture %s",
+                self.uuid,
+            )
+
+        return center_frequency, sample_rate
+
+    def _extract_radiohound_capture_props(
+        self, capture_props, center_frequency, sample_rate
+    ):
+        """Extract RadioHound-specific frequency properties."""
+        # For RH: direct fields
+        if not center_frequency:
+            center_frequency = capture_props.get("center_frequency")
+        if not sample_rate:
+            sample_rate = capture_props.get("sample_rate")
+
+        return center_frequency, sample_rate
+
+    @classmethod
+    def bulk_load_frequency_metadata(cls, captures):
+        """
+        Efficiently load frequency metadata for multiple captures in
+        one OpenSearch query.
+
+        Args:
+            captures: QuerySet or list of Capture objects
+
+        Returns:
+            dict: {capture_uuid: frequency_metadata_dict}
+        """
+        logger = logging.getLogger(__name__)
+
+        try:
+            client = get_opensearch_client()
+
+            # Group captures by type for separate queries
+            captures_by_type = cls._group_captures_by_type(captures)
+            frequency_data = {}
+
+            # Query each capture type separately
+            for capture_type, type_captures in captures_by_type.items():
+                type_frequency_data = cls._query_capture_type_metadata(
+                    client, capture_type, type_captures, logger
+                )
+                frequency_data.update(type_frequency_data)
+
+        except Exception:
+            logger.exception("Error bulk loading frequency metadata")
+            return {}
+        else:
+            return frequency_data
+
+    @classmethod
+    def _group_captures_by_type(cls, captures):
+        """Group captures by capture type for separate queries."""
+        captures_by_type = {}
+        for capture in captures:
+            capture_type = capture.capture_type
+            if capture_type not in captures_by_type:
+                captures_by_type[capture_type] = []
+            captures_by_type[capture_type].append(capture)
+        return captures_by_type
+
+    @classmethod
+    def _query_capture_type_metadata(cls, client, capture_type, type_captures, logger):
+        """Query OpenSearch for metadata of captures of a specific type."""
+        uuids = [str(capture.uuid) for capture in type_captures]
+
+        query = {
+            "query": {"ids": {"values": uuids}},
+            "_source": ["search_props", "capture_props"],
+        }
+
+        # Handle both enum objects and string values
+        if hasattr(capture_type, "value"):
+            index_name = f"captures-{capture_type.value}"
+        else:
+            index_name = f"captures-{capture_type}"
+
+        response = client.search(index=index_name, body=query, size=len(uuids))
+
+        frequency_data = {}
+        # Map results back to capture UUIDs
+        for hit in response["hits"]["hits"]:
+            capture_uuid = hit["_id"]
+            search_props = hit["_source"].get("search_props", {})
+            capture_props = hit["_source"].get("capture_props", {})
+
+            frequency_data[capture_uuid] = cls._extract_bulk_frequency_data(
+                capture_type, search_props, capture_props, capture_uuid, logger
+            )
+
+        return frequency_data
+
+    @classmethod
+    def _extract_bulk_frequency_data(
+        cls, capture_type, search_props, capture_props, capture_uuid, logger
+    ):
+        """Extract frequency data from search_props and capture_props."""
+        # Try search_props first (preferred)
+        center_frequency = search_props.get("center_frequency")
+        sample_rate = search_props.get("sample_rate")
+
+        # If search_props missing, try to read from capture_props directly
+        if not center_frequency or not sample_rate:
+            if capture_type == CaptureType.DigitalRF:
+                center_frequency, sample_rate = cls._extract_bulk_drf_props(
+                    capture_props, center_frequency, sample_rate, capture_uuid, logger
+                )
+            elif capture_type == CaptureType.RadioHound:
+                center_frequency, sample_rate = cls._extract_bulk_radiohound_props(
+                    capture_props, center_frequency, sample_rate
+                )
+
+        return {
+            "center_frequency": center_frequency,
+            "sample_rate": sample_rate,
+            "frequency_min": search_props.get("frequency_min"),
+            "frequency_max": search_props.get("frequency_max"),
+        }
+
+    @classmethod
+    def _extract_bulk_drf_props(
+        cls, capture_props, center_frequency, sample_rate, capture_uuid, logger
+    ):
+        """Extract DRF-specific frequency properties for bulk operations."""
+        # For DRF: center_freq and calculated sample_rate
+        if not center_frequency:
+            center_frequency = capture_props.get("center_freq")
+        if not sample_rate:
+            # Try sample_rate_numerator/denominator first
+            numerator = capture_props.get("sample_rate_numerator")
+            denominator = capture_props.get("sample_rate_denominator")
+            if numerator and denominator and denominator != 0:
+                sample_rate = numerator / denominator
+                logger.info(
+                    "Calculated DRF sample_rate for %s: %s/%s = %s",
+                    capture_uuid,
+                    numerator,
+                    denominator,
+                    sample_rate,
+                )
+            # Fallback to samples_per_second if numerator/denominator missing
+            elif capture_props.get("samples_per_second"):
+                sample_rate = capture_props.get("samples_per_second")
+                logger.info(
+                    "Using DRF samples_per_second for %s: %s", capture_uuid, sample_rate
+                )
+
+        # If still no center_frequency, log warning but continue
+        if not center_frequency:
+            logger.warning(
+                "No center frequency found for DRF capture %s",
+                capture_uuid,
+            )
+
+        return center_frequency, sample_rate
+
+    @classmethod
+    def _extract_bulk_radiohound_props(
+        cls, capture_props, center_frequency, sample_rate
+    ):
+        """Extract RadioHound-specific frequency properties for bulk operations."""
+        # For RH: direct fields
+        if not center_frequency:
+            center_frequency = capture_props.get("center_frequency")
+        if not sample_rate:
+            sample_rate = capture_props.get("sample_rate")
+
+        return center_frequency, sample_rate
+
+    def debug_opensearch_response(self):
+        """
+        Debug method to see exactly what OpenSearch returns for this capture.
+        This will help us understand why frequency metadata extraction is failing.
+        """
+        logger = logging.getLogger(__name__)
+
+        try:
+            client = get_opensearch_client()
+
+            # Handle both enum objects and string values from database
+            if hasattr(self.capture_type, "value"):
+                # It's an enum object
+                index_name = f"captures-{self.capture_type.value}"
+            else:
+                # It's already a string value
+                index_name = f"captures-{self.capture_type}"
+
+            query = {"query": {"term": {"_id": str(self.uuid)}}}
+
+            logger.info("=== DEBUG: OpenSearch Query ===")
+            logger.info("Index: %s", index_name)
+            logger.info("UUID: %s", self.uuid)
+            logger.info("Query: %s", query)
+
+            response = client.search(index=index_name, body=query, size=1)
+
+            logger.info("=== DEBUG: OpenSearch Response ===")
+            logger.info("Total hits: %s", response["hits"]["total"]["value"])
+
+            if response["hits"]["total"]["value"] > 0:
+                source = response["hits"]["hits"][0]["_source"]
+                logger.info("=== DEBUG: Full Source Data ===")
+                logger.info("Source keys: %s", list(source.keys()))
+
+                search_props = source.get("search_props", {})
+                logger.info("=== DEBUG: search_props ===")
+                logger.info("search_props keys: %s", list(search_props.keys()))
+                logger.info("search_props content: %s", search_props)
+
+                capture_props = source.get("capture_props", {})
+                logger.info("=== DEBUG: capture_props ===")
+                logger.info("capture_props keys: %s", list(capture_props.keys()))
+                if capture_props:
+                    # Just show a few key fields to avoid log spam
+                    key_fields = [
+                        "center_freq",
+                        "center_frequency",
+                        "sample_rate",
+                        "sample_rate_numerator",
+                        "sample_rate_denominator",
+                        "samples_per_second",
+                    ]
+                    for field in key_fields:
+                        if field in capture_props:
+                            logger.info(
+                                "capture_props.%s = %s", field, capture_props[field]
+                            )
+
+                return source
+        except Exception:
+            logger.exception("=== DEBUG: Exception occurred ===")
+            logger.exception("Error occurred during frequency metadata extraction")
+            return None
+        else:
+            logger.warning("=== DEBUG: No data found ===")
+            return None
 
 
 class Dataset(BaseModel):

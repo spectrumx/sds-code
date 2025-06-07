@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 from typing import Any
 from typing import cast
 
@@ -12,6 +13,7 @@ from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
+from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
 from django.http import HttpRequest
@@ -43,6 +45,9 @@ from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FormSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
+
+# Add logger for debugging
+logger = logging.getLogger(__name__)
 
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -247,23 +252,34 @@ user_file_detail_view = FileDetailView.as_view()
 
 
 class ListCapturesView(Auth0LoginRequiredMixin, View):
+    """Handle HTML requests for the captures list page."""
+
     template_name = "users/file_list.html"
     items_per_page = 25
 
-    def get(self, request, *args, **kwargs) -> HttpResponse:
-        page = int(request.GET.get("page", 1))
-        sort_by = request.GET.get("sort_by", "created_at")
-        sort_order = request.GET.get("sort_order", "desc")
-        search = request.GET.get("search", "")
-        date_start = request.GET.get("date_start", "")
-        date_end = request.GET.get("date_end", "")
-        cap_type = request.GET.get("capture_type", "")
+    def _extract_request_params(self, request):
+        """Extract and return request parameters for HTML view."""
+        return {
+            "page": int(request.GET.get("page", 1)),
+            "sort_by": request.GET.get("sort_by", "created_at"),
+            "sort_order": request.GET.get("sort_order", "desc"),
+            "search": request.GET.get("search", ""),
+            "date_start": request.GET.get("date_start", ""),
+            "date_end": request.GET.get("date_end", ""),
+            "cap_type": request.GET.get("capture_type", ""),
+            "min_freq": request.GET.get("min_freq", ""),
+            "max_freq": request.GET.get("max_freq", ""),
+        }
 
-        qs = request.user.captures.filter(is_deleted=False)
-
-        # apply filters
+    def _apply_basic_filters(self, qs, search, date_start, date_end, cap_type):
+        """Apply basic filters: search, date range, and capture type."""
         if search:
-            qs = qs.filter(channel__icontains=search)
+            qs = qs.filter(
+                Q(channel__icontains=search)
+                | Q(index_name__icontains=search)
+                | Q(capture_type__icontains=search)
+                | Q(uuid__icontains=search)
+            )
         if date_start:
             qs = qs.filter(created_at__gte=date_start)
         if date_end:
@@ -271,41 +287,273 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         if cap_type:
             qs = qs.filter(capture_type=cap_type)
 
-        #  apply sorting
-        if sort_order == "desc":
-            qs = qs.order_by(f"-{sort_by}")
-        else:
-            qs = qs.order_by(sort_by)
+        return qs
 
+    def _apply_frequency_filters(self, qs, min_freq, max_freq):
+        """Apply center frequency range filters using OpenSearch data (fast!)."""
+        # Only apply frequency filtering if meaningful parameters are provided
+        min_freq_str = str(min_freq).strip() if min_freq else ""
+        max_freq_str = str(max_freq).strip() if max_freq else ""
+
+        # If both frequency parameters are empty, don't apply frequency filtering
+        if not min_freq_str and not max_freq_str:
+            return qs
+
+        # Convert to float, skip filtering if invalid values
+        try:
+            min_freq_val = float(min_freq_str) if min_freq_str else None
+        except ValueError:
+            min_freq_val = None
+
+        try:
+            max_freq_val = float(max_freq_str) if max_freq_str else None
+        except ValueError:
+            max_freq_val = None
+
+        # If both conversions failed, don't apply frequency filtering
+        if min_freq_val is None and max_freq_val is None:
+            return qs
+
+        try:
+            # Bulk load frequency metadata for all captures
+            frequency_data = Capture.bulk_load_frequency_metadata(qs)
+
+            filtered_uuids = []
+            for capture in qs:
+                capture_uuid = str(capture.uuid)
+                freq_info = frequency_data.get(capture_uuid, {})
+                center_freq_hz = freq_info.get("center_frequency")
+
+                if center_freq_hz is None:
+                    # If no frequency data and filters are active, exclude it
+                    continue  # Skip this capture
+
+                center_freq_ghz = center_freq_hz / 1e9
+
+                # Apply frequency range filter
+                if min_freq_val is not None and center_freq_ghz < min_freq_val:
+                    continue  # Skip this capture
+                if max_freq_val is not None and center_freq_ghz > max_freq_val:
+                    continue  # Skip this capture
+
+                # Capture passed all filters
+                filtered_uuids.append(capture.uuid)
+
+            return qs.filter(uuid__in=filtered_uuids)
+
+        except Exception:
+            logger.exception("Error applying frequency filters")
+            return qs  # Return unfiltered queryset on error
+
+    def _apply_sorting(self, qs, sort_by, sort_order):
+        """Apply sorting to the queryset."""
+        if sort_order == "desc":
+            return qs.order_by(f"-{sort_by}")
+        return qs.order_by(sort_by)
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+        """Handle HTML page requests for captures list."""
+        # Extract request parameters
+        params = self._extract_request_params(request)
+
+        qs = request.user.captures.filter(is_deleted=False)
+
+        # Apply all filters
+        qs = self._apply_basic_filters(
+            qs,
+            params["search"],
+            params["date_start"],
+            params["date_end"],
+            params["cap_type"],
+        )
+        qs = self._apply_frequency_filters(qs, params["min_freq"], params["max_freq"])
+
+        # Apply sorting
+        qs = self._apply_sorting(qs, params["sort_by"], params["sort_order"])
+
+        # Paginate the results
         paginator = Paginator(qs, self.items_per_page)
         try:
-            page_obj = paginator.page(page)
+            page_obj = paginator.page(params["page"])
         except (EmptyPage, PageNotAnInteger):
             page_obj = paginator.page(1)
 
-        serializer = CaptureGetSerializer(
-            page_obj,
-            many=True,
-            context={"request": request},
-        )
+        # Serialize captures for template
+        enhanced_captures = []
+        for capture in page_obj:
+            # CaptureGetSerializer includes all computed fields
+            capture_data = CaptureGetSerializer(capture).data
+            enhanced_captures.append(capture_data)
+
+        # Update the page_obj with enhanced captures
+        page_obj.object_list = enhanced_captures
 
         return render(
             request,
             self.template_name,
             {
                 "captures": page_obj,
-                "captures_data": serializer.data,
-                "sort_by": sort_by,
-                "sort_order": sort_order,
-                "search": search,
-                "date_start": date_start,
-                "date_end": date_end,
-                "capture_type": cap_type,
+                "sort_by": params["sort_by"],
+                "sort_order": params["sort_order"],
+                "search": params["search"],
+                "date_start": params["date_start"],
+                "date_end": params["date_end"],
+                "capture_type": params["cap_type"],
+                "min_freq": params["min_freq"],
+                "max_freq": params["max_freq"],
             },
         )
 
 
+class CapturesAPIView(Auth0LoginRequiredMixin, View):
+    """Handle API/JSON requests for captures search."""
+
+    def _extract_request_params(self, request):
+        """Extract and return request parameters for API view."""
+        return {
+            "sort_by": request.GET.get("sort_by", "created_at"),
+            "sort_order": request.GET.get("sort_order", "desc"),
+            "search": request.GET.get("search", ""),
+            "date_start": request.GET.get("date_start", ""),
+            "date_end": request.GET.get("date_end", ""),
+            "cap_type": request.GET.get("capture_type", ""),
+            "min_freq": request.GET.get("min_freq", ""),
+            "max_freq": request.GET.get("max_freq", ""),
+        }
+
+    def _apply_basic_filters(self, qs, search, date_start, date_end, cap_type):
+        """Apply basic filters: search, date range, and capture type."""
+        if search:
+            qs = qs.filter(
+                Q(channel__icontains=search)
+                | Q(index_name__icontains=search)
+                | Q(capture_type__icontains=search)
+                | Q(uuid__icontains=search)
+            )
+        if date_start:
+            qs = qs.filter(created_at__gte=date_start)
+        if date_end:
+            qs = qs.filter(created_at__lte=date_end)
+        if cap_type:
+            qs = qs.filter(capture_type=cap_type)
+
+        return qs
+
+    def _apply_frequency_filters(self, qs, min_freq, max_freq):
+        """Apply center frequency range filters using OpenSearch data (fast!)."""
+        # Only apply frequency filtering if meaningful parameters are provided
+        min_freq_str = str(min_freq).strip() if min_freq else ""
+        max_freq_str = str(max_freq).strip() if max_freq else ""
+
+        # If both frequency parameters are empty, don't apply frequency filtering
+        if not min_freq_str and not max_freq_str:
+            return qs
+
+        # Convert to float, skip filtering if invalid values
+        try:
+            min_freq_val = float(min_freq_str) if min_freq_str else None
+        except ValueError:
+            min_freq_val = None
+
+        try:
+            max_freq_val = float(max_freq_str) if max_freq_str else None
+        except ValueError:
+            max_freq_val = None
+
+        # If both conversions failed, don't apply frequency filtering
+        if min_freq_val is None and max_freq_val is None:
+            return qs
+
+        try:
+            # Bulk load frequency metadata for all captures
+            frequency_data = Capture.bulk_load_frequency_metadata(qs)
+
+            filtered_uuids = []
+            for capture in qs:
+                capture_uuid = str(capture.uuid)
+                freq_info = frequency_data.get(capture_uuid, {})
+                center_freq_hz = freq_info.get("center_frequency")
+
+                if center_freq_hz is None:
+                    # If no frequency data and filters are active, exclude it
+                    continue  # Skip this capture
+
+                center_freq_ghz = center_freq_hz / 1e9
+
+                # Apply frequency range filter
+                if min_freq_val is not None and center_freq_ghz < min_freq_val:
+                    continue  # Skip this capture
+                if max_freq_val is not None and center_freq_ghz > max_freq_val:
+                    continue  # Skip this capture
+
+                # Capture passed all filters
+                filtered_uuids.append(capture.uuid)
+
+            return qs.filter(uuid__in=filtered_uuids)
+
+        except Exception:
+            logger.exception("Error applying frequency filters")
+            return qs  # Return unfiltered queryset on error
+
+    def _apply_sorting(self, qs, sort_by, sort_order):
+        """Apply sorting to the queryset."""
+        if sort_order == "desc":
+            return qs.order_by(f"-{sort_by}")
+        return qs.order_by(sort_by)
+
+    def get(self, request, *args, **kwargs) -> JsonResponse:
+        """Handle AJAX requests for the captures API."""
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Extract and validate parameters
+            params = self._extract_request_params(request)
+
+            # Start with base queryset
+            qs = Capture.objects.filter(owner=request.user)
+
+            # Apply filters
+            qs = self._apply_basic_filters(
+                qs,
+                params["search"],
+                params["date_start"],
+                params["date_end"],
+                params["cap_type"],
+            )
+            qs = self._apply_frequency_filters(
+                qs, params["min_freq"], params["max_freq"]
+            )
+
+            # Apply sorting
+            qs = self._apply_sorting(qs, params["sort_by"], params["sort_order"])
+
+            # Limit results for API performance
+            captures_list = list(qs[:25])
+
+            captures_data = []
+            for capture in captures_list:
+                try:
+                    # Use CaptureGetSerializer - includes all computed fields
+                    capture_data = CaptureGetSerializer(capture).data
+                    captures_data.append(capture_data)
+                except Exception:
+                    logger.exception("Error serializing capture %s", capture.uuid)
+                    raise
+
+            response_data = {
+                "captures": captures_data,
+                "has_results": len(captures_data) > 0,
+                "total_count": len(captures_data),
+            }
+            return JsonResponse(response_data)
+
+        except Exception as e:
+            logger.exception("API request failed")
+            return JsonResponse({"error": f"Search failed: {e!s}"}, status=500)
+
+
 user_capture_list_view = ListCapturesView.as_view()
+user_captures_api_view = CapturesAPIView.as_view()
 
 
 class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):

@@ -361,6 +361,9 @@ ACCOUNT_EMAIL_REQUIRED: bool = True
 ACCOUNT_USERNAME_REQUIRED: bool = False
 ACCOUNT_USER_MODEL_USERNAME_FIELD: str | None = None
 ACCOUNT_EMAIL_VERIFICATION: str = "none"
+# https://docs.allauth.org/en/latest/account/configuration.html
+ACCOUNT_LOGOUT_ON_GET: bool = True
+# https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER: str = "sds_gateway.users.adapters.AccountAdapter"
 
 # https://docs.allauth.org/en/latest/account/forms.html
