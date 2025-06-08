@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+from pathlib import Path
 from typing import Any
 from typing import cast
 
@@ -271,86 +272,6 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             "max_freq": request.GET.get("max_freq", ""),
         }
 
-    def _apply_basic_filters(self, qs, search, date_start, date_end, cap_type):
-        """Apply basic filters: search, date range, and capture type."""
-        if search:
-            qs = qs.filter(
-                Q(channel__icontains=search)
-                | Q(index_name__icontains=search)
-                | Q(capture_type__icontains=search)
-                | Q(uuid__icontains=search)
-            )
-        if date_start:
-            qs = qs.filter(created_at__gte=date_start)
-        if date_end:
-            qs = qs.filter(created_at__lte=date_end)
-        if cap_type:
-            qs = qs.filter(capture_type=cap_type)
-
-        return qs
-
-    def _apply_frequency_filters(self, qs, min_freq, max_freq):
-        """Apply center frequency range filters using OpenSearch data (fast!)."""
-        # Only apply frequency filtering if meaningful parameters are provided
-        min_freq_str = str(min_freq).strip() if min_freq else ""
-        max_freq_str = str(max_freq).strip() if max_freq else ""
-
-        # If both frequency parameters are empty, don't apply frequency filtering
-        if not min_freq_str and not max_freq_str:
-            return qs
-
-        # Convert to float, skip filtering if invalid values
-        try:
-            min_freq_val = float(min_freq_str) if min_freq_str else None
-        except ValueError:
-            min_freq_val = None
-
-        try:
-            max_freq_val = float(max_freq_str) if max_freq_str else None
-        except ValueError:
-            max_freq_val = None
-
-        # If both conversions failed, don't apply frequency filtering
-        if min_freq_val is None and max_freq_val is None:
-            return qs
-
-        try:
-            # Bulk load frequency metadata for all captures
-            frequency_data = Capture.bulk_load_frequency_metadata(qs)
-
-            filtered_uuids = []
-            for capture in qs:
-                capture_uuid = str(capture.uuid)
-                freq_info = frequency_data.get(capture_uuid, {})
-                center_freq_hz = freq_info.get("center_frequency")
-
-                if center_freq_hz is None:
-                    # If no frequency data and filters are active, exclude it
-                    continue  # Skip this capture
-
-                center_freq_ghz = center_freq_hz / 1e9
-
-                # Apply frequency range filter
-                if min_freq_val is not None and center_freq_ghz < min_freq_val:
-                    continue  # Skip this capture
-                if max_freq_val is not None and center_freq_ghz > max_freq_val:
-                    continue  # Skip this capture
-
-                # Capture passed all filters
-                filtered_uuids.append(capture.uuid)
-
-            return qs.filter(uuid__in=filtered_uuids)
-
-        except Exception:
-            logger.exception("Error applying frequency filters")
-            return qs  # Return unfiltered queryset on error
-
-    def _apply_sorting(self, qs, sort_by, sort_order):
-        """Apply sorting to the queryset."""
-        if sort_order == "desc":
-            return qs.order_by(f"-{sort_by}")
-        return qs.order_by(sort_by)
-
     def get(self, request, *args, **kwargs) -> HttpResponse:
         """Handle HTML page requests for captures list."""
         # Extract request parameters
@@ -359,17 +280,20 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         qs = request.user.captures.filter(is_deleted=False)
 
         # Apply all filters
-        qs = self._apply_basic_filters(
-            qs,
-            params["search"],
-            params["date_start"],
-            params["date_end"],
-            params["cap_type"],
+        qs = _apply_basic_filters(
+            qs=qs,
+            search=params["search"],
+            date_start=params["date_start"],
+            date_end=params["date_end"],
+            cap_type=params["cap_type"],
         )
-        qs = self._apply_frequency_filters(qs, params["min_freq"], params["max_freq"])
+        qs = _apply_frequency_filters(
+            qs=qs, min_freq=params["min_freq"], max_freq=params["max_freq"]
+        )
 
-        # Apply sorting
-        qs = self._apply_sorting(qs, params["sort_by"], params["sort_order"])
+        qs = _apply_sorting(
+            qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
+        )
 
         # Paginate the results
         paginator = Paginator(qs, self.items_per_page)
@@ -421,86 +345,6 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             "max_freq": request.GET.get("max_freq", ""),
         }
 
-    def _apply_basic_filters(self, qs, search, date_start, date_end, cap_type):
-        """Apply basic filters: search, date range, and capture type."""
-        if search:
-            qs = qs.filter(
-                Q(channel__icontains=search)
-                | Q(index_name__icontains=search)
-                | Q(capture_type__icontains=search)
-                | Q(uuid__icontains=search)
-            )
-        if date_start:
-            qs = qs.filter(created_at__gte=date_start)
-        if date_end:
-            qs = qs.filter(created_at__lte=date_end)
-        if cap_type:
-            qs = qs.filter(capture_type=cap_type)
-
-        return qs
-
-    def _apply_frequency_filters(self, qs, min_freq, max_freq):
-        """Apply center frequency range filters using OpenSearch data (fast!)."""
-        # Only apply frequency filtering if meaningful parameters are provided
-        min_freq_str = str(min_freq).strip() if min_freq else ""
-        max_freq_str = str(max_freq).strip() if max_freq else ""
-
-        # If both frequency parameters are empty, don't apply frequency filtering
-        if not min_freq_str and not max_freq_str:
-            return qs
-
-        # Convert to float, skip filtering if invalid values
-        try:
-            min_freq_val = float(min_freq_str) if min_freq_str else None
-        except ValueError:
-            min_freq_val = None
-
-        try:
-            max_freq_val = float(max_freq_str) if max_freq_str else None
-        except ValueError:
-            max_freq_val = None
-
-        # If both conversions failed, don't apply frequency filtering
-        if min_freq_val is None and max_freq_val is None:
-            return qs
-
-        try:
-            # Bulk load frequency metadata for all captures
-            frequency_data = Capture.bulk_load_frequency_metadata(qs)
-
-            filtered_uuids = []
-            for capture in qs:
-                capture_uuid = str(capture.uuid)
-                freq_info = frequency_data.get(capture_uuid, {})
-                center_freq_hz = freq_info.get("center_frequency")
-
-                if center_freq_hz is None:
-                    # If no frequency data and filters are active, exclude it
-                    continue  # Skip this capture
-
-                center_freq_ghz = center_freq_hz / 1e9
-
-                # Apply frequency range filter
-                if min_freq_val is not None and center_freq_ghz < min_freq_val:
-                    continue  # Skip this capture
-                if max_freq_val is not None and center_freq_ghz > max_freq_val:
-                    continue  # Skip this capture
-
-                # Capture passed all filters
-                filtered_uuids.append(capture.uuid)
-
-            return qs.filter(uuid__in=filtered_uuids)
-
-        except Exception:
-            logger.exception("Error applying frequency filters")
-            return qs  # Return unfiltered queryset on error
-
-    def _apply_sorting(self, qs, sort_by, sort_order):
-        """Apply sorting to the queryset."""
-        if sort_order == "desc":
-            return qs.order_by(f"-{sort_by}")
-        return qs.order_by(sort_by)
-
     def get(self, request, *args, **kwargs) -> JsonResponse:
         """Handle AJAX requests for the captures API."""
         logger = logging.getLogger(__name__)
@@ -513,19 +357,20 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             qs = Capture.objects.filter(owner=request.user)
 
             # Apply filters
-            qs = self._apply_basic_filters(
-                qs,
-                params["search"],
-                params["date_start"],
-                params["date_end"],
-                params["cap_type"],
+            qs = _apply_basic_filters(
+                qs=qs,
+                search=params["search"],
+                date_start=params["date_start"],
+                date_end=params["date_end"],
+                cap_type=params["cap_type"],
             )
-            qs = self._apply_frequency_filters(
-                qs, params["min_freq"], params["max_freq"]
+            qs = _apply_frequency_filters(
+                qs=qs, min_freq=params["min_freq"], max_freq=params["max_freq"]
             )
 
-            # Apply sorting
-            qs = self._apply_sorting(qs, params["sort_by"], params["sort_order"])
+            qs = _apply_sorting(
+                qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
+            )
 
             # Limit results for API performance
             captures_list = list(qs[:25])
@@ -588,10 +433,10 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
         selected_files, selected_files_details = self._get_file_context(
-            existing_dataset, str(base_dir)
+            base_dir=base_dir, existing_dataset=existing_dataset
         )
         selected_captures, selected_captures_details = self._get_capture_context(
-            existing_dataset
+            existing_dataset=existing_dataset
         )
 
         # Add to context
@@ -728,7 +573,9 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
                 status=500,
             )
 
-    def _get_directory_tree(self, files: QuerySet[File], base_dir: str) -> dict:
+    def _get_directory_tree(
+        self, files: QuerySet[File], base_dir: str
+    ) -> dict[str, Any]:
         """Build a nested directory tree structure."""
         tree = {}
 
@@ -789,7 +636,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         self._update_directory_stats(tree)
         return tree
 
-    def _update_directory_stats(self, tree: dict) -> None:
+    def _update_directory_stats(self, tree: dict[str, Any]) -> None:
         """Update size and date stats for all directories in the tree."""
         # Process all directories first
         for dir_data in tree.get("children", {}).values():
@@ -818,7 +665,9 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         tree["size"] = total_size
         tree["created_at"] = earliest_date
 
-    def _add_files_to_tree(self, files: QuerySet[File], directory: str) -> list[dict]:
+    def _add_files_to_tree(
+        self, files: QuerySet[File], directory: str
+    ) -> list[dict[str, Any]]:
         files_in_directory = files.filter(directory=directory)
         return [
             {
@@ -833,38 +682,45 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         ]
 
     def _get_file_context(
-        self, existing_dataset: Dataset, base_dir: str
-    ) -> tuple[list[dict], dict]:
-        # Get selected files
+        self,
+        base_dir: Path | None = None,
+        existing_dataset: Dataset | None = None,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         selected_files = []
         selected_files_details = {}
-        if existing_dataset:
-            files_queryset = existing_dataset.files.all()
-            # Prepare file details for JavaScript
-            for file in files_queryset:
-                selected_files.append(
-                    {
-                        "id": str(file.uuid),
-                        "name": file.name,
-                        "media_type": file.media_type,
-                        "size": file.size,
-                        "relative_path": f"{file.directory.replace(base_dir, '')}",
-                    }
-                )
+        if not existing_dataset:
+            return selected_files, selected_files_details
 
-                selected_files_details[str(file.uuid)] = {
-                    "name": file.name,
-                    "media_type": file.media_type,
-                    "size": file.size,
-                    "relative_path": f"{file.directory.replace(base_dir, '')}",
+        files_queryset = existing_dataset.files.all()
+
+        # Prepare file details for JavaScript
+        for selected_file in files_queryset:
+            rel_path = (
+                f"{selected_file.directory.replace(str(base_dir), '')}"
+                if base_dir
+                else None
+            )
+            selected_files.append(
+                {
+                    "id": str(selected_file.uuid),
+                    "name": selected_file.name,
+                    "media_type": selected_file.media_type,
+                    "size": selected_file.size,
+                    "relative_path": rel_path,
                 }
+            )
+            selected_files_details[str(selected_file.uuid)] = {
+                "name": selected_file.name,
+                "media_type": selected_file.media_type,
+                "size": selected_file.size,
+                "relative_path": rel_path,
+            }
 
         return selected_files, selected_files_details
 
     def _get_capture_context(
-        self, existing_dataset: Dataset
-    ) -> tuple[list[dict], dict]:
-        # Get selected captures
+        self, existing_dataset: Dataset | None = None
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         selected_captures = []
         selected_captures_details = {}
         if existing_dataset:
@@ -908,6 +764,101 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 "page_obj": page_obj,
             },
         )
+
+
+def _apply_basic_filters(
+    qs: QuerySet[Capture],
+    search: str | None = None,
+    date_start: str | None = None,
+    date_end: str | None = None,
+    cap_type: str | None = None,
+) -> QuerySet[Capture]:
+    """Apply basic filters: search, date range, and capture type."""
+    if search:
+        qs = qs.filter(
+            Q(channel__icontains=search)
+            | Q(index_name__icontains=search)
+            | Q(capture_type__icontains=search)
+            | Q(uuid__icontains=search)
+        )
+    if date_start:
+        qs = qs.filter(created_at__gte=date_start)
+    if date_end:
+        qs = qs.filter(created_at__lte=date_end)
+    if cap_type:
+        qs = qs.filter(capture_type=cap_type)
+
+    return qs
+
+
+def _apply_frequency_filters(
+    qs: QuerySet[Capture], min_freq: str, max_freq: str
+) -> QuerySet[Capture]:
+    """Apply center frequency range filters using OpenSearch data (fast!)."""
+    # Only apply frequency filtering if meaningful parameters are provided
+    min_freq_str = str(min_freq).strip() if min_freq else ""
+    max_freq_str = str(max_freq).strip() if max_freq else ""
+
+    # If both frequency parameters are empty, don't apply frequency filtering
+    if not min_freq_str and not max_freq_str:
+        return qs
+
+    # Convert to float, skip filtering if invalid values
+    try:
+        min_freq_val = float(min_freq_str) if min_freq_str else None
+    except ValueError:
+        min_freq_val = None
+
+    try:
+        max_freq_val = float(max_freq_str) if max_freq_str else None
+    except ValueError:
+        max_freq_val = None
+
+    # If both conversions failed, don't apply frequency filtering
+    if min_freq_val is None and max_freq_val is None:
+        return qs
+
+    try:
+        # Bulk load frequency metadata for all captures
+        frequency_data = Capture.bulk_load_frequency_metadata(qs)
+
+        filtered_uuids = []
+        for capture in qs:
+            capture_uuid = str(capture.uuid)
+            freq_info = frequency_data.get(capture_uuid, {})
+            center_freq_hz = freq_info.get("center_frequency")
+
+            if center_freq_hz is None:
+                # If no frequency data and filters are active, exclude it
+                continue  # Skip this capture
+
+            center_freq_ghz = center_freq_hz / 1e9
+
+            # Apply frequency range filter
+            if min_freq_val is not None and center_freq_ghz < min_freq_val:
+                continue  # Skip this capture
+            if max_freq_val is not None and center_freq_ghz > max_freq_val:
+                continue  # Skip this capture
+
+            # Capture passed all filters
+            filtered_uuids.append(capture.uuid)
+
+        return qs.filter(uuid__in=filtered_uuids)
+
+    except Exception:
+        logger.exception("Error applying frequency filters")
+        return qs  # Return unfiltered queryset on error
+
+
+def _apply_sorting(
+    qs: QuerySet[Capture],
+    sort_by: str,
+    sort_order: str = "desc",
+):
+    """Apply sorting to the queryset."""
+    if sort_order == "desc":
+        return qs.order_by(f"-{sort_by}")
+    return qs.order_by(sort_by)
 
 
 user_dataset_list_view = ListDatasetsView.as_view()
