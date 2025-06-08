@@ -2,20 +2,20 @@ import json
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
+from typing import cast
 
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (
-    OpenApiExample,
-    OpenApiParameter,
-    OpenApiResponse,
-    extend_schema,
-)
+from drf_spectacular.utils import OpenApiExample
+from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiResponse
+from drf_spectacular.utils import extend_schema
 from loguru import logger as log
 from opensearchpy import exceptions as os_exceptions
-from rest_framework import status, viewsets
+from rest_framework import status
+from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -26,19 +26,16 @@ from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
 )
-from sds_gateway.api_methods.helpers.index_handling import (
-    UnknownIndexError,
-    index_capture_metadata,
-)
-from sds_gateway.api_methods.helpers.reconstruct_file_tree import (
-    find_rh_metadata_file,
-    reconstruct_tree,
-)
+from sds_gateway.api_methods.helpers.index_handling import UnknownIndexError
+from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
 from sds_gateway.api_methods.helpers.search_captures import search_captures
-from sds_gateway.api_methods.models import Capture, CaptureType
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
-    CaptureGetSerializer,
     CapturePostSerializer,
 )
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
@@ -216,7 +213,7 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
         summary="Create Capture",
     )
-    def create(self, request: Request) -> Response:  # noqa: PLR0911
+    def create(self, request: Request) -> Response:  # noqa: C901, PLR0911
         """Create a capture object, connecting files and indexing the metadata."""
         drf_channel = request.data.get("channel", None)
         rh_scan_group = request.data.get("scan_group", None)
