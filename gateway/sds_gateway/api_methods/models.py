@@ -6,6 +6,7 @@ import logging
 import uuid
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
@@ -232,7 +233,7 @@ class Capture(BaseModel):
         return f"{self.capture_type} capture for channel {self.channel} added on {self.created_at}"  # noqa: E501
 
     @property
-    def center_frequency_ghz(self):
+    def center_frequency_ghz(self) -> float | None:
         """Get center frequency in GHz from OpenSearch."""
         frequency_data = self.get_opensearch_frequency_metadata()
         center_freq_hz = frequency_data.get("center_frequency")
@@ -241,7 +242,7 @@ class Capture(BaseModel):
         return None
 
     @property
-    def sample_rate_mhz(self):
+    def sample_rate_mhz(self) -> float | None:
         """Get sample rate in MHz from OpenSearch."""
         frequency_data = self.get_opensearch_frequency_metadata()
         sample_rate_hz = frequency_data.get("sample_rate")
@@ -249,7 +250,7 @@ class Capture(BaseModel):
             return sample_rate_hz / 1e6
         return None
 
-    def get_opensearch_frequency_metadata(self):
+    def get_opensearch_frequency_metadata(self) -> dict[str, Any]:
         """
         Query OpenSearch for frequency metadata for this specific capture.
 
@@ -279,7 +280,11 @@ class Capture(BaseModel):
                 "Querying OpenSearch index '%s' for capture %s", index_name, self.uuid
             )
 
-            response = client.search(index=index_name, body=query, size=1)
+            response = client.search(
+                index=index_name,
+                body=query,
+                size=1,  # pyright: ignore[reportCallIssue]
+            )
 
             if response["hits"]["total"]["value"] > 0:
                 source = response["hits"]["hits"][0]["_source"]
@@ -292,7 +297,9 @@ class Capture(BaseModel):
 
         return {}
 
-    def _extract_frequency_metadata_from_source(self, source):
+    def _extract_frequency_metadata_from_source(
+        self, source: dict[str, Any]
+    ) -> dict[str, Any]:
         """Extract frequency metadata from OpenSearch source data."""
         logger = logging.getLogger(__name__)
 
@@ -327,8 +334,17 @@ class Capture(BaseModel):
             "frequency_max": search_props.get("frequency_max"),
         }
 
-    def _extract_drf_capture_props(self, capture_props, center_frequency, sample_rate):
-        """Extract DRF-specific frequency properties."""
+    def _extract_drf_capture_props(
+        self,
+        capture_props: dict[str, Any],
+        center_frequency: float | None,
+        sample_rate: float | None,
+    ) -> tuple[float | None, float | None]:
+        """Extract DRF-specific frequency properties.
+
+        Returns:
+            center_frequency and sample_rate
+        """
         logger = logging.getLogger(__name__)
 
         # For DRF: center_freq and calculated sample_rate
@@ -361,9 +377,16 @@ class Capture(BaseModel):
         return center_frequency, sample_rate
 
     def _extract_radiohound_capture_props(
-        self, capture_props, center_frequency, sample_rate
+        self,
+        capture_props: dict[str, Any],
+        center_frequency: float | None,
+        sample_rate: float | None,
     ):
-        """Extract RadioHound-specific frequency properties."""
+        """Extract RadioHound-specific frequency properties.
+
+        Returns:
+            center_frequency and sample_rate
+        """
         # For RH: direct fields
         if not center_frequency:
             center_frequency = capture_props.get("center_frequency")
@@ -373,7 +396,9 @@ class Capture(BaseModel):
         return center_frequency, sample_rate
 
     @classmethod
-    def bulk_load_frequency_metadata(cls, captures):
+    def bulk_load_frequency_metadata(
+        cls, captures: QuerySet["Capture"]
+    ) -> dict[str, dict[str, Any]]:
         """
         Efficiently load frequency metadata for multiple captures in
         one OpenSearch query.
@@ -407,7 +432,9 @@ class Capture(BaseModel):
             return frequency_data
 
     @classmethod
-    def _group_captures_by_type(cls, captures):
+    def _group_captures_by_type(
+        cls, captures: QuerySet["Capture"]
+    ) -> dict[str, list["Capture"]]:
         """Group captures by capture type for separate queries."""
         captures_by_type = {}
         for capture in captures:
@@ -418,7 +445,13 @@ class Capture(BaseModel):
         return captures_by_type
 
     @classmethod
-    def _query_capture_type_metadata(cls, client, capture_type, type_captures, logger):
+    def _query_capture_type_metadata(
+        cls,
+        client: Any,
+        capture_type: CaptureType,
+        type_captures: list["Capture"],
+        logger: logging.Logger,
+    ):
         """Query OpenSearch for metadata of captures of a specific type."""
         uuids = [str(capture.uuid) for capture in type_captures]
 
@@ -450,7 +483,12 @@ class Capture(BaseModel):
 
     @classmethod
     def _extract_bulk_frequency_data(
-        cls, capture_type, search_props, capture_props, capture_uuid, logger
+        cls,
+        capture_type: CaptureType,
+        search_props: dict[str, Any],
+        capture_props: dict[str, Any],
+        capture_uuid: str,
+        logger: logging.Logger,
     ):
         """Extract frequency data from search_props and capture_props."""
         # Try search_props first (preferred)
@@ -477,7 +515,12 @@ class Capture(BaseModel):
 
     @classmethod
     def _extract_bulk_drf_props(
-        cls, capture_props, center_frequency, sample_rate, capture_uuid, logger
+        cls,
+        capture_props: dict[str, Any],
+        center_frequency: float | None,
+        sample_rate: float | None,
+        capture_uuid: str,
+        logger: logging.Logger,
     ):
         """Extract DRF-specific frequency properties for bulk operations."""
         # For DRF: center_freq and calculated sample_rate
@@ -514,8 +557,11 @@ class Capture(BaseModel):
 
     @classmethod
     def _extract_bulk_radiohound_props(
-        cls, capture_props, center_frequency, sample_rate
-    ):
+        cls,
+        capture_props: dict[str, Any],
+        center_frequency: float | None,
+        sample_rate: float | None,
+    ) -> tuple[float | None, float | None]:
         """Extract RadioHound-specific frequency properties for bulk operations."""
         # For RH: direct fields
         if not center_frequency:
@@ -525,7 +571,7 @@ class Capture(BaseModel):
 
         return center_frequency, sample_rate
 
-    def debug_opensearch_response(self):
+    def debug_opensearch_response(self) -> dict[str, Any] | None:
         """
         Debug method to see exactly what OpenSearch returns for this capture.
         This will help us understand why frequency metadata extraction is failing.
@@ -550,7 +596,11 @@ class Capture(BaseModel):
             logger.info("UUID: %s", self.uuid)
             logger.info("Query: %s", query)
 
-            response = client.search(index=index_name, body=query, size=1)
+            response = client.search(
+                index=index_name,
+                body=query,
+                size=1,  # pyright: ignore[reportCallIssue]
+            )
 
             logger.info("=== DEBUG: OpenSearch Response ===")
             logger.info("Total hits: %s", response["hits"]["total"]["value"])
