@@ -3,6 +3,10 @@
 document.addEventListener("DOMContentLoaded", () => {
 	console.log("File list script loaded!");
 
+	// Track whether user has interacted with sliders
+	let userInteractedWithMin = false;
+	let userInteractedWithMax = false;
+
 	// Helper function to format file size
 	function formatFileSize(bytes) {
 		if (bytes === 0) return "0 Bytes";
@@ -33,8 +37,8 @@ document.addEventListener("DOMContentLoaded", () => {
 	const frequencyTrack = document.getElementById("frequencyTrack");
 
 	// Filter buttons
-	const applyFiltersBtn = document.querySelector('.btn-primary[type="submit"]');
-	const clearFiltersBtn = document.querySelector('.btn-primary[type="button"]');
+	const applyFiltersBtn = document.querySelector(".btn-primary[type='submit']");
+	const clearFiltersBtn = document.querySelector(".btn-primary[type='button']");
 
 	console.log("Elements found:", {
 		searchInput: !!searchInput,
@@ -85,30 +89,20 @@ document.addEventListener("DOMContentLoaded", () => {
 	if (centerFreqMin && centerFreqMax && frequencyTrack) {
 		console.log("Initializing dual range slider...");
 
-		// Track whether user has interacted with sliders
-		let userInteractedWithMin = false;
-		let userInteractedWithMax = false;
+		// Set initial visual state without marking as interacted
+		centerFreqMin.value = centerFreqMin.min;
+		centerFreqMax.value = centerFreqMax.max;
+		centerFreqMinInput.value = centerFreqMin.min;
+		centerFreqMaxInput.value = centerFreqMax.max;
+
+		// Initialize track
+		updateTrack();
 
 		function updateTrack() {
-			// Only update if both sliders have values AND user has interacted
-			if (!userInteractedWithMin && !userInteractedWithMax) {
-				// Clear the track and displays when no user interaction
-				frequencyTrack.style.left = "0%";
-				frequencyTrack.style.width = "0%";
-
-				if (minFreqDisplay) {
-					minFreqDisplay.textContent = "-- GHz";
-				}
-				if (maxFreqDisplay) {
-					maxFreqDisplay.textContent = "-- GHz";
-				}
-				return;
-			}
-
 			const min = Number.parseFloat(centerFreqMin.min);
 			const max = Number.parseFloat(centerFreqMax.max);
-			const minVal = Number.parseFloat(centerFreqMin.value);
-			const maxVal = Number.parseFloat(centerFreqMax.value);
+			const minVal = Number.parseFloat(centerFreqMin.value || min);
+			const maxVal = Number.parseFloat(centerFreqMax.value || max);
 
 			const minPercent = ((minVal - min) / (max - min)) * 100;
 			const maxPercent = ((maxVal - min) / (max - min)) * 100;
@@ -123,30 +117,38 @@ document.addEventListener("DOMContentLoaded", () => {
 			if (maxFreqDisplay) {
 				maxFreqDisplay.textContent = `${maxVal.toFixed(1)} GHz`;
 			}
-
-			// Sync with input fields only if user has interacted
-			if (
-				userInteractedWithMin &&
-				centerFreqMinInput &&
-				centerFreqMinInput.value !== minVal
-			) {
-				centerFreqMinInput.value = minVal;
-			}
-			if (
-				userInteractedWithMax &&
-				centerFreqMaxInput &&
-				centerFreqMaxInput.value !== maxVal
-			) {
-				centerFreqMaxInput.value = maxVal;
-			}
 		}
 
-		function validateRange() {
-			// Only validate and sync if user has interacted with sliders
-			if (!userInteractedWithMin && !userInteractedWithMax) {
-				return; // Don't sync if user hasn't interacted
-			}
+		// Add event listeners for user interaction
+		centerFreqMin.addEventListener("input", () => {
+			userInteractedWithMin = true;
+			validateRange();
+		});
 
+		centerFreqMax.addEventListener("input", () => {
+			userInteractedWithMax = true;
+			validateRange();
+		});
+
+		centerFreqMinInput.addEventListener("change", function () {
+			const val = Number.parseFloat(this.value);
+			if (this.value && !Number.isNaN(val) && val >= 0 && val <= 10) {
+				centerFreqMin.value = val;
+				userInteractedWithMin = true;
+				validateRange();
+			}
+		});
+
+		centerFreqMaxInput.addEventListener("change", function () {
+			const val = Number.parseFloat(this.value);
+			if (this.value && !Number.isNaN(val) && val >= 0 && val <= 10) {
+				centerFreqMax.value = val;
+				userInteractedWithMax = true;
+				validateRange();
+			}
+		});
+
+		function validateRange() {
 			let minVal = Number.parseFloat(centerFreqMin.value);
 			let maxVal = Number.parseFloat(centerFreqMax.value);
 
@@ -162,76 +164,9 @@ document.addEventListener("DOMContentLoaded", () => {
 				}
 			}
 
-			// Only sync to inputs if user has interacted
-			if (userInteractedWithMin) centerFreqMinInput.value = minVal;
-			if (userInteractedWithMax) centerFreqMaxInput.value = maxVal;
+			centerFreqMinInput.value = minVal;
+			centerFreqMaxInput.value = maxVal;
 			updateTrack();
-		}
-
-		// Range slider events - mark as user-interacted
-		centerFreqMin.addEventListener("input", () => {
-			userInteractedWithMin = true;
-			validateRange();
-		});
-
-		centerFreqMax.addEventListener("input", () => {
-			userInteractedWithMax = true;
-			validateRange();
-		});
-
-		// Number input events
-		centerFreqMinInput.addEventListener("change", function () {
-			const val = Number.parseFloat(this.value);
-			if (this.value && !Number.isNaN(val) && val >= 0 && val <= 10) {
-				centerFreqMin.value = val;
-				userInteractedWithMin = true;
-				// Only validate if both inputs have values
-				if (centerFreqMaxInput.value) {
-					validateRange();
-				} else {
-					updateTrack();
-				}
-			} else if (!this.value) {
-				// Clear the corresponding slider if input is empty
-				centerFreqMin.value = "";
-				userInteractedWithMin = false;
-				updateTrack();
-			}
-		});
-
-		centerFreqMaxInput.addEventListener("change", function () {
-			const val = Number.parseFloat(this.value);
-			if (this.value && !Number.isNaN(val) && val >= 0 && val <= 10) {
-				centerFreqMax.value = val;
-				userInteractedWithMax = true;
-				// Only validate if both inputs have values
-				if (centerFreqMinInput.value) {
-					validateRange();
-				} else {
-					updateTrack();
-				}
-			} else if (!this.value) {
-				// Clear the corresponding slider if input is empty
-				centerFreqMax.value = "";
-				userInteractedWithMax = false;
-				updateTrack();
-			}
-		});
-
-		// Only initialize the track if there are values from URL
-		if (centerFreqMin.value || centerFreqMax.value) {
-			// Mark as user-interacted if values came from URL
-			if (centerFreqMinInput.value) userInteractedWithMin = true;
-			if (centerFreqMaxInput.value) userInteractedWithMax = true;
-			updateTrack();
-		} else {
-			// Start with empty display
-			if (minFreqDisplay) {
-				minFreqDisplay.textContent = "-- GHz";
-			}
-			if (maxFreqDisplay) {
-				maxFreqDisplay.textContent = "-- GHz";
-			}
 		}
 	}
 
@@ -239,34 +174,27 @@ document.addEventListener("DOMContentLoaded", () => {
 		const searchQuery = searchInput.value.trim();
 		const startDate = startDateInput.value;
 		const endDate = endDateInput.value;
-		// Use input field values instead of slider values for frequency
-		const minFreq = centerFreqMinInput ? centerFreqMinInput.value : "";
-		const maxFreq = centerFreqMaxInput ? centerFreqMaxInput.value : "";
-
-		console.log("Starting search with filters:", {
-			search: searchQuery,
-			startDate: startDate,
-			endDate: endDate,
-			minFreq: minFreq,
-			maxFreq: maxFreq,
-			sortBy: currentSortBy,
-			sortOrder: currentSortOrder,
-		});
-
-		// Show loading indicator
-		loadingIndicator.classList.remove("d-none");
-		tableContainer.style.opacity = "0.5";
 
 		// Build search URL for the dedicated API endpoint
 		const searchParams = new URLSearchParams();
 		if (searchQuery) searchParams.set("search", searchQuery);
 		if (startDate) searchParams.set("date_start", startDate);
 		if (endDate) searchParams.set("date_end", endDate);
-		// Only add frequency parameters if they have non-empty values
-		if (minFreq?.trim()) searchParams.set("min_freq", minFreq);
-		if (maxFreq?.trim()) searchParams.set("max_freq", maxFreq);
+
+		// Only add frequency parameters if user has explicitly interacted with the slider
+		if (userInteractedWithMin || userInteractedWithMax) {
+			if (centerFreqMinInput?.value)
+				searchParams.set("min_freq", centerFreqMinInput.value);
+			if (centerFreqMaxInput?.value)
+				searchParams.set("max_freq", centerFreqMaxInput.value);
+		}
+
 		searchParams.set("sort_by", currentSortBy);
 		searchParams.set("sort_order", currentSortOrder);
+
+		// Show loading indicator
+		loadingIndicator.classList.remove("d-none");
+		tableContainer.style.opacity = "0.5";
 
 		// Use the dedicated API endpoint
 		const apiUrl = `${window.location.pathname.replace(/\/$/, "")}/api/?${searchParams.toString()}`;
@@ -481,10 +409,10 @@ document.addEventListener("DOMContentLoaded", () => {
 	let currentModal = null; // Track the current modal instance
 
 	function openCaptureModal(row) {
-		// Dispose of any existing modal instance first
-		if (currentModal) {
-			currentModal.dispose();
-			currentModal = null;
+		const modalElement = document.getElementById("channelModal");
+		if (!modalElement) {
+			console.error("Modal element not found!");
+			return;
 		}
 
 		// Get all data attributes
@@ -505,33 +433,33 @@ document.addEventListener("DOMContentLoaded", () => {
 		const modalBody = document.getElementById("channelModalBody");
 		if (modalBody) {
 			modalBody.innerHTML = `
-        <div class="row">
-          <div class="col-md-6">
-            <h6 class="fw-bold">Basic Information</h6>
-            <p><strong>UUID:</strong> ${uuid || "N/A"}</p>
-            <p><strong>Index Name:</strong> ${indexName || "N/A"}</p>
-            <p><strong>Channel:</strong> ${channel || "N/A"}</p>
-            <p><strong>Capture Type:</strong> ${captureType || "N/A"}</p>
-            <p><strong>Origin:</strong> ${origin || "N/A"}</p>
-            <p><strong>Owner:</strong> ${owner || "N/A"}</p>
-          </div>
-          <div class="col-md-6">
-            <h6 class="fw-bold">Technical Details</h6>
-            <p><strong>Scan Group:</strong> ${scanGroup || "N/A"}</p>
-            <p><strong>Top Level Directory:</strong> ${topLevelDir || "N/A"}</p>
-            <p><strong>Dataset:</strong> ${dataset || "N/A"}</p>
-            <p><strong>Is Public:</strong> ${isPublic === "True" ? "Yes" : "No"}</p>
-            <p><strong>Is Deleted:</strong> ${isDeleted === "True" ? "Yes" : "No"}</p>
-          </div>
-        </div>
-        <div class="row mt-3">
-          <div class="col-12">
-            <h6 class="fw-bold">Timestamps</h6>
-            <p><strong>Created At:</strong> ${createdAt || "N/A"} UTC</p>
-            <p><strong>Updated At:</strong> ${updatedAt || "N/A"} UTC</p>
-          </div>
-        </div>
-      `;
+				<div class="row">
+					<div class="col-md-6">
+						<h6 class="fw-bold">Basic Information</h6>
+						<p><strong>UUID:</strong> ${uuid || "N/A"}</p>
+						<p><strong>Index Name:</strong> ${indexName || "N/A"}</p>
+						<p><strong>Channel:</strong> ${channel || "N/A"}</p>
+						<p><strong>Capture Type:</strong> ${captureType || "N/A"}</p>
+						<p><strong>Origin:</strong> ${origin || "N/A"}</p>
+						<p><strong>Owner:</strong> ${owner || "N/A"}</p>
+					</div>
+					<div class="col-md-6">
+						<h6 class="fw-bold">Technical Details</h6>
+						<p><strong>Scan Group:</strong> ${scanGroup || "N/A"}</p>
+						<p><strong>Top Level Directory:</strong> ${topLevelDir || "N/A"}</p>
+						<p><strong>Dataset:</strong> ${dataset || "N/A"}</p>
+						<p><strong>Is Public:</strong> ${isPublic === "True" ? "Yes" : "No"}</p>
+						<p><strong>Is Deleted:</strong> ${isDeleted === "True" ? "Yes" : "No"}</p>
+					</div>
+				</div>
+				<div class="row mt-3">
+					<div class="col-12">
+						<h6 class="fw-bold">Timestamps</h6>
+						<p><strong>Created At:</strong> ${createdAt || "N/A"} UTC</p>
+						<p><strong>Updated At:</strong> ${updatedAt || "N/A"} UTC</p>
+					</div>
+				</div>
+			`;
 
 			// Update modal title
 			const modalTitle = document.getElementById("channelModalLabel");
@@ -539,32 +467,58 @@ document.addEventListener("DOMContentLoaded", () => {
 				modalTitle.textContent = `Capture Details - ${indexName || channel || "Unknown"}`;
 			}
 
-			// Create new modal instance and track it
-			const modalElement = document.getElementById("channelModal");
-			currentModal = new bootstrap.Modal(modalElement);
+			// Try to use Bootstrap Modal if available, otherwise fallback to basic show/hide
+			if (typeof bootstrap !== "undefined") {
+				// Dispose of any existing modal instance first
+				if (currentModal) {
+					currentModal.dispose();
+					currentModal = null;
+				}
 
-			// Add event listener for proper cleanup when modal is hidden
-			modalElement.addEventListener(
-				"hidden.bs.modal",
-				() => {
-					if (currentModal) {
-						currentModal.dispose();
-						currentModal = null;
-					}
-					// Ensure any remaining backdrop is removed
-					const backdrop = document.querySelector(".modal-backdrop");
-					if (backdrop) {
+				currentModal = new bootstrap.Modal(modalElement);
+				currentModal.show();
+
+				// Add event listener for cleanup
+				modalElement.addEventListener(
+					"hidden.bs.modal",
+					() => {
+						if (currentModal) {
+							currentModal.dispose();
+							currentModal = null;
+						}
+						// Clean up backdrop and body classes
+						const backdrop = document.querySelector(".modal-backdrop");
+						if (backdrop) backdrop.remove();
+						document.body.classList.remove("modal-open");
+						document.body.style.removeProperty("overflow");
+						document.body.style.removeProperty("padding-right");
+					},
+					{ once: true },
+				);
+			} else {
+				// Basic fallback if Bootstrap is not available
+				modalElement.style.display = "block";
+				modalElement.classList.add("show");
+				document.body.classList.add("modal-open");
+
+				// Add backdrop
+				const backdrop = document.createElement("div");
+				backdrop.className = "modal-backdrop fade show";
+				document.body.appendChild(backdrop);
+
+				// Handle close button clicks
+				const closeButtons = modalElement.querySelectorAll(
+					"[data-bs-dismiss='modal']",
+				);
+				for (const button of closeButtons) {
+					button.addEventListener("click", () => {
+						modalElement.style.display = "none";
+						modalElement.classList.remove("show");
+						document.body.classList.remove("modal-open");
 						backdrop.remove();
-					}
-					// Restore body scroll if needed
-					document.body.classList.remove("modal-open");
-					document.body.style.removeProperty("overflow");
-					document.body.style.removeProperty("padding-right");
-				},
-				{ once: true },
-			); // Use once: true so the listener is automatically removed
-
-			currentModal.show();
+					});
+				}
+			}
 		}
 	}
 
