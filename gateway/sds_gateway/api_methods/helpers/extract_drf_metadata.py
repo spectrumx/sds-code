@@ -42,7 +42,12 @@ def key_in_dict_partial(
         The matched key if a partial match is found, None otherwise.
     """
     for dict_key in dict_keys:
-        if key in dict_key:
+        # make sure we are matching the last nested key directly
+        # e.g. "path.to.center_frequencies" -> "center_frequencies"
+        # avoid partial matches to the nested keys
+        # e.g. "center_freq" partially matching "path.to.center_frequencies"
+        last_nested_key = dict_key.split(".")[-1]
+        if key == last_nested_key:
             return dict_key
     return None
 
