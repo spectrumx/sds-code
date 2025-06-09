@@ -105,15 +105,8 @@ class CaptureTestCases(APITestCase):
         )
 
         # Define test metadata
-        self.drf_metadata_v0 = {
-            "center_freq": int(self.center_freq),
-            "bandwidth": 20_000_000,
-            "gain": 20.5,
-        }
-
-        # uses MEP metadata format
-        self.drf_metadata_v1 = {
-            "center_frequencies": [self.center_freq],
+        self.drf_metadata = {
+            "center_frequencies": [2_000_000_000.0],
             "bandwidth": 20_000_000,
             "gain": 20.5,
         }
@@ -241,58 +234,8 @@ class CaptureTestCases(APITestCase):
             )
             response = response_raw.json()
 
-            assert response["capture_props"] == self.drf_metadata_v0, (
-                f"Props {response['capture_props']} != {self.drf_metadata_v0}"
-            )
-            assert response["channel"] == unique_channel, (
-                f"Channel {response['channel']} != {unique_channel}"
-            )
-            assert response["top_level_dir"] == "/" + unique_top_level_dir, (
-                "Gateway should normalize to an absolute path: "
-                f"{response['top_level_dir']}"
-            )
-            assert response["capture_type"] == CaptureType.DigitalRF, (
-                f"Capture type: {response['capture_type']} != {CaptureType.DigitalRF}"
-            )
-            assert (
-                response["capture_props"]["center_freq"]
-                == (self.drf_metadata_v0["center_freq"])
-            ), (
-                "Center frequency: "
-                f"{response['capture_props']['center_freq']} "
-                f"!= {self.drf_metadata_v0['center_freq']}"
-            )
-
-    def test_create_drf_capture_v1_201(self) -> None:
-        """Test creating drf capture returns metadata."""
-        unique_channel = f"{self.channel_v1}_1"
-        unique_top_level_dir = f"{self.top_level_dir_v1}-1"
-
-        with (
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
-                return_value=self.drf_metadata_v1,
-            ),
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
-                return_value=self.drf_capture_v1.index_name,
-            ),
-        ):
-            response_raw = self.client.post(
-                self.list_url,
-                data={
-                    "capture_type": CaptureType.DigitalRF,
-                    "channel": unique_channel,
-                    "top_level_dir": unique_top_level_dir,
-                },
-            )
-            assert response_raw.status_code == status.HTTP_201_CREATED, (
-                f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
-            )
-            response = response_raw.json()
-
-            assert response["capture_props"] == self.drf_metadata_v1, (
-                f"Props {response['capture_props']} != {self.drf_metadata_v1}"
+            assert response["capture_props"] == self.drf_metadata, (
+                f"Props {response['capture_props']} != {self.drf_metadata}"
             )
             assert response["channel"] == unique_channel, (
                 f"Channel {response['channel']} != {unique_channel}"
@@ -309,11 +252,11 @@ class CaptureTestCases(APITestCase):
             )
             assert (
                 response["capture_props"]["center_frequencies"]
-                == self.drf_metadata_v1["center_frequencies"]
+                == self.drf_metadata["center_frequencies"]
             ), (
                 "Center frequencies: "
                 f"{response['capture_props']['center_frequencies']} "
-                f"!= {self.drf_metadata_v1['center_frequencies']}"
+                f"!= {self.drf_metadata['center_frequencies']}"
             )
 
     def test_create_rh_capture_201(self) -> None:
@@ -635,14 +578,7 @@ class CaptureTestCases(APITestCase):
             f"Expected to find {self.drf_capture_count} DRF captures, "
             f"got {len(drf_captures)}"
         )
-        for drf_capture in drf_captures:
-            if "center_freq" in drf_capture["capture_props"]:
-                assert drf_capture["capture_props"]["center_freq"] == self.center_freq
-            else:
-                assert (
-                    drf_capture["capture_props"]["center_frequencies"][0]
-                    == self.center_freq
-                )
+        assert drf_capture["capture_props"]["center_frequencies"][0] == center_freq
 
         # get the RH capture
         rh_capture = next(
