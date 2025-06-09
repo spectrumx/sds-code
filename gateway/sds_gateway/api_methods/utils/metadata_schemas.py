@@ -99,6 +99,10 @@ drf_capture_metadata_schema = {
             "type": int,
             "description": "The center frequency of the capture.",
         },
+        "center_frequencies": {
+            "type": list[float],
+            "description": "The center frequencies (one per subchannel) of the capture.",
+        },
         "span": {
             "type": int,
             "description": "The span of the capture.",
@@ -222,6 +226,12 @@ drf_capture_index_mapping = {
         "type": "keyword",
     },
     "center_freq": {
+        "type": "double",
+    },
+    # opensearch does not have a special type for arrays
+    # instead any field can contain an array of values of the field type
+    # https://docs.opensearch.org/docs/latest/field-types/
+    "center_frequencies": {
         "type": "double",
     },
     "span": {
