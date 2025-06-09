@@ -89,7 +89,7 @@ class CaptureTestCases(APITestCase):
 
         # Define test metadata
         self.drf_metadata = {
-            "center_freq": 2_000_000_000,
+            "center_frequencies": [2_000_000_000.0],
             "bandwidth": 20_000_000,
             "gain": 20.5,
         }
@@ -211,6 +211,7 @@ class CaptureTestCases(APITestCase):
                 f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
             )
             response = response_raw.json()
+
             assert response["capture_props"] == self.drf_metadata, (
                 f"Props {response['capture_props']} != {self.drf_metadata}"
             )
@@ -223,6 +224,17 @@ class CaptureTestCases(APITestCase):
             )
             assert response["capture_type"] == CaptureType.DigitalRF, (
                 f"Capture type: {response['capture_type']} != {CaptureType.DigitalRF}"
+            )
+            assert isinstance(response["capture_props"]["center_frequencies"], list), (
+                "Center frequencies should be a list"
+            )
+            assert (
+                response["capture_props"]["center_frequencies"]
+                == self.drf_metadata["center_frequencies"]
+            ), (
+                "Center frequencies: "
+                f"{response['capture_props']['center_frequencies']} "
+                f"!= {self.drf_metadata['center_frequencies']}"
             )
 
     def test_create_rh_capture_201(self) -> None:
@@ -515,7 +527,7 @@ class CaptureTestCases(APITestCase):
         drf_capture = next(
             c for c in data["results"] if c["capture_type"] == CaptureType.DigitalRF
         )
-        assert drf_capture["capture_props"]["center_freq"] == center_freq
+        assert drf_capture["capture_props"]["center_frequencies"][0] == center_freq
 
         # get the RH capture
         rh_capture = next(

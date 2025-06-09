@@ -91,9 +91,13 @@ class Transforms:
             "search_props.center_frequency": {
                 "source": """
                     if (ctx._source.capture_props != null &&
-                        ctx._source.capture_props.center_freq != null) {
+                        (ctx._source.capture_props.center_freq != null ||
+                        ctx._source.capture_props.center_frequencies != null) &&
+                        ctx._source.search_props.center_frequency == null) {
                         ctx._source.search_props.center_frequency =
-                            ctx._source.capture_props.center_freq;
+                            ctx._source.capture_props.center_freq != null ?
+                                ctx._source.capture_props.center_freq :
+                                ctx._source.capture_props.center_frequencies[0];
                     }
                 """.strip(),
                 "lang": "painless",
