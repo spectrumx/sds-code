@@ -52,6 +52,15 @@ class FormHandler {
 	}
 
 	initializeEventListeners() {
+		// Prevent form submission on enter key
+		if (this.form) {
+			this.form.addEventListener("keypress", (e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+				}
+			});
+		}
+
 		// Navigation buttons
 		if (this.prevBtn) {
 			this.prevBtn.addEventListener("click", () => this.navigateStep(-1));
@@ -600,6 +609,20 @@ class SearchHandler {
 			this.confirmFileSelection.addEventListener("click", () => {
 				this.updateSelectedFilesList();
 				this.handleClear();
+			});
+		}
+		this.initializeEnterKeyListener();
+	}
+
+	initializeEnterKeyListener() {
+		// Allow pressing enter when focused on a search input to trigger the search
+		const searchInputs = this.searchForm.querySelectorAll("input[type='text']");
+		for (const input of searchInputs) {
+			input.addEventListener("keypress", (e) => {
+				console.log("keypress", e.key);
+				if (e.key === "Enter") {
+					this.handleSearch();
+				}
 			});
 		}
 	}
