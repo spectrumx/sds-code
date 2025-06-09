@@ -30,7 +30,7 @@ class User(AbstractUser):
     email = models.EmailField(_("Email address"), unique=True)
     is_approved = models.BooleanField(
         _("Approved"),
-        default=False,
+        default=settings.SDS_NEW_USERS_APPROVED_ON_CREATION,
         help_text=_(
             "Designates whether this user has been approved to use the API by an Admin.",  # noqa: E501
         ),
