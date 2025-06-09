@@ -591,10 +591,10 @@ class Capture(BaseModel):
 
             query = {"query": {"term": {"_id": str(self.uuid)}}}
 
-            logger.info("=== DEBUG: OpenSearch Query ===")
-            logger.info("Index: %s", index_name)
-            logger.info("UUID: %s", self.uuid)
-            logger.info("Query: %s", query)
+            logger.debug("=== DEBUG: OpenSearch Query ===")
+            logger.debug("Index: %s", index_name)
+            logger.debug("UUID: %s", self.uuid)
+            logger.debug("Query: %s", query)
 
             response = client.search(
                 index=index_name,
@@ -602,22 +602,22 @@ class Capture(BaseModel):
                 size=1,  # pyright: ignore[reportCallIssue]
             )
 
-            logger.info("=== DEBUG: OpenSearch Response ===")
-            logger.info("Total hits: %s", response["hits"]["total"]["value"])
+            logger.debug("=== DEBUG: OpenSearch Response ===")
+            logger.debug("Total hits: %s", response["hits"]["total"]["value"])
 
             if response["hits"]["total"]["value"] > 0:
                 source = response["hits"]["hits"][0]["_source"]
-                logger.info("=== DEBUG: Full Source Data ===")
-                logger.info("Source keys: %s", list(source.keys()))
+                logger.debug("=== DEBUG: Full Source Data ===")
+                logger.debug("Source keys: %s", list(source.keys()))
 
                 search_props = source.get("search_props", {})
-                logger.info("=== DEBUG: search_props ===")
-                logger.info("search_props keys: %s", list(search_props.keys()))
-                logger.info("search_props content: %s", search_props)
+                logger.debug("=== DEBUG: search_props ===")
+                logger.debug("search_props keys: %s", list(search_props.keys()))
+                logger.debug("search_props content: %s", search_props)
 
                 capture_props = source.get("capture_props", {})
-                logger.info("=== DEBUG: capture_props ===")
-                logger.info("capture_props keys: %s", list(capture_props.keys()))
+                logger.debug("=== DEBUG: capture_props ===")
+                logger.debug("capture_props keys: %s", list(capture_props.keys()))
                 if capture_props:
                     # Just show a few key fields to avoid log spam
                     key_fields = [
@@ -630,7 +630,7 @@ class Capture(BaseModel):
                     ]
                     for field in key_fields:
                         if field in capture_props:
-                            logger.info(
+                            logger.debug(
                                 "capture_props.%s = %s", field, capture_props[field]
                             )
 
@@ -640,7 +640,7 @@ class Capture(BaseModel):
             logger.exception("Error occurred during frequency metadata extraction")
             return None
         else:
-            logger.warning("=== DEBUG: No data found ===")
+            logger.debug("=== DEBUG: No data found ===")
             return None
 
 
