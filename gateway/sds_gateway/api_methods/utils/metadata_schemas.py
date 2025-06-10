@@ -150,7 +150,7 @@ drf_capture_metadata_schema = {
         "epoch",
         "digital_rf_time_description",
         "digital_rf_version",
-        "center_freq",
+        "center_frequencies",
         "span",
         "gain",
         "bandwidth",
