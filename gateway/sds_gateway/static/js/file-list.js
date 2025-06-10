@@ -221,7 +221,14 @@ document.addEventListener("DOMContentLoaded", () => {
 	function performSearch() {
 		const searchQuery = searchInput.value.trim();
 		const startDate = startDateInput.value;
-		const endDate = endDateInput.value;
+		let endDate = endDateInput.value;
+
+		// If start and end dates are the same, adjust end date to include the full day
+		if (startDate && endDate && startDate === endDate) {
+			// Keep the start date as is (defaults to 00:00:00)
+			// Modify end date to include the full day
+			endDate = `${endDate}T23:59:59`;
+		}
 
 		// Build search URL for the dedicated API endpoint
 		const searchParams = new URLSearchParams();
@@ -363,21 +370,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	// Search on button click
 	searchBtn.addEventListener("click", performSearch);
-
-	// Date filter change events
-	if (startDateInput) {
-		startDateInput.addEventListener("change", function () {
-			console.log("Start date changed to:", this.value);
-			performSearch();
-		});
-	}
-
-	if (endDateInput) {
-		endDateInput.addEventListener("change", function () {
-			console.log("End date changed to:", this.value);
-			performSearch();
-		});
-	}
 
 	// Apply filters button
 	if (applyFiltersBtn) {
