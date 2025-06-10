@@ -54,9 +54,12 @@ class CaptureTestCases(APITestCase):
         self.scan_group = uuid.uuid4()
         self.channel_v0 = "ch0"
         self.channel_v1 = "ch1"
+<<<<<<< HEAD
         self.top_level_dir_v0 = "test-dir-drf-v0"
         self.top_level_dir_v1 = "test-dir-drf-v1"
         self.top_level_dir_rh = "test-dir-rh"
+=======
+>>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
         self.user = User.objects.create(
             email="testuser@example.com",
             password="testpassword",  # noqa: S106
@@ -85,7 +88,11 @@ class CaptureTestCases(APITestCase):
             channel=self.channel_v0,
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
+<<<<<<< HEAD
             top_level_dir=self.top_level_dir_v0,
+=======
+            top_level_dir="test-dir-drf-v0",
+>>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
         )
 
         self.drf_capture_v1 = Capture.objects.create(
@@ -93,7 +100,11 @@ class CaptureTestCases(APITestCase):
             channel=self.channel_v1,
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
+<<<<<<< HEAD
             top_level_dir=self.top_level_dir_v1,
+=======
+            top_level_dir="test-dir-drf-v1",
+>>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
         )
 
         self.rh_capture = Capture.objects.create(
@@ -105,8 +116,15 @@ class CaptureTestCases(APITestCase):
         )
 
         # Define test metadata
-        self.drf_metadata = {
-            "center_frequencies": [2_000_000_000.0],
+        self.drf_metadata_v0 = {
+            "center_freq": int(self.center_freq),
+            "bandwidth": 20_000_000,
+            "gain": 20.5,
+        }
+
+        # uses MEP metadata format
+        self.drf_metadata_v1 = {
+            "center_frequencies": [self.center_freq],
             "bandwidth": 20_000_000,
             "gain": 20.5,
         }
@@ -208,8 +226,13 @@ class CaptureTestCases(APITestCase):
 
     def test_create_drf_capture_v0_201(self) -> None:
         """Test creating drf capture returns metadata."""
+<<<<<<< HEAD
         unique_channel = f"{self.channel_v0}_1"
         unique_top_level_dir = f"{self.top_level_dir_v0}-1"
+=======
+        unique_channel = "ch0_1"
+        unique_top_level_dir = "test-dir-drf-v0-1"
+>>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
 
         with (
             patch(
@@ -234,8 +257,58 @@ class CaptureTestCases(APITestCase):
             )
             response = response_raw.json()
 
-            assert response["capture_props"] == self.drf_metadata, (
-                f"Props {response['capture_props']} != {self.drf_metadata}"
+            assert response["capture_props"] == self.drf_metadata_v0, (
+                f"Props {response['capture_props']} != {self.drf_metadata_v0}"
+            )
+            assert response["channel"] == unique_channel, (
+                f"Channel {response['channel']} != {unique_channel}"
+            )
+            assert response["top_level_dir"] == "/" + unique_top_level_dir, (
+                "Gateway should normalize to an absolute path: "
+                f"{response['top_level_dir']}"
+            )
+            assert response["capture_type"] == CaptureType.DigitalRF, (
+                f"Capture type: {response['capture_type']} != {CaptureType.DigitalRF}"
+            )
+            assert (
+                response["capture_props"]["center_freq"]
+                == (self.drf_metadata_v0["center_freq"])
+            ), (
+                "Center frequency: "
+                f"{response['capture_props']['center_freq']} "
+                f"!= {self.drf_metadata_v0['center_freq']}"
+            )
+
+    def test_create_drf_capture_v1_201(self) -> None:
+        """Test creating drf capture returns metadata."""
+        unique_channel = "ch1_1"
+        unique_top_level_dir = "test-dir-drf-v1-1"
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata_v1,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture_v1.index_name,
+            ),
+        ):
+            response_raw = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": unique_channel,
+                    "top_level_dir": unique_top_level_dir,
+                },
+            )
+            assert response_raw.status_code == status.HTTP_201_CREATED, (
+                f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
+            )
+            response = response_raw.json()
+
+            assert response["capture_props"] == self.drf_metadata_v1, (
+                f"Props {response['capture_props']} != {self.drf_metadata_v1}"
             )
             assert response["channel"] == unique_channel, (
                 f"Channel {response['channel']} != {unique_channel}"
@@ -252,11 +325,11 @@ class CaptureTestCases(APITestCase):
             )
             assert (
                 response["capture_props"]["center_frequencies"]
-                == self.drf_metadata["center_frequencies"]
+                == self.drf_metadata_v1["center_frequencies"]
             ), (
                 "Center frequencies: "
                 f"{response['capture_props']['center_frequencies']} "
-                f"!= {self.drf_metadata['center_frequencies']}"
+                f"!= {self.drf_metadata_v1['center_frequencies']}"
             )
 
     def test_create_rh_capture_201(self) -> None:
@@ -325,7 +398,11 @@ class CaptureTestCases(APITestCase):
                 data={
                     "capture_type": CaptureType.DigitalRF,
                     "channel": self.channel_v0,
+<<<<<<< HEAD
                     "top_level_dir": self.top_level_dir_v0,
+=======
+                    "top_level_dir": "test-dir-drf-v0",
+>>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
                 },
             )
             assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
@@ -427,15 +504,25 @@ class CaptureTestCases(APITestCase):
         for drf_capture in drf_captures:
             if "center_freq" in drf_capture["capture_props"]:
                 assert drf_capture["capture_props"]["center_freq"] == self.center_freq
+<<<<<<< HEAD
                 assert drf_capture["channel"] == self.channel_v0
                 assert drf_capture["top_level_dir"] == self.top_level_dir_v0
+=======
+                assert drf_capture["channel"] == "ch0"
+                assert drf_capture["top_level_dir"] == "test-dir-drf-v0"
+>>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
             else:
                 assert (
                     drf_capture["capture_props"]["center_frequencies"][0]
                     == self.center_freq
                 )
+<<<<<<< HEAD
                 assert drf_capture["channel"] == self.channel_v1
                 assert drf_capture["top_level_dir"] == self.top_level_dir_v1
+=======
+                assert drf_capture["channel"] == "ch1"
+                assert drf_capture["top_level_dir"] == "test-dir-drf-v1"
+>>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
 
         # verify rh capture
         rh_capture = next(
@@ -448,9 +535,14 @@ class CaptureTestCases(APITestCase):
 
         # verify other fields are present
         assert rh_capture["channel"] == "", "Expected empty channel for RH capture"
+<<<<<<< HEAD
         assert rh_capture["top_level_dir"] == self.top_level_dir_rh, (
             f"Expected top level dir {self.top_level_dir_rh}, "
             f"got {rh_capture['top_level_dir']}"
+=======
+        assert rh_capture["top_level_dir"] == "test-dir-rh", (
+            f"Expected top level dir 'test-dir-rh', got {rh_capture['top_level_dir']}"
+>>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
         )
         assert rh_capture["scan_group"] == str(self.scan_group), (
             f"Expected scan group {self.scan_group}, got {rh_capture['scan_group']}"
@@ -578,7 +670,14 @@ class CaptureTestCases(APITestCase):
             f"Expected to find {self.drf_capture_count} DRF captures, "
             f"got {len(drf_captures)}"
         )
-        assert drf_capture["capture_props"]["center_frequencies"][0] == center_freq
+        for drf_capture in drf_captures:
+            if "center_freq" in drf_capture["capture_props"]:
+                assert drf_capture["capture_props"]["center_freq"] == self.center_freq
+            else:
+                assert (
+                    drf_capture["capture_props"]["center_frequencies"][0]
+                    == self.center_freq
+                )
 
         # get the RH capture
         rh_capture = next(
