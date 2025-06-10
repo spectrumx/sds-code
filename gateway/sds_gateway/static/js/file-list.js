@@ -3,6 +3,54 @@
 document.addEventListener("DOMContentLoaded", () => {
 	console.log("File list script loaded!");
 
+	// Initialize accordion behavior for frequency filter
+	const frequencyButton = document.querySelector(
+		'[data-bs-target="#collapseFrequency"]',
+	);
+	const frequencyCollapse = document.getElementById("collapseFrequency");
+
+	if (frequencyButton && frequencyCollapse) {
+		frequencyButton.addEventListener("click", (e) => {
+			e.preventDefault();
+
+			// Toggle classes manually
+			const isCollapsed = frequencyButton.classList.contains("collapsed");
+
+			if (isCollapsed) {
+				frequencyButton.classList.remove("collapsed");
+				frequencyButton.setAttribute("aria-expanded", "true");
+				frequencyCollapse.classList.add("show");
+			} else {
+				frequencyButton.classList.add("collapsed");
+				frequencyButton.setAttribute("aria-expanded", "false");
+				frequencyCollapse.classList.remove("show");
+			}
+		});
+	}
+
+	// Initialize accordion behavior for date filter
+	const dateButton = document.querySelector('[data-bs-target="#collapseDate"]');
+	const dateCollapse = document.getElementById("collapseDate");
+
+	if (dateButton && dateCollapse) {
+		dateButton.addEventListener("click", (e) => {
+			e.preventDefault();
+
+			// Toggle classes manually
+			const isCollapsed = dateButton.classList.contains("collapsed");
+
+			if (isCollapsed) {
+				dateButton.classList.remove("collapsed");
+				dateButton.setAttribute("aria-expanded", "true");
+				dateCollapse.classList.add("show");
+			} else {
+				dateButton.classList.add("collapsed");
+				dateButton.setAttribute("aria-expanded", "false");
+				dateCollapse.classList.remove("show");
+			}
+		});
+	}
+
 	// Track whether user has interacted with sliders
 	let userInteractedWithMin = false;
 	let userInteractedWithMax = false;
