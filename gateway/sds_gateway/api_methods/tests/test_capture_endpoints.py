@@ -54,18 +54,9 @@ class CaptureTestCases(APITestCase):
         self.scan_group = uuid.uuid4()
         self.channel_v0 = "ch0"
         self.channel_v1 = "ch1"
-<<<<<<< HEAD
-<<<<<<< HEAD
         self.top_level_dir_v0 = "test-dir-drf-v0"
         self.top_level_dir_v1 = "test-dir-drf-v1"
         self.top_level_dir_rh = "test-dir-rh"
-=======
->>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
-=======
-        self.top_level_dir_v0 = "test-dir-drf-v0"
-        self.top_level_dir_v1 = "test-dir-drf-v1"
-        self.top_level_dir_rh = "test-dir-rh"
->>>>>>> ca4705e (use set values for assertions)
         self.user = User.objects.create(
             email="testuser@example.com",
             password="testpassword",  # noqa: S106
@@ -94,15 +85,7 @@ class CaptureTestCases(APITestCase):
             channel=self.channel_v0,
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
-<<<<<<< HEAD
-<<<<<<< HEAD
             top_level_dir=self.top_level_dir_v0,
-=======
-            top_level_dir="test-dir-drf-v0",
->>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
-=======
-            top_level_dir=self.top_level_dir_v0,
->>>>>>> ca4705e (use set values for assertions)
         )
 
         self.drf_capture_v1 = Capture.objects.create(
@@ -110,15 +93,7 @@ class CaptureTestCases(APITestCase):
             channel=self.channel_v1,
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
-<<<<<<< HEAD
-<<<<<<< HEAD
             top_level_dir=self.top_level_dir_v1,
-=======
-            top_level_dir="test-dir-drf-v1",
->>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
-=======
-            top_level_dir=self.top_level_dir_v1,
->>>>>>> ca4705e (use set values for assertions)
         )
 
         self.rh_capture = Capture.objects.create(
@@ -240,18 +215,8 @@ class CaptureTestCases(APITestCase):
 
     def test_create_drf_capture_v0_201(self) -> None:
         """Test creating drf capture returns metadata."""
-<<<<<<< HEAD
-<<<<<<< HEAD
         unique_channel = f"{self.channel_v0}_1"
         unique_top_level_dir = f"{self.top_level_dir_v0}-1"
-=======
-        unique_channel = "ch0_1"
-        unique_top_level_dir = "test-dir-drf-v0-1"
->>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
-=======
-        unique_channel = f"{self.channel_v0}_1"
-        unique_top_level_dir = f"{self.top_level_dir_v0}-1"
->>>>>>> ca4705e (use set values for assertions)
 
         with (
             patch(
@@ -417,15 +382,7 @@ class CaptureTestCases(APITestCase):
                 data={
                     "capture_type": CaptureType.DigitalRF,
                     "channel": self.channel_v0,
-<<<<<<< HEAD
-<<<<<<< HEAD
                     "top_level_dir": self.top_level_dir_v0,
-=======
-                    "top_level_dir": "test-dir-drf-v0",
->>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
-=======
-                    "top_level_dir": self.top_level_dir_v0,
->>>>>>> ca4705e (use set values for assertions)
                 },
             )
             assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
@@ -527,35 +484,15 @@ class CaptureTestCases(APITestCase):
         for drf_capture in drf_captures:
             if "center_freq" in drf_capture["capture_props"]:
                 assert drf_capture["capture_props"]["center_freq"] == self.center_freq
-<<<<<<< HEAD
-<<<<<<< HEAD
                 assert drf_capture["channel"] == self.channel_v0
                 assert drf_capture["top_level_dir"] == self.top_level_dir_v0
-=======
-                assert drf_capture["channel"] == "ch0"
-                assert drf_capture["top_level_dir"] == "test-dir-drf-v0"
->>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
-=======
-                assert drf_capture["channel"] == self.channel_v0
-                assert drf_capture["top_level_dir"] == self.top_level_dir_v0
->>>>>>> ca4705e (use set values for assertions)
             else:
                 assert (
                     drf_capture["capture_props"]["center_frequencies"][0]
                     == self.center_freq
                 )
-<<<<<<< HEAD
-<<<<<<< HEAD
                 assert drf_capture["channel"] == self.channel_v1
                 assert drf_capture["top_level_dir"] == self.top_level_dir_v1
-=======
-                assert drf_capture["channel"] == "ch1"
-                assert drf_capture["top_level_dir"] == "test-dir-drf-v1"
->>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
-=======
-                assert drf_capture["channel"] == self.channel_v1
-                assert drf_capture["top_level_dir"] == self.top_level_dir_v1
->>>>>>> ca4705e (use set values for assertions)
 
         # verify rh capture
         rh_capture = next(
@@ -568,20 +505,9 @@ class CaptureTestCases(APITestCase):
 
         # verify other fields are present
         assert rh_capture["channel"] == "", "Expected empty channel for RH capture"
-<<<<<<< HEAD
-<<<<<<< HEAD
         assert rh_capture["top_level_dir"] == self.top_level_dir_rh, (
             f"Expected top level dir {self.top_level_dir_rh}, "
             f"got {rh_capture['top_level_dir']}"
-=======
-        assert rh_capture["top_level_dir"] == "test-dir-rh", (
-            f"Expected top level dir 'test-dir-rh', got {rh_capture['top_level_dir']}"
->>>>>>> d9e14b9 (integrate v0 and v1 metadata formats into cap tests, make center_frequencies required)
-=======
-        assert rh_capture["top_level_dir"] == self.top_level_dir_rh, (
-            f"Expected top level dir {self.top_level_dir_rh}, "
-            f"got {rh_capture['top_level_dir']}"
->>>>>>> ca4705e (use set values for assertions)
         )
         assert rh_capture["scan_group"] == str(self.scan_group), (
             f"Expected scan group {self.scan_group}, got {rh_capture['scan_group']}"
