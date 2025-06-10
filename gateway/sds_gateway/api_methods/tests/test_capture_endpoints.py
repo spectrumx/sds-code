@@ -54,6 +54,9 @@ class CaptureTestCases(APITestCase):
         self.scan_group = uuid.uuid4()
         self.channel_v0 = "ch0"
         self.channel_v1 = "ch1"
+        self.top_level_dir_v0 = "test-dir-drf-v0"
+        self.top_level_dir_v1 = "test-dir-drf-v1"
+        self.top_level_dir_rh = "test-dir-rh"
         self.user = User.objects.create(
             email="testuser@example.com",
             password="testpassword",  # noqa: S106
@@ -82,7 +85,7 @@ class CaptureTestCases(APITestCase):
             channel=self.channel_v0,
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
-            top_level_dir="test-dir-drf-v0",
+            top_level_dir=self.top_level_dir_v0,
         )
 
         self.drf_capture_v1 = Capture.objects.create(
@@ -90,7 +93,7 @@ class CaptureTestCases(APITestCase):
             channel=self.channel_v1,
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
-            top_level_dir="test-dir-drf-v1",
+            top_level_dir=self.top_level_dir_v1,
         )
 
         self.rh_capture = Capture.objects.create(
@@ -98,7 +101,7 @@ class CaptureTestCases(APITestCase):
             index_name=f"{self.test_index_prefix}-rh",
             owner=self.user,
             scan_group=self.scan_group,
-            top_level_dir="test-dir-rh",
+            top_level_dir=self.top_level_dir_rh,
         )
 
         # Define test metadata
@@ -212,8 +215,8 @@ class CaptureTestCases(APITestCase):
 
     def test_create_drf_capture_v0_201(self) -> None:
         """Test creating drf capture returns metadata."""
-        unique_channel = "ch0_1"
-        unique_top_level_dir = "test-dir-drf-v0-1"
+        unique_channel = f"{self.channel_v0}_1"
+        unique_top_level_dir = f"{self.top_level_dir_v0}-1"
 
         with (
             patch(
@@ -262,8 +265,8 @@ class CaptureTestCases(APITestCase):
 
     def test_create_drf_capture_v1_201(self) -> None:
         """Test creating drf capture returns metadata."""
-        unique_channel = "ch1_1"
-        unique_top_level_dir = "test-dir-drf-v1-1"
+        unique_channel = f"{self.channel_v1}_1"
+        unique_top_level_dir = f"{self.top_level_dir_v1}-1"
 
         with (
             patch(
@@ -318,7 +321,6 @@ class CaptureTestCases(APITestCase):
         unique_scan_group = uuid.uuid4()
         unique_rh_metadata = self.rh_metadata.copy()
         unique_rh_metadata["scan_group"] = str(unique_scan_group)
-        test_dir_rh = "test-dir-rh"
 
         with (
             patch(
@@ -343,7 +345,7 @@ class CaptureTestCases(APITestCase):
                 data={
                     "capture_type": CaptureType.RadioHound,
                     "scan_group": str(unique_scan_group),
-                    "top_level_dir": test_dir_rh,
+                    "top_level_dir": self.top_level_dir_rh,
                 },
             )
             assert response_raw.status_code == status.HTTP_201_CREATED, (
@@ -359,7 +361,7 @@ class CaptureTestCases(APITestCase):
             assert response["capture_type"] == CaptureType.RadioHound, (
                 f"{response['capture_type']} != {CaptureType.RadioHound}"
             )
-            assert response["top_level_dir"] == "/" + test_dir_rh, (
+            assert response["top_level_dir"] == "/" + self.top_level_dir_rh, (
                 f"Expected Gateway to normalize the path: {response['top_level_dir']}"
             )
 
@@ -380,7 +382,7 @@ class CaptureTestCases(APITestCase):
                 data={
                     "capture_type": CaptureType.DigitalRF,
                     "channel": self.channel_v0,
-                    "top_level_dir": "test-dir-drf-v0",
+                    "top_level_dir": self.top_level_dir_v0,
                 },
             )
             assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
@@ -418,7 +420,7 @@ class CaptureTestCases(APITestCase):
                 data={
                     "capture_type": CaptureType.RadioHound,
                     "scan_group": str(self.scan_group),
-                    "top_level_dir": "test-dir-rh",
+                    "top_level_dir": self.top_level_dir_rh,
                 },
             )
 
@@ -482,15 +484,15 @@ class CaptureTestCases(APITestCase):
         for drf_capture in drf_captures:
             if "center_freq" in drf_capture["capture_props"]:
                 assert drf_capture["capture_props"]["center_freq"] == self.center_freq
-                assert drf_capture["channel"] == "ch0"
-                assert drf_capture["top_level_dir"] == "test-dir-drf-v0"
+                assert drf_capture["channel"] == self.channel_v0
+                assert drf_capture["top_level_dir"] == self.top_level_dir_v0
             else:
                 assert (
                     drf_capture["capture_props"]["center_frequencies"][0]
                     == self.center_freq
                 )
-                assert drf_capture["channel"] == "ch1"
-                assert drf_capture["top_level_dir"] == "test-dir-drf-v1"
+                assert drf_capture["channel"] == self.channel_v1
+                assert drf_capture["top_level_dir"] == self.top_level_dir_v1
 
         # verify rh capture
         rh_capture = next(
@@ -503,8 +505,9 @@ class CaptureTestCases(APITestCase):
 
         # verify other fields are present
         assert rh_capture["channel"] == "", "Expected empty channel for RH capture"
-        assert rh_capture["top_level_dir"] == "test-dir-rh", (
-            f"Expected top level dir 'test-dir-rh', got {rh_capture['top_level_dir']}"
+        assert rh_capture["top_level_dir"] == self.top_level_dir_rh, (
+            f"Expected top level dir {self.top_level_dir_rh}, "
+            f"got {rh_capture['top_level_dir']}"
         )
         assert rh_capture["scan_group"] == str(self.scan_group), (
             f"Expected scan group {self.scan_group}, got {rh_capture['scan_group']}"
@@ -672,7 +675,9 @@ class CaptureTestCases(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["count"] == 1, "Expected to find the RH capture"
+        assert data["count"] == self.rh_capture_count, (
+            f"Expected to find {self.rh_capture_count} RH captures, got {data['count']}"
+        )
         fmax = data["results"][0]["capture_props"]["metadata"]["fmax"]
         assert fmax > self.center_freq, (
             f"fmax should be greater than center frequency: {fmax} > {self.center_freq}"
@@ -708,7 +713,9 @@ class CaptureTestCases(APITestCase):
         )
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["count"] == 1, "Expected to find the RH capture"
+        assert data["count"] == self.rh_capture_count, (
+            f"Expected to find {self.rh_capture_count} RH captures, got {data['count']}"
+        )
         latitude = data["results"][0]["capture_props"]["latitude"]
         longitude = data["results"][0]["capture_props"]["longitude"]
         assert latitude <= top_left_lat, (
@@ -736,7 +743,7 @@ class CaptureTestCases(APITestCase):
         data = response.json()
         assert data["uuid"] == str(self.drf_capture_v0.uuid)
         assert data["capture_type"] == CaptureType.DigitalRF
-        assert data["channel"] == "ch0"
+        assert data["channel"] == self.channel_v0
 
         # Verify metadata is correctly retrieved for single capture
         assert data["capture_props"] == self.drf_metadata_v0
