@@ -66,7 +66,7 @@ def read_metadata_by_channel(
     # get properties
     drf_properties = typing.cast(
         "dict[str, typing.Any]",
-        rf_reader.get_properties(channel_name, bounds.start),
+        rf_reader.get_properties(channel_name=channel_name, sample=bounds.start),
     )
 
     # add bounds to properties, convert to unix timestamp
@@ -112,6 +112,7 @@ def validate_metadata_by_channel(
     )
     props_pending_validation = list(props_by_channel.keys())
     required_props = drf_capture_metadata_schema["required"]
+    supported_conversion_types = (int, bool)
 
     for key, value in drf_capture_metadata_schema["properties"].items():
         # check for partial match of key in schema (some expected keys are nested)
@@ -125,6 +126,10 @@ def validate_metadata_by_channel(
 
             # already in the correct type, skip
             target_type = value["type"]
+            # list[float] of center_frequencies falls here
+            if target_type not in supported_conversion_types:
+                validated_props[key] = original_value
+                continue
             if isinstance(original_value, target_type):
                 continue
 
