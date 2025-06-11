@@ -256,7 +256,8 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
     """Handle HTML requests for the captures list page."""
 
     template_name = "users/file_list.html"
-    items_per_page = 25
+    default_items_per_page = 25
+    max_items_per_page = 100
 
     def _extract_request_params(self, request):
         """Extract and return request parameters for HTML view."""
@@ -270,6 +271,10 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             "cap_type": request.GET.get("capture_type", ""),
             "min_freq": request.GET.get("min_freq", ""),
             "max_freq": request.GET.get("max_freq", ""),
+            "items_per_page": min(
+                int(request.GET.get("items_per_page", self.default_items_per_page)),
+                self.max_items_per_page,
+            ),
         }
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
@@ -277,6 +282,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         # Extract request parameters
         params = self._extract_request_params(request)
 
+        # Query database for captures
         qs = request.user.captures.filter(is_deleted=False)
 
         # Apply all filters
@@ -296,7 +302,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         )
 
         # Paginate the results
-        paginator = Paginator(qs, self.items_per_page)
+        paginator = Paginator(qs, params["items_per_page"])
         try:
             page_obj = paginator.page(params["page"])
         except (EmptyPage, PageNotAnInteger):
@@ -325,6 +331,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
                 "capture_type": params["cap_type"],
                 "min_freq": params["min_freq"],
                 "max_freq": params["max_freq"],
+                "items_per_page": params["items_per_page"],
             },
         )
 
