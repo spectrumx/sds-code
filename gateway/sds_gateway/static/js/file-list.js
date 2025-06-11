@@ -223,10 +223,8 @@ document.addEventListener("DOMContentLoaded", () => {
 		const startDate = startDateInput.value;
 		let endDate = endDateInput.value;
 
-		// If start and end dates are the same, adjust end date to include the full day
-		if (startDate && endDate && startDate === endDate) {
-			// Keep the start date as is (defaults to 00:00:00)
-			// Modify end date to include the full day
+		// If end date is set, always include the full day by setting it to 23:59:59
+		if (endDate) {
 			endDate = `${endDate}T23:59:59`;
 		}
 
