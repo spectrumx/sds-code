@@ -3,6 +3,17 @@
 document.addEventListener("DOMContentLoaded", () => {
 	console.log("File list script loaded!");
 
+	// Handle items per page change
+	const itemsPerPageSelect = document.getElementById("items-per-page");
+	if (itemsPerPageSelect) {
+		itemsPerPageSelect.addEventListener("change", (e) => {
+			const urlParams = new URLSearchParams(window.location.search);
+			urlParams.set("items_per_page", e.target.value);
+			urlParams.set("page", "1"); // Reset to first page when changing items per page
+			window.location.search = urlParams.toString();
+		});
+	}
+
 	// Initialize accordion behavior for frequency filter
 	const frequencyButton = document.querySelector(
 		'[data-bs-target="#collapseFrequency"]',
@@ -336,12 +347,9 @@ document.addEventListener("DOMContentLoaded", () => {
             data-updated-at="${cap.updated_at || ""}"
             data-is-public="${cap.is_public || ""}"
             data-is-deleted="${cap.is_deleted || ""}">
-          <td>
-            <div class="text-muted small">${cap.uuid || ""}</div>
-          </td>
-          <td>${cap.index_name || cap.channel || ""}</td>
+          <td>${cap.uuid || ""}</td>
           <td>${cap.channel || ""}</td>
-          <td>${cap.created_at ? `${new Date(cap.created_at).toLocaleString()} UTC` : ""}</td>
+          <td>${cap.created_at ? (new Date(cap.created_at).toString() !== "Invalid Date" ? `${new Date(cap.created_at).toLocaleString()} UTC` : "") : ""}</td>
           <td>${cap.capture_type || ""}</td>
           <td>${cap.files_count || "0"}${cap.total_file_size ? ` / <span class="text-muted">${formatFileSize(cap.total_file_size)}</span>` : ""}</td>
           <td>${cap.center_frequency_ghz ? `${cap.center_frequency_ghz.toFixed(3)} GHz` : '<span class="text-muted">-</span>'}</td>
@@ -471,31 +479,27 @@ document.addEventListener("DOMContentLoaded", () => {
 		const modalBody = document.getElementById("channelModalBody");
 		if (modalBody) {
 			modalBody.innerHTML = `
-				<div class="row">
-					<div class="col-md-6">
-						<h6 class="fw-bold">Basic Information</h6>
-						<p><strong>UUID:</strong> ${uuid || "N/A"}</p>
-						<p><strong>Index Name:</strong> ${indexName || "N/A"}</p>
-						<p><strong>Channel:</strong> ${channel || "N/A"}</p>
-						<p><strong>Capture Type:</strong> ${captureType || "N/A"}</p>
-						<p><strong>Origin:</strong> ${origin || "N/A"}</p>
-						<p><strong>Owner:</strong> ${owner || "N/A"}</p>
-					</div>
-					<div class="col-md-6">
-						<h6 class="fw-bold">Technical Details</h6>
-						<p><strong>Scan Group:</strong> ${scanGroup || "N/A"}</p>
-						<p><strong>Top Level Directory:</strong> ${topLevelDir || "N/A"}</p>
-						<p><strong>Dataset:</strong> ${dataset || "N/A"}</p>
-						<p><strong>Is Public:</strong> ${isPublic === "True" ? "Yes" : "No"}</p>
-						<p><strong>Is Deleted:</strong> ${isDeleted === "True" ? "Yes" : "No"}</p>
-					</div>
+				<div class="mb-4">
+					<h6>Basic Information</h6>
+					<p><strong>UUID:</strong> ${uuid || "N/A"}</p>
+					<p><strong>Index Name:</strong> ${indexName || "N/A"}</p>
+					<p><strong>Channel:</strong> ${channel || "N/A"}</p>
+					<p><strong>Capture Type:</strong> ${captureType || "N/A"}</p>
+					<p><strong>Origin:</strong> ${origin || "N/A"}</p>
+					<p><strong>Owner:</strong> ${owner ? owner.split("'").find((part) => part.includes("@")) || "N/A" : "N/A"}</p>
 				</div>
-				<div class="row mt-3">
-					<div class="col-12">
-						<h6 class="fw-bold">Timestamps</h6>
-						<p><strong>Created At:</strong> ${createdAt || "N/A"} UTC</p>
-						<p><strong>Updated At:</strong> ${updatedAt || "N/A"} UTC</p>
-					</div>
+				<div class="mb-4">
+					<h6>Technical Details</h6>
+					<p><strong>Scan Group:</strong> ${scanGroup || "N/A"}</p>
+					<p><strong>Top Level Directory:</strong> ${topLevelDir || "N/A"}</p>
+					<p><strong>Dataset:</strong> ${dataset || "N/A"}</p>
+					<p><strong>Is Public:</strong> ${isPublic === "True" ? "Yes" : "No"}</p>
+					<p><strong>Is Deleted:</strong> ${isDeleted === "True" ? "Yes" : "No"}</p>
+				</div>
+				<div>
+					<h6>Timestamps</h6>
+					<p><strong>Created At:</strong> ${createdAt && createdAt !== "None" ? `${new Date(createdAt).toLocaleString()} UTC` : "N/A"}</p>
+					<p><strong>Updated At:</strong> ${updatedAt && updatedAt !== "None" ? `${new Date(updatedAt).toLocaleString()} UTC` : "N/A"}</p>
 				</div>
 			`;
 
