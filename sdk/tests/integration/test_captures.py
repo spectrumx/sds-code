@@ -715,12 +715,20 @@ def test_capture_advanced_search_frequency_range(
         channel=cap_data.drf_channel,
         capture_type=CaptureType.DigitalRF,
     )
-    center_freq = capture.capture_props["center_freq"]
+    center_freq = capture.capture_props.get("center_frequencies")
+    assert center_freq is not None, (
+        "Expected 'center_frequencies' in capture properties"
+    )
+    assert isinstance(center_freq, list), "Expected 'center_frequencies' to be a list"
+    assert len(center_freq) > 0, (
+        "Expected 'center_frequencies' to have at least one value"
+    )
+    center_freq = center_freq[0]  # take the first frequency for testing
     test_freq_lower = center_freq - 1_234_567
     test_freq_upper = center_freq + 1_000_000
 
     # ACT by searching the new capture
-    field_path = "capture_props.center_freq"
+    field_path = "capture_props.center_frequencies"
     query_type = "range"
     filter_value = {"gte": test_freq_lower, "lte": test_freq_upper}
 
