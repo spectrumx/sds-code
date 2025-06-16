@@ -1,12 +1,24 @@
 """Base settings to build other settings files upon."""
 # ruff: noqa: ERA001
 
+import random
+import string
 from pathlib import Path
 from typing import Any
 
 from environs import env
 
 from config.settings.logs import ColoredFormatter
+
+__rng = random.SystemRandom()
+
+
+def __get_random_token(length: int) -> str:
+    """Generates a random token of 40 characters."""
+    return "".join(
+        __rng.choice(string.ascii_letters + string.digits) for _ in range(length)
+    )
+
 
 env.read_env()
 
@@ -445,8 +457,11 @@ SVI_SERVER_EMAIL: str = env(
     "SVI_SERVER_EMAIL",
     default="svi-server@spectrumx.crc.nd.edu",
 )
-SVI_SERVER_API_KEY: str = env("SVI_SERVER_API_KEY")
+
 TOKEN_LENGTH: int = 40
+SVI_SERVER_API_KEY: str = env(
+    "SVI_SERVER_API_KEY", default=__get_random_token(TOKEN_LENGTH)
+)
 assert len(SVI_SERVER_API_KEY) == TOKEN_LENGTH, (
     f"SVI_SERVER_API_KEY must be {TOKEN_LENGTH} characters long. "
     "Please check your environment variable."

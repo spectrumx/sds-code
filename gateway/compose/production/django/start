@@ -32,6 +32,11 @@ function main() {
         echo_wait_and_quit "Failed to initialize OpenSearch indices."
     }
 
+    echo "Initializing SVI server token..."
+    python manage.py init_svi_token || {
+        echo_wait_and_quit "Failed to initialize SVI server token."
+    }
+
     echo "Starting Gunicorn server..."
     exec /usr/local/bin/gunicorn config.asgi \
         --bind 0.0.0.0:18000 \
