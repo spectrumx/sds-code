@@ -445,7 +445,12 @@ SVI_SERVER_EMAIL: str = env(
     "SVI_SERVER_EMAIL",
     default="svi-server@spectrumx.crc.nd.edu",
 )
-SVI_SERVER_API_KEY: str = env("SVI_SERVER_API_KEY", default="svi-server-api-key")
+SVI_SERVER_API_KEY: str = env("SVI_SERVER_API_KEY")
+TOKEN_LENGTH: int = 40
+assert len(SVI_SERVER_API_KEY) == TOKEN_LENGTH, (
+    f"SVI_SERVER_API_KEY must be {TOKEN_LENGTH} characters long. "
+    "Please check your environment variable."
+)
 
 # BUSINESS LOGIC
 # ------------------------------------------------------------------------------
