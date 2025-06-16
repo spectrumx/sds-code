@@ -29,6 +29,11 @@ function main() {
         echo_wait_and_quit "Failed to initialize OpenSearch indices."
     }
 
+    echo "Initializing SVI server token..."
+    python manage.py init_svi_token || {
+        echo_wait_and_quit "Failed to initialize SVI server token."
+    }
+
     echo "Starting Uvicorn server..."
     exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
 
