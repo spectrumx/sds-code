@@ -275,3 +275,4 @@ sds_gateway/media/
 .ipython/
 sds_gateway/static/webpack_bundles/
 webpack-stats.json
+update_key.py
