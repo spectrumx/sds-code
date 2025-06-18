@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import cast
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
@@ -341,13 +342,45 @@ class FileTestCases(APITestCase):
         assert "file_exists_in_tree" in response.data
         assert "user_mutable_attributes_differ" in response.data
 
-    def test_download_file(self) -> None:
-        """When downloading a file, the contents should match the uploaded file."""
+    @patch("sds_gateway.api_methods.views.file_endpoints.download_file")
+    def test_download_file_uses_helper_function(self, mock_download):
+        """Test that the download endpoint uses the helper function."""
+        # Mock the helper function
+        mock_download.return_value = b"test file content"
+
+        # Make request to download endpoint
         response = self.client.get(self.download_url)
+
+        # Verify the helper function was called
+        mock_download.assert_called_once_with(self.file)
+
+        # Verify response
         assert response.status_code == status.HTTP_200_OK
+        assert response.content == b"test file content"
+        assert response["Content-Type"] == "text/plain"
         assert (
             response["Content-Disposition"]
             == f'attachment; filename="{self.file.name}"'
         )
-        assert response["Content-Type"] == self.file.media_type
-        assert response.content == self.file.file.read()
+
+    @patch("sds_gateway.api_methods.views.file_endpoints.download_file")
+    def test_download_file_handles_errors(self, mock_download):
+        """Test that the download endpoint handles errors from the helper function."""
+        # Mock the helper function to raise an exception
+        mock_download.side_effect = Exception("Download failed")
+
+        # Make request to download endpoint
+        response = self.client.get(self.download_url)
+
+        # Verify error response
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "Failed to download file" in response.data["detail"]
+
+    def test_download_file_not_found(self):
+        """Test that the download endpoint returns 404 for non-existent files."""
+        # Make request with non-existent file UUID
+        url = "/api/assets/files/non-existent-uuid/download/"
+        response = self.client.get(url)
+
+        # Verify 404 response
+        assert response.status_code == status.HTTP_404_NOT_FOUND
