@@ -37,6 +37,7 @@ from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.api_methods.tasks import send_dataset_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
@@ -869,3 +870,59 @@ def _apply_sorting(
 
 
 user_dataset_list_view = ListDatasetsView.as_view()
+
+
+class DatasetDownloadView(LoginRequiredMixin, View):
+    """View to handle dataset download requests from the web interface."""
+
+    def post(self, request, *args, **kwargs):
+        """Handle dataset download request."""
+        try:
+            dataset_uuid = kwargs.get("uuid")
+            if not dataset_uuid:
+                return JsonResponse(
+                    {"detail": "Dataset UUID is required."},
+                    status=400,
+                )
+
+            # Get the dataset
+            dataset = get_object_or_404(
+                Dataset,
+                uuid=dataset_uuid,
+                owner=request.user,
+                is_deleted=False,
+            )
+
+            # Get user email
+            user_email = request.user.email
+            if not user_email:
+                return JsonResponse(
+                    {"detail": "User email is required for sending dataset files."},
+                    status=400,
+                )
+
+            # Trigger the Celery task
+            task = send_dataset_files_email.delay(str(dataset.uuid), user_email)
+
+            return JsonResponse(
+                {
+                    "message": (
+                        "Dataset download request accepted. You will receive an email "
+                        "with the files shortly."
+                    ),
+                    "task_id": task.id,
+                    "dataset_name": dataset.name,
+                    "user_email": user_email,
+                },
+                status=202,
+            )
+
+        except Exception as e:
+            logger.exception("Error processing dataset download request")
+            return JsonResponse(
+                {"detail": f"Failed to process download request: {e!s}"},
+                status=500,
+            )
+
+
+user_dataset_download_view = DatasetDownloadView.as_view()
