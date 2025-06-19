@@ -129,72 +129,85 @@
                 </div>
             </div>
         </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('DOM loaded, looking for download buttons...');
+
+                // Handle download button clicks
+                document.querySelectorAll('.download-dataset-btn').forEach(function(button) {
+                    console.log('Found download button:', button);
+                    button.addEventListener('click', function() {
+                        const datasetUuid = this.getAttribute('data-dataset-uuid');
+                        const datasetName = this.getAttribute('data-dataset-name');
+
+                        console.log('Download button clicked for dataset:', datasetUuid, datasetName);
+
+                        // Disable button and show loading state
+                        const originalText = this.innerHTML;
+                        this.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+                        this.disabled = true;
+
+                        // Make API request
+                        console.log('Making request to:', `/users/dataset-download/${datasetUuid}/`);
+                        fetch(`/users/dataset-download/${datasetUuid}/`, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                                    'Content-Type': 'application/json',
+                                },
+                            })
+                            .then(response => {
+                                console.log('Response status:', response.status);
+                                if (response.ok) {
+                                    return response.json().then(data => {
+                                        console.log('Success response:', data);
+                                        // Show success message
+                                        showAlert('success', `Download request sent for "${datasetName}". You will receive an email with the files shortly.`);
+                                        this.innerHTML = '<i class="bi bi-check-circle"></i> Sent!';
+                                        this.classList.remove('btn-success');
+                                        this.classList.add('btn-secondary');
+                                    });
+                                } else {
+                                    return response.json().then(data => {
+                                        console.log('Error response:', data);
+                                        // Show error message
+                                        const errorMessage = data.detail || data.message || 'Failed to send download request';
+                                        showAlert('danger', `Error: ${errorMessage}`);
+                                        this.innerHTML = originalText;
+                                        this.disabled = false;
+                                    });
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Network error:', error);
+                                showAlert('danger', 'Network error. Please try again.');
+                                this.innerHTML = originalText;
+                                this.disabled = false;
+                            });
+                    });
+                });
+
+                // Function to show alerts
+                function showAlert(type, message) {
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+                    alertDiv.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+
+                    // Insert at the top of the content area
+                    const contentArea = document.querySelector('.main-content-area');
+                    contentArea.insertBefore(alertDiv, contentArea.firstChild);
+
+                    // Auto-dismiss after 5 seconds
+                    setTimeout(() => {
+                        if (alertDiv.parentNode) {
+                            alertDiv.remove();
+                        }
+                    }, 5000);
+                }
+            });
+        </script>
     {% endblock content %}
 </body>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Handle download button clicks
-        document.querySelectorAll('.download-dataset-btn').forEach(function(button) {
-            button.addEventListener('click', function() {
-                const datasetUuid = this.getAttribute('data-dataset-uuid');
-                const datasetName = this.getAttribute('data-dataset-name');
-
-                // Disable button and show loading state
-                const originalText = this.innerHTML;
-                this.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
-                this.disabled = true;
-
-                // Make API request
-                fetch(`/users/dataset-download/${datasetUuid}/`, {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                            'Content-Type': 'application/json',
-                        },
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (response.ok) {
-                            // Show success message
-                            showAlert('success', `Download request sent for "${datasetName}". You will receive an email with the files shortly.`);
-                            this.innerHTML = '<i class="bi bi-check-circle"></i> Sent!';
-                            this.classList.remove('btn-success');
-                            this.classList.add('btn-secondary');
-                        } else {
-                            // Show error message
-                            showAlert('danger', `Error: ${data.detail || 'Failed to send download request'}`);
-                            this.innerHTML = originalText;
-                            this.disabled = false;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        showAlert('danger', 'Network error. Please try again.');
-                        this.innerHTML = originalText;
-                        this.disabled = false;
-                    });
-            });
-        });
-
-        // Function to show alerts
-        function showAlert(type, message) {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-            alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-
-            // Insert at the top of the content area
-            const contentArea = document.querySelector('.main-content-area');
-            contentArea.insertBefore(alertDiv, contentArea.firstChild);
-
-            // Auto-dismiss after 5 seconds
-            setTimeout(() => {
-                if (alertDiv.parentNode) {
-                    alertDiv.remove();
-                }
-            }, 5000);
-        }
-    });
-</script>

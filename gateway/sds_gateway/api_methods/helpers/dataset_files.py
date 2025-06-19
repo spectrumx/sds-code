@@ -29,6 +29,12 @@ def get_dataset_files(dataset: Dataset) -> list[File]:
 
     # Get files from captures linked to the dataset
     dataset_captures = dataset.captures.filter(is_deleted=False)
+    logger.info(
+        "Found %d captures linked to dataset %s",
+        dataset_captures.count(),
+        dataset.uuid,
+    )
+
     for capture in dataset_captures:
         capture_files = capture.files.filter(is_deleted=False)
         files.update(capture_files)

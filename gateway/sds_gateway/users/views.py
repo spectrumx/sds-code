@@ -699,7 +699,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         if not existing_dataset:
             return selected_files, selected_files_details
 
-        files_queryset = existing_dataset.files.all()
+        files_queryset = existing_dataset.files.filter(is_deleted=False)
 
         # Prepare file details for JavaScript
         for selected_file in files_queryset:
@@ -732,7 +732,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         selected_captures = []
         selected_captures_details = {}
         if existing_dataset:
-            captures_queryset = existing_dataset.captures.all()
+            captures_queryset = existing_dataset.captures.filter(is_deleted=False)
             # Prepare capture details for JavaScript
             for capture in captures_queryset:
                 selected_captures.append(str(capture.uuid))
@@ -872,7 +872,7 @@ def _apply_sorting(
 user_dataset_list_view = ListDatasetsView.as_view()
 
 
-class DatasetDownloadView(LoginRequiredMixin, View):
+class DatasetDownloadView(Auth0LoginRequiredMixin, View):
     """View to handle dataset download requests from the web interface."""
 
     def post(self, request, *args, **kwargs):

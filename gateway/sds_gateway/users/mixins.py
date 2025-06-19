@@ -44,7 +44,10 @@ class FormSearchMixin:
     """Mixin for search form in group captures view"""
 
     def search_captures(self, search_data) -> QuerySet[Capture, Capture]:
-        queryset = Capture.objects.filter(owner=self.request.user)
+        queryset = Capture.objects.filter(
+            owner=self.request.user,
+            is_deleted=False,
+        )
 
         # Build a Q object for complex queries
         q_objects = Q()
@@ -65,6 +68,7 @@ class FormSearchMixin:
         queryset = File.objects.filter(
             owner=self.request.user,
             capture__isnull=True,
+            is_deleted=False,
         )
 
         if search_data.get("file_name"):
