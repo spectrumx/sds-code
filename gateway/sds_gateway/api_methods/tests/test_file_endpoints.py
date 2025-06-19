@@ -367,7 +367,7 @@ class FileTestCases(APITestCase):
     def test_download_file_handles_errors(self, mock_download):
         """Test that the download endpoint handles errors from the helper function."""
         # Mock the helper function to raise an exception
-        mock_download.side_effect = Exception("Download failed")
+        mock_download.side_effect = OSError("Download failed")
 
         # Make request to download endpoint
         response = self.client.get(self.download_url)

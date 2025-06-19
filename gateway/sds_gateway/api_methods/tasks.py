@@ -134,7 +134,8 @@ def send_dataset_files_email(self, dataset_uuid: str, user_email: str) -> dict:
 
         # Prepare email
         zip_buffer.seek(0)
-        zip_filename = f"dataset_{dataset.name}_{dataset_uuid}.zip"
+        safe_dataset_name = dataset.name.replace(" ", "_")
+        zip_filename = f"dataset_{safe_dataset_name}_{dataset_uuid}.zip"
 
         email = EmailMessage(
             subject=f"Dataset Files: {dataset.name}",
