@@ -43,6 +43,7 @@ def get_dataset_files(dataset: Dataset) -> list[File]:
         )
 
     # Convert set to list and sort by creation date
+    logger.info("Files: %s", files)
     file_list = list(files)
     file_list.sort(key=lambda x: x.created_at)
 

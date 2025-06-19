@@ -21,9 +21,14 @@ from sds_gateway.api_methods.tasks import test_email_task
 User = get_user_model()
 
 # Test constants
-EXPECTED_FILES_COUNT = 2
+EXPECTED_FILES_COUNT = 3
 
 
+@override_settings(
+    CELERY_TASK_ALWAYS_EAGER=True,
+    CELERY_TASK_EAGER_PROPAGATES=True,
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
 class TestCeleryTasks(TestCase):
     """Test cases for Celery tasks."""
 
@@ -35,20 +40,24 @@ class TestCeleryTasks(TestCase):
             is_approved=True,
         )
 
+        self.base_dir = "/files/test@example.com/"
+        self.rel_path_capture = "captures/test_capture/"
+        self.rel_path_artifacts = "artifacts/"
+        self.top_level_dir = f"{self.base_dir}{self.rel_path_capture}"
+
         # Create a test dataset
         self.dataset = Dataset.objects.create(
             name="Test Dataset",
             description="A test dataset for testing",
-            created_by=self.user,
-            is_public=True,
+            owner=self.user,
         )
 
         # Create a test capture
         self.capture = Capture.objects.create(
-            name="Test Capture",
-            description="A test capture",
-            created_by=self.user,
-            is_public=True,
+            channel="test_channel",
+            capture_type="drf",
+            top_level_dir=self.top_level_dir,
+            owner=self.user,
         )
 
         # Link capture to dataset
@@ -58,18 +67,28 @@ class TestCeleryTasks(TestCase):
         self.file1 = File.objects.create(
             name="test_file1.txt",
             size=1024,
-            directory="files/",
+            directory=self.top_level_dir,
+            owner=self.user,
             capture=self.capture,
-            minio_path="test/path/file1.txt",
         )
 
         self.file2 = File.objects.create(
             name="test_file2.txt",
             size=2048,
-            directory="files/subdir/",
+            directory=f"{self.top_level_dir}subdir/",
+            owner=self.user,
             capture=self.capture,
-            minio_path="test/path/file2.txt",
         )
+
+        self.file3 = File.objects.create(
+            name="test_file3.txt",
+            size=3072,
+            directory=f"{self.base_dir}{self.rel_path_artifacts}",
+            owner=self.user,
+        )
+
+        # Add files directly to dataset
+        self.dataset.files.add(self.file3)
 
     def test_test_celery_task(self):
         """Test the basic Celery task functionality."""
@@ -88,7 +107,6 @@ class TestCeleryTasks(TestCase):
             f"Expected '{expected_result}', got '{result.get()}'"
         )
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_test_email_task(self):
         """Test the email sending task."""
         # Clear any existing emails
@@ -117,7 +135,6 @@ class TestCeleryTasks(TestCase):
         )
 
     @patch("sds_gateway.api_methods.tasks.download_file")
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_dataset_files_email_success(self, mock_download_file):
         """Test successful dataset files email sending."""
         # Mock the download_file function to return test content
@@ -165,36 +182,44 @@ class TestCeleryTasks(TestCase):
         # Verify zip file was created with correct content
         zip_data = email.attachments[0][1]
         with zipfile.ZipFile(io.BytesIO(zip_data), "r") as zip_file:
-            # Check that both files are in the zip
+            # Check that all three files are in the zip
             file_list = zip_file.namelist()
-            assert "test_file1.txt" in file_list, (
-                f"Expected 'test_file1.txt' in zip, got {file_list}"
+            expected_file1 = f"{self.rel_path_capture}test_file1.txt"
+            expected_file2 = f"{self.rel_path_capture}subdir/test_file2.txt"
+            expected_file3 = f"{self.rel_path_artifacts}test_file3.txt"
+            assert expected_file1 in file_list, (
+                f"Expected '{expected_file1}' in zip, got {file_list}"
             )
-            assert "subdir/test_file2.txt" in file_list, (
-                f"Expected 'subdir/test_file2.txt' in zip, got {file_list}"
+            assert expected_file2 in file_list, (
+                f"Expected '{expected_file2}' in zip, got {file_list}"
+            )
+            assert expected_file3 in file_list, (
+                f"Expected '{expected_file3}' in zip, got {file_list}"
             )
 
             # Check file contents
             expected_content = b"test file content"
-            file1_content = zip_file.read("test_file1.txt")
+            file1_content = zip_file.read(expected_file1)
             assert file1_content == expected_content, (
                 f"Expected file content '{expected_content}', got '{file1_content}'"
             )
-            file2_content = zip_file.read("subdir/test_file2.txt")
+            file2_content = zip_file.read(expected_file2)
             assert file2_content == expected_content, (
                 f"Expected file content '{expected_content}', got '{file2_content}'"
             )
+            file3_content = zip_file.read(expected_file3)
+            assert file3_content == expected_content, (
+                f"Expected file content '{expected_content}', got '{file3_content}'"
+            )
 
     @patch("sds_gateway.api_methods.tasks.download_file")
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_dataset_files_email_no_files(self, mock_download_file):
         """Test dataset email task when no files are found."""
         # Create a dataset with no files
         empty_dataset = Dataset.objects.create(
             name="Empty Dataset",
             description="A dataset with no files",
-            created_by=self.user,
-            is_public=True,
+            owner=self.user,
         )
 
         # Clear any existing emails
@@ -223,7 +248,6 @@ class TestCeleryTasks(TestCase):
         # Verify no email was sent
         assert len(mail.outbox) == 0, f"Expected 0 emails, got {len(mail.outbox)}"
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_dataset_files_email_dataset_not_found(self):
         """Test dataset email task when dataset doesn't exist."""
         # Clear any existing emails
@@ -250,11 +274,10 @@ class TestCeleryTasks(TestCase):
         assert len(mail.outbox) == 0, f"Expected 0 emails, got {len(mail.outbox)}"
 
     @patch("sds_gateway.api_methods.tasks.download_file")
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_dataset_files_email_download_failure(self, mock_download_file):
         """Test dataset email task when file download fails."""
         # Mock download_file to raise an exception
-        mock_download_file.side_effect = Exception("Download failed")
+        mock_download_file.side_effect = OSError("Download failed")
 
         # Clear any existing emails
         mail.outbox.clear()
