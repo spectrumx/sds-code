@@ -12,6 +12,48 @@ from sds_gateway.api_methods.helpers.download_file import download_file
 from sds_gateway.api_methods.models import Dataset
 
 
+@shared_task
+def test_celery_task(message: str = "Hello from Celery!") -> str:
+    """
+    Simple test task to verify Celery is working.
+
+    Args:
+        message: Message to return
+
+    Returns:
+        str: The message with a timestamp
+    """
+    logger.info("Test Celery task executed with message: %s", message)
+    return f"{message} - Task completed successfully!"
+
+
+@shared_task
+def test_email_task(email_address: str = "test@example.com") -> str:
+    """
+    Test task to send an email via MailHog for testing.
+
+    Args:
+        email_address: Email address to send test email to
+
+    Returns:
+        str: Status message
+    """
+    try:
+        email = EmailMessage(
+            subject="Test Email from Celery",
+            body="This is a test email sent from Celery via MailHog!",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[email_address],
+        )
+        email.send()
+        logger.info("Test email sent successfully to %s", email_address)
+    except (OSError, ValueError) as e:
+        logger.error("Failed to send test email: %s", e)
+        return f"Failed to send email: {e}"
+    else:
+        return f"Test email sent to {email_address}"
+
+
 @shared_task(bind=True)
 def send_dataset_files_email(self, dataset_uuid: str, user_email: str) -> dict:
     """
