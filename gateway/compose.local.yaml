@@ -6,7 +6,8 @@
 
 volumes:
     # for safety, all local volumes start with "sds-gateway-local-"
-    # sds-gateway-prod-app-media: {}    # used in prod only
+    sds-gateway-local-app-media: {}  # for Django media files
+    sds-gateway-local-temp-zips: {}  # for temporary zip files
     sds-gateway-local-minio-files: {}
     sds-gateway-local-opensearch-data: {}
     sds-gateway-local-postgres-data-backups: {}
@@ -42,6 +43,8 @@ services:
                 condition: service_started
         volumes:
             - .:/app:z  # bind mount used in local for hot reloading; prod uses built assets
+            - sds-gateway-local-app-media:/app/sds_gateway/media  # persistent media storage
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips  # temporary zip files
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/local/django.env
@@ -163,12 +166,45 @@ services:
                 condition: service_started
         volumes:
             - .:/app:z
+            - sds-gateway-local-app-media:/app/sds_gateway/media  # persistent media storage
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips  # temporary zip files
         env_file:
             - ./.envs/local/django.env
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: celery -A config.celery_app worker -l INFO
+        networks:
+            - sds-gateway-local-minio-net
+            - sds-gateway-local-opensearch-net
+            - sds-network-local
+
+    celery-flower:
+        # Celery monitoring and administration tool
+        build:
+            context: .
+            dockerfile: ./compose/local/django/Dockerfile
+        image: sds-gateway-local-app
+        container_name: sds-gateway-local-celery-flower
+        depends_on:
+            redis:
+                condition: service_started
+            postgres:
+                condition: service_started
+            minio:
+                condition: service_started
+        volumes:
+            - .:/app:z
+            - sds-gateway-local-app-media:/app/sds_gateway/media  # persistent media storage
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips  # temporary zip files
+        env_file:
+            - ./.envs/local/django.env
+            - ./.envs/local/minio.env
+            - ./.envs/local/postgres.env
+            - ./.envs/local/opensearch.env
+        command: /start
+        ports:
+            - "5555:5555"  # Flower web interface
         networks:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
