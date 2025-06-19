@@ -158,6 +158,45 @@ services:
         container_name: sds-gateway-prod-redis
         volumes:
             - sds-gateway-prod-redis-data:/data
+        networks:
+            - sds-network-prod
+
+    # ===================
+    # Celery services for background tasks
+    celery-worker:
+        build:
+            context: .
+            dockerfile: ./compose/production/django/Dockerfile
+        image: sds-gateway-prod-app
+        container_name: sds-gateway-prod-celery-worker
+        depends_on:
+            redis:
+                condition: service_started
+            postgres:
+                condition: service_started
+            minio:
+                condition: service_started
+        volumes:
+            - source: sds-gateway-prod-app-media
+              target: /app/sds_gateway/media
+              type: volume
+              read_only: false
+              bind:
+                selinux: z
+            - source: ./opensearch/data/certs-django
+              target: /app/opensearch/data/certs
+              type: bind
+              read_only: true
+        env_file:
+            - ./.envs/production/django.env
+            - ./.envs/production/minio.env
+            - ./.envs/production/postgres.env
+            - ./.envs/production/opensearch.env
+        command: celery -A config.celery_app worker -l INFO
+        networks:
+            - sds-gateway-prod-opensearch-net
+            - sds-gateway-prod-minio-net
+            - sds-network-prod
 
     # ===================
     # production services

@@ -143,6 +143,36 @@ services:
         container_name: sds-gateway-local-redis
         volumes:
             - sds-gateway-local-redis-data:/data
+        networks:
+            - sds-network-local
+
+    # ==========================
+    # Celery services for background tasks
+    celery-worker:
+        build:
+            context: .
+            dockerfile: ./compose/local/django/Dockerfile
+        image: sds-gateway-local-app
+        container_name: sds-gateway-local-celery-worker
+        depends_on:
+            redis:
+                condition: service_started
+            postgres:
+                condition: service_started
+            minio:
+                condition: service_started
+        volumes:
+            - .:/app:z
+        env_file:
+            - ./.envs/local/django.env
+            - ./.envs/local/minio.env
+            - ./.envs/local/postgres.env
+            - ./.envs/local/opensearch.env
+        command: celery -A config.celery_app worker -l INFO
+        networks:
+            - sds-gateway-local-minio-net
+            - sds-gateway-local-opensearch-net
+            - sds-network-local
 
     # ==========================
     # local development services
@@ -162,3 +192,13 @@ services:
         command: npm run dev
         ports:
             - "3000:3000"
+
+    mailhog:
+        # email testing service for local development
+        image: mailhog/mailhog:latest
+        container_name: sds-gateway-local-mailhog
+        ports:
+            - "1025:1025"  # SMTP server
+            - "8025:8025"  # Web UI
+        networks:
+            - sds-network-local

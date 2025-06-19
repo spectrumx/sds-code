@@ -46,8 +46,17 @@ CACHES: dict[str, Any] = {
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
 EMAIL_BACKEND: str = env(
     "DJANGO_EMAIL_BACKEND",
-    default="django.core.mail.backends.console.EmailBackend",
+    default="django.core.mail.backends.smtp.EmailBackend",
 )
+
+# MailHog SMTP settings for local development
+EMAIL_HOST: str = "mailhog"
+EMAIL_PORT: int = 1025
+EMAIL_HOST_USER: str = ""
+EMAIL_HOST_PASSWORD: str = ""
+EMAIL_USE_TLS: bool = False
+EMAIL_USE_SSL: bool = False
+DEFAULT_FROM_EMAIL: str = "noreply@spectrumx.local"
 
 # WHITENOISE
 # ------------------------------------------------------------------------------
