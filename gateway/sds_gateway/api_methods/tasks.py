@@ -10,6 +10,7 @@ from loguru import logger
 from sds_gateway.api_methods.helpers.dataset_files import get_dataset_files
 from sds_gateway.api_methods.helpers.download_file import download_file
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 
 
 @shared_task
@@ -96,11 +97,13 @@ def send_dataset_files_email(self, dataset_uuid: str, user_email: str) -> dict:
                     file_content = download_file(file_obj)
 
                     # Create a safe filename for the zip
-                    safe_filename = f"{file_obj.name}"
-                    if file_obj.directory and file_obj.directory != "files/":
-                        # Include directory structure in zip
-                        rel_path = Path(file_obj.directory).relative_to(Path("files/"))
+                    base_path = sanitize_path_rel_to_user("/", user=file_obj.owner)
+                    if base_path is not None:
+                        # remove the base path from the file_obj.directory
+                        rel_path = Path(file_obj.directory).relative_to(base_path)
                         safe_filename = f"{rel_path}/{file_obj.name}"
+                    else:
+                        safe_filename = file_obj.name
 
                     # Add file to zip
                     zip_file.writestr(safe_filename, file_content)
