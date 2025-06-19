@@ -1,4 +1,6 @@
 import logging
+import tempfile
+from pathlib import Path
 
 from django.conf import settings
 from minio.error import MinioException
@@ -30,16 +32,26 @@ def download_file(target_file: File) -> bytes:
         FileDownloadError: For other unexpected errors
     """
     client = get_minio_client()
-    minio_response = None
+    temp_file = None
     file_content = None
 
     try:
-        # Get the file content from MinIO
-        minio_response = client.get_object(
+        # Create a temporary file to download to
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file_path = temp_file.name
+
+        # Download the file
+        client.fget_object(
             bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
             object_name=target_file.file.name,
+            file_path=temp_file_path,
         )
-        file_content = minio_response.read()
+
+        # Read the downloaded file
+        file_path = Path(temp_file_path)
+        with file_path.open("rb") as f:
+            file_content = f.read()
+
         logger.info("Successfully retrieved file: %s", target_file.file.name)
 
     except MinioException:
@@ -53,14 +65,12 @@ def download_file(target_file: File) -> bytes:
         error_msg = f"Failed to download file {target_file.file.name}"
         raise FileDownloadError(error_msg) from None
     finally:
-        if minio_response:
+        # Clean up temporary file
+        if temp_file and Path(temp_file_path).exists():
             try:
-                minio_response.close()
-                minio_response.release_conn()
+                file_path.unlink()
             except OSError:
-                logger.warning(
-                    "Error closing MinIO response for %s", target_file.file.name
-                )
+                logger.warning("Could not delete temporary file: %s", temp_file_path)
 
     if file_content is None:
         error_msg = (

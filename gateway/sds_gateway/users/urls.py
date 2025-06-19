@@ -10,6 +10,7 @@ from .views import user_file_detail_view
 from .views import user_generate_api_key_view
 from .views import user_group_captures_view
 from .views import user_redirect_view
+from .views import user_temporary_zip_download_view
 from .views import user_update_view
 
 app_name = "users"
@@ -28,6 +29,11 @@ urlpatterns = [
         name="dataset_download",
     ),
     path("group-captures/", user_group_captures_view, name="group_captures"),
+    path(
+        "temporary-zip/<uuid:uuid>/download/",
+        user_temporary_zip_download_view,
+        name="temporary_zip_download",
+    ),
     # Used by SVI Server to get API key for a user
     path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),
 ]

@@ -22,6 +22,9 @@ def __get_random_token(length: int) -> str:
 
 env.read_env()
 
+SITE_DOMAIN: str = env.str("SITE_DOMAIN", default="localhost:8000")
+USE_HTTPS: bool = env.bool("USE_HTTPS", default=False)
+
 BASE_DIR: Path = Path(__file__).resolve(strict=True).parent.parent.parent
 
 API_VERSION: str = env.str("API_VERSION", default="v1")
