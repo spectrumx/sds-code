@@ -7,6 +7,8 @@ from typing import cast
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
@@ -442,7 +444,7 @@ user_capture_list_view = ListCapturesView.as_view()
 user_captures_api_view = CapturesAPIView.as_view()
 
 
-class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
+class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
     template_name = "users/group_captures.html"
 
     def get_context_data(self, **kwargs):
@@ -730,13 +732,16 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         self,
         base_dir: Path | None = None,
         existing_dataset: Dataset | None = None,
-    ) -> tuple[list[dict], dict]:
-        selected_files = []
-        selected_files_details = {}
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        selected_files: list[dict[str, Any]] = []
+        selected_files_details: dict[str, Any] = {}
         if not existing_dataset:
             return selected_files, selected_files_details
 
-        files_queryset = existing_dataset.files.filter(is_deleted=False)
+        files_queryset = existing_dataset.files.filter(
+            is_deleted=False,
+            owner=self.request.user,
+        )
 
         # Prepare file details for JavaScript
         for selected_file in files_queryset:
@@ -765,11 +770,14 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
     def _get_capture_context(
         self, existing_dataset: Dataset | None = None
-    ) -> tuple[list[dict], dict]:
-        selected_captures = []
-        selected_captures_details = {}
+    ) -> tuple[list[str], dict[str, Any]]:
+        selected_captures: list[str] = []
+        selected_captures_details: dict[str, Any] = {}
         if existing_dataset:
-            captures_queryset = existing_dataset.captures.filter(is_deleted=False)
+            captures_queryset = existing_dataset.captures.filter(
+                is_deleted=False,
+                owner=self.request.user,
+            )
             # Prepare capture details for JavaScript
             for capture in captures_queryset:
                 selected_captures.append(str(capture.uuid))
@@ -1016,7 +1024,10 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
             )
 
         # Trigger the Celery task
-        task = send_dataset_files_email.delay(str(dataset.uuid), user_email)
+        task = send_dataset_files_email.delay(
+            str(dataset.uuid),
+            str(request.user.id),
+        )
 
         return JsonResponse(
             {

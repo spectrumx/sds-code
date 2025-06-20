@@ -3,6 +3,7 @@ Tests for Celery tasks in the API methods app.
 """
 
 import datetime
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import patch
@@ -35,7 +36,7 @@ EXPECTED_FILES_COUNT = 3
     CELERY_TASK_ALWAYS_EAGER=True,
     CELERY_TASK_EAGER_PROPAGATES=True,
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-    MEDIA_ROOT="/tmp/test_media",
+    MEDIA_ROOT=tempfile.mkdtemp(),
     CELERY_BROKER_URL="redis://localhost:6379/0",
 )
 class TestCeleryTasks(TestCase):
@@ -43,69 +44,68 @@ class TestCeleryTasks(TestCase):
 
     LOCK_TIMEOUT_SECONDS = 300
 
-    @classmethod
-    def setUpTestData(cls):
+    def setUp(self):
         """Set up test data."""
         # Create test media directory structure
-        cls.test_media_root = Path("/tmp/test_media")
-        cls.test_media_root.mkdir(parents=True, exist_ok=True)
-        (cls.test_media_root / "temp_zips").mkdir(parents=True, exist_ok=True)
+        self.test_media_root = Path(tempfile.mkdtemp())
+        self.test_media_root.mkdir(parents=True, exist_ok=True)
+        (self.test_media_root / "temp_zips").mkdir(parents=True, exist_ok=True)
 
-        cls.user = User.objects.create_user(
+        self.user = User.objects.create_user(
             email="test@example.com",
             password="testpass123",  # noqa: S106
             is_approved=True,
         )
 
-        cls.base_dir = "/files/test@example.com/"
-        cls.rel_path_capture = "captures/test_capture/"
-        cls.rel_path_artifacts = "artifacts/"
-        cls.top_level_dir = f"{cls.base_dir}{cls.rel_path_capture}"
+        self.base_dir = "/files/test@example.com/"
+        self.rel_path_capture = "captures/test_capture/"
+        self.rel_path_artifacts = "artifacts/"
+        self.top_level_dir = f"{self.base_dir}{self.rel_path_capture}"
 
         # Create a test dataset
-        cls.dataset = Dataset.objects.create(
+        self.dataset = Dataset.objects.create(
             name="Test Dataset",
             description="A test dataset for testing",
-            owner=cls.user,
+            owner=self.user,
         )
 
         # Create a test capture
-        cls.capture = Capture.objects.create(
+        self.capture = Capture.objects.create(
             channel="test_channel",
             capture_type="drf",
-            top_level_dir=cls.top_level_dir,
-            owner=cls.user,
+            top_level_dir=self.top_level_dir,
+            owner=self.user,
         )
 
         # Link capture to dataset
-        cls.dataset.captures.add(cls.capture)
+        self.dataset.captures.add(self.capture)
 
         # Create test files
-        cls.file1 = File.objects.create(
+        self.file1 = File.objects.create(
             name="test_file1.txt",
             size=1024,
-            directory=cls.top_level_dir,
-            owner=cls.user,
-            capture=cls.capture,
+            directory=self.top_level_dir,
+            owner=self.user,
+            capture=self.capture,
         )
 
-        cls.file2 = File.objects.create(
+        self.file2 = File.objects.create(
             name="test_file2.txt",
             size=2048,
-            directory=f"{cls.top_level_dir}subdir/",
-            owner=cls.user,
-            capture=cls.capture,
+            directory=f"{self.top_level_dir}subdir/",
+            owner=self.user,
+            capture=self.capture,
         )
 
-        cls.file3 = File.objects.create(
+        self.file3 = File.objects.create(
             name="test_file3.txt",
             size=3072,
-            directory=f"{cls.base_dir}{cls.rel_path_artifacts}",
-            owner=cls.user,
+            directory=f"{self.base_dir}{self.rel_path_artifacts}",
+            owner=self.user,
         )
 
         # Add files directly to dataset
-        cls.dataset.files.add(cls.file3)
+        self.dataset.files.add(self.file3)
 
     def tearDown(self):
         """Clean up test data."""
@@ -180,7 +180,7 @@ class TestCeleryTasks(TestCase):
 
         # Test the task
         result = send_dataset_files_email.delay(
-            str(self.dataset.uuid), "test@example.com"
+            str(self.dataset.uuid), str(self.user.id)
         )
 
         # Get the result
@@ -224,9 +224,7 @@ class TestCeleryTasks(TestCase):
 
         # Verify locking was used correctly
         mock_is_locked.assert_called_once_with(str(self.user.id), "dataset_download")
-        mock_acquire_lock.assert_called_once_with(
-            str(self.user.id), "dataset_download", timeout=self.LOCK_TIMEOUT_SECONDS
-        )
+        mock_acquire_lock.assert_called_once_with(str(self.user.id), "dataset_download")
         mock_release_lock.assert_called_once_with(str(self.user.id), "dataset_download")
 
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
@@ -243,7 +241,7 @@ class TestCeleryTasks(TestCase):
 
         # Test the task
         result = send_dataset_files_email.delay(
-            str(self.dataset.uuid), "test@example.com"
+            str(self.dataset.uuid), str(self.user.id)
         )
 
         # Get the result
@@ -282,7 +280,7 @@ class TestCeleryTasks(TestCase):
 
         # Test the task
         result = send_dataset_files_email.delay(
-            str(self.dataset.uuid), "test@example.com"
+            str(self.dataset.uuid), str(self.user.id)
         )
 
         # Get the result
@@ -325,7 +323,7 @@ class TestCeleryTasks(TestCase):
 
         # Test the task
         result = send_dataset_files_email.delay(
-            str(empty_dataset.uuid), "test@example.com"
+            str(empty_dataset.uuid), str(self.user.id)
         )
 
         # Get the result
@@ -358,7 +356,7 @@ class TestCeleryTasks(TestCase):
 
         # Test with non-existent dataset UUID
         result = send_dataset_files_email.delay(
-            "00000000-0000-0000-0000-000000000000", "test@example.com"
+            "00000000-0000-0000-0000-000000000000", str(self.user.id)
         )
 
         # Get the result
@@ -397,7 +395,7 @@ class TestCeleryTasks(TestCase):
 
         # Test the task
         result = send_dataset_files_email.delay(
-            str(self.dataset.uuid), "test@example.com"
+            str(self.dataset.uuid), str(self.user.id)
         )
 
         # Get the result
@@ -449,10 +447,13 @@ class TestCeleryTasks(TestCase):
     @patch("sds_gateway.api_methods.tasks.Path")
     def test_cleanup_expired_temp_zips_with_expired_files(self, mock_path):
         """Test cleanup task with expired files."""
-        # Create an expired temporary zip file
+        # Create a test temporary zip file
         expired_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_file:
+            temp_file_path = temp_file.name
+
         temp_zip = TemporaryZipFile.objects.create(
-            file_path="/tmp/test.zip",
+            file_path=temp_file_path,
             filename="test.zip",
             file_size=1024,
             files_processed=1,

@@ -17,6 +17,7 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.users.models import User
 
 
 def get_redis_client() -> Redis:
@@ -139,33 +140,82 @@ def test_email_task(email_address: str = "test@example.com") -> str:
         return f"Test email sent to {email_address}"
 
 
+def _validate_dataset_download_request(
+    dataset_uuid: str, user_id: str
+) -> tuple[dict | None, User | None, Dataset | None]:
+    """
+    Validate the dataset download request.
+
+    Returns:
+        tuple: (error_result, user, dataset) - error_result is None if validation passes
+    """
+    # Get the user
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        logger.error("User %s not found", user_id)
+        return (
+            {
+                "status": "error",
+                "message": "User not found",
+                "dataset_uuid": dataset_uuid,
+            },
+            None,
+            None,
+        )
+
+    # Get the dataset
+    try:
+        dataset = Dataset.objects.get(
+            uuid=dataset_uuid,
+            is_deleted=False,
+            owner=user,
+        )
+    except Dataset.DoesNotExist:
+        logger.error(
+            "Dataset %s not found or not owned by user %s",
+            dataset_uuid,
+            user_id,
+        )
+        return (
+            {
+                "status": "error",
+                "message": "Dataset not found",
+                "dataset_uuid": dataset_uuid,
+            },
+            None,
+            None,
+        )
+
+    return None, user, dataset
+
+
 @shared_task
-def send_dataset_files_email(dataset_uuid: str, user_email: str) -> dict:
+def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
     """
     Celery task to create a zip file of dataset files and send it via email.
 
     Args:
         dataset_uuid: UUID of the dataset to process
-        user_email: Email address to send the files to
+        user_id: ID of the user requesting the download
 
     Returns:
         dict: Task result with status and details
     """
-    # Get the dataset and user
+    # Initialize variables that might be used in finally block
+    task_name = "dataset_download"
+
     try:
-        dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
-        user = dataset.owner
+        # Validate the request
+        error_result, user, dataset = _validate_dataset_download_request(
+            dataset_uuid, user_id
+        )
+        if error_result:
+            return error_result
 
-        if not user:
-            logger.error("Dataset %s has no owner", dataset_uuid)
-            return {
-                "status": "error",
-                "message": "Dataset has no owner",
-                "dataset_uuid": dataset_uuid,
-            }
-
-        user_id = str(user.id)
-        task_name = "dataset_download"
+        # At this point, user and dataset are guaranteed to be not None
+        assert user is not None
+        assert dataset is not None
 
         # Check if user already has a running task
         if is_user_locked(user_id, task_name):
@@ -183,7 +233,7 @@ def send_dataset_files_email(dataset_uuid: str, user_email: str) -> dict:
             }
 
         # Try to acquire lock for this user
-        if not acquire_user_lock(user_id, task_name, timeout=600):  # 10 minute timeout
+        if not acquire_user_lock(user_id, task_name):
             logger.warning("Failed to acquire lock for user %s", user_id)
             return {
                 "status": "error",
@@ -194,37 +244,22 @@ def send_dataset_files_email(dataset_uuid: str, user_email: str) -> dict:
 
         logger.info("Acquired lock for user %s, starting dataset download", user_id)
 
-    except Dataset.DoesNotExist:
-        logger.error("Dataset %s not found", dataset_uuid)
-        return {
-            "status": "error",
-            "message": "Dataset not found",
-            "dataset_uuid": dataset_uuid,
-        }
-    except Exception:
-        logger.exception("Error getting dataset %s", dataset_uuid)
-        return {
-            "status": "error",
-            "message": (
-                "An unexpected error occurred while accessing the dataset. "
-                "Please try again later."
-            ),
-            "dataset_uuid": dataset_uuid,
-        }
-
-    try:
         # Get all files and captures for the dataset
-        files = File.objects.filter(
-            dataset=dataset,
+        files = dataset.files.filter(
             is_deleted=False,
+            owner=user,
         )
 
-        captures = dataset.captures.filter(is_deleted=False)
+        captures = dataset.captures.filter(
+            is_deleted=False,
+            owner=user,
+        )
 
         # Get files from captures
         capture_files = File.objects.filter(
             capture__in=captures,
             is_deleted=False,
+            owner=user,
         )
 
         # Combine all files
@@ -256,9 +291,6 @@ def send_dataset_files_email(dataset_uuid: str, user_email: str) -> dict:
                 "total_size": 0,
             }
 
-        # Get the user from the dataset owner
-        user = dataset.owner
-
         temp_zip = TemporaryZipFile.objects.create(
             file_path=zip_file_path,
             filename=zip_filename,
@@ -283,6 +315,8 @@ def send_dataset_files_email(dataset_uuid: str, user_email: str) -> dict:
         html_message = render_to_string("emails/dataset_download_ready.html", context)
         plain_message = render_to_string("emails/dataset_download_ready.txt", context)
 
+        user_email = user.email
+
         # Send email
         send_mail(
             subject=subject,
@@ -302,31 +336,15 @@ def send_dataset_files_email(dataset_uuid: str, user_email: str) -> dict:
             "status": "success",
             "message": "Dataset files email sent successfully",
             "dataset_uuid": dataset_uuid,
+            "files_processed": files_processed,
+            "temp_zip_uuid": temp_zip.uuid,
         }
-    except (ValueError, AttributeError, OSError):
-        logger.exception("Error getting dataset %s", dataset_uuid)
-        return {
-            "status": "error",
-            "message": (
-                "An unexpected error occurred while accessing the dataset. "
-                "Please try again later."
-            ),
-            "dataset_uuid": dataset_uuid,
-        }
-    except Exception:
-        logger.exception("Error getting dataset %s", dataset_uuid)
-        return {
-            "status": "error",
-            "message": (
-                "An unexpected error occurred while accessing the dataset. "
-                "Please try again later."
-            ),
-            "dataset_uuid": dataset_uuid,
-        }
+
     finally:
         # Always release the lock, even if there was an error
-        release_user_lock(user_id, task_name)
-        logger.info("Released lock for user %s", user_id)
+        if user_id is not None:
+            release_user_lock(user_id, task_name)
+            logger.info("Released lock for user %s", user_id)
 
 
 def create_zip_from_files(files: list[File], zip_name: str) -> tuple[str, int, int]:
@@ -347,7 +365,8 @@ def create_zip_from_files(files: list[File], zip_name: str) -> tuple[str, int, i
     # Create persistent zip file in media directory
     media_root = Path(settings.MEDIA_ROOT)
     temp_zips_dir = media_root / "temp_zips"
-    # Directory is mounted as a volume, so no need to create it
+    # Ensure the directory exists
+    temp_zips_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a unique filename to avoid conflicts
     unique_id = str(uuid.uuid4())
@@ -498,7 +517,8 @@ def get_user_task_status(user_id: str, task_name: str) -> dict:
                 "task_name": task_name,
                 "user_id": user_id,
             }
-        return {
+
+        return {  # noqa: TRY300
             "is_locked": False,
             "lock_timestamp": None,
             "ttl_seconds": 0,
