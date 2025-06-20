@@ -70,9 +70,11 @@ repos:
       rev: v1.36.4
       hooks:
           - id: djlint-reformat-django
-            exclude: "^gateway/|/sds_gateway/|/templates/|/users/|/user_api_key.html" #Contains JavaScript code.
           - id: djlint-django
-            exclude: "^gateway/|/sds_gateway/|/templates/|/users/|/user_api_key.html" #Contains JavaScript code.
+          - id: djlint
+            exclude: ^gateway/sds_gateway/users/models\.py$
+          - id: djlint
+            exclude: ^gateway/sds_gateway/users/models\.py$
 
     - repo: https://github.com/igorshubovych/markdownlint-cli
       rev: "v0.45.0"

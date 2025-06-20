@@ -5,9 +5,8 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.models import AbstractBaseUser
-from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
@@ -21,6 +20,7 @@ from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.shortcuts import redirect
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -70,8 +70,9 @@ class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView): 
         assert self.request.user.is_authenticated
         return self.request.user.get_absolute_url()
 
-    def get_object(self, queryset=None) -> AbstractBaseUser | AnonymousUser:
-        return self.request.user
+    def get_object(self, queryset: QuerySet | None = None) -> User:
+        # Assuming self.request.user is always a User instance due to Auth0LoginRequiredMixin  # noqa: E501
+        return cast("User", self.request.user)
 
 
 user_update_view = UserUpdateView.as_view()
@@ -81,7 +82,7 @@ class UserRedirectView(Auth0LoginRequiredMixin, RedirectView):
     permanent = False
 
     def get_redirect_url(self) -> str:
-        return reverse("users:generate_api_key")
+        return reverse("users:view_api_key")
 
 
 user_redirect_view = UserRedirectView.as_view()
@@ -91,65 +92,93 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
     template_name = "users/user_api_key.html"
 
     def get(self, request, *args, **kwargs):
-        # check if API key expired
-        api_key = (
-            UserAPIKey.objects.filter(user=request.user)
-            .exclude(source=KeySources.SVIBackend)
-            .first()
+        # Get all API keys for the user (except SVIBackend)
+        api_keys = UserAPIKey.objects.filter(user=request.user).exclude(
+            source=KeySources.SVIBackend
         )
-        if api_key is None:
+        now = datetime.datetime.now(datetime.UTC)
+        active_api_key_count = sum(
+            1
+            for key in api_keys
+            if not key.revoked and (not key.expiry_date or key.expiry_date >= now)
+        )
+        context = {
+            "api_key": False,
+            "expires_at": None,
+            "expired": False,
+            "current_api_keys": api_keys,
+            "now": now,
+            "active_api_key_count": active_api_key_count,
+        }
+        if not api_keys.exists():
             return render(
                 request,
                 template_name=self.template_name,
-                context={
-                    "api_key": False,
-                    "expires_at": None,
-                    "expired": False,
-                },
+                context=context,
             )
 
+        context.update(
+            {
+                "api_key": True,  # return True if API key exists
+                # For backward compatibility, show the first key's expiry
+                "expires_at": api_keys.first().expiry_date.strftime("%Y-%m-%d %H:%M:%S")
+                if api_keys.first().expiry_date
+                else "Does not expire",
+                "expired": api_keys.first().expiry_date < now
+                if api_keys.first().expiry_date
+                else False,
+                "current_api_keys": api_keys,
+                "now": now,
+                "active_api_key_count": active_api_key_count,
+            }
+        )
         return render(
             request,
             template_name=self.template_name,
-            context={
-                "api_key": True,  # return True if API key exists
-                "expires_at": api_key.expiry_date.strftime("%Y-%m-%d %H:%M:%S")
-                if api_key.expiry_date
-                else "Does not expire",
-                "expired": api_key.expiry_date < datetime.datetime.now(datetime.UTC)
-                if api_key.expiry_date
-                else False,
-            },
+            context=context,
         )
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-        """Regenerates an API key for the authenticated user."""
-        existing_api_key = (
-            UserAPIKey.objects.filter(user=request.user)
-            .exclude(source=KeySources.SVIBackend)
-            .first()
-        )
-        if existing_api_key:
-            existing_api_key.delete()
+        """Creates a new API key for the authenticated user without deleting existing keys."""  # noqa: E501
+        # Get the name and description from the form
+        api_key_name = request.POST.get("api_key_name", "")
+        api_key_description = request.POST.get("api_key_description", "")
+        api_key_expiry_date_str = request.POST.get("api_key_expiry_date", "")
+
+        expiry_date = None
+        if api_key_expiry_date_str:
+            try:
+                expiry_date = datetime.datetime.strptime(
+                    api_key_expiry_date_str, "%Y-%m-%d"
+                ).replace(tzinfo=datetime.UTC)
+            except ValueError:
+                messages.error(request, "Invalid expiration date format.")
+                return redirect("users:view_api_key")
 
         # create an API key for the user (with no expiration date for now)
         _, raw_key = UserAPIKey.objects.create_key(
-            name=request.user.email,
+            name=api_key_name,
+            description=api_key_description,
             user=request.user,
             source=KeySources.SDSWebUI,
+            expiry_date=expiry_date,
         )
-        return render(
-            request,
-            template_name=self.template_name,
-            context={
-                "api_key": raw_key,  # key only returned when API key is created
-                "expires_at": None,
-                "expired": False,
-            },
-        )
+        request.session["new_api_key"] = raw_key
+        return redirect("users:new_api_key")
 
 
-user_generate_api_key_view = GenerateAPIKeyView.as_view()
+user_api_key_view = GenerateAPIKeyView.as_view()
+
+
+class NewAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
+    template_name = "users/new_api_key.html"
+
+    def get(self, request, *args, **kwargs):
+        api_key = request.session.pop("new_api_key", None)
+        return render(request, self.template_name, {"api_key": api_key})
+
+
+new_api_key_view = NewAPIKeyView.as_view()
 
 
 class ListFilesView(Auth0LoginRequiredMixin, View):
@@ -420,7 +449,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
         # Check if we're editing an existing dataset
         dataset_uuid = self.request.GET.get("dataset_uuid", None)
-        existing_dataset = None
+        existing_dataset: Dataset | None = None
         if dataset_uuid:
             existing_dataset = get_object_or_404(
                 Dataset, uuid=dataset_uuid, owner=self.request.user
@@ -581,7 +610,9 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
             )
 
     def _get_directory_tree(
-        self, files: QuerySet[File], base_dir: str
+        self,
+        files: QuerySet[File],
+        base_dir: str,
     ) -> dict[str, Any]:
         """Build a nested directory tree structure."""
         tree = {}
@@ -673,7 +704,9 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         tree["created_at"] = earliest_date
 
     def _add_files_to_tree(
-        self, files: QuerySet[File], directory: str
+        self,
+        files: QuerySet[File],
+        directory: str,
     ) -> list[dict[str, Any]]:
         files_in_directory = files.filter(directory=directory)
         return [
@@ -692,7 +725,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         self,
         base_dir: Path | None = None,
         existing_dataset: Dataset | None = None,
-    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    ) -> tuple[list[dict], dict]:
         selected_files = []
         selected_files_details = {}
         if not existing_dataset:
@@ -727,7 +760,7 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
     def _get_capture_context(
         self, existing_dataset: Dataset | None = None
-    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    ) -> tuple[list[dict], dict]:
         selected_captures = []
         selected_captures_details = {}
         if existing_dataset:
@@ -799,7 +832,9 @@ def _apply_basic_filters(
 
 
 def _apply_frequency_filters(
-    qs: QuerySet[Capture], min_freq: str, max_freq: str
+    qs: QuerySet[Capture],
+    min_freq: str,
+    max_freq: str,
 ) -> QuerySet[Capture]:
     """Apply center frequency range filters using OpenSearch data (fast!)."""
     # Only apply frequency filtering if meaningful parameters are provided
@@ -869,3 +904,73 @@ def _apply_sorting(
 
 
 user_dataset_list_view = ListDatasetsView.as_view()
+
+
+class DeleteAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        key_id = request.POST.get("key_id")
+        api_key = get_object_or_404(UserAPIKey, id=key_id, user=request.user)
+        api_key.delete()
+        messages.success(request, "API key deleted successfully.")
+        # Redirect based on where the request came from
+        next_url = request.POST.get("next", None)
+        if next_url == "all_api_keys":
+            return redirect("users:all_api_keys")
+        return redirect("users:view_api_key")
+
+
+delete_api_key_view = DeleteAPIKeyView.as_view()
+
+
+def revoke_api_key_view(request):
+    if request.method == "POST":
+        key_id = request.POST.get("key_id")
+        api_key = get_object_or_404(UserAPIKey, id=key_id, user=request.user)
+        if not api_key.revoked:
+            api_key.revoked = True
+            api_key.save()
+            messages.success(request, "API key revoked successfully.")
+        else:
+            messages.info(request, "API key is already revoked.")
+        next_url = request.POST.get("next", None)
+        if next_url == "all_api_keys":
+            return redirect("users:all_api_keys")
+    return redirect("users:view_api_key")
+
+
+class AllAPIKeysView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
+    template_name = "users/all_api_keys.html"
+
+    def get(self, request, *args, **kwargs):
+        api_keys = UserAPIKey.objects.filter(user=request.user).exclude(
+            source=KeySources.SVIBackend
+        )
+        context = {
+            "current_api_keys": api_keys,
+            "now": datetime.datetime.now(datetime.UTC),
+        }
+        return render(request, self.template_name, context)
+
+
+class GenerateAPIKeyFormView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
+    template_name = "users/generate_api_key_form.html"
+
+    def get(self, request, *args, **kwargs):
+        api_keys = UserAPIKey.objects.filter(user=request.user).exclude(
+            source=KeySources.SVIBackend
+        )
+        now = datetime.datetime.now(datetime.UTC)
+        active_api_key_count = sum(
+            1
+            for key in api_keys
+            if not key.revoked and (not key.expiry_date or key.expiry_date >= now)
+        )
+        context = {
+            "current_api_keys": api_keys,
+            "now": now,
+            "active_api_key_count": active_api_key_count,
+        }
+        return render(request, self.template_name, context)
+
+
+generate_api_key_form_view = GenerateAPIKeyFormView.as_view()
