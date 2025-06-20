@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpectrumX - Typography | SpectrumX Data System</title>
+    <link rel="icon" href="images/favicon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Skip links for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#navigation" class="skip-link">Skip to navigation</a>
+    
+    <!-- ARIA live region for dynamic content -->
+    <div class="aria-live" aria-live="polite" aria-atomic="true" id="aria-live-region"></div>
+    
+    <div class="top-gradient-bar"></div>
+
+    <header class="site-header">
+        <nav class="navbar navbar-expand-xl navbar-light bg-white" id="navigation" role="navigation" aria-label="Main navigation">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="#">
+                    <img src="images/Logo.png" alt="NSF and SpectrumX Logo" class="logo">
+                    <span class="vr mx-3 d-none d-md-inline" aria-hidden="true"></span>
+                    <span class="system-name d-none d-md-inline">SpectrumX Data System</span>
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="index.html">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" aria-current="page" href="typography.html">Typography</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="components.html">Components</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="forms.html">Forms</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="layout.html">Layout</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="search.html">Search</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                jdoe
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserDropdown">
+                                <li><a class="dropdown-item" href="#">My Profile</a></li>
+                                <li><a class="dropdown-item" href="#">Settings</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#">Logout</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mt-4" id="main-content" role="main">
+        <h1>Typography</h1>
+        <p class="lead">Examples of various typography elements available in this theme, designed with accessibility in mind.</p>
+        <hr>
+
+        <h1>Heading 1</h1>
+        <h2>Heading 2</h2>
+        <h3>Heading 3</h3>
+        <h4>Heading 4</h4>
+        <h5>Heading 5</h5>
+        <h6>Heading 6</h6>
+
+        <hr>
+
+        <h3>Paragraphs and Lead Text</h3>
+        <p>This is a standard paragraph of text. It is used for the main body of content on a page. The font is Roboto, and the weight is set to a light 300 to maintain a clean and modern look, consistent with the overall design aesthetic.</p>
+        <p class="lead">This is a lead paragraph. It has a larger font size and is used to give emphasis to the opening of a section.</p>
+
+        <hr>
+
+        <h3>Blockquote</h3>
+        <figure>
+            <blockquote class="blockquote">
+              <p>A well-known quote, contained in a blockquote element.</p>
+            </blockquote>
+            <figcaption class="blockquote-footer">
+              Someone famous in <cite title="Source Title">Source Title</cite>
+            </figcaption>
+        </figure>
+
+        <hr>
+
+        <h3>Lists</h3>
+        <h4>Unordered List</h4>
+        <ul>
+            <li>List item one</li>
+            <li>List item two</li>
+            <li>List item three
+                <ul>
+                    <li>Nested list item one</li>
+                    <li>Nested list item two</li>
+                </ul>
+            </li>
+        </ul>
+
+        <h4>Ordered List</h4>
+        <ol>
+            <li>List item one</li>
+            <li>List item two</li>
+            <li>List item three</li>
+        </ol>
+
+    </main>
+
+    <footer class="site-footer bg-dark text-light mt-5" role="contentinfo">
+        <div class="container text-center py-5">
+            <div class="row">
+                <div class="col-md-8 mx-auto">
+                    <p class="footer-text">NSF SpectrumX is an NSF Spectrum Innovation Center funded via Award 2132700 operated under cooperative agreement by the University of Notre Dame.</p>
+                    <p class="copyright-text mb-0 mt-4">&copy;2025 SpectrumX | All Rights Reserved</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
