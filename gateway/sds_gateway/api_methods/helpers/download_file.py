@@ -4,7 +4,6 @@ from pathlib import Path
 
 from django.conf import settings
 from minio.error import MinioException
-from minio.error import S3Error
 
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
@@ -57,13 +56,6 @@ def download_file(target_file: File) -> bytes:
     except MinioException:
         logger.exception("MinIO error downloading file %s", target_file.file.name)
         raise
-    except S3Error:
-        logger.exception("S3 error downloading file %s", target_file.file.name)
-        raise
-    except Exception:
-        logger.exception("Unexpected error downloading file %s", target_file.file.name)
-        error_msg = f"Failed to download file {target_file.file.name}"
-        raise FileDownloadError(error_msg) from None
     finally:
         # Clean up temporary file
         if temp_file and Path(temp_file_path).exists():
@@ -73,9 +65,7 @@ def download_file(target_file: File) -> bytes:
                 logger.warning("Could not delete temporary file: %s", temp_file_path)
 
     if file_content is None:
-        error_msg = (
-            f"Failed to download file {target_file.file.name}: No content retrieved"
-        )
+        error_msg = f"Failed to download file {target_file.name}: No content retrieved"
         raise FileDownloadError(error_msg)
 
     return file_content
