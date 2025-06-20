@@ -30,6 +30,7 @@ User = get_user_model()
 
 # Test constants
 EXPECTED_FILES_COUNT = 3
+EXPECTED_EXPIRED_FILES_COUNT = 2
 
 
 @override_settings(
@@ -447,23 +448,45 @@ class TestCeleryTasks(TestCase):
     @patch("sds_gateway.api_methods.tasks.Path")
     def test_cleanup_expired_temp_zips_with_expired_files(self, mock_path):
         """Test cleanup task with expired files."""
-        # Create a test temporary zip file
-        expired_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_file:
-            temp_file_path = temp_file.name
+        # Create expired temporary zip files
+        past_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
 
-        temp_zip = TemporaryZipFile.objects.create(
-            file_path=temp_file_path,
-            filename="test.zip",
+        # Create secure temporary files
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_file1:
+            temp_file_path1 = temp_file1.name
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_file2:
+            temp_file_path2 = temp_file2.name
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_file3:
+            temp_file_path3 = temp_file3.name
+
+        expired_zip1 = TemporaryZipFile.objects.create(
+            file_path=temp_file_path1,
+            filename="expired1.zip",
             file_size=1024,
             files_processed=1,
             owner=self.user,
-            expires_at=expired_time,
+            expires_at=past_time,
         )
 
-        # Mock the media root path
-        mock_media_root = MagicMock()
-        mock_path.return_value = mock_media_root
+        expired_zip2 = TemporaryZipFile.objects.create(
+            file_path=temp_file_path2,
+            filename="expired2.zip",
+            file_size=2048,
+            files_processed=2,
+            owner=self.user,
+            expires_at=past_time,
+        )
+
+        # Create a valid file for comparison
+        future_time = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
+        valid_zip = TemporaryZipFile.objects.create(
+            file_path=temp_file_path3,
+            filename="valid.zip",
+            file_size=1024,
+            files_processed=1,
+            owner=self.user,
+            expires_at=future_time,
+        )
 
         # Test the cleanup task
         result = cleanup_expired_temp_zips.delay()
@@ -475,17 +498,23 @@ class TestCeleryTasks(TestCase):
         assert task_result["status"] == "success", (
             f"Expected status 'success', got '{task_result['status']}'"
         )
-        assert task_result["deleted_count"] == 1, (
-            f"Expected 1 deleted, got {task_result['deleted_count']}"
+        assert task_result["deleted_count"] == EXPECTED_EXPIRED_FILES_COUNT, (
+            f"Expected {EXPECTED_EXPIRED_FILES_COUNT} deleted, "
+            f"got {task_result['deleted_count']}"
         )
         assert task_result["failed_count"] == 0, (
             f"Expected 0 failed, got {task_result['failed_count']}"
         )
 
-        # Verify the file was soft deleted
-        temp_zip.refresh_from_db()
-        assert temp_zip.is_deleted, "TemporaryZipFile should be soft deleted"
-        assert temp_zip.is_expired, "TemporaryZipFile should be marked as expired"
+        # Verify expired files were soft deleted
+        expired_zip1.refresh_from_db()
+        expired_zip2.refresh_from_db()
+        assert expired_zip1.is_deleted, "Expired file 1 should be soft deleted"
+        assert expired_zip2.is_deleted, "Expired file 2 should be soft deleted"
+
+        # Verify valid file was not affected
+        valid_zip.refresh_from_db()
+        assert not valid_zip.is_deleted, "Valid file should not be deleted"
 
     @patch("sds_gateway.api_methods.tasks.get_redis_client")
     def test_redis_locking_functions(self, mock_get_redis_client):
