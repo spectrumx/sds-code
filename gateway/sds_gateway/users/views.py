@@ -957,16 +957,9 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
             error_msg = "UUID is required"
             raise Http404(error_msg)
 
-        # Check if this is a download request
+        # Check if this is a download request (automatic download from JavaScript)
         if request.GET.get("download") == "true":
             return self._serve_file_download(zip_uuid, request.user)
-
-        # Otherwise, display the download page
-        logger.info(
-            "Attempting to access temporary zip file: %s for user: %s",
-            zip_uuid,
-            request.user.id,
-        )
 
         try:
             # Get the temporary zip file
@@ -976,14 +969,9 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
                 owner=request.user,
             )
 
-            logger.info("Found temporary zip file: %s", temp_zip.filename)
-
             # Check if file still exists on disk
             file_exists = (
                 Path(temp_zip.file_path).exists() if temp_zip.file_path else False
-            )
-            logger.info(
-                "File exists on disk: %s, path: %s", file_exists, temp_zip.file_path
             )
 
             # Determine status and prepare context
@@ -1026,10 +1014,6 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 
     def _serve_file_download(self, zip_uuid: str, user) -> HttpResponse:
         """Serve the zip file for download."""
-        logger.info(
-            "Attempting to serve temporary zip file: %s for user: %s", zip_uuid, user.id
-        )
-
         try:
             # Get the temporary zip file
             temp_zip = get_object_or_404(
@@ -1043,7 +1027,9 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
             file_path = Path(temp_zip.file_path)
             if not file_path.exists():
                 logger.warning("File not found on disk: %s", temp_zip.file_path)
-                return JsonResponse({"error": "File not found on server."}, status=404)
+                return JsonResponse(
+                    {"error": "The file was not found on the server."}, status=404
+                )
 
             file_size = file_path.stat().st_size
 
@@ -1055,10 +1041,6 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
                 )
                 response["Content-Length"] = file_size
 
-                logger.info(
-                    "Serving file: %s (size: %s bytes)", temp_zip.filename, file_size
-                )
-
                 # Mark the file as downloaded
                 temp_zip.mark_downloaded()
 
@@ -1067,11 +1049,6 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
         except OSError:
             logger.exception("Error reading file: %s", temp_zip.file_path)
             return JsonResponse({"error": "Error reading file."}, status=500)
-        except TemporaryZipFile.DoesNotExist:
-            logger.warning(
-                "Temporary zip file not found: %s for user: %s", zip_uuid, user.id
-            )
-            return JsonResponse({"error": "File not found."}, status=404)
 
 
 user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()
