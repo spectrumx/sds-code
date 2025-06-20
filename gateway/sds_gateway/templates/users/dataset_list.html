@@ -168,6 +168,20 @@
         <script>
             document.addEventListener('DOMContentLoaded', function() {
 
+                // Check for download alert messages from sessionStorage
+                const downloadAlert = sessionStorage.getItem('downloadAlert');
+                if (downloadAlert) {
+                    try {
+                        const alertData = JSON.parse(downloadAlert);
+                        showAlert(alertData.type, alertData.message);
+                        // Clear the alert from sessionStorage
+                        sessionStorage.removeItem('downloadAlert');
+                    } catch (e) {
+                        console.error('Error parsing download alert:', e);
+                        sessionStorage.removeItem('downloadAlert');
+                    }
+                }
+
                 let currentDatasetUuid = null;
                 let currentDatasetName = null;
                 let currentButton = null;
