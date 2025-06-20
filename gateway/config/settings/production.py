@@ -5,7 +5,6 @@ from socket import gethostname
 
 from .base import *  # noqa: F403 pylint: disable=wildcard-import,unused-wildcard-import
 from .base import DATABASES
-from .base import INSTALLED_APPS
 from .base import SPECTACULAR_SETTINGS
 from .base import env
 
@@ -104,16 +103,16 @@ ADMIN_URL: str = env("DJANGO_ADMIN_URL")
 # Anymail
 # ------------------------------------------------------------------------------
 # https://anymail.readthedocs.io/en/stable/installation/#installing-anymail
-INSTALLED_APPS.extend(["anymail"])
+# INSTALLED_APPS.extend(["anymail"])
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
 # https://anymail.readthedocs.io/en/stable/installation/#anymail-settings-reference
 # https://anymail.readthedocs.io/en/stable/esps/mailgun/
-EMAIL_BACKEND: str = "anymail.backends.mailgun.EmailBackend"
-ANYMAIL: dict[str, str] = {
-    "MAILGUN_API_KEY": env("MAILGUN_API_KEY"),
-    "MAILGUN_SENDER_DOMAIN": env("MAILGUN_DOMAIN"),
-    "MAILGUN_API_URL": env("MAILGUN_API_URL", default="https://api.mailgun.net/v3"),
-}
+# EMAIL_BACKEND: str = "anymail.backends.mailgun.EmailBackend"
+# ANYMAIL: dict[str, str] = {
+#     "MAILGUN_API_KEY": env("MAILGUN_API_KEY"),
+#     "MAILGUN_SENDER_DOMAIN": env("MAILGUN_DOMAIN"),
+#     "MAILGUN_API_URL": env("MAILGUN_API_URL", default="https://api.mailgun.net/v3"),
+# }
 
 # ⚠️ Setting overrides for PRODUCTION
 

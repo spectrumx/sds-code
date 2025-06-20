@@ -24,3 +24,10 @@ class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
     list_display = ("name", "doi")
     search_fields = ("name", "doi")
     ordering = ("-updated_at",)
+
+
+@admin.register(models.TemporaryZipFile)
+class TemporaryZipFileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
+    list_display = ("uuid", "owner", "created_at", "expires_at")
+    search_fields = ("uuid", "owner")
+    ordering = ("-created_at",)

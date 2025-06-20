@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import cast
 
-from django.conf import settings
 from django.db.models import CharField
 from django.db.models import F as FExpression
 from django.db.models import Value as WrappedValue
@@ -28,13 +27,13 @@ from rest_framework.viewsets import ViewSet
 
 import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
+from sds_gateway.api_methods.helpers.download_file import download_file
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import (
     FileCheckResponseSerializer,
 )
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
-from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 
 if TYPE_CHECKING:
@@ -435,9 +434,14 @@ class FileViewSet(ViewSet):
         responses={
             200: OpenApiResponse(description="HTTP File Response"),
             404: OpenApiResponse(description="Not Found"),
-            500: OpenApiResponse(description="Internal Server Error"),
+            500: OpenApiResponse(
+                description="Internal Server Error - File download failed"
+            ),
         },
-        description="Download a file from the server.",
+        description=(
+            "Download a file from the server. Returns the file content as an HTTP "
+            "response with appropriate headers."
+        ),
         summary="Download File",
     )
     @action(detail=True, methods=["get"], url_path="download", url_name="download")
@@ -455,16 +459,11 @@ class FileViewSet(ViewSet):
             is_deleted=False,
         )
 
-        client = get_minio_client()
-
-        minio_response = None
         try:
-            # Get the file content from MinIO
-            minio_response = client.get_object(
-                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
-                object_name=target_file.file.name,
-            )
-            file_content = minio_response.read()
+            # Use the helper function to download the file
+            file_content = download_file(target_file)
+
+            # Create HTTP response with the file content
             http_response = HttpResponse(
                 file_content,
                 content_type=target_file.media_type,
@@ -472,11 +471,15 @@ class FileViewSet(ViewSet):
             http_response["Content-Disposition"] = (
                 f'attachment; filename="{target_file.name}"'
             )
-        finally:
-            if minio_response:
-                minio_response.close()
-                minio_response.release_conn()
-        return http_response
+
+        except (OSError, ValueError):
+            log.exception("Error downloading file %s", target_file.name)
+            return Response(
+                {"detail": "Failed to download file"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        else:
+            return http_response
 
 
 class CheckFileContentsExistView(APIView):
