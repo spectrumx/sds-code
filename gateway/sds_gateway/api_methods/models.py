@@ -534,7 +534,7 @@ class TemporaryZipFile(BaseModel):
         # Set expiration time if not already set (default: 7 days)
         if not self.expires_at:
             self.expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
-                days=7
+                days=3
             )
 
         super().save(*args, **kwargs)
