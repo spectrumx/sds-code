@@ -1,4 +1,4 @@
-exclude: ^(docs/|.*\/migrations\/|devcontainer\.json)
+exclude: "^docs/|/migrations/|devcontainer.json"
 
 default_stages: [pre-commit]
 
@@ -71,10 +71,6 @@ repos:
       hooks:
           - id: djlint-reformat-django
           - id: djlint-django
-          - id: djlint
-            exclude: ^gateway/sds_gateway/users/models\.py$
-          - id: djlint
-            exclude: ^gateway/sds_gateway/users/models\.py$
 
     - repo: https://github.com/igorshubovych/markdownlint-cli
       rev: "v0.45.0"

@@ -913,9 +913,6 @@ class DeleteAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View)
         api_key.delete()
         messages.success(request, "API key deleted successfully.")
         # Redirect based on where the request came from
-        next_url = request.POST.get("next", None)
-        if next_url == "all_api_keys":
-            return redirect("users:all_api_keys")
         return redirect("users:view_api_key")
 
 
@@ -932,9 +929,6 @@ def revoke_api_key_view(request):
             messages.success(request, "API key revoked successfully.")
         else:
             messages.info(request, "API key is already revoked.")
-        next_url = request.POST.get("next", None)
-        if next_url == "all_api_keys":
-            return redirect("users:all_api_keys")
     return redirect("users:view_api_key")
 
 
