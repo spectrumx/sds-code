@@ -444,9 +444,6 @@ def cleanup_expired_temp_zips() -> dict:
             try:
                 # Delete the file from disk
                 temp_zip.delete_file()
-
-                # Soft delete the database record and mark as expired
-                temp_zip.soft_delete()
                 deleted_count += 1
                 logger.info("Soft deleted expired file: %s", temp_zip.filename)
             except (OSError, ValueError) as e:

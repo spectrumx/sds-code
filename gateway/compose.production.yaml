@@ -211,6 +211,48 @@ services:
             - sds-gateway-prod-minio-net
             - sds-network-prod
 
+    celery-beat:
+        # Celery Beat scheduler for periodic tasks
+        build:
+            context: .
+            dockerfile: ./compose/production/django/Dockerfile
+        image: sds-gateway-prod-app
+        container_name: sds-gateway-prod-celery-beat
+        depends_on:
+            redis:
+                condition: service_started
+            postgres:
+                condition: service_started
+            minio:
+                condition: service_started
+        volumes:
+            - source: sds-gateway-prod-app-media
+              target: /app/sds_gateway/media
+              type: volume
+              read_only: false
+              bind:
+                selinux: z
+            - source: sds-gateway-prod-temp-zips
+              target: /app/sds_gateway/media/temp_zips
+              type: volume
+              read_only: false
+              bind:
+                selinux: z
+            - source: ./opensearch/data/certs-django
+              target: /app/opensearch/data/certs
+              type: bind
+              read_only: true
+        env_file:
+            - ./.envs/production/django.env
+            - ./.envs/production/minio.env
+            - ./.envs/production/postgres.env
+            - ./.envs/production/opensearch.env
+        command: celery -A config.celery_app beat -l INFO
+        networks:
+            - sds-gateway-prod-opensearch-net
+            - sds-gateway-prod-minio-net
+            - sds-network-prod
+
     celery-flower:
         # Celery monitoring and administration tool
         build:
