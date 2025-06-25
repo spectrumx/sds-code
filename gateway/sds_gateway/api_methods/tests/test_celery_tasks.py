@@ -8,6 +8,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+from celery.schedules import crontab
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import TestCase
@@ -31,6 +33,7 @@ User = get_user_model()
 # Test constants
 EXPECTED_FILES_COUNT = 3
 EXPECTED_EXPIRED_FILES_COUNT = 2
+CELERY_BEAT_SCHEDULE_EXPIRES = 3600
 
 
 @override_settings(
@@ -578,3 +581,49 @@ class TestCeleryTasks(TestCase):
             f"Expected None, got {result['lock_timestamp']}"
         )
         assert result["ttl_seconds"] == 0, f"Expected 0, got {result['ttl_seconds']}"
+
+    def test_celery_beat_schedule_configuration(self):
+        """Test that Celery Beat schedule is configured correctly."""
+        # Verify that CELERY_BEAT_SCHEDULE is configured
+        assert hasattr(settings, "CELERY_BEAT_SCHEDULE"), (
+            "CELERY_BEAT_SCHEDULE should be configured in settings"
+        )
+
+        # Verify that the cleanup task is scheduled
+        assert "cleanup-expired-temp-zips" in settings.CELERY_BEAT_SCHEDULE, (
+            "cleanup-expired-temp-zips task should be in CELERY_BEAT_SCHEDULE"
+        )
+
+        # Get the schedule configuration
+        schedule_config = settings.CELERY_BEAT_SCHEDULE["cleanup-expired-temp-zips"]
+
+        # Verify task name
+        assert (
+            schedule_config["task"]
+            == "sds_gateway.api_methods.tasks.cleanup_expired_temp_zips"
+        ), (
+            f"Expected task 'sds_gateway.api_methods.tasks.cleanup_expired_temp_zips', "
+            f"got '{schedule_config['task']}'"
+        )
+
+        # Verify schedule is a crontab object
+        assert isinstance(schedule_config["schedule"], crontab), (
+            f"Expected crontab schedule, got {type(schedule_config['schedule'])}"
+        )
+
+        # Verify crontab configuration (daily at 2:00 AM)
+        crontab_schedule = schedule_config["schedule"]
+        assert crontab_schedule.hour == {2}, (
+            f"Expected hour {{2}}, got {crontab_schedule.hour}"
+        )
+        assert crontab_schedule.minute == {0}, (
+            f"Expected minute {{0}}, got {crontab_schedule.minute}"
+        )
+
+        # Verify options
+        assert "options" in schedule_config, "Schedule should have options"
+        assert "expires" in schedule_config["options"], "Options should have expires"
+        assert schedule_config["options"]["expires"] == CELERY_BEAT_SCHEDULE_EXPIRES, (
+            f"Expected expires {CELERY_BEAT_SCHEDULE_EXPIRES}, "
+            f"got {schedule_config['options']['expires']}"
+        )

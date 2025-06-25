@@ -569,6 +569,7 @@ class TemporaryZipFile(BaseModel):
             file_path = Path(self.file_path)
             if file_path.exists():
                 file_path.unlink()
+                self.soft_delete()
                 return True
         except OSError:
             pass

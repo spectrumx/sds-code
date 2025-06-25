@@ -179,6 +179,35 @@ services:
             - sds-gateway-local-opensearch-net
             - sds-network-local
 
+    celery-beat:
+        # Celery Beat scheduler for periodic tasks
+        build:
+            context: .
+            dockerfile: ./compose/local/django/Dockerfile
+        image: sds-gateway-local-app
+        container_name: sds-gateway-local-celery-beat
+        depends_on:
+            redis:
+                condition: service_started
+            postgres:
+                condition: service_started
+            minio:
+                condition: service_started
+        volumes:
+            - .:/app:z
+            - sds-gateway-local-app-media:/app/sds_gateway/media  # persistent media storage
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips  # temporary zip files
+        env_file:
+            - ./.envs/local/django.env
+            - ./.envs/local/minio.env
+            - ./.envs/local/postgres.env
+            - ./.envs/local/opensearch.env
+        command: celery -A config.celery_app beat -l INFO
+        networks:
+            - sds-gateway-local-minio-net
+            - sds-gateway-local-opensearch-net
+            - sds-network-local
+
     celery-flower:
         # Celery monitoring and administration tool
         build:
