@@ -6,6 +6,7 @@ import string
 from pathlib import Path
 from typing import Any
 
+from celery.schedules import crontab
 from environs import env
 
 from config.settings.logs import ColoredFormatter
@@ -137,7 +138,7 @@ THIRD_PARTY_APPS: list[str] = [
     "allauth.account",
     "allauth.mfa",
     "allauth.socialaccount",
-    # "django_celery_beat",
+    "django_celery_beat",
     "rest_framework",
     "rest_framework.authtoken",
     "rest_framework_api_key",
@@ -369,6 +370,17 @@ CELERY_TASK_SOFT_TIME_LIMIT: int = 60
 CELERY_WORKER_SEND_TASK_EVENTS: bool = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std-setting-task_send_sent_event
 CELERY_TASK_SEND_SENT_EVENT: bool = True
+
+# CELERY BEAT SCHEDULE
+# ------------------------------------------------------------------------------
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#beat-schedule
+CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
+    "cleanup-expired-temp-zips": {
+        "task": "sds_gateway.api_methods.tasks.cleanup_expired_temp_zips",
+        "schedule": crontab(hour=2, minute=0),  # Run daily at 2:00 AM
+        "options": {"expires": 3600},  # Task expires after 1 hour
+    },
+}
 
 # django-allauth
 # ------------------------------------------------------------------------------
