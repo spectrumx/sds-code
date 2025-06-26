@@ -177,8 +177,6 @@ class ShareDatasetView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         # Get the user email from the form
         user_emails = request.POST.getlist("user-search", "").strip()
 
-        notify_users = request.POST.get("notify-users", False)
-
         if not user_emails:
             return JsonResponse({"error": "User email is required"}, status=400)
 
@@ -191,9 +189,6 @@ class ShareDatasetView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 )
 
             dataset.shared_with.add(user_to_share_with)
-            if notify_users:
-                # TODO: Implement email notification
-                pass
 
         return JsonResponse(
             {

@@ -856,7 +856,11 @@ html, body {
   cursor: not-allowed;
 }
 
-/* User search dropdown styles */
+/* User search input container and dropdown styles */
+.user-search-input-container {
+  position: relative;
+}
+
 .user-search-dropdown {
   position: absolute;
   top: 100%;
@@ -917,10 +921,6 @@ html, body {
 .user-search-item .user-email {
   font-size: 0.875rem;
   color: #6c757d;
-}
-
-.user-search-input-container {
-  position: relative;
 }
 
 .no-results {
