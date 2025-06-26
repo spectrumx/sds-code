@@ -1,0 +1,93 @@
+<!-- Share Modal -->
+<div class="modal fade"
+     id="share-modal-{{ dataset.uuid }}"
+     tabindex="-1"
+     aria-labelledby="share-modal-label-{{ dataset.uuid }}"
+     aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="share-modal-label-{{ dataset.uuid }}">Share Dataset</h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">Share this dataset with others:</p>
+                <div>
+                    <form action="{% url 'users:share_dataset' dataset.uuid %}" method="post">
+                        {% csrf_token %}
+                        <div class="user-search-input-container">
+                            <div class="selected-users-chips d-flex flex-wrap align-items-center mb-2"></div>
+                            <div class="input-group mb-3">
+                                <input type="text"
+                                       class="form-control user-search-input"
+                                       placeholder="Search users by name or email..."
+                                       aria-label="Search users by name or email"
+                                       aria-describedby="add-user-button"
+                                       id="user-search-{{ dataset.uuid }}"
+                                       name="user-search"
+                                       autocomplete="off" />
+                                <button class="btn btn-outline-success" type="button" id="add-user-button">
+                                    <i class="bi bi-person-plus"></i>
+                                </button>
+                            </div>
+                            <!-- User search dropdown -->
+                            <div class="user-search-dropdown d-none"
+                                 id="user-search-dropdown-{{ dataset.uuid }}">
+                                <div class="list-group">
+                                    <!-- Search results will be populated here -->
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       id="notify-users"
+                                       name="notify-users" />
+                                <label class="form-check-label" for="notify-users">Notify users by email</label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <hr class="modal-divider" />
+                <div>
+                    <p class="fw-bold">Users with Access:</p>
+                    {% if shared_users %}
+                        <table class="table table-bordered">
+                            <tbody>
+                                {% for user in shared_users %}
+                                    <tr>
+                                        <td class="p-2">
+                                            <div class="row">
+                                                <div class="col-md-10">
+                                                    <div class="d-flex justify-content-between">
+                                                        <h5>{{ user.name }}</h5>
+                                                        <p>
+                                                            <small class="text-muted">{{ user.email }}</small>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <button type="button" class="btn btn-danger">
+                                                        <i class="bi bi-person-dash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="text-muted">No users with access.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Share</button>
+            </div>
+        </div>
+    </div>
+</div>
