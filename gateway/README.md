@@ -258,10 +258,91 @@ Keep this in mind, however:
 
     You can sign in with the superuser credentials at `localhost:18000/<admin path set in django.env>` to access the admin interface.
 
-6. Create the **MinIO bucket**:
+6. MinIO setup:
 
-    Go to [localhost:19001](http://localhost:19001) and create a bucket named `spectrumx`
-    with the credentials set in `.envs/production/minio.env`.
+    This is a multi-drive, single-node setup of MinIO. For a distributed setup (multi-node), see the [MinIO documentation](https://min.io/docs/minio/linux/operations/install-deploy-manage/deploy-minio-multi-node-multi-drive.html#deploy-minio-distributed).
+
+    >[!NOTE]
+    >
+    > We're using `local` in the example commands below as our MinIO alias. Change it
+    > accordingly if you're using a different alias in your MinIO configuration.
+
+    6.1 Establish the connection alias:
+
+    ```bash
+    docker exec -it sds-gateway-prod-minio mc alias set local http://127.0.0.1:9000 minioadmin
+    # paste your MinIO credentials from .envs/production/minio.env;
+    # change `minioadmin` above to match that file, if needed.
+    ```
+
+    Optionally, set up a local `mc` client if you're managing the cluster remotely:
+
+    ```bash
+    mc alias set local http://<minio_host>:19000 <minio_user> <minio_password>
+    ```
+
+    6.2 Set admin settings:
+
+    ```bash
+    # enable object compression for all objects, except the ones excluded by default
+    # NOTE: compression is not recommended by MinIO when also using encryption.
+    mc admin config set local compression enable=on extensions= mime_types=
+
+    # https://min.io/docs/minio/container/administration/object-management/data-compression.html#id6
+
+    # erasure coding settings
+    # refer to the docs for these erasure coding settings, if:
+    #   1. You are using multiple nodes; or
+    #   2. Targeting a number of disks different than 8; or
+    #   3. Targeting a different failure tolerance than 2 failed disks; or
+    #   4. Targeting a storage efficiency (usable storage ratio) different than 75%.
+    # References:
+    # https://min.io/docs/minio/linux/reference/minio-server/settings/storage-class.html#mc-conf.storage_class.standard
+    # https://min.io/product/erasure-code-calculator
+    mc admin config set local storage_class standard=EC:2
+    mc admin config set local storage_class rrs=EC:1
+
+    ```
+
+    6.3 Create the MinIO bucket:
+
+    ```bash
+    mc mb local/spectrumx
+    ```
+
+    6.4 (Optional) Diagnostic checks:
+
+    Check the output of these commands to make sure everything is as expected:
+
+    ```bash
+    mc admin info local
+    mc admin config get local
+
+    # --- cluster health
+
+    # liveness check
+    curl -I "http://localhost:19000/minio/health/live"
+    # A response code of 200 OK indicates the MinIO server is online and functional.
+    # Any other HTTP codes indicate an issue with reaching the server, such as a
+    # transient network issue or potential downtime.
+
+    # write quorum check
+    curl -I "http://localhost:19000/minio/health/cluster"
+    # a response code of 200 OK indicates that the MinIO cluster has sufficient MinIO
+    # servers online to meet write quorum. A response code of 503 Service Unavailable
+    # indicates the cluster does not currently have write quorum.
+
+    # --- watching logs
+    mc admin trace local
+    # press Ctrl-C to stop watching
+    ```
+
+    6.5 (Optional) Prometheus monitoring
+
+    ```bash
+    mc admin prometheus generate local
+    # paste output to your `prometheus.yaml`
+    ```
 
 7. Set correct **permissions for the media volume**:
 
