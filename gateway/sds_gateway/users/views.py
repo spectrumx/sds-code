@@ -953,7 +953,7 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
         """Display download page for a temporary zip file or serve the file."""
         zip_uuid = kwargs.get("uuid")
         if not zip_uuid:
-            logger.error("No UUID provided in temporary zip download request")
+            logger.warning("No UUID provided in temporary zip download request")
             error_msg = "UUID is required"
             raise Http404(error_msg)
 
