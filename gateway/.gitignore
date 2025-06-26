@@ -1,8 +1,9 @@
 .env
 .envs/*
+data/*
+opensearch/data/*
 !/.envs/example
-*/data/*
-!*/data/.gitkeep
+!data/.gitkeep
 
 ### Python template
 # Byte-compiled / optimized / DLL files
