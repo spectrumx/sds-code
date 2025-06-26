@@ -201,7 +201,9 @@ class Capture(BaseModel):
         (CaptureOrigin.User, "User"),
     ]
 
-    channel = models.CharField(max_length=255, blank=True)  # DRF
+    # For DRF: stores JSON array of channel names ["channel1", "channel2"]
+    # For RH: remains empty string
+    channel = models.TextField(blank=True, default="[]")
     scan_group = models.UUIDField(blank=True, null=True)  # RH
     capture_type = models.CharField(
         max_length=255,
@@ -232,6 +234,28 @@ class Capture(BaseModel):
 
     def __str__(self):
         return f"{self.capture_type} capture for channel {self.channel} added on {self.created_at}"  # noqa: E501
+
+    @property
+    def channels(self) -> list[str]:
+        """Get list of channel names for this capture."""
+        if not self.channel:
+            return []
+        try:
+            return json.loads(self.channel)
+        except (json.JSONDecodeError, TypeError):
+            # Fallback for legacy single-channel format
+            return [self.channel] if self.channel else []
+
+    @channels.setter
+    def channels(self, value: list[str]) -> None:
+        """Set the channels as a JSON array."""
+        self.channel = json.dumps(value)
+
+    @property
+    def primary_channel(self) -> str | None:
+        """Get the first channel name (for backward compatibility)."""
+        channels = self.channels
+        return channels[0] if channels else None
 
     @property
     def center_frequency_ghz(self) -> float | None:
@@ -674,7 +698,7 @@ def _group_captures_by_type(
     captures: QuerySet["Capture"],
 ) -> dict[str, list["Capture"]]:
     """Group captures by capture type for separate queries."""
-    captures_by_type = {}
+    captures_by_type: dict[str, list[Capture]] = {}
     for capture in captures:
         capture_type = capture.capture_type
         if capture_type not in captures_by_type:

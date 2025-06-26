@@ -1,4 +1,5 @@
 from typing import Any
+from typing import cast
 
 from loguru import logger as log
 from opensearchpy import OpenSearch
@@ -39,7 +40,11 @@ class UnknownIndexError(Exception):
     pass
 
 
-def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> None:
+def index_capture_metadata(
+    capture: Capture,
+    capture_props: dict[str, Any],
+    channel_metadata: dict[str, dict[str, Any]] | None = None,
+) -> None:
     try:
         client = get_opensearch_client()
 
@@ -50,7 +55,33 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
         document = {
             base_prop: getattr(capture, base_prop) for base_prop in base_properties
         }
-        document["capture_props"] = capture_props
+
+        # For DRF captures, create channels structure
+        if capture.capture_type == CaptureType.DigitalRF:
+            document["channels"] = capture.channels
+
+            # Create channel-specific documents if channels exist
+            if capture.channels:
+                channels_data = []
+                for channel_name in capture.channels:
+                    # Use channel-specific metadata if available,
+                    # otherwise use capture_props
+                    channel_props = (
+                        channel_metadata.get(channel_name, capture_props)
+                        if channel_metadata
+                        else capture_props
+                    )
+
+                    channel_doc = {
+                        "channel_name": channel_name,
+                        "channel_props": channel_props,
+                    }
+                    channels_data.append(channel_doc)
+
+                document["channels"] = channels_data
+        else:
+            # For non-DRF captures, use the traditional capture_props
+            document["capture_props"] = capture_props
 
         # index capture
         client.index(
@@ -75,6 +106,71 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
         raise
 
 
+def _process_single_capture_metadata(
+    capture: Capture,
+    os_client: OpenSearch,
+) -> dict[str, Any]:
+    """Process metadata for a single capture."""
+    if not isinstance(capture, Capture):  # pragma: no cover
+        msg = "Invalid input type for metadata retrieval"
+        raise TypeError(msg)
+
+    response = os_client.get(
+        index=capture.index_name,
+        id=capture.uuid,
+    )
+    source = response["_source"]
+
+    # For DRF captures, return channels structure
+    if capture.capture_type == CaptureType.DigitalRF:
+        return source.get("channels", [])
+    return source.get("capture_props", {})
+
+
+def _process_multiple_captures_metadata(
+    captures: list[Capture],
+    os_client: OpenSearch,
+) -> dict[str, Any]:
+    """Process metadata for multiple captures."""
+    # build mget body for all captures
+    docs = [
+        {"_index": capture.index_name, "_id": str(capture.uuid)} for capture in captures
+    ]
+
+    if not docs:
+        log.warning("No captures to retrieve metadata for")
+        return {}
+
+    response = os_client.mget(body={"docs": docs})
+
+    # check that every capture has a corresponding document in the response
+    if not all(doc.get("found") for doc in response["docs"]):
+        failed_capture_uuids = [
+            doc["_id"] for doc in response["docs"] if not doc.get("found")
+        ]
+        msg = (
+            f"OpenSearch metadata retrieval failed for captures: {failed_capture_uuids}"
+        )
+        # report error internally, but don't fail the request for a missing document
+        log.warning(msg)
+
+    # map capture uuid to its properties
+    result = {}
+    for capture, doc in zip(
+        captures,
+        response["docs"],
+        strict=True,
+    ):
+        source = doc.get("_source", {})
+
+        # For DRF captures, return channels structure
+        if capture.capture_type == CaptureType.DigitalRF:
+            result[str(capture.uuid)] = source.get("channels", [])
+        else:
+            result[str(capture.uuid)] = source.get("capture_props", {})
+    return result
+
+
 def retrieve_indexed_metadata(
     capture_or_captures: Capture | list[Capture],
 ) -> dict[str, Any]:
@@ -83,7 +179,8 @@ def retrieve_indexed_metadata(
     Args:
         capture_or_captures: Single capture or list of captures to retrieve metadata
     Returns:
-        dict:   Mapping of capture UUID to its metadata
+        dict: Mapping of capture UUID to its metadata (channels for DRF,
+            capture_props for others)
     """
     try:
         os_client = get_opensearch_client()
@@ -91,48 +188,13 @@ def retrieve_indexed_metadata(
         is_many = isinstance(capture_or_captures, list)
 
         if not is_many:
-            if not isinstance(capture_or_captures, Capture):  # pragma: no cover
-                msg = "Invalid input type for metadata retrieval"
-                raise ValueError(msg)
-            response = os_client.get(
-                index=capture_or_captures.index_name,
-                id=capture_or_captures.uuid,
+            return _process_single_capture_metadata(
+                cast("Capture", capture_or_captures), os_client
             )
-            return response["_source"]["capture_props"]
 
-        # build mget body for all captures
-        docs = [
-            {"_index": capture.index_name, "_id": str(capture.uuid)}
-            for capture in capture_or_captures
-        ]
-
-        if not docs:
-            log.warning("No captures to retrieve metadata for")
-            return {}
-
-        response = os_client.mget(body={"docs": docs})
-
-        # check that every capture has a corresponding document in the response
-        if not all(doc.get("found") for doc in response["docs"]):
-            failed_capture_uuids = [
-                doc["_id"] for doc in response["docs"] if not doc.get("found")
-            ]
-            msg = (
-                "OpenSearch metadata retrieval failed "
-                f"for captures: {failed_capture_uuids}"
-            )
-            # report error internally, but don't fail the request for a missing document
-            log.warning(msg)
-
-        # map capture uuid to its properties
-        return {
-            str(capture.uuid): doc.get("_source", {}).get("capture_props", {})
-            for capture, doc in zip(
-                capture_or_captures,
-                response["docs"],
-                strict=True,
-            )
-        }
+        return _process_multiple_captures_metadata(
+            cast("list[Capture]", capture_or_captures), os_client
+        )
 
     except os_exceptions.NotFoundError:
         # Log the error

@@ -28,11 +28,14 @@ class FileCaptureListSerializer(serializers.ModelSerializer[File]):
 class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     owner = UserGetSerializer()
     capture_props = serializers.SerializerMethodField()
+    channels_metadata = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
     center_frequency_ghz = serializers.SerializerMethodField()
     sample_rate_mhz = serializers.SerializerMethodField()
     files_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
+    channels = serializers.SerializerMethodField()
+    primary_channel = serializers.SerializerMethodField()
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
@@ -74,16 +77,35 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         )
         return result["total_size"] or 0
 
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_channels(self, capture: Capture) -> list[str]:
+        """Get the list of channel names for this capture."""
+        return capture.channels
+
+    @extend_schema_field(serializers.CharField())
+    def get_primary_channel(self, capture: Capture) -> str | None:
+        """Get the primary channel name for backward compatibility."""
+        return capture.primary_channel
+
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:
-        """Retrieve the indexed metadata for the capture."""
+        """Retrieve the indexed metadata for the capture (backward compatibility)."""
         # check if this is a many=True serialization
         is_many = bool(
             self.parent and isinstance(self.parent, serializers.ListSerializer),
         )
 
         if not is_many or not self.parent:
-            return retrieve_indexed_metadata(capture)
+            metadata = retrieve_indexed_metadata(capture)
+            # For DRF captures, return the first channel's props for backward
+            # compatibility
+            if (
+                capture.capture_type == CaptureType.DigitalRF
+                and isinstance(metadata, list)
+                and metadata
+            ):
+                return metadata[0].get("channel_props", {})
+            return metadata
 
         # cache the metadata for all objects if not already done
         if not hasattr(self.parent, "capture_props_cache") and self.parent.instance:
@@ -97,7 +119,49 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             self.parent.capture_props_cache = retrieve_indexed_metadata(instances)
 
         # return the cached metadata for this specific object
-        return self.parent.capture_props_cache.get(str(capture.uuid), {})
+        metadata = self.parent.capture_props_cache.get(str(capture.uuid), {})
+        # For DRF captures, return the first channel's props for backward
+        # compatibility
+        if (
+            capture.capture_type == CaptureType.DigitalRF
+            and isinstance(metadata, list)
+            and metadata
+        ):
+            return metadata[0].get("channel_props", {})
+        return metadata
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_channels_metadata(self, capture: Capture) -> list[dict[str, Any]]:
+        """Retrieve the channels metadata for DRF captures."""
+        # check if this is a many=True serialization
+        is_many = bool(
+            self.parent and isinstance(self.parent, serializers.ListSerializer),
+        )
+
+        if not is_many or not self.parent:
+            metadata = retrieve_indexed_metadata(capture)
+            # For DRF captures, return the channels structure
+            if capture.capture_type == CaptureType.DigitalRF:
+                return metadata if isinstance(metadata, list) else []
+            return []
+
+        # cache the metadata for all objects if not already done
+        if not hasattr(self.parent, "capture_props_cache") and self.parent.instance:
+            # convert QuerySet to list if needed
+            instances: list[Capture] = cast(
+                "list[Capture]",
+                list(self.parent.instance)
+                if self.parent is not None and hasattr(self.parent.instance, "__iter__")
+                else [self.parent.instance if self.parent else capture],
+            )
+            self.parent.capture_props_cache = retrieve_indexed_metadata(instances)
+
+        # return the cached metadata for this specific object
+        metadata = self.parent.capture_props_cache.get(str(capture.uuid), {})
+        # For DRF captures, return the channels structure
+        if capture.capture_type == CaptureType.DigitalRF:
+            return metadata if isinstance(metadata, list) else []
+        return []
 
     class Meta:
         model = Capture
@@ -106,18 +170,25 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
 
 class CapturePostSerializer(serializers.ModelSerializer[Capture]):
     capture_props = serializers.SerializerMethodField()
+    channels_metadata = serializers.SerializerMethodField()
+    channels = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="List of channel names for DigitalRF captures",
+    )
 
     class Meta:
         model = Capture
         fields = [
             "uuid",
-            "channel",
+            "channels",
             "scan_group",
             "capture_type",
             "top_level_dir",
             "index_name",
             "owner",
             "capture_props",
+            "channels_metadata",
         ]
         read_only_fields = ["uuid"]
         required_fields_by_capture_type = {
@@ -125,7 +196,7 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
                 "capture_type",
                 "top_level_dir",
                 "index_name",
-                "channel",
+                "channels",
             ],
             CaptureType.RadioHound: [
                 "capture_type",
@@ -147,8 +218,26 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
 
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:
-        """Retrieve the indexed metadata for the capture."""
-        return retrieve_indexed_metadata(capture)
+        """Retrieve the indexed metadata for the capture (backward compatibility)."""
+        metadata = retrieve_indexed_metadata(capture)
+        # For DRF captures, return the first channel's props for backward
+        # compatibility
+        if (
+            capture.capture_type == CaptureType.DigitalRF
+            and isinstance(metadata, list)
+            and metadata
+        ):
+            return metadata[0].get("channel_props", {})
+        return metadata
+
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_channels_metadata(self, capture: Capture) -> list[dict[str, Any]]:
+        """Retrieve the channels metadata for DRF captures."""
+        metadata = retrieve_indexed_metadata(capture)
+        # For DRF captures, return the channels structure
+        if capture.capture_type == CaptureType.DigitalRF:
+            return metadata if isinstance(metadata, list) else []
+        return []
 
     def is_valid(self, *, raise_exception: bool = True) -> bool:
         """Checks if the data is valid."""
@@ -178,12 +267,25 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
         validated_data["top_level_dir"] = normalize_top_level_dir(
             validated_data["top_level_dir"],
         )
+
+        # Handle channels field
+        if "channels" in validated_data:
+            capture = super().create(validated_data=validated_data)
+            capture.channels = validated_data["channels"]
+            capture.save()
+            return capture
+
         return super().create(validated_data=validated_data)
 
     def update(self, instance: Capture, validated_data: dict[str, Any]) -> Capture:
         validated_data["top_level_dir"] = normalize_top_level_dir(
             validated_data["top_level_dir"],
         )
+
+        # Handle channels field
+        if "channels" in validated_data:
+            instance.channels = validated_data["channels"]
+
         return super().update(instance=instance, validated_data=validated_data)
 
 

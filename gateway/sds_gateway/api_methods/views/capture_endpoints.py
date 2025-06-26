@@ -58,29 +58,38 @@ class CaptureViewSet(viewsets.ViewSet):
         self,
         capture: Capture,
         data_path: Path,
-        drf_channel: str | None = None,
+        drf_channels: list[str] | None = None,
     ) -> None:
         """Validate and index metadata for a capture.
 
         Args:
             capture:        The capture to validate and index metadata for
             data_path:      Path to directory containing metadata or metadata file
-            drf_channel:    Channel name for DigitalRF captures
+            drf_channels:   List of channel names for DigitalRF captures
         Raises:
             ValueError:     If metadata is invalid or not found
         """
         capture_props: dict[str, Any] = {}
+        channel_metadata: dict[str, dict[str, Any]] | None = None
 
         # validate the metadata
         match cap_type := capture.capture_type:
             case CaptureType.DigitalRF:
-                if drf_channel:
-                    capture_props = validate_metadata_by_channel(
-                        data_path=data_path,
-                        channel_name=drf_channel,
-                    )
+                if drf_channels:
+                    # For multi-channel DRF captures, validate each channel separately
+                    channel_metadata = {}
+                    for channel_name in drf_channels:
+                        channel_props = validate_metadata_by_channel(
+                            data_path=data_path,
+                            channel_name=channel_name,
+                        )
+                        channel_metadata[channel_name] = channel_props
+
+                    # Use the first channel's metadata as the base capture_props for
+                    # backward compatibility
+                    capture_props = channel_metadata[drf_channels[0]]
                 else:
-                    msg = "Channel is required for Digital-RF captures"
+                    msg = "Channels are required for Digital-RF captures"
                     log.warning(msg)
                     raise ValueError(msg)
             case CaptureType.RadioHound:
@@ -97,6 +106,7 @@ class CaptureViewSet(viewsets.ViewSet):
             index_capture_metadata(
                 capture=capture,
                 capture_props=capture_props,
+                channel_metadata=channel_metadata,
             )
         else:
             msg = f"No metadata found for capture '{capture.uuid}'"
@@ -107,7 +117,7 @@ class CaptureViewSet(viewsets.ViewSet):
         self,
         capture: Capture,
         *,
-        drf_channel: str | None,
+        drf_channels: list[str] | None,
         requester: User,
         rh_scan_group: uuid.UUID | None,
         top_level_dir: Path,
@@ -119,7 +129,7 @@ class CaptureViewSet(viewsets.ViewSet):
 
         Args:
             capture:        The capture to ingest or update
-            drf_channel:    Channel name for DigitalRF captures
+            drf_channels:   List of channel names for DigitalRF captures
             requester:      The user making the request
             rh_scan_group:  Optional scan group UUID for RH captures
             top_level_dir:  Path to directory containing files to connect to capture
@@ -142,7 +152,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 virtual_top_dir=top_level_dir,
                 owner=requester,
                 capture_type=capture.capture_type,
-                drf_channel=drf_channel,
+                drf_channels=drf_channels,
                 rh_scan_group=rh_scan_group,
                 verbose=True,
             )
@@ -151,7 +161,7 @@ class CaptureViewSet(viewsets.ViewSet):
             self._validate_and_index_metadata(
                 capture=capture,
                 data_path=tmp_dir_path,
-                drf_channel=drf_channel,
+                drf_channels=drf_channels,
             )
 
             # disconnect files that are no longer in the capture
@@ -205,12 +215,12 @@ class CaptureViewSet(viewsets.ViewSet):
     )
     def create(self, request: Request) -> Response:  # noqa: PLR0911
         """Create a capture object, connecting files and indexing the metadata."""
-        drf_channel = request.data.get("channel", None)
+        drf_channels = request.data.get("channels", None)
         rh_scan_group = request.data.get("scan_group", None)
         capture_type = request.data.get("capture_type", None)
         log.debug("POST request to create capture:")
         log.debug(f"\tcapture_type: '{capture_type}' {type(capture_type)}")
-        log.debug(f"\tchannel: '{drf_channel}' {type(drf_channel)}")
+        log.debug(f"\tchannels: '{drf_channels}' {type(drf_channels)}")
         log.debug(f"\tscan_group: '{rh_scan_group}' {type(rh_scan_group)}")
 
         if capture_type is None:
@@ -231,9 +241,9 @@ class CaptureViewSet(viewsets.ViewSet):
                 {"detail": "The provided `top_level_dir` is invalid."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if capture_type == CaptureType.DigitalRF and not drf_channel:
+        if capture_type == CaptureType.DigitalRF and not drf_channels:
             return Response(
-                {"detail": "The `channel` field is required for DigitalRF captures."},
+                {"detail": "The `channels` field is required for DigitalRF captures."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -274,7 +284,7 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             self.ingest_capture(
                 capture=capture,
-                drf_channel=drf_channel,
+                drf_channels=drf_channels,
                 rh_scan_group=rh_scan_group,
                 requester=requester,
                 top_level_dir=requested_top_level_dir,
@@ -525,7 +535,7 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             self.ingest_capture(
                 capture=target_capture,
-                drf_channel=target_capture.channel,
+                drf_channels=target_capture.channels,
                 rh_scan_group=target_capture.scan_group,
                 requester=owner,
                 top_level_dir=requested_top_level_dir,
@@ -645,17 +655,17 @@ def _check_capture_creation_constraints(
 
     # CONSTRAINT: DigitalRF captures must have unique channel and top_level_dir
     if capture_type == CaptureType.DigitalRF:
-        channel = capture_candidate.get("channel")
+        channels = capture_candidate.get("channels")
         cap_qs: QuerySet[Capture] = Capture.objects.filter(
-            channel=channel,
+            channels=channels,
             top_level_dir=top_level_dir,
             capture_type=CaptureType.DigitalRF,
             is_deleted=False,
             owner=owner,
         )
-        if not channel:
+        if not channels:
             log.error(
-                "No channel provided for DigitalRF capture. This missing "
+                "No channels provided for DigitalRF capture. This missing "
                 "value should have been caught by the serializer validator.",
             )
         elif cap_qs.exists():
@@ -663,14 +673,14 @@ def _check_capture_creation_constraints(
             assert conflicting_capture is not None, "QuerySet should not be empty here."
             _errors.update(
                 {
-                    "drf_unique_channel_and_tld": "This channel and top level "
+                    "drf_unique_channels_and_tld": "These channels and top level "
                     "directory are already in use by "
                     f"another capture: {conflicting_capture.pk}",
                 },
             )
         else:
             log.debug(
-                "No `channel` and `top_level_dir` conflicts for current user's "
+                "No `channels` and `top_level_dir` conflicts for current user's "
                 "DigitalRF captures.",
             )
 
