@@ -253,49 +253,52 @@ services:
             - sds-gateway-prod-minio-net
             - sds-network-prod
 
-    celery-flower:
-        # Celery monitoring and administration tool
-        build:
-            context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
-        container_name: sds-gateway-prod-celery-flower
-        depends_on:
-            redis:
-                condition: service_started
-            postgres:
-                condition: service_started
-            minio:
-                condition: service_started
-        volumes:
-            - source: sds-gateway-prod-app-media
-              target: /app/sds_gateway/media
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: sds-gateway-prod-temp-zips
-              target: /app/sds_gateway/media/temp_zips
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: ./opensearch/data/certs-django
-              target: /app/opensearch/data/certs
-              type: bind
-              read_only: true
-        env_file:
-            - ./.envs/production/django.env
-            - ./.envs/production/minio.env
-            - ./.envs/production/postgres.env
-            - ./.envs/production/opensearch.env
-        command: /start
-        ports:
-            - "15555:5555"  # Flower web interface
-        networks:
-            - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
+    # TODO: check this after VLA
+    # celery-flower:
+    #     # Celery monitoring and administration tool
+    #     build:
+    #         context: .
+    #         dockerfile: ./compose/production/django/Dockerfile
+    #     image: sds-gateway-prod-app
+    #     container_name: sds-gateway-prod-celery-flower
+    #     depends_on:
+    #         redis:
+    #             condition: service_started
+    #         postgres:
+    #             condition: service_started
+    #         minio:
+    #             condition: service_started
+    #         opensearch:
+    #             condition: service_started
+    #     volumes:
+    #         - source: sds-gateway-prod-app-media
+    #           target: /app/sds_gateway/media
+    #           type: volume
+    #           read_only: false
+    #           bind:
+    #             selinux: z
+    #         - source: sds-gateway-prod-temp-zips
+    #           target: /app/sds_gateway/media/temp_zips
+    #           type: volume
+    #           read_only: false
+    #           bind:
+    #             selinux: z
+    #         - source: ./opensearch/data/certs-django
+    #           target: /app/opensearch/data/certs
+    #           type: bind
+    #           read_only: true
+    #     env_file:
+    #         - ./.envs/production/django.env
+    #         - ./.envs/production/minio.env
+    #         - ./.envs/production/postgres.env
+    #         - ./.envs/production/opensearch.env
+    #     command: /start
+    #     ports:
+    #         - "15555:5555"  # Flower web interface
+    #     networks:
+    #         - sds-gateway-prod-opensearch-net
+    #         - sds-gateway-prod-minio-net
+    #         - sds-network-prod
 
     # ===================
     # production services
