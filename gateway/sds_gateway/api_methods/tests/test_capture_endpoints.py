@@ -31,6 +31,10 @@ User = get_user_model()
 # Constants
 TOTAL_TEST_CAPTURES = 3
 
+# Constants for HTTP status codes
+HTTP_400_BAD_REQUEST = 400
+HTTP_201_CREATED = 201
+
 logger = logging.getLogger(__name__)
 
 
@@ -232,7 +236,7 @@ class CaptureTestCases(APITestCase):
                 self.list_url,
                 data={
                     "capture_type": CaptureType.DigitalRF,
-                    "channel": unique_channel,
+                    "channels": [unique_channel],  # Use channels instead of channel
                     "top_level_dir": unique_top_level_dir,
                 },
             )
@@ -244,8 +248,11 @@ class CaptureTestCases(APITestCase):
             assert response["capture_props"] == self.drf_metadata_v0, (
                 f"Props {response['capture_props']} != {self.drf_metadata_v0}"
             )
+            assert response["channels"] == [unique_channel], (
+                f"Channels {response['channels']} != [{unique_channel}]"
+            )
             assert response["channel"] == unique_channel, (
-                f"Channel {response['channel']} != {unique_channel}"
+                f"Legacy channel {response['channel']} != {unique_channel}"
             )
             assert response["top_level_dir"] == "/" + unique_top_level_dir, (
                 "Gateway should normalize to an absolute path: "
@@ -282,7 +289,7 @@ class CaptureTestCases(APITestCase):
                 self.list_url,
                 data={
                     "capture_type": CaptureType.DigitalRF,
-                    "channel": unique_channel,
+                    "channels": [unique_channel],  # Use channels instead of channel
                     "top_level_dir": unique_top_level_dir,
                 },
             )
@@ -294,8 +301,11 @@ class CaptureTestCases(APITestCase):
             assert response["capture_props"] == self.drf_metadata_v1, (
                 f"Props {response['capture_props']} != {self.drf_metadata_v1}"
             )
+            assert response["channels"] == [unique_channel], (
+                f"Channels {response['channels']} != [{unique_channel}]"
+            )
             assert response["channel"] == unique_channel, (
-                f"Channel {response['channel']} != {unique_channel}"
+                f"Legacy channel {response['channel']} != {unique_channel}"
             )
             assert response["top_level_dir"] == "/" + unique_top_level_dir, (
                 "Gateway should normalize to an absolute path: "
@@ -381,14 +391,14 @@ class CaptureTestCases(APITestCase):
                 self.list_url,
                 data={
                     "capture_type": CaptureType.DigitalRF,
-                    "channel": self.channel_v0,
+                    "channels": [self.channel_v0],  # Use channels instead of channel
                     "top_level_dir": self.top_level_dir_v0,
                 },
             )
             assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
             response = response_raw.json()
             assert (
-                "channel and top level directory are already in use"
+                "channels and top level directory are already in use"
                 in response["detail"]
             ), f"Unexpected error message: {response['detail']}"
 
@@ -773,6 +783,169 @@ class CaptureTestCases(APITestCase):
         """Test deleting a capture returns 204."""
         response = self.client.delete(self.detail_url(self.drf_capture_v0.uuid))
         assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    def test_create_drf_capture_multiple_channels_201(self) -> None:
+        """Test creating drf capture with multiple channels returns metadata."""
+        unique_channels = ["ch0_multi", "ch1_multi", "ch2_multi"]
+        unique_top_level_dir = "test-dir-drf-multi"
+
+        # Create metadata for each channel
+        channel_metadata = {}
+        for i, channel in enumerate(unique_channels):
+            channel_metadata[channel] = {
+                "center_freq": int(
+                    self.center_freq + (i * 1000000)
+                ),  # Different freq per channel
+                "bandwidth": 20_000_000,
+                "gain": 20.5 + i,  # Different gain per channel
+            }
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                side_effect=lambda channel_name: channel_metadata[channel_name],
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture_v0.index_name,
+            ),
+        ):
+            response_raw = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channels": unique_channels,
+                    "top_level_dir": unique_top_level_dir,
+                },
+            )
+            assert response_raw.status_code == status.HTTP_201_CREATED, (
+                f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
+            )
+            response = response_raw.json()
+
+            # Check that channels field is present and correct
+            assert "channels" in response, "Response should contain channels field"
+            assert response["channels"] == unique_channels, (
+                f"Channels {response['channels']} != {unique_channels}"
+            )
+
+            # Check that channels_metadata is present and contains all channels
+            assert "channels_metadata" in response, (
+                "Response should contain channels_metadata field"
+            )
+            assert len(response["channels_metadata"]) == len(unique_channels), (
+                f"Expected {len(unique_channels)} channels in metadata, "
+                f"got {len(response['channels_metadata'])}"
+            )
+
+            # Verify each channel's metadata
+            for i, channel in enumerate(unique_channels):
+                channel_data = response["channels_metadata"][i]
+                assert channel_data["channel_name"] == channel, (
+                    f"Channel name {channel_data['channel_name']} != {channel}"
+                )
+                expected_props = channel_metadata[channel]
+                assert channel_data["channel_props"] == expected_props, (
+                    f"Channel props {channel_data['channel_props']} != {expected_props}"
+                )
+
+            # Check backward compatibility -
+            # capture_props should contain first channel's metadata
+            assert response["capture_props"] == channel_metadata[unique_channels[0]], (
+                f"Capture props {response['capture_props']} != "
+                f"{channel_metadata[unique_channels[0]]}"
+            )
+
+            # Check other fields
+            assert response["top_level_dir"] == "/" + unique_top_level_dir, (
+                "Gateway should normalize to an absolute path: "
+                f"{response['top_level_dir']}"
+            )
+            assert response["capture_type"] == CaptureType.DigitalRF, (
+                f"Capture type: {response['capture_type']} != {CaptureType.DigitalRF}"
+            )
+
+    def test_create_drf_capture_multiple_channels_already_exists(self) -> None:
+        """Test creating drf capture with multiple channels that already exist.
+        Should return error."""
+        existing_channels = ["existing_ch0", "existing_ch1"]
+        existing_top_level_dir = "existing-dir"
+
+        # Create an existing capture with these channels
+        existing_capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel=json.dumps(existing_channels),  # Store as JSON array
+            index_name=f"{self.test_index_prefix}-drf",
+            owner=self.user,
+            top_level_dir=existing_top_level_dir,
+        )
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata_v0,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=existing_capture.index_name,
+            ),
+        ):
+            response_raw = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channels": existing_channels,
+                    "top_level_dir": existing_top_level_dir,
+                },
+            )
+            assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
+            response = response_raw.json()
+            assert (
+                "channels and top level directory are already in use"
+                in response["detail"]
+            ), f"Unexpected error message: {response['detail']}"
+
+    def test_create_capture_with_legacy_channel_fails(self):
+        """Test that providing the legacy channel parameter fails."""
+        # Create test data with only legacy channel
+        capture_data = {
+            "capture_type": "drf",
+            "top_level_dir": "test_data/drf",
+            "channel": "test_channel",  # Legacy parameter should be rejected
+        }
+
+        response = self.client.post(
+            reverse("capture-list"),
+            data=capture_data,
+            format="json",
+        )
+
+        # Should return 400 Bad Request
+        assert response.status_code == HTTP_400_BAD_REQUEST
+        assert (
+            "The 'channel' parameter is deprecated. Use 'channels' instead"
+            in response.data["error"]
+        )
+
+    def test_create_capture_with_channels_succeeds(self):
+        """Test that providing only the channels parameter works."""
+        # Create test data with only channels
+        capture_data = {
+            "capture_type": "drf",
+            "top_level_dir": "test_data/drf",
+            "channels": ["test_channel1", "test_channel2"],
+        }
+
+        response = self.client.post(
+            reverse("capture-list"),
+            data=capture_data,
+            format="json",
+        )
+
+        # Should succeed
+        assert response.status_code == HTTP_201_CREATED
+        assert "channels" in response.data
+        assert response.data["channels"] == ["test_channel1", "test_channel2"]
 
 
 class OpenSearchErrorTestCases(APITestCase):

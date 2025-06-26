@@ -437,6 +437,7 @@ class GatewayClient:
         capture_type: str,
         index_name: str,
         channel: str | None = None,
+        channels: list[str] | None = None,
         scan_group: str | None = None,
         verbose: bool = False,
     ) -> bytes:
@@ -444,20 +445,29 @@ class GatewayClient:
 
         Args:
             top_level_dir: The top-level directory for the capture.
-            channel:       The channel for the capture.
             capture_type:  The capture type.
             index_name:    The index name.
+            channel:       The channel for the capture (legacy, single channel).
+            channels:      The channels for the capture (new, multiple channels).
+            scan_group:    The scan group for RadioHound captures.
         Returns:
             The response content from SDS Gateway.
         """
-        payload = {
+        # raise error if both channel and channels are provided
+        if channel and channels:
+            error_msg = "Only one of channel or channels can be provided."
+            raise ValueError(error_msg)
+
+        payload: dict[str, Any] = {
             "top_level_dir": str(top_level_dir),
             "capture_type": capture_type,
             "index_name": index_name,
         }
         # add optional fields
-        if channel:
-            payload["channel"] = channel
+        if channels:
+            payload["channels"] = channels
+        elif channel:
+            payload["channels"] = [channel]  # Convert single channel to list
         if scan_group:
             payload["scan_group"] = scan_group
         response = self._request(

@@ -416,7 +416,7 @@ class Client:
             sds_path=sds_path,
         )
 
-    def upload_capture(
+    def upload_capture(  # noqa: PLR0913
         self,
         *,
         local_path: Path | str,
@@ -424,6 +424,7 @@ class Client:
         capture_type: CaptureType,
         index_name: str = "",
         channel: str | None = None,
+        channels: list[str] | None = None,
         scan_group: str | None = None,
         verbose: bool = True,
         warn_skipped: bool = False,
@@ -440,7 +441,8 @@ class Client:
             sds_path:       The virtual directory on SDS to upload the file to.
             capture_type:   One of `spectrumx.models.captures.CaptureType`.
             index_name:     The SDS index name. Leave empty to automatically select.
-            channel:        (For Digital-RF) the DRF channel name to index.
+            channel:        (For Digital-RF) the DRF channel name to index (legacy).
+            channels:       (For Digital-RF) list of DRF channel names to index (new).
             scan_group:     (For RadioHound) UUIDv4 that groups RH files.
             verbose:        Show progress bar and failure messages, if any.
             raise_on_error: When True, raises an exception if any file upload fails.
@@ -473,6 +475,7 @@ class Client:
                 capture_type=capture_type,
                 index_name=index_name,
                 channel=channel,
+                channels=channels,
                 scan_group=scan_group,
             )
         except SDSError:

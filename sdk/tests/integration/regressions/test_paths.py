@@ -177,7 +177,7 @@ def test_paths_sds_capture_ops(
                 local_path=drf_sample_top_level_dir,
                 sds_path=sds_path_random,
                 capture_type=CaptureType.DigitalRF,
-                channel=drf_channel,
+                channels=[drf_channel],
                 verbose=False,
                 warn_skipped=False,
             )

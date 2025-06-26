@@ -62,6 +62,7 @@ class CaptureAPI:
         capture_type: CaptureType,
         index_name: str = "",
         channel: str | None = None,
+        channels: list[str] | None = None,
         scan_group: str | None = None,
     ) -> Capture:
         """Creates a new RF capture in SDS.
@@ -84,7 +85,8 @@ class CaptureAPI:
             top_level_dir:  Virtual directory in SDS where capture files are stored.
             capture_type:   One of `spectrumx.models.captures.CaptureType`.
             index_name:     The SDS index name. Leave empty to automatically select.
-            channel:        (For Digital-RF) the DRF channel name to index.
+            channel:        (For Digital-RF) the DRF channel name to index (legacy).
+            channels:       (For Digital-RF) list of DRF channel names to index (new).
             scan_group:     (For RadioHound) UUIDv4 that groups RH files.
         Returns:
             The created capture object.
@@ -105,15 +107,18 @@ class CaptureAPI:
         if self.verbose:
             log.debug(
                 f"Creating capture with {top_level_dir=}, "
-                f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}"
+                f"{channel=}, {channels=}, {capture_type=}, "
+                f"{index_name=}, {scan_group=}"
             )
 
         if self.dry_run:
             log.debug("Dry run enabled: simulating the capture creation")
             return Capture(
                 capture_props={},
+                channels_metadata=[],
                 capture_type=capture_type,
                 channel=channel,
+                channels=channels or ([channel] if channel else None),
                 index_name=index_name,
                 origin=CaptureOrigin.User,
                 scan_group=uuid.UUID(scan_group) if scan_group else None,
@@ -125,6 +130,7 @@ class CaptureAPI:
         capture_raw = self.gateway.create_capture(
             capture_type=capture_type,
             channel=channel,
+            channels=channels,
             index_name=index_name,
             scan_group=scan_group,
             top_level_dir=top_level_dir,
@@ -151,12 +157,12 @@ class CaptureAPI:
             log.debug("Dry run enabled: simulating capture listing")
             num_captures: int = 3
             rng = random.Random()  # noqa: S311
+            capture_types = list(CaptureType)
+            selected_capture_type = (
+                capture_type if capture_type else rng.choice(capture_types)
+            )
             return [
-                _generate_capture(
-                    capture_type=capture_type
-                    if capture_type
-                    else rng.choice(list(CaptureType))
-                )
+                _generate_capture(capture_type=selected_capture_type)
                 for _ in range(num_captures)
             ]
         captures_raw = self.gateway.list_captures(capture_type=capture_type)
@@ -165,12 +171,12 @@ class CaptureAPI:
             log.warning("Not all capture results may be listed. ")
             # TODO: request more pages if needed
         captures: list[Capture] = []
-        for captures_raw in captures_list_raw:
+        for capture_raw in captures_list_raw:
             try:
-                capture = Capture.model_validate(captures_raw)
+                capture = Capture.model_validate(capture_raw)
                 captures.append(capture)
             except pydantic.ValidationError as err:
-                log_user_warning(f"Validation error loading capture: {captures_raw}")
+                log_user_warning(f"Validation error loading capture: {capture_raw}")
                 log.exception(err)
                 continue
         if self.verbose:
@@ -353,9 +359,11 @@ def _generate_capture(capture_type: CaptureType) -> Capture:
     """Generates a fake capture for testing purposes."""
     return Capture(
         capture_props={"_comment": "Simulated capture for a dry-run"},
+        channels_metadata=[],
         capture_type=capture_type,
         index_name="",
         channel=None,
+        channels=None,
         scan_group=None,
         origin=CaptureOrigin.User,
         top_level_dir=PurePosixPath("/"),

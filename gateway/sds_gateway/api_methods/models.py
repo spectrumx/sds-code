@@ -235,6 +235,9 @@ class Capture(BaseModel):
     def __str__(self):
         return f"{self.capture_type} capture for channel {self.channel} added on {self.created_at}"  # noqa: E501
 
+    # channels property gets the list of channels for a capture
+    # handles channel field with legacy formatting and new formatting
+    # converts all to list[str]
     @property
     def channels(self) -> list[str]:
         """Get list of channel names for this capture."""
