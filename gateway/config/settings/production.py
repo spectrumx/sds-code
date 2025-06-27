@@ -1,12 +1,15 @@
 """⚠️ Setting overrides for PRODUCTION ⚠️"""
 # ruff: noqa: F405, ERA001
 
-from socket import gethostname
+import sentry_sdk
+from loguru import logger as log
 
 from .base import *  # noqa: F403 pylint: disable=wildcard-import,unused-wildcard-import
 from .base import DATABASES
 from .base import SPECTACULAR_SETTINGS
 from .base import env
+from .utils import before_send
+from .utils import guess_best_sentry_env
 
 # GENERAL
 # ------------------------------------------------------------------------------
@@ -174,14 +177,15 @@ LOGGING: dict[str, Any] = {
 #       + Access to Django caches
 SENTRY_DSN: str = env("SENTRY_DSN", default="")
 if SENTRY_DSN:
-    import sentry_sdk
-
-    _hostname: str = gethostname()
-    _is_staging: bool = "-qa" in _hostname or "-dev" in _hostname
+    _sentry_env_var = env("SENTRY_ENVIRONMENT", default=guess_best_sentry_env())
+    log.info(
+        f"Initializing Sentry under environment '{_sentry_env_var}'",
+    )
 
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        environment="staging" if _is_staging else "production",
+        environment=_sentry_env_var,
+        before_send=before_send,
         # whether to add data like request headers and IP for users, for more info
         # see https://docs.sentry.io/platforms/python/data-management/data-collected/
         send_default_pii=False,
