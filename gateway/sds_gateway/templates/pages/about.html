@@ -3,45 +3,38 @@
 {% load static i18n %}
 
 {% block title %}
-    SDS Gateway
+    About - SDS Gateway
 {% endblock title %}
 {% block content %}
-    <div class="container">
-        <div class="hero-content">
-            <div class="center-heading">
-                <h2>{% translate "About" %}</h2>
-            </div>
-            <p class="styled-paragraph">
-                {% translate "The <b>SpectrumX Data System (SDS)</b> is a data management and retrieval platform for radio-frequency experiments." %}
-                {% translate "This is the SDS Gateway, a web interface in the making for user-friendly data retrieval." %}
-                {% translate "Here you can also generate API keys to interact with SDS via our " %}
-                <a href="https://pypi.org/project/spectrumx" target="_blank">{% translate "Python SDK" %}</a>.
-            </p>
-            <!--
-                          <div class="text-center my-4">
-                        <img src="{% static 'images/spx-logo.png' %}" class="img-fluid" width="64" alt="SpectrumX Logo" />
-                    </div>-->
-            <p class="styled-paragraph">
-                {% translate "The SpectrumX Data System (SDS) is a project under the SpectrumX initiative, " %}
-                {% translate "which vision is to become a trusted resource within the spectrum ecosystem offering objective, " %}
-                {% translate "long-term and innovative policy and technical contributions through collaborative, inclusive and integrative education and research activities." %}
-            </p>
-        </div>
-        <div class="container">
-            <div class="hero-content">
-                <h2 class="center-heading">{% translate "Resources" %}</h2>
-                <ul class="centered-list">
-                    <li>
-                        <a href="https://www.spectrumx.org/" target="_blank">{% translate "SpectrumX Website" %}</a>
-                    </li>
-                    <li>
-                        <a href="https://pypi.org/project/spectrumx/" target="_blank">{% translate "SpectrumX SDK in PyPI" %}</a>
-                    </li>
-                    <li>
-                        <a href="{% url 'api-docs' %}" target="_blank">{% translate "Gateway API Documentation" %}</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </div>
 {% endblock content %}
+{% block body %}
+    <section class="hero">
+        <div class="container">
+            <h1>About</h1>
+            <div class="hero-content text-center pb-5">
+                <p class="text-white">
+                    The <strong>SpectrumX Data System (SDS)</strong> is a data management and retrieval platform for radio-frequency experiments. This is the SDS Gateway, a web interface in the making for user-friendly data retrieval. Here you can also generate API keys to interact with SDS via our <a href="https://pypi.org/project/spectrumx"
+    target="_blank"
+    class="text-white">Python SDK</a>.
+                </p>
+                <p class="text-white">
+                    The SpectrumX Data System (SDS) is a project under the SpectrumX initiative, which vision is to become a trusted resource within the spectrum ecosystem offering objective, long-term and innovative policy and technical contributions through collaborative, inclusive and integrative education and research activities.
+                </p>
+                <h2 class="text-white mt-5">Resources</h2>
+                <div class="text-center">
+                    <p class="mb-2">
+                        <a href="https://www.spectrumx.org/" target="_blank" class="text-white">SpectrumX Website</a>
+                    </p>
+                    <p class="mb-2">
+                        <a href="https://pypi.org/project/spectrumx/"
+                           target="_blank"
+                           class="text-white">SpectrumX SDK in PyPI</a>
+                    </p>
+                    <p class="mb-2">
+                        <a href="{% url 'api-docs' %}" target="_blank" class="text-white">Gateway API Documentation</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock body %}

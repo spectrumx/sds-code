@@ -192,7 +192,7 @@ class FormHandler {
 								<td>${data.directory}</td>
 								<td>${data.channel}</td>
 								<td>${data.scan_group}</td>
-								<td>${new Date(data.created_at).toLocaleString()}</td>
+								<td>${new Date(data.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
 								<td>
 									<button class="btn btn-sm btn-danger remove-capture" data-id="${captureId}">
 										Remove
@@ -809,6 +809,9 @@ class SearchHandler {
 		const tbody = document.querySelector("#captures-table tbody");
 		tbody.innerHTML = "";
 
+		// Update the results count
+		this.updateResultsCount(data.results.length);
+
 		if (data.results.length === 0) {
 			tbody.innerHTML =
 				'<tr><td colspan="6" class="text-center">No captures found</td></tr>';
@@ -835,7 +838,7 @@ class SearchHandler {
 				<td>${capture.top_level_dir.split("/").pop()}</td>
 				<td>${capture.channel || "-"}</td>
 				<td>${capture.scan_group || "-"}</td>
-				<td>${new Date(capture.created_at).toLocaleString()}</td>
+				<td>${new Date(capture.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
 			`;
 
 			const handleSelection = (e) => {
@@ -901,14 +904,13 @@ class SearchHandler {
 		const ul = document.createElement("ul");
 		ul.className = "pagination justify-content-center";
 
-		// Add First/Previous buttons
+		// Add Previous button with arrow
 		if (pagination.has_previous) {
 			ul.innerHTML += `
 				<li class="page-item">
-					<a class="page-link" href="#" data-page="1">First</a>
-				</li>
-				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.number - 1}">Previous</a>
+					<a class="page-link" href="#" data-page="${pagination.number - 1}" aria-label="Previous">
+						<span aria-hidden="true">&laquo;</span>
+					</a>
 				</li>
 			`;
 		}
@@ -925,14 +927,13 @@ class SearchHandler {
 			`;
 		}
 
-		// Add Next/Last buttons
+		// Add Next button with arrow
 		if (pagination.has_next) {
 			ul.innerHTML += `
 				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.number + 1}">Next</a>
-				</li>
-				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.num_pages}">Last</a>
+					<a class="page-link" href="#" data-page="${pagination.number + 1}" aria-label="Next">
+						<span aria-hidden="true">&raquo;</span>
+					</a>
 				</li>
 			`;
 		}
@@ -944,7 +945,8 @@ class SearchHandler {
 		for (const link of links) {
 			link.addEventListener("click", async (e) => {
 				e.preventDefault();
-				const page = e.target.dataset.page;
+				const target = e.target.closest("a.page-link");
+				const page = target?.dataset.page;
 
 				if (type === "captures") {
 					const params = {
@@ -1308,7 +1310,7 @@ class SearchHandler {
 				</td>
 				<td>Directory</td>
 				<td>${this.formHandler.formatFileSize(content.size || 0)}</td>
-				<td>${content.created_at ? new Date(content.created_at).toLocaleString() : "-"}</td>
+				<td>${content.created_at ? new Date(content.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "-"}</td>
 			`;
 			targetElement.appendChild(row);
 
@@ -1393,7 +1395,7 @@ class SearchHandler {
 					</td>
 					<td>${file.media_type || "Unknown"}</td>
 					<td>${this.formHandler.formatFileSize(file.size)}</td>
-					<td>${new Date(file.created_at).toLocaleString()}</td>
+					<td>${new Date(file.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
 				`;
 
 				const checkbox = row.querySelector('input[type="checkbox"]');
@@ -1482,11 +1484,19 @@ class SearchHandler {
 			selectAllCheckbox.checked = false;
 		}
 	}
+
+	updateResultsCount(count) {
+		const resultsCountElement = document.getElementById("results-count");
+		if (resultsCountElement) {
+			const captureText = count === 1 ? "capture" : "captures";
+			resultsCountElement.textContent = `${count} ${captureText} found`;
+		}
+	}
 }
 
 // Make classes available globally
 window.SearchHandler = SearchHandler;
 window.FormHandler = FormHandler;
 
-// Export the classes
-export { FormHandler, SearchHandler };
+// Export the classes (commented out to avoid syntax error in non-module context)
+// export { FormHandler, SearchHandler };

@@ -13,12 +13,13 @@
     min-height: 100vh;
     margin: 0;
     padding: 0;
+    padding-bottom: 120px; /* Add space for fixed footer */
   }
 
   .container {
-    max-width: 1600px;
+    max-width: 95vw;
     margin: 0 auto;
-    padding: 0 20px;
+    padding: 0 10px;
 
     .container-white-page & {
       background-color: var(--white);
@@ -207,7 +208,7 @@
     width: 100%;
     color: var(--white);
     padding: 1rem 0;
-    position:fixed;
+    // position:fixed;
   }
 
   .footer-content {

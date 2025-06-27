@@ -1,0 +1,177 @@
+<!-- Search Results -->
+<div id="search-results">
+    <div class="d-flex justify-content-between align-items-baseline">
+        <span id="results-count" aria-live="polite">
+            {% if captures %}
+                {{ captures|length }} capture{{ captures|length|pluralize }} found
+            {% else %}
+                0 captures found
+            {% endif %}
+        </span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped table-hover table-sm captures-table-fixed"
+               aria-labelledby="search-results-heading">
+            <caption id="search-results-heading" class="visually-hidden">Search results for captures</caption>
+            <thead>
+                <tr>
+                    <th scope="col" class="sortable" data-sort="uuid">
+                        ID <i class="bi bi-caret-down-fill sort-icon"></i>
+                    </th>
+                    <th scope="col" class="sortable" data-sort="channel">
+                        Channel <i class="bi bi-caret-down-fill sort-icon"></i>
+                    </th>
+                    <th scope="col" class="sortable" data-sort="created_at">
+                        Date Added <i class="bi bi-caret-down-fill sort-icon"></i>
+                    </th>
+                    <th scope="col" class="sortable" data-sort="capture_type">
+                        Type <i class="bi bi-caret-down-fill sort-icon"></i>
+                    </th>
+                    <th scope="col">Files</th>
+                    <th scope="col" class="sortable" data-sort="center_frequency_ghz">
+                        Center Freq <i class="bi bi-caret-down-fill sort-icon"></i>
+                    </th>
+                    <th scope="col" class="sortable" data-sort="sample_rate_mhz">
+                        Sample Rate <i class="bi bi-caret-down-fill sort-icon"></i>
+                    </th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if captures %}
+                    {% for cap in captures %}
+                        <tr class="capture-row">
+                            <td>
+                                <a href="#"
+                                   class="capture-link"
+                                   data-uuid="{{ cap.uuid }}"
+                                   data-channel="{{ cap.channel }}"
+                                   data-scan-group="{{ cap.scan_group }}"
+                                   data-capture-type="{{ cap.capture_type }}"
+                                   data-top-level-dir="{{ cap.top_level_dir }}"
+                                   data-owner="{{ cap.owner }}"
+                                   data-origin="{{ cap.origin }}"
+                                   data-dataset="{{ cap.dataset }}"
+                                   data-created-at="{{ cap.created_at }}"
+                                   data-updated-at="{{ cap.updated_at }}"
+                                   data-is-public="{{ cap.is_public }}"
+                                   data-center-frequency-ghz="{{ cap.center_frequency_ghz }}"
+                                   aria-label="View details for {{ cap.uuid }}"
+                                   title="{{ cap.uuid }}">{{ cap.uuid }}</a>
+                            </td>
+                            <td>{{ cap.channel }}</td>
+                            <td>
+                                <script>
+                                    try {
+                                        const date = "{{ cap.created_at }}";
+                                        if (date && date !== "None") {
+                                            document.write(new Date(date).toLocaleDateString('en-US', {
+                                                month: '2-digit',
+                                                day: '2-digit',
+                                                year: 'numeric'
+                                            }));
+                                        } else {
+                                            document.write("");
+                                        }
+                                    } catch (e) {
+                                        document.write("");
+                                    }
+                                </script>
+                            </td>
+                            <td>{{ cap.capture_type }}</td>
+                            <td>
+                                {{ cap.files_count }}
+                                {% if cap.total_file_size %}
+                                    <br />
+                                    <small class="text-muted">{{ cap.total_file_size|filesizeformat }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cap.center_frequency_ghz %}
+                                    {{ cap.center_frequency_ghz|floatformat:1 }} GHz
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cap.sample_rate_mhz %}
+                                    {{ cap.sample_rate_mhz|floatformat:0 }} MHz
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                            type="button"
+                                            data-bs-toggle="dropdown"
+                                            aria-expanded="false"
+                                            aria-label="Actions for {{ cap.uuid }}">
+                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <button class="dropdown-item view-capture-btn"
+                                                    type="button"
+                                                    data-uuid="{{ cap.uuid }}"
+                                                    data-channel="{{ cap.channel }}"
+                                                    data-scan-group="{{ cap.scan_group }}"
+                                                    data-capture-type="{{ cap.capture_type }}"
+                                                    data-top-level-dir="{{ cap.top_level_dir }}"
+                                                    data-owner="{{ cap.owner }}"
+                                                    data-origin="{{ cap.origin }}"
+                                                    data-dataset="{{ cap.dataset }}"
+                                                    data-created-at="{{ cap.created_at }}"
+                                                    data-updated-at="{{ cap.updated_at }}"
+                                                    data-is-public="{{ cap.is_public }}"
+                                                    data-center-frequency-ghz="{{ cap.center_frequency_ghz }}">
+                                                View
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item" type="button">Download</button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">No captures found.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    <!-- Pagination -->
+    {% if captures %}
+        <nav aria-label="Search results pagination" class="mt-4">
+            <ul class="pagination justify-content-center" id="pagination-controls">
+                <!-- Previous button -->
+                <li class="page-item {% if not captures.has_previous %}disabled{% endif %}">
+                    <a class="page-link"
+                       href="{% if captures.has_previous %}?page={{ captures.previous_page_number }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}{% else %}#{% endif %}"
+                       aria-label="Previous">
+                        <span aria-hidden="true">«</span>
+                    </a>
+                </li>
+                <!-- Page numbers -->
+                {% for num in captures.paginator.page_range %}
+                    <li class="page-item {% if num == captures.number %}active{% endif %}">
+                        <a class="page-link"
+                           href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}">{{ num }}</a>
+                    </li>
+                {% endfor %}
+                <!-- Next button -->
+                <li class="page-item {% if not captures.has_next %}disabled{% endif %}">
+                    <a class="page-link"
+                       href="{% if captures.has_next %}?page={{ captures.next_page_number }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}{% else %}#{% endif %}"
+                       aria-label="Next">
+                        <span aria-hidden="true">»</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    {% endif %}
+</div>
