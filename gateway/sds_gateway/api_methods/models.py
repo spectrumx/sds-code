@@ -203,7 +203,7 @@ class Capture(BaseModel):
 
     # For DRF: stores JSON array of channel names ["channel1", "channel2"]
     # For RH: remains empty string
-    channel = models.TextField(blank=True, default="[]")
+    channel = models.TextField(blank=True, default="")
     scan_group = models.UUIDField(blank=True, null=True)  # RH
     capture_type = models.CharField(
         max_length=255,

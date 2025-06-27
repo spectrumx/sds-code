@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='capture',
             name='channel',
-            field=models.TextField(blank=True, default='[]'),
+            field=models.TextField(blank=True, default=''),
         ),
     ]

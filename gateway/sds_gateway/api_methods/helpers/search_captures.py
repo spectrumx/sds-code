@@ -15,6 +15,7 @@ from sds_gateway.api_methods.utils.metadata_schemas import (
     capture_index_mapping_by_type as md_props_by_type,  # type: dict[CaptureType, dict[str, Any]]
 )
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
+from sds_gateway.api_methods.utils.metadata_schemas import search_properties
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.users.models import User
 
@@ -65,75 +66,23 @@ def handle_nested_query(
     }
 
 
-def _build_os_metadata_query(
-    capture_type: CaptureType | None = None,
-    metadata_filters: list[dict[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
-    """Build OpenSearch query for metadata fields.
-
-    Args:
-        capture_type: Type of capture (e.g. 'drf')
-        metadata_filters: list of dicts with 'field', 'type', and 'value' keys
-    Returns:
-        List of OpenSearch query clauses for the metadata fields
-    """
-
-    metadata_queries: list[dict[str, Any]] = []
-    if metadata_filters is None:
-        log.debug("No metadata filters provided to build the OpenSearch query.")
-        return metadata_queries
-
-    index_fields = _flatten_index_mapping(
-        index_mapping=_get_index_mapping(capture_type=capture_type),
-        index_fields=base_index_fields.copy(),
-    )
-
-    for query in metadata_filters:
-        field_path: str = query["field_path"]
-        query_type: str = query["query_type"]
-        filter_value: Any = query["filter_value"]
-
-        # warn if the field is not in the index mapping
-        # but continue to build the query
-        if field_path not in index_fields:
-            msg = (
-                f"Field '{field_path}' does not match an indexed field."
-                "The filter may not be applied to the query accurately."
-            )
-            log.warning(msg)
-
-        levels_nested = field_path.count(".")
-        if levels_nested > 0:
-            metadata_queries.append(
-                handle_nested_query(
-                    field_path=field_path,
-                    query_type=query_type,
-                    value=filter_value,
-                    levels_nested=levels_nested,
-                ),
-            )
-        else:
-            metadata_queries.append({query_type: {field_path: filter_value}})
-
-    log.debug(
-        f"Built {len(metadata_queries)} OpenSearch metadata "
-        f"queries: {metadata_queries}",
-    )
-    return metadata_queries
-
-
 def _flatten_index_mapping(
     index_mapping: Mapping[str, Any],
     index_fields: list[str],
     prefix: str = "capture_props",
     separator: str = ".",
 ) -> list[str]:
-    """Flatten the index mapping to a list of fields.
+    """
+    Flattens the index mapping for the given fields.
+
     Args:
         index_mapping: The index mapping to flatten.
         index_fields: The list of fields to flatten.
+        prefix: The prefix to add to field names (e.g.,
+            'capture_props' or 'search_props').
+        separator: The separator to use between prefix and field name.
     Returns:
-        A list of flattened fields.
+        A list of flattened field names.
     """
     for field, field_type in index_mapping.items():
         if isinstance(field_type, dict) and field_type.get("type") == "nested":
@@ -304,3 +253,75 @@ def _build_os_query_for_captures(
     log.debug("OpenSearch query:")
     log.debug(pretty_repr(query, indent_size=4))
     return query
+
+
+def _build_os_metadata_query(
+    capture_type: CaptureType | None = None,
+    metadata_filters: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Build OpenSearch query for metadata fields.
+
+    Args:
+        capture_type: Type of capture (e.g. 'drf')
+        metadata_filters: list of dicts with 'field', 'type', and 'value' keys
+    Returns:
+        List of OpenSearch query clauses for the metadata fields
+    """
+
+    metadata_queries: list[dict[str, Any]] = []
+    if metadata_filters is None:
+        log.debug("No metadata filters provided to build the OpenSearch query.")
+        return metadata_queries
+
+    # Get the index mapping for the capture type
+    index_mapping = _get_index_mapping(capture_type=capture_type)
+
+    # Flatten both capture_props and search_props fields
+    index_fields = base_index_fields.copy()
+    index_fields = _flatten_index_mapping(
+        index_mapping=index_mapping,
+        index_fields=index_fields,
+        prefix="capture_props",
+        separator=".",
+    )
+
+    # Also flatten search_props fields
+    index_fields = _flatten_index_mapping(
+        index_mapping=search_properties,
+        index_fields=index_fields,
+        prefix="search_props",
+        separator=".",
+    )
+
+    for query in metadata_filters:
+        field_path: str = query["field_path"]
+        query_type: str = query["query_type"]
+        filter_value: Any = query["filter_value"]
+
+        # warn if the field is not in the index mapping
+        # but continue to build the query
+        if field_path not in index_fields:
+            msg = (
+                f"Field '{field_path}' does not match an indexed field."
+                "The filter may not be applied to the query accurately."
+            )
+            log.warning(msg)
+
+        levels_nested = field_path.count(".")
+        if levels_nested > 0:
+            metadata_queries.append(
+                handle_nested_query(
+                    field_path=field_path,
+                    query_type=query_type,
+                    value=filter_value,
+                    levels_nested=levels_nested,
+                ),
+            )
+        else:
+            metadata_queries.append({query_type: {field_path: filter_value}})
+
+    log.debug(
+        f"Built {len(metadata_queries)} OpenSearch metadata "
+        f"queries: {metadata_queries}",
+    )
+    return metadata_queries

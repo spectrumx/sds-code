@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 User = get_user_model()
 
 # Constants
-TOTAL_TEST_CAPTURES = 3
+TOTAL_TEST_CAPTURES = 4  # 1 RH, 3 DRF (v0, v1, multiple channels)
 
 # Constants for HTTP status codes
 HTTP_400_BAD_REQUEST = 400
@@ -47,7 +47,7 @@ class CaptureTestCases(APITestCase):
 
         # set up test metadata checks
         self.center_freq = 2_000_000_000.0
-        self.drf_capture_count = 2
+        self.drf_capture_count = 3
         self.rh_capture_count = 1
 
         # clean up any existing test indices
@@ -58,8 +58,10 @@ class CaptureTestCases(APITestCase):
         self.scan_group = uuid.uuid4()
         self.channel_v0 = "ch0"
         self.channel_v1 = "ch1"
+        self.channels = [self.channel_v0, self.channel_v1]
         self.top_level_dir_v0 = "test-dir-drf-v0"
         self.top_level_dir_v1 = "test-dir-drf-v1"
+        self.top_level_dir_multiple = "test-dir-drf-multiple"
         self.top_level_dir_rh = "test-dir-rh"
         self.user = User.objects.create(
             email="testuser@example.com",
@@ -100,6 +102,14 @@ class CaptureTestCases(APITestCase):
             top_level_dir=self.top_level_dir_v1,
         )
 
+        self.drf_capture_multiple = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel=json.dumps(self.channels),
+            index_name=f"{self.test_index_prefix}-drf",
+            owner=self.user,
+            top_level_dir=self.top_level_dir_multiple,
+        )
+
         self.rh_capture = Capture.objects.create(
             capture_type=CaptureType.RadioHound,
             index_name=f"{self.test_index_prefix}-rh",
@@ -120,6 +130,19 @@ class CaptureTestCases(APITestCase):
             "center_frequencies": [self.center_freq],
             "bandwidth": 20_000_000,
             "gain": 20.5,
+        }
+
+        self.drf_metadata_multiple = {
+            self.channel_v0: {
+                "center_frequencies": [int(self.center_freq)],
+                "bandwidth": 20_000_000,
+                "gain": 20.5,
+            },
+            self.channel_v1: {
+                "center_frequencies": [int(self.center_freq + 100_000_000)],
+                "bandwidth": 20_000_000,
+                "gain": 20.5,
+            },
         }
 
         self.rh_metadata = {
@@ -195,15 +218,35 @@ class CaptureTestCases(APITestCase):
     def _index_test_metadata(self) -> None:
         """Index test metadata into OpenSearch."""
         # Index DRF capture metadata v0
-        index_capture_metadata(self.drf_capture_v0, self.drf_metadata_v0)
+        index_capture_metadata(
+            capture=self.drf_capture_v0,
+            capture_props=self.drf_metadata_v0,
+            channel_metadata=None,
+        )
         self.opensearch.indices.refresh(index=self.drf_capture_v0.index_name)
 
         # Index DRF capture metadata v1
-        index_capture_metadata(self.drf_capture_v1, self.drf_metadata_v1)
+        index_capture_metadata(
+            capture=self.drf_capture_v1,
+            capture_props=self.drf_metadata_v1,
+            channel_metadata=None,
+        )
         self.opensearch.indices.refresh(index=self.drf_capture_v1.index_name)
 
+        # Index DRF capture metadata multiple channels
+        index_capture_metadata(
+            capture=self.drf_capture_multiple,
+            capture_props=None,
+            channel_metadata=self.drf_metadata_multiple,
+        )
+        self.opensearch.indices.refresh(index=self.drf_capture_multiple.index_name)
+
         # Index RH capture metadata
-        index_capture_metadata(self.rh_capture, self.rh_metadata)
+        index_capture_metadata(
+            capture=self.rh_capture,
+            capture_props=self.rh_metadata,
+            channel_metadata=None,
+        )
         # Ensure immediate visibility
         self.opensearch.indices.refresh(index=self.rh_capture.index_name)
 
@@ -239,20 +282,47 @@ class CaptureTestCases(APITestCase):
                     "channels": [unique_channel],  # Use channels instead of channel
                     "top_level_dir": unique_top_level_dir,
                 },
+                format="json",
             )
             assert response_raw.status_code == status.HTTP_201_CREATED, (
                 f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
             )
             response = response_raw.json()
 
-            assert response["capture_props"] == self.drf_metadata_v0, (
-                f"Props {response['capture_props']} != {self.drf_metadata_v0}"
-            )
+            # Check that channels field is present and correct
+            assert "channels" in response, "Response should contain channels field"
             assert response["channels"] == [unique_channel], (
                 f"Channels {response['channels']} != [{unique_channel}]"
             )
-            assert response["channel"] == unique_channel, (
-                f"Legacy channel {response['channel']} != {unique_channel}"
+
+            # Check that channels_metadata is present and contains the channel
+            assert "channels_metadata" in response, (
+                "Response should contain channels_metadata field"
+            )
+            assert len(response["channels_metadata"]) == 1, (
+                f"Expected 1 channel in metadata, got "
+                f"{len(response['channels_metadata'])}"
+            )
+
+            # Verify the channel's metadata
+            channel_data = response["channels_metadata"][0]
+            assert channel_data["channel_name"] == unique_channel, (
+                f"Channel name {channel_data['channel_name']} != {unique_channel}"
+            )
+            assert channel_data["channel_props"] == self.drf_metadata_v0, (
+                f"Channel props {channel_data['channel_props']} != "
+                f"{self.drf_metadata_v0}"
+            )
+
+            # Check backward compatibility - capture_props should contain first
+            # channel's metadata
+            assert response["capture_props"] == self.drf_metadata_v0, (
+                f"Capture props {response['capture_props']} != {self.drf_metadata_v0}"
+            )
+
+            # Check other fields
+            assert response["primary_channel"] == unique_channel, (
+                f"Primary channel {response['primary_channel']} != {unique_channel}"
             )
             assert response["top_level_dir"] == "/" + unique_top_level_dir, (
                 "Gateway should normalize to an absolute path: "
@@ -292,20 +362,47 @@ class CaptureTestCases(APITestCase):
                     "channels": [unique_channel],  # Use channels instead of channel
                     "top_level_dir": unique_top_level_dir,
                 },
+                format="json",
             )
             assert response_raw.status_code == status.HTTP_201_CREATED, (
                 f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
             )
             response = response_raw.json()
 
-            assert response["capture_props"] == self.drf_metadata_v1, (
-                f"Props {response['capture_props']} != {self.drf_metadata_v1}"
-            )
+            # Check that channels field is present and correct
+            assert "channels" in response, "Response should contain channels field"
             assert response["channels"] == [unique_channel], (
                 f"Channels {response['channels']} != [{unique_channel}]"
             )
-            assert response["channel"] == unique_channel, (
-                f"Legacy channel {response['channel']} != {unique_channel}"
+
+            # Check that channels_metadata is present and contains the channel
+            assert "channels_metadata" in response, (
+                "Response should contain channels_metadata field"
+            )
+            assert len(response["channels_metadata"]) == 1, (
+                f"Expected 1 channel in metadata, got "
+                f"{len(response['channels_metadata'])}"
+            )
+
+            # Verify the channel's metadata
+            channel_data = response["channels_metadata"][0]
+            assert channel_data["channel_name"] == unique_channel, (
+                f"Channel name {channel_data['channel_name']} != {unique_channel}"
+            )
+            assert channel_data["channel_props"] == self.drf_metadata_v1, (
+                f"Channel props {channel_data['channel_props']} != "
+                f"{self.drf_metadata_v1}"
+            )
+
+            # Check backward compatibility - capture_props should contain the
+            # channel's metadata
+            assert response["capture_props"] == self.drf_metadata_v1, (
+                f"Capture props {response['capture_props']} != {self.drf_metadata_v1}"
+            )
+
+            # Check other fields
+            assert response["primary_channel"] == unique_channel, (
+                f"Primary channel {response['primary_channel']} != {unique_channel}"
             )
             assert response["top_level_dir"] == "/" + unique_top_level_dir, (
                 "Gateway should normalize to an absolute path: "
@@ -394,6 +491,7 @@ class CaptureTestCases(APITestCase):
                     "channels": [self.channel_v0],  # Use channels instead of channel
                     "top_level_dir": self.top_level_dir_v0,
                 },
+                format="json",
             )
             assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
             response = response_raw.json()
@@ -492,17 +590,36 @@ class CaptureTestCases(APITestCase):
             f"Expected {self.drf_capture_count} DRF captures, got {len(drf_captures)}"
         )
         for drf_capture in drf_captures:
-            if "center_freq" in drf_capture["capture_props"]:
+            if drf_capture["channels"] == [self.channel_v0]:
                 assert drf_capture["capture_props"]["center_freq"] == self.center_freq
-                assert drf_capture["channel"] == self.channel_v0
-                assert drf_capture["top_level_dir"] == self.top_level_dir_v0
-            else:
+                assert drf_capture["primary_channel"] == self.channel_v0
+                assert drf_capture["top_level_dir"] == self.top_level_dir_v0, (
+                    f"Expected {self.top_level_dir_v0}, got "
+                    f"{drf_capture['top_level_dir']}"
+                )
+            elif drf_capture["channels"] == [self.channel_v1]:
                 assert (
                     drf_capture["capture_props"]["center_frequencies"][0]
                     == self.center_freq
                 )
-                assert drf_capture["channel"] == self.channel_v1
-                assert drf_capture["top_level_dir"] == self.top_level_dir_v1
+                assert drf_capture["primary_channel"] == self.channel_v1
+                assert drf_capture["top_level_dir"] == self.top_level_dir_v1, (
+                    f"Expected {self.top_level_dir_v1}, got "
+                    f"{drf_capture['top_level_dir']}"
+                )
+            else:  # test multiple channels
+                assert drf_capture["top_level_dir"] == self.top_level_dir_multiple, (
+                    f"Expected {self.top_level_dir_multiple}, got "
+                    f"{drf_capture['top_level_dir']}"
+                )
+                assert len(drf_capture["channels"]) == len(self.channels), (
+                    f"Expected {len(self.channels)} channels, got "
+                    f"{len(drf_capture['channels'])}"
+                )
+                for channel in drf_capture["channels"]:
+                    assert channel in self.channels, (
+                        f"Expected {channel} in {self.channels}"
+                    )
 
         # verify rh capture
         rh_capture = next(
@@ -554,7 +671,7 @@ class CaptureTestCases(APITestCase):
                     f"Expected center frequency {self.center_freq}, "
                     f"got {capture['capture_props']['center_freq']}"
                 )
-            else:
+            elif "center_frequencies" in capture["capture_props"]:
                 assert (
                     capture["capture_props"]["center_frequencies"][0]
                     == self.center_freq
@@ -562,6 +679,20 @@ class CaptureTestCases(APITestCase):
                     f"Expected center frequency {self.center_freq}, "
                     f"got {capture['capture_props']['center_frequencies'][0]}"
                 )
+            else:
+                assert "channels" in capture, "Expected channels in capture"
+                assert capture["top_level_dir"] == self.top_level_dir_multiple, (
+                    f"Expected {self.top_level_dir_multiple}, got "
+                    f"{capture['top_level_dir']}"
+                )
+                assert len(capture["channels"]) == len(self.channels), (
+                    f"Expected {len(self.channels)} channels, got "
+                    f"{len(capture['channels'])}"
+                )
+                for channel in capture["channels"]:
+                    assert channel in self.channels, (
+                        f"Expected {channel} in {self.channels}"
+                    )
 
     def test_list_captures_by_invalid_type_400(self) -> None:
         """Test filtering captures by an invalid type returns 400."""
@@ -648,11 +779,21 @@ class CaptureTestCases(APITestCase):
         for drf_capture in drf_captures:
             if "center_freq" in drf_capture["capture_props"]:
                 assert drf_capture["capture_props"]["center_freq"] == self.center_freq
-            else:
+            elif "center_frequencies" in drf_capture["capture_props"]:
                 assert (
                     drf_capture["capture_props"]["center_frequencies"][0]
                     == self.center_freq
                 )
+            else:
+                assert "channels" in drf_capture, "Expected channels in capture"
+                assert len(drf_capture["channels"]) == len(self.channels), (
+                    f"Expected {len(self.channels)} channels, got "
+                    f"{len(drf_capture['channels'])}"
+                )
+                for channel in drf_capture["channels"]:
+                    assert channel in self.channels, (
+                        f"Expected {channel} in {self.channels}"
+                    )
 
         # get the RH capture
         rh_capture = next(
@@ -756,7 +897,7 @@ class CaptureTestCases(APITestCase):
         assert data["channel"] == self.channel_v0
 
         # Verify metadata is correctly retrieved for single capture
-        assert data["capture_props"] == self.drf_metadata_v0
+        assert data["channels_metadata"][0]["channel_props"] == self.drf_metadata_v0
 
     def test_retrieve_capture_404(self) -> None:
         """Test retrieving a non-existent capture."""
@@ -800,10 +941,20 @@ class CaptureTestCases(APITestCase):
                 "gain": 20.5 + i,  # Different gain per channel
             }
 
+        def mock_validate_metadata(data_path=None, channel_name=None):
+            """Mock function to return channel-specific metadata."""
+            if channel_name not in channel_metadata:
+                msg = (
+                    f"Channel '{channel_name}' not found in test metadata. "
+                    f"Available: {list(channel_metadata.keys())}"
+                )
+                raise KeyError(msg)
+            return channel_metadata[channel_name]
+
         with (
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
-                side_effect=lambda channel_name: channel_metadata[channel_name],
+                side_effect=mock_validate_metadata,
             ),
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
@@ -817,6 +968,7 @@ class CaptureTestCases(APITestCase):
                     "channels": unique_channels,
                     "top_level_dir": unique_top_level_dir,
                 },
+                format="json",
             )
             assert response_raw.status_code == status.HTTP_201_CREATED, (
                 f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
@@ -849,8 +1001,8 @@ class CaptureTestCases(APITestCase):
                     f"Channel props {channel_data['channel_props']} != {expected_props}"
                 )
 
-            # Check backward compatibility -
-            # capture_props should contain first channel's metadata
+            # Check backward compatibility - capture_props should contain first
+            # channel's metadata
             assert response["capture_props"] == channel_metadata[unique_channels[0]], (
                 f"Capture props {response['capture_props']} != "
                 f"{channel_metadata[unique_channels[0]]}"
@@ -915,7 +1067,7 @@ class CaptureTestCases(APITestCase):
         }
 
         response = self.client.post(
-            reverse("capture-list"),
+            self.list_url,
             data=capture_data,
             format="json",
         )
@@ -924,28 +1076,8 @@ class CaptureTestCases(APITestCase):
         assert response.status_code == HTTP_400_BAD_REQUEST
         assert (
             "The 'channel' parameter is deprecated. Use 'channels' instead"
-            in response.data["error"]
+            in response.data["detail"]
         )
-
-    def test_create_capture_with_channels_succeeds(self):
-        """Test that providing only the channels parameter works."""
-        # Create test data with only channels
-        capture_data = {
-            "capture_type": "drf",
-            "top_level_dir": "test_data/drf",
-            "channels": ["test_channel1", "test_channel2"],
-        }
-
-        response = self.client.post(
-            reverse("capture-list"),
-            data=capture_data,
-            format="json",
-        )
-
-        # Should succeed
-        assert response.status_code == HTTP_201_CREATED
-        assert "channels" in response.data
-        assert response.data["channels"] == ["test_channel1", "test_channel2"]
 
 
 class OpenSearchErrorTestCases(APITestCase):

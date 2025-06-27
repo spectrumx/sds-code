@@ -87,7 +87,7 @@ class CaptureViewSet(viewsets.ViewSet):
 
                     # Use the first channel's metadata as the base capture_props for
                     # backward compatibility
-                    capture_props = channel_metadata[drf_channels[0]]
+                    capture_props = None
                 else:
                     msg = "Channels are required for Digital-RF captures"
                     log.warning(msg)
@@ -102,7 +102,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 raise ValueError(msg)
 
         # index the capture properties
-        if capture_props:
+        if capture_props or channel_metadata:
             index_capture_metadata(
                 capture=capture,
                 capture_props=capture_props,
@@ -147,12 +147,15 @@ class CaptureViewSet(viewsets.ViewSet):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # reconstruct the file tree in a temporary directory
+            # For backward compatibility, use the first channel if multiple
+            # channels provided
+            drf_channel = drf_channels[0] if drf_channels else None
             tmp_dir_path, files_to_connect = reconstruct_tree(
                 target_dir=Path(temp_dir),
                 virtual_top_dir=top_level_dir,
                 owner=requester,
                 capture_type=capture.capture_type,
-                drf_channels=drf_channels,
+                drf_channel=drf_channel,
                 rh_scan_group=rh_scan_group,
                 verbose=True,
             )
@@ -186,6 +189,131 @@ class CaptureViewSet(viewsets.ViewSet):
                     f"files to capture '{capture.uuid}'",
                 )
 
+    def _validate_capture_request_data(self, request):
+        drf_channels = request.data.get("channels", None)
+        rh_scan_group = request.data.get("scan_group", None)
+        capture_type = request.data.get("capture_type", None)
+        if "channel" in request.data:
+            deprecated_channel_msg = (
+                "The 'channel' parameter is deprecated. Use 'channels' instead. "
+                "For single channels, pass as a list: ['channel_name']."
+            )
+            return (
+                None,
+                None,
+                None,
+                Response(
+                    {"detail": deprecated_channel_msg},
+                    status=status.HTTP_400_BAD_REQUEST,
+                ),
+            )
+        if capture_type is None:
+            return (
+                None,
+                None,
+                None,
+                Response(
+                    {"detail": "The `capture_type` field is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                ),
+            )
+        unsafe_top_level_dir = request.data.get("top_level_dir", "")
+        requested_top_level_dir = sanitize_path_rel_to_user(
+            unsafe_path=unsafe_top_level_dir,
+            request=request,
+        )
+        if requested_top_level_dir is None:
+            return (
+                None,
+                None,
+                None,
+                Response(
+                    {"detail": "The provided `top_level_dir` is invalid."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                ),
+            )
+        if capture_type == CaptureType.DigitalRF and not drf_channels:
+            return (
+                None,
+                None,
+                None,
+                Response(
+                    {
+                        "detail": (
+                            "The `channels` field is required for DigitalRF captures."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                ),
+            )
+        return drf_channels, rh_scan_group, capture_type, requested_top_level_dir
+
+    def _get_validated_serializer(self, request_data, request_user):
+        post_serializer = CapturePostSerializer(
+            data=request_data,
+            context={"request_user": request_user},
+        )
+        if not post_serializer.is_valid():
+            errors = post_serializer.errors
+            log.warning(f"Capture POST serializer errors: {errors}")
+            return None, Response(
+                {"detail": errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return post_serializer, None
+
+    def _handle_capture_constraints(self, capture_candidate, requester, request_data):
+        try:
+            _check_capture_creation_constraints(
+                capture_candidate, owner=requester, request_data=request_data
+            )
+        except ValueError as err:
+            msg = "One or more capture creation constraints violated:"
+            for error in err.args[0].splitlines():
+                msg += f"\n\t{error}"
+            log.info(msg)
+            return Response(
+                {"detail": msg},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return None
+
+    def _ingest_and_handle_errors(
+        self,
+        capture,
+        drf_channels,
+        rh_scan_group,
+        requester,
+        requested_top_level_dir,
+    ):
+        try:
+            self.ingest_capture(
+                capture=capture,
+                drf_channels=drf_channels,
+                rh_scan_group=rh_scan_group,
+                requester=requester,
+                top_level_dir=requested_top_level_dir,
+            )
+        except UnknownIndexError as e:
+            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
+            server_msg = (
+                f"Unknown index: '{e}'. Try running the init_indices "
+                "subcommand if this is index should exist."
+            )
+            log.error(server_msg)
+            capture.soft_delete()
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            user_msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
+            capture.soft_delete()
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        except os_exceptions.ConnectionError as e:
+            user_msg = f"Error connecting to OpenSearch: {e}"
+            log.error(user_msg)
+            capture.soft_delete()
+            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return None
+
     @extend_schema(
         request=CapturePostSerializer,
         responses={
@@ -213,101 +341,37 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
         summary="Create Capture",
     )
-    def create(self, request: Request) -> Response:  # noqa: PLR0911
+    def create(self, request: Request) -> Response:
         """Create a capture object, connecting files and indexing the metadata."""
-        drf_channels = request.data.get("channels", None)
-        rh_scan_group = request.data.get("scan_group", None)
-        capture_type = request.data.get("capture_type", None)
-        log.debug("POST request to create capture:")
-        log.debug(f"\tcapture_type: '{capture_type}' {type(capture_type)}")
-        log.debug(f"\tchannels: '{drf_channels}' {type(drf_channels)}")
-        log.debug(f"\tscan_group: '{rh_scan_group}' {type(rh_scan_group)}")
-
-        if capture_type is None:
-            return Response(
-                {"detail": "The `capture_type` field is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        unsafe_top_level_dir = request.data.get("top_level_dir", "")
-
-        # sanitize top_level_dir
-        requested_top_level_dir = sanitize_path_rel_to_user(
-            unsafe_path=unsafe_top_level_dir,
-            request=request,
-        )
-        if requested_top_level_dir is None:
-            return Response(
-                {"detail": "The provided `top_level_dir` is invalid."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if capture_type == CaptureType.DigitalRF and not drf_channels:
-            return Response(
-                {"detail": "The `channels` field is required for DigitalRF captures."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        (
+            drf_channels,
+            rh_scan_group,
+            capture_type,
+            requested_top_level_dir_or_resp,
+        ) = self._validate_capture_request_data(request)
+        if isinstance(requested_top_level_dir_or_resp, Response):
+            return requested_top_level_dir_or_resp
+        requested_top_level_dir = requested_top_level_dir_or_resp
         requester = cast("User", request.user)
-
-        # Populate index_name based on capture type
         request_data = request.data.copy()
         request_data["index_name"] = infer_index_name(capture_type)
-
-        post_serializer = CapturePostSerializer(
-            data=request_data,
-            context={"request_user": request.user},
+        post_serializer, resp = self._get_validated_serializer(
+            request_data, request.user
         )
-        if not post_serializer.is_valid():
-            errors = post_serializer.errors
-            log.warning(f"Capture POST serializer errors: {errors}")
-            return Response(
-                {"detail": errors},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if resp:
+            return resp
         capture_candidate: dict[str, Any] = post_serializer.validated_data
-
-        # check capture creation constraints and form error message to end-user
-        try:
-            _check_capture_creation_constraints(capture_candidate, owner=requester)
-        except ValueError as err:
-            msg = "One or more capture creation constraints violated:"
-            for error in err.args[0].splitlines():
-                msg += f"\n\t{error}"
-            log.info(msg)
-            return Response(
-                {"detail": msg},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        resp = self._handle_capture_constraints(
+            capture_candidate, requester, request.data
+        )
+        if resp:
+            return resp
         capture = post_serializer.save()
-
-        try:
-            self.ingest_capture(
-                capture=capture,
-                drf_channels=drf_channels,
-                rh_scan_group=rh_scan_group,
-                requester=requester,
-                top_level_dir=requested_top_level_dir,
-            )
-        except UnknownIndexError as e:
-            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
-            server_msg = (
-                f"Unknown index: '{e}'. Try running the init_indices "
-                "subcommand if this is index should exist."
-            )
-            log.error(server_msg)
-            capture.soft_delete()
-            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
-            user_msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
-            capture.soft_delete()
-            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError as e:
-            user_msg = f"Error connecting to OpenSearch: {e}"
-            log.error(user_msg)
-            capture.soft_delete()
-            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
+        resp = self._ingest_and_handle_errors(
+            capture, drf_channels, rh_scan_group, requester, requested_top_level_dir
+        )
+        if resp:
+            return resp
         get_serializer = CaptureGetSerializer(capture)
         return Response(get_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -609,41 +673,81 @@ class CaptureViewSet(viewsets.ViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-def _check_capture_creation_constraints(
-    capture_candidate: dict[str, Any],
-    owner: User,
-) -> None:
-    """Check constraints for capture creation. Raise ValueError if any are violated.
-
-    The serializer validation (`is_valid()`) doesn't have the context of which operation
-        is being performed (create or update), so we're checking these constraints
-        below for capture creations.
-
-    Args:
-        capture_candidate:  The capture dict after serializer's validation
-                            (`serializer.validated_data`) to check constraints against.
-    Raises:
-        ValueError:         If any of the constraints are violated.
-        AssertionError:     If an internal assertion fails.
-    """
-
+def _check_required_fields(capture_candidate: dict[str, Any]) -> dict[str, str]:
     capture_type = capture_candidate.get("capture_type")
     top_level_dir = capture_candidate.get("top_level_dir")
-    _errors: dict[str, str] = {}
-
     required_fields = {
         "capture_type": capture_type,
         "top_level_dir": top_level_dir,
     }
+    return {
+        field: f"'{field}' is required."
+        for field, value in required_fields.items()
+        if value is None
+    }
 
-    _errors.update(
-        {
-            field: f"'{field}' is required."
-            for field, value in required_fields.items()
-            if value is None
-        },
+
+def _check_drf_constraints(
+    capture_candidate: dict[str, Any],
+    owner: User,
+    request_data: dict[str, Any] | None,
+) -> dict[str, str]:
+    _errors = {}
+    channels = capture_candidate.get("channels")
+    if not channels and request_data:
+        channels = request_data.get("channels")
+    if channels:
+        cap_qs: QuerySet[Capture] = Capture.objects.filter(
+            top_level_dir=capture_candidate.get("top_level_dir"),
+            capture_type=CaptureType.DigitalRF,
+            is_deleted=False,
+            owner=owner,
+        )
+        for existing_capture in cap_qs:
+            existing_channels = existing_capture.channels
+            if any(channel in existing_channels for channel in channels):
+                already_in_use_msg = (
+                    "These channels and top level directory are already in use by "
+                    f"another capture: {existing_capture.pk}"
+                )
+                _errors["drf_unique_channels_and_tld"] = already_in_use_msg
+                break
+    return _errors
+
+
+def _check_rh_constraints(
+    capture_candidate: dict[str, Any],
+    owner: User,
+) -> dict[str, str]:
+    _errors = {}
+    scan_group: str | None = capture_candidate.get("scan_group")
+    cap_qs: QuerySet[Capture] = Capture.objects.filter(
+        scan_group=scan_group,
+        capture_type=CaptureType.RadioHound,
+        is_deleted=False,
+        owner=owner,
     )
+    if scan_group is not None and cap_qs.exists():
+        conflicting_capture = cap_qs.first()
+        assert conflicting_capture is not None, "QuerySet should not be empty here."
+        _errors["rh_unique_scan_group"] = (
+            f"This scan group is already in use by "
+            f"another capture: {conflicting_capture.pk}"
+        )
+    return _errors
 
+
+def _check_capture_creation_constraints(
+    capture_candidate: dict[str, Any],
+    owner: User,
+    request_data: dict[str, Any] | None = None,
+) -> None:
+    """Check constraints for capture creation. Raise ValueError if any are violated."""
+    capture_type = capture_candidate.get("capture_type")
+    _errors: dict[str, str] = {}
+
+    # Required fields
+    _errors.update(_check_required_fields(capture_candidate))
     if _errors:
         msg = "Capture creation constraints violated:" + "".join(
             f"\n\t{rule}: {error}" for rule, error in _errors.items()
@@ -651,69 +755,16 @@ def _check_capture_creation_constraints(
         log.warning(msg)
         raise AssertionError(msg)
 
-    # capture creation constraints
-
-    # CONSTRAINT: DigitalRF captures must have unique channel and top_level_dir
+    # DigitalRF constraints
     if capture_type == CaptureType.DigitalRF:
-        channels = capture_candidate.get("channels")
-        cap_qs: QuerySet[Capture] = Capture.objects.filter(
-            channels=channels,
-            top_level_dir=top_level_dir,
-            capture_type=CaptureType.DigitalRF,
-            is_deleted=False,
-            owner=owner,
-        )
-        if not channels:
-            log.error(
-                "No channels provided for DigitalRF capture. This missing "
-                "value should have been caught by the serializer validator.",
-            )
-        elif cap_qs.exists():
-            conflicting_capture = cap_qs.first()
-            assert conflicting_capture is not None, "QuerySet should not be empty here."
-            _errors.update(
-                {
-                    "drf_unique_channels_and_tld": "These channels and top level "
-                    "directory are already in use by "
-                    f"another capture: {conflicting_capture.pk}",
-                },
-            )
-        else:
-            log.debug(
-                "No `channels` and `top_level_dir` conflicts for current user's "
-                "DigitalRF captures.",
-            )
-
-    # CONSTRAINT: RadioHound captures must have unique scan group
+        _errors.update(_check_drf_constraints(capture_candidate, owner, request_data))
+    # RadioHound constraints
     if capture_type == CaptureType.RadioHound:
-        scan_group: str | None = capture_candidate.get("scan_group")
-        cap_qs: QuerySet[Capture] = Capture.objects.filter(
-            scan_group=scan_group,
-            capture_type=CaptureType.RadioHound,
-            is_deleted=False,
-            owner=owner,
-        )
-        if scan_group is None:
-            log.debug(
-                "No scan group provided for RadioHound capture.",
-            )
-        elif cap_qs.exists():
-            conflicting_capture = cap_qs.first()
-            assert conflicting_capture is not None, "QuerySet should not be empty here."
-            _errors.update(
-                {
-                    "rh_unique_scan_group": f"This scan group is already in use by "
-                    f"another capture: {conflicting_capture.pk}",
-                },
-            )
-        else:
-            log.debug(
-                "No `scan_group` conflicts for current user's captures.",
-            )
+        _errors.update(_check_rh_constraints(capture_candidate, owner))
 
     if _errors:
         msg = "Capture creation constraints violated:"
         for rule, error in _errors.items():
             msg += f"\n\t{rule}: {error}"
-        log.warning(msg)  # error for user, warning on server
+        log.warning(msg)
         raise ValueError(msg)

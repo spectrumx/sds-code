@@ -42,11 +42,15 @@ class UnknownIndexError(Exception):
 
 def index_capture_metadata(
     capture: Capture,
-    capture_props: dict[str, Any],
+    capture_props: dict[str, Any] | None = None,
     channel_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     try:
         client = get_opensearch_client()
+
+        if capture_props is None and channel_metadata is None:
+            msg = "capture_props or channel_metadata must be provided"
+            raise ValueError(msg)
 
         if not client.indices.exists(index=capture.index_name):
             msg = f"Unknown index name: {capture.index_name}"
@@ -55,6 +59,9 @@ def index_capture_metadata(
         document = {
             base_prop: getattr(capture, base_prop) for base_prop in base_properties
         }
+
+        # Always set capture_props for backward compatibility and transforms
+        document["capture_props"] = capture_props
 
         # For DRF captures, create channels structure
         if capture.capture_type == CaptureType.DigitalRF:
@@ -79,9 +86,6 @@ def index_capture_metadata(
                     channels_data.append(channel_doc)
 
                 document["channels"] = channels_data
-        else:
-            # For non-DRF captures, use the traditional capture_props
-            document["capture_props"] = capture_props
 
         # index capture
         client.index(

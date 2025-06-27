@@ -594,7 +594,7 @@ class Command(BaseCommand):
         try:
             capture_viewset.ingest_capture(
                 capture=capture,
-                drf_channel=capture.channel,
+                drf_channels=capture.channels,
                 rh_scan_group=capture.scan_group,
                 requester=capture.owner,
                 top_level_dir=capture.top_level_dir,
