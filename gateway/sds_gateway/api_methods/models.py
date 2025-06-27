@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import logging
 import uuid
 from enum import StrEnum
 from pathlib import Path
@@ -15,9 +16,10 @@ from django.db.models import ProtectedError
 from django.db.models import QuerySet
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
-from loguru import logger as log
 
 from .utils.opensearch_client import get_opensearch_client
+
+log = logging.getLogger(__name__)
 
 
 class CaptureType(StrEnum):
@@ -292,7 +294,7 @@ class Capture(BaseModel):
 
             log.warning("No OpenSearch data found for capture %s", self.uuid)
 
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Error querying OpenSearch for capture %s", self.uuid)
 
         return {}
@@ -367,7 +369,7 @@ class Capture(BaseModel):
                 )
                 frequency_data.update(type_frequency_data)
 
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Error bulk loading frequency metadata")
             return {}
         else:
@@ -436,7 +438,7 @@ class Capture(BaseModel):
                             )
 
                 return source
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("=== DEBUG: Exception occurred ===")
             log.exception("Error occurred during frequency metadata extraction")
             return None
