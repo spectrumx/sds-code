@@ -1,6 +1,7 @@
 """Tests for OpenSearch index reset and reindexing."""
 
 import base64
+import contextlib
 import json
 import uuid
 from pathlib import Path
@@ -208,7 +209,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
         capture_viewset = CaptureViewSet()
         capture_viewset.ingest_capture(
             capture=capture,
-            drf_channel=None,
+            drf_channels=None,
             rh_scan_group=uuid.UUID(self.scan_group),
             requester=self.user,
             top_level_dir=Path(self.top_level_dir),
@@ -363,18 +364,18 @@ class OpenSearchRHIndexResetTest(APITestCase):
 
             self._call_replace_index()
 
+        # verify final state
         self.client.indices.refresh(index=self.index_name)
         final_count = self.client.count(index=self.index_name)["count"]
         final_mapping = self.client.indices.get_mapping(
             index=self.index_name,
         )[self.index_name]["mappings"]
+        backup_indices = self.client.indices.get(index=f"{self.index_name}-backup-*")
 
         assert final_count == 1, "Document count should be preserved after failure"
         assert final_mapping == initial_mapping, (
-            "Index mapping was not reset to original: "
-            f"{initial_mapping} != {final_mapping}"
+            "Index mapping was not reset to original"
         )
-        backup_indices = self.client.indices.get(index=f"{self.index_name}-backup-*")
         assert len(backup_indices) == 1, "Backup index should remain after failure"
 
     def test_duplicate_capture_deletion(self) -> None:
@@ -614,7 +615,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         with self._mock_metadata_validation():
             capture_viewset.ingest_capture(
                 capture=capture,
-                drf_channel=self.channel,
+                drf_channels=[self.channel],
                 rh_scan_group=None,
                 requester=self.user,
                 top_level_dir=Path(self.top_level_dir),
@@ -722,19 +723,21 @@ class OpenSearchDRFIndexResetTest(APITestCase):
 
         # ASSERT metadata is transformed
         doc = after_response["hits"]["hits"][0]["_source"]
-        assert doc["search_props"]["center_frequency"] == self.json_file["center_freq"]
-        assert doc["search_props"]["sample_rate"] == (
+        assert (
+            doc["search_props"]["center_frequency"][0] == self.json_file["center_freq"]
+        )
+        assert doc["search_props"]["sample_rate"][0] == (
             self.json_file["sample_rate_numerator"]
             / self.json_file["sample_rate_denominator"]
         )
-        assert doc["search_props"]["frequency_min"] == self.json_file["center_freq"] - (
-            self.json_file["span"] / 2
-        )
-        assert doc["search_props"]["frequency_max"] == self.json_file["center_freq"] + (
-            self.json_file["span"] / 2
-        )
-        assert doc["search_props"]["start_time"] == self.json_file["start_bound"]
-        assert doc["search_props"]["end_time"] == self.json_file["end_bound"]
+        assert doc["search_props"]["frequency_min"][0] == self.json_file[
+            "center_freq"
+        ] - (self.json_file["span"] / 2)
+        assert doc["search_props"]["frequency_max"][0] == self.json_file[
+            "center_freq"
+        ] + (self.json_file["span"] / 2)
+        assert doc["search_props"]["start_time"][0] == self.json_file["start_bound"]
+        assert doc["search_props"]["end_time"][0] == self.json_file["end_bound"]
 
     def test_fail_state_reset_to_original(self) -> None:
         """Test that the reindex fails and is reset to original state."""
@@ -751,20 +754,13 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         with (
             mock.patch("builtins.input", return_value="y"),
             mock.patch(
-                "sds_gateway.api_methods.management.commands.replace_index.get_mapping_by_capture_type",
-            ) as mock_mapping,
+                "sds_gateway.api_methods.management.commands.replace_index.Command._reindex_single_capture",
+                side_effect=Exception("Simulated reindex failure"),
+            ),
             self._mock_metadata_validation(),
+            contextlib.suppress(Exception),
         ):
-            # return an invalid mapping that will cause reindex to fail
-            mock_mapping.return_value = {
-                "properties": {
-                    "capture_props": {
-                        "type": "keyword",  # this conflicts with nested type
-                    },
-                },
-            }
-
-            # run replace_index command
+            # This should cause an exception during reindexing, triggering rollback
             self._call_replace_index()
 
         # verify final state

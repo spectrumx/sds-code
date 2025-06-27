@@ -69,10 +69,10 @@ def test_capture_creation_drf(
 
     # ACT
 
-    # create a capture
+    # create a capture with channels list
     capture = integration_client.captures.create(
         top_level_dir=cap_data.capture_top_level,
-        channel=cap_data.drf_channel,
+        channels=[cap_data.drf_channel],  # Use channels list instead of single channel
         capture_type=CaptureType.DigitalRF,
     )
 
@@ -81,7 +81,8 @@ def test_capture_creation_drf(
     # basic capture information
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == CaptureType.DigitalRF
-    assert capture.channel == drf_channel
+    assert capture.channels == [drf_channel], "Channels should match the provided list"
+    assert capture.channel == drf_channel, "Primary channel should be the first channel"
     assert capture.top_level_dir == cap_data.capture_top_level
 
     # test capture properties
@@ -240,7 +241,17 @@ def test_capture_listing_drf(integration_client: Client) -> None:
     for capture in captures:
         assert capture.uuid is not None, "Capture UUID should not be None"
         assert capture.capture_type == CaptureType.DigitalRF
-        assert capture.channel is not None, "DigitalRF capture should have a channel"
+        assert capture.channels is not None, (
+            "DigitalRF capture should have channels list"
+        )
+        assert isinstance(capture.channels, list), "Channels should be a list"
+        assert len(capture.channels) > 0, "Channels list should not be empty"
+        assert capture.channel is not None, (
+            "DigitalRF capture should have a primary channel"
+        )
+        assert capture.channel in capture.channels, (
+            "Primary channel should be in channels list"
+        )
         assert capture.top_level_dir is not None, "Top level dir should not be None"
 
 
@@ -451,14 +462,15 @@ def test_capture_upload_drf(
         local_path=test_dir,
         sds_path=sds_path,
         capture_type=capture_type,
-        channel=drf_channel,
+        channels=[drf_channel],  # Use channels list instead of single channel
     )
 
     # ASSERT capture was correctly created
     assert capture is not None
     assert capture.uuid is not None, "Capture UUID should not be None"
     assert capture.capture_type == capture_type
-    assert capture.channel == drf_channel
+    assert capture.channels == [drf_channel], "Channels should match the provided list"
+    assert capture.channel == drf_channel, "Primary channel should be the first channel"
     assert str(capture.top_level_dir) == sds_path
     assert capture.capture_props["is_continuous"] is True
     assert "start_bound" in capture.capture_props
@@ -560,13 +572,13 @@ def test_capture_upload_missing_required_fields_drf(
         local_path=test_dir,
     )
 
-    # ACT & ASSERT - Missing channel for DigitalRF
+    # ACT & ASSERT - Missing channels for DigitalRF
     with pytest.raises(CaptureError):
         integration_client.upload_capture(
             local_path=test_dir,
             sds_path=sds_path,
             capture_type=capture_type,
-            # Missing required channel parameter
+            # Missing required channels parameter
         )
 
 
@@ -615,7 +627,7 @@ def test_capture_reading_drf(
     )
     capture = integration_client.captures.create(
         top_level_dir=Path(f"/{path_after_capture_data}"),
-        channel=drf_channel,
+        channels=[drf_channel],  # Use channels list instead of single channel
         capture_type=CaptureType.DigitalRF,
     )
     assert capture.uuid is not None, "UUID of new capture should not be None"
@@ -631,7 +643,12 @@ def test_capture_reading_drf(
     assert read_capture.files, "Expected a list of files associated to this capture"
     assert read_capture.uuid == capture.uuid, "Capture UUID should match"
     assert read_capture.capture_type == CaptureType.DigitalRF
-    assert read_capture.channel == drf_channel
+    assert read_capture.channels == [drf_channel], (
+        "Channels should match the provided list"
+    )
+    assert read_capture.channel == drf_channel, (
+        "Primary channel should be the first channel"
+    )
     assert read_capture.top_level_dir == Path(f"/{path_after_capture_data}")
 
     # test capture properties
@@ -668,8 +685,8 @@ def test_capture_deletion(
     )
     capture = integration_client.captures.create(
         top_level_dir=cap_data.capture_top_level,
+        channels=[cap_data.drf_channel],  # Use channels list instead of single channel
         capture_type=CaptureType.DigitalRF,
-        channel=cap_data.drf_channel,
     )
 
     # ACT
@@ -712,7 +729,7 @@ def test_capture_advanced_search_frequency_range(
     )
     capture = integration_client.captures.create(
         top_level_dir=cap_data.capture_top_level,
-        channel=cap_data.drf_channel,
+        channels=[cap_data.drf_channel],  # Use channels list instead of single channel
         capture_type=CaptureType.DigitalRF,
     )
     center_freq = capture.capture_props.get("center_frequencies")
@@ -826,7 +843,7 @@ def test_capture_advanced_search_full_text_search(
     )
     capture = integration_client.captures.create(
         top_level_dir=cap_data.capture_top_level,
-        channel=cap_data.drf_channel,
+        channels=[cap_data.drf_channel],  # Use channels list instead of single channel
         capture_type=CaptureType.DigitalRF,
     )
 
@@ -939,3 +956,61 @@ def __clean_all_captures(integration_client: Client) -> None:
         if cap.uuid is None:
             continue
         integration_client.captures.delete(capture_uuid=cap.uuid)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_creation_drf_multi_channel(
+    integration_client: Client, drf_sample_top_level_dir: Path
+) -> None:
+    """Tests creating a Digital-RF capture with multiple channels."""
+
+    # ARRANGE
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
+
+    # Create multiple channel names for testing
+    multi_channels = [cap_data.drf_channel, "channel-2", "channel-3"]
+
+    # ACT
+
+    # create a capture with multiple channels
+    capture = integration_client.captures.create(
+        top_level_dir=cap_data.capture_top_level,
+        channels=multi_channels,  # Use multiple channels
+        capture_type=CaptureType.DigitalRF,
+    )
+
+    # ASSERT
+
+    # basic capture information
+    assert capture.uuid is not None, "Capture UUID should not be None"
+    assert capture.capture_type == CaptureType.DigitalRF
+    assert capture.channels == multi_channels, "Channels should match the provided list"
+    assert capture.channel == multi_channels[0], (
+        "Primary channel should be the first channel"
+    )
+    assert capture.top_level_dir == cap_data.capture_top_level
+
+    # test capture properties
+    assert capture.capture_props["start_bound"] == cap_data.cap_start_bound
+    assert capture.capture_props["is_continuous"] == cap_data.cap_is_continuous
+    assert (
+        capture.capture_props["custom_attrs"]["receiver/info/mboard_serial"]
+        == cap_data.cap_serial
+    )

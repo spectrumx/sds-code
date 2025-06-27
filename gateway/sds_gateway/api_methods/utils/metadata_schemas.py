@@ -363,7 +363,8 @@ capture_index_mapping_by_type = {
 }
 
 base_properties = {
-    "channel": {"type": "keyword"},
+    "channel": {"type": "keyword"},  # Legacy single channel field
+    "channels": {"type": "keyword"},  # Array of channel names
     "top_level_dir": {"type": "keyword"},
     "scan_group": {"type": "keyword"},
     "capture_type": {"type": "keyword"},
@@ -388,10 +389,10 @@ search_properties = {
 
 def get_mapping_by_capture_type(
     capture_type: CaptureType,
-) -> dict[str, str | dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """Get the mapping for a given capture type."""
 
-    return {
+    base_mapping = {
         "properties": {
             **base_properties,
             "capture_props": {
@@ -404,6 +405,21 @@ def get_mapping_by_capture_type(
             },
         },
     }
+
+    # Add channels nested object for DRF captures, maintain backward compatibility
+    if capture_type == CaptureType.DigitalRF:
+        base_mapping["properties"]["channels"] = {
+            "type": "nested",
+            "properties": {
+                "channel_name": {"type": "keyword"},
+                "channel_props": {
+                    "type": "nested",
+                    "properties": capture_index_mapping_by_type[capture_type],
+                },
+            },
+        }
+
+    return base_mapping
 
 
 def infer_index_name(capture_type: CaptureType) -> str:
