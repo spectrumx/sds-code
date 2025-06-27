@@ -584,16 +584,22 @@ class CaptureViewSet(viewsets.ViewSet):
 
         # set these properties on OpenSearch document
         opensearch_client = get_opensearch_client()
-        opensearch_client.update(
-            index=target_capture.index_name,
-            id=target_capture.uuid,
-            body={
-                "doc": {
-                    "is_deleted": target_capture.is_deleted,
-                    "deleted_at": target_capture.deleted_at,
+        try:
+            opensearch_client.update(
+                index=target_capture.index_name,
+                id=target_capture.uuid,
+                body={
+                    "doc": {
+                        "is_deleted": target_capture.is_deleted,
+                        "deleted_at": target_capture.deleted_at,
+                    },
                 },
-            },
-        )
+            )
+        except os_exceptions.NotFoundError:
+            log.info(
+                f"OpenSearch document for capture '{target_capture.uuid}' "
+                "not found during soft delete: ignoring missing document.",
+            )
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
