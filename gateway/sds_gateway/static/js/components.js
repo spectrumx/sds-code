@@ -1,0 +1,572 @@
+/* Reusable Components for SDS Gateway */
+
+/**
+ * TableManager - Handles table operations like sorting, pagination, and updates
+ */
+class TableManager {
+	constructor(config) {
+		this.tableId = config.tableId;
+		this.table = document.getElementById(this.tableId);
+		this.tbody = this.table?.querySelector("tbody");
+		this.loadingIndicator = document.getElementById(config.loadingIndicatorId);
+		this.paginationContainer = document.getElementById(
+			config.paginationContainerId,
+		);
+		this.currentSort = { by: "created_at", order: "desc" };
+		this.onRowClick = config.onRowClick;
+
+		this.initializeSorting();
+	}
+
+	initializeSorting() {
+		if (!this.table) return;
+
+		const sortableHeaders = this.table.querySelectorAll("th.sortable");
+		for (const header of sortableHeaders) {
+			header.style.cursor = "pointer";
+			header.addEventListener("click", () => {
+				this.handleSort(header);
+			});
+		}
+
+		this.updateSortIcons();
+	}
+
+	handleSort(field) {
+		const currentSort = new URLSearchParams(window.location.search).get(
+			"sort_by",
+		);
+		const currentOrder =
+			new URLSearchParams(window.location.search).get("sort_order") || "desc";
+
+		let newOrder = "asc";
+		if (currentSort === field && currentOrder === "asc") {
+			newOrder = "desc";
+		}
+
+		this.currentSort = { by: field, order: newOrder };
+		this.updateURL({ sort_by: field, sort_order: newOrder });
+	}
+
+	updateSortIcons() {
+		const urlParams = new URLSearchParams(window.location.search);
+		const currentSort = urlParams.get("sort_by") || "created_at";
+		const currentOrder = urlParams.get("sort_order") || "desc";
+
+		const sortableHeaders = this.table?.querySelectorAll("th.sortable");
+		for (const header of sortableHeaders || []) {
+			const icon = header.querySelector(".sort-icon");
+			const field = header.getAttribute("data-sort");
+
+			if (icon) {
+				icon.className = "bi sort-icon";
+				if (field === currentSort) {
+					icon.classList.add(
+						currentOrder === "asc" ? "bi-caret-up-fill" : "bi-caret-down-fill",
+					);
+				} else {
+					icon.classList.add("bi-caret-down-fill");
+				}
+			}
+		}
+	}
+
+	showLoading() {
+		if (this.loadingIndicator) {
+			this.loadingIndicator.classList.remove("d-none");
+		}
+	}
+
+	hideLoading() {
+		if (this.loadingIndicator) {
+			this.loadingIndicator.classList.add("d-none");
+		}
+	}
+
+	updateTable(data, hasResults) {
+		if (!this.tbody) return;
+
+		if (!hasResults || !data || data.length === 0) {
+			this.tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-4">No results found.</td>
+                </tr>
+            `;
+			return;
+		}
+
+		this.tbody.innerHTML = data
+			.map((item, index) => this.renderRow(item, index))
+			.join("");
+		this.attachRowClickHandlers();
+	}
+
+	renderRow(item, index) {
+		// This should be overridden by specific implementations
+		return `<tr><td colspan="9">Override renderRow method</td></tr>`;
+	}
+
+	attachRowClickHandlers() {
+		if (!this.onRowClick) return;
+
+		const rows = this.tbody?.querySelectorAll('tr[data-clickable="true"]');
+		for (const row of rows || []) {
+			row.addEventListener("click", (e) => {
+				if (e.target.closest("button, a")) return; // Don't trigger on buttons/links
+				this.onRowClick(row);
+			});
+		}
+	}
+
+	updateURL(params) {
+		const urlParams = new URLSearchParams(window.location.search);
+		for (const [key, value] of Object.entries(params)) {
+			if (value) {
+				urlParams.set(key, value);
+			} else {
+				urlParams.delete(key);
+			}
+		}
+
+		const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+		window.history.pushState({}, "", newUrl);
+	}
+}
+
+/**
+ * CapturesTableManager - Specific implementation for captures table
+ */
+class CapturesTableManager extends TableManager {
+	constructor(config) {
+		super(config);
+		this.modalHandler = config.modalHandler;
+	}
+
+	renderRow(capture, index) {
+		return `
+            <tr class="capture-row" data-clickable="true" data-uuid="${capture.uuid || ""}">
+                <th scope="row">${index + 1}</th>
+                <td>
+                    <a href="#" class="capture-link"
+                       data-uuid="${capture.uuid || ""}"
+                       data-channel="${capture.channel || ""}"
+                       data-scan-group="${capture.scan_group || ""}"
+                       data-capture-type="${capture.capture_type || ""}"
+                       data-top-level-dir="${capture.top_level_dir || ""}"
+                       data-created-at="${capture.created_at || ""}"
+                       aria-label="View details for ${capture.uuid || "unknown capture"}">
+                        ${capture.uuid || ""}
+                    </a>
+                </td>
+                <td>${capture.channel || ""}</td>
+                <td>${capture.created_at ? this.formatDate(capture.created_at) : ""}</td>
+                <td>${capture.capture_type || ""}</td>
+                <td>${capture.files_count || "0"}</td>
+                <td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
+                <td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
+                <td>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                aria-label="Actions for ${capture.uuid || "unknown capture"}">
+                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><button class="dropdown-item" type="button">View</button></li>
+                            <li><button class="dropdown-item" type="button">Download</button></li>
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+        `;
+	}
+
+	formatDate(dateString) {
+		try {
+			const date = new Date(dateString);
+			return date.toString() !== "Invalid Date"
+				? date.toLocaleDateString("en-US", {
+						month: "2-digit",
+						day: "2-digit",
+						year: "numeric",
+					})
+				: "";
+		} catch (e) {
+			return "";
+		}
+	}
+
+	attachRowClickHandlers() {
+		super.attachRowClickHandlers();
+
+		// Attach specific handlers for capture links
+		const captureLinks = this.tbody?.querySelectorAll(".capture-link");
+		for (const link of captureLinks || []) {
+			link.addEventListener("click", (e) => {
+				e.preventDefault();
+				if (this.modalHandler) {
+					this.modalHandler.openCaptureModal(link);
+				}
+			});
+		}
+	}
+}
+
+/**
+ * FilterManager - Handles form-based filtering with URL state management
+ */
+class FilterManager {
+	constructor(config) {
+		this.formId = config.formId;
+		this.form = document.getElementById(this.formId);
+		this.applyButton = document.getElementById(config.applyButtonId);
+		this.clearButton = document.getElementById(config.clearButtonId);
+		this.onFilterChange = config.onFilterChange;
+
+		this.initializeEventListeners();
+		this.loadFromURL();
+	}
+
+	initializeEventListeners() {
+		if (this.applyButton) {
+			this.applyButton.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.applyFilters();
+			});
+		}
+
+		if (this.clearButton) {
+			this.clearButton.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.clearFilters();
+			});
+		}
+
+		// Auto-apply on form submission
+		if (this.form) {
+			this.form.addEventListener("submit", (e) => {
+				e.preventDefault();
+				this.applyFilters();
+			});
+		}
+	}
+
+	getFilterValues() {
+		if (!this.form) return {};
+
+		const formData = new FormData(this.form);
+		const filters = {};
+
+		for (const [key, value] of formData.entries()) {
+			if (value && value.trim() !== "") {
+				filters[key] = value.trim();
+			}
+		}
+
+		return filters;
+	}
+
+	applyFilters() {
+		const filters = this.getFilterValues();
+		this.updateURL(filters);
+
+		if (this.onFilterChange) {
+			this.onFilterChange(filters);
+		}
+	}
+
+	clearFilters() {
+		if (!this.form) return;
+
+		// Clear all form inputs
+		const inputs = this.form.querySelectorAll("input, select, textarea");
+		for (const input of inputs) {
+			if (input.type === "checkbox" || input.type === "radio") {
+				input.checked = false;
+			} else {
+				input.value = "";
+			}
+		}
+
+		// Clear URL parameters
+		this.updateURL({});
+
+		if (this.onFilterChange) {
+			this.onFilterChange({});
+		}
+	}
+
+	loadFromURL() {
+		if (!this.form) return;
+
+		const urlParams = new URLSearchParams(window.location.search);
+		const inputs = this.form.querySelectorAll("input, select, textarea");
+
+		for (const input of inputs) {
+			const value = urlParams.get(input.name);
+			if (value !== null) {
+				if (input.type === "checkbox" || input.type === "radio") {
+					input.checked = value === "true" || value === input.value;
+				} else {
+					input.value = value;
+				}
+			}
+		}
+	}
+
+	updateURL(filters) {
+		const urlParams = new URLSearchParams(window.location.search);
+
+		// Remove old filter parameters
+		const formData = new FormData(this.form || document.createElement("form"));
+		for (const key of formData.keys()) {
+			urlParams.delete(key);
+		}
+
+		// Add new filter parameters
+		for (const [key, value] of Object.entries(filters)) {
+			if (value) {
+				urlParams.set(key, value);
+			}
+		}
+
+		// Reset to first page when filters change
+		urlParams.set("page", "1");
+
+		const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+		window.history.pushState({}, "", newUrl);
+	}
+}
+
+/**
+ * SearchManager - Handles search functionality with debouncing
+ */
+class SearchManager {
+	constructor(config) {
+		this.searchInput = document.getElementById(config.searchInputId);
+		this.searchButton = document.getElementById(config.searchButtonId);
+		this.clearButton = document.getElementById(config.clearButtonId);
+		this.onSearch = config.onSearch;
+		this.debounceDelay = config.debounceDelay || 300;
+		this.debounceTimer = null;
+
+		this.initializeEventListeners();
+	}
+
+	initializeEventListeners() {
+		if (this.searchInput) {
+			this.searchInput.addEventListener("input", () => {
+				this.debounceSearch();
+			});
+
+			this.searchInput.addEventListener("keypress", (e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					this.performSearch();
+				}
+			});
+		}
+
+		if (this.searchButton) {
+			this.searchButton.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.performSearch();
+			});
+		}
+
+		if (this.clearButton) {
+			this.clearButton.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.clearSearch();
+			});
+		}
+	}
+
+	debounceSearch() {
+		if (this.debounceTimer) {
+			clearTimeout(this.debounceTimer);
+		}
+
+		this.debounceTimer = setTimeout(() => {
+			this.performSearch();
+		}, this.debounceDelay);
+	}
+
+	performSearch() {
+		const query = this.searchInput?.value || "";
+
+		if (this.onSearch) {
+			this.onSearch(query);
+		}
+	}
+
+	clearSearch() {
+		if (this.searchInput) {
+			this.searchInput.value = "";
+		}
+
+		this.performSearch();
+	}
+}
+
+/**
+ * ModalManager - Handles modal operations
+ */
+class ModalManager {
+	constructor(config) {
+		this.modalId = config.modalId;
+		this.modal = document.getElementById(this.modalId);
+		this.modalTitle = this.modal?.querySelector(".modal-title");
+		this.modalBody = this.modal?.querySelector(".modal-body");
+
+		if (this.modal && window.bootstrap) {
+			this.bootstrapModal = new bootstrap.Modal(this.modal);
+		}
+	}
+
+	show(title, content) {
+		if (!this.modal) return;
+
+		if (this.modalTitle) {
+			this.modalTitle.textContent = title;
+		}
+
+		if (this.modalBody) {
+			this.modalBody.innerHTML = content;
+		}
+
+		if (this.bootstrapModal) {
+			this.bootstrapModal.show();
+		}
+	}
+
+	hide() {
+		if (this.bootstrapModal) {
+			this.bootstrapModal.hide();
+		}
+	}
+
+	openCaptureModal(linkElement) {
+		if (!linkElement) return;
+
+		const data = linkElement.dataset;
+		const content = `
+            <div class="row">
+                <div class="col-sm-4"><strong>UUID:</strong></div>
+                <div class="col-sm-8"><code>${data.uuid || "N/A"}</code></div>
+            </div>
+            <div class="row">
+                <div class="col-sm-4"><strong>Channel:</strong></div>
+                <div class="col-sm-8">${data.channel || "N/A"}</div>
+            </div>
+            <div class="row">
+                <div class="col-sm-4"><strong>Scan Group:</strong></div>
+                <div class="col-sm-8">${data.scanGroup || "N/A"}</div>
+            </div>
+            <div class="row">
+                <div class="col-sm-4"><strong>Type:</strong></div>
+                <div class="col-sm-8">${data.captureType || "N/A"}</div>
+            </div>
+            <div class="row">
+                <div class="col-sm-4"><strong>Directory:</strong></div>
+                <div class="col-sm-8"><code>${data.topLevelDir || "N/A"}</code></div>
+            </div>
+            <div class="row">
+                <div class="col-sm-4"><strong>Created:</strong></div>
+                <div class="col-sm-8">${data.createdAt ? new Date(data.createdAt).toLocaleString() : "N/A"}</div>
+            </div>
+        `;
+
+		this.show("Capture Details", content);
+	}
+}
+
+/**
+ * PaginationManager - Handles pagination controls
+ */
+class PaginationManager {
+	constructor(config) {
+		this.containerId = config.containerId;
+		this.container = document.getElementById(this.containerId);
+		this.onPageChange = config.onPageChange;
+	}
+
+	update(pagination) {
+		if (!this.container || !pagination) return;
+
+		this.container.innerHTML = "";
+
+		if (pagination.num_pages <= 1) return;
+
+		const ul = document.createElement("ul");
+		ul.className = "pagination justify-content-center";
+
+		// Previous button
+		if (pagination.has_previous) {
+			ul.innerHTML += `
+                <li class="page-item">
+                    <a class="page-link" href="#" data-page="${pagination.number - 1}" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+            `;
+		}
+
+		// Page numbers
+		const startPage = Math.max(1, pagination.number - 2);
+		const endPage = Math.min(pagination.num_pages, pagination.number + 2);
+
+		for (let i = startPage; i <= endPage; i++) {
+			ul.innerHTML += `
+                <li class="page-item ${i === pagination.number ? "active" : ""}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>
+            `;
+		}
+
+		// Next button
+		if (pagination.has_next) {
+			ul.innerHTML += `
+                <li class="page-item">
+                    <a class="page-link" href="#" data-page="${pagination.number + 1}" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            `;
+		}
+
+		this.container.appendChild(ul);
+
+		// Add click handlers
+		const links = ul.querySelectorAll("a.page-link");
+		for (const link of links) {
+			link.addEventListener("click", (e) => {
+				e.preventDefault();
+				const page = Number.parseInt(e.target.dataset.page);
+				if (page && this.onPageChange) {
+					this.onPageChange(page);
+				}
+			});
+		}
+	}
+}
+
+// Make classes available globally
+window.TableManager = TableManager;
+window.CapturesTableManager = CapturesTableManager;
+window.FilterManager = FilterManager;
+window.SearchManager = SearchManager;
+window.ModalManager = ModalManager;
+window.PaginationManager = PaginationManager;
+
+// Export classes for module use
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = {
+		TableManager,
+		CapturesTableManager,
+		FilterManager,
+		SearchManager,
+		ModalManager,
+		PaginationManager,
+	};
+}
