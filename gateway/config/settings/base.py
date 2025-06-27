@@ -6,6 +6,7 @@ import string
 from pathlib import Path
 from typing import Any
 
+from celery.schedules import crontab
 from environs import env
 
 from config.settings.logs import ColoredFormatter
@@ -21,6 +22,9 @@ def __get_random_token(length: int) -> str:
 
 
 env.read_env()
+
+SITE_DOMAIN: str = env.str("SITE_DOMAIN", default="localhost:8000")
+USE_HTTPS: bool = env.bool("USE_HTTPS", default=False)
 
 BASE_DIR: Path = Path(__file__).resolve(strict=True).parent.parent.parent
 
@@ -134,7 +138,7 @@ THIRD_PARTY_APPS: list[str] = [
     "allauth.account",
     "allauth.mfa",
     "allauth.socialaccount",
-    # "django_celery_beat",
+    "django_celery_beat",
     "rest_framework",
     "rest_framework.authtoken",
     "rest_framework_api_key",
@@ -285,6 +289,13 @@ EMAIL_BACKEND: str = env(
     "DJANGO_EMAIL_BACKEND",
     default="django.core.mail.backends.smtp.EmailBackend",
 )
+EMAIL_HOST: str = env("DJANGO_EMAIL_HOST", default="mailhog")
+EMAIL_PORT: int = env("DJANGO_EMAIL_PORT", default=1025)
+EMAIL_HOST_USER: str = env("DJANGO_EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD: str = env("DJANGO_EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS: bool = env("DJANGO_EMAIL_USE_TLS", default=False)
+EMAIL_USE_SSL: bool = env("DJANGO_EMAIL_USE_SSL", default=False)
+
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-timeout
 EMAIL_TIMEOUT: int = 5
 
@@ -330,37 +341,46 @@ LOGGING: dict[str, Any] = {
 
 # CELERY
 # ------------------------------------------------------------------------------
-# if USE_TZ:
-#     # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-timezone
-#     CELERY_TIMEZONE: str = TIME_ZONE
-#
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-broker_url
-# CELERY_BROKER_URL: str = env("CELERY_BROKER_URL")
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-result_backend
-# CELERY_RESULT_BACKEND: str = CELERY_BROKER_URL
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-extended
-# CELERY_RESULT_EXTENDED: bool = True
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-always-retry
-# # https://github.com/celery/celery/pull/6122
-# CELERY_RESULT_BACKEND_ALWAYS_RETRY: bool = True
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-max-retries
-# CELERY_RESULT_BACKEND_MAX_RETRIES: int = 10
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-accept_content
-# CELERY_ACCEPT_CONTENT: list[str] = ["json"]
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-task_serializer
-# CELERY_TASK_SERIALIZER: str = "json"
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-result_serializer
-# CELERY_RESULT_SERIALIZER: str = "json"
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-time-limit
-# CELERY_TASK_TIME_LIMIT: int = 5 * 60
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-soft-time-limit
-# CELERY_TASK_SOFT_TIME_LIMIT: int = 60
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#beat-scheduler
-# CELERY_BEAT_SCHEDULER: str = "django_celery_beat.schedulers:DatabaseScheduler"
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-send-task-events
-# CELERY_WORKER_SEND_TASK_EVENTS: bool = True
-# # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std-setting-task_send_sent_event
-# CELERY_TASK_SEND_SENT_EVENT: bool = True
+if USE_TZ:
+    # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-timezone
+    CELERY_TIMEZONE: str = TIME_ZONE
+
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-broker_url
+CELERY_BROKER_URL: str = env("CELERY_BROKER_URL", default="redis://redis:6379/0")
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-result_backend
+CELERY_RESULT_BACKEND: str = CELERY_BROKER_URL
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-extended
+CELERY_RESULT_EXTENDED: bool = True
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-always-retry
+# https://github.com/celery/celery/pull/6122
+CELERY_RESULT_BACKEND_ALWAYS_RETRY: bool = True
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#result-backend-max-retries
+CELERY_RESULT_BACKEND_MAX_RETRIES: int = 10
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-accept_content
+CELERY_ACCEPT_CONTENT: list[str] = ["json"]
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-task_serializer
+CELERY_TASK_SERIALIZER: str = "json"
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-result_serializer
+CELERY_RESULT_SERIALIZER: str = "json"
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-time-limit
+CELERY_TASK_TIME_LIMIT: int = 5 * 60
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-soft-time-limit
+CELERY_TASK_SOFT_TIME_LIMIT: int = 60
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#worker-send-task-events
+CELERY_WORKER_SEND_TASK_EVENTS: bool = True
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std-setting-task_send_sent_event
+CELERY_TASK_SEND_SENT_EVENT: bool = True
+
+# CELERY BEAT SCHEDULE
+# ------------------------------------------------------------------------------
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#beat-schedule
+CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
+    "cleanup-expired-temp-zips": {
+        "task": "sds_gateway.api_methods.tasks.cleanup_expired_temp_zips",
+        "schedule": crontab(hour=2, minute=0),  # Run daily at 2:00 AM
+        "options": {"expires": 3600},  # Task expires after 1 hour
+    },
+}
 
 # django-allauth
 # ------------------------------------------------------------------------------

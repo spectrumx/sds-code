@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
@@ -17,12 +16,14 @@ from django.db import DatabaseError
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
+from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.generic import DetailView
@@ -34,9 +35,12 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import KeySources
+from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.api_methods.tasks import is_user_locked
+from sds_gateway.api_methods.tasks import send_dataset_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
@@ -408,7 +412,7 @@ user_capture_list_view = ListCapturesView.as_view()
 user_captures_api_view = CapturesAPIView.as_view()
 
 
-class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
+class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
     template_name = "users/group_captures.html"
 
     def get_context_data(self, **kwargs):
@@ -693,12 +697,15 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
         base_dir: Path | None = None,
         existing_dataset: Dataset | None = None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        selected_files = []
-        selected_files_details = {}
+        selected_files: list[dict[str, Any]] = []
+        selected_files_details: dict[str, Any] = {}
         if not existing_dataset:
             return selected_files, selected_files_details
 
-        files_queryset = existing_dataset.files.all()
+        files_queryset = existing_dataset.files.filter(
+            is_deleted=False,
+            owner=self.request.user,
+        )
 
         # Prepare file details for JavaScript
         for selected_file in files_queryset:
@@ -727,11 +734,14 @@ class GroupCapturesView(LoginRequiredMixin, FormSearchMixin, TemplateView):
 
     def _get_capture_context(
         self, existing_dataset: Dataset | None = None
-    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        selected_captures = []
-        selected_captures_details = {}
+    ) -> tuple[list[str], dict[str, Any]]:
+        selected_captures: list[str] = []
+        selected_captures_details: dict[str, Any] = {}
         if existing_dataset:
-            captures_queryset = existing_dataset.captures.all()
+            captures_queryset = existing_dataset.captures.filter(
+                is_deleted=False,
+                owner=self.request.user,
+            )
             # Prepare capture details for JavaScript
             for capture in captures_queryset:
                 selected_captures.append(str(capture.uuid))
@@ -869,3 +879,176 @@ def _apply_sorting(
 
 
 user_dataset_list_view = ListDatasetsView.as_view()
+
+
+class DatasetDownloadView(Auth0LoginRequiredMixin, View):
+    """View to handle dataset download requests from the web interface."""
+
+    def post(self, request, *args, **kwargs):
+        """Handle dataset download request."""
+        dataset_uuid = kwargs.get("uuid")
+        if not dataset_uuid:
+            return JsonResponse(
+                {"detail": "Dataset UUID is required."},
+                status=400,
+            )
+
+        # Get the dataset
+        dataset = get_object_or_404(
+            Dataset,
+            uuid=dataset_uuid,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        # Get user email
+        user_email = request.user.email
+        if not user_email:
+            return JsonResponse(
+                {"detail": "User email is required for sending dataset files."},
+                status=400,
+            )
+
+        # Check if a user already has a task running
+        if is_user_locked(str(request.user.id), "dataset_download"):
+            return JsonResponse(
+                {
+                    "detail": (
+                        "You already have a dataset download in progress. "
+                        "Please wait for it to complete."
+                    )
+                },
+                status=400,
+            )
+
+        # Trigger the Celery task
+        task = send_dataset_files_email.delay(
+            str(dataset.uuid),
+            str(request.user.id),
+        )
+
+        return JsonResponse(
+            {
+                "message": (
+                    "Dataset download request accepted. You will receive an email "
+                    "with the files shortly."
+                ),
+                "task_id": task.id,
+                "dataset_name": dataset.name,
+                "user_email": user_email,
+            },
+            status=202,
+        )
+
+
+user_dataset_download_view = DatasetDownloadView.as_view()
+
+
+class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
+    """View to display a temporary zip file download page and serve the file."""
+
+    template_name = "users/temporary_zip_download.html"
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+        """Display download page for a temporary zip file or serve the file."""
+        zip_uuid = kwargs.get("uuid")
+        if not zip_uuid:
+            logger.warning("No UUID provided in temporary zip download request")
+            error_msg = "UUID is required"
+            raise Http404(error_msg)
+
+        # Check if this is a download request (automatic download from JavaScript)
+        if request.GET.get("download") == "true":
+            return self._serve_file_download(zip_uuid, request.user)
+
+        try:
+            # Get the temporary zip file
+            temp_zip = get_object_or_404(
+                TemporaryZipFile,
+                uuid=zip_uuid,
+                owner=request.user,
+            )
+
+            # Check if file still exists on disk
+            file_exists = (
+                Path(temp_zip.file_path).exists() if temp_zip.file_path else False
+            )
+
+            # Determine status and prepare context
+            if temp_zip.is_deleted:
+                status = "deleted"
+                message = "This file has been deleted and is no longer available."
+            elif temp_zip.is_expired:
+                status = "expired"
+                message = "This download link has expired and is no longer available."
+            elif not file_exists:
+                status = "file_missing"
+                message = "The file was not found on the server."
+            else:
+                status = "available"
+                message = None
+
+            # Convert UTC expiry date to user's timezone for display
+            expires_at_local = (
+                timezone.localtime(temp_zip.expires_at) if temp_zip.expires_at else None
+            )
+
+            context = {
+                "temp_zip": temp_zip,
+                "status": status,
+                "message": message,
+                "file_exists": file_exists,
+                "expires_at_local": expires_at_local,
+            }
+
+            return render(request, template_name=self.template_name, context=context)
+
+        except TemporaryZipFile.DoesNotExist:
+            logger.warning(
+                "Temporary zip file not found: %s for user: %s",
+                zip_uuid,
+                request.user.id,
+            )
+            error_msg = "File not found."
+            raise Http404(error_msg) from None
+
+    def _serve_file_download(self, zip_uuid: str, user) -> HttpResponse:
+        """Serve the zip file for download."""
+        try:
+            # Get the temporary zip file
+            temp_zip = get_object_or_404(
+                TemporaryZipFile,
+                uuid=zip_uuid,
+                owner=user,
+            )
+
+            logger.info("Found temporary zip file: %s", temp_zip.filename)
+
+            file_path = Path(temp_zip.file_path)
+            if not file_path.exists():
+                logger.warning("File not found on disk: %s", temp_zip.file_path)
+                return JsonResponse(
+                    {"error": "The file was not found on the server."}, status=404
+                )
+
+            file_size = file_path.stat().st_size
+
+            with file_path.open("rb") as f:
+                file_content = f.read()
+                response = HttpResponse(file_content, content_type="application/zip")
+                response["Content-Disposition"] = (
+                    f'attachment; filename="{temp_zip.filename}"'
+                )
+                response["Content-Length"] = file_size
+
+                # Mark the file as downloaded
+                temp_zip.mark_downloaded()
+
+                return response
+
+        except OSError:
+            logger.exception("Error reading file: %s", temp_zip.file_path)
+            return JsonResponse({"error": "Error reading file."}, status=500)
+
+
+user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()

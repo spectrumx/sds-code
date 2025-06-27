@@ -505,6 +505,77 @@ class Dataset(BaseModel):
         return instance
 
 
+class TemporaryZipFile(BaseModel):
+    """
+    Model to track temporary zip files created for email downloads.
+
+    These files are automatically cleaned up after a certain period.
+    """
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        null=True,
+        related_name="temporary_zip_files",
+        on_delete=models.PROTECT,
+    )
+    file_path = models.CharField(max_length=500)
+    filename = models.CharField(max_length=255)
+    file_size = models.BigIntegerField()
+    files_processed = models.IntegerField()
+    expires_at = models.DateTimeField()
+    is_downloaded = models.BooleanField(default=False)
+    downloaded_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.filename} ({self.owner.email if self.owner else 'No owner'})"
+
+    def save(self, *args, **kwargs):
+        # Set expiration time if not already set (default: 7 days)
+        if not self.expires_at:
+            self.expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
+                days=3
+            )
+
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if the file has expired and should be deleted."""
+        return datetime.datetime.now(datetime.UTC) > self.expires_at
+
+    @property
+    def download_url(self) -> str:
+        """Generate the download URL for this file."""
+        from django.conf import settings
+
+        # Get the site domain from settings, with fallback
+        site_domain = settings.SITE_DOMAIN
+
+        # Use HTTPS if available, otherwise HTTP
+        protocol = "https" if settings.USE_HTTPS else "http"
+
+        return f"{protocol}://{site_domain}/users/temporary-zip/{self.uuid}/download/"
+
+    def mark_downloaded(self):
+        """Mark the file as downloaded."""
+        self.is_downloaded = True
+        self.downloaded_at = datetime.datetime.now(datetime.UTC)
+        self.save(update_fields=["is_downloaded", "downloaded_at"])
+
+    def delete_file(self):
+        """Delete the actual file from disk."""
+        try:
+            file_path = Path(self.file_path)
+            if file_path.exists():
+                file_path.unlink()
+                self.soft_delete()
+                return True
+        except OSError:
+            pass
+        return False
+
+
 def _extract_drf_capture_props(
     capture_props: dict[str, Any],
     center_frequency: float | None = None,

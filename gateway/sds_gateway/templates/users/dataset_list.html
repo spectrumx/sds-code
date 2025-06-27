@@ -130,7 +130,7 @@
                                         <li class="page-item active" aria-current="page">
                                             <span class="page-link">{{ num }}</span>
                                         </li>
-                                    {% elif num|add:0 &gt; page_obj.number|add:'-3' and num|add:0 &lt; page_obj.number|add:'3' %}
+                                    {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
                                         <li class="page-item">
                                             <a class="page-link" href="?page={{ num }}">{{ num }}</a>
                                         </li>
@@ -157,9 +157,172 @@
                 </div>
             </div>
         </div>
+        <!-- Download Confirmation Modal -->
+        <div class="modal fade"
+             id="downloadConfirmModal"
+             tabindex="-1"
+             aria-labelledby="downloadConfirmModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="downloadConfirmModalLabel">
+                            <i class="bi bi-download"></i> Confirm Download Request
+                        </h5>
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="modal"
+                                aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>
+                            Are you sure you want to request a download for <strong id="modalDatasetName"></strong>?
+                        </p>
+                        <p class="text-muted small">
+                            <i class="bi bi-info-circle"></i>
+                            This will create a zip file containing all artifacts (files not linked to captures) and capture files in this dataset.
+                            You will receive an email with a download link when the file is ready.
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-success" id="confirmDownloadBtn">
+                            <i class="bi bi-download"></i> Yes, Download Dataset
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
     <script src="{% static 'js/dataset-list.js' %}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // Check for download alert messages from sessionStorage
+            const downloadAlert = sessionStorage.getItem('downloadAlert');
+            if (downloadAlert) {
+                try {
+                    const alertData = JSON.parse(downloadAlert);
+                    showAlert(alertData.type, alertData.message);
+                    // Clear the alert from sessionStorage
+                    sessionStorage.removeItem('downloadAlert');
+                } catch (e) {
+                    console.error('Error parsing download alert:', e);
+                    sessionStorage.removeItem('downloadAlert');
+                }
+            }
+
+            let currentDatasetUuid = null;
+            let currentDatasetName = null;
+            let currentButton = null;
+
+            // Handle download button clicks
+            document.querySelectorAll('.download-dataset-btn').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    const datasetUuid = this.getAttribute('data-dataset-uuid');
+                    const datasetName = this.getAttribute('data-dataset-name');
+
+                    // Store current dataset info for modal
+                    currentDatasetUuid = datasetUuid;
+                    currentDatasetName = datasetName;
+                    currentButton = this;
+
+                    // Update modal content
+                    document.getElementById('modalDatasetName').textContent = datasetName;
+
+                    // Show the confirmation modal
+                    const modal = new bootstrap.Modal(document.getElementById('downloadConfirmModal'));
+                    modal.show();
+                });
+            });
+
+            // Handle confirmation button click
+            document.getElementById('confirmDownloadBtn').addEventListener('click', function() {
+                if (!currentDatasetUuid || !currentDatasetName || !currentButton) {
+                    console.error('No dataset information available for download');
+                    return;
+                }
+
+                // Store references to avoid null issues during async operations
+                const buttonToUpdate = currentButton;
+                const datasetUuid = currentDatasetUuid;
+                const datasetName = currentDatasetName;
+
+                // Disable button and show loading state
+                const originalText = buttonToUpdate.innerHTML;
+                buttonToUpdate.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+                buttonToUpdate.disabled = true;
+
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('downloadConfirmModal'));
+                modal.hide();
+
+                // Show confirmation alert
+                showAlert('success', `Download request sent for "${datasetName}". You will receive an email shortly with your download link.`);
+
+                // Make API request
+                fetch(`/users/dataset-download/${datasetUuid}/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                            'Content-Type': 'application/json',
+                        },
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            return response.json().then(data => {
+                                // Update button to show success
+                                buttonToUpdate.innerHTML = '<i class="bi bi-check-circle"></i> Sent!';
+                                buttonToUpdate.classList.remove('btn-success');
+                                buttonToUpdate.classList.add('btn-secondary');
+                            });
+                        } else {
+                            return response.json().then(data => {
+                                // Show error message
+                                const errorMessage = data.detail || data.message || 'Failed to send download request';
+                                showAlert('danger', `Error: ${errorMessage}`);
+                                buttonToUpdate.innerHTML = originalText;
+                                buttonToUpdate.disabled = false;
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        showAlert('danger', 'Network error. Please try again.');
+                        buttonToUpdate.innerHTML = originalText;
+                        buttonToUpdate.disabled = false;
+                    })
+                    .finally(() => {
+                        // Reset current dataset info only after the operation completes
+                        currentDatasetUuid = null;
+                        currentDatasetName = null;
+                        currentButton = null;
+                    });
+            });
+
+            // Function to show alerts
+            function showAlert(type, message) {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+                alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+
+                // Insert at the top of the content area
+                const contentArea = document.querySelector('.main-content-area');
+                contentArea.insertBefore(alertDiv, contentArea.firstChild);
+
+                // Auto-dismiss after 8 seconds for success messages
+                const dismissTime = type === 'success' ? 8000 : 5000;
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                    }
+                }, dismissTime);
+            }
+        });
+    </script>
 {% endblock javascript %}
