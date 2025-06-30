@@ -203,7 +203,9 @@ class Capture(BaseModel):
         (CaptureOrigin.User, "User"),
     ]
 
+    capture_name = models.CharField(max_length=255, blank=True)
     channel = models.CharField(max_length=255, blank=True)  # DRF
+    is_multi_channel = models.BooleanField(default=False)  # DRF
     scan_group = models.UUIDField(blank=True, null=True)  # RH
     capture_type = models.CharField(
         max_length=255,
@@ -252,6 +254,37 @@ class Capture(BaseModel):
         if sample_rate_hz:
             return sample_rate_hz / 1e6
         return None
+
+    def get_capture(self) -> dict[str, Any]:
+        """Return a Capture or composite of Captures for multi-channel captures.
+
+        Returns:
+            dict: Either a single capture or composite capture data
+        """
+        # If this is not a multi-channel capture, return the capture itself
+        if not self.is_multi_channel:
+            return {"capture": self, "is_composite": False}
+
+        # For multi-channel captures, find all captures with the same top_level_dir
+        related_captures = Capture.objects.filter(
+            top_level_dir=self.top_level_dir,
+            capture_type=self.capture_type,
+            owner=self.owner,
+            is_deleted=False,
+        ).order_by("channel")
+
+        if related_captures.count() <= 1:
+            # Only one capture found, return as single capture
+            return {"capture": self, "is_composite": False}
+
+        # Multiple captures found, create composite
+        return {
+            "captures": list(related_captures),
+            "is_composite": True,
+            "top_level_dir": self.top_level_dir,
+            "capture_type": self.capture_type,
+            "owner": self.owner,
+        }
 
     def get_opensearch_frequency_metadata(self) -> dict[str, Any]:
         """
@@ -676,7 +709,7 @@ def _group_captures_by_type(
     captures: QuerySet["Capture"],
 ) -> dict[str, list["Capture"]]:
     """Group captures by capture type for separate queries."""
-    captures_by_type = {}
+    captures_by_type: dict[str, list[Capture]] = {}
     for capture in captures:
         capture_type = capture.capture_type
         if capture_type not in captures_by_type:

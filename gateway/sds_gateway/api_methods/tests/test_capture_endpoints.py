@@ -756,18 +756,81 @@ class CaptureTestCases(APITestCase):
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_retrieve_not_owned_capture_404(self) -> None:
-        """Test retrieving a capture owned by another user."""
+        """Test that retrieving a capture not owned by the user returns 404."""
         other_user = User.objects.create(
-            email="other@test.com",
-            password="test-pass-123",  # noqa: S106
+            email="otheruser@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
         )
         other_capture = Capture.objects.create(
-            owner=other_user,
             capture_type=CaptureType.DigitalRF,
+            channel="other-channel",
+            index_name=f"{self.test_index_prefix}-drf",
+            owner=other_user,
+            top_level_dir="other-dir",
         )
 
         response = self.client.get(self.detail_url(other_capture.uuid))
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_composite_capture_functionality(self) -> None:
+        """Test that multi-channel captures are returned as composite objects."""
+        # Create multiple captures with the same top_level_dir to simulate multi-channel
+        multi_channel_dir = "/test-multi-channel"
+        expected_channel_count = 2
+
+        # Create first capture and mark as multi-channel
+        capture1 = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name=f"{self.test_index_prefix}-drf",
+            owner=self.user,
+            top_level_dir=multi_channel_dir,
+            is_multi_channel=True,
+        )
+
+        # Create second capture with same top_level_dir
+        Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch1",
+            index_name=f"{self.test_index_prefix}-drf",
+            owner=self.user,
+            top_level_dir=multi_channel_dir,
+            is_multi_channel=True,
+        )
+
+        # Test retrieve endpoint - should return composite
+        response = self.client.get(self.detail_url(capture1.uuid))
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        # Should have channels field for composite captures
+        assert "channels" in data
+        assert len(data["channels"]) == expected_channel_count
+
+        # Check that channels have the expected structure
+        for channel in data["channels"]:
+            assert "channel" in channel
+            assert "uuid" in channel
+            assert "channel_metadata" in channel
+
+        # Test list endpoint - should also return composite
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert "results" in data
+
+        # Find the composite capture in results
+        composite_found = False
+        for result in data["results"]:
+            if result.get("top_level_dir") == multi_channel_dir:
+                assert "channels" in result
+                assert len(result["channels"]) == expected_channel_count
+                composite_found = True
+                break
+
+        assert composite_found, "Composite capture not found in list results"
 
     def test_delete_capture_204(self) -> None:
         """Test deleting a capture returns 204."""
