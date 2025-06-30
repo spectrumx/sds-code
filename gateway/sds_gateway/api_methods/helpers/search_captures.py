@@ -264,16 +264,23 @@ def search_captures(
         msg = f"OpenSearch generic error: {err}"
         log.exception(msg)
         raise
-    else:
-        matching_uuids = [hit["_id"] for hit in response["hits"]["hits"]]
-        num_hits = len(matching_uuids)
-        if num_hits > 0.9 * MAX_OS_SIZE:
-            log.warning(
-                f"OpenSearch returned {num_hits:,} hits, which is close to the "
-                f"maximum size of {MAX_OS_SIZE:,}. Consider refactoring.",
-            )
-        log.debug(f"Found {len(matching_uuids)} matching captures.")
-        return capture_queryset.filter(uuid__in=matching_uuids).order_by("-updated_at")
+
+    # Extract capture UUIDs from OpenSearch response
+    capture_uuids: list[str] = [hit["_id"] for hit in response["hits"]["hits"]]
+
+    if not capture_uuids:
+        log.debug("No captures found in OpenSearch.")
+        return capture_queryset.none()
+
+    # Filter the queryset to only include captures found in OpenSearch
+    filtered_queryset = capture_queryset.filter(uuid__in=capture_uuids)
+
+    log.debug(
+        f"Found {len(capture_uuids)} captures in OpenSearch, "
+        f"filtered to {filtered_queryset.count()} captures in database.",
+    )
+
+    return filtered_queryset
 
 
 def _build_os_query_for_captures(
@@ -304,3 +311,56 @@ def _build_os_query_for_captures(
     log.debug("OpenSearch query:")
     log.debug(pretty_repr(query, indent_size=4))
     return query
+
+
+def group_captures_by_top_level_dir(
+    captures: QuerySet[Capture],
+) -> dict[str, list[Capture]]:
+    """Group captures by top_level_dir for composite capture handling.
+
+    Args:
+        captures: QuerySet of Capture objects
+    Returns:
+        dict: {top_level_dir: list of captures}
+    """
+    grouped_captures: dict[str, list[Capture]] = {}
+
+    for capture in captures:
+        top_level_dir = capture.top_level_dir
+        if top_level_dir not in grouped_captures:
+            grouped_captures[top_level_dir] = []
+        grouped_captures[top_level_dir].append(capture)
+
+    return grouped_captures
+
+
+def get_composite_captures(captures: QuerySet[Capture]) -> list[dict[str, Any]]:
+    """Get captures as composite objects, grouping multi-channel captures.
+
+    Args:
+        captures: QuerySet of Capture objects
+    Returns:
+        list: List of composite capture data
+    """
+    from sds_gateway.api_methods.serializers.capture_serializers import (
+        build_composite_capture_data,
+    )
+    from sds_gateway.api_methods.serializers.capture_serializers import (
+        serialize_capture_or_composite,
+    )
+
+    grouped_captures = group_captures_by_top_level_dir(captures)
+    composite_captures = []
+
+    for capture_list in grouped_captures.values():
+        if len(capture_list) > 1:
+            # Multiple captures with same top_level_dir - create composite
+            composite_data = build_composite_capture_data(capture_list)
+            composite_captures.append(composite_data)
+        else:
+            # Single capture - serialize normally
+            capture = capture_list[0]
+            capture_data = serialize_capture_or_composite(capture)
+            composite_captures.append(capture_data)
+
+    return composite_captures

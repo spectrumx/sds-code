@@ -38,6 +38,9 @@ from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSe
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    serialize_capture_or_composite,
+)
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
@@ -338,8 +341,12 @@ class CaptureViewSet(viewsets.ViewSet):
             owner=request.user,
             is_deleted=False,
         )
-        serializer = CaptureGetSerializer(target_capture, many=False)
-        return Response(serializer.data)
+
+        # Use composite capture serialization
+        capture_data = serialize_capture_or_composite(
+            target_capture, context={"request": request}
+        )
+        return Response(capture_data)
 
     def _validate_metadata_filters(
         self,
@@ -371,6 +378,53 @@ class CaptureViewSet(viewsets.ViewSet):
         paginated_captures = paginator.paginate_queryset(captures, request=request)
         serializer = CaptureGetSerializer(paginated_captures, many=True)
         return paginator.get_paginated_response(serializer.data)
+
+    def _paginate_composite_captures(
+        self,
+        captures: QuerySet[Capture],
+        request: Request,
+    ) -> Response:
+        """Paginate and serialize composite capture results."""
+        from sds_gateway.api_methods.helpers.search_captures import (
+            get_composite_captures,
+        )
+
+        # Get composite captures
+        composite_captures = get_composite_captures(captures)
+
+        # Manual pagination for composite captures
+        paginator = CapturePagination()
+        page_size = paginator.get_page_size(request)
+        page_number = paginator.get_page_number(request, paginator)
+
+        start_index = (page_number - 1) * page_size
+        end_index = start_index + page_size
+
+        paginated_composites = composite_captures[start_index:end_index]
+
+        # Create custom paginated response
+        total_count = len(composite_captures)
+        next_url = None
+        previous_url = None
+
+        if end_index < total_count:
+            next_url = request.build_absolute_uri(
+                f"{request.path}?page={page_number + 1}&page_size={page_size}"
+            )
+
+        if page_number > 1:
+            previous_url = request.build_absolute_uri(
+                f"{request.path}?page={page_number - 1}&page_size={page_size}"
+            )
+
+        return Response(
+            {
+                "count": total_count,
+                "next": next_url,
+                "previous": previous_url,
+                "results": paginated_composites,
+            }
+        )
 
     @extend_schema(
         parameters=[
@@ -442,7 +496,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 metadata_filters=metadata_filters,
                 owner=cast("User", request.user),
             )
-            return self._paginate_captures(captures=captures, request=request)
+            return self._paginate_composite_captures(captures=captures, request=request)
         except (ValueError, TypeError) as err:
             return Response(
                 {"detail": str(err)},

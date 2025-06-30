@@ -197,3 +197,151 @@ def normalize_top_level_dir(unknown_path: str) -> str:
 
     # top level dir must not end with '/'
     return valid_path.rstrip("/")
+
+
+class ChannelMetadataSerializer(serializers.Serializer):
+    """Serializer for channel-specific metadata in composite captures."""
+
+    channel = serializers.CharField()
+    uuid = serializers.UUIDField()
+    channel_metadata = serializers.DictField()
+
+
+class CompositeCaptureSerializer(serializers.Serializer):
+    """Serializer for composite captures that contain multiple channels."""
+
+    # Common fields from all captures
+    uuid = serializers.UUIDField()
+    capture_name = serializers.CharField()
+    capture_type = serializers.CharField()
+    top_level_dir = serializers.CharField()
+    index_name = serializers.CharField()
+    origin = serializers.CharField()
+    is_multi_channel = serializers.BooleanField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+    deleted_at = serializers.DateTimeField(allow_null=True)
+    is_deleted = serializers.BooleanField()
+    is_public = serializers.BooleanField()
+    owner = UserGetSerializer()
+
+    # Channel-specific fields
+    channels = serializers.ListField(child=ChannelMetadataSerializer())
+
+    # Computed fields
+    files = serializers.SerializerMethodField()
+    files_count = serializers.SerializerMethodField()
+    total_file_size = serializers.SerializerMethodField()
+
+    def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
+        """Get all files from all channels in the composite capture."""
+        all_files = []
+        for channel_data in obj["channels"]:
+            capture_uuid = channel_data["uuid"]
+            capture = Capture.objects.get(uuid=capture_uuid)
+            non_deleted_files = File.objects.filter(
+                capture=capture,
+                is_deleted=False,
+            )
+            serializer = FileCaptureListSerializer(
+                non_deleted_files,
+                many=True,
+                context=self.context,
+            )
+            all_files.extend(serializer.data)
+        return cast("ReturnList[File]", all_files)
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_files_count(self, obj: dict[str, Any]) -> int:
+        """Get the total count of files across all channels."""
+        total_count = 0
+        for channel_data in obj["channels"]:
+            capture_uuid = channel_data["uuid"]
+            capture = Capture.objects.get(uuid=capture_uuid)
+            total_count += capture.files.filter(is_deleted=False).count()
+        return total_count
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_total_file_size(self, obj: dict[str, Any]) -> int:
+        """Get the total file size across all channels."""
+        total_size = 0
+        for channel_data in obj["channels"]:
+            capture_uuid = channel_data["uuid"]
+            capture = Capture.objects.get(uuid=capture_uuid)
+            result = capture.files.filter(is_deleted=False).aggregate(
+                total_size=Sum("size")
+            )
+            total_size += result["total_size"] or 0
+        return total_size
+
+
+def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
+    """Build composite capture data from a list of captures with the same top_level_dir.
+
+    Args:
+        captures: List of Capture objects to combine into composite
+
+    Returns:
+        dict: Composite capture data structure
+
+    Raises:
+        ValueError: If no captures are provided
+    """
+    if not captures:
+        error_msg = "No captures provided for composite"
+        raise ValueError(error_msg)
+
+    # Use the first capture as the base for common fields
+    base_capture = captures[0]
+
+    # Build channel data with metadata
+    channels = []
+    for capture in captures:
+        channel_data = {
+            "channel": capture.channel,
+            "uuid": capture.uuid,
+            "channel_metadata": retrieve_indexed_metadata(capture),
+        }
+        channels.append(channel_data)
+
+    # Build composite data
+    return {
+        "uuid": base_capture.uuid,  # Use first capture's UUID as composite UUID
+        "capture_name": base_capture.capture_name,
+        "capture_type": base_capture.capture_type,
+        "top_level_dir": base_capture.top_level_dir,
+        "index_name": base_capture.index_name,
+        "origin": base_capture.origin,
+        "is_multi_channel": True,
+        "created_at": base_capture.created_at,
+        "updated_at": base_capture.updated_at,
+        "deleted_at": base_capture.deleted_at,
+        "is_deleted": base_capture.is_deleted,
+        "is_public": base_capture.is_public,
+        "owner": base_capture.owner,
+        "channels": channels,
+    }
+
+
+def serialize_capture_or_composite(
+    capture: Capture, context: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Serialize a capture as single or composite based on multi-channel status.
+
+    Args:
+        capture: Capture object to serialize
+        context: Optional context for serialization
+
+    Returns:
+        dict: Serialized capture data
+    """
+    capture_data = capture.get_capture()
+
+    if capture_data["is_composite"]:
+        # Serialize as composite
+        composite_data = build_composite_capture_data(capture_data["captures"])
+        serializer = CompositeCaptureSerializer(composite_data, context=context)
+        return serializer.data
+    # Serialize as single capture
+    serializer = CaptureGetSerializer(capture_data["capture"], context=context)
+    return serializer.data
