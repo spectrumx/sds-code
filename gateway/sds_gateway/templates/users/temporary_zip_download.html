@@ -51,6 +51,7 @@
                 </div>
             </div>
         </div>
+        {# djlint:off #}
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 {
@@ -124,6 +125,7 @@
                 // Redirect to dataset list page
                 window.location.href = '{% url "users:dataset_list" %}';
             }
-        </script>
+</script>
+        {# djlint:on #}
     {% endblock content %}
 </body>
