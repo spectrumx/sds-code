@@ -203,7 +203,9 @@ class Capture(BaseModel):
         (CaptureOrigin.User, "User"),
     ]
 
+    capture_name = models.CharField(max_length=255, blank=True)
     channel = models.CharField(max_length=255, blank=True)  # DRF
+    is_multi_channel = models.BooleanField(default=False)  # DRF
     scan_group = models.UUIDField(blank=True, null=True)  # RH
     capture_type = models.CharField(
         max_length=255,
@@ -252,21 +254,6 @@ class Capture(BaseModel):
         if sample_rate_hz:
             return sample_rate_hz / 1e6
         return None
-
-    @property
-    def is_multi_channel(self) -> bool:
-        """Check if this capture is a multi-channel capture."""
-        match self.capture_type:
-            case CaptureType.DigitalRF:
-                captures_in_top_level_dir = Capture.objects.filter(
-                    top_level_dir=self.top_level_dir,
-                    capture_type=self.capture_type,
-                    owner=self.owner,
-                    is_deleted=False,
-                ).count()
-                return captures_in_top_level_dir > 1
-            case _:
-                return False
 
     def get_capture(self) -> dict[str, Any]:
         """Return a Capture or composite of Captures for multi-channel captures.

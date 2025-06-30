@@ -272,19 +272,8 @@ def search_captures(
         log.debug("No captures found in OpenSearch.")
         return capture_queryset.none()
 
-    # Check if we're approaching the maximum size limit
-    num_hits = len(capture_uuids)
-    if num_hits > 0.9 * MAX_OS_SIZE:
-        log.warning(
-            f"OpenSearch returned {num_hits:,} hits, which is close to the "
-            f"maximum size of {MAX_OS_SIZE:,}. Consider refactoring.",
-        )
-    log.debug(f"Found {len(capture_uuids)} matching captures.")
-
     # Filter the queryset to only include captures found in OpenSearch
-    filtered_queryset = capture_queryset.filter(uuid__in=capture_uuids).order_by(
-        "-updated_at"
-    )
+    filtered_queryset = capture_queryset.filter(uuid__in=capture_uuids)
 
     log.debug(
         f"Found {len(capture_uuids)} captures in OpenSearch, "
@@ -345,9 +334,6 @@ def group_captures_by_top_level_dir(
     return grouped_captures
 
 
-# TODO: add pagination before retrieval rather than after
-# Need to paginate/limit OpenSearch results list before grouping
-# and then paginate/limit the grouped captures
 def get_composite_captures(captures: QuerySet[Capture]) -> list[dict[str, Any]]:
     """Get captures as composite objects, grouping multi-channel captures.
 
