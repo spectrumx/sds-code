@@ -110,47 +110,49 @@
                     {% if page_obj.object_list %}
                         <nav aria-label="Dataset pagination">
                             <ul class="pagination justify-content-center" id="pagination-controls">
-                                {% if page_obj.has_previous %}
-                                    <li class="page-item">
-                                        <a class="page-link"
-                                           href="?page={{ page_obj.previous_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
-                                           aria-label="Previous">
-                                            <span aria-hidden="true">«</span>
-                                        </a>
-                                    </li>
-                                {% else %}
-                                    <li class="page-item disabled">
-                                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
-                                            <span aria-hidden="true">«</span>
-                                        </a>
-                                    </li>
-                                {% endif %}
-                                {% for num in page_obj.paginator.page_range %}
-                                    {% if page_obj.number == num %}
-                                        <li class="page-item active" aria-current="page">
-                                            <span class="page-link">{{ num }}</span>
-                                        </li>
-                                    {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
+                                {% if page_obj.paginator.num_pages > 1 %}
+                                    {% if page_obj.has_previous %}
                                         <li class="page-item">
                                             <a class="page-link"
-                                               href="?page={{ num }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">{{ num }}</a>
+                                               href="?page={{ page_obj.previous_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
+                                               aria-label="Previous">
+                                                <span aria-hidden="true">«</span>
+                                            </a>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item disabled">
+                                            <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                                                <span aria-hidden="true">«</span>
+                                            </a>
                                         </li>
                                     {% endif %}
-                                {% endfor %}
-                                {% if page_obj.has_next %}
-                                    <li class="page-item">
-                                        <a class="page-link"
-                                           href="?page={{ page_obj.next_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
-                                           aria-label="Next">
-                                            <span aria-hidden="true">»</span>
-                                        </a>
-                                    </li>
-                                {% else %}
-                                    <li class="page-item disabled">
-                                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
-                                            <span aria-hidden="true">»</span>
-                                        </a>
-                                    </li>
+                                    {% for num in page_obj.paginator.page_range %}
+                                        {% if page_obj.number == num %}
+                                            <li class="page-item active" aria-current="page">
+                                                <span class="page-link">{{ num }}</span>
+                                            </li>
+                                        {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
+                                            <li class="page-item">
+                                                <a class="page-link"
+                                                   href="?page={{ num }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">{{ num }}</a>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link"
+                                               href="?page={{ page_obj.next_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
+                                               aria-label="Next">
+                                                <span aria-hidden="true">»</span>
+                                            </a>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item disabled">
+                                            <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                                                <span aria-hidden="true">»</span>
+                                            </a>
+                                        </li>
+                                    {% endif %}
                                 {% endif %}
                             </ul>
                         </nav>
@@ -201,7 +203,6 @@
     <script src="{% static 'js/dataset-list.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-
             // Check for download alert messages from sessionStorage
             const downloadAlert = sessionStorage.getItem('downloadAlert');
             if (downloadAlert) {
@@ -308,9 +309,9 @@
                 const alertDiv = document.createElement('div');
                 alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
                 alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            `;
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
 
                 // Insert at the top of the content area
                 const contentArea = document.querySelector('.main-content-area');

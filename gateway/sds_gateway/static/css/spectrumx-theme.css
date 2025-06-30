@@ -4,6 +4,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	min-height: 100vh;
+	padding-top: 0; /* Remove fixed header padding */
 }
 
 main {
@@ -22,6 +23,8 @@ main {
 		#5ab9e6,
 		#59d5e0
 	);
+	position: relative; /* Remove fixed positioning */
+	z-index: 1031; /* Keep above header */
 }
 
 .logo {
@@ -116,8 +119,9 @@ hr {
 
 .site-header {
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-	position: relative;
-	z-index: 10;
+	position: relative; /* Change from fixed to relative */
+	background-color: #fff;
+	z-index: 1030;
 }
 
 .navbar-brand .vr {
@@ -441,13 +445,13 @@ textarea:focus-visible {
 
 /* Accessible link color for tables */
 .table-fixed-layout tbody a {
-	color: #00528c;
+	color: #005a9c !important;
 	font-weight: 300;
 	text-decoration: underline;
 }
 
 .table-fixed-layout tbody a:hover {
-	color: #003e6b;
+	color: #004b80 !important;
 }
 
 /* Accessible range slider thumb */
@@ -856,4 +860,158 @@ th.sortable:hover .sort-icon {
 /* Style the number inputs to match */
 input[type="number"].form-control-sm {
 	text-align: center;
+}
+
+/* Table link colors */
+.table tbody a,
+.table-responsive tbody a,
+.table-fixed-layout tbody a,
+#captures-table tbody a,
+.capture-link {
+	color: #005a9c !important;
+	font-weight: 300;
+	text-decoration: underline;
+}
+
+.table tbody a:hover,
+.table-responsive tbody a:hover,
+.table-fixed-layout tbody a:hover,
+#captures-table tbody a:hover,
+.capture-link:hover {
+	color: #004b80 !important;
+}
+
+/* Button text color overrides */
+.btn-primary,
+.btn-sm.btn-primary,
+.action-buttons .btn-primary {
+	color: #fff !important;
+	background-color: #005a9c !important;
+	border-color: #005a9c !important;
+}
+
+.btn-primary:hover,
+.btn-sm.btn-primary:hover,
+.action-buttons .btn-primary:hover {
+	color: #fff !important;
+	background-color: #004b80 !important;
+	border-color: #004b80 !important;
+}
+
+.btn-primary:active,
+.btn-sm.btn-primary:active,
+.action-buttons .btn-primary:active,
+.btn-primary:focus,
+.btn-sm.btn-primary:focus,
+.action-buttons .btn-primary:focus {
+	color: #fff !important;
+	background-color: #004b80 !important;
+	border-color: #004b80 !important;
+}
+
+/* Action button text color overrides */
+.action-buttons .btn-primary,
+.action-buttons .btn-sm.btn-primary {
+	color: #fff !important;
+	background-color: #005a9c !important;
+	border-color: #005a9c !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 0.25rem !important;
+}
+
+.action-buttons .btn-primary i,
+.action-buttons .btn-sm.btn-primary i {
+	color: #fff !important;
+	margin-right: 4px !important;
+}
+
+.action-buttons .btn-primary:hover,
+.action-buttons .btn-sm.btn-primary:hover {
+	color: #fff !important;
+	background-color: #004b80 !important;
+	border-color: #004b80 !important;
+}
+
+.action-buttons .btn {
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 0.25rem !important;
+	color: inherit !important;
+}
+
+/* Table row height optimization */
+.table > :not(caption) > * > * {
+	padding: 6px 12px !important;
+}
+
+.table tbody td {
+	vertical-align: middle !important;
+}
+
+/* Ensure buttons in table stay properly sized */
+.table .btn-sm {
+	padding: 0.25rem 0.5rem !important;
+}
+
+/* Dataset table layout optimization */
+#dynamic-table-container .table {
+	table-layout: fixed !important;
+	width: 100% !important;
+}
+
+#dynamic-table-container .table th,
+#dynamic-table-container .table td {
+	padding: 8px 12px !important;
+	line-height: 1.4 !important;
+	vertical-align: middle !important;
+}
+
+#dynamic-table-container .table td {
+	white-space: normal !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+}
+
+#dynamic-table-container .table th:nth-child(1),
+#dynamic-table-container .table td:nth-child(1) {
+	width: 20% !important;
+}
+
+#dynamic-table-container .table th:nth-child(2),
+#dynamic-table-container .table td:nth-child(2) {
+	width: 35% !important;
+}
+
+#dynamic-table-container .table th:nth-child(3),
+#dynamic-table-container .table td:nth-child(3) {
+	width: 15% !important;
+}
+
+#dynamic-table-container .table th:nth-child(4),
+#dynamic-table-container .table td:nth-child(4) {
+	width: 15% !important;
+}
+
+#dynamic-table-container .table th:nth-child(5),
+#dynamic-table-container .table td:nth-child(5) {
+	width: 15% !important;
+}
+
+#dynamic-table-container .table td:nth-child(2) {
+	white-space: normal !important;
+	word-wrap: break-word !important;
+}
+
+/* Ensure buttons in table stay properly sized */
+#dynamic-table-container .table .btn-sm {
+	padding: 0.25rem 0.5rem !important;
+	margin: 0 2px !important;
+}
+
+/* Action buttons container */
+#dynamic-table-container .table .action-buttons {
+	display: flex !important;
+	gap: 0.5rem !important;
+	justify-content: flex-start !important;
 }
