@@ -57,7 +57,6 @@ class UserSearchHandler {
 		input.addEventListener("input", (e) => {
 			clearTimeout(this.searchTimeout);
 			const query = e.target.value.trim();
-			console.log(query);
 
 			if (query.length < 2) {
 				this.hideDropdown(dropdown);
@@ -128,18 +127,66 @@ class UserSearchHandler {
 	}
 
 	setupShareDataset(shareButton) {
-		shareButton.addEventListener("click", () => {
+		shareButton.addEventListener("click", async () => {
 			// get the user emails from the selected users map
-			const userEmails = Object.values(this.selectedUsersMap)
-				.map((u) => u.email)
-				.join(",");
-			console.log(userEmails);
+			// The selectedUsersMap is keyed by input ID, so we need to get the first (and only) array
+			const inputId = `user-search-${this.datasetUuid}`;
+
+			const selectedUsers = this.selectedUsersMap[inputId] || [];
+
+			const userEmails = selectedUsers.map((u) => u.email).join(",");
+
+			if (!userEmails) {
+				alert("Please select at least one user to share with.");
+				return;
+			}
+
+			// Get CSRF token from the form
+			const form = document.getElementById(`share-form-${this.datasetUuid}`);
+			const csrfToken = form.querySelector(
+				'input[name="csrfmiddlewaretoken"]',
+			).value;
+
 			const formData = new FormData();
 			formData.append("user-search", userEmails);
-			fetch(`/users/share-dataset/${this.datasetUuid}/`, {
-				method: "POST",
-				body: formData,
-			});
+
+			try {
+				const response = await fetch(
+					`/users/share-dataset/${this.datasetUuid}/`,
+					{
+						method: "POST",
+						body: formData,
+						headers: {
+							"X-CSRFToken": csrfToken,
+						},
+					},
+				);
+
+				const result = await response.json();
+
+				if (response.ok) {
+					// Show success message
+					alert(result.message || "Dataset shared successfully!");
+					// Close modal
+					const modal = document.getElementById(
+						`share-modal-${this.datasetUuid}`,
+					);
+					const bootstrapModal = bootstrap.Modal.getInstance(modal);
+					if (bootstrapModal) {
+						bootstrapModal.hide();
+					}
+					// Clear selected users
+					this.selectedUsersMap = {};
+					// Reload page to show updated shared users
+					location.reload();
+				} else {
+					// Show error message
+					alert(result.error || "Error sharing dataset");
+				}
+			} catch (error) {
+				console.error("Error sharing dataset:", error);
+				alert("Error sharing dataset. Please try again.");
+			}
 		});
 	}
 
@@ -238,10 +285,16 @@ class UserSearchHandler {
 		const userName = item.dataset.userName;
 		const userEmail = item.dataset.userEmail;
 		const inputId = input.id;
+
+		if (!this.selectedUsersMap[inputId]) {
+			this.selectedUsersMap[inputId] = [];
+		}
+
 		if (!this.selectedUsersMap[inputId].some((u) => u.email === userEmail)) {
 			this.selectedUsersMap[inputId].push({ name: userName, email: userEmail });
 			this.renderChips(input);
 		}
+
 		input.value = "";
 		this.hideDropdown(item.closest(".user-search-dropdown"));
 		input.focus();

@@ -17,7 +17,9 @@
             <div class="modal-body">
                 <p class="fw-bold">Share this dataset with others:</p>
                 <div>
-                    <form action="{% url 'users:share_dataset' dataset.uuid %}" method="post">
+                    <form id="share-form-{{ dataset.uuid }}"
+                          action="{% url 'users:share_dataset' dataset.uuid %}"
+                          method="post">
                         {% csrf_token %}
                         <div class="user-search-input-container">
                             <div class="selected-users-chips d-flex flex-wrap align-items-center mb-2"></div>

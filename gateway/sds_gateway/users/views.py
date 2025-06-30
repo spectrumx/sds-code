@@ -174,28 +174,60 @@ class ShareDatasetView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         # Get the dataset
         dataset = get_object_or_404(Dataset, uuid=dataset_uuid, owner=request.user)
 
-        # Get the user email from the form
-        user_emails = request.POST.getlist("user-search", "").strip()
+        # Get the user emails from the form (comma-separated string)
+        user_emails_str = request.POST.get("user-search", "").strip()
 
-        if not user_emails:
+        if not user_emails_str:
             return JsonResponse({"error": "User email is required"}, status=400)
 
-        # Find the user to share with
+        # Split by comma and clean up each email
+        user_emails = [
+            email.strip() for email in user_emails_str.split(",") if email.strip()
+        ]
+
+        if not user_emails:
+            return JsonResponse(
+                {"error": "At least one valid user email is required"}, status=400
+            )
+
+        shared_users = []
+        errors = []
+
         for user_email in user_emails:
-            user_to_share_with = User.objects.get(email=user_email, is_approved=True)
-            if user_to_share_with.id == request.user.id:
-                return JsonResponse(
-                    {"error": "You cannot share a dataset with yourself"}, status=400
+            try:
+                # Find the user to share with
+                user_to_share_with = User.objects.get(
+                    email=user_email, is_approved=True
                 )
 
-            dataset.shared_with.add(user_to_share_with)
+                if user_to_share_with.id == request.user.id:
+                    errors.append(
+                        f"You cannot share a dataset with yourself ({user_email})"
+                    )
+                    continue
 
-        return JsonResponse(
-            {
-                "success": True,
-                "message": f"Dataset shared successfully with {user_emails}",
-            }
-        )
+                # Check if already shared
+                if dataset.shared_with.filter(id=user_to_share_with.id).exists():
+                    errors.append(f"Dataset is already shared with {user_email}")
+                    continue
+
+                dataset.shared_with.add(user_to_share_with)
+                shared_users.append(user_email)
+
+            except User.DoesNotExist:
+                errors.append(f"User with email {user_email} not found or not approved")
+
+        # Prepare response message
+        if shared_users and not errors:
+            message = f"Dataset shared successfully with {', '.join(shared_users)}"
+            return JsonResponse({"success": True, "message": message})
+        if shared_users and errors:
+            message = (
+                f"Dataset shared with {', '.join(shared_users)}. "
+                f"Issues: {'; '.join(errors)}"
+            )
+            return JsonResponse({"success": True, "message": message})
+        return JsonResponse({"error": "; ".join(errors)}, status=400)
 
 
 user_share_dataset_view = ShareDatasetView.as_view()
@@ -845,9 +877,22 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             request.user.datasets.filter(is_deleted=False).all().order_by(order_by)
         )
 
-        # Serialize and paginate
-        serializer = DatasetGetSerializer(datasets, many=True)
-        paginator = Paginator(serializer.data, per_page=15)
+        # Prepare datasets with shared users
+        datasets_with_shared_users = []
+        for dataset in datasets:
+            dataset_data = DatasetGetSerializer(dataset).data
+            # Get shared users for this dataset
+            shared_users = dataset.shared_with.all()
+            dataset_data["shared_users"] = [
+                {
+                    "name": user.name,
+                    "email": user.email,
+                }
+                for user in shared_users
+            ]
+            datasets_with_shared_users.append(dataset_data)
+
+        paginator = Paginator(datasets_with_shared_users, per_page=15)
         page_number = request.GET.get("page")
         page_obj = paginator.get_page(page_number)
 
