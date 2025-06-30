@@ -212,7 +212,6 @@ class CompositeCaptureSerializer(serializers.Serializer):
 
     # Common fields from all captures
     uuid = serializers.UUIDField()
-    capture_name = serializers.CharField()
     capture_type = serializers.CharField()
     top_level_dir = serializers.CharField()
     index_name = serializers.CharField()
@@ -304,10 +303,12 @@ def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
         }
         channels.append(channel_data)
 
+    # Serialize the owner field
+    owner_serializer = UserGetSerializer(base_capture.owner)
+
     # Build composite data
     return {
         "uuid": base_capture.uuid,  # Use first capture's UUID as composite UUID
-        "capture_name": base_capture.capture_name,
         "capture_type": base_capture.capture_type,
         "top_level_dir": base_capture.top_level_dir,
         "index_name": base_capture.index_name,
@@ -318,7 +319,7 @@ def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
         "deleted_at": base_capture.deleted_at,
         "is_deleted": base_capture.is_deleted,
         "is_public": base_capture.is_public,
-        "owner": base_capture.owner,
+        "owner": owner_serializer.data,
         "channels": channels,
     }
 

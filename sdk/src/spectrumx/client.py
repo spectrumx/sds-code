@@ -5,6 +5,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from typing import Any
+from uuid import UUID
 
 from loguru import logger as log
 from pydantic import UUID4
@@ -484,6 +485,30 @@ class Client:
         else:
             return capture
 
+    def _handle_existing_capture_error(
+        self, err: SDSError, captures: list[Capture]
+    ) -> bool:
+        """
+        Handle the case where a capture already exists.
+        Returns True if handled, False otherwise.
+        """
+        if "drf_unique_channel_and_tld" not in str(err).lower():
+            return False
+        try:
+            error_msg = str(err)
+            uuid_start = error_msg.find("another capture: ") + len("another capture: ")
+            uuid_end = error_msg.find(" ", uuid_start)
+            if uuid_end == -1:
+                uuid_end = len(error_msg)
+            existing_uuid_str = error_msg[uuid_start:uuid_end].strip()
+            existing_uuid = UUID(existing_uuid_str)
+            existing_capture = self.captures.read(capture_uuid=existing_uuid)
+            captures.append(existing_capture)
+        except (SDSError, ValueError, IndexError):
+            return False
+        else:
+            return True
+
     def upload_multichannel_drf_capture(
         self,
         *,
@@ -499,25 +524,7 @@ class Client:
         once for the whole directory. Then, it creates a capture for each channel.
 
         *Note: This method is only for DigitalRF captures.*
-
-        Args:
-            local_path:     The local path of the directory to upload.
-            sds_path:       The virtual directory on SDS to upload the file to.
-            index_name:     The SDS index name. Leave empty to automatically select.
-            channels:       A list of channel names to upload.
-            verbose:        Show progress bar and failure messages, if any.
-            warn_skipped:   Display warnings for skipped files.
-            raise_on_error: When True, raises an exception if any file upload fails.
-                            If False, the method will return None and log the errors.
-        Returns:
-            The created capture object when all operations succeed.
-        Raises:
-            When `raise_on_error` is True.
-            FileError:      If any file upload fails.
-            CaptureError:   If the capture creation fails.
         """
-
-        # Upload the files for the whole directory to SDS
         upload_results = self.upload(
             local_path=local_path,
             sds_path=sds_path,
@@ -541,15 +548,23 @@ class Client:
                     index_name=index_name,
                     channel=channel,
                 )
-            except SDSError:
-                if raise_on_error:
-                    raise
+            except SDSError as err:
                 if verbose:
-                    log_user_error("Failed to create capture.")
+                    log_user_error(
+                        f"Failed to create multi-channel capture for channel: {channel}"
+                    )
+                # If capture already exists, try to get it instead of
+                # deleting all captures
+                if self._handle_existing_capture_error(err, captures):
+                    continue
+
+                # Cleanup any created captures
+                for created_capture in captures:
+                    if created_capture.uuid is not None:
+                        self.captures.delete(capture_uuid=created_capture.uuid)
                 return None
             else:
                 captures.append(capture)
-
         return captures
 
 
