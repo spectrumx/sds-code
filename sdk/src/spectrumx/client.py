@@ -484,5 +484,73 @@ class Client:
         else:
             return capture
 
+    def upload_multichannel_drf_capture(
+        self,
+        *,
+        local_path: Path | str,
+        sds_path: PurePosixPath | Path | str = "/",
+        index_name: str = "",
+        channels: list[str],
+        verbose: bool = True,
+        warn_skipped: bool = False,
+        raise_on_error: bool = True,
+    ) -> list[Capture] | None:
+        """Uploads a capture with multiple channels by running `upload`
+        once for the whole directory. Then, it creates a capture for each channel.
+
+        *Note: This method is only for DigitalRF captures.*
+
+        Args:
+            local_path:     The local path of the directory to upload.
+            sds_path:       The virtual directory on SDS to upload the file to.
+            index_name:     The SDS index name. Leave empty to automatically select.
+            channels:       A list of channel names to upload.
+            verbose:        Show progress bar and failure messages, if any.
+            warn_skipped:   Display warnings for skipped files.
+            raise_on_error: When True, raises an exception if any file upload fails.
+                            If False, the method will return None and log the errors.
+        Returns:
+            The created capture object when all operations succeed.
+        Raises:
+            When `raise_on_error` is True.
+            FileError:      If any file upload fails.
+            CaptureError:   If the capture creation fails.
+        """
+
+        # Upload the files for the whole directory to SDS
+        upload_results = self.upload(
+            local_path=local_path,
+            sds_path=sds_path,
+            verbose=verbose,
+            warn_skipped=warn_skipped,
+        )
+
+        if not process_upload_results(
+            upload_results,
+            raise_on_error=raise_on_error,
+            verbose=verbose,
+        ):
+            return None
+
+        captures: list[Capture] = []
+        for channel in channels:
+            try:
+                capture = self.captures.create(
+                    top_level_dir=PurePosixPath(sds_path),
+                    capture_type=CaptureType.DigitalRF,
+                    index_name=index_name,
+                    channel=channel,
+                )
+            except SDSError:
+                if raise_on_error:
+                    raise
+                if verbose:
+                    log_user_error("Failed to create capture.")
+                return None
+            else:
+                captures.append(capture)
+
+        return captures
+
 
 __all__ = ["Client"]
