@@ -160,12 +160,6 @@ textarea:focus-visible {
 	cursor: pointer;
 }
 
-/* Right-align actions column in search table */
-.table th:last-child,
-.table td:last-child {
-	text-align: right;
-}
-
 /* Custom nouislider styles */
 .noUi-target {
 	background: #e9ecef;
@@ -501,6 +495,38 @@ th.sortable:hover .sort-icon {
 	--bs-pagination-disabled-color: #6c757d;
 	--bs-pagination-disabled-bg: #fff;
 	--bs-pagination-disabled-border-color: #dee2e6;
+}
+
+/* More specific pagination overrides to ensure SpectrumX blue */
+.pagination .page-link {
+	color: #005a9c !important;
+	border-color: #dee2e6 !important;
+}
+
+.pagination .page-link:hover {
+	color: #004b80 !important;
+	background-color: #f8f9fa !important;
+	border-color: #005a9c !important;
+}
+
+.pagination .page-item.active .page-link {
+	background-color: #005a9c !important;
+	border-color: #005a9c !important;
+	color: #fff !important;
+}
+
+.pagination .page-item.disabled .page-link {
+	color: #6c757d !important;
+	background-color: #fff !important;
+	border-color: #dee2e6 !important;
+}
+
+/* Ensure pagination focus states use SpectrumX colors */
+.pagination .page-link:focus {
+	color: #005a9c !important;
+	background-color: #f8f9fa !important;
+	border-color: #005a9c !important;
+	box-shadow: 0 0 0 0.2rem rgba(0, 90, 156, 0.25) !important;
 }
 
 #selectAllBtn {

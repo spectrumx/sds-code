@@ -24,6 +24,8 @@
             <!-- This file stores project-specific CSS -->
             {% render_bundle 'project' 'css' %}
         {% endblock css %}
+        {% block head %}
+        {% endblock head %}
         <!-- Le javascript
     ================================================== -->
         {# Placed at the top of the document so pages load faster with defer #}
@@ -39,6 +41,7 @@
           id="body"
           style="display: none">
         {# djlint:on #}
+        <div class="top-gradient-bar"></div>
         <!-- Skip links for accessibility -->
         <a href="#main-content" class="skip-link">Skip to main content</a>
         <a href="#navigation" class="skip-link">Skip to navigation</a>
@@ -47,7 +50,6 @@
              aria-live="polite"
              aria-atomic="true"
              id="aria-live-region"></div>
-        <div class="top-gradient-bar"></div>
         <header class="site-header">
             <nav class="navbar navbar-expand-xl navbar-light bg-white"
                  id="navigation"

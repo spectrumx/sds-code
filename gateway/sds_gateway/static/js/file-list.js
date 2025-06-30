@@ -342,14 +342,20 @@ class FileListController {
 			const icon = header.querySelector(".sort-icon");
 
 			if (icon) {
+				// Reset classes
+				icon.className = "bi sort-icon";
+
 				if (currentSort === sortField) {
+					// Add active class and appropriate direction icon
+					icon.classList.add("active");
 					if (currentOrder === "desc") {
-						icon.className = "bi bi-sort-down sort-icon";
+						icon.classList.add("bi-caret-down-fill");
 					} else {
-						icon.className = "bi bi-sort-up sort-icon";
+						icon.classList.add("bi-caret-up-fill");
 					}
 				} else {
-					icon.className = "bi bi-arrow-down-up sort-icon";
+					// Inactive columns get default down arrow
+					icon.classList.add("bi-caret-down-fill");
 				}
 			}
 		}
@@ -577,7 +583,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		if (!hasResults || captures.length === 0) {
 			tbody.innerHTML = `
 				<tr>
-					<td colspan="8" class="text-center text-muted py-4">No captures found.</td>
+					<td colspan="7" class="text-center text-muted py-4">No captures found.</td>
 				</tr>
 			`;
 			return;
@@ -653,29 +659,6 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${FileListUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
 				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
 				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
-				<td>
-					<div class="dropdown">
-						<button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for ${safeData.uuid || "unknown capture"}">
-							<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-						</button>
-						<ul class="dropdown-menu">
-							<li><button class="dropdown-item view-capture-btn" type="button"
-								   data-uuid="${safeData.uuid}"
-								   data-channel="${safeData.channel}"
-								   data-scan-group="${safeData.scanGroup}"
-								   data-capture-type="${safeData.captureType}"
-								   data-top-level-dir="${safeData.topLevelDir}"
-								   data-owner="${safeData.owner}"
-								   data-origin="${safeData.origin}"
-								   data-dataset="${safeData.dataset}"
-								   data-created-at="${safeData.createdAt}"
-								   data-updated-at="${safeData.updatedAt}"
-								   data-is-public="${safeData.isPublic}"
-								   data-center-frequency-ghz="${safeData.centerFrequencyGhz}">View</button></li>
-							<li><button class="dropdown-item" type="button">Download</button></li>
-						</ul>
-					</div>
-				</td>
 			</tr>
 		`;
 	}
