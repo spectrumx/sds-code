@@ -33,6 +33,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     sample_rate_mhz = serializers.SerializerMethodField()
     files_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
+    formatted_created_at = serializers.SerializerMethodField()
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
@@ -98,6 +99,10 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
 
         # return the cached metadata for this specific object
         return self.parent.capture_props_cache.get(str(capture.uuid), {})
+
+    def get_formatted_created_at(self, capture: Capture) -> str:
+        """Get the created_at date in the desired format."""
+        return capture.created_at.strftime("%m/%d/%Y %I:%M:%S")
 
     class Meta:
         model = Capture
