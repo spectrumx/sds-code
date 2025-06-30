@@ -803,18 +803,39 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
     template_name = "users/dataset_list.html"
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
+        # Get sort parameters from URL
+        sort_by = request.GET.get("sort_by", "created_at")
+        sort_order = request.GET.get("sort_order", "desc")
+
+        # Define allowed sort fields
+        allowed_sort_fields = {"name", "created_at", "updated_at", "authors"}
+
+        # Apply sorting
+        if sort_by in allowed_sort_fields:
+            order_prefix = "-" if sort_order == "desc" else ""
+            order_by = f"{order_prefix}{sort_by}"
+        else:
+            # Default sorting
+            order_by = "-created_at"
+
+        # Get datasets with sorting applied
         datasets = (
-            request.user.datasets.filter(is_deleted=False).all().order_by("-created_at")
+            request.user.datasets.filter(is_deleted=False).all().order_by(order_by)
         )
+
+        # Serialize and paginate
         serializer = DatasetGetSerializer(datasets, many=True)
         paginator = Paginator(serializer.data, per_page=15)
         page_number = request.GET.get("page")
         page_obj = paginator.get_page(page_number)
+
         return render(
             request,
             template_name=self.template_name,
             context={
                 "page_obj": page_obj,
+                "sort_by": sort_by,
+                "sort_order": sort_order,
             },
         )
 
@@ -911,9 +932,48 @@ def _apply_sorting(
     sort_order: str = "desc",
 ):
     """Apply sorting to the queryset."""
-    if sort_order == "desc":
-        return qs.order_by(f"-{sort_by}")
-    return qs.order_by(sort_by)
+    # Define allowed sort fields (actual database fields only)
+    allowed_sort_fields = {
+        "uuid",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "is_deleted",
+        "is_public",
+        "channel",
+        "scan_group",
+        "capture_type",
+        "top_level_dir",
+        "index_name",
+        "owner",
+        "origin",
+        "dataset",
+    }
+
+    # Handle computed properties with meaningful fallbacks
+    computed_field_fallbacks = {
+        # Could be enhanced with OpenSearch sorting later
+        "center_frequency_ghz": "created_at",
+        "sample_rate_mhz": "created_at",
+    }
+
+    # Check if it's a computed field first
+    if sort_by in computed_field_fallbacks:
+        # For now, fall back to a meaningful sort field
+        # In the future, this could be enhanced to sort by OpenSearch data
+        fallback_field = computed_field_fallbacks[sort_by]
+        if sort_order == "desc":
+            return qs.order_by(f"-{fallback_field}")
+        return qs.order_by(fallback_field)
+
+    # Only apply sorting if the field is allowed
+    if sort_by in allowed_sort_fields:
+        if sort_order == "desc":
+            return qs.order_by(f"-{sort_by}")
+        return qs.order_by(sort_by)
+
+    # Default sorting if field is not recognized
+    return qs.order_by("-created_at")
 
 
 user_dataset_list_view = ListDatasetsView.as_view()

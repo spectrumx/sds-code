@@ -14,7 +14,7 @@
         <div class="main-content-area">
             <div class="container mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h1 class="page-title">Your Datasets</h1>
+                    <h1 class="page-title">Datasets</h1>
                     <a href="{% url 'users:group_captures' %}" class="btn btn-primary">
                         <i class="bi bi-plus-lg"></i> Add Dataset
                     </a>
@@ -113,7 +113,7 @@
                                 {% if page_obj.has_previous %}
                                     <li class="page-item">
                                         <a class="page-link"
-                                           href="?page={{ page_obj.previous_page_number }}"
+                                           href="?page={{ page_obj.previous_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
                                            aria-label="Previous">
                                             <span aria-hidden="true">«</span>
                                         </a>
@@ -132,14 +132,15 @@
                                         </li>
                                     {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
                                         <li class="page-item">
-                                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                            <a class="page-link"
+                                               href="?page={{ num }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">{{ num }}</a>
                                         </li>
                                     {% endif %}
                                 {% endfor %}
                                 {% if page_obj.has_next %}
                                     <li class="page-item">
                                         <a class="page-link"
-                                           href="?page={{ page_obj.next_page_number }}"
+                                           href="?page={{ page_obj.next_page_number }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
                                            aria-label="Next">
                                             <span aria-hidden="true">»</span>
                                         </a>
