@@ -81,12 +81,7 @@
                                    title="View capture details: {{ cap.uuid }}">{{ cap.uuid }}</a>
                             </td>
                             <td headers="channel-header">{{ cap.channel }}</td>
-                            <td headers="created-header">
-                                <time datetime="{{ cap.created_at|date:'c' }}"
-                                      data-date="{{ cap.created_at }}">
-                                    {{ cap.created_at|date:'m/d/Y' }}
-                                </time>
-                            </td>
+                            <td headers="created-header" class="text-nowrap">{{ cap.formatted_created_at }}</td>
                             <td headers="type-header">{{ cap.capture_type }}</td>
                             <td headers="files-header">
                                 {{ cap.files_count }}
