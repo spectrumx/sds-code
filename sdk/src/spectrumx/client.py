@@ -486,34 +486,12 @@ class Client:
         else:
             return capture
 
-    def _handle_existing_capture_error(
-        self,
-        err: SDSError,
-    ) -> tuple[bool, Capture | None]:
-        """
-        Handle the case where a capture already exists.
-        Returns True if handled, False otherwise.
-        """
-        if not isinstance(err, CaptureError):
-            return False, None
-
-        existing_uuid_str = err.extract_existing_capture_uuid()
-        if not existing_uuid_str:
-            return False, None
-
-        try:
-            existing_uuid = UUID(existing_uuid_str)
-            existing_capture = self.captures.read(capture_uuid=existing_uuid)
-        except (SDSError, ValueError):
-            return False, None
-        else:
-            return True, existing_capture
-
     def upload_multichannel_drf_capture(
         self,
         *,
         local_path: Path | str,
         sds_path: PurePosixPath | Path | str = "/",
+        index_name: str = "",
         channels: list[str],
         verbose: bool = True,
         warn_skipped: bool = False,
@@ -525,21 +503,23 @@ class Client:
         *Note: This method is only for DigitalRF captures.*
 
         Args:
-            local_path: The local path of the directory to upload.
-            sds_path: The virtual directory on SDS to upload the file to.
-            channels: The list of channels to create captures for.
-            verbose: Show progress bar and failure messages, if any.
-            warn_skipped: Display warnings for skipped files.
+            local_path:     The local path of the directory to upload.
+            sds_path:       The virtual directory on SDS to upload the file to.
+            index_name:     The SDS index name. Leave empty to automatically select.
+            channels:       A list of channel names to upload.
+            verbose:        Show progress bar and failure messages, if any.
+            warn_skipped:   Display warnings for skipped files.
             raise_on_error: When True, raises an exception if any file upload fails.
-                            If False, the method will return an empty list
-                            or None and log the errors.
+                            If False, the method will return None and log the errors.
         Returns:
-            A list of captures created for each channel,
-            or an empty list if any capture creation fails or no channels are provided.
+            The created capture object when all operations succeed.
         Raises:
             When `raise_on_error` is True.
-            FileError: If any file upload fails.
+            FileError:      If any file upload fails.
+            CaptureError:   If the capture creation fails.
         """
+
+        # Upload the files for the whole directory to SDS
         upload_results = self.upload(
             local_path=local_path,
             sds_path=sds_path,
@@ -555,40 +535,23 @@ class Client:
             return None
 
         captures: list[Capture] = []
-
-        if len(channels) == 0:
-            log_user_warning("No channels provided, skipping capture creation")
-            return captures
-
         for channel in channels:
             try:
                 capture = self.captures.create(
                     top_level_dir=PurePosixPath(sds_path),
                     capture_type=CaptureType.DigitalRF,
+                    index_name=index_name,
                     channel=channel,
                 )
-            except SDSError as err:
+            except SDSError:
+                if raise_on_error:
+                    raise
                 if verbose:
-                    log_user_error(
-                        f"Failed to create multi-channel capture for channel: {channel}"
-                    )
-                # If capture already exists, try to get it instead of
-                # deleting all captures
-                capture_found, existing_capture = self._handle_existing_capture_error(
-                    err
-                )
-                if capture_found:
-                    assert existing_capture is not None
-                    captures.append(existing_capture)
-                else:
-                    # Cleanup any created captures
-                    for created_capture in captures:
-                        if created_capture.uuid is not None:
-                            self.captures.delete(capture_uuid=created_capture.uuid)
-
-                    return []
+                    log_user_error("Failed to create capture.")
+                return None
             else:
                 captures.append(capture)
+
         return captures
 
 
