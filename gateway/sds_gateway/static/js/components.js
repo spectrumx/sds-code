@@ -59,12 +59,17 @@ class TableManager {
 			const field = header.getAttribute("data-sort");
 
 			if (icon) {
+				// Reset classes
 				icon.className = "bi sort-icon";
+
 				if (field === currentSort) {
+					// Add active class and appropriate direction icon
+					icon.classList.add("active");
 					icon.classList.add(
 						currentOrder === "asc" ? "bi-caret-up-fill" : "bi-caret-down-fill",
 					);
 				} else {
+					// Inactive columns get default down arrow
 					icon.classList.add("bi-caret-down-fill");
 				}
 			}
@@ -164,19 +169,6 @@ class CapturesTableManager extends TableManager {
                 <td>${capture.files_count || "0"}</td>
                 <td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
                 <td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
-                <td>
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
-                                type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                                aria-label="Actions for ${capture.uuid || "unknown capture"}">
-                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                        </button>
-                        <ul class="dropdown-menu">
-                            <li><button class="dropdown-item" type="button">View</button></li>
-                            <li><button class="dropdown-item" type="button">Download</button></li>
-                        </ul>
-                    </div>
-                </td>
             </tr>
         `;
 	}
