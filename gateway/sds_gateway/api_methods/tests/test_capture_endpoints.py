@@ -794,7 +794,6 @@ class CaptureTestCases(APITestCase):
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
             top_level_dir=multi_channel_dir,
-            is_multi_channel=True,
         )
 
         # Create second capture with same top_level_dir
@@ -804,7 +803,6 @@ class CaptureTestCases(APITestCase):
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
             top_level_dir=multi_channel_dir,
-            is_multi_channel=True,
         )
 
         # Test retrieve endpoint - should return composite

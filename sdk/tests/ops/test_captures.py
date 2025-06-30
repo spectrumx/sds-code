@@ -29,6 +29,8 @@ DRY_RUN: bool = False
 
 MULTICHANNEL_EXPECTED_COUNT = 2
 
+MULTICHANNEL_EXPECTED_COUNT = 2
+
 
 @pytest.fixture
 def sample_capture_uuid() -> UUID4:
@@ -61,14 +63,10 @@ def sample_capture_data(sample_capture_uuid: UUID4) -> dict[str, Any]:
     }
 
 
-def add_file_upload_mock(
-    client: Client,
-    responses: responses.RequestsMock,
-    directory: str = "/test/multichannel",
-) -> None:
+def add_file_upload_mock(responses, directory="/test/multichannel"):
     responses.add(
         method=responses.POST,
-        url=get_files_endpoint(client),
+        url="https://sds-dev.crc.nd.edu:443/api/v1/assets/files/",
         status=201,
         json={
             "uuid": str(uuidlib.uuid4()),
@@ -464,7 +462,7 @@ def test_upload_multichannel_drf_capture_success(
             json=mocked_response,
         )
 
-    add_file_upload_mock(client, responses)
+    add_file_upload_mock(responses)
 
     # ACT
     captures = client.upload_multichannel_drf_capture(
@@ -557,7 +555,7 @@ def test_upload_multichannel_drf_capture_existing_capture(
         },
     )
 
-    add_file_upload_mock(client, responses)
+    add_file_upload_mock(responses)
 
     # ACT
     captures = client.upload_multichannel_drf_capture(
@@ -571,6 +569,50 @@ def test_upload_multichannel_drf_capture_existing_capture(
     assert len(captures) == MULTICHANNEL_EXPECTED_COUNT
     assert captures[0].uuid == existing_uuid
     assert captures[1].uuid == new_uuid
+
+
+def test_upload_multichannel_drf_capture_upload_fails(
+    client: Client, responses: responses.RequestsMock, tmp_path: Path
+) -> None:
+    """Test multi-channel DRF capture when file upload fails."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    test_dir = tmp_path / "test_multichannel_drf"
+    test_dir.mkdir()
+    test_file = test_dir / "test.txt"
+    test_file.write_text("multi-channel capture upload test")
+
+    channels = ["channel1", "channel2"]
+
+    # Mock upload to fail
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=500,
+        json={"error": "Server error"},
+    )
+
+    add_file_upload_mock(responses)
+
+    # ACT & ASSERT
+    with pytest.raises(SDSError):
+        client.upload_multichannel_drf_capture(
+            local_path=test_dir,
+            sds_path="/test/multichannel/fail",
+            channels=channels,
+            raise_on_error=True,
+        )
+
+    # Test with raise_on_error=False
+    result = client.upload_multichannel_drf_capture(
+        local_path=test_dir,
+        sds_path="/test/multichannel/fail",
+        channels=channels,
+        raise_on_error=False,
+        verbose=False,
+    )
+
+    assert result is None
 
 
 def test_upload_multichannel_drf_capture_creation_fails(
@@ -631,7 +673,7 @@ def test_upload_multichannel_drf_capture_creation_fails(
         status=204,
     )
 
-    add_file_upload_mock(client, responses)
+    add_file_upload_mock(responses)
 
     # ACT
     result = client.upload_multichannel_drf_capture(
@@ -642,7 +684,7 @@ def test_upload_multichannel_drf_capture_creation_fails(
     )
 
     # ASSERT
-    assert result == []
+    assert result is None
 
 
 def test_capture_string_representation(sample_capture_data: dict[str, Any]) -> None:
