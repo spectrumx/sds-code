@@ -165,7 +165,7 @@
 /* Variables */
 $table-width: 100%;
 $lfs-yellow: #FFC107;
-$lfs-blue: #007BFF;
+$lfs-blue: #005a9c;
 $lfs-grey: #6C757D;
 
 /* Hero Content Filelist */
@@ -383,6 +383,16 @@ $lfs-grey: #6C757D;
           color: #212529;
           vertical-align: middle;
           background-color: inherit !important;
+
+          a {
+            color: $lfs-blue !important;
+            font-weight: 400;
+            text-decoration: underline;
+
+            &:hover {
+              color: darken($lfs-blue, 10%) !important;
+            }
+          }
         }
       }
     }
