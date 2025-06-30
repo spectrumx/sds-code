@@ -272,6 +272,15 @@ def search_captures(
         log.debug("No captures found in OpenSearch.")
         return capture_queryset.none()
 
+    # Check if we're approaching the maximum size limit
+    num_hits = len(capture_uuids)
+    if num_hits > 0.9 * MAX_OS_SIZE:
+        log.warning(
+            f"OpenSearch returned {num_hits:,} hits, which is close to the "
+            f"maximum size of {MAX_OS_SIZE:,}. Consider refactoring.",
+        )
+    log.debug(f"Found {len(capture_uuids)} matching captures.")
+
     # Filter the queryset to only include captures found in OpenSearch
     filtered_queryset = capture_queryset.filter(uuid__in=capture_uuids)
 
