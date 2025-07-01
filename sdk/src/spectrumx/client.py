@@ -11,6 +11,7 @@ from loguru import logger as log
 from pydantic import UUID4
 
 from spectrumx.api.captures import CaptureAPI
+from spectrumx.errors import CaptureError
 from spectrumx.errors import Result
 from spectrumx.errors import SDSError
 from spectrumx.errors import process_upload_results
@@ -486,35 +487,33 @@ class Client:
             return capture
 
     def _handle_existing_capture_error(
-        self, err: SDSError, captures: list[Capture]
-    ) -> bool:
+        self,
+        err: SDSError,
+    ) -> tuple[bool, Capture | None]:
         """
         Handle the case where a capture already exists.
         Returns True if handled, False otherwise.
         """
-        if "drf_unique_channel_and_tld" not in str(err).lower():
-            return False
+        if not isinstance(err, CaptureError):
+            return False, None
+
+        existing_uuid_str = err.extract_existing_capture_uuid()
+        if not existing_uuid_str:
+            return False, None
+
         try:
-            error_msg = str(err)
-            uuid_start = error_msg.find("another capture: ") + len("another capture: ")
-            uuid_end = error_msg.find(" ", uuid_start)
-            if uuid_end == -1:
-                uuid_end = len(error_msg)
-            existing_uuid_str = error_msg[uuid_start:uuid_end].strip()
             existing_uuid = UUID(existing_uuid_str)
             existing_capture = self.captures.read(capture_uuid=existing_uuid)
-            captures.append(existing_capture)
-        except (SDSError, ValueError, IndexError):
-            return False
+        except (SDSError, ValueError):
+            return False, None
         else:
-            return True
+            return True, existing_capture
 
     def upload_multichannel_drf_capture(
         self,
         *,
         local_path: Path | str,
         sds_path: PurePosixPath | Path | str = "/",
-        index_name: str = "",
         channels: list[str],
         verbose: bool = True,
         warn_skipped: bool = False,
@@ -524,6 +523,22 @@ class Client:
         once for the whole directory. Then, it creates a capture for each channel.
 
         *Note: This method is only for DigitalRF captures.*
+
+        Args:
+            local_path: The local path of the directory to upload.
+            sds_path: The virtual directory on SDS to upload the file to.
+            channels: The list of channels to create captures for.
+            verbose: Show progress bar and failure messages, if any.
+            warn_skipped: Display warnings for skipped files.
+            raise_on_error: When True, raises an exception if any file upload fails.
+                            If False, the method will return an empty list
+                            or None and log the errors.
+        Returns:
+            A list of captures created for each channel,
+            or an empty list if any capture creation fails or no channels are provided.
+        Raises:
+            When `raise_on_error` is True.
+            FileError: If any file upload fails.
         """
         upload_results = self.upload(
             local_path=local_path,
@@ -540,12 +555,16 @@ class Client:
             return None
 
         captures: list[Capture] = []
+
+        if len(channels) == 0:
+            log_user_warning("No channels provided, skipping capture creation")
+            return captures
+
         for channel in channels:
             try:
                 capture = self.captures.create(
                     top_level_dir=PurePosixPath(sds_path),
                     capture_type=CaptureType.DigitalRF,
-                    index_name=index_name,
                     channel=channel,
                 )
             except SDSError as err:
@@ -555,14 +574,19 @@ class Client:
                     )
                 # If capture already exists, try to get it instead of
                 # deleting all captures
-                if self._handle_existing_capture_error(err, captures):
-                    continue
+                capture_found, existing_capture = self._handle_existing_capture_error(
+                    err
+                )
+                if capture_found:
+                    assert existing_capture is not None
+                    captures.append(existing_capture)
+                else:
+                    # Cleanup any created captures
+                    for created_capture in captures:
+                        if created_capture.uuid is not None:
+                            self.captures.delete(capture_uuid=created_capture.uuid)
 
-                # Cleanup any created captures
-                for created_capture in captures:
-                    if created_capture.uuid is not None:
-                        self.captures.delete(capture_uuid=created_capture.uuid)
-                return None
+                    return []
             else:
                 captures.append(capture)
         return captures
