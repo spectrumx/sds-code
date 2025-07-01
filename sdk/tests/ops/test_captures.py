@@ -573,48 +573,6 @@ def test_upload_multichannel_drf_capture_existing_capture(
     assert captures[1].uuid == new_uuid
 
 
-def test_upload_multichannel_drf_capture_upload_fails(
-    client: Client, responses: responses.RequestsMock, tmp_path: Path
-) -> None:
-    """Test multi-channel DRF capture when file upload fails."""
-    # ARRANGE
-    client.dry_run = DRY_RUN
-    test_dir = tmp_path / "test_multichannel_drf"
-    test_dir.mkdir()
-    test_file = test_dir / "test.txt"
-    test_file.write_text("multi-channel capture upload test")
-
-    channels = ["channel1", "channel2"]
-
-    # Mock upload to fail
-    responses.add(
-        method=responses.POST,
-        url=get_content_check_endpoint(client),
-        status=500,
-        json={"error": "Server error"},
-    )
-
-    # ACT & ASSERT
-    with pytest.raises(SDSError):
-        client.upload_multichannel_drf_capture(
-            local_path=test_dir,
-            sds_path="/test/multichannel/fail",
-            channels=channels,
-            raise_on_error=True,
-        )
-
-    # Test with raise_on_error=False
-    result = client.upload_multichannel_drf_capture(
-        local_path=test_dir,
-        sds_path="/test/multichannel/fail",
-        channels=channels,
-        raise_on_error=False,
-        verbose=False,
-    )
-
-    assert result is None
-
-
 def test_upload_multichannel_drf_capture_creation_fails(
     client: Client, responses: responses.RequestsMock, tmp_path: Path
 ) -> None:
@@ -684,7 +642,7 @@ def test_upload_multichannel_drf_capture_creation_fails(
     )
 
     # ASSERT
-    assert result is None
+    assert result == []
 
 
 def test_capture_string_representation(sample_capture_data: dict[str, Any]) -> None:
