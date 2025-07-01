@@ -589,8 +589,6 @@ def test_upload_multichannel_drf_capture_upload_fails(
         json={"error": "Server error"},
     )
 
-    add_file_upload_mock(responses)
-
     # ACT & ASSERT
     with pytest.raises(SDSError):
         client.upload_multichannel_drf_capture(
