@@ -1,569 +1,791 @@
-/* File List Page JavaScript */
+/* File List Page JavaScript - Refactored with Components */
 
-document.addEventListener("DOMContentLoaded", () => {
-	console.log("File list script loaded!");
+/**
+ * Utility functions for security and common operations
+ */
+const FileListUtils = {
+	/**
+	 * Escapes HTML to prevent XSS attacks
+	 * @param {string} text - Text to escape
+	 * @returns {string} Escaped HTML
+	 */
+	escapeHtml(text) {
+		if (!text) return "";
+		const div = document.createElement("div");
+		div.textContent = text;
+		return div.innerHTML;
+	},
 
-	// Handle items per page change
-	const itemsPerPageSelect = document.getElementById("items-per-page");
-	if (itemsPerPageSelect) {
-		itemsPerPageSelect.addEventListener("change", (e) => {
-			const urlParams = new URLSearchParams(window.location.search);
-			urlParams.set("items_per_page", e.target.value);
-			urlParams.set("page", "1"); // Reset to first page when changing items per page
-			window.location.search = urlParams.toString();
-		});
-	}
-
-	// Initialize accordion behavior for frequency filter
-	const frequencyButton = document.querySelector(
-		'[data-bs-target="#collapseFrequency"]',
-	);
-	const frequencyCollapse = document.getElementById("collapseFrequency");
-
-	if (frequencyButton && frequencyCollapse) {
-		frequencyButton.addEventListener("click", (e) => {
-			e.preventDefault();
-
-			// Toggle classes manually
-			const isCollapsed = frequencyButton.classList.contains("collapsed");
-
-			if (isCollapsed) {
-				frequencyButton.classList.remove("collapsed");
-				frequencyButton.setAttribute("aria-expanded", "true");
-				frequencyCollapse.classList.add("show");
-			} else {
-				frequencyButton.classList.add("collapsed");
-				frequencyButton.setAttribute("aria-expanded", "false");
-				frequencyCollapse.classList.remove("show");
-			}
-		});
-	}
-
-	// Initialize accordion behavior for date filter
-	const dateButton = document.querySelector('[data-bs-target="#collapseDate"]');
-	const dateCollapse = document.getElementById("collapseDate");
-
-	if (dateButton && dateCollapse) {
-		dateButton.addEventListener("click", (e) => {
-			e.preventDefault();
-
-			// Toggle classes manually
-			const isCollapsed = dateButton.classList.contains("collapsed");
-
-			if (isCollapsed) {
-				dateButton.classList.remove("collapsed");
-				dateButton.setAttribute("aria-expanded", "true");
-				dateCollapse.classList.add("show");
-			} else {
-				dateButton.classList.add("collapsed");
-				dateButton.setAttribute("aria-expanded", "false");
-				dateCollapse.classList.remove("show");
-			}
-		});
-	}
-
-	// Track whether user has interacted with sliders
-	let userInteractedWithMin = false;
-	let userInteractedWithMax = false;
-
-	// Helper function to format file size
-	function formatFileSize(bytes) {
+	/**
+	 * Formats file size in human readable format
+	 * @param {number} bytes - File size in bytes
+	 * @returns {string} Formatted file size
+	 */
+	formatFileSize(bytes) {
 		if (bytes === 0) return "0 Bytes";
 		const k = 1024;
 		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
+	},
+
+	/**
+	 * Formats date for display
+	 * @param {string} dateString - ISO date string
+	 * @returns {string} Formatted date
+	 */
+	formatDate(dateString) {
+		if (!dateString) return "";
+		const date = new Date(dateString);
+		if (date.toString() === "Invalid Date") return "";
+
+		const month = String(date.getMonth() + 1).padStart(2, "0");
+		const day = String(date.getDate()).padStart(2, "0");
+		const year = date.getFullYear();
+		const hours = String(date.getHours() % 12 || 12).padStart(2, "0");
+		const minutes = String(date.getMinutes()).padStart(2, "0");
+		const seconds = String(date.getSeconds()).padStart(2, "0");
+
+		return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}`;
+	},
+};
+
+/**
+ * Configuration constants
+ */
+const CONFIG = {
+	DEBOUNCE_DELAY: 300,
+	DEFAULT_SORT_BY: "created_at",
+	DEFAULT_SORT_ORDER: "desc",
+	ELEMENT_IDS: {
+		SEARCH_INPUT: "search-input",
+		START_DATE: "start_date",
+		END_DATE: "end_date",
+		CENTER_FREQ_MIN: "centerFreqMinInput",
+		CENTER_FREQ_MAX: "centerFreqMaxInput",
+		APPLY_FILTERS: "apply-filters-btn",
+		CLEAR_FILTERS: "clear-filters-btn",
+		ITEMS_PER_PAGE: "items-per-page",
+	},
+};
+
+/**
+ * Main controller class for the file list page
+ */
+class FileListController {
+	constructor() {
+		this.userInteractedWithFrequency = false;
+		this.urlParams = new URLSearchParams(window.location.search);
+		this.currentSortBy =
+			this.urlParams.get("sort_by") || CONFIG.DEFAULT_SORT_BY;
+		this.currentSortOrder =
+			this.urlParams.get("sort_order") || CONFIG.DEFAULT_SORT_ORDER;
+
+		// Cache DOM elements
+		this.cacheElements();
+
+		// Initialize components
+		this.initializeComponents();
+
+		// Initialize functionality
+		this.initializeEventHandlers();
+		this.initializeFromURL();
+
+		// Initial setup
+		this.updateSortIcons();
+		this.tableManager.attachRowClickHandlers();
 	}
 
-	// AJAX Search functionality
-	const searchInput = document.getElementById("search-input");
-	const searchBtn = document.getElementById("search-btn");
-	const resetSearchBtn = document.getElementById("reset-search-btn");
-	const loadingIndicator = document.getElementById("loading-indicator");
-	const tableContainer = document.querySelector(".table-responsive");
-
-	// Date filter inputs
-	const startDateInput = document.getElementById("start_date");
-	const endDateInput = document.getElementById("end_date");
-
-	// Center frequency filter inputs
-	const centerFreqMin = document.getElementById("centerFreqMin");
-	const centerFreqMax = document.getElementById("centerFreqMax");
-	const centerFreqMinInput = document.getElementById("centerFreqMinInput");
-	const centerFreqMaxInput = document.getElementById("centerFreqMaxInput");
-	const minFreqDisplay = document.getElementById("minFreqDisplay");
-	const maxFreqDisplay = document.getElementById("maxFreqDisplay");
-	const frequencyTrack = document.getElementById("frequencyTrack");
-
-	// Filter buttons
-	const applyFiltersBtn = document.querySelector(".btn-primary[type='submit']");
-	const clearFiltersBtn = document.querySelector(".btn-primary[type='button']");
-
-	console.log("Elements found:", {
-		searchInput: !!searchInput,
-		searchBtn: !!searchBtn,
-		resetSearchBtn: !!resetSearchBtn,
-		loadingIndicator: !!loadingIndicator,
-		tableContainer: !!tableContainer,
-		startDateInput: !!startDateInput,
-		endDateInput: !!endDateInput,
-		centerFreqMin: !!centerFreqMin,
-		centerFreqMax: !!centerFreqMax,
-		centerFreqMinInput: !!centerFreqMinInput,
-		centerFreqMaxInput: !!centerFreqMaxInput,
-		applyFiltersBtn: !!applyFiltersBtn,
-		clearFiltersBtn: !!clearFiltersBtn,
-	});
-
-	// Get current sort parameters from URL
-	const urlParams = new URLSearchParams(window.location.search);
-	const currentSortBy = urlParams.get("sort_by") || "created_at";
-	const currentSortOrder = urlParams.get("sort_order") || "desc";
-
-	// Set initial date values from URL
-	if (urlParams.get("date_start")) {
-		startDateInput.value = urlParams.get("date_start");
-	}
-	if (urlParams.get("date_end")) {
-		endDateInput.value = urlParams.get("date_end");
+	/**
+	 * Cache frequently accessed DOM elements
+	 */
+	cacheElements() {
+		this.elements = {
+			searchInput: document.getElementById(CONFIG.ELEMENT_IDS.SEARCH_INPUT),
+			startDate: document.getElementById(CONFIG.ELEMENT_IDS.START_DATE),
+			endDate: document.getElementById(CONFIG.ELEMENT_IDS.END_DATE),
+			centerFreqMin: document.getElementById(
+				CONFIG.ELEMENT_IDS.CENTER_FREQ_MIN,
+			),
+			centerFreqMax: document.getElementById(
+				CONFIG.ELEMENT_IDS.CENTER_FREQ_MAX,
+			),
+			applyFilters: document.getElementById(CONFIG.ELEMENT_IDS.APPLY_FILTERS),
+			clearFilters: document.getElementById(CONFIG.ELEMENT_IDS.CLEAR_FILTERS),
+			itemsPerPage: document.getElementById(CONFIG.ELEMENT_IDS.ITEMS_PER_PAGE),
+			sortableHeaders: document.querySelectorAll("th.sortable"),
+			frequencyButton: document.querySelector(
+				'[data-bs-target="#collapseFrequency"]',
+			),
+			frequencyCollapse: document.getElementById("collapseFrequency"),
+			dateButton: document.querySelector('[data-bs-target="#collapseDate"]'),
+			dateCollapse: document.getElementById("collapseDate"),
+		};
 	}
 
-	// Only set frequency values if they exist in URL and are meaningful
-	if (urlParams.get("min_freq")?.trim()) {
-		const minFreq = Number.parseFloat(urlParams.get("min_freq"));
-		if (!Number.isNaN(minFreq)) {
-			centerFreqMinInput.value = minFreq;
-			if (centerFreqMin) centerFreqMin.value = minFreq;
-		}
-	}
-	if (urlParams.get("max_freq")?.trim()) {
-		const maxFreq = Number.parseFloat(urlParams.get("max_freq"));
-		if (!Number.isNaN(maxFreq)) {
-			centerFreqMaxInput.value = maxFreq;
-			if (centerFreqMax) centerFreqMax.value = maxFreq;
-		}
-	}
-
-	// Initialize dual range slider
-	if (centerFreqMin && centerFreqMax && frequencyTrack) {
-		console.log("Initializing dual range slider...");
-
-		// Set initial visual state without marking as interacted
-		centerFreqMin.value = centerFreqMin.min;
-		centerFreqMax.value = centerFreqMax.max;
-		centerFreqMinInput.value = centerFreqMin.min;
-		centerFreqMaxInput.value = centerFreqMax.max;
-
-		// Initialize track
-		updateTrack();
-
-		function updateTrack() {
-			const min = Number.parseFloat(centerFreqMin.min);
-			const max = Number.parseFloat(centerFreqMax.max);
-			const minVal = Number.parseFloat(centerFreqMin.value || min);
-			const maxVal = Number.parseFloat(centerFreqMax.value || max);
-
-			const minPercent = ((minVal - min) / (max - min)) * 100;
-			const maxPercent = ((maxVal - min) / (max - min)) * 100;
-
-			frequencyTrack.style.left = `${minPercent}%`;
-			frequencyTrack.style.width = `${maxPercent - minPercent}%`;
-
-			// Update displays
-			if (minFreqDisplay) {
-				minFreqDisplay.textContent = `${minVal.toFixed(1)} GHz`;
-			}
-			if (maxFreqDisplay) {
-				maxFreqDisplay.textContent = `${maxVal.toFixed(1)} GHz`;
-			}
-		}
-
-		// Add event listeners for user interaction
-		centerFreqMin.addEventListener("input", () => {
-			userInteractedWithMin = true;
-			validateRange();
+	/**
+	 * Initialize component managers
+	 */
+	initializeComponents() {
+		this.modalManager = new ModalManager({
+			modalId: "channelModal",
+			modalBodyId: "channelModalBody",
+			modalTitleId: "channelModalLabel",
 		});
 
-		centerFreqMax.addEventListener("input", () => {
-			userInteractedWithMax = true;
-			validateRange();
+		this.tableManager = new FileListCapturesTableManager({
+			tableId: "captures-table",
+			loadingIndicatorId: "loading-indicator",
+			tableContainerSelector: ".table-responsive",
+			resultsCountId: "results-count",
+			modalHandler: this.modalManager,
 		});
 
-		centerFreqMinInput.addEventListener("change", function () {
-			const val = Number.parseFloat(this.value);
-			if (this.value && !Number.isNaN(val) && val >= 0 && val <= 10) {
-				centerFreqMin.value = val;
-				userInteractedWithMin = true;
-				validateRange();
-			}
+		this.searchManager = new SearchManager({
+			searchInputId: CONFIG.ELEMENT_IDS.SEARCH_INPUT,
+			searchButtonId: "search-btn",
+			clearButtonId: "reset-search-btn",
+			searchFormId: "search-form",
+			onSearch: () => this.performSearch(),
+			debounceDelay: CONFIG.DEBOUNCE_DELAY,
 		});
 
-		centerFreqMaxInput.addEventListener("change", function () {
-			const val = Number.parseFloat(this.value);
-			if (this.value && !Number.isNaN(val) && val >= 0 && val <= 10) {
-				centerFreqMax.value = val;
-				userInteractedWithMax = true;
-				validateRange();
-			}
+		this.paginationManager = new PaginationManager({
+			containerId: "captures-pagination",
+			onPageChange: (page) => this.handlePageChange(page),
 		});
-
-		function validateRange() {
-			let minVal = Number.parseFloat(centerFreqMin.value);
-			let maxVal = Number.parseFloat(centerFreqMax.value);
-
-			if (minVal > maxVal) {
-				if (event.target === centerFreqMin) {
-					centerFreqMax.value = minVal;
-					maxVal = minVal;
-					userInteractedWithMax = true;
-				} else {
-					centerFreqMin.value = maxVal;
-					minVal = maxVal;
-					userInteractedWithMin = true;
-				}
-			}
-
-			centerFreqMinInput.value = minVal;
-			centerFreqMaxInput.value = maxVal;
-			updateTrack();
-		}
 	}
 
-	function performSearch() {
-		const searchQuery = searchInput.value.trim();
-		const startDate = startDateInput.value;
-		let endDate = endDateInput.value;
+	/**
+	 * Initialize all event handlers
+	 */
+	initializeEventHandlers() {
+		this.initializeTableSorting();
+		this.initializeAccordions();
+		this.initializeFrequencyHandling();
+		this.initializeItemsPerPageHandler();
+	}
 
-		// If end date is set, always include the full day by setting it to 23:59:59
+	/**
+	 * Initialize values from URL parameters
+	 */
+	initializeFromURL() {
+		// Set initial date values from URL
+		if (this.urlParams.get("date_start") && this.elements.startDate) {
+			this.elements.startDate.value = this.urlParams.get("date_start");
+		}
+		if (this.urlParams.get("date_end") && this.elements.endDate) {
+			this.elements.endDate.value = this.urlParams.get("date_end");
+		}
+
+		// Set frequency values if they exist in URL
+		this.initializeFrequencyFromURL();
+	}
+
+	/**
+	 * Handle page change events
+	 */
+	handlePageChange(page) {
+		const urlParams = new URLSearchParams(window.location.search);
+		urlParams.set("page", page.toString());
+		window.location.search = urlParams.toString();
+	}
+
+	/**
+	 * Build search parameters from form inputs
+	 */
+	buildSearchParams() {
+		const searchParams = new URLSearchParams();
+
+		const searchQuery = this.elements.searchInput?.value.trim() || "";
+		const startDate = this.elements.startDate?.value || "";
+		let endDate = this.elements.endDate?.value || "";
+
+		// If end date is set, include the full day
 		if (endDate) {
 			endDate = `${endDate}T23:59:59`;
 		}
 
-		// Build search URL for the dedicated API endpoint
-		const searchParams = new URLSearchParams();
+		// Add search parameters
 		if (searchQuery) searchParams.set("search", searchQuery);
 		if (startDate) searchParams.set("date_start", startDate);
 		if (endDate) searchParams.set("date_end", endDate);
 
-		// Only add frequency parameters if user has explicitly interacted with the slider
-		if (userInteractedWithMin || userInteractedWithMax) {
-			if (centerFreqMinInput?.value)
-				searchParams.set("min_freq", centerFreqMinInput.value);
-			if (centerFreqMaxInput?.value)
-				searchParams.set("max_freq", centerFreqMaxInput.value);
+		// Only add frequency parameters if user has explicitly interacted
+		if (this.userInteractedWithFrequency) {
+			if (this.elements.centerFreqMin?.value) {
+				searchParams.set("min_freq", this.elements.centerFreqMin.value);
+			}
+			if (this.elements.centerFreqMax?.value) {
+				searchParams.set("max_freq", this.elements.centerFreqMax.value);
+			}
 		}
 
-		searchParams.set("sort_by", currentSortBy);
-		searchParams.set("sort_order", currentSortOrder);
+		searchParams.set("sort_by", this.currentSortBy);
+		searchParams.set("sort_order", this.currentSortOrder);
 
-		// Show loading indicator
-		loadingIndicator.classList.remove("d-none");
-		tableContainer.style.opacity = "0.5";
+		return searchParams;
+	}
 
-		// Use the dedicated API endpoint
+	/**
+	 * Execute search API call
+	 */
+	async executeSearch(searchParams) {
 		const apiUrl = `${window.location.pathname.replace(/\/$/, "")}/api/?${searchParams.toString()}`;
-		console.log("API URL:", apiUrl);
 
-		fetch(apiUrl, {
+		const response = await fetch(apiUrl, {
 			method: "GET",
 			headers: {
 				Accept: "application/json",
 			},
-			credentials: "same-origin", // Include cookies for authentication
-		})
-			.then((response) => {
-				if (!response.ok) {
-					throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-				}
-				return response.text().then((text) => {
-					try {
-						return JSON.parse(text);
-					} catch (e) {
-						console.error("Invalid JSON response:", text);
-						throw new Error("Invalid JSON response from server");
-					}
-				});
-			})
-			.then((data) => {
-				if (data.error) {
-					throw new Error(`Server error: ${data.error}`);
-				}
-				// Update table with new data
-				updateTable(data.captures, data.has_results);
+			credentials: "same-origin",
+		});
 
-				// Update URL without page refresh (remove /api/ from the URL)
-				const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
-				window.history.pushState({}, "", newUrl);
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+		}
 
-				// Hide loading indicator
-				loadingIndicator.classList.add("d-none");
-				tableContainer.style.opacity = "1";
-			})
-			.catch((error) => {
-				console.error("Search error:", error);
-				// Hide loading indicator
-				loadingIndicator.classList.add("d-none");
-				tableContainer.style.opacity = "1";
-
-				// Show error message in the table instead of falling back
-				const tbody = document.querySelector("tbody");
-				tbody.innerHTML = `
-        <tr>
-          <td colspan="8" class="text-center text-danger py-4">
-            <i class="fas fa-exclamation-triangle"></i> Search failed: ${error.message}
-            <br><small class="text-muted">Try refreshing the page or contact support if the problem persists.</small>
-          </td>
-        </tr>
-      `;
-			});
+		const text = await response.text();
+		try {
+			return JSON.parse(text);
+		} catch (e) {
+			throw new Error("Invalid JSON response from server");
+		}
 	}
 
-	function updateTable(captures, hasResults) {
+	/**
+	 * Update UI with search results
+	 */
+	updateUI(data) {
+		if (data.error) {
+			throw new Error(`Server error: ${data.error}`);
+		}
+
+		this.tableManager.updateTable(data.captures || [], data.has_results);
+	}
+
+	/**
+	 * Update browser history without page refresh
+	 */
+	updateBrowserHistory(searchParams) {
+		const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
+		window.history.pushState({}, "", newUrl);
+	}
+
+	/**
+	 * Main search function - now broken down into smaller methods
+	 */
+	async performSearch() {
+		try {
+			this.tableManager.showLoading();
+
+			const searchParams = this.buildSearchParams();
+			const data = await this.executeSearch(searchParams);
+			this.updateUI(data);
+			this.updateBrowserHistory(searchParams);
+		} catch (error) {
+			console.error("Search error:", error);
+			this.tableManager.showError(`Search failed: ${error.message}`);
+		} finally {
+			this.tableManager.hideLoading();
+		}
+	}
+
+	/**
+	 * Initialize table sorting functionality
+	 */
+	initializeTableSorting() {
+		if (!this.elements.sortableHeaders) return;
+
+		for (const header of this.elements.sortableHeaders) {
+			header.style.cursor = "pointer";
+			header.addEventListener("click", () => this.handleSort(header));
+		}
+	}
+
+	/**
+	 * Handle sort click events
+	 */
+	handleSort(header) {
+		try {
+			const sortField = header.getAttribute("data-sort");
+			const currentSort = this.urlParams.get("sort_by");
+			const currentOrder = this.urlParams.get("sort_order") || "desc";
+
+			// Determine new sort order
+			let newOrder = "asc";
+			if (currentSort === sortField && currentOrder === "asc") {
+				newOrder = "desc";
+			}
+
+			// Build new URL with sort parameters
+			const urlParams = new URLSearchParams(window.location.search);
+			urlParams.set("sort_by", sortField);
+			urlParams.set("sort_order", newOrder);
+			urlParams.set("page", "1");
+
+			// Navigate to sorted results
+			window.location.search = urlParams.toString();
+		} catch (error) {
+			console.error("Error handling sort:", error);
+		}
+	}
+
+	/**
+	 * Update sort icons to show current sort state
+	 */
+	updateSortIcons() {
+		if (!this.elements.sortableHeaders) return;
+
+		const currentSort = this.urlParams.get("sort_by") || CONFIG.DEFAULT_SORT_BY;
+		const currentOrder = this.urlParams.get("sort_order") || "desc";
+
+		for (const header of this.elements.sortableHeaders) {
+			const sortField = header.getAttribute("data-sort");
+			const icon = header.querySelector(".sort-icon");
+
+			if (icon) {
+				// Reset classes
+				icon.className = "bi sort-icon";
+
+				if (currentSort === sortField) {
+					// Add active class and appropriate direction icon
+					icon.classList.add("active");
+					if (currentOrder === "desc") {
+						icon.classList.add("bi-caret-down-fill");
+					} else {
+						icon.classList.add("bi-caret-up-fill");
+					}
+				} else {
+					// Inactive columns get default down arrow
+					icon.classList.add("bi-caret-down-fill");
+				}
+			}
+		}
+	}
+
+	/**
+	 * Initialize accordion behavior
+	 */
+	initializeAccordions() {
+		// Frequency filter accordion
+		if (this.elements.frequencyButton && this.elements.frequencyCollapse) {
+			this.elements.frequencyButton.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.toggleAccordion(
+					this.elements.frequencyButton,
+					this.elements.frequencyCollapse,
+				);
+			});
+		}
+
+		// Date filter accordion
+		if (this.elements.dateButton && this.elements.dateCollapse) {
+			this.elements.dateButton.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.toggleAccordion(
+					this.elements.dateButton,
+					this.elements.dateCollapse,
+				);
+			});
+		}
+	}
+
+	/**
+	 * Helper function to toggle accordion state
+	 */
+	toggleAccordion(button, collapse) {
+		const isCollapsed = button.classList.contains("collapsed");
+
+		if (isCollapsed) {
+			button.classList.remove("collapsed");
+			button.setAttribute("aria-expanded", "true");
+			collapse.classList.add("show");
+		} else {
+			button.classList.add("collapsed");
+			button.setAttribute("aria-expanded", "false");
+			collapse.classList.remove("show");
+		}
+	}
+
+	/**
+	 * Initialize frequency handling
+	 */
+	initializeFrequencyHandling() {
+		// Add event listeners to track user interaction with frequency inputs
+		if (this.elements.centerFreqMin) {
+			this.elements.centerFreqMin.addEventListener("change", () => {
+				this.userInteractedWithFrequency = true;
+			});
+		}
+
+		if (this.elements.centerFreqMax) {
+			this.elements.centerFreqMax.addEventListener("change", () => {
+				this.userInteractedWithFrequency = true;
+			});
+		}
+
+		// Apply filters button
+		if (this.elements.applyFilters) {
+			this.elements.applyFilters.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.performSearch();
+			});
+		}
+
+		// Clear filters button
+		if (this.elements.clearFilters) {
+			this.elements.clearFilters.addEventListener("click", (e) => {
+				e.preventDefault();
+				this.clearAllFilters();
+			});
+		}
+	}
+
+	/**
+	 * Clear all filter inputs
+	 */
+	clearAllFilters() {
+		// Reset all filter inputs
+		if (this.elements.searchInput) this.elements.searchInput.value = "";
+		if (this.elements.startDate) this.elements.startDate.value = "";
+		if (this.elements.endDate) this.elements.endDate.value = "";
+		if (this.elements.centerFreqMin) this.elements.centerFreqMin.value = "";
+		if (this.elements.centerFreqMax) this.elements.centerFreqMax.value = "";
+
+		// Reset interaction tracking
+		this.userInteractedWithFrequency = false;
+
+		// Redirect to base URL to show original table state
+		window.location.href = window.location.pathname;
+	}
+
+	/**
+	 * Initialize items per page handler
+	 */
+	initializeItemsPerPageHandler() {
+		if (this.elements.itemsPerPage) {
+			this.elements.itemsPerPage.addEventListener("change", (e) => {
+				const urlParams = new URLSearchParams(window.location.search);
+				urlParams.set("items_per_page", e.target.value);
+				urlParams.set("page", "1");
+				window.location.search = urlParams.toString();
+			});
+		}
+	}
+
+	/**
+	 * Initialize frequency range from URL parameters
+	 */
+	initializeFrequencyFromURL() {
+		if (!this.elements.centerFreqMin || !this.elements.centerFreqMax) return;
+
+		const minFreq = Number.parseFloat(this.urlParams.get("min_freq"));
+		const maxFreq = Number.parseFloat(this.urlParams.get("max_freq"));
+
+		if (!Number.isNaN(minFreq)) {
+			this.elements.centerFreqMin.value = minFreq;
+			this.userInteractedWithFrequency = true;
+		}
+		if (!Number.isNaN(maxFreq)) {
+			this.elements.centerFreqMax.value = maxFreq;
+			this.userInteractedWithFrequency = true;
+		}
+
+		// Update noUiSlider if it exists
+		if (this.userInteractedWithFrequency) {
+			this.initializeFrequencySlider();
+		}
+	}
+
+	initializeFrequencySlider() {
+		try {
+			const frequencyRangeSlider = document.getElementById(
+				"frequency-range-slider",
+			);
+			if (frequencyRangeSlider?.noUiSlider) {
+				const currentValues = frequencyRangeSlider.noUiSlider.get();
+				const newMin = !Number.isNaN(minFreq)
+					? minFreq
+					: Number.parseFloat(currentValues[0]);
+				const newMax = !Number.isNaN(maxFreq)
+					? maxFreq
+					: Number.parseFloat(currentValues[1]);
+
+				frequencyRangeSlider.noUiSlider.set([newMin, newMax]);
+			}
+		} catch (error) {
+			console.error("Error initializing frequency slider:", error);
+		}
+	}
+}
+
+/**
+ * Enhanced CapturesTableManager for file list specific functionality
+ */
+class FileListCapturesTableManager extends CapturesTableManager {
+	constructor(options) {
+		super(options);
+		this.resultsCountElement = document.getElementById(options.resultsCountId);
+		this.eventDelegationHandler = null;
+		this.initializeEventDelegation();
+	}
+
+	/**
+	 * Initialize event delegation for better performance and memory management
+	 */
+	initializeEventDelegation() {
+		// Remove existing handler if it exists
+		if (this.eventDelegationHandler) {
+			document.removeEventListener("click", this.eventDelegationHandler);
+		}
+
+		// Create single persistent event handler using delegation
+		this.eventDelegationHandler = (e) => {
+			// Handle capture link clicks
+			if (
+				e.target.matches(".capture-link") ||
+				e.target.closest(".capture-link")
+			) {
+				e.preventDefault();
+				const link = e.target.matches(".capture-link")
+					? e.target
+					: e.target.closest(".capture-link");
+				this.openCaptureModal(link);
+				return;
+			}
+
+			// Handle view button clicks
+			if (
+				e.target.matches(".view-capture-btn") ||
+				e.target.closest(".view-capture-btn")
+			) {
+				e.preventDefault();
+				const button = e.target.matches(".view-capture-btn")
+					? e.target
+					: e.target.closest(".view-capture-btn");
+				this.openCaptureModal(button);
+				return;
+			}
+		};
+
+		// Add the persistent event listener
+		document.addEventListener("click", this.eventDelegationHandler);
+	}
+
+	/**
+	 * Update table with new data
+	 */
+	updateTable(captures, hasResults) {
 		const tbody = document.querySelector("tbody");
+		if (!tbody) return;
+
+		// Update results count
+		this.updateResultsCount(captures, hasResults);
 
 		if (!hasResults || captures.length === 0) {
 			tbody.innerHTML = `
-        <tr>
-          <td colspan="8" class="text-center text-muted py-4">No captures found.</td>
-        </tr>
-      `;
+				<tr>
+					<td colspan="7" class="text-center text-muted py-4">No captures found.</td>
+				</tr>
+			`;
 			return;
 		}
 
-		let tableHTML = "";
-		for (const cap of captures) {
-			tableHTML += `
-        <tr class="capture-row"
-            data-uuid="${cap.uuid || ""}"
-            data-channel="${cap.channel || ""}"
-            data-scan-group="${cap.scan_group || ""}"
-            data-capture-type="${cap.capture_type || ""}"
-            data-top-level-dir="${cap.top_level_dir || ""}"
-            data-index-name="${cap.index_name || ""}"
-            data-owner="${cap.owner || ""}"
-            data-origin="${cap.origin || ""}"
-            data-dataset="${cap.dataset || ""}"
-            data-created-at="${cap.created_at || ""}"
-            data-updated-at="${cap.updated_at || ""}"
-            data-is-public="${cap.is_public || ""}"
-            data-is-deleted="${cap.is_deleted || ""}">
-          <td>${cap.uuid || ""}</td>
-          <td>${cap.channel || ""}</td>
-          <td>${cap.created_at ? (new Date(cap.created_at).toString() !== "Invalid Date" ? `${new Date(cap.created_at).toLocaleString()} UTC` : "") : ""}</td>
-          <td>${cap.capture_type || ""}</td>
-          <td>${cap.files_count || "0"}${cap.total_file_size ? ` / <span class="text-muted">${formatFileSize(cap.total_file_size)}</span>` : ""}</td>
-          <td>${cap.center_frequency_ghz ? `${cap.center_frequency_ghz.toFixed(3)} GHz` : '<span class="text-muted">-</span>'}</td>
-          <td>${cap.sample_rate_mhz ? `${cap.sample_rate_mhz.toFixed(1)} MHz` : '<span class="text-muted">-</span>'}</td>
-        </tr>
-      `;
-		}
-
+		// Build table HTML efficiently
+		const tableHTML = captures
+			.map((capture, index) => this.renderRow(capture, index))
+			.join("");
 		tbody.innerHTML = tableHTML;
-
-		// Re-attach click handlers to new rows
-		attachRowClickHandlers();
 	}
 
-	function attachRowClickHandlers() {
-		const captureRows = document.querySelectorAll(".capture-row");
-		for (const row of captureRows) {
-			row.addEventListener("click", function (e) {
-				e.preventDefault();
-				openCaptureModal(this);
-			});
+	/**
+	 * Update results count display
+	 */
+	updateResultsCount(captures, hasResults) {
+		if (this.resultsCountElement) {
+			const count = hasResults && captures ? captures.length : 0;
+			const pluralSuffix = count === 1 ? "" : "s";
+			this.resultsCountElement.textContent = `${count} capture${pluralSuffix} found`;
 		}
 	}
 
-	// Search on button click
-	searchBtn.addEventListener("click", performSearch);
+	/**
+	 * Render individual table row with XSS protection
+	 */
+	renderRow(capture, index) {
+		// Sanitize all data before rendering
+		const safeData = {
+			uuid: FileListUtils.escapeHtml(capture.uuid || ""),
+			channel: FileListUtils.escapeHtml(capture.channel || ""),
+			scanGroup: FileListUtils.escapeHtml(capture.scan_group || ""),
+			captureType: FileListUtils.escapeHtml(capture.capture_type || ""),
+			topLevelDir: FileListUtils.escapeHtml(capture.top_level_dir || ""),
+			indexName: FileListUtils.escapeHtml(capture.index_name || ""),
+			owner: FileListUtils.escapeHtml(capture.owner || ""),
+			origin: FileListUtils.escapeHtml(capture.origin || ""),
+			dataset: FileListUtils.escapeHtml(capture.dataset || ""),
+			createdAt: FileListUtils.escapeHtml(capture.created_at || ""),
+			updatedAt: FileListUtils.escapeHtml(capture.updated_at || ""),
+			isPublic: FileListUtils.escapeHtml(capture.is_public || ""),
+			isDeleted: FileListUtils.escapeHtml(capture.is_deleted || ""),
+			centerFrequencyGhz: FileListUtils.escapeHtml(
+				capture.center_frequency_ghz || "",
+			),
+		};
 
-	// Apply filters button
-	if (applyFiltersBtn) {
-		applyFiltersBtn.addEventListener("click", (e) => {
-			e.preventDefault();
-			console.log("Apply filters clicked");
-			performSearch();
-		});
+		return `
+			<tr class="capture-row">
+				<td>
+					<a href="#" class="capture-link"
+					   data-uuid="${safeData.uuid}"
+					   data-channel="${safeData.channel}"
+					   data-scan-group="${safeData.scanGroup}"
+					   data-capture-type="${safeData.captureType}"
+					   data-top-level-dir="${safeData.topLevelDir}"
+					   data-index-name="${safeData.indexName}"
+					   data-owner="${safeData.owner}"
+					   data-origin="${safeData.origin}"
+					   data-dataset="${safeData.dataset}"
+					   data-created-at="${safeData.createdAt}"
+					   data-updated-at="${safeData.updatedAt}"
+					   data-is-public="${safeData.isPublic}"
+					   data-is-deleted="${safeData.isDeleted}"
+					   data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
+					   aria-label="View details for ${safeData.uuid || "unknown capture"}">
+						${safeData.uuid}
+					</a>
+				</td>
+				<td>${safeData.channel}</td>
+				<td>${FileListUtils.formatDate(capture.created_at)}</td>
+				<td>${safeData.captureType}</td>
+				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${FileListUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
+				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
+				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
+			</tr>
+		`;
 	}
 
-	// Clear filters button
-	if (clearFiltersBtn) {
-		clearFiltersBtn.addEventListener("click", (e) => {
-			e.preventDefault();
-			console.log("Clear filters clicked");
-
-			// Reset all filter inputs to empty values
-			searchInput.value = "";
-			if (startDateInput) startDateInput.value = "";
-			if (endDateInput) endDateInput.value = "";
-
-			// Clear frequency sliders completely - set to empty values, not min/max
-			if (centerFreqMin) {
-				centerFreqMin.value = "";
-			}
-			if (centerFreqMax) {
-				centerFreqMax.value = "";
-			}
-			if (centerFreqMinInput) {
-				centerFreqMinInput.value = "";
-			}
-			if (centerFreqMaxInput) {
-				centerFreqMaxInput.value = "";
-			}
-
-			// Reset interaction tracking
-			if (typeof userInteractedWithMin !== "undefined") {
-				userInteractedWithMin = false;
-				userInteractedWithMax = false;
-			}
-
-			// Update the visual slider track to show no selection
-			if (centerFreqMin && centerFreqMax && frequencyTrack) {
-				updateTrack(); // This will now show empty state
-			}
-
-			// Redirect to base URL to show original table state
-			window.location.href = window.location.pathname;
-		});
+	/**
+	 * Attach row click handlers - now uses event delegation
+	 */
+	attachRowClickHandlers() {
+		// Event delegation is handled in initializeEventDelegation()
+		// This method is kept for compatibility but doesn't need to do anything
 	}
 
-	// Reset search button click
-	if (resetSearchBtn) {
-		console.log("Attaching reset search event listener...");
-		resetSearchBtn.addEventListener("click", () => {
-			console.log("Reset search button clicked!");
-			console.log("Current search value before reset:", searchInput.value);
-			searchInput.value = "";
-			console.log("Search value after reset:", searchInput.value);
-			console.log("Calling performSearch...");
-			performSearch();
-		});
-		console.log("Reset search event listener attached successfully");
-	} else {
-		console.error("Reset search button not found!");
-	}
+	/**
+	 * Open capture modal with XSS protection
+	 */
+	openCaptureModal(link) {
+		try {
+			// Get all data attributes from the link with sanitization
+			const data = {
+				uuid: FileListUtils.escapeHtml(link.getAttribute("data-uuid") || ""),
+				channel: FileListUtils.escapeHtml(
+					link.getAttribute("data-channel") || "",
+				),
+				scanGroup: FileListUtils.escapeHtml(
+					link.getAttribute("data-scan-group") || "",
+				),
+				captureType: FileListUtils.escapeHtml(
+					link.getAttribute("data-capture-type") || "",
+				),
+				topLevelDir: FileListUtils.escapeHtml(
+					link.getAttribute("data-top-level-dir") || "",
+				),
+				owner: FileListUtils.escapeHtml(link.getAttribute("data-owner") || ""),
+				origin: FileListUtils.escapeHtml(
+					link.getAttribute("data-origin") || "",
+				),
+				dataset: FileListUtils.escapeHtml(
+					link.getAttribute("data-dataset") || "",
+				),
+				createdAt: link.getAttribute("data-created-at") || "",
+				updatedAt: link.getAttribute("data-updated-at") || "",
+				isPublic: link.getAttribute("data-is-public") || "",
+				centerFrequencyGhz:
+					link.getAttribute("data-center-frequency-ghz") || "",
+			};
 
-	// Search on Enter key
-	searchInput.addEventListener("keypress", (e) => {
-		if (e.key === "Enter") {
-			e.preventDefault();
-			performSearch();
-		}
-	});
+			// Parse owner field safely
+			const ownerDisplay = data.owner
+				? data.owner.split("'").find((part) => part.includes("@")) || "N/A"
+				: "N/A";
 
-	// Modal logic for capture row clicks
-	let currentModal = null; // Track the current modal instance
-
-	function openCaptureModal(row) {
-		const modalElement = document.getElementById("channelModal");
-		if (!modalElement) {
-			console.error("Modal element not found!");
-			return;
-		}
-
-		// Get all data attributes
-		const uuid = row.getAttribute("data-uuid");
-		const channel = row.getAttribute("data-channel");
-		const scanGroup = row.getAttribute("data-scan-group");
-		const captureType = row.getAttribute("data-capture-type");
-		const topLevelDir = row.getAttribute("data-top-level-dir");
-		const indexName = row.getAttribute("data-index-name");
-		const owner = row.getAttribute("data-owner");
-		const origin = row.getAttribute("data-origin");
-		const dataset = row.getAttribute("data-dataset");
-		const createdAt = row.getAttribute("data-created-at");
-		const updatedAt = row.getAttribute("data-updated-at");
-		const isPublic = row.getAttribute("data-is-public");
-		const isDeleted = row.getAttribute("data-is-deleted");
-
-		const modalBody = document.getElementById("channelModalBody");
-		if (modalBody) {
-			modalBody.innerHTML = `
+			const modalContent = `
 				<div class="mb-4">
 					<h6>Basic Information</h6>
-					<p><strong>UUID:</strong> ${uuid || "N/A"}</p>
-					<p><strong>Index Name:</strong> ${indexName || "N/A"}</p>
-					<p><strong>Channel:</strong> ${channel || "N/A"}</p>
-					<p><strong>Capture Type:</strong> ${captureType || "N/A"}</p>
-					<p><strong>Origin:</strong> ${origin || "N/A"}</p>
-					<p><strong>Owner:</strong> ${owner ? owner.split("'").find((part) => part.includes("@")) || "N/A" : "N/A"}</p>
+					<p><strong>UUID:</strong> ${data.uuid || "N/A"}</p>
+					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
+					<p><strong>Capture Type:</strong> ${data.captureType || "N/A"}</p>
+					<p><strong>Origin:</strong> ${data.origin || "N/A"}</p>
+					<p><strong>Owner:</strong> ${ownerDisplay}</p>
 				</div>
 				<div class="mb-4">
 					<h6>Technical Details</h6>
-					<p><strong>Scan Group:</strong> ${scanGroup || "N/A"}</p>
-					<p><strong>Top Level Directory:</strong> ${topLevelDir || "N/A"}</p>
-					<p><strong>Dataset:</strong> ${dataset || "N/A"}</p>
-					<p><strong>Is Public:</strong> ${isPublic === "True" ? "Yes" : "No"}</p>
-					<p><strong>Is Deleted:</strong> ${isDeleted === "True" ? "Yes" : "No"}</p>
+					<p><strong>Scan Group:</strong> ${data.scanGroup || "N/A"}</p>
+					<p><strong>Top Level Directory:</strong> ${data.topLevelDir || "N/A"}</p>
+					<p><strong>Dataset:</strong> ${data.dataset || "N/A"}</p>
+					<p><strong>Center Frequency:</strong> ${data.centerFrequencyGhz && data.centerFrequencyGhz !== "None" ? `${Number.parseFloat(data.centerFrequencyGhz).toFixed(3)} GHz` : "N/A"}</p>
+					<p><strong>Is Public:</strong> ${data.isPublic === "True" ? "Yes" : "No"}</p>
 				</div>
 				<div>
 					<h6>Timestamps</h6>
-					<p><strong>Created At:</strong> ${createdAt && createdAt !== "None" ? `${new Date(createdAt).toLocaleString()} UTC` : "N/A"}</p>
-					<p><strong>Updated At:</strong> ${updatedAt && updatedAt !== "None" ? `${new Date(updatedAt).toLocaleString()} UTC` : "N/A"}</p>
+					<p><strong>Created At:</strong> ${data.createdAt && data.createdAt !== "None" ? `${new Date(data.createdAt).toLocaleString()} UTC` : "N/A"}</p>
+					<p><strong>Updated At:</strong> ${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}</p>
 				</div>
 			`;
 
-			// Update modal title
-			const modalTitle = document.getElementById("channelModalLabel");
-			if (modalTitle) {
-				modalTitle.textContent = `Capture Details - ${indexName || channel || "Unknown"}`;
-			}
-
-			// Try to use Bootstrap Modal if available, otherwise fallback to basic show/hide
-			if (typeof bootstrap !== "undefined") {
-				// Dispose of any existing modal instance first
-				if (currentModal) {
-					currentModal.dispose();
-					currentModal = null;
-				}
-
-				currentModal = new bootstrap.Modal(modalElement);
-				currentModal.show();
-
-				// Add event listener for cleanup
-				modalElement.addEventListener(
-					"hidden.bs.modal",
-					() => {
-						if (currentModal) {
-							currentModal.dispose();
-							currentModal = null;
-						}
-						// Clean up backdrop and body classes
-						const backdrop = document.querySelector(".modal-backdrop");
-						if (backdrop) backdrop.remove();
-						document.body.classList.remove("modal-open");
-						document.body.style.removeProperty("overflow");
-						document.body.style.removeProperty("padding-right");
-					},
-					{ once: true },
-				);
-			} else {
-				// Basic fallback if Bootstrap is not available
-				modalElement.style.display = "block";
-				modalElement.classList.add("show");
-				document.body.classList.add("modal-open");
-
-				// Add backdrop
-				const backdrop = document.createElement("div");
-				backdrop.className = "modal-backdrop fade show";
-				document.body.appendChild(backdrop);
-
-				// Handle close button clicks
-				const closeButtons = modalElement.querySelectorAll(
-					"[data-bs-dismiss='modal']",
-				);
-				for (const button of closeButtons) {
-					button.addEventListener("click", () => {
-						modalElement.style.display = "none";
-						modalElement.classList.remove("show");
-						document.body.classList.remove("modal-open");
-						backdrop.remove();
-					});
-				}
-			}
+			const title = `Capture Details - ${data.channel || "Unknown"}`;
+			this.modalHandler.show(title, modalContent);
+		} catch (error) {
+			console.error("Error opening capture modal:", error);
+			this.showError("Error displaying capture details");
 		}
 	}
 
-	// Initial setup for existing rows
-	attachRowClickHandlers();
+	/**
+	 * Show error message with improved styling
+	 */
+	showError(message) {
+		const tbody = document.querySelector("tbody");
+		if (tbody) {
+			tbody.innerHTML = `
+				<tr>
+					<td colspan="8" class="text-center text-danger py-4">
+						<i class="fas fa-exclamation-triangle"></i> ${FileListUtils.escapeHtml(message)}
+						<br><small class="text-muted">Try refreshing the page or contact support if the problem persists.</small>
+					</td>
+				</tr>
+			`;
+		}
+	}
+
+	/**
+	 * Cleanup method for proper resource management
+	 */
+	destroy() {
+		if (this.eventDelegationHandler) {
+			document.removeEventListener("click", this.eventDelegationHandler);
+			this.eventDelegationHandler = null;
+		}
+	}
+}
+
+// Expose frequency slider initialization function globally for backward compatibility
+window.initializeFrequencySlider = () => {
+	// This function is called from the template
+	if (window.fileListController) {
+		window.fileListController.initializeFrequencyFromURL();
+	}
+};
+
+// Initialize the application when DOM is loaded
+document.addEventListener("DOMContentLoaded", () => {
+	try {
+		window.fileListController = new FileListController();
+	} catch (error) {
+		console.error("Error initializing file list controller:", error);
+	}
 });

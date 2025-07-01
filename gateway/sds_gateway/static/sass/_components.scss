@@ -1,3 +1,14 @@
+/* Top Gradient Bar */
+.top-gradient-bar {
+  height: 4px;
+  background: linear-gradient(to right, #f9c97d, #f2a2a4, #e27bb1, #bf5ce1, #7f5ae1, #5ab9e6, #59d5e0);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
 /* Hero Section */
 .hero {
   background-color: var(--primary-color);
@@ -154,7 +165,7 @@
 /* Variables */
 $table-width: 100%;
 $lfs-yellow: #FFC107;
-$lfs-blue: #007BFF;
+$lfs-blue: #005a9c;
 $lfs-grey: #6C757D;
 
 /* Hero Content Filelist */
@@ -226,17 +237,17 @@ $lfs-grey: #6C757D;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 20px;
+  padding: 10px;
   max-width: 100%;
-  margin: 0 0.5rem;
+  margin: 0;
   position: relative;
   z-index: 1;
 }
 
 .content-grid {
   display: grid;
-  grid-template-columns: 250px 1fr;
-  gap: 20px;
+  grid-template-columns: 380px 1fr;
+  gap: 10px;
   align-items: start;
 }
 
@@ -250,7 +261,7 @@ $lfs-grey: #6C757D;
   gap: 0.75rem;
   position: relative;
   z-index: 1;
-  padding: 1.5rem 0 4rem;
+  padding: 1rem 0 4rem;
 }
 
 .table-and-pagination {
@@ -296,7 +307,7 @@ $lfs-grey: #6C757D;
   overflow: auto;
   position: relative;
   margin-bottom: 0;
-  max-height: calc(100vh - 420px);
+  max-height: calc(100vh - 250px);
   background: white;
   padding: 1rem;
   z-index: 1;
@@ -372,6 +383,16 @@ $lfs-grey: #6C757D;
           color: #212529;
           vertical-align: middle;
           background-color: inherit !important;
+
+          a {
+            color: $lfs-blue !important;
+            font-weight: 400;
+            text-decoration: underline;
+
+            &:hover {
+              color: darken($lfs-blue, 10%) !important;
+            }
+          }
         }
       }
     }
@@ -618,7 +639,6 @@ $lfs-grey: #6C757D;
 
 
 html, body {
-  overflow: hidden; /* Prevent page-level scrolling */
   height: 100%;
   margin: 0;
   padding: 0;
@@ -663,13 +683,14 @@ html, body {
 
 /* Step number colors for different button states */
 .btn-primary .step-number {
-  background-color: #fff;
-  color: #0d6efd;
+  background-color: #005a9c;
+  color: #fff;
 }
 
 .btn-outline-primary .step-number {
-  background-color: #0d6efd;
-  color: #fff;
+  background-color: transparent;
+  color: #005a9c;
+  border: 1px solid #005a9c;
 }
 
 /* Captures Table Styles */
@@ -813,4 +834,20 @@ html, body {
         cursor: pointer;
       }
     }
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.action-buttons .btn {
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.download-dataset-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
