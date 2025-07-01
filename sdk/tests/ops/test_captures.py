@@ -20,6 +20,7 @@ from spectrumx.models.captures import CaptureType
 
 from tests.conftest import get_captures_endpoint
 from tests.conftest import get_content_check_endpoint
+from tests.conftest import get_files_endpoint
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
@@ -60,10 +61,14 @@ def sample_capture_data(sample_capture_uuid: UUID4) -> dict[str, Any]:
     }
 
 
-def add_file_upload_mock(responses, directory="/test/multichannel"):
+def add_file_upload_mock(
+    client: Client,
+    responses: responses.RequestsMock,
+    directory: str = "/test/multichannel",
+) -> None:
     responses.add(
         method=responses.POST,
-        url="https://sds-dev.crc.nd.edu:443/api/v1/assets/files/",
+        url=get_files_endpoint(client),
         status=201,
         json={
             "uuid": str(uuidlib.uuid4()),
@@ -459,7 +464,7 @@ def test_upload_multichannel_drf_capture_success(
             json=mocked_response,
         )
 
-    add_file_upload_mock(responses)
+    add_file_upload_mock(client, responses)
 
     # ACT
     captures = client.upload_multichannel_drf_capture(
@@ -552,7 +557,7 @@ def test_upload_multichannel_drf_capture_existing_capture(
         },
     )
 
-    add_file_upload_mock(responses)
+    add_file_upload_mock(client, responses)
 
     # ACT
     captures = client.upload_multichannel_drf_capture(
@@ -668,7 +673,7 @@ def test_upload_multichannel_drf_capture_creation_fails(
         status=204,
     )
 
-    add_file_upload_mock(responses)
+    add_file_upload_mock(client, responses)
 
     # ACT
     result = client.upload_multichannel_drf_capture(
