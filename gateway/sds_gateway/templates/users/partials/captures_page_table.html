@@ -13,7 +13,7 @@
         <table class="table table-striped table-hover table-sm captures-table-fixed"
                aria-labelledby="search-results-heading">
             <caption id="search-results-heading" class="visually-hidden">
-                Search results for captures showing UUID, channel, creation date, type, file count, center frequency, and sample rate
+                Search results for captures showing UUID, channel, creation date, type, author, file count, center frequency, and sample rate
             </caption>
             <thead>
                 <tr>
@@ -40,6 +40,13 @@
                         data-sort="capture_type"
                         aria-sort="none">
                         Type <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
+                    </th>
+                    <th scope="col"
+                        id="author-header"
+                        class="sortable"
+                        data-sort="owner__name"
+                        aria-sort="none">
+                        Author <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
                     <th scope="col" id="files-header">Files</th>
                     <th scope="col"
@@ -83,6 +90,15 @@
                             <td headers="channel-header">{{ cap.channel }}</td>
                             <td headers="created-header" class="text-nowrap">{{ cap.formatted_created_at }}</td>
                             <td headers="type-header">{{ cap.capture_type }}</td>
+                            <td headers="author-header">
+                                {% if cap.owner and cap.owner.name %}
+                                    {{ cap.owner.name }}
+                                {% elif cap.owner %}
+                                    {{ cap.owner.email }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                             <td headers="files-header">
                                 {{ cap.files_count }}
                                 {% if cap.total_file_size %}
@@ -108,7 +124,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
+                        <td colspan="8" class="text-center text-muted py-4">
                             <em>No captures found matching your search criteria.</em>
                         </td>
                     </tr>

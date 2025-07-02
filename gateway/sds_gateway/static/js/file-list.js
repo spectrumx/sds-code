@@ -634,6 +634,16 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			),
 		};
 
+		// Format author display - prioritize name, fallback to email, then dash
+		let authorDisplay = "-";
+		if (capture.owner) {
+			if (capture.owner.name) {
+				authorDisplay = FileListUtils.escapeHtml(capture.owner.name);
+			} else if (capture.owner.email) {
+				authorDisplay = FileListUtils.escapeHtml(capture.owner.email);
+			}
+		}
+
 		return `
 			<tr class="capture-row">
 				<td>
@@ -659,6 +669,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				<td>${safeData.channel}</td>
 				<td>${FileListUtils.formatDate(capture.created_at)}</td>
 				<td>${safeData.captureType}</td>
+				<td>${authorDisplay}</td>
 				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${FileListUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
 				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
 				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
