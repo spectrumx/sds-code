@@ -265,6 +265,7 @@ def check_capture_usage() -> None:
     # double deleting a capture raises a CaptureError, unless in dry_run mode
     # (then the SDK can't determine whether the capture exists or not)
 
+    # upload a single-channel capture
     local_dir = Path("my_spectrum_files")
     sds.upload_capture(
         local_path=local_dir,
@@ -273,6 +274,14 @@ def check_capture_usage() -> None:
         index_name="",  # automatically inferred from capture type
         channel=None,
         scan_group=None,
+        verbose=True,
+    )
+
+    # upload a multi-channel capture
+    sds.upload_multichannel_drf_capture(
+        local_path=local_dir,
+        sds_path=capture_sds_dir,
+        channels=[],
         verbose=True,
     )
 

@@ -48,6 +48,28 @@ class FileError(SDSError):
 class CaptureError(SDSError):
     """Issue interacting with a capture in SDS."""
 
+    def extract_existing_capture_uuid(self) -> str | None:
+        """Extract existing capture UUID from error message
+        if this is a duplicate capture error.
+
+        Returns:
+            The UUID of the existing capture if found, None otherwise.
+        """
+        error_msg = str(self.message).lower()
+        if "drf_unique_channel_and_tld" not in error_msg:
+            return None
+
+        try:
+            uuid_start = str(self.message).find("another capture: ") + len(
+                "another capture: "
+            )
+            uuid_end = str(self.message).find(" ", uuid_start)
+            if uuid_end == -1:
+                uuid_end = len(str(self.message))
+            return str(self.message)[uuid_start:uuid_end].strip()
+        except (ValueError, IndexError):
+            return None
+
 
 class DatasetError(SDSError):
     """Issue interacting with a dataset in SDS."""

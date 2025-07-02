@@ -51,17 +51,27 @@
                 </div>
             </div>
         </div>
+        {# djlint:off #}
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                {% if status == "available" %}
-                    // Automatically start download when page loads
-                    downloadFile();
-                {% else %}
-                    // Show error and redirect after a short delay
-                    setTimeout(function() {
-                        showAlertAndRedirect('danger', '{{ message }}');
-                    }, 1000);
-                {% endif %}
+                {
+                    %
+                    if status == "available" %
+                }
+                // Automatically start download when page loads
+                downloadFile();
+                {
+                    %
+                    else %
+                }
+                // Show error and redirect after a short delay
+                setTimeout(function() {
+                    showAlertAndRedirect('danger', '{{ message }}');
+                }, 1000);
+                {
+                    %
+                    endif %
+                }
             });
 
             function downloadFile() {
@@ -115,6 +125,7 @@
                 // Redirect to dataset list page
                 window.location.href = '{% url "users:dataset_list" %}';
             }
-        </script>
+</script>
+        {# djlint:on #}
     {% endblock content %}
 </body>
