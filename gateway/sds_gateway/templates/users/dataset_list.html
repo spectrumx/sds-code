@@ -85,18 +85,33 @@
                                                 <td class="text-break">{{ dataset.description|truncatechars:80 }}</td>
                                                 <td class="text-break">{{ dataset.authors }}</td>
                                                 <td class="text-nowrap">{{ dataset.created_at }}</td>
-                                                <td>
-                                                    <div class="action-buttons d-flex gap-2">
-                                                        <a href="{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}"
-                                                           class="btn btn-sm btn-primary">
-                                                            <i class="bi bi-pencil"></i> Edit
-                                                        </a>
-                                                        <button class="btn btn-sm btn-success download-dataset-btn"
-                                                                data-dataset-uuid="{{ dataset.uuid }}"
-                                                                data-dataset-name="{{ dataset.name }}"
-                                                                type="button">
-                                                            <i class="bi bi-download"></i> Download
+                                                <td class="text-end">
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                                type="button"
+                                                                data-bs-toggle="dropdown"
+                                                                data-bs-popper="static"
+                                                                aria-expanded="false"
+                                                                aria-label="Actions for {{ dataset.name }}">
+                                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                                                         </button>
+                                                        <ul class="dropdown-menu">
+                                                            <li>
+                                                                <button class="dropdown-item"
+                                                                        type="button"
+                                                                        onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
+                                                                    Edit
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button class="dropdown-item download-dataset-btn"
+                                                                        type="button"
+                                                                        data-dataset-uuid="{{ dataset.uuid }}"
+                                                                        data-dataset-name="{{ dataset.name }}">
+                                                                    Download
+                                                                </button>
+                                                            </li>
+                                                        </ul>
                                                     </div>
                                                 </td>
                                             </tr>
