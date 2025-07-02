@@ -172,7 +172,7 @@ def _validate_dataset_download_request(
             owner=user,
         )
     except Dataset.DoesNotExist:
-        logger.error(
+        logger.warning(
             "Dataset %s not found or not owned by user %s",
             dataset_uuid,
             user_id,

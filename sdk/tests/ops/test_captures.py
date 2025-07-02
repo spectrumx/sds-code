@@ -20,11 +20,14 @@ from spectrumx.models.captures import CaptureType
 
 from tests.conftest import get_captures_endpoint
 from tests.conftest import get_content_check_endpoint
+from tests.conftest import get_files_endpoint
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
 # globally toggles dry run mode in case we want to run these under an integration mode.
 DRY_RUN: bool = False
+
+MULTICHANNEL_EXPECTED_COUNT = 2
 
 
 @pytest.fixture
@@ -56,6 +59,31 @@ def sample_capture_data(sample_capture_uuid: UUID4) -> dict[str, Any]:
             },
         ],
     }
+
+
+def add_file_upload_mock(
+    client: Client,
+    responses: responses.RequestsMock,
+    directory: str = "/test/multichannel",
+) -> None:
+    responses.add(
+        method=responses.POST,
+        url=get_files_endpoint(client),
+        status=201,
+        json={
+            "uuid": str(uuidlib.uuid4()),
+            "name": "test.txt",
+            "directory": directory,
+            "size": 123,
+            "is_deleted": False,
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z",
+            "expiration_date": None,
+            "media_type": "application/octet-stream",
+            "permissions": "rwxr--r--",
+            "owner": {"id": 1, "email": "test@example.com", "name": "Test User"},
+        },
+    )
 
 
 def test_create_capture(client: Client, responses: responses.RequestsMock) -> None:
@@ -359,6 +387,262 @@ def test_upload_capture_no_files(client: Client, tmp_path: Path) -> None:
 
     # ASSERT
     assert result is None
+
+
+def test_upload_multichannel_drf_capture_dry_run(
+    client: Client, tmp_path: Path
+) -> None:
+    """Test uploading multi-channel DRF capture in dry run mode."""
+    # ARRANGE
+    client.dry_run = True
+    test_dir = tmp_path / "test_multichannel_drf"
+    test_dir.mkdir()
+    test_file = test_dir / "test.txt"
+    test_file.write_text("multi-channel capture upload - dry run test")
+
+    channels = ["channel1", "channel2", "channel3"]
+
+    # ACT
+    captures = client.upload_multichannel_drf_capture(
+        local_path=test_dir,
+        sds_path="/test/multichannel/dry-run",
+        channels=channels,
+    )
+
+    # ASSERT
+    assert captures is not None
+    assert len(captures) == len(channels)
+    for i, capture in enumerate(captures):
+        assert capture.uuid is not None
+        assert capture.capture_type == CaptureType.DigitalRF
+        assert capture.channel == channels[i]
+        assert len(capture.files) == 0  # Dry run simulates empty files list
+
+
+def test_upload_multichannel_drf_capture_success(
+    client: Client, responses: responses.RequestsMock, tmp_path: Path
+) -> None:
+    """Test successful multi-channel DRF capture upload."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    test_dir = tmp_path / "test_multichannel_drf"
+    test_dir.mkdir()
+    test_file = test_dir / "test.txt"
+    test_file.write_text("multi-channel capture upload test")
+
+    channels = ["channel1", "channel2"]
+    capture_uuids = [uuidlib.uuid4(), uuidlib.uuid4()]
+
+    # Mock file content check endpoint
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=200,
+        json={
+            "file_contents_exist_for_user": False,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": False,
+        },
+    )
+
+    # Mock capture creation endpoints
+    for _, (channel, uuid) in enumerate(zip(channels, capture_uuids, strict=False)):
+        mocked_response = {
+            "uuid": uuid.hex,
+            "capture_type": CaptureType.DigitalRF.value,
+            "top_level_dir": "/test/multichannel",
+            "index_name": "captures-drf",
+            "origin": CaptureOrigin.User.value,
+            "capture_props": {},
+            "channel": channel,
+            "files": [],
+        }
+        responses.add(
+            method=responses.POST,
+            url=get_captures_endpoint(client),
+            status=201,
+            json=mocked_response,
+        )
+
+    add_file_upload_mock(client, responses)
+
+    # ACT
+    captures = client.upload_multichannel_drf_capture(
+        local_path=test_dir,
+        sds_path="/test/multichannel",
+        channels=channels,
+    )
+
+    # ASSERT
+    assert captures is not None
+    assert len(captures) == MULTICHANNEL_EXPECTED_COUNT
+    for i, capture in enumerate(captures):
+        assert capture.uuid == capture_uuids[i]
+        assert capture.capture_type == CaptureType.DigitalRF
+        assert capture.channel == channels[i]
+
+
+def test_upload_multichannel_drf_capture_existing_capture(
+    client: Client, responses: responses.RequestsMock, tmp_path: Path
+) -> None:
+    """Test multi-channel DRF capture when one capture already exists."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    test_dir = tmp_path / "test_multichannel_drf"
+    test_dir.mkdir()
+    test_file = test_dir / "test.txt"
+    test_file.write_text("multi-channel capture upload test")
+
+    channels = ["channel1", "channel2"]
+    existing_uuid = uuidlib.uuid4()
+    new_uuid = uuidlib.uuid4()
+
+    # Mock upload endpoint with correct response structure
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=200,
+        json={
+            "file_contents_exist_for_user": False,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": False,
+        },
+    )
+
+    # Mock capture creation endpoint that fails with existing capture error
+    responses.add(
+        method=responses.POST,
+        url=get_captures_endpoint(client),
+        status=400,
+        json={
+            "detail": (
+                "One or more capture creation constraints violated:\n"
+                "\tdrf_unique_channel_and_tld: This channel and top level directory "
+                f"are already in use by another capture: {existing_uuid.hex}"
+            )
+        },
+    )
+
+    # Mock capture read endpoint for existing capture
+    responses.add(
+        method=responses.GET,
+        url=get_captures_endpoint(client, capture_id=existing_uuid.hex),
+        status=200,
+        json={
+            "uuid": str(existing_uuid),
+            "top_level_dir": "/test/multichannel",
+            "capture_type": CaptureType.DigitalRF.value,
+            "channel": "channel1",
+            "files": [],
+            "capture_props": {},
+            "index_name": "test_index",
+            "origin": CaptureOrigin.User.value,
+        },
+    )
+
+    # Mock second capture creation endpoint
+    responses.add(
+        method=responses.POST,
+        url=get_captures_endpoint(client),
+        status=201,
+        json={
+            "uuid": str(new_uuid),
+            "top_level_dir": "/test/multichannel",
+            "capture_type": CaptureType.DigitalRF.value,
+            "channel": "channel2",
+            "files": [],
+            "capture_props": {},
+            "index_name": "test_index",
+            "origin": CaptureOrigin.User.value,
+        },
+    )
+
+    add_file_upload_mock(client, responses)
+
+    # ACT
+    captures = client.upload_multichannel_drf_capture(
+        local_path=test_dir,
+        sds_path="/test/multichannel",
+        channels=channels,
+    )
+
+    # ASSERT
+    assert captures is not None
+    assert len(captures) == MULTICHANNEL_EXPECTED_COUNT
+    assert captures[0].uuid == existing_uuid
+    assert captures[1].uuid == new_uuid
+
+
+def test_upload_multichannel_drf_capture_creation_fails(
+    client: Client, responses: responses.RequestsMock, tmp_path: Path
+) -> None:
+    """Test multi-channel DRF capture when capture creation fails for other reasons."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    test_dir = tmp_path / "test_multichannel_drf"
+    test_dir.mkdir()
+    test_file = test_dir / "test.txt"
+    test_file.write_text("multi-channel capture upload test")
+
+    channels = ["channel1", "channel2"]
+    first_uuid = uuidlib.uuid4()
+
+    # Mock upload endpoint with correct response structure
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=200,
+        json={
+            "file_contents_exist_for_user": False,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": False,
+        },
+    )
+
+    # Mock first capture creation (success)
+    responses.add(
+        method=responses.POST,
+        url=get_captures_endpoint(client),
+        status=201,
+        json={
+            "uuid": first_uuid.hex,
+            "capture_type": CaptureType.DigitalRF.value,
+            "top_level_dir": "/test/multichannel",
+            "channel": channels[0],
+            "files": [],
+            "capture_props": {},
+            "index_name": "test_index",
+            "origin": CaptureOrigin.User.value,
+        },
+    )
+
+    # Mock second capture creation (fails with different error)
+    responses.add(
+        method=responses.POST,
+        url=get_captures_endpoint(client),
+        status=400,
+        json={"error": "Some other error that's not about existing captures"},
+    )
+
+    # Mock deletion of first capture
+    responses.add(
+        method=responses.DELETE,
+        url=get_captures_endpoint(client, capture_id=first_uuid.hex),
+        status=204,
+    )
+
+    add_file_upload_mock(client, responses)
+
+    # ACT
+    result = client.upload_multichannel_drf_capture(
+        local_path=test_dir,
+        sds_path="/test/multichannel",
+        channels=channels,
+        raise_on_error=False,
+    )
+
+    # ASSERT
+    assert result == []
 
 
 def test_capture_string_representation(sample_capture_data: dict[str, Any]) -> None:
