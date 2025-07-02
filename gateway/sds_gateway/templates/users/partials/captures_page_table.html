@@ -101,13 +101,7 @@
                                 {% endif %}
                             </td>
                             <td headers="created-header" class="text-nowrap">{{ cap.formatted_created_at }}</td>
-                            <td headers="type-header">
-                                {% if cap.is_multi_channel %}
-                                    {{ cap.capture_type_display }}
-                                {% else %}
-                                    {{ cap.capture_type }}
-                                {% endif %}
-                            </td>
+                            <td headers="type-header">{{ cap.capture_type_display }}</td>
                             <td headers="author-header">
                                 {% if cap.owner and cap.owner.name %}
                                     {{ cap.owner.name }}
