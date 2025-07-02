@@ -34,6 +34,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     files_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
+    capture_type_display = serializers.SerializerMethodField()
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
@@ -103,6 +104,10 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     def get_formatted_created_at(self, capture: Capture) -> str:
         """Get the created_at date in the desired format."""
         return capture.created_at.strftime("%m/%d/%Y %I:%M:%S")
+
+    def get_capture_type_display(self, capture: Capture) -> str:
+        """Get the display value for the capture type."""
+        return capture.get_capture_type_display()
 
     class Meta:
         model = Capture
@@ -218,6 +223,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
     # Common fields from all captures
     uuid = serializers.UUIDField()
     capture_type = serializers.CharField()
+    capture_type_display = serializers.CharField()
     top_level_dir = serializers.CharField()
     index_name = serializers.CharField()
     origin = serializers.CharField()
@@ -315,6 +321,7 @@ def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
     return {
         "uuid": base_capture.uuid,  # Use first capture's UUID as composite UUID
         "capture_type": base_capture.capture_type,
+        "capture_type_display": base_capture.get_capture_type_display(),
         "top_level_dir": base_capture.top_level_dir,
         "index_name": base_capture.index_name,
         "origin": base_capture.origin,

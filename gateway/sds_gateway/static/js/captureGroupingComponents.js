@@ -38,6 +38,11 @@ class FormHandler {
 		this.initializeErrorContainer();
 		this.validateCurrentStep(); // Initial validation
 		this.updateNavigation(); // Initial navigation button display
+
+		// Hide the submit button at the start unless on the last step
+		if (this.submitBtn && this.currentStep !== this.steps.length - 1) {
+			this.hide(this.submitBtn);
+		}
 	}
 
 	// Add method to set SearchHandler reference
@@ -169,6 +174,7 @@ class FormHandler {
 				const capturesTableBody = document.querySelector(
 					"#step4 .captures-table tbody",
 				);
+
 				if (
 					capturesTableBody &&
 					this.selectedCaptures.size > 0 &&
@@ -619,7 +625,6 @@ class SearchHandler {
 		const searchInputs = this.searchForm.querySelectorAll("input[type='text']");
 		for (const input of searchInputs) {
 			input.addEventListener("keypress", (e) => {
-				console.log("keypress", e.key);
 				if (e.key === "Enter") {
 					this.handleSearch();
 				}
@@ -834,10 +839,10 @@ class SearchHandler {
 				<td>
 					<input type="checkbox" class="form-check-input" name="captures" value="${capture.id}" ${isSelected ? "checked" : ""} />
 				</td>
-				<td>${capture.capture_type === "rh" ? "RadioHound" : capture.capture_type === "drf" ? "DigitalRF" : capture.capture_type}</td>
-				<td>${capture.top_level_dir.split("/").pop()}</td>
-				<td>${capture.channel || "-"}</td>
-				<td>${capture.scan_group || "-"}</td>
+				<td>${capture.type}</td>
+				<td>${capture.directory}</td>
+				<td>${capture.channel}</td>
+				<td>${capture.scan_group}</td>
 				<td>${new Date(capture.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
 			`;
 
@@ -851,17 +856,12 @@ class SearchHandler {
 				if (checkbox.checked) {
 					this.formHandler.selectedCaptures.add(captureId);
 					row.classList.add("table-warning");
-					// Store capture details when selected, maintaining the same format as from Django
+					// Store capture details when selected, using the serialized data directly
 					this.selectedCaptureDetails.set(captureId, {
-						type:
-							capture.capture_type === "rh"
-								? "RadioHound"
-								: capture.capture_type === "drf"
-									? "DigitalRF"
-									: capture.capture_type,
-						directory: capture.top_level_dir.split("/").pop(),
-						channel: capture.channel || "-",
-						scan_group: capture.scan_group || "-",
+						type: capture.type,
+						directory: capture.directory,
+						channel: capture.channel,
+						scan_group: capture.scan_group,
 						created_at: capture.created_at,
 					});
 				} else {
