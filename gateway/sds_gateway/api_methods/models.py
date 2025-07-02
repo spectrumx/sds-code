@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import logging
 import uuid
 from enum import StrEnum
 from pathlib import Path
@@ -15,9 +16,10 @@ from django.db.models import ProtectedError
 from django.db.models import QuerySet
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
-from loguru import logger as log
 
 from .utils.opensearch_client import get_opensearch_client
+
+log = logging.getLogger(__name__)
 
 
 class CaptureType(StrEnum):
@@ -251,6 +253,52 @@ class Capture(BaseModel):
             return sample_rate_hz / 1e6
         return None
 
+    @property
+    def is_multi_channel(self) -> bool:
+        """Check if this capture is a multi-channel capture."""
+        match self.capture_type:
+            case CaptureType.DigitalRF:
+                captures_in_top_level_dir = Capture.objects.filter(
+                    top_level_dir=self.top_level_dir,
+                    capture_type=self.capture_type,
+                    owner=self.owner,
+                    is_deleted=False,
+                ).count()
+                return captures_in_top_level_dir > 1
+            case _:
+                return False
+
+    def get_capture(self) -> dict[str, Any]:
+        """Return a Capture or composite of Captures for multi-channel captures.
+
+        Returns:
+            dict: Either a single capture or composite capture data
+        """
+        # If this is not a multi-channel capture, return the capture itself
+        if not self.is_multi_channel:
+            return {"capture": self, "is_composite": False}
+
+        # For multi-channel captures, find all captures with the same top_level_dir
+        related_captures = Capture.objects.filter(
+            top_level_dir=self.top_level_dir,
+            capture_type=self.capture_type,
+            owner=self.owner,
+            is_deleted=False,
+        ).order_by("channel")
+
+        if related_captures.count() <= 1:
+            # Only one capture found, return as single capture
+            return {"capture": self, "is_composite": False}
+
+        # Multiple captures found, create composite
+        return {
+            "captures": list(related_captures),
+            "is_composite": True,
+            "top_level_dir": self.top_level_dir,
+            "capture_type": self.capture_type,
+            "owner": self.owner,
+        }
+
     def get_opensearch_frequency_metadata(self) -> dict[str, Any]:
         """
         Query OpenSearch for frequency metadata for this specific capture.
@@ -292,7 +340,7 @@ class Capture(BaseModel):
 
             log.warning("No OpenSearch data found for capture %s", self.uuid)
 
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Error querying OpenSearch for capture %s", self.uuid)
 
         return {}
@@ -367,7 +415,7 @@ class Capture(BaseModel):
                 )
                 frequency_data.update(type_frequency_data)
 
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("Error bulk loading frequency metadata")
             return {}
         else:
@@ -436,7 +484,7 @@ class Capture(BaseModel):
                             )
 
                 return source
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("=== DEBUG: Exception occurred ===")
             log.exception("Error occurred during frequency metadata extraction")
             return None
@@ -674,7 +722,7 @@ def _group_captures_by_type(
     captures: QuerySet["Capture"],
 ) -> dict[str, list["Capture"]]:
     """Group captures by capture type for separate queries."""
-    captures_by_type = {}
+    captures_by_type: dict[str, list[Capture]] = {}
     for capture in captures:
         capture_type = capture.capture_type
         if capture_type not in captures_by_type:
