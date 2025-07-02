@@ -73,7 +73,7 @@
                                 <a href="#"
                                    class="capture-link"
                                    data-uuid="{{ cap.uuid }}"
-                                   data-channel="{{ cap.channel }}"
+                                   data-channel="{% if cap.is_multi_channel %}{% for channel in cap.channels %}{{ channel.channel }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ cap.channel }}{% endif %}"
                                    data-scan-group="{{ cap.scan_group }}"
                                    data-capture-type="{{ cap.capture_type }}"
                                    data-top-level-dir="{{ cap.top_level_dir }}"
@@ -84,12 +84,30 @@
                                    data-updated-at="{{ cap.updated_at }}"
                                    data-is-public="{{ cap.is_public }}"
                                    data-center-frequency-ghz="{{ cap.center_frequency_ghz }}"
+                                   data-is-multi-channel="{{ cap.is_multi_channel|yesno:'True,False' }}"
+                                   data-channels="{{ cap.channels|safe }}"
                                    aria-label="View details for capture {{ cap.uuid }}"
                                    title="View capture details: {{ cap.uuid }}">{{ cap.uuid }}</a>
                             </td>
-                            <td headers="channel-header">{{ cap.channel }}</td>
+                            <td headers="channel-header">
+                                {% if cap.is_multi_channel %}
+                                    <!-- Composite capture - show all channels -->
+                                    {% for channel_data in cap.channels %}
+                                        {{ channel_data.channel }}
+                                        {% if not forloop.last %},{% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    {{ cap.channel }}
+                                {% endif %}
+                            </td>
                             <td headers="created-header" class="text-nowrap">{{ cap.formatted_created_at }}</td>
-                            <td headers="type-header">{{ cap.capture_type }}</td>
+                            <td headers="type-header">
+                                {% if cap.is_multi_channel %}
+                                    {{ cap.capture_type_display }}
+                                {% else %}
+                                    {{ cap.capture_type }}
+                                {% endif %}
+                            </td>
                             <td headers="author-header">
                                 {% if cap.owner and cap.owner.name %}
                                     {{ cap.owner.name }}
@@ -97,8 +115,6 @@
                                     {{ cap.owner.email }}
                                 {% else %}
                                     -
-                                {% endif %}
-                            </td>
                             <td headers="files-header">
                                 {{ cap.files_count }}
                                 {% if cap.total_file_size %}

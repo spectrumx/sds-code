@@ -36,7 +36,9 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import TemporaryZipFile
-from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    serialize_capture_or_composite,
+)
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.tasks import is_user_locked
@@ -50,6 +52,7 @@ from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FormSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
+from sds_gateway.users.utils import deduplicate_composite_captures
 
 # Add logger for debugging
 logger = logging.getLogger(__name__)
@@ -305,18 +308,21 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
         )
 
-        # Paginate the results
-        paginator = Paginator(qs, params["items_per_page"])
+        # Use utility function to deduplicate composite captures
+        unique_captures = deduplicate_composite_captures(list(qs))
+
+        # Paginate the unique captures
+        paginator = Paginator(unique_captures, params["items_per_page"])
         try:
             page_obj = paginator.page(params["page"])
         except (EmptyPage, PageNotAnInteger):
             page_obj = paginator.page(1)
 
-        # Serialize captures for template
+        # Serialize captures for template using composite serialization
         enhanced_captures = []
         for capture in page_obj:
-            # CaptureGetSerializer includes all computed fields
-            capture_data = CaptureGetSerializer(capture).data
+            # Use composite serialization to handle multi-channel captures properly
+            capture_data = serialize_capture_or_composite(capture)
             enhanced_captures.append(capture_data)
 
         # Update the page_obj with enhanced captures
@@ -383,14 +389,18 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                 qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
             )
 
+            # Use utility function to deduplicate composite captures
+            unique_captures = deduplicate_composite_captures(list(qs))
+
             # Limit results for API performance
-            captures_list = list(qs[:25])
+            captures_list = list(unique_captures[:25])
 
             captures_data = []
             for capture in captures_list:
                 try:
-                    # Use CaptureGetSerializer - includes all computed fields
-                    capture_data = CaptureGetSerializer(capture).data
+                    # Use composite serialization to handle multi-channel captures
+                    # properly
+                    capture_data = serialize_capture_or_composite(capture)
                     captures_data.append(capture_data)
                 except Exception:
                     logger.exception("Error serializing capture %s", capture.uuid)
