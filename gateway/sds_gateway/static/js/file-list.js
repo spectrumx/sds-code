@@ -717,6 +717,8 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				isPublic: link.getAttribute("data-is-public") || "",
 				centerFrequencyGhz:
 					link.getAttribute("data-center-frequency-ghz") || "",
+				isMultiChannel: link.getAttribute("data-is-multi-channel") || "",
+				channels: link.getAttribute("data-channels") || "",
 			};
 
 			// Parse owner field safely
@@ -724,14 +726,31 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				? data.owner.split("'").find((part) => part.includes("@")) || "N/A"
 				: "N/A";
 
-			const modalContent = `
+			// Check if this is a composite capture
+			const isComposite =
+				data.isMultiChannel === "True" || data.isMultiChannel === "true";
+
+			let modalContent = `
 				<div class="mb-4">
 					<h6>Basic Information</h6>
 					<p><strong>UUID:</strong> ${data.uuid || "N/A"}</p>
-					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
 					<p><strong>Capture Type:</strong> ${data.captureType || "N/A"}</p>
 					<p><strong>Origin:</strong> ${data.origin || "N/A"}</p>
 					<p><strong>Owner:</strong> ${ownerDisplay}</p>
+			`;
+
+			// Handle composite vs single capture display
+			if (isComposite) {
+				modalContent += `
+					<p><strong>Channels:</strong> ${data.channel || "N/A"}</p>
+				`;
+			} else {
+				modalContent += `
+					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
+				`;
+			}
+
+			modalContent += `
 				</div>
 				<div class="mb-4">
 					<h6>Technical Details</h6>
@@ -747,6 +766,48 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					<p><strong>Updated At:</strong> ${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}</p>
 				</div>
 			`;
+
+			// Add composite-specific information if available
+			if (isComposite && data.channels) {
+				try {
+					const channelsData = JSON.parse(data.channels);
+					if (Array.isArray(channelsData) && channelsData.length > 0) {
+						modalContent += `
+							<div class="mt-4">
+								<h6>Channel Details</h6>
+								<div class="table-responsive">
+									<table class="table table-sm table-striped">
+										<thead>
+											<tr>
+												<th>Channel</th>
+												<th>UUID</th>
+												<th>Type</th>
+											</tr>
+										</thead>
+										<tbody>
+						`;
+
+						for (const channel of channelsData) {
+							modalContent += `
+                                <tr>
+                                    <td>${FileListUtils.escapeHtml(channel.channel || "N/A")}</td>
+                                    <td><code>${FileListUtils.escapeHtml(channel.uuid || "N/A")}</code></td>
+                                    <td>${FileListUtils.escapeHtml(channel.capture_type || "N/A")}</td>
+                                </tr>
+                            `;
+						}
+
+						modalContent += `
+										</tbody>
+									</table>
+								</div>
+							</div>
+						`;
+					}
+				} catch (e) {
+					console.warn("Could not parse channels data for modal:", e);
+				}
+			}
 
 			const title = `Capture Details - ${data.channel || "Unknown"}`;
 			this.modalHandler.show(title, modalContent);

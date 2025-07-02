@@ -148,6 +148,20 @@ class CapturesTableManager extends TableManager {
 	}
 
 	renderRow(capture, index) {
+		// Handle composite vs single capture display
+		let channelDisplay = capture.channel || "";
+		let typeDisplay = capture.capture_type || "";
+
+		if (capture.is_multi_channel) {
+			// For composite captures, show all channels
+			if (capture.channels && Array.isArray(capture.channels)) {
+				channelDisplay = capture.channels
+					.map((ch) => ch.channel || ch)
+					.join(", ");
+			}
+			typeDisplay = capture.capture_type_display || capture.capture_type || "";
+		}
+
 		return `
             <tr class="capture-row" data-clickable="true" data-uuid="${capture.uuid || ""}">
                 <th scope="row">${index + 1}</th>
@@ -159,13 +173,15 @@ class CapturesTableManager extends TableManager {
                        data-capture-type="${capture.capture_type || ""}"
                        data-top-level-dir="${capture.top_level_dir || ""}"
                        data-created-at="${capture.created_at || ""}"
+                       data-is-multi-channel="${capture.is_multi_channel || false}"
+                       data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}"
                        aria-label="View details for ${capture.uuid || "unknown capture"}">
                         ${capture.uuid || ""}
                     </a>
                 </td>
-                <td>${capture.channel || ""}</td>
+                <td>${channelDisplay}</td>
                 <td>${capture.created_at ? this.formatDate(capture.created_at) : ""}</td>
-                <td>${capture.capture_type || ""}</td>
+                <td>${typeDisplay}</td>
                 <td>${capture.files_count || "0"}</td>
                 <td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
                 <td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
@@ -442,22 +458,24 @@ class ModalManager {
 		if (!linkElement) return;
 
 		const data = linkElement.dataset;
-		const content = `
+
+		// Check if this is a composite capture
+		const isComposite =
+			data.isMultiChannel === "true" || data.isMultiChannel === "True";
+
+		let content = `
             <div class="row">
                 <div class="col-sm-4"><strong>UUID:</strong></div>
                 <div class="col-sm-8"><code>${data.uuid || "N/A"}</code></div>
             </div>
             <div class="row">
-                <div class="col-sm-4"><strong>Channel:</strong></div>
+            <div class="row">
+                <div class="col-sm-4"><strong>${isComposite ? "Channels:" : "Channel:"}</strong></div>
                 <div class="col-sm-8">${data.channel || "N/A"}</div>
             </div>
             <div class="row">
                 <div class="col-sm-4"><strong>Scan Group:</strong></div>
                 <div class="col-sm-8">${data.scanGroup || "N/A"}</div>
-            </div>
-            <div class="row">
-                <div class="col-sm-4"><strong>Type:</strong></div>
-                <div class="col-sm-8">${data.captureType || "N/A"}</div>
             </div>
             <div class="row">
                 <div class="col-sm-4"><strong>Directory:</strong></div>
@@ -469,7 +487,52 @@ class ModalManager {
             </div>
         `;
 
-		this.show("Capture Details", content);
+		// Add composite-specific information if available
+		if (isComposite && data.channels) {
+			try {
+				const channelsData = JSON.parse(data.channels);
+				if (Array.isArray(channelsData) && channelsData.length > 0) {
+					content += `
+						<div class="row mt-3">
+							<div class="col-12">
+								<h6>Channel Details</h6>
+								<div class="table-responsive">
+									<table class="table table-sm table-striped">
+										<thead>
+											<tr>
+												<th>Channel</th>
+												<th>UUID</th>
+												<th>Type</th>
+											</tr>
+										</thead>
+										<tbody>
+					`;
+
+					for (const channel of channelsData) {
+						content += `
+                            <tr>
+                                <td>${channel.channel || "N/A"}</td>
+                                <td><code>${channel.uuid || "N/A"}</code></td>
+                                <td>${channel.capture_type || "N/A"}</td>
+                            </tr>
+                        `;
+					}
+
+					content += `
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					`;
+				}
+			} catch (e) {
+				console.warn("Could not parse channels data:", e);
+			}
+		}
+
+		const title = `Capture Details - ${data.channel || "Unknown"}`;
+		this.show(title, content);
 	}
 }
 
