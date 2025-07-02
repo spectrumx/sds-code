@@ -43,8 +43,15 @@
                             <!-- djlint:on H021 -->
                             <tbody>
                                 {% for key in current_api_keys %}
-                                    <tr {% if key.expiry_date and key.expiry_date < now %}class="table-danger"{% endif %}>
-                                        <td>{{ key.prefix }}</td>
+                                    <tr>
+                                        <td>
+                                            {{ key.prefix }}
+                                            {% if key.expiry_date and key.expiry_date < now %}
+                                                <div class="text-danger mt-1">
+                                                    <strong>Expired</strong>
+                                                </div>
+                                            {% endif %}
+                                        </td>
                                         <td>
                                             {% if key.name|length > 25 %}
                                                 {{ key.name|slice:":25" }}...
@@ -120,11 +127,6 @@
                                                     {% endif %}
                                                 </ul>
                                             </div>
-                                            {% if key.expiry_date and key.expiry_date < now %}
-                                                <div class="text-danger mt-1">
-                                                    <strong>Expired.</strong>
-                                                </div>
-                                            {% endif %}
                                         </td>
                                     </tr>
                                 {% endfor %}
