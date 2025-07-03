@@ -1,7 +1,7 @@
 # Build and manage a local deploy of the SDS Gateway - NOT PRODUCTION READY
 
-.PHONY: all redeploy build build-full up logs logs-once down pre-commit restart \
-	serve-coverage test update
+.PHONY: all redeploy build build-full down logs logs-once pre-commit restart \
+	serve-coverage test up update
 
 all: build up logs
 redeploy: build down up logs
@@ -11,19 +11,19 @@ APP_CONTAINER := sds-gateway-local-app
 COMPOSE_FILE := compose.local.yaml
 ENV_FILE := .envs/local/opensearch.env
 
-build-full:
-	@echo "Pulling and building sds-gateway WITHOUT CACHE"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) pull --ignore-buildable
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) build --no-cache $(ARGS)
-
 build:
 	@echo "Pulling and building sds-gateway"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) pull --ignore-buildable
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) build $(ARGS)
 
-up:
-	@echo "Starting sds-gateway"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) up -d --remove-orphans $(ARGS)
+build-full:
+	@echo "Pulling and building sds-gateway WITHOUT CACHE"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) pull --ignore-buildable
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) build --no-cache $(ARGS)
+
+down:
+	@echo "Stopping sds-gateway"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) down $(ARGS)
 
 logs:
 	@echo "Showing sds-gateway logs…"
@@ -32,10 +32,6 @@ logs:
 logs-once:
 	@echo "Showing gateway logs once…"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) logs $(ARGS)
-
-down:
-	@echo "Stopping sds-gateway"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) down $(ARGS)
 
 pre-commit:
 	uv run --dev pre-commit run --all-files
@@ -58,6 +54,10 @@ test:
 
 	@# Django's test runner: obsolete, subset of pytest tests, left as reference.
 	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0
+
+up:
+	@echo "Starting sds-gateway"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) up -d --remove-orphans $(ARGS)
 
 update:
 	@# uv sync --upgrade # re-enable when uv integration is done
