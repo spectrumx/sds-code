@@ -1,6 +1,8 @@
 # SpectrumX SDK Changelog
 
-## `0.1.11` - 2025-07-xx
+## `0.1.12` - 2025-07-xx
+
+## `0.1.11` - 2025-07-03
 
 + Features:
     + [**Added `upload_multichannel_drf_capture` SDK method to `Client`**](https://github.com/spectrumx/sds-code/pull/137): Multi-channel captures can now be uploaded to the SDS.
