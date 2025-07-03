@@ -58,16 +58,26 @@ class UserAdmin(auth_admin.UserAdmin):  # pyright: ignore[reportMissingTypeArgum
 
 
 @admin.register(UserAPIKey)
-class APIKeyAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = [
+class UserAPIKeyAdmin(admin.ModelAdmin):
+    list_display = (
         "prefix",
         "name",
+        "description",
         "user",
+        "source",
         "created",
-        "expiry_date",
-        "_has_expired",
         "revoked",
-    ]
+        "expiry_date",
+    )
+    fields = (
+        "name",
+        "description",
+        "user",
+        "source",
+        "created",
+        "revoked",
+        "expiry_date",
+    )
     search_fields = ["user__email"]
     ordering = ["-created"]
     date_hierarchy = "created"

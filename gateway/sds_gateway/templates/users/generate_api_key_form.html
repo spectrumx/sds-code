@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% load static i18n %}
+{% load custom_filters %}
+
+<body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %}"
+      id="body">
+    {% block title %}
+        Generate API Key
+    {% endblock title %}
+    {% block content %}
+        <div class="container mt-5">
+            <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
+                <h2 id="generate-api-key-section">Generate an API Key</h2>
+                <div class="d-flex justify-content-center">
+                    <button class="btn btn-link mt-2"
+                            type="button"
+                            onclick="window.location.href='{% url 'users:view_api_key' %}'">View API Keys</button>
+                </div>
+                <br />
+            </div>
+            <div class="col-lg-10 mx-auto">
+                <form method="post" action="{% url 'users:view_api_key' %}">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="api_key_name" class="form-label">API Key Name (optional):</label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="api_key_name"
+                                   name="api_key_name"
+                                   maxlength="100"
+                                   placeholder="e.g. My App Key" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="api_key_expiry_date" class="form-label">Expiration Date (optional):</label>
+                            <input type="date"
+                                   class="form-control"
+                                   id="api_key_expiry_date"
+                                   name="api_key_expiry_date" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="api_key_description" class="form-label">API Key Description (optional):</label>
+                        <textarea class="form-control"
+                                  id="api_key_description"
+                                  name="api_key_description"
+                                  rows="2"
+                                  maxlength="500"
+                                  placeholder="e.g. Used for device X, experiment Y"></textarea>
+                    </div>
+                    {% if active_api_key_count >= 10 %}
+                        <div class="d-flex justify-content-center">
+                            <button class="btn btn-primary"
+                                    type="submit"
+                                    disabled
+                                    title="You cannot have more than 10 active API keys.">Generate API Key</button>
+                        </div>
+                        <div class="alert alert-warning mt-2" id="max-api-key-warning">
+                            You have reached the maximum of 10 active API keys (not revoked or expired). Please delete or revoke a key to continue.
+                        </div>
+                    {% else %}
+                        <div class="d-flex justify-content-center">
+                            <button class="btn btn-primary" type="submit">Generate API Key</button>
+                        </div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    {% endblock content %}
+</body>

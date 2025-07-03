@@ -18,12 +18,9 @@
               rel="stylesheet" />
         <link rel="stylesheet"
               href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
-        {% block css %}
-            <!-- Your stuff: Third-party CSS libraries go here -->
-            <link rel="stylesheet" href="{% static 'css/spectrumx-theme.css' %}" />
-            <!-- This file stores project-specific CSS -->
-            {% render_bundle 'project' 'css' %}
-        {% endblock css %}
+        <link rel="stylesheet" href="{% static 'css/spectrumx-theme.css' %}" />
+        <!-- This file stores project-specific CSS -->
+        {% render_bundle 'project' 'css' %}
         {% block head %}
         {% endblock head %}
         <!-- Le javascript

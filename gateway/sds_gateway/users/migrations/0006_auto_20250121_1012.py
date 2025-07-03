@@ -9,8 +9,8 @@ from django.contrib.auth.hashers import make_password
 def create_svi_api_key(apps, schema_editor):
     User = apps.get_model('users', 'User')
     Token = apps.get_model('authtoken', 'Token')
-    
-    # create a new "SVI Server" user    
+
+    # create a new "SVI Server" user
     user, created = User.objects.get_or_create(email=settings.SVI_SERVER_EMAIL)
 
     if created:

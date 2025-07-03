@@ -26,9 +26,13 @@
 	"engines": {
 		"node": "20"
 	},
-	"browserslist": ["last 2 versions"],
+	"browserslist": [
+		"last 2 versions"
+	],
 	"babel": {
-		"presets": ["@babel/preset-env"]
+		"presets": [
+			"@babel/preset-env"
+		]
 	},
 	"parser": "babel-eslint",
 	"parserOptions": {
