@@ -14,7 +14,7 @@
     min-height: 100vh;
     margin: 0;
     padding: 0;
-    padding-bottom: 120px; /* Add space for fixed footer */
+    /* Remove fixed footer padding since we're removing fixed positioning */
   }
 
   .container {
@@ -28,7 +28,7 @@
     }
   }
 
-  /* Rainbow Bar */
+  /* Rainbow Bar - Remove fixed positioning */
 .rainbow-bar {
     height: 4px;
     width: 100%;
@@ -41,22 +41,23 @@
         #4B0082,  /* Indigo */
         #8F00FF   /* Violet */
     );
-    position: fixed;
+    /* Remove fixed positioning */
+    position: relative;
     top: 0;
     left: 0;
     z-index: 1001;
 }
 
-  /* Header Styles */
+  /* Header Styles - Remove fixed positioning */
   .site-header {
     background: var(--white);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     width: 100%;
-    z-index: 1000;
+    z-index: 10;
     padding: 0 0 4px 0;
-    margin-top: 4px;
-    position: fixed;
-    top: 4px; /* Height of rainbow bar */
+    /* Remove fixed positioning and top margin */
+    position: relative;
+    top: 0;
     left: 0;
   }
 
@@ -97,8 +98,9 @@
   main{
     min-height: calc(100vh - 60px);
     background-color: var(--white);
-    padding-top: 60px; /* Height of header */
-    margin-top: 0; /* Remove the margin that was causing the white space */
+    /* Remove padding-top since header is no longer fixed */
+    padding-top: 0;
+    margin-top: 0;
 
     .main-white-page & {
       background-color: var(--white);
@@ -121,35 +123,18 @@
   .navbar-brand {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    position: relative;
-    min-width: 600px;
   }
 
-  /* Style the logo text */
-  .navbar-brand span {
-    font-size: 1.25rem;
-    font-weight: 500;
-    color: var(--primary-color);
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    margin-left: 15vw;
+  /* Style the logo text - Updated to match SpectrumX theme */
+  .navbar-brand .system-name {
+    font-size: 1.2rem;
+    font-weight: 300;
+    color: #495057;
   }
 
   @media (max-width: 768px) {
     .navbar-brand {
-      min-width: unset;
-      padding-left: 0;
-      /* Reset padding on mobile */
-    }
-
-    .navbar-brand span {
-      font-size: 1rem;
-      position: static;
-      margin-left: 2rem;
-      transform: none;
+      /* Reset any mobile-specific styles */
     }
   }
 

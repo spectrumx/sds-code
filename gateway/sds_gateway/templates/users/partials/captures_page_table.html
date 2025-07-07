@@ -1,3 +1,5 @@
+{% load custom_filters %}
+
 <!-- Search Results -->
 <div id="search-results">
     <div class="d-flex justify-content-end align-items-baseline">
@@ -100,7 +102,15 @@
                                     {{ cap.channel }}
                                 {% endif %}
                             </td>
-                            <td headers="created-header" class="text-nowrap">{{ cap.formatted_created_at }}</td>
+                            <td headers="created-header" class="text-nowrap">
+                                {% if cap.formatted_created_at %}
+                                    <div>{{ cap.formatted_created_at|split:" ,0" }}</div>
+                                    <small class="text-muted">{{ cap.formatted_created_at|split:" ,1" }}</small>
+                                {% else %}
+                                    <div>-</div>
+                                    <small class="text-muted">No date</small>
+                                {% endif %}
+                            </td>
                             <td headers="type-header">{{ cap.capture_type_display }}</td>
                             <td headers="author-header">
                                 {% if cap.owner and cap.owner.name %}
