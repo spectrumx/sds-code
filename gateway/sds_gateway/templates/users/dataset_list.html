@@ -176,37 +176,33 @@
             </div>
         </div>
         <!-- Download Confirmation Modal -->
-        <div class="modal fade"
-             id="downloadConfirmModal"
+        <div class="custom-modal"
+             id="downloadModal"
              tabindex="-1"
-             aria-labelledby="downloadConfirmModalLabel"
+             aria-labelledby="downloadModalLabel"
              aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="downloadConfirmModalLabel">
-                            <i class="bi bi-download"></i> Confirm Download Request
-                        </h5>
+            <div class="custom-modal-backdrop"></div>
+            <div class="custom-modal-dialog">
+                <div class="custom-modal-content">
+                    <div class="custom-modal-header">
+                        <h5 class="custom-modal-title" id="downloadModalLabel">Download Dataset</h5>
                         <button type="button"
                                 class="btn-close"
                                 data-bs-dismiss="modal"
-                                aria-label="Close"></button>
+                                aria-label="Close"
+                                onclick="closeCustomModal('downloadModal')"></button>
                     </div>
-                    <div class="modal-body">
+                    <div class="custom-modal-body">
+                        <p>Are you sure you want to download this dataset?</p>
                         <p>
-                            Are you sure you want to request a download for <strong id="modalDatasetName"></strong>?
-                        </p>
-                        <p class="text-muted small">
-                            <i class="bi bi-info-circle"></i>
-                            This will create a zip file containing all artifacts (files not linked to captures) and capture files in this dataset.
-                            You will receive an email with a download link when the file is ready.
+                            <strong>Dataset:</strong> <span id="downloadDatasetName"></span>
                         </p>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-success" id="confirmDownloadBtn">
-                            <i class="bi bi-download"></i> Yes, Download Dataset
-                        </button>
+                    <div class="custom-modal-footer">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                onclick="closeCustomModal('downloadModal')">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="confirmDownloadBtn">Download</button>
                     </div>
                 </div>
             </div>
@@ -217,129 +213,146 @@
     {{ block.super }}
     <script src="{% static 'js/dataset-list.js' %}"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check for download alert messages from sessionStorage
-            const downloadAlert = sessionStorage.getItem('downloadAlert');
-            if (downloadAlert) {
-                try {
-                    const alertData = JSON.parse(downloadAlert);
-                    showAlert(alertData.type, alertData.message);
-                    // Clear the alert from sessionStorage
-                    sessionStorage.removeItem('downloadAlert');
-                } catch (e) {
-                    console.error('Error parsing download alert:', e);
-                    sessionStorage.removeItem('downloadAlert');
+        // Custom modal functions
+        function openCustomModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeCustomModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Close modal when clicking backdrop
+        document.addEventListener('click', function(event) {
+            if (event.target.classList.contains('custom-modal-backdrop')) {
+                const modal = event.target.closest('.custom-modal');
+                if (modal) {
+                    closeCustomModal(modal.id);
                 }
             }
+        });
 
-            let currentDatasetUuid = null;
-            let currentDatasetName = null;
-            let currentButton = null;
+        // Custom dropdown toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle dropdown toggles
+            document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
 
-            // Handle download button clicks
-            document.querySelectorAll('.download-dataset-btn').forEach(function(button) {
-                button.addEventListener('click', function() {
-                    const datasetUuid = this.getAttribute('data-dataset-uuid');
-                    const datasetName = this.getAttribute('data-dataset-name');
+                    const dropdown = this.nextElementSibling;
+                    const isOpen = dropdown.classList.contains('show');
 
-                    // Store current dataset info for modal
-                    currentDatasetUuid = datasetUuid;
-                    currentDatasetName = datasetName;
-                    currentButton = this;
+                    // Close all other dropdowns
+                    document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
+                        menu.classList.remove('show');
+                    });
 
-                    // Update modal content
-                    document.getElementById('modalDatasetName').textContent = datasetName;
-
-                    // Show the confirmation modal
-                    const modal = new bootstrap.Modal(document.getElementById('downloadConfirmModal'));
-                    modal.show();
+                    // Toggle current dropdown
+                    if (!isOpen) {
+                        dropdown.classList.add('show');
+                    }
                 });
             });
 
-            // Handle confirmation button click
-            document.getElementById('confirmDownloadBtn').addEventListener('click', function() {
-                if (!currentDatasetUuid || !currentDatasetName || !currentButton) {
-                    console.error('No dataset information available for download');
-                    return;
-                }
-
-                // Store references to avoid null issues during async operations
-                const buttonToUpdate = currentButton;
-                const datasetUuid = currentDatasetUuid;
-                const datasetName = currentDatasetName;
-
-                // Disable button and show loading state
-                const originalText = buttonToUpdate.innerHTML;
-                buttonToUpdate.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
-                buttonToUpdate.disabled = true;
-
-                // Close the modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('downloadConfirmModal'));
-                modal.hide();
-
-                // Show confirmation alert
-                showAlert('success', `Download request sent for "${datasetName}". You will receive an email shortly with your download link.`);
-
-                // Make API request
-                fetch(`/users/dataset-download/${datasetUuid}/`, {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                            'Content-Type': 'application/json',
-                        },
-                    })
-                    .then(response => {
-                        if (response.ok) {
-                            return response.json().then(data => {
-                                // Update button to show success
-                                buttonToUpdate.innerHTML = '<i class="bi bi-check-circle"></i> Sent!';
-                                buttonToUpdate.classList.remove('btn-success');
-                                buttonToUpdate.classList.add('btn-secondary');
-                            });
-                        } else {
-                            return response.json().then(data => {
-                                // Show error message
-                                const errorMessage = data.detail || data.message || 'Failed to send download request';
-                                showAlert('danger', `Error: ${errorMessage}`);
-                                buttonToUpdate.innerHTML = originalText;
-                                buttonToUpdate.disabled = false;
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        showAlert('danger', 'Network error. Please try again.');
-                        buttonToUpdate.innerHTML = originalText;
-                        buttonToUpdate.disabled = false;
-                    })
-                    .finally(() => {
-                        // Reset current dataset info only after the operation completes
-                        currentDatasetUuid = null;
-                        currentDatasetName = null;
-                        currentButton = null;
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.dropdown')) {
+                    document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
+                        menu.classList.remove('show');
                     });
+                }
             });
 
-            // Function to show alerts
-            function showAlert(type, message) {
-                const alertDiv = document.createElement('div');
-                alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-                alertDiv.innerHTML = `
+            // Check for download alert messages
+            const downloadAlert = sessionStorage.getItem('downloadAlert');
+            if (downloadAlert) {
+                const alertData = JSON.parse(downloadAlert);
+                showAlert(alertData.message, alertData.type);
+                sessionStorage.removeItem('downloadAlert');
+            }
+
+            // Handle download button clicks
+            document.querySelectorAll('.download-dataset-btn').forEach(function(button) {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const datasetUuid = this.getAttribute('data-dataset-uuid');
+                    const datasetName = this.getAttribute('data-dataset-name');
+
+                    // Update modal content
+                    document.getElementById('downloadDatasetName').textContent = datasetName;
+
+                    // Show the modal
+                    openCustomModal('downloadModal');
+
+                    // Handle confirm download
+                    document.getElementById('confirmDownloadBtn').onclick = function() {
+                        // Close modal first
+                        closeCustomModal('downloadModal');
+
+                        // Show loading state
+                        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+                        button.disabled = true;
+
+                        // Make API request
+                        fetch(`/api/datasets/${datasetUuid}/download/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    button.innerHTML = '<i class="bi bi-check-circle text-success"></i> Download Requested';
+                                    showAlert('Download request submitted successfully! You will receive an email when ready.', 'success');
+                                } else {
+                                    button.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+                                    showAlert(data.message || 'Download request failed. Please try again.', 'error');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Download error:', error);
+                                button.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+                                showAlert('An error occurred while processing your request.', 'error');
+                            })
+                            .finally(() => {
+                                // Reset button after 3 seconds
+                                setTimeout(() => {
+                                    button.innerHTML = '<i class="bi bi-download"></i>';
+                                    button.disabled = false;
+                                }, 3000);
+                            });
+                    };
+                });
+            });
+        });
+
+        // Function to show alerts
+        function showAlert(message, type) {
+            const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+            const alertHtml = `
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
                     ${message}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                `;
+                </div>
+            `;
 
-                // Insert at the top of the content area
-                const contentArea = document.querySelector('.main-content-area');
-                contentArea.insertBefore(alertDiv, contentArea.firstChild);
-
-                // Auto-dismiss after 8 seconds for success messages
-                const dismissTime = type === 'success' ? 8000 : 5000;
-                setTimeout(() => {
-                    if (alertDiv.parentNode) {
-                        alertDiv.remove();
-                    }
-                }, dismissTime);
+            const alertContainer = document.querySelector('.alert-container') || document.querySelector('.container-fluid');
+            if (alertContainer) {
+                alertContainer.insertAdjacentHTML('afterbegin', alertHtml);
             }
-        });
+        }
     </script>
 {% endblock javascript %}
