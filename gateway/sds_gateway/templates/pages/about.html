@@ -8,33 +8,66 @@
 {% block content %}
 {% endblock content %}
 {% block body %}
-    <section class="hero">
-        <div class="container">
-            <h1>About</h1>
-            <div class="hero-content text-center pb-5">
-                <p class="text-white">
-                    The <strong>SpectrumX Data System (SDS)</strong> is a data management and retrieval platform for radio-frequency experiments. This is the SDS Gateway, a web interface in the making for user-friendly data retrieval. Here you can also generate API keys to interact with SDS via our <a href="https://pypi.org/project/spectrumx"
+    <main class="container mt-4">
+        <div class="p-5 mb-4 bg-light rounded-3">
+            <div class="container-fluid py-5">
+                <h1 class="display-5 fw-bold">About the SpectrumX Data System</h1>
+                <p class="col-md-8 fs-4">
+                    The <strong>SpectrumX Data System (SDS)</strong> is a data management and retrieval platform for radio-frequency experiments. This is the SDS Gateway, a web interface for user-friendly data retrieval. Here you can generate API keys to interact with SDS via our <a href="https://pypi.org/project/spectrumx"
     target="_blank"
-    class="text-white">Python SDK</a>.
+    class="capture-link text-decoration-none"
+    aria-label="SpectrumX Python SDK on PyPI (opens in new tab)">Python SDK</a>, explore datasets, and manage your radio-frequency experiment data.
                 </p>
-                <p class="text-white">
+                <p class="col-md-8">
                     The SpectrumX Data System (SDS) is a project under the SpectrumX initiative, which vision is to become a trusted resource within the spectrum ecosystem offering objective, long-term and innovative policy and technical contributions through collaborative, inclusive and integrative education and research activities.
                 </p>
-                <h2 class="text-white mt-5">Resources</h2>
-                <div class="text-center">
-                    <p class="mb-2">
-                        <a href="https://www.spectrumx.org/" target="_blank" class="text-white">SpectrumX Website</a>
-                    </p>
-                    <p class="mb-2">
-                        <a href="https://pypi.org/project/spectrumx/"
-                           target="_blank"
-                           class="text-white">SpectrumX SDK in PyPI</a>
-                    </p>
-                    <p class="mb-2">
-                        <a href="{% url 'api-docs' %}" target="_blank" class="text-white">Gateway API Documentation</a>
-                    </p>
-                </div>
             </div>
         </div>
-    </section>
+        <section class="mt-5">
+            <h2 class="mb-4">Resources</h2>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-globe text-primary mb-3 fs-1" aria-hidden="true"></i>
+                            <h3 class="card-title h5">SpectrumX Website</h3>
+                            <p class="card-text">
+                                <a href="https://www.spectrumx.org/"
+                                   target="_blank"
+                                   class="capture-link text-decoration-none"
+                                   aria-label="Visit the SpectrumX website (opens in new tab)">Learn more about the SpectrumX initiative</a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-code-square text-success mb-3 fs-1" aria-hidden="true"></i>
+                            <h3 class="card-title h5">SpectrumX SDK in PyPI</h3>
+                            <p class="card-text">
+                                <a href="https://pypi.org/project/spectrumx/"
+                                   target="_blank"
+                                   class="capture-link text-decoration-none"
+                                   aria-label="View SpectrumX SDK on PyPI (opens in new tab)">Python SDK for programmatic access</a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-book text-warning mb-3 fs-1" aria-hidden="true"></i>
+                            <h3 class="card-title h5">Gateway API Documentation</h3>
+                            <p class="card-text">
+                                <a href="{% url 'api-docs' %}"
+                                   class="capture-link text-decoration-none"
+                                   aria-label="View Gateway API documentation">Complete API reference and examples</a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
 {% endblock body %}
