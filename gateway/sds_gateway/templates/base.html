@@ -88,7 +88,7 @@
                                 <a class="nav-link" href="{% url 'users:file_list' %}?page=1">My Captures</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'users:generate_api_key' %}">API Key</a>
+                                <a class="nav-link" href="{% url 'users:view_api_key' %}">API Key</a>
                             </li>
                             {% if not request.user.is_authenticated %}
                                 <li class="nav-item">
