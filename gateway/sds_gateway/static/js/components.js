@@ -1,8 +1,98 @@
 /* Reusable Components for SDS Gateway */
-/* Note: there seems to be some duplicated code between this file and file-list.js.
- * I'm leaving it here for now in case of conflicts with other work.
- * These files need some refactoring in the future.
+
+/**
+ * Utility functions for security and common operations
  */
+const ComponentUtils = {
+	/**
+	 * Escapes HTML to prevent XSS attacks
+	 * @param {string} text - Text to escape
+	 * @returns {string} Escaped HTML
+	 */
+	escapeHtml(text) {
+		if (!text) return "";
+		const div = document.createElement("div");
+		div.textContent = text;
+		return div.innerHTML;
+	},
+
+	/**
+	 * Formats file size in human readable format
+	 * @param {number} bytes - File size in bytes
+	 * @returns {string} Formatted file size
+	 */
+	formatFileSize(bytes) {
+		if (bytes === 0) return "0 Bytes";
+		const k = 1024;
+		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+		const i = Math.floor(Math.log(bytes) / Math.log(k));
+		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
+	},
+
+	/**
+	 * Formats date for display with date and time on separate lines
+	 * @param {string} dateString - ISO date string or formatted date string
+	 * @returns {string} Formatted date with HTML structure
+	 */
+	formatDate(dateString) {
+		if (!dateString) return "<div>-</div>";
+
+		let date;
+
+		// Try to parse the date string
+		if (typeof dateString === "string") {
+			// Handle different date formats
+			if (dateString.includes("T")) {
+				// ISO format: 2023-12-25T14:30:45.123Z
+				date = new Date(dateString);
+			} else if (dateString.includes("/") && dateString.includes(":")) {
+				// Already formatted: 12/25/2023 2:30:45 PM
+				date = new Date(dateString);
+			} else {
+				// Try to parse as-is
+				date = new Date(dateString);
+			}
+		} else {
+			date = new Date(dateString);
+		}
+
+		if (!date || Number.isNaN(date.getTime())) {
+			return "<div>-</div>";
+		}
+
+		const month = String(date.getMonth() + 1).padStart(2, "0");
+		const day = String(date.getDate()).padStart(2, "0");
+		const year = date.getFullYear();
+		const hours = date.getHours();
+		const minutes = String(date.getMinutes()).padStart(2, "0");
+		const seconds = String(date.getSeconds()).padStart(2, "0");
+		const ampm = hours >= 12 ? "PM" : "AM";
+		const displayHours = hours % 12 || 12;
+
+		return `<div>${month}/${day}/${year}</div><small class="text-muted">${displayHours}:${minutes}:${seconds} ${ampm}</small>`;
+	},
+
+	/**
+	 * Formats date for display (simple version)
+	 * @param {string} dateString - ISO date string
+	 * @returns {string} Formatted date
+	 */
+	formatDateSimple(dateString) {
+		try {
+			const date = new Date(dateString);
+			return date.toString() !== "Invalid Date"
+				? date.toLocaleDateString("en-US", {
+						month: "2-digit",
+						day: "2-digit",
+						year: "numeric",
+					})
+				: "";
+		} catch (e) {
+			return "";
+		}
+	},
+};
+
 /**
  * TableManager - Handles table operations like sorting, pagination, and updates
  */
@@ -35,7 +125,8 @@ class TableManager {
 		this.updateSortIcons();
 	}
 
-	handleSort(field) {
+	handleSort(header) {
+		const field = header.getAttribute("data-sort");
 		const currentSort = new URLSearchParams(window.location.search).get(
 			"sort_by",
 		);
@@ -48,7 +139,7 @@ class TableManager {
 		}
 
 		this.currentSort = { by: field, order: newOrder };
-		this.updateURL({ sort_by: field, sort_order: newOrder });
+		this.updateURL({ sort_by: field, sort_order: newOrder, page: "1" });
 	}
 
 	updateSortIcons() {
@@ -91,13 +182,27 @@ class TableManager {
 		}
 	}
 
+	showError(message) {
+		const tbody = document.querySelector("tbody");
+		if (tbody) {
+			tbody.innerHTML = `
+				<tr>
+					<td colspan="8" class="text-center text-danger py-4">
+						<i class="fas fa-exclamation-triangle"></i> ${ComponentUtils.escapeHtml(message)}
+						<br><small class="text-muted">Try refreshing the page or contact support if the problem persists.</small>
+					</td>
+				</tr>
+			`;
+		}
+	}
+
 	updateTable(data, hasResults) {
 		if (!this.tbody) return;
 
 		if (!hasResults || !data || data.length === 0) {
 			this.tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-center text-muted py-4">No results found.</td>
+                    <td colspan="8" class="text-center text-muted py-4">No results found.</td>
                 </tr>
             `;
 			return;
@@ -148,42 +253,118 @@ class CapturesTableManager extends TableManager {
 	constructor(config) {
 		super(config);
 		this.modalHandler = config.modalHandler;
+		this.tableContainerSelector = config.tableContainerSelector;
+		this.eventDelegationHandler = null;
+		this.initializeEventDelegation();
+	}
+
+	/**
+	 * Initialize event delegation for better performance and memory management
+	 */
+	initializeEventDelegation() {
+		// Remove existing handler if it exists
+		if (this.eventDelegationHandler) {
+			document.removeEventListener("click", this.eventDelegationHandler);
+		}
+
+		// Create single persistent event handler using delegation
+		this.eventDelegationHandler = (e) => {
+			// Handle capture link clicks
+			if (
+				e.target.matches(".capture-link") ||
+				e.target.closest(".capture-link")
+			) {
+				e.preventDefault();
+				const link = e.target.matches(".capture-link")
+					? e.target
+					: e.target.closest(".capture-link");
+				this.openCaptureModal(link);
+				return;
+			}
+
+			// Handle view button clicks
+			if (
+				e.target.matches(".view-capture-btn") ||
+				e.target.closest(".view-capture-btn")
+			) {
+				e.preventDefault();
+				const button = e.target.matches(".view-capture-btn")
+					? e.target
+					: e.target.closest(".view-capture-btn");
+				this.openCaptureModal(button);
+				return;
+			}
+		};
+
+		// Add the persistent event listener
+		document.addEventListener("click", this.eventDelegationHandler);
 	}
 
 	renderRow(capture, index) {
+		// Sanitize all data before rendering
+		const safeData = {
+			uuid: ComponentUtils.escapeHtml(capture.uuid || ""),
+			channel: ComponentUtils.escapeHtml(capture.channel || ""),
+			scanGroup: ComponentUtils.escapeHtml(capture.scan_group || ""),
+			captureType: ComponentUtils.escapeHtml(capture.capture_type || ""),
+			captureTypeDisplay: ComponentUtils.escapeHtml(
+				capture.capture_type_display || "",
+			),
+			topLevelDir: ComponentUtils.escapeHtml(capture.top_level_dir || ""),
+			indexName: ComponentUtils.escapeHtml(capture.index_name || ""),
+			owner: ComponentUtils.escapeHtml(capture.owner || ""),
+			origin: ComponentUtils.escapeHtml(capture.origin || ""),
+			dataset: ComponentUtils.escapeHtml(capture.dataset || ""),
+			createdAt: ComponentUtils.escapeHtml(capture.created_at || ""),
+			updatedAt: ComponentUtils.escapeHtml(capture.updated_at || ""),
+			isPublic: ComponentUtils.escapeHtml(capture.is_public || ""),
+			isDeleted: ComponentUtils.escapeHtml(capture.is_deleted || ""),
+			centerFrequencyGhz: ComponentUtils.escapeHtml(
+				capture.center_frequency_ghz || "",
+			),
+		};
+
 		// Handle composite vs single capture display
-		let channelDisplay = capture.channel || "";
-		let typeDisplay = capture.capture_type || "";
+		let channelDisplay = safeData.channel;
+		let typeDisplay = safeData.captureTypeDisplay || safeData.captureType;
 
 		if (capture.is_multi_channel) {
 			// For composite captures, show all channels
 			if (capture.channels && Array.isArray(capture.channels)) {
 				channelDisplay = capture.channels
-					.map((ch) => ch.channel || ch)
+					.map((ch) => ComponentUtils.escapeHtml(ch.channel || ch))
 					.join(", ");
 			}
-			typeDisplay = capture.capture_type_display || capture.capture_type || "";
+			// Use capture_type_display if available, otherwise fall back to captureType
+			typeDisplay = capture.capture_type_display || safeData.captureType;
 		}
 
 		return `
-            <tr class="capture-row" data-clickable="true" data-uuid="${capture.uuid || ""}">
-                <th scope="row">${index + 1}</th>
+            <tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
                 <td>
                     <a href="#" class="capture-link"
-                       data-uuid="${capture.uuid || ""}"
-                       data-channel="${capture.channel || ""}"
-                       data-scan-group="${capture.scan_group || ""}"
-                       data-capture-type="${capture.capture_type || ""}"
-                       data-top-level-dir="${capture.top_level_dir || ""}"
-                       data-created-at="${capture.created_at || ""}"
+                       data-uuid="${safeData.uuid}"
+                       data-channel="${safeData.channel}"
+                       data-scan-group="${safeData.scanGroup}"
+                       data-capture-type="${safeData.captureType}"
+                       data-top-level-dir="${safeData.topLevelDir}"
+                       data-index-name="${safeData.indexName}"
+                       data-owner="${safeData.owner}"
+                       data-origin="${safeData.origin}"
+                       data-dataset="${safeData.dataset}"
+                       data-created-at="${safeData.createdAt}"
+                       data-updated-at="${safeData.updatedAt}"
+                       data-is-public="${safeData.isPublic}"
+                       data-is-deleted="${safeData.isDeleted}"
+                       data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
                        data-is-multi-channel="${capture.is_multi_channel || false}"
                        data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}"
-                       aria-label="View details for ${capture.uuid || "unknown capture"}">
-                        ${capture.uuid || ""}
+                       aria-label="View details for ${safeData.uuid || "unknown capture"}">
+                        ${safeData.uuid}
                     </a>
                 </td>
                 <td>${channelDisplay}</td>
-                <td>${capture.created_at ? this.formatDate(capture.created_at) : ""}</td>
+                <td class="text-nowrap">${ComponentUtils.formatDate(capture.created_at)}</td>
                 <td>${typeDisplay}</td>
                 <td>${capture.files_count || "0"}</td>
                 <td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
@@ -192,33 +373,30 @@ class CapturesTableManager extends TableManager {
         `;
 	}
 
-	formatDate(dateString) {
-		try {
-			const date = new Date(dateString);
-			return date.toString() !== "Invalid Date"
-				? date.toLocaleDateString("en-US", {
-						month: "2-digit",
-						day: "2-digit",
-						year: "numeric",
-					})
-				: "";
-		} catch (e) {
-			return "";
+	/**
+	 * Attach row click handlers - now uses event delegation
+	 */
+	attachRowClickHandlers() {
+		// Event delegation is handled in initializeEventDelegation()
+		// This method is kept for compatibility but doesn't need to do anything
+	}
+
+	/**
+	 * Open capture modal with XSS protection
+	 */
+	openCaptureModal(link) {
+		if (this.modalHandler) {
+			this.modalHandler.openCaptureModal(link);
 		}
 	}
 
-	attachRowClickHandlers() {
-		super.attachRowClickHandlers();
-
-		// Attach specific handlers for capture links
-		const captureLinks = this.tbody?.querySelectorAll(".capture-link");
-		for (const link of captureLinks || []) {
-			link.addEventListener("click", (e) => {
-				e.preventDefault();
-				if (this.modalHandler) {
-					this.modalHandler.openCaptureModal(link);
-				}
-			});
+	/**
+	 * Cleanup method for proper resource management
+	 */
+	destroy() {
+		if (this.eventDelegationHandler) {
+			document.removeEventListener("click", this.eventDelegationHandler);
+			this.eventDelegationHandler = null;
 		}
 	}
 }
@@ -460,203 +638,275 @@ class ModalManager {
 	openCaptureModal(linkElement) {
 		if (!linkElement) return;
 
-		const data = linkElement.dataset;
-		// Check if this is a composite capture
-		const isComposite =
-			data.isMultiChannel === "true" || data.isMultiChannel === "True";
+		try {
+			// Get all data attributes from the link with sanitization
+			const data = {
+				uuid: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-uuid") || "",
+				),
+				channel: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-channel") || "",
+				),
+				scanGroup: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-scan-group") || "",
+				),
+				captureType: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-capture-type") || "",
+				),
+				topLevelDir: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-top-level-dir") || "",
+				),
+				owner: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-owner") || "",
+				),
+				origin: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-origin") || "",
+				),
+				dataset: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-dataset") || "",
+				),
+				createdAt: linkElement.getAttribute("data-created-at") || "",
+				updatedAt: linkElement.getAttribute("data-updated-at") || "",
+				isPublic: linkElement.getAttribute("data-is-public") || "",
+				centerFrequencyGhz:
+					linkElement.getAttribute("data-center-frequency-ghz") || "",
+				isMultiChannel: linkElement.getAttribute("data-is-multi-channel") || "",
+				channels: linkElement.getAttribute("data-channels") || "",
+			};
 
-		let content = `
-            <div class="row">
-                <div class="col-sm-4"><strong>UUID:</strong></div>
-                <div class="col-sm-8"><code>${data.uuid || "N/A"}</code></div>
-            </div>
-            <div class="row">
-            <div class="row">
-                <div class="col-sm-4"><strong>${isComposite ? "Channels:" : "Channel:"}</strong></div>
-                <div class="col-sm-8">${data.channel || "N/A"}</div>
-            </div>
-            <div class="row">
-                <div class="col-sm-4"><strong>Scan Group:</strong></div>
-                <div class="col-sm-8">${data.scanGroup || "N/A"}</div>
-            </div>
-            <div class="row">
-                <div class="col-sm-4"><strong>Directory:</strong></div>
-                <div class="col-sm-8"><code>${data.topLevelDir || "N/A"}</code></div>
-            </div>
-            <div class="row">
-                <div class="col-sm-4"><strong>Created:</strong></div>
-                <div class="col-sm-8">${data.createdAt ? new Date(data.createdAt).toLocaleString() : "N/A"}</div>
-            </div>
-        `;
+			// Parse owner field safely
+			const ownerDisplay = data.owner
+				? data.owner.split("'").find((part) => part.includes("@")) || "N/A"
+				: "N/A";
 
-		// Add composite-specific information if available
-		if (isComposite && data.channels) {
-			try {
-				// Convert Python dict syntax to valid JSON
-				let channelsData;
-				if (typeof data.channels === "string") {
-					// Handle Python dict syntax: {'key': 'value'} -> {"key": "value"}
-					const pythonDict = data.channels
-						.replace(/'/g, '"') // Replace single quotes with double quotes
-						.replace(/True/g, "true") // Replace Python True with JSON true
-						.replace(/False/g, "false") // Replace Python False with JSON false
-						.replace(/None/g, "null"); // Replace Python None with JSON null
+			// Check if this is a composite capture
+			const isComposite =
+				data.isMultiChannel === "True" || data.isMultiChannel === "true";
 
-					channelsData = JSON.parse(pythonDict);
-				} else {
-					channelsData = data.channels;
-				}
-				if (Array.isArray(channelsData) && channelsData.length > 0) {
-					content += `
-						<div class="row mt-3">
-							<div class="col-12">
+			let modalContent = `
+				<div class="mb-4">
+					<h6>Basic Information</h6>
+					<p><strong>UUID:</strong> ${data.uuid || "N/A"}</p>
+					<p><strong>Capture Type:</strong> ${data.captureType || "N/A"}</p>
+					<p><strong>Origin:</strong> ${data.origin || "N/A"}</p>
+					<p><strong>Owner:</strong> ${ownerDisplay}</p>
+			`;
+
+			// Handle composite vs single capture display
+			if (isComposite) {
+				modalContent += `
+					<p><strong>Channels:</strong> ${data.channel || "N/A"}</p>
+				`;
+			} else {
+				modalContent += `
+					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
+				`;
+			}
+
+			modalContent += `
+				</div>
+				<div class="mb-4">
+					<h6>Technical Details</h6>
+					<p><strong>Scan Group:</strong> ${data.scanGroup || "N/A"}</p>
+					<p><strong>Top Level Directory:</strong> ${data.topLevelDir || "N/A"}</p>
+					<p><strong>Dataset:</strong> ${data.dataset || "N/A"}</p>
+					<p><strong>Center Frequency:</strong> ${data.centerFrequencyGhz && data.centerFrequencyGhz !== "None" ? `${Number.parseFloat(data.centerFrequencyGhz).toFixed(3)} GHz` : "N/A"}</p>
+					<p><strong>Is Public:</strong> ${data.isPublic === "True" ? "Yes" : "No"}</p>
+				</div>
+				<div>
+					<h6>Timestamps</h6>
+					<p><strong>Created At:</strong> ${data.createdAt && data.createdAt !== "None" ? `${new Date(data.createdAt).toLocaleString()} UTC` : "N/A"}</p>
+					<p><strong>Updated At:</strong> ${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}</p>
+				</div>
+			`;
+
+			// Add composite-specific information if available
+			if (isComposite && data.channels) {
+				try {
+					// Convert Python dict syntax to valid JSON
+					let channelsData;
+					if (typeof data.channels === "string") {
+						// Handle Python dict syntax: {'key': 'value'} -> {"key": "value"}
+						const pythonDict = data.channels
+							.replace(/'/g, '"') // Replace single quotes with double quotes
+							.replace(/True/g, "true") // Replace Python True with JSON true
+							.replace(/False/g, "false") // Replace Python False with JSON false
+							.replace(/None/g, "null"); // Replace Python None with JSON null
+
+						channelsData = JSON.parse(pythonDict);
+					} else {
+						channelsData = data.channels;
+					}
+
+					if (Array.isArray(channelsData) && channelsData.length > 0) {
+						modalContent += `
+							<div class="mt-4">
 								<h6>Channel Details</h6>
 								<div class="accordion" id="channelsAccordion">
-					`;
+						`;
 
-					for (let i = 0; i < channelsData.length; i++) {
-						const channel = channelsData[i];
-						const channelId = `channel-${i}`;
+						for (let i = 0; i < channelsData.length; i++) {
+							const channel = channelsData[i];
+							const channelId = `channel-${i}`;
 
-						// Format channel metadata as key-value pairs
-						let metadataDisplay = "N/A";
-						if (
-							channel.channel_metadata &&
-							typeof channel.channel_metadata === "object"
-						) {
-							const metadata = channel.channel_metadata;
-							const metadataItems = [];
+							// Format channel metadata as key-value pairs
+							let metadataDisplay = "N/A";
+							if (
+								channel.channel_metadata &&
+								typeof channel.channel_metadata === "object"
+							) {
+								const metadata = channel.channel_metadata;
+								const metadataItems = [];
 
-							// Helper function to format values dynamically
-							const formatValue = (value, fieldName = "") => {
-								if (value === null || value === undefined) {
-									return "N/A";
-								}
-
-								if (typeof value === "boolean") {
-									return value ? "Yes" : "No";
-								}
-
-								// Handle string representations of booleans
-								if (typeof value === "string") {
-									if (value.toLowerCase() === "true") {
-										return "Yes";
-									}
-									if (value.toLowerCase() === "false") {
-										return "No";
-									}
-								}
-
-								if (typeof value === "number") {
-									const absValue = Math.abs(value);
-									const valueStr = value.toString();
-									const timeIndicators = [
-										"computer_time",
-										"start_bound",
-										"end_bound",
-										"init_utc_timestamp",
-									];
-									// Only format as timestamp if the field name contains "time"
-									if (
-										timeIndicators.includes(fieldName.toLowerCase()) &&
-										valueStr.length >= 10 &&
-										valueStr.length <= 13
-									) {
-										// Convert to milliseconds if it's in seconds
-										const timestamp =
-											valueStr.length === 10 ? value * 1000 : value;
-										return new Date(timestamp).toLocaleString();
+								// Helper function to format values dynamically
+								const formatValue = (value, fieldName = "") => {
+									if (value === null || value === undefined) {
+										return "N/A";
 									}
 
-									// Only format for Giga (1e9) and Mega (1e6) ranges
-									if (absValue >= 1e9) {
-										return `${(value / 1e9).toFixed(3)} GHz`;
+									if (typeof value === "boolean") {
+										return value ? "Yes" : "No";
 									}
-									if (absValue >= 1e6) {
-										return `${(value / 1e6).toFixed(1)} MHz`;
+
+									// Handle string representations of booleans
+									if (typeof value === "string") {
+										if (value.toLowerCase() === "true") {
+											return "Yes";
+										}
+										if (value.toLowerCase() === "false") {
+											return "No";
+										}
 									}
-									return value.toString();
-								}
 
-								if (Array.isArray(value)) {
-									return value
-										.map((item) => formatValue(item, fieldName))
-										.join(", ");
-								}
+									if (typeof value === "number") {
+										const absValue = Math.abs(value);
+										const valueStr = value.toString();
+										const timeIndicators = [
+											"computer_time",
+											"start_bound",
+											"end_bound",
+											"init_utc_timestamp",
+										];
+										// Only format as timestamp if the field name contains "time"
+										if (
+											timeIndicators.includes(fieldName.toLowerCase()) &&
+											valueStr.length >= 10 &&
+											valueStr.length <= 13
+										) {
+											// Convert to milliseconds if it's in seconds
+											const timestamp =
+												valueStr.length === 10 ? value * 1000 : value;
+											return new Date(timestamp).toLocaleString();
+										}
 
-								if (typeof value === "object") {
-									return JSON.stringify(value);
-								}
-
-								return String(value);
-							};
-
-							// Helper function to format field names
-							const formatFieldName = (fieldName) => {
-								return fieldName
-									.replace(/_/g, " ")
-									.replace(/\b\w/g, (l) => l.toUpperCase());
-							};
-
-							// Loop through all metadata fields
-							if (Object.keys(metadata).length > 0) {
-								for (const [key, value] of Object.entries(metadata)) {
-									if (value !== undefined && value !== null) {
-										const formattedValue = formatValue(value, key);
-										const formattedKey = formatFieldName(key);
-										metadataItems.push(
-											`<strong>${formattedKey}:</strong> ${formattedValue}`,
-										);
+										// Only format for Giga (1e9) and Mega (1e6) ranges
+										if (absValue >= 1e9) {
+											return `${(value / 1e9).toFixed(3)} GHz`;
+										}
+										if (absValue >= 1e6) {
+											return `${(value / 1e6).toFixed(1)} MHz`;
+										}
+										return value.toString();
 									}
+
+									if (Array.isArray(value)) {
+										return value
+											.map((item) => formatValue(item, fieldName))
+											.join(", ");
+									}
+
+									if (typeof value === "object") {
+										return JSON.stringify(value);
+									}
+
+									return String(value);
+								};
+
+								// Helper function to format field names
+								const formatFieldName = (fieldName) => {
+									return fieldName
+										.replace(/_/g, " ")
+										.replace(/\b\w/g, (l) => l.toUpperCase());
+								};
+
+								// Loop through all metadata fields
+								if (Object.keys(metadata).length > 0) {
+									for (const [key, value] of Object.entries(metadata)) {
+										if (value !== undefined && value !== null) {
+											const formattedValue = formatValue(value, key);
+											const formattedKey = formatFieldName(key);
+											metadataItems.push(
+												`<strong>${formattedKey}:</strong> ${formattedValue}`,
+											);
+										}
+									}
+								} else {
+									metadataItems.push("<em>No metadata available</em>");
 								}
-							} else {
-								metadataItems.push("<em>No metadata available</em>");
+
+								if (metadataItems.length > 0) {
+									metadataDisplay = metadataItems.join("<br>");
+								}
 							}
 
-							if (metadataItems.length > 0) {
-								metadataDisplay = metadataItems.join("<br>");
-							}
-						}
-
-						content += `
-							<div class="accordion-item">
-								<h2 class="accordion-header" id="heading-${channelId}">
-									<button class="accordion-button ${i === 0 ? "" : "collapsed"}" type="button"
-											data-bs-toggle="collapse"
-											data-bs-target="#collapse-${channelId}"
-											aria-expanded="${i === 0 ? "true" : "false"}"
-											aria-controls="collapse-${channelId}">
-										<strong>${channel.channel || "N/A"}</strong>
-										<small class="text-muted ms-2">(Click to expand metadata)</small>
-									</button>
-								</h2>
-								<div id="collapse-${channelId}"
-									 class="accordion-collapse collapse ${i === 0 ? "show" : ""}"
-									 aria-labelledby="heading-${channelId}"
-									 data-bs-parent="#channelsAccordion">
-									<div class="accordion-body">
-										<div style="max-width: 100%; word-wrap: break-word;">
-											${metadataDisplay}
+							modalContent += `
+								<div class="accordion-item">
+									<h2 class="accordion-header" id="heading-${channelId}">
+										<button class="accordion-button ${i === 0 ? "" : "collapsed"}" type="button"
+												data-bs-toggle="collapse"
+												data-bs-target="#collapse-${channelId}"
+												aria-expanded="${i === 0 ? "true" : "false"}"
+												aria-controls="collapse-${channelId}">
+											<strong>${ComponentUtils.escapeHtml(channel.channel || "N/A")}</strong>
+											<small class="text-muted ms-2">(Click to expand metadata)</small>
+										</button>
+									</h2>
+									<div id="collapse-${channelId}"
+										 class="accordion-collapse collapse ${i === 0 ? "show" : ""}"
+										 aria-labelledby="heading-${channelId}"
+										 data-bs-parent="#channelsAccordion">
+										<div class="accordion-body">
+											<div style="max-width: 100%; word-wrap: break-word;">
+												${metadataDisplay}
+											</div>
 										</div>
 									</div>
+								</div>
+							`;
+						}
+
+						modalContent += `
 								</div>
 							</div>
 						`;
 					}
+				} catch (e) {
+					console.error("Could not parse channels data for modal:", e);
+					console.error(
+						"Raw channels data that failed to parse:",
+						data.channels,
+					);
 
-					content += `
-								</div>
+					// Show a fallback message in the modal
+					modalContent += `
+						<div class="mt-4">
+							<h6>Channel Details</h6>
+							<div class="alert alert-warning">
+								<i class="fas fa-exclamation-triangle"></i>
+								Unable to display channel details due to data format issues.
+								<br><small>Raw data: ${ComponentUtils.escapeHtml(String(data.channels).substring(0, 100))}...</small>
 							</div>
 						</div>
 					`;
 				}
-			} catch (e) {
-				console.warn("Could not parse channels data:", e);
 			}
-		}
 
-		const title = `Capture Details - ${data.channel || "Unknown"}`;
-		this.show(title, content);
+			const title = `Capture Details - ${data.channel || "Unknown"}`;
+			this.show(title, modalContent);
+		} catch (error) {
+			console.error("Error opening capture modal:", error);
+			this.show("Error", "Error displaying capture details");
+		}
 	}
 }
 
@@ -731,6 +981,7 @@ class PaginationManager {
 }
 
 // Make classes available globally
+window.ComponentUtils = ComponentUtils;
 window.TableManager = TableManager;
 window.CapturesTableManager = CapturesTableManager;
 window.FilterManager = FilterManager;
@@ -741,6 +992,7 @@ window.PaginationManager = PaginationManager;
 // Export classes for module use
 if (typeof module !== "undefined" && module.exports) {
 	module.exports = {
+		ComponentUtils,
 		TableManager,
 		CapturesTableManager,
 		FilterManager,

@@ -1,54 +1,4 @@
-/* File List Page JavaScript - Refactored with Components */
-
-/**
- * Utility functions for security and common operations
- */
-const FileListUtils = {
-	/**
-	 * Escapes HTML to prevent XSS attacks
-	 * @param {string} text - Text to escape
-	 * @returns {string} Escaped HTML
-	 */
-	escapeHtml(text) {
-		if (!text) return "";
-		const div = document.createElement("div");
-		div.textContent = text;
-		return div.innerHTML;
-	},
-
-	/**
-	 * Formats file size in human readable format
-	 * @param {number} bytes - File size in bytes
-	 * @returns {string} Formatted file size
-	 */
-	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-	},
-
-	/**
-	 * Formats date for display
-	 * @param {string} dateString - ISO date string
-	 * @returns {string} Formatted date
-	 */
-	formatDate(dateString) {
-		if (!dateString) return "";
-		const date = new Date(dateString);
-		if (date.toString() === "Invalid Date") return "";
-
-		const month = String(date.getMonth() + 1).padStart(2, "0");
-		const day = String(date.getDate()).padStart(2, "0");
-		const year = date.getFullYear();
-		const hours = String(date.getHours() % 12 || 12).padStart(2, "0");
-		const minutes = String(date.getMinutes()).padStart(2, "0");
-		const seconds = String(date.getSeconds()).padStart(2, "0");
-
-		return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}`;
-	},
-};
+/* File List Page JavaScript - Refactored to use Components */
 
 /**
  * Configuration constants
@@ -522,55 +472,12 @@ class FileListController {
 
 /**
  * Enhanced CapturesTableManager for file list specific functionality
+ * Extends the base CapturesTableManager from components.js
  */
 class FileListCapturesTableManager extends CapturesTableManager {
 	constructor(options) {
 		super(options);
 		this.resultsCountElement = document.getElementById(options.resultsCountId);
-		this.eventDelegationHandler = null;
-		this.initializeEventDelegation();
-	}
-
-	/**
-	 * Initialize event delegation for better performance and memory management
-	 */
-	initializeEventDelegation() {
-		// Remove existing handler if it exists
-		if (this.eventDelegationHandler) {
-			document.removeEventListener("click", this.eventDelegationHandler);
-		}
-
-		// Create single persistent event handler using delegation
-		this.eventDelegationHandler = (e) => {
-			// Handle capture link clicks
-			if (
-				e.target.matches(".capture-link") ||
-				e.target.closest(".capture-link")
-			) {
-				e.preventDefault();
-				const link = e.target.matches(".capture-link")
-					? e.target
-					: e.target.closest(".capture-link");
-				this.openCaptureModal(link);
-				return;
-			}
-
-			// Handle view button clicks
-			if (
-				e.target.matches(".view-capture-btn") ||
-				e.target.closest(".view-capture-btn")
-			) {
-				e.preventDefault();
-				const button = e.target.matches(".view-capture-btn")
-					? e.target
-					: e.target.closest(".view-capture-btn");
-				this.openCaptureModal(button);
-				return;
-			}
-		};
-
-		// Add the persistent event listener
-		document.addEventListener("click", this.eventDelegationHandler);
 	}
 
 	/**
@@ -586,7 +493,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		if (!hasResults || captures.length === 0) {
 			tbody.innerHTML = `
 				<tr>
-					<td colspan="7" class="text-center text-muted py-4">No captures found.</td>
+					<td colspan="8" class="text-center text-muted py-4">No captures found.</td>
 				</tr>
 			`;
 			return;
@@ -612,55 +519,64 @@ class FileListCapturesTableManager extends CapturesTableManager {
 
 	/**
 	 * Render individual table row with XSS protection
+	 * Overrides the base class method to include file-specific columns
 	 */
 	renderRow(capture, index) {
 		// Sanitize all data before rendering
 		const safeData = {
-			uuid: FileListUtils.escapeHtml(capture.uuid || ""),
-			channel: FileListUtils.escapeHtml(capture.channel || ""),
-			scanGroup: FileListUtils.escapeHtml(capture.scan_group || ""),
-			captureType: FileListUtils.escapeHtml(capture.capture_type || ""),
-			topLevelDir: FileListUtils.escapeHtml(capture.top_level_dir || ""),
-			indexName: FileListUtils.escapeHtml(capture.index_name || ""),
-			owner: FileListUtils.escapeHtml(capture.owner || ""),
-			origin: FileListUtils.escapeHtml(capture.origin || ""),
-			dataset: FileListUtils.escapeHtml(capture.dataset || ""),
-			createdAt: FileListUtils.escapeHtml(capture.created_at || ""),
-			updatedAt: FileListUtils.escapeHtml(capture.updated_at || ""),
-			isPublic: FileListUtils.escapeHtml(capture.is_public || ""),
-			isDeleted: FileListUtils.escapeHtml(capture.is_deleted || ""),
-			centerFrequencyGhz: FileListUtils.escapeHtml(
+			uuid: ComponentUtils.escapeHtml(capture.uuid || ""),
+			channel: ComponentUtils.escapeHtml(capture.channel || ""),
+			scanGroup: ComponentUtils.escapeHtml(capture.scan_group || ""),
+			captureType: ComponentUtils.escapeHtml(capture.capture_type || ""),
+			captureTypeDisplay: ComponentUtils.escapeHtml(
+				capture.capture_type_display || "",
+			),
+			topLevelDir: ComponentUtils.escapeHtml(capture.top_level_dir || ""),
+			indexName: ComponentUtils.escapeHtml(capture.index_name || ""),
+			owner: ComponentUtils.escapeHtml(capture.owner || ""),
+			origin: ComponentUtils.escapeHtml(capture.origin || ""),
+			dataset: ComponentUtils.escapeHtml(capture.dataset || ""),
+			createdAt: ComponentUtils.escapeHtml(capture.created_at || ""),
+			updatedAt: ComponentUtils.escapeHtml(capture.updated_at || ""),
+			isPublic: ComponentUtils.escapeHtml(capture.is_public || ""),
+			isDeleted: ComponentUtils.escapeHtml(capture.is_deleted || ""),
+			centerFrequencyGhz: ComponentUtils.escapeHtml(
 				capture.center_frequency_ghz || "",
 			),
 		};
 
-		// Format author display - prioritize name, fallback to email, then dash
-		let authorDisplay = "-";
-		if (capture.owner) {
-			if (capture.owner.name) {
-				authorDisplay = FileListUtils.escapeHtml(capture.owner.name);
-			} else if (capture.owner.email) {
-				authorDisplay = FileListUtils.escapeHtml(capture.owner.email);
-			}
-		}
-
 		// Handle composite vs single capture display
 		let channelDisplay = safeData.channel;
-		let typeDisplay = safeData.captureType;
+		let typeDisplay = safeData.captureTypeDisplay || safeData.captureType;
 
 		if (capture.is_multi_channel) {
 			// For composite captures, show all channels
 			if (capture.channels && Array.isArray(capture.channels)) {
 				channelDisplay = capture.channels
-					.map((ch) => ch.channel || ch)
+					.map((ch) => ComponentUtils.escapeHtml(ch.channel || ch))
 					.join(", ");
 			}
+			// Use capture_type_display if available, otherwise fall back to captureType
 			typeDisplay = capture.capture_type_display || safeData.captureType;
+		}
+
+		// Handle author display with proper fallback
+		let authorDisplay = "-";
+		if (capture.owner) {
+			if (typeof capture.owner === "string") {
+				// Handle string format (email or name)
+				authorDisplay = ComponentUtils.escapeHtml(capture.owner);
+			} else if (capture.owner.name) {
+				// Handle object format with name
+				authorDisplay = ComponentUtils.escapeHtml(capture.owner.name);
+			} else if (capture.owner.email) {
+				// Handle object format with email fallback
+				authorDisplay = ComponentUtils.escapeHtml(capture.owner.email);
+			}
 		}
 
 		return `
 			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
-				<th scope="row">${index + 1}</th>
 				<td>
 					<a href="#" class="capture-link"
 					   data-uuid="${safeData.uuid}"
@@ -684,320 +600,14 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					</a>
 				</td>
 				<td>${channelDisplay}</td>
-				<td>${FileListUtils.formatDate(capture.created_at)}</td>
+				<td class="text-nowrap">${ComponentUtils.formatDate(capture.created_at)}</td>
 				<td>${typeDisplay}</td>
 				<td>${authorDisplay}</td>
-				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${FileListUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
+				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${ComponentUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
 				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
 				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
 			</tr>
 		`;
-	}
-
-	/**
-	 * Attach row click handlers - now uses event delegation
-	 */
-	attachRowClickHandlers() {
-		// Event delegation is handled in initializeEventDelegation()
-		// This method is kept for compatibility but doesn't need to do anything
-	}
-
-	/**
-	 * Open capture modal with XSS protection
-	 */
-	openCaptureModal(link) {
-		try {
-			// Get all data attributes from the link with sanitization
-			const data = {
-				uuid: FileListUtils.escapeHtml(link.getAttribute("data-uuid") || ""),
-				channel: FileListUtils.escapeHtml(
-					link.getAttribute("data-channel") || "",
-				),
-				scanGroup: FileListUtils.escapeHtml(
-					link.getAttribute("data-scan-group") || "",
-				),
-				captureType: FileListUtils.escapeHtml(
-					link.getAttribute("data-capture-type") || "",
-				),
-				topLevelDir: FileListUtils.escapeHtml(
-					link.getAttribute("data-top-level-dir") || "",
-				),
-				owner: FileListUtils.escapeHtml(link.getAttribute("data-owner") || ""),
-				origin: FileListUtils.escapeHtml(
-					link.getAttribute("data-origin") || "",
-				),
-				dataset: FileListUtils.escapeHtml(
-					link.getAttribute("data-dataset") || "",
-				),
-				createdAt: link.getAttribute("data-created-at") || "",
-				updatedAt: link.getAttribute("data-updated-at") || "",
-				isPublic: link.getAttribute("data-is-public") || "",
-				centerFrequencyGhz:
-					link.getAttribute("data-center-frequency-ghz") || "",
-				isMultiChannel: link.getAttribute("data-is-multi-channel") || "",
-				channels: link.getAttribute("data-channels") || "",
-			};
-
-			// Parse owner field safely
-			const ownerDisplay = data.owner
-				? data.owner.split("'").find((part) => part.includes("@")) || "N/A"
-				: "N/A";
-
-			// Check if this is a composite capture
-			const isComposite =
-				data.isMultiChannel === "True" || data.isMultiChannel === "true";
-
-			let modalContent = `
-				<div class="mb-4">
-					<h6>Basic Information</h6>
-					<p><strong>UUID:</strong> ${data.uuid || "N/A"}</p>
-					<p><strong>Capture Type:</strong> ${data.captureType || "N/A"}</p>
-					<p><strong>Origin:</strong> ${data.origin || "N/A"}</p>
-					<p><strong>Owner:</strong> ${ownerDisplay}</p>
-			`;
-
-			// Handle composite vs single capture display
-			if (isComposite) {
-				modalContent += `
-					<p><strong>Channels:</strong> ${data.channel || "N/A"}</p>
-				`;
-			} else {
-				modalContent += `
-					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
-				`;
-			}
-
-			modalContent += `
-				</div>
-				<div class="mb-4">
-					<h6>Technical Details</h6>
-					<p><strong>Scan Group:</strong> ${data.scanGroup || "N/A"}</p>
-					<p><strong>Top Level Directory:</strong> ${data.topLevelDir || "N/A"}</p>
-					<p><strong>Dataset:</strong> ${data.dataset || "N/A"}</p>
-					<p><strong>Center Frequency:</strong> ${data.centerFrequencyGhz && data.centerFrequencyGhz !== "None" ? `${Number.parseFloat(data.centerFrequencyGhz).toFixed(3)} GHz` : "N/A"}</p>
-					<p><strong>Is Public:</strong> ${data.isPublic === "True" ? "Yes" : "No"}</p>
-				</div>
-				<div>
-					<h6>Timestamps</h6>
-					<p><strong>Created At:</strong> ${data.createdAt && data.createdAt !== "None" ? `${new Date(data.createdAt).toLocaleString()} UTC` : "N/A"}</p>
-					<p><strong>Updated At:</strong> ${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}</p>
-				</div>
-			`;
-
-			// Add composite-specific information if available
-			if (isComposite && data.channels) {
-				try {
-					// Convert Python dict syntax to valid JSON
-					let channelsData;
-					if (typeof data.channels === "string") {
-						// Handle Python dict syntax: {'key': 'value'} -> {"key": "value"}
-						const pythonDict = data.channels
-							.replace(/'/g, '"') // Replace single quotes with double quotes
-							.replace(/True/g, "true") // Replace Python True with JSON true
-							.replace(/False/g, "false") // Replace Python False with JSON false
-							.replace(/None/g, "null"); // Replace Python None with JSON null
-
-						channelsData = JSON.parse(pythonDict);
-					} else {
-						channelsData = data.channels;
-					}
-
-					if (Array.isArray(channelsData) && channelsData.length > 0) {
-						modalContent += `
-							<div class="mt-4">
-								<h6>Channel Details</h6>
-								<div class="accordion" id="channelsAccordion">
-						`;
-
-						for (let i = 0; i < channelsData.length; i++) {
-							const channel = channelsData[i];
-							const channelId = `channel-${i}`;
-
-							// Format channel metadata as key-value pairs
-							let metadataDisplay = "N/A";
-							if (
-								channel.channel_metadata &&
-								typeof channel.channel_metadata === "object"
-							) {
-								const metadata = channel.channel_metadata;
-								const metadataItems = [];
-
-								// Helper function to format values dynamically
-								const formatValue = (value, fieldName = "") => {
-									if (value === null || value === undefined) {
-										return "N/A";
-									}
-
-									if (typeof value === "boolean") {
-										return value ? "Yes" : "No";
-									}
-
-									// Handle string representations of booleans
-									if (typeof value === "string") {
-										if (value.toLowerCase() === "true") {
-											return "Yes";
-										}
-										if (value.toLowerCase() === "false") {
-											return "No";
-										}
-									}
-
-									if (typeof value === "number") {
-										const absValue = Math.abs(value);
-										const valueStr = value.toString();
-										const timeIndicators = [
-											"computer_time",
-											"start_bound",
-											"end_bound",
-											"init_utc_timestamp",
-										];
-										// Only format as timestamp if the field name contains "time"
-										if (
-											timeIndicators.includes(fieldName.toLowerCase()) &&
-											valueStr.length >= 10 &&
-											valueStr.length <= 13
-										) {
-											// Convert to milliseconds if it's in seconds
-											const timestamp =
-												valueStr.length === 10 ? value * 1000 : value;
-											return new Date(timestamp).toLocaleString();
-										}
-
-										// Only format for Giga (1e9) and Mega (1e6) ranges
-										if (absValue >= 1e9) {
-											return `${(value / 1e9).toFixed(3)} GHz`;
-										}
-										if (absValue >= 1e6) {
-											return `${(value / 1e6).toFixed(1)} MHz`;
-										}
-										return value.toString();
-									}
-
-									if (Array.isArray(value)) {
-										return value
-											.map((item) => formatValue(item, fieldName))
-											.join(", ");
-									}
-
-									if (typeof value === "object") {
-										return JSON.stringify(value);
-									}
-
-									return String(value);
-								};
-
-								// Helper function to format field names
-								const formatFieldName = (fieldName) => {
-									return fieldName
-										.replace(/_/g, " ")
-										.replace(/\b\w/g, (l) => l.toUpperCase());
-								};
-
-								// Loop through all metadata fields
-								if (Object.keys(metadata).length > 0) {
-									for (const [key, value] of Object.entries(metadata)) {
-										if (value !== undefined && value !== null) {
-											const formattedValue = formatValue(value, key);
-											const formattedKey = formatFieldName(key);
-											metadataItems.push(
-												`<strong>${formattedKey}:</strong> ${formattedValue}`,
-											);
-										}
-									}
-								} else {
-									metadataItems.push("<em>No metadata available</em>");
-								}
-
-								if (metadataItems.length > 0) {
-									metadataDisplay = metadataItems.join("<br>");
-								}
-							}
-
-							modalContent += `
-								<div class="accordion-item">
-									<h2 class="accordion-header" id="heading-${channelId}">
-										<button class="accordion-button ${i === 0 ? "" : "collapsed"}" type="button"
-												data-bs-toggle="collapse"
-												data-bs-target="#collapse-${channelId}"
-												aria-expanded="${i === 0 ? "true" : "false"}"
-												aria-controls="collapse-${channelId}">
-											<strong>${FileListUtils.escapeHtml(channel.channel || "N/A")}</strong>
-											<small class="text-muted ms-2">(Click to expand metadata)</small>
-										</button>
-									</h2>
-									<div id="collapse-${channelId}"
-										 class="accordion-collapse collapse ${i === 0 ? "show" : ""}"
-										 aria-labelledby="heading-${channelId}"
-										 data-bs-parent="#channelsAccordion">
-										<div class="accordion-body">
-											<div style="max-width: 100%; word-wrap: break-word;">
-												${metadataDisplay}
-											</div>
-										</div>
-									</div>
-								</div>
-							`;
-						}
-
-						modalContent += `
-								</div>
-							</div>
-						`;
-					}
-				} catch (e) {
-					console.error("Could not parse channels data for modal:", e);
-					console.error(
-						"Raw channels data that failed to parse:",
-						data.channels,
-					);
-
-					// Show a fallback message in the modal
-					modalContent += `
-						<div class="mt-4">
-							<h6>Channel Details</h6>
-							<div class="alert alert-warning">
-								<i class="fas fa-exclamation-triangle"></i>
-								Unable to display channel details due to data format issues.
-								<br><small>Raw data: ${FileListUtils.escapeHtml(String(data.channels).substring(0, 100))}...</small>
-							</div>
-						</div>
-					`;
-				}
-			}
-
-			const title = `Capture Details - ${data.channel || "Unknown"}`;
-			this.modalHandler.show(title, modalContent);
-		} catch (error) {
-			console.error("Error opening capture modal:", error);
-			this.showError("Error displaying capture details");
-		}
-	}
-
-	/**
-	 * Show error message with improved styling
-	 */
-	showError(message) {
-		const tbody = document.querySelector("tbody");
-		if (tbody) {
-			tbody.innerHTML = `
-				<tr>
-					<td colspan="8" class="text-center text-danger py-4">
-						<i class="fas fa-exclamation-triangle"></i> ${FileListUtils.escapeHtml(message)}
-						<br><small class="text-muted">Try refreshing the page or contact support if the problem persists.</small>
-					</td>
-				</tr>
-			`;
-		}
-	}
-
-	/**
-	 * Cleanup method for proper resource management
-	 */
-	destroy() {
-		if (this.eventDelegationHandler) {
-			document.removeEventListener("click", this.eventDelegationHandler);
-			this.eventDelegationHandler = null;
-		}
 	}
 }
 

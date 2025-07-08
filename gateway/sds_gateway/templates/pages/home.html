@@ -9,29 +9,56 @@
 {% block content %}
 {% endblock content %}
 {% block body %}
-    <section class="hero pb-5">
-        <div class="container">
-            <h1>Spectrum Data System</h1>
-            <div class="hero-boxes">
-                <div class="hero-box">
-                    <h2>About the SDS</h2>
-                    <p>
-                        A <a href="{% url 'about' %}">data management and retrieval platform</a> for radio-frequency experiments
-                    </p>
+    <main class="container mt-4">
+        <div class="p-5 mb-4 bg-light rounded-3">
+            <div class="container-fluid py-5">
+                <h1 class="display-5 fw-bold">Spectrum Data System</h1>
+                <p class="col-md-8 fs-4">
+                    A data management and retrieval platform for radio-frequency experiments. This is the SDS Gateway, a web interface for user-friendly data retrieval and API access.
+                </p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <i class="bi bi-info-circle-fill text-primary mb-3 fs-1"
+                           aria-hidden="true"></i>
+                        <h2 class="card-title h5">About the SDS</h2>
+                        <p class="card-text">
+                            A <a href="{% url 'about' %}"
+    class="capture-link text-decoration-none"
+    aria-label="Learn more about the SDS data management and retrieval platform">data management and retrieval platform</a> for radio-frequency experiments
+                        </p>
+                    </div>
                 </div>
-                <div class="hero-box">
-                    <h2>API Gateway Documentation</h2>
-                    <p>
-                        <a href="{% url 'api-docs' %}">Documentation of API endpoints</a> of SpectrumX Data System Gateway
-                    </p>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <i class="bi bi-book-fill text-success mb-3 fs-1" aria-hidden="true"></i>
+                        <h2 class="card-title h5">API Gateway Documentation</h2>
+                        <p class="card-text">
+                            <a href="{% url 'api-docs' %}"
+                               class="capture-link text-decoration-none"
+                               aria-label="View API documentation and endpoints for the SpectrumX Data System Gateway">Documentation of API endpoints</a> of SpectrumX Data System Gateway
+                        </p>
+                    </div>
                 </div>
-                <div class="hero-box">
-                    <h2>My SDS Files</h2>
-                    <p>
-                        <a href="{% url 'users:file_list' %}?page=1">View your files</a> in the SDS
-                    </p>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <i class="bi bi-files text-warning mb-3 fs-1" aria-hidden="true"></i>
+                        <h2 class="card-title h5">My SDS Files</h2>
+                        <p class="card-text">
+                            <a href="{% url 'users:file_list' %}?page=1"
+                               class="capture-link text-decoration-none"
+                               aria-label="View and manage your files in the SDS">View your files</a> in the SDS
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
-    </section>
+    </main>
 {% endblock body %}

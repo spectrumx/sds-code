@@ -103,7 +103,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
 
     def get_formatted_created_at(self, capture: Capture) -> str:
         """Get the created_at date in the desired format."""
-        return capture.created_at.strftime("%m/%d/%Y %I:%M:%S")
+        return capture.created_at.strftime("%m/%d/%Y %I:%M:%S %p")
 
     def get_capture_type_display(self, capture: Capture) -> str:
         """Get the display value for the capture type."""
@@ -243,6 +243,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
     files = serializers.SerializerMethodField()
     files_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
+    formatted_created_at = serializers.SerializerMethodField()
 
     def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
         """Get all files from all channels in the composite capture."""
@@ -284,6 +285,14 @@ class CompositeCaptureSerializer(serializers.Serializer):
             )
             total_size += result["total_size"] or 0
         return total_size
+
+    @extend_schema_field(serializers.CharField)
+    def get_formatted_created_at(self, obj: dict[str, Any]) -> str:
+        """Format the created_at timestamp for display."""
+        created_at = obj.get("created_at")
+        if created_at:
+            return created_at.strftime("%m/%d/%Y %I:%M:%S %p")
+        return ""
 
 
 def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
