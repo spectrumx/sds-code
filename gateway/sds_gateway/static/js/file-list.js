@@ -128,8 +128,7 @@ class FileListController {
 			this.elements.endDate.value = this.urlParams.get("date_end");
 		}
 
-		// Set frequency values if they exist in URL
-		this.initializeFrequencyFromURL();
+		// Frequency initialization is now handled in initializeFrequencySlider()
 	}
 
 	/**
@@ -359,10 +358,13 @@ class FileListController {
 	}
 
 	/**
-	 * Initialize frequency handling
+	 * Initialize frequency range handling
 	 */
 	initializeFrequencyHandling() {
-		// Add event listeners to track user interaction with frequency inputs
+		// Initialize noUiSlider for frequency range
+		this.initializeFrequencySlider();
+
+		// Add change handlers for frequency inputs to track user interaction
 		if (this.elements.centerFreqMin) {
 			this.elements.centerFreqMin.addEventListener("change", () => {
 				this.userInteractedWithFrequency = true;
@@ -377,16 +379,14 @@ class FileListController {
 
 		// Apply filters button
 		if (this.elements.applyFilters) {
-			this.elements.applyFilters.addEventListener("click", (e) => {
-				e.preventDefault();
+			this.elements.applyFilters.addEventListener("click", () => {
 				this.performSearch();
 			});
 		}
 
 		// Clear filters button
 		if (this.elements.clearFilters) {
-			this.elements.clearFilters.addEventListener("click", (e) => {
-				e.preventDefault();
+			this.elements.clearFilters.addEventListener("click", () => {
 				this.clearAllFilters();
 			});
 		}
@@ -425,47 +425,96 @@ class FileListController {
 	}
 
 	/**
-	 * Initialize frequency range from URL parameters
+	 * Initialize frequency range from URL parameters and create slider
 	 */
-	initializeFrequencyFromURL() {
-		if (!this.elements.centerFreqMin || !this.elements.centerFreqMax) return;
-
-		const minFreq = Number.parseFloat(this.urlParams.get("min_freq"));
-		const maxFreq = Number.parseFloat(this.urlParams.get("max_freq"));
-
-		if (!Number.isNaN(minFreq)) {
-			this.elements.centerFreqMin.value = minFreq;
-			this.userInteractedWithFrequency = true;
-		}
-		if (!Number.isNaN(maxFreq)) {
-			this.elements.centerFreqMax.value = maxFreq;
-			this.userInteractedWithFrequency = true;
-		}
-
-		// Update noUiSlider if it exists
-		if (this.userInteractedWithFrequency) {
-			this.initializeFrequencySlider();
-		}
-	}
-
 	initializeFrequencySlider() {
-		try {
-			const frequencyRangeSlider = document.getElementById(
-				"frequency-range-slider",
-			);
-			if (frequencyRangeSlider?.noUiSlider) {
-				const currentValues = frequencyRangeSlider.noUiSlider.get();
-				const newMin = !Number.isNaN(minFreq)
-					? minFreq
-					: Number.parseFloat(currentValues[0]);
-				const newMax = !Number.isNaN(maxFreq)
-					? maxFreq
-					: Number.parseFloat(currentValues[1]);
+		const frequencyRangeSlider = document.getElementById(
+			"frequency-range-slider",
+		);
+		if (!frequencyRangeSlider || typeof noUiSlider === "undefined") {
+			return;
+		}
 
-				frequencyRangeSlider.noUiSlider.set([newMin, newMax]);
+		// Get initial values from URL parameters
+		const minFreq = Number.parseFloat(this.urlParams.get("min_freq")) || 0;
+		const maxFreq = Number.parseFloat(this.urlParams.get("max_freq")) || 10;
+
+		// Set user interaction flag if URL params exist
+		if (this.urlParams.get("min_freq") || this.urlParams.get("max_freq")) {
+			this.userInteractedWithFrequency = true;
+		}
+
+		// Create the slider with initial values
+		noUiSlider.create(frequencyRangeSlider, {
+			start: [minFreq, maxFreq],
+			connect: true,
+			range: {
+				min: 0,
+				max: 10,
+			},
+			step: 0.1,
+			format: {
+				to: (value) => Number.parseFloat(value).toFixed(1),
+				from: (value) => Number.parseFloat(value),
+			},
+		});
+
+		// Cache DOM elements for slider display
+		const lowerValue = document.getElementById("frequency-range-lower");
+		const upperValue = document.getElementById("frequency-range-upper");
+		const minInput = this.elements.centerFreqMin;
+		const maxInput = this.elements.centerFreqMax;
+
+		// Update display and input fields when slider changes
+		frequencyRangeSlider.noUiSlider.on("update", (values, handle) => {
+			const value = Number.parseFloat(values[handle]);
+			if (handle === 0) {
+				if (lowerValue) lowerValue.textContent = `${value} GHz`;
+				if (minInput) minInput.value = value;
+				frequencyRangeSlider.setAttribute(
+					"aria-valuetext",
+					`Frequency range from ${value} GHz to ${Number.parseFloat(values[1])} GHz`,
+				);
+			} else {
+				if (upperValue) upperValue.textContent = `${value} GHz`;
+				if (maxInput) maxInput.value = value;
+				frequencyRangeSlider.setAttribute(
+					"aria-valuetext",
+					`Frequency range from ${Number.parseFloat(values[0])} GHz to ${value} GHz`,
+				);
 			}
-		} catch (error) {
-			console.error("Error initializing frequency slider:", error);
+		});
+
+		// Track user interaction when slider changes
+		frequencyRangeSlider.noUiSlider.on("change", () => {
+			this.userInteractedWithFrequency = true;
+		});
+
+		// Update slider when input values change manually
+		if (minInput) {
+			minInput.addEventListener("change", () => {
+				const value = Number.parseFloat(minInput.value);
+				if (!Number.isNaN(value) && value >= 0 && value <= 10) {
+					frequencyRangeSlider.noUiSlider.set([value, null]);
+				}
+			});
+		}
+
+		if (maxInput) {
+			maxInput.addEventListener("change", () => {
+				const value = Number.parseFloat(maxInput.value);
+				if (!Number.isNaN(value) && value >= 0 && value <= 10) {
+					frequencyRangeSlider.noUiSlider.set([null, value]);
+				}
+			});
+		}
+
+		// Set initial input field values from URL
+		if (this.urlParams.get("min_freq") && minInput) {
+			minInput.value = minFreq;
+		}
+		if (this.urlParams.get("max_freq") && maxInput) {
+			maxInput.value = maxFreq;
 		}
 	}
 }
@@ -615,7 +664,11 @@ class FileListCapturesTableManager extends CapturesTableManager {
 window.initializeFrequencySlider = () => {
 	// This function is called from the template
 	if (window.fileListController) {
-		window.fileListController.initializeFrequencyFromURL();
+		// The frequency slider is now initialized automatically during construction
+		// This function is kept for backward compatibility but is no longer needed
+		console.warn(
+			"window.initializeFrequencySlider() is deprecated - slider is now initialized automatically",
+		);
 	}
 };
 
