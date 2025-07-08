@@ -7,6 +7,7 @@
     hero-white-page
 {% endblock bodyclass %}
 {% block content %}
+    {% csrf_token %}
     <!-- Add Bootstrap Icons for sort arrows -->
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
@@ -305,7 +306,7 @@
                         button.disabled = true;
 
                         // Make API request
-                        fetch(`/api/datasets/${datasetUuid}/download/`, {
+                        fetch(`/users/dataset-download/${datasetUuid}/`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -314,7 +315,7 @@
                             })
                             .then(response => response.json())
                             .then(data => {
-                                if (data.success) {
+                                if (data.message && data.task_id) {
                                     button.innerHTML = '<i class="bi bi-check-circle text-success"></i> Download Requested';
                                     showAlert('Download request submitted successfully! You will receive an email when ready.', 'success');
                                 } else {
@@ -349,7 +350,7 @@
                 </div>
             `;
 
-            const alertContainer = document.querySelector('.alert-container') || document.querySelector('.container-fluid');
+            const alertContainer = document.querySelector('.main-content-area .container');
             if (alertContainer) {
                 alertContainer.insertAdjacentHTML('afterbegin', alertHtml);
             }
