@@ -830,6 +830,84 @@ class CaptureTestCases(APITestCase):
 
         assert composite_found, "Composite capture not found in list results"
 
+    def test_capture_name_field_functionality(self) -> None:
+        """Test that the name field works correctly in captures."""
+        # Test 1: Create capture with explicit name
+        capture_with_name = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel-with-name",
+            index_name=f"{self.test_index_prefix}-drf",
+            owner=self.user,
+            top_level_dir="/test/capture/with/name",
+            name="My Custom Capture Name",
+        )
+
+        # Verify the name is set correctly
+        assert capture_with_name.name == "My Custom Capture Name"
+
+        # Test string representation with name
+        str_repr_with_name = str(capture_with_name)
+        assert "My Custom Capture Name" in str_repr_with_name
+        assert "(drf)" in str_repr_with_name  # Uses enum value, not display name
+
+        # Test 2: Create capture without name (should auto-generate from top_level_dir)
+        capture_without_name = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel-no-name",
+            index_name=f"{self.test_index_prefix}-drf",
+            owner=self.user,
+            top_level_dir="/test/capture/auto/generated",
+        )
+
+        # Verify the name is auto-generated from the path
+        assert capture_without_name.name == "generated"
+
+        # Test string representation with auto-generated name
+        str_repr_auto = str(capture_without_name)
+        assert "generated" in str_repr_auto
+        assert "(drf)" in str_repr_auto  # Uses enum value, not display name
+
+        # Test 3: Create capture with empty top_level_dir and no name
+        capture_empty_path = Capture.objects.create(
+            capture_type=CaptureType.RadioHound,
+            index_name=f"{self.test_index_prefix}-rh",
+            owner=self.user,
+            scan_group=uuid.uuid4(),
+            top_level_dir="",
+        )
+
+        # Should fall back to default string representation
+        str_repr_empty = str(capture_empty_path)
+        assert "rh capture for channel" in str_repr_empty  # Uses enum value
+
+        # Test 4: Test API response includes name field
+        response = self.client.get(self.detail_url(capture_with_name.uuid))
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        assert "name" in data
+        assert data["name"] == "My Custom Capture Name"
+
+        # Test 5: Test list endpoint includes name field
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+
+        data = response.json()
+        results = data["results"]
+
+        # Find our test capture in the results
+        test_capture = next(
+            (c for c in results if c["uuid"] == str(capture_with_name.uuid)), None
+        )
+        assert test_capture is not None
+        assert "name" in test_capture
+        assert test_capture["name"] == "My Custom Capture Name"
+
+        # Clean up test captures
+        capture_with_name.delete()
+        capture_without_name.delete()
+        capture_empty_path.delete()
+
     def test_delete_capture_204(self) -> None:
         """Test deleting a capture returns 204."""
         response = self.client.delete(self.detail_url(self.drf_capture_v0.uuid))

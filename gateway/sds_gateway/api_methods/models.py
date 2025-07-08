@@ -212,6 +212,7 @@ class Capture(BaseModel):
     )
     top_level_dir = models.CharField(max_length=2048, blank=True)
     index_name = models.CharField(max_length=255, blank=True)
+    name = models.CharField(max_length=255, blank=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         blank=True,
@@ -233,7 +234,18 @@ class Capture(BaseModel):
     )
 
     def __str__(self):
+        if self.name:
+            return f"{self.name} ({self.capture_type})"
         return f"{self.capture_type} capture for channel {self.channel} added on {self.created_at}"  # noqa: E501
+
+    def save(self, *args, **kwargs):
+        """Save the capture, setting default name from top_level_dir if not provided."""
+        if not self.name and self.top_level_dir:
+            # Extract the last part of the path as the default name
+            from pathlib import Path
+
+            self.name = Path(self.top_level_dir).name or self.top_level_dir.strip("/")
+        super().save(*args, **kwargs)
 
     @property
     def center_frequency_ghz(self) -> float | None:
