@@ -151,7 +151,6 @@ class CapturesTableManager extends TableManager {
 	}
 
 	renderRow(capture, index) {
-
 		// Handle composite vs single capture display
 		let channelDisplay = capture.channel || "";
 		let typeDisplay = capture.capture_type || "";

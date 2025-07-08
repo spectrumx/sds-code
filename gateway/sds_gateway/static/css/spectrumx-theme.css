@@ -39,7 +39,6 @@ main {
 	font-size: 1.2rem;
 	color: #495057;
 	font-weight: 300;
-
 }
 
 .navbar-nav .nav-link {
@@ -974,7 +973,6 @@ input[type="number"].form-control-sm {
 	overflow: hidden !important;
 	text-overflow: ellipsis !important;
 }
-
 
 /* Exception for Actions column - allow dropdown to overflow */
 #dynamic-table-container .table td:last-child {

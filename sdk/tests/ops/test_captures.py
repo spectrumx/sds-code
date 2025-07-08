@@ -29,6 +29,7 @@ DRY_RUN: bool = False
 
 MULTICHANNEL_EXPECTED_COUNT = 2
 
+
 @pytest.fixture
 def sample_capture_uuid() -> UUID4:
     """Returns a sample capture UUID for testing."""

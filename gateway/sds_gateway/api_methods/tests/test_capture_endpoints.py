@@ -762,7 +762,6 @@ class CaptureTestCases(APITestCase):
             email="otheruser@example.com",
             password="testpassword",  # noqa: S106
             is_approved=True,
-
         )
         other_capture = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,

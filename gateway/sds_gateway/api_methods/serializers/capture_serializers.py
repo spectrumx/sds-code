@@ -36,7 +36,6 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
 
-
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
 
@@ -106,11 +105,9 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         """Get the created_at date in the desired format."""
         return capture.created_at.strftime("%m/%d/%Y %I:%M:%S")
 
-
     def get_capture_type_display(self, capture: Capture) -> str:
         """Get the display value for the capture type."""
         return capture.get_capture_type_display()
-
 
     class Meta:
         model = Capture

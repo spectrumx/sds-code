@@ -657,71 +657,6 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			}
 			typeDisplay = capture.capture_type_display || safeData.captureType;
 		}
-	}
-
-	/**
-	 * Render individual table row with XSS protection
-	 */
-	renderRow(capture, index) {
-		// Sanitize all data before rendering
-		const safeData = {
-			uuid: FileListUtils.escapeHtml(capture.uuid || ""),
-			channel: FileListUtils.escapeHtml(capture.channel || ""),
-			scanGroup: FileListUtils.escapeHtml(capture.scan_group || ""),
-			captureType: FileListUtils.escapeHtml(capture.capture_type || ""),
-			topLevelDir: FileListUtils.escapeHtml(capture.top_level_dir || ""),
-			indexName: FileListUtils.escapeHtml(capture.index_name || ""),
-			owner: FileListUtils.escapeHtml(capture.owner || ""),
-			origin: FileListUtils.escapeHtml(capture.origin || ""),
-			dataset: FileListUtils.escapeHtml(capture.dataset || ""),
-			createdAt: FileListUtils.escapeHtml(capture.created_at || ""),
-			updatedAt: FileListUtils.escapeHtml(capture.updated_at || ""),
-			isPublic: FileListUtils.escapeHtml(capture.is_public || ""),
-			isDeleted: FileListUtils.escapeHtml(capture.is_deleted || ""),
-			centerFrequencyGhz: FileListUtils.escapeHtml(
-				capture.center_frequency_ghz || "",
-			),
-		};
-
-		return `
-			<tr class="capture-row">
-				<td>
-					<a href="#" class="capture-link"
-					   data-uuid="${safeData.uuid}"
-					   data-channel="${safeData.channel}"
-					   data-scan-group="${safeData.scanGroup}"
-					   data-capture-type="${safeData.captureType}"
-					   data-top-level-dir="${safeData.topLevelDir}"
-					   data-index-name="${safeData.indexName}"
-					   data-owner="${safeData.owner}"
-					   data-origin="${safeData.origin}"
-					   data-dataset="${safeData.dataset}"
-					   data-created-at="${safeData.createdAt}"
-					   data-updated-at="${safeData.updatedAt}"
-					   data-is-public="${safeData.isPublic}"
-					   data-is-deleted="${safeData.isDeleted}"
-					   data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
-					   aria-label="View details for ${safeData.uuid || "unknown capture"}">
-						${safeData.uuid}
-					</a>
-				</td>
-				<td>${safeData.channel}</td>
-				<td>${FileListUtils.formatDate(capture.created_at)}</td>
-				<td>${safeData.captureType}</td>
-				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${FileListUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
-				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
-				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
-			</tr>
-		`;
-	}
-
-	/**
-	 * Attach row click handlers - now uses event delegation
-	 */
-	attachRowClickHandlers() {
-		// Event delegation is handled in initializeEventDelegation()
-		// This method is kept for compatibility but doesn't need to do anything
-	}
 
 		return `
 			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
@@ -1029,6 +964,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					`;
 				}
 			}
+
 			const title = `Capture Details - ${data.channel || "Unknown"}`;
 			this.modalHandler.show(title, modalContent);
 		} catch (error) {
@@ -1053,15 +989,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			`;
 		}
 	}
-}
 
-// Expose frequency slider initialization function globally for backward compatibility
-window.initializeFrequencySlider = () => {
-	// This function is called from the template
-	if (window.fileListController) {
-		window.fileListController.initializeFrequencyFromURL();
-	}
-};
 	/**
 	 * Cleanup method for proper resource management
 	 */

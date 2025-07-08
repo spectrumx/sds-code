@@ -5,11 +5,7 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
-
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.models import AbstractBaseUser
-from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
