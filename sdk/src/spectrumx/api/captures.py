@@ -117,7 +117,7 @@ class CaptureAPI:
                 capture_type=capture_type,
                 channel=channel,
                 index_name=index_name,
-                name=name or "",
+                name="",
                 origin=CaptureOrigin.User,
                 scan_group=uuid.UUID(scan_group) if scan_group else None,
                 top_level_dir=top_level_dir,
