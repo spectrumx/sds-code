@@ -13,6 +13,8 @@ from django.utils.translation import gettext_lazy as _
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import File
+from sds_gateway.users.utils import deduplicate_composite_captures
+from sds_gateway.users.utils import serialize_composite_capture_for_display
 
 
 class ApprovedUserRequiredMixin(AccessMixin):
@@ -43,9 +45,9 @@ class Auth0LoginRequiredMixin(LoginRequiredMixin):
 class FormSearchMixin:
     """Mixin for search form in group captures view"""
 
-    def search_captures(self, search_data) -> QuerySet[Capture, Capture]:
+    def search_captures(self, search_data, request) -> list[Capture]:
         queryset = Capture.objects.filter(
-            owner=self.request.user,
+            owner=request.user,
             is_deleted=False,
         )
 
@@ -61,12 +63,17 @@ class FormSearchMixin:
         if search_data.get("channel"):
             q_objects &= Q(channel__icontains=search_data["channel"])
 
-        return queryset.filter(q_objects).order_by("-created_at")
+        queryset = queryset.filter(q_objects).order_by("-created_at")
 
-    def search_files(self, search_data: dict[str, Any]) -> QuerySet[File, File]:
+        # Use utility function to deduplicate composite captures
+        return deduplicate_composite_captures(list(queryset))
+
+    def search_files(
+        self, search_data: dict[str, Any], request
+    ) -> QuerySet[File, File]:
         # Only show files that are not associated with a capture
         queryset = File.objects.filter(
-            owner=self.request.user,
+            owner=request.user,
             capture__isnull=True,
             is_deleted=False,
         )
@@ -80,31 +87,31 @@ class FormSearchMixin:
 
         return queryset.order_by("-created_at")
 
-    def serialize_item(self, item):
+    def serialize_item(
+        self,
+        item: Capture | File,
+        relative_path: str | None = None,
+    ) -> dict[str, Any]:
         if isinstance(item, Capture):
-            return {
-                "id": item.uuid,
-                "capture_type": item.capture_type,
-                "top_level_dir": item.top_level_dir,
-                "channel": item.channel,
-                "scan_group": item.scan_group,
-                "created_at": item.created_at.isoformat(),
-            }
+            # Use utility function for consistent composite capture serialization
+            return serialize_composite_capture_for_display(item)
         if isinstance(item, File):
             return {
                 "id": item.uuid,
                 "name": item.name,
                 "media_type": item.media_type,
                 "size": item.size,
-                "created_at": item.created_at.isoformat(),
+                "relative_path": relative_path,
             }
+
+        # this should never happen
         return {}
 
     def get_paginated_response(
-        self, queryset, page_size=10, page_param="page"
+        self, queryset, request, page_size=10, page_param="page"
     ) -> dict[str, Any]:
         paginator = Paginator(queryset, page_size)
-        page = paginator.get_page(self.request.GET.get(page_param, 1))
+        page = paginator.get_page(request.GET.get(page_param, 1))
 
         return {
             "results": [self.serialize_item(item) for item in page],

@@ -1,5 +1,8 @@
 /* Reusable Components for SDS Gateway */
-
+/* Note: there seems to be some duplicated code between this file and file-list.js.
+ * I'm leaving it here for now in case of conflicts with other work.
+ * These files need some refactoring in the future.
+ */
 /**
  * TableManager - Handles table operations like sorting, pagination, and updates
  */
@@ -148,6 +151,21 @@ class CapturesTableManager extends TableManager {
 	}
 
 	renderRow(capture, index) {
+
+		// Handle composite vs single capture display
+		let channelDisplay = capture.channel || "";
+		let typeDisplay = capture.capture_type || "";
+
+		if (capture.is_multi_channel) {
+			// For composite captures, show all channels
+			if (capture.channels && Array.isArray(capture.channels)) {
+				channelDisplay = capture.channels
+					.map((ch) => ch.channel || ch)
+					.join(", ");
+			}
+			typeDisplay = capture.capture_type_display || capture.capture_type || "";
+		}
+
 		return `
             <tr class="capture-row" data-clickable="true" data-uuid="${capture.uuid || ""}">
                 <th scope="row">${index + 1}</th>
@@ -159,13 +177,15 @@ class CapturesTableManager extends TableManager {
                        data-capture-type="${capture.capture_type || ""}"
                        data-top-level-dir="${capture.top_level_dir || ""}"
                        data-created-at="${capture.created_at || ""}"
+                       data-is-multi-channel="${capture.is_multi_channel || false}"
+                       data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}"
                        aria-label="View details for ${capture.uuid || "unknown capture"}">
                         ${capture.uuid || ""}
                     </a>
                 </td>
-                <td>${capture.channel || ""}</td>
+                <td>${channelDisplay}</td>
                 <td>${capture.created_at ? this.formatDate(capture.created_at) : ""}</td>
-                <td>${capture.capture_type || ""}</td>
+                <td>${typeDisplay}</td>
                 <td>${capture.files_count || "0"}</td>
                 <td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
                 <td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
@@ -442,22 +462,23 @@ class ModalManager {
 		if (!linkElement) return;
 
 		const data = linkElement.dataset;
-		const content = `
+		// Check if this is a composite capture
+		const isComposite =
+			data.isMultiChannel === "true" || data.isMultiChannel === "True";
+
+		let content = `
             <div class="row">
                 <div class="col-sm-4"><strong>UUID:</strong></div>
                 <div class="col-sm-8"><code>${data.uuid || "N/A"}</code></div>
             </div>
             <div class="row">
-                <div class="col-sm-4"><strong>Channel:</strong></div>
+            <div class="row">
+                <div class="col-sm-4"><strong>${isComposite ? "Channels:" : "Channel:"}</strong></div>
                 <div class="col-sm-8">${data.channel || "N/A"}</div>
             </div>
             <div class="row">
                 <div class="col-sm-4"><strong>Scan Group:</strong></div>
                 <div class="col-sm-8">${data.scanGroup || "N/A"}</div>
-            </div>
-            <div class="row">
-                <div class="col-sm-4"><strong>Type:</strong></div>
-                <div class="col-sm-8">${data.captureType || "N/A"}</div>
             </div>
             <div class="row">
                 <div class="col-sm-4"><strong>Directory:</strong></div>
@@ -469,7 +490,174 @@ class ModalManager {
             </div>
         `;
 
-		this.show("Capture Details", content);
+		// Add composite-specific information if available
+		if (isComposite && data.channels) {
+			try {
+				// Convert Python dict syntax to valid JSON
+				let channelsData;
+				if (typeof data.channels === "string") {
+					// Handle Python dict syntax: {'key': 'value'} -> {"key": "value"}
+					const pythonDict = data.channels
+						.replace(/'/g, '"') // Replace single quotes with double quotes
+						.replace(/True/g, "true") // Replace Python True with JSON true
+						.replace(/False/g, "false") // Replace Python False with JSON false
+						.replace(/None/g, "null"); // Replace Python None with JSON null
+
+					channelsData = JSON.parse(pythonDict);
+				} else {
+					channelsData = data.channels;
+				}
+				if (Array.isArray(channelsData) && channelsData.length > 0) {
+					content += `
+						<div class="row mt-3">
+							<div class="col-12">
+								<h6>Channel Details</h6>
+								<div class="accordion" id="channelsAccordion">
+					`;
+
+					for (let i = 0; i < channelsData.length; i++) {
+						const channel = channelsData[i];
+						const channelId = `channel-${i}`;
+
+						// Format channel metadata as key-value pairs
+						let metadataDisplay = "N/A";
+						if (
+							channel.channel_metadata &&
+							typeof channel.channel_metadata === "object"
+						) {
+							const metadata = channel.channel_metadata;
+							const metadataItems = [];
+
+							// Helper function to format values dynamically
+							const formatValue = (value, fieldName = "") => {
+								if (value === null || value === undefined) {
+									return "N/A";
+								}
+
+								if (typeof value === "boolean") {
+									return value ? "Yes" : "No";
+								}
+
+								// Handle string representations of booleans
+								if (typeof value === "string") {
+									if (value.toLowerCase() === "true") {
+										return "Yes";
+									}
+									if (value.toLowerCase() === "false") {
+										return "No";
+									}
+								}
+
+								if (typeof value === "number") {
+									const absValue = Math.abs(value);
+									const valueStr = value.toString();
+									const timeIndicators = [
+										"computer_time",
+										"start_bound",
+										"end_bound",
+										"init_utc_timestamp",
+									];
+									// Only format as timestamp if the field name contains "time"
+									if (
+										timeIndicators.includes(fieldName.toLowerCase()) &&
+										valueStr.length >= 10 &&
+										valueStr.length <= 13
+									) {
+										// Convert to milliseconds if it's in seconds
+										const timestamp =
+											valueStr.length === 10 ? value * 1000 : value;
+										return new Date(timestamp).toLocaleString();
+									}
+
+									// Only format for Giga (1e9) and Mega (1e6) ranges
+									if (absValue >= 1e9) {
+										return `${(value / 1e9).toFixed(3)} GHz`;
+									}
+									if (absValue >= 1e6) {
+										return `${(value / 1e6).toFixed(1)} MHz`;
+									}
+									return value.toString();
+								}
+
+								if (Array.isArray(value)) {
+									return value
+										.map((item) => formatValue(item, fieldName))
+										.join(", ");
+								}
+
+								if (typeof value === "object") {
+									return JSON.stringify(value);
+								}
+
+								return String(value);
+							};
+
+							// Helper function to format field names
+							const formatFieldName = (fieldName) => {
+								return fieldName
+									.replace(/_/g, " ")
+									.replace(/\b\w/g, (l) => l.toUpperCase());
+							};
+
+							// Loop through all metadata fields
+							if (Object.keys(metadata).length > 0) {
+								for (const [key, value] of Object.entries(metadata)) {
+									if (value !== undefined && value !== null) {
+										const formattedValue = formatValue(value, key);
+										const formattedKey = formatFieldName(key);
+										metadataItems.push(
+											`<strong>${formattedKey}:</strong> ${formattedValue}`,
+										);
+									}
+								}
+							} else {
+								metadataItems.push("<em>No metadata available</em>");
+							}
+
+							if (metadataItems.length > 0) {
+								metadataDisplay = metadataItems.join("<br>");
+							}
+						}
+
+						content += `
+							<div class="accordion-item">
+								<h2 class="accordion-header" id="heading-${channelId}">
+									<button class="accordion-button ${i === 0 ? "" : "collapsed"}" type="button"
+											data-bs-toggle="collapse"
+											data-bs-target="#collapse-${channelId}"
+											aria-expanded="${i === 0 ? "true" : "false"}"
+											aria-controls="collapse-${channelId}">
+										<strong>${channel.channel || "N/A"}</strong>
+										<small class="text-muted ms-2">(Click to expand metadata)</small>
+									</button>
+								</h2>
+								<div id="collapse-${channelId}"
+									 class="accordion-collapse collapse ${i === 0 ? "show" : ""}"
+									 aria-labelledby="heading-${channelId}"
+									 data-bs-parent="#channelsAccordion">
+									<div class="accordion-body">
+										<div style="max-width: 100%; word-wrap: break-word;">
+											${metadataDisplay}
+										</div>
+									</div>
+								</div>
+							</div>
+						`;
+					}
+
+					content += `
+								</div>
+							</div>
+						</div>
+					`;
+				}
+			} catch (e) {
+				console.warn("Could not parse channels data:", e);
+			}
+		}
+
+		const title = `Capture Details - ${data.channel || "Unknown"}`;
+		this.show(title, content);
 	}
 }
 

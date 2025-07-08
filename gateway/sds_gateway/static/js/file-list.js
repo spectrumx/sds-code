@@ -634,6 +634,55 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			),
 		};
 
+		// Format author display - prioritize name, fallback to email, then dash
+		let authorDisplay = "-";
+		if (capture.owner) {
+			if (capture.owner.name) {
+				authorDisplay = FileListUtils.escapeHtml(capture.owner.name);
+			} else if (capture.owner.email) {
+				authorDisplay = FileListUtils.escapeHtml(capture.owner.email);
+			}
+		}
+
+		// Handle composite vs single capture display
+		let channelDisplay = safeData.channel;
+		let typeDisplay = safeData.captureType;
+
+		if (capture.is_multi_channel) {
+			// For composite captures, show all channels
+			if (capture.channels && Array.isArray(capture.channels)) {
+				channelDisplay = capture.channels
+					.map((ch) => ch.channel || ch)
+					.join(", ");
+			}
+			typeDisplay = capture.capture_type_display || safeData.captureType;
+		}
+	}
+
+	/**
+	 * Render individual table row with XSS protection
+	 */
+	renderRow(capture, index) {
+		// Sanitize all data before rendering
+		const safeData = {
+			uuid: FileListUtils.escapeHtml(capture.uuid || ""),
+			channel: FileListUtils.escapeHtml(capture.channel || ""),
+			scanGroup: FileListUtils.escapeHtml(capture.scan_group || ""),
+			captureType: FileListUtils.escapeHtml(capture.capture_type || ""),
+			topLevelDir: FileListUtils.escapeHtml(capture.top_level_dir || ""),
+			indexName: FileListUtils.escapeHtml(capture.index_name || ""),
+			owner: FileListUtils.escapeHtml(capture.owner || ""),
+			origin: FileListUtils.escapeHtml(capture.origin || ""),
+			dataset: FileListUtils.escapeHtml(capture.dataset || ""),
+			createdAt: FileListUtils.escapeHtml(capture.created_at || ""),
+			updatedAt: FileListUtils.escapeHtml(capture.updated_at || ""),
+			isPublic: FileListUtils.escapeHtml(capture.is_public || ""),
+			isDeleted: FileListUtils.escapeHtml(capture.is_deleted || ""),
+			centerFrequencyGhz: FileListUtils.escapeHtml(
+				capture.center_frequency_ghz || "",
+			),
+		};
+
 		return `
 			<tr class="capture-row">
 				<td>
@@ -659,6 +708,50 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				<td>${safeData.channel}</td>
 				<td>${FileListUtils.formatDate(capture.created_at)}</td>
 				<td>${safeData.captureType}</td>
+				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${FileListUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
+				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
+				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
+			</tr>
+		`;
+	}
+
+	/**
+	 * Attach row click handlers - now uses event delegation
+	 */
+	attachRowClickHandlers() {
+		// Event delegation is handled in initializeEventDelegation()
+		// This method is kept for compatibility but doesn't need to do anything
+	}
+
+		return `
+			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
+				<th scope="row">${index + 1}</th>
+				<td>
+					<a href="#" class="capture-link"
+					   data-uuid="${safeData.uuid}"
+					   data-channel="${safeData.channel}"
+					   data-scan-group="${safeData.scanGroup}"
+					   data-capture-type="${safeData.captureType}"
+					   data-top-level-dir="${safeData.topLevelDir}"
+					   data-index-name="${safeData.indexName}"
+					   data-owner="${safeData.owner}"
+					   data-origin="${safeData.origin}"
+					   data-dataset="${safeData.dataset}"
+					   data-created-at="${safeData.createdAt}"
+					   data-updated-at="${safeData.updatedAt}"
+					   data-is-public="${safeData.isPublic}"
+					   data-is-deleted="${safeData.isDeleted}"
+					   data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
+					   data-is-multi-channel="${capture.is_multi_channel || false}"
+					   data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}"
+					   aria-label="View details for ${safeData.uuid || "unknown capture"}">
+						${safeData.uuid}
+					</a>
+				</td>
+				<td>${channelDisplay}</td>
+				<td>${FileListUtils.formatDate(capture.created_at)}</td>
+				<td>${typeDisplay}</td>
+				<td>${authorDisplay}</td>
 				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${FileListUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
 				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
 				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
@@ -706,6 +799,8 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				isPublic: link.getAttribute("data-is-public") || "",
 				centerFrequencyGhz:
 					link.getAttribute("data-center-frequency-ghz") || "",
+				isMultiChannel: link.getAttribute("data-is-multi-channel") || "",
+				channels: link.getAttribute("data-channels") || "",
 			};
 
 			// Parse owner field safely
@@ -713,14 +808,31 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				? data.owner.split("'").find((part) => part.includes("@")) || "N/A"
 				: "N/A";
 
-			const modalContent = `
+			// Check if this is a composite capture
+			const isComposite =
+				data.isMultiChannel === "True" || data.isMultiChannel === "true";
+
+			let modalContent = `
 				<div class="mb-4">
 					<h6>Basic Information</h6>
 					<p><strong>UUID:</strong> ${data.uuid || "N/A"}</p>
-					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
 					<p><strong>Capture Type:</strong> ${data.captureType || "N/A"}</p>
 					<p><strong>Origin:</strong> ${data.origin || "N/A"}</p>
 					<p><strong>Owner:</strong> ${ownerDisplay}</p>
+			`;
+
+			// Handle composite vs single capture display
+			if (isComposite) {
+				modalContent += `
+					<p><strong>Channels:</strong> ${data.channel || "N/A"}</p>
+				`;
+			} else {
+				modalContent += `
+					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
+				`;
+			}
+
+			modalContent += `
 				</div>
 				<div class="mb-4">
 					<h6>Technical Details</h6>
@@ -737,6 +849,186 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				</div>
 			`;
 
+			// Add composite-specific information if available
+			if (isComposite && data.channels) {
+				try {
+					// Convert Python dict syntax to valid JSON
+					let channelsData;
+					if (typeof data.channels === "string") {
+						// Handle Python dict syntax: {'key': 'value'} -> {"key": "value"}
+						const pythonDict = data.channels
+							.replace(/'/g, '"') // Replace single quotes with double quotes
+							.replace(/True/g, "true") // Replace Python True with JSON true
+							.replace(/False/g, "false") // Replace Python False with JSON false
+							.replace(/None/g, "null"); // Replace Python None with JSON null
+
+						channelsData = JSON.parse(pythonDict);
+					} else {
+						channelsData = data.channels;
+					}
+
+					if (Array.isArray(channelsData) && channelsData.length > 0) {
+						modalContent += `
+							<div class="mt-4">
+								<h6>Channel Details</h6>
+								<div class="accordion" id="channelsAccordion">
+						`;
+
+						for (let i = 0; i < channelsData.length; i++) {
+							const channel = channelsData[i];
+							const channelId = `channel-${i}`;
+
+							// Format channel metadata as key-value pairs
+							let metadataDisplay = "N/A";
+							if (
+								channel.channel_metadata &&
+								typeof channel.channel_metadata === "object"
+							) {
+								const metadata = channel.channel_metadata;
+								const metadataItems = [];
+
+								// Helper function to format values dynamically
+								const formatValue = (value, fieldName = "") => {
+									if (value === null || value === undefined) {
+										return "N/A";
+									}
+
+									if (typeof value === "boolean") {
+										return value ? "Yes" : "No";
+									}
+
+									// Handle string representations of booleans
+									if (typeof value === "string") {
+										if (value.toLowerCase() === "true") {
+											return "Yes";
+										}
+										if (value.toLowerCase() === "false") {
+											return "No";
+										}
+									}
+
+									if (typeof value === "number") {
+										const absValue = Math.abs(value);
+										const valueStr = value.toString();
+										const timeIndicators = [
+											"computer_time",
+											"start_bound",
+											"end_bound",
+											"init_utc_timestamp",
+										];
+										// Only format as timestamp if the field name contains "time"
+										if (
+											timeIndicators.includes(fieldName.toLowerCase()) &&
+											valueStr.length >= 10 &&
+											valueStr.length <= 13
+										) {
+											// Convert to milliseconds if it's in seconds
+											const timestamp =
+												valueStr.length === 10 ? value * 1000 : value;
+											return new Date(timestamp).toLocaleString();
+										}
+
+										// Only format for Giga (1e9) and Mega (1e6) ranges
+										if (absValue >= 1e9) {
+											return `${(value / 1e9).toFixed(3)} GHz`;
+										}
+										if (absValue >= 1e6) {
+											return `${(value / 1e6).toFixed(1)} MHz`;
+										}
+										return value.toString();
+									}
+
+									if (Array.isArray(value)) {
+										return value
+											.map((item) => formatValue(item, fieldName))
+											.join(", ");
+									}
+
+									if (typeof value === "object") {
+										return JSON.stringify(value);
+									}
+
+									return String(value);
+								};
+
+								// Helper function to format field names
+								const formatFieldName = (fieldName) => {
+									return fieldName
+										.replace(/_/g, " ")
+										.replace(/\b\w/g, (l) => l.toUpperCase());
+								};
+
+								// Loop through all metadata fields
+								if (Object.keys(metadata).length > 0) {
+									for (const [key, value] of Object.entries(metadata)) {
+										if (value !== undefined && value !== null) {
+											const formattedValue = formatValue(value, key);
+											const formattedKey = formatFieldName(key);
+											metadataItems.push(
+												`<strong>${formattedKey}:</strong> ${formattedValue}`,
+											);
+										}
+									}
+								} else {
+									metadataItems.push("<em>No metadata available</em>");
+								}
+
+								if (metadataItems.length > 0) {
+									metadataDisplay = metadataItems.join("<br>");
+								}
+							}
+
+							modalContent += `
+								<div class="accordion-item">
+									<h2 class="accordion-header" id="heading-${channelId}">
+										<button class="accordion-button ${i === 0 ? "" : "collapsed"}" type="button"
+												data-bs-toggle="collapse"
+												data-bs-target="#collapse-${channelId}"
+												aria-expanded="${i === 0 ? "true" : "false"}"
+												aria-controls="collapse-${channelId}">
+											<strong>${FileListUtils.escapeHtml(channel.channel || "N/A")}</strong>
+											<small class="text-muted ms-2">(Click to expand metadata)</small>
+										</button>
+									</h2>
+									<div id="collapse-${channelId}"
+										 class="accordion-collapse collapse ${i === 0 ? "show" : ""}"
+										 aria-labelledby="heading-${channelId}"
+										 data-bs-parent="#channelsAccordion">
+										<div class="accordion-body">
+											<div style="max-width: 100%; word-wrap: break-word;">
+												${metadataDisplay}
+											</div>
+										</div>
+									</div>
+								</div>
+							`;
+						}
+
+						modalContent += `
+								</div>
+							</div>
+						`;
+					}
+				} catch (e) {
+					console.error("Could not parse channels data for modal:", e);
+					console.error(
+						"Raw channels data that failed to parse:",
+						data.channels,
+					);
+
+					// Show a fallback message in the modal
+					modalContent += `
+						<div class="mt-4">
+							<h6>Channel Details</h6>
+							<div class="alert alert-warning">
+								<i class="fas fa-exclamation-triangle"></i>
+								Unable to display channel details due to data format issues.
+								<br><small>Raw data: ${FileListUtils.escapeHtml(String(data.channels).substring(0, 100))}...</small>
+							</div>
+						</div>
+					`;
+				}
+			}
 			const title = `Capture Details - ${data.channel || "Unknown"}`;
 			this.modalHandler.show(title, modalContent);
 		} catch (error) {
@@ -761,7 +1053,15 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			`;
 		}
 	}
+}
 
+// Expose frequency slider initialization function globally for backward compatibility
+window.initializeFrequencySlider = () => {
+	// This function is called from the template
+	if (window.fileListController) {
+		window.fileListController.initializeFrequencyFromURL();
+	}
+};
 	/**
 	 * Cleanup method for proper resource management
 	 */

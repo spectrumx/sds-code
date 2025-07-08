@@ -38,6 +38,8 @@ main {
 .system-name {
 	font-size: 1.2rem;
 	color: #495057;
+	font-weight: 300;
+
 }
 
 .navbar-nav .nav-link {
@@ -971,6 +973,12 @@ input[type="number"].form-control-sm {
 	white-space: normal !important;
 	overflow: hidden !important;
 	text-overflow: ellipsis !important;
+}
+
+
+/* Exception for Actions column - allow dropdown to overflow */
+#dynamic-table-container .table td:last-child {
+	overflow: visible !important;
 }
 
 #dynamic-table-container .table th:nth-child(1),

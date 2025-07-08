@@ -757,21 +757,15 @@ class CaptureTestCases(APITestCase):
 
     def test_retrieve_not_owned_capture_404(self) -> None:
         """Test that retrieving a capture not owned by the user returns 404."""
-        """Test that retrieving a capture not owned by the user returns 404."""
+
         other_user = User.objects.create(
             email="otheruser@example.com",
             password="testpassword",  # noqa: S106
             is_approved=True,
-            email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
-            is_approved=True,
+
         )
         other_capture = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,
-            channel="other-channel",
-            index_name=f"{self.test_index_prefix}-drf",
-            owner=other_user,
-            top_level_dir="other-dir",
             channel="other-channel",
             index_name=f"{self.test_index_prefix}-drf",
             owner=other_user,

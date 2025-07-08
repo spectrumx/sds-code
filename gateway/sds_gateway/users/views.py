@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import AbstractBaseUser
@@ -39,7 +40,9 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import TemporaryZipFile
-from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    serialize_capture_or_composite,
+)
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.tasks import is_user_locked
@@ -53,6 +56,7 @@ from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FormSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
+from sds_gateway.users.utils import deduplicate_composite_captures
 
 # Add logger for debugging
 logger = logging.getLogger(__name__)
@@ -337,18 +341,21 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
         )
 
-        # Paginate the results
-        paginator = Paginator(qs, params["items_per_page"])
+        # Use utility function to deduplicate composite captures
+        unique_captures = deduplicate_composite_captures(list(qs))
+
+        # Paginate the unique captures
+        paginator = Paginator(unique_captures, params["items_per_page"])
         try:
             page_obj = paginator.page(params["page"])
         except (EmptyPage, PageNotAnInteger):
             page_obj = paginator.page(1)
 
-        # Serialize captures for template
+        # Serialize captures for template using composite serialization
         enhanced_captures = []
         for capture in page_obj:
-            # CaptureGetSerializer includes all computed fields
-            capture_data = CaptureGetSerializer(capture).data
+            # Use composite serialization to handle multi-channel captures properly
+            capture_data = serialize_capture_or_composite(capture)
             enhanced_captures.append(capture_data)
 
         # Update the page_obj with enhanced captures
@@ -415,14 +422,18 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                 qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
             )
 
+            # Use utility function to deduplicate composite captures
+            unique_captures = deduplicate_composite_captures(list(qs))
+
             # Limit results for API performance
-            captures_list = list(qs[:25])
+            captures_list = list(unique_captures[:25])
 
             captures_data = []
             for capture in captures_list:
                 try:
-                    # Use CaptureGetSerializer - includes all computed fields
-                    capture_data = CaptureGetSerializer(capture).data
+                    # Use composite serialization to handle multi-channel captures
+                    # properly
+                    capture_data = serialize_capture_or_composite(capture)
                     captures_data.append(capture_data)
                 except Exception:
                     logger.exception("Error serializing capture %s", capture.uuid)
@@ -510,8 +521,10 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
                 if "search_captures" in request.GET:
                     form = CaptureSearchForm(request.GET)
                     if form.is_valid():
-                        captures = self.search_captures(form.cleaned_data)
-                        return JsonResponse(self.get_paginated_response(captures))
+                        captures = self.search_captures(form.cleaned_data, request)
+                        return JsonResponse(
+                            self.get_paginated_response(captures, request)
+                        )
                     return JsonResponse({"error": form.errors}, status=400)
 
                 if "search_files" in request.GET:
@@ -521,7 +534,7 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
                     )
                     form = FileSearchForm(request.GET, user=self.request.user)
                     if form.is_valid():
-                        files = self.search_files(form.cleaned_data)
+                        files = self.search_files(form.cleaned_data, request)
                         return JsonResponse(
                             {
                                 "tree": self._get_directory_tree(files, str(base_dir)),
@@ -597,8 +610,20 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
 
             # Add selected captures to the dataset
             if selected_captures[0]:
-                captures = Capture.objects.filter(uuid__in=selected_captures)
-                dataset.captures.add(*captures)
+                for capture_id in selected_captures:
+                    if not capture_id:
+                        continue
+                    capture = Capture.objects.get(uuid=capture_id)
+                    if capture.is_multi_channel:
+                        # Add all captures in this composite
+                        all_captures = Capture.objects.filter(
+                            top_level_dir=capture.top_level_dir,
+                            owner=request.user,
+                            is_deleted=False,
+                        )
+                        dataset.captures.add(*all_captures)
+                    else:
+                        dataset.captures.add(capture)
 
             # Add selected files to the dataset
             if selected_files[0]:
@@ -750,21 +775,12 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
                 if base_dir
                 else None
             )
-            selected_files.append(
-                {
-                    "id": str(selected_file.uuid),
-                    "name": selected_file.name,
-                    "media_type": selected_file.media_type,
-                    "size": selected_file.size,
-                    "relative_path": rel_path,
-                }
+            selected_files.append(self.serialize_item(selected_file, rel_path))
+
+            selected_files_details[str(selected_file.uuid)] = self.serialize_item(
+                selected_file,
+                rel_path,
             )
-            selected_files_details[str(selected_file.uuid)] = {
-                "name": selected_file.name,
-                "media_type": selected_file.media_type,
-                "size": selected_file.size,
-                "relative_path": rel_path,
-            }
 
         return selected_files, selected_files_details
 
@@ -773,25 +789,26 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
     ) -> tuple[list[str], dict[str, Any]]:
         selected_captures: list[str] = []
         selected_captures_details: dict[str, Any] = {}
+        composite_capture_dirs: set[str] = set()
         if existing_dataset:
             captures_queryset = existing_dataset.captures.filter(
                 is_deleted=False,
                 owner=self.request.user,
             )
-            # Prepare capture details for JavaScript
-            for capture in captures_queryset:
-                selected_captures.append(str(capture.uuid))
-                selected_captures_details[str(capture.uuid)] = {
-                    "type": "RadioHound"
-                    if capture.capture_type == "rh"
-                    else "DigitalRF"
-                    if capture.capture_type == "drf"
-                    else capture.capture_type,
-                    "directory": capture.top_level_dir.split("/")[-1],
-                    "channel": capture.channel or "-",
-                    "scan_group": capture.scan_group or "-",
-                    "created_at": capture.created_at.isoformat(),
-                }
+            # Only include one composite per group
+            for capture in captures_queryset.order_by("-created_at"):
+                if capture.is_multi_channel:
+                    if capture.top_level_dir not in composite_capture_dirs:
+                        capture_dict = self.serialize_item(capture)
+                        capture_uuid = str(capture_dict["id"])
+                        selected_captures.append(capture_uuid)
+                        selected_captures_details[capture_uuid] = capture_dict
+                        composite_capture_dirs.add(capture.top_level_dir)
+                else:
+                    capture_dict = self.serialize_item(capture)
+                    capture_uuid = str(capture_dict["id"])
+                    selected_captures.append(capture_uuid)
+                    selected_captures_details[capture_uuid] = capture_dict
 
         return selected_captures, selected_captures_details
 
