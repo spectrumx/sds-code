@@ -126,6 +126,7 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
             "capture_type",
             "top_level_dir",
             "index_name",
+            "name",
             "owner",
             "capture_props",
         ]

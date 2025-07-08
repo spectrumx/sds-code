@@ -40,6 +40,7 @@ _d_capture_created_at = "The time the capture was created"
 _d_capture_props = "The indexed metadata for the capture"
 _d_capture_type = f"The type of capture {', '.join([x.value for x in CaptureType])}"
 _d_index_name = "The name of the SDS index associated with the capture"
+_d_name = "The name of the capture"
 _d_origin = "The origin of the capture"
 _d_top_level_dir = "The top-level directory for the capture files"
 _d_uuid = "The unique identifier for the capture"
@@ -75,6 +76,9 @@ class Capture(SDSModel):
     created_at: Annotated[
         datetime | None, Field(description=_d_capture_created_at, default=None)
     ]
+    name: Annotated[
+        str | None, Field(max_length=255, description=_d_name, default=None)
+    ]
     channel: Annotated[
         str | None, Field(max_length=255, description=_d_channel, default=None)
     ]
@@ -82,6 +86,8 @@ class Capture(SDSModel):
 
     def __str__(self) -> str:
         """Get the string representation of the capture."""
+        if self.name:
+            return f"{self.name} ({self.capture_type})"
         return (
             f"Capture(uuid={self.uuid}, "
             f"type={self.capture_type}, "
@@ -92,7 +98,7 @@ class Capture(SDSModel):
     @property
     def __repr_name__(self) -> str:
         """Get the name of the capture for display."""
-        return self.capture_type.value
+        return self.name or self.capture_type.value
 
     def __repr__(self) -> str:
         # break up the line to avoid exceeding line length limits
