@@ -242,6 +242,8 @@ class Capture(BaseModel):
         """Save the capture, setting default name from top_level_dir if not provided."""
         if not self.name and self.top_level_dir:
             # Extract the last part of the path as the default name
+            from pathlib import Path
+
             self.name = Path(self.top_level_dir).name or self.top_level_dir.strip("/")
         super().save(*args, **kwargs)
 
