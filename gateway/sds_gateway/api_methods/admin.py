@@ -13,8 +13,8 @@ class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
 
 @admin.register(models.Capture)
 class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = ("channel", "capture_type", "index_name")
-    search_fields = ("uuid", "channel", "index_name")
+    list_display = ("name", "channel", "capture_type", "index_name")
+    search_fields = ("uuid", "name", "channel", "index_name")
     list_filter = ("channel", "capture_type", "index_name")
     ordering = ("-updated_at",)
 
