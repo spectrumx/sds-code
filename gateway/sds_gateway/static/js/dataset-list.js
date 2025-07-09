@@ -57,35 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	// Initialize sort icons
 	updateSortIcons();
 
-	// Handle dropdown toggles
-	for (const toggle of document.querySelectorAll(".dropdown-toggle")) {
-		toggle.addEventListener("click", function (e) {
-			e.preventDefault();
-			e.stopPropagation();
-
-			const dropdown = this.nextElementSibling;
-			const isOpen = dropdown.classList.contains("show");
-
-			// Close all other dropdowns
-			for (const menu of document.querySelectorAll(".dropdown-menu.show")) {
-				menu.classList.remove("show");
-			}
-
-			// Toggle current dropdown
-			if (!isOpen) {
-				dropdown.classList.add("show");
-			}
-		});
-	}
-
-	// Close dropdowns when clicking outside
-	document.addEventListener("click", (e) => {
-		if (!e.target.closest(".dropdown")) {
-			for (const menu of document.querySelectorAll(".dropdown-menu.show")) {
-				menu.classList.remove("show");
-			}
-		}
-	});
+	// Bootstrap handles dropdowns natively - no custom handling needed
 
 	// Check for download alert messages
 	const downloadAlert = sessionStorage.getItem("downloadAlert");
