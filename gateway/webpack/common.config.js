@@ -30,22 +30,7 @@ module.exports = {
 				test: /\.js$/,
 				loader: "babel-loader",
 			},
-			{
-				test: /\.s?css$/i,
-				use: [
-					MiniCssExtractPlugin.loader,
-					"css-loader",
-					{
-						loader: "postcss-loader",
-						options: {
-							postcssOptions: {
-								plugins: ["postcss-preset-env", "autoprefixer", "pixrem"],
-							},
-						},
-					},
-					"sass-loader",
-				],
-			},
+			// CSS loader rule removed
 		],
 	},
 	resolve: {
