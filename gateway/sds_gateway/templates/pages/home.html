@@ -11,10 +11,10 @@
 {% block body %}
     <main class="container mt-4">
         <div class="p-5 mb-4 bg-light rounded-3">
-            <div class="container-fluid py-5">
-                <h1 class="display-5 fw-bold">Spectrum Data System</h1>
-                <p class="col-md-8 fs-4">
-                    A data management and retrieval platform for radio-frequency experiments. This is the SDS Gateway, a web interface for user-friendly data retrieval and API access.
+            <div class="container-fluid py-5 text-center">
+                <h1 class="display-5 fw-bold">SpectrumX Data System</h1>
+                <p class="fs-5">
+                    The SpectrumX Data System (SDS) is a key component of <a href="https://www.spectrumx.org/project/spectrum-awareness-for-coexistence/" target="_blank" rel="noopener noreferrer" style="color: #005a9c; text-decoration: underline;">SpectrumX Flagship Project 1: Spectrum Awareness for Coexistence</a> in support of SpectrumX's vision to be a trusted resource in the spectrum ecosystem. SpectrumX aims to provide objective, long-term, and innovative policy and technical contributions through collaborative, inclusive, and integrative education and research activities. 
                 </p>
             </div>
         </div>
@@ -22,13 +22,10 @@
             <div class="col-md-4 mb-4">
                 <div class="card h-100 shadow-sm">
                     <div class="card-body text-center">
-                        <i class="bi bi-info-circle-fill text-primary mb-3 fs-1"
-                           aria-hidden="true"></i>
-                        <h2 class="card-title h5">About the SDS</h2>
-                        <p class="card-text">
-                            A <a href="{% url 'about' %}"
-    class="capture-link text-decoration-none"
-    aria-label="Learn more about the SDS data management and retrieval platform">data management and retrieval platform</a> for radio-frequency experiments
+                        <i class="bi bi-code-slash text-success mb-3 fs-1" aria-hidden="true"></i>
+                        <h2 class="card-title h5">SpectrumX SDK in PyPI</h2>
+                        <p class="card-text mb-0">
+                            <a href="https://pypi.org/project/spectrumx/" target="_blank" rel="noopener noreferrer" style="color: #005a9c; text-decoration: underline;">Python SDK for programmatic access</a>
                         </p>
                     </div>
                 </div>
@@ -36,12 +33,10 @@
             <div class="col-md-4 mb-4">
                 <div class="card h-100 shadow-sm">
                     <div class="card-body text-center">
-                        <i class="bi bi-book-fill text-success mb-3 fs-1" aria-hidden="true"></i>
-                        <h2 class="card-title h5">API Gateway Documentation</h2>
-                        <p class="card-text">
-                            <a href="{% url 'api-docs' %}"
-                               class="capture-link text-decoration-none"
-                               aria-label="View API documentation and endpoints for the SpectrumX Data System Gateway">Documentation of API endpoints</a> of SpectrumX Data System Gateway
+                        <i class="bi bi-book text-warning mb-3 fs-1" aria-hidden="true"></i>
+                        <h2 class="card-title h5">Gateway API Documentation</h2>
+                        <p class="card-text mb-0">
+                            <a href="{% url 'api-docs' %}" class="capture-link" style="color: #005a9c; text-decoration: underline;">Complete API reference and examples</a>
                         </p>
                     </div>
                 </div>
@@ -49,12 +44,10 @@
             <div class="col-md-4 mb-4">
                 <div class="card h-100 shadow-sm">
                     <div class="card-body text-center">
-                        <i class="bi bi-files text-warning mb-3 fs-1" aria-hidden="true"></i>
-                        <h2 class="card-title h5">My SDS Files</h2>
-                        <p class="card-text">
-                            <a href="{% url 'users:file_list' %}?page=1"
-                               class="capture-link text-decoration-none"
-                               aria-label="View and manage your files in the SDS">View your files</a> in the SDS
+                        <i class="bi bi-globe text-primary mb-3 fs-1" aria-hidden="true"></i>
+                        <h2 class="card-title h5">SpectrumX Website</h2>
+                        <p class="card-text mb-0">
+                            <a href="https://www.spectrumx.org/" target="_blank" rel="noopener noreferrer" style="color: #005a9c; text-decoration: underline;">Learn more about NSF SpectrumX</a>
                         </p>
                     </div>
                 </div>
