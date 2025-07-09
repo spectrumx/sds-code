@@ -2,6 +2,9 @@
 
 ## `0.1.12` - 2025-07-xx
 
++ Features:
+    + **Added `name` parameter to `upload_capture` method**: `upload_capture()` now accepts an optional `name` parameter to set custom capture names.
+
 ## `0.1.11` - 2025-07-03
 
 + Features:

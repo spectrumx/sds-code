@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
+from urllib.parse import parse_qs
 
 import pytest
 import responses
@@ -810,3 +811,239 @@ def test_search_captures_exact_match(
     capture = matched_caps[0]
     assert str(capture.uuid) == sample_capture_data["uuid"]
     assert capture.capture_type.value == sample_capture_data["capture_type"]
+
+
+def test_upload_capture_with_name_dry_run(client: Client, tmp_path: Path) -> None:
+    """Test upload_capture with name parameter in dry run mode."""
+    # ARRANGE
+    client.dry_run = True
+    test_dir = tmp_path / "test_capture_with_name"
+    test_dir.mkdir()
+    (test_dir / "test_file.txt").write_text("test content")
+
+    capture_name = "My Custom Capture Name"
+
+    # ACT
+    capture = client.upload_capture(
+        local_path=test_dir,
+        sds_path="/test/capture/with/name",
+        capture_type=CaptureType.DigitalRF,
+        channel="test_channel",
+        name=capture_name,
+        verbose=False,
+    )
+
+    # ASSERT
+    assert capture is not None
+    assert capture.name == capture_name
+    assert capture.capture_type == CaptureType.DigitalRF
+    assert capture.channel == "test_channel"
+
+
+def test_upload_capture_without_name_dry_run(client: Client, tmp_path: Path) -> None:
+    """Test upload_capture without name parameter in dry run mode."""
+    # ARRANGE
+    client.dry_run = True
+    test_dir = tmp_path / "test_capture_no_name"
+    test_dir.mkdir()
+    (test_dir / "test_file.txt").write_text("test content")
+
+    # ACT
+    capture = client.upload_capture(
+        local_path=test_dir,
+        sds_path="/test/capture/no/name",
+        capture_type=CaptureType.DigitalRF,
+        channel="test_channel",
+        verbose=False,
+    )
+
+    # ASSERT
+    assert capture is not None
+    assert (
+        capture.name == ""
+    )  # Should be empty string in dry run mode when no name provided
+    assert capture.capture_type == CaptureType.DigitalRF
+    assert capture.channel == "test_channel"
+
+
+def test_create_capture_with_name(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """Test creating a capture with a custom name."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    top_level_dir = PurePosixPath("/test/capture/directory")
+    capture_type = CaptureType.DigitalRF
+    channel = "channel1"
+    capture_name = "Test Capture with Custom Name"
+    capture_uuid = uuidlib.uuid4()
+
+    # Mock response
+    mocked_capture_response = {
+        "uuid": capture_uuid.hex,
+        "capture_type": capture_type.value,
+        "top_level_dir": str(top_level_dir),
+        "index_name": "captures-drf",
+        "origin": CaptureOrigin.User.value,
+        "capture_props": {},
+        "channel": channel,
+        "name": capture_name,
+        "files": [],
+    }
+
+    responses.add(
+        method=responses.POST,
+        url=get_captures_endpoint(client),
+        status=201,
+        json=mocked_capture_response,
+    )
+
+    # ACT
+    capture = client.captures.create(
+        top_level_dir=top_level_dir,
+        capture_type=capture_type,
+        channel=channel,
+        name=capture_name,
+    )
+
+    # ASSERT
+    assert capture.uuid == capture_uuid
+    assert capture.capture_type == capture_type
+    assert capture.top_level_dir == top_level_dir
+    assert capture.channel == channel
+    assert capture.name == capture_name
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.method == "POST"
+    assert responses.calls[0].request.url == get_captures_endpoint(client)
+
+    # Verify that the name parameter was sent in the request
+    if responses.calls[0].request.body:
+        request_data = parse_qs(responses.calls[0].request.body)
+        assert request_data["name"][0] == capture_name
+
+
+def test_create_capture_with_name_dry_run(client: Client) -> None:
+    """Test creating a capture with name in dry run mode."""
+    # ARRANGE
+    client.dry_run = True
+    top_level_dir = PurePosixPath("/test/capture/directory")
+    capture_type = CaptureType.DigitalRF
+    capture_name = "Dry Run Test Capture"
+
+    # ACT
+    capture = client.captures.create(
+        top_level_dir=top_level_dir,
+        capture_type=capture_type,
+        name=capture_name,
+    )
+
+    # ASSERT
+    assert capture.uuid is not None
+    assert capture.capture_type == capture_type
+    assert capture.top_level_dir == top_level_dir
+    assert capture.name == capture_name
+    assert isinstance(capture.created_at, datetime), (
+        "Expected created_at to be a datetime object"
+    )
+    assert len(capture.files) == 0
+
+
+def test_create_capture_without_name_dry_run(client: Client) -> None:
+    """Test creating a capture without name in dry run mode."""
+    # ARRANGE
+    client.dry_run = True
+    top_level_dir = PurePosixPath("/test/capture/directory")
+    capture_type = CaptureType.DigitalRF
+
+    # ACT
+    capture = client.captures.create(
+        top_level_dir=top_level_dir,
+        capture_type=capture_type,
+    )
+
+    # ASSERT
+    assert capture.uuid is not None
+    assert capture.capture_type == capture_type
+    assert capture.top_level_dir == top_level_dir
+    assert capture.name == ""  # Should be empty string when no name provided
+    assert isinstance(capture.created_at, datetime), (
+        "Expected created_at to be a datetime object"
+    )
+    assert len(capture.files) == 0
+
+
+def test_upload_capture_with_name_success(
+    client: Client, responses: responses.RequestsMock, tmp_path: Path
+) -> None:
+    """Test upload_capture with name parameter when upload succeeds."""
+    # ARRANGE
+    client.dry_run = DRY_RUN
+    test_dir = tmp_path / "test_capture_success"
+    test_dir.mkdir()
+    (test_dir / "test_file.txt").write_text("test content")
+
+    capture_name = "Successful Upload Capture"
+    capture_uuid = uuidlib.uuid4()
+
+    # Mock content check endpoint
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=200,
+        json={
+            "file_contents_exist_for_user": False,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": False,
+        },
+    )
+
+    # Mock file upload
+    add_file_upload_mock(client, responses, directory="/test/upload/success")
+
+    # Mock capture creation
+    mocked_capture_response = {
+        "uuid": capture_uuid.hex,
+        "capture_type": CaptureType.DigitalRF.value,
+        "top_level_dir": "/test/upload/success",
+        "index_name": "captures-drf",
+        "origin": CaptureOrigin.User.value,
+        "capture_props": {},
+        "channel": "test_channel",
+        "name": capture_name,
+        "files": [],
+    }
+
+    responses.add(
+        method=responses.POST,
+        url=get_captures_endpoint(client),
+        status=201,
+        json=mocked_capture_response,
+    )
+
+    # ACT
+    capture = client.upload_capture(
+        local_path=test_dir,
+        sds_path="/test/upload/success",
+        capture_type=CaptureType.DigitalRF,
+        channel="test_channel",
+        name=capture_name,
+        verbose=False,
+    )
+
+    # ASSERT
+    assert capture is not None
+    assert capture.uuid == capture_uuid
+    assert capture.name == capture_name
+    assert capture.capture_type == CaptureType.DigitalRF
+    assert capture.channel == "test_channel"
+
+    # Verify that the name parameter was sent in the capture creation request
+    capture_requests = [
+        call
+        for call in responses.calls
+        if "/captures" in call.request.url and call.request.method == "POST"
+    ]
+    assert len(capture_requests) == 1
+    if capture_requests[0].request.body:
+        request_data = parse_qs(capture_requests[0].request.body)
+        assert request_data["name"][0] == capture_name

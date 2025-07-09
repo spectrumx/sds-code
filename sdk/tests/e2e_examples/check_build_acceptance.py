@@ -274,6 +274,7 @@ def check_capture_usage() -> None:
         index_name="",  # automatically inferred from capture type
         channel=None,
         scan_group=None,
+        name="Test Single Channel Capture",
         verbose=True,
     )
 
