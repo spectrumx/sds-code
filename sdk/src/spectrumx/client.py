@@ -418,7 +418,7 @@ class Client:
             sds_path=sds_path,
         )
 
-    def upload_capture(
+    def upload_capture(  # noqa: PLR0913
         self,
         *,
         local_path: Path | str,
@@ -427,6 +427,7 @@ class Client:
         index_name: str = "",
         channel: str | None = None,
         scan_group: str | None = None,
+        name: str | None = None,
         verbose: bool = True,
         warn_skipped: bool = False,
         raise_on_error: bool = True,
@@ -444,6 +445,7 @@ class Client:
             index_name:     The SDS index name. Leave empty to automatically select.
             channel:        (For Digital-RF) the DRF channel name to index.
             scan_group:     (For RadioHound) UUIDv4 that groups RH files.
+            name:           Optional custom name for the capture.
             verbose:        Show progress bar and failure messages, if any.
             raise_on_error: When True, raises an exception if any file upload fails.
                             If False, the method will return None and log the errors.
@@ -476,6 +478,7 @@ class Client:
                 index_name=index_name,
                 channel=channel,
                 scan_group=scan_group,
+                name=name,
             )
         except SDSError:
             if raise_on_error:

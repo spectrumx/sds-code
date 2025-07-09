@@ -438,6 +438,7 @@ class GatewayClient:
         index_name: str,
         channel: str | None = None,
         scan_group: str | None = None,
+        name: str | None = None,
         verbose: bool = False,
     ) -> bytes:
         """Creates a capture on the SDS API.
@@ -447,6 +448,7 @@ class GatewayClient:
             channel:       The channel for the capture.
             capture_type:  The capture type.
             index_name:    The index name.
+            name:          Optional custom name for the capture.
         Returns:
             The response content from SDS Gateway.
         """
@@ -460,6 +462,8 @@ class GatewayClient:
             payload["channel"] = channel
         if scan_group:
             payload["scan_group"] = scan_group
+        if name:
+            payload["name"] = name
         response = self._request(
             method=HTTPMethods.POST,
             endpoint=Endpoints.CAPTURES,

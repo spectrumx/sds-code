@@ -63,6 +63,7 @@ class CaptureAPI:
         index_name: str = "",
         channel: str | None = None,
         scan_group: str | None = None,
+        name: str | None = None,
     ) -> Capture:
         """Creates a new RF capture in SDS.
 
@@ -86,6 +87,7 @@ class CaptureAPI:
             index_name:     The SDS index name. Leave empty to automatically select.
             channel:        (For Digital-RF) the DRF channel name to index.
             scan_group:     (For RadioHound) UUIDv4 that groups RH files.
+            name:           Optional custom name for the capture.
         Returns:
             The created capture object.
         Raises:
@@ -105,7 +107,7 @@ class CaptureAPI:
         if self.verbose:
             log.debug(
                 f"Creating capture with {top_level_dir=}, "
-                f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}"
+                f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}, {name=}"
             )
 
         if self.dry_run:
@@ -115,7 +117,7 @@ class CaptureAPI:
                 capture_type=capture_type,
                 channel=channel,
                 index_name=index_name,
-                name="",
+                name=name or "",
                 origin=CaptureOrigin.User,
                 scan_group=uuid.UUID(scan_group) if scan_group else None,
                 top_level_dir=top_level_dir,
@@ -129,6 +131,7 @@ class CaptureAPI:
             index_name=index_name,
             scan_group=scan_group,
             top_level_dir=top_level_dir,
+            name=name,
         )
         capture = Capture.model_validate_json(capture_raw)
         if self.verbose:
