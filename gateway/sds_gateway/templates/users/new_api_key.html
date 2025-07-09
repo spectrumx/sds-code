@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% load static i18n %}
+{% load custom_filters %}
+
+{# djlint:off H021 #}
+<body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %}"
+      id="body">
+    {# djlint:on #}
+    {% block title %}
+        New API Key Generated
+    {% endblock title %}
+    {% block content %}
+        <div class="container mt-2">
+            <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
+                <div class="hero-content text-center mt-5">
+                    {% if api_key %}
+                        <h2>Your New API Key</h2>
+                        <p>Please copy your new API Key. For security reasons, it will not be shown again.</p>
+                        {# djlint:off H021 #}
+                        <div class="d-inline-block p-3 rounded border">
+                            <pre class="api-key-text"><strong>{{ api_key }}</strong></pre>
+                        </div>
+                        {# djlint:on #}
+                        <p class="text-danger mt-3">Keep this key safe and secure. You will not be able to view it again.</p>
+                        <p>
+                            <button type="button"
+                                    onclick="window.location.href='{% url 'users:view_api_key' %}'"
+                                    class="btn btn-link">View your current API Keys</button>
+                        </p>
+                    {% else %}
+                        <p>No API key found. Please generate a new one.</p>
+                        <p>
+                            <button type="button"
+                                    onclick="window.location.href='{% url 'users:view_api_key' %}'"
+                                    class="btn btn-link">View your current API Keys</button>
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endblock content %}
+</body>
