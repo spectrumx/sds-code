@@ -3,7 +3,6 @@
 from collections.abc import Mapping
 from pathlib import Path
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
 from typing import Any
 from uuid import UUID
 
@@ -29,9 +28,6 @@ from .utils import get_prog_bar
 from .utils import log_user
 from .utils import log_user_error
 from .utils import log_user_warning
-
-if TYPE_CHECKING:
-    from tqdm import tqdm
 
 
 class Client:
@@ -226,7 +222,7 @@ class Client:
             if verbose:
                 log_user(f"Discovered {len(files_to_download)} files")
 
-        prog_bar: tqdm[File] = get_prog_bar(
+        prog_bar = get_prog_bar(
             files_to_download, desc="Downloading", disable=not verbose
         )
 
