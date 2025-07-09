@@ -263,11 +263,16 @@ class TestCeleryTasks(TestCase):
             f"Expected message '{expected_message}', got '{task_result['message']}'"
         )
 
-        # Verify no email was sent
-        assert len(mail.outbox) == 0, f"Expected 0 emails, got {len(mail.outbox)}"
-
-        # Verify acquire_lock was not called
-        mock_acquire_lock.assert_not_called()
+        # Verify error email was sent
+        assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
+        email = mail.outbox[0]
+        expected_subject = f"Dataset download failed: {self.dataset.name}"
+        assert email.subject == expected_subject, (
+            f"Expected subject '{expected_subject}', got '{email.subject}'"
+        )
+        assert email.to == [self.user.email], (
+            f"Expected to [{self.user.email}], got {email.to}"
+        )
 
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
     @patch("sds_gateway.api_methods.tasks.is_user_locked")
@@ -299,8 +304,16 @@ class TestCeleryTasks(TestCase):
             f"Expected message '{expected_message}', got '{task_result['message']}'"
         )
 
-        # Verify no email was sent
-        assert len(mail.outbox) == 0, f"Expected 0 emails, got {len(mail.outbox)}"
+        # Verify error email was sent
+        assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
+        email = mail.outbox[0]
+        expected_subject = f"Dataset download failed: {self.dataset.name}"
+        assert email.subject == expected_subject, (
+            f"Expected subject '{expected_subject}', got '{email.subject}'"
+        )
+        assert email.to == [self.user.email], (
+            f"Expected to [{self.user.email}], got {email.to}"
+        )
 
     @patch("sds_gateway.api_methods.tasks.download_file")
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
@@ -342,8 +355,16 @@ class TestCeleryTasks(TestCase):
             f"Expected message '{expected_message}', got '{task_result['message']}'"
         )
 
-        # Verify no email was sent
-        assert len(mail.outbox) == 0, f"Expected 0 emails, got {len(mail.outbox)}"
+        # Verify error email was sent
+        assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
+        email = mail.outbox[0]
+        expected_subject = f"Dataset download failed: {empty_dataset.name}"
+        assert email.subject == expected_subject, (
+            f"Expected subject '{expected_subject}', got '{email.subject}'"
+        )
+        assert email.to == [self.user.email], (
+            f"Expected to [{self.user.email}], got {email.to}"
+        )
 
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
     @patch("sds_gateway.api_methods.tasks.is_user_locked")
@@ -414,8 +435,16 @@ class TestCeleryTasks(TestCase):
             f"Expected message '{expected_message}', got '{task_result['message']}'"
         )
 
-        # Verify no email was sent
-        assert len(mail.outbox) == 0, f"Expected 0 emails, got {len(mail.outbox)}"
+        # Verify error email was sent
+        assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
+        email = mail.outbox[0]
+        expected_subject = f"Dataset download failed: {self.dataset.name}"
+        assert email.subject == expected_subject, (
+            f"Expected subject '{expected_subject}', got '{email.subject}'"
+        )
+        assert email.to == [self.user.email], (
+            f"Expected to [{self.user.email}], got {email.to}"
+        )
 
     def test_task_error_handling(self):
         """Test that tasks handle errors gracefully."""

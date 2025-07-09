@@ -140,6 +140,58 @@ def test_email_task(email_address: str = "test@example.com") -> str:
         return f"Test email sent to {email_address}"
 
 
+def _send_error_email(user: User, dataset: Dataset, error_message: str) -> None:
+    """
+    Send an error email to the user when dataset download fails.
+
+    Args:
+        user: The user to send the email to
+        dataset: The dataset that failed to download
+        error_message: The error message to include in the email
+    """
+    try:
+        subject = f"Dataset download failed: {dataset.name}"
+
+        # Create email context
+        context = {
+            "dataset_name": dataset.name,
+            "error_message": error_message,
+            "requested_at": datetime.datetime.now(datetime.UTC).strftime(
+                "%Y-%m-%d %H:%M:%S UTC"
+            ),
+        }
+
+        # Render email template
+        html_message = render_to_string("emails/dataset_download_error.html", context)
+        plain_message = render_to_string("emails/dataset_download_error.txt", context)
+
+        user_email = user.email
+
+        # Send email
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            html_message=html_message,
+        )
+
+        logger.info(
+            "Sent error email for dataset %s to %s: %s",
+            dataset.uuid,
+            user_email,
+            error_message,
+        )
+
+    except (OSError, ValueError) as e:
+        logger.exception(
+            "Failed to send error email for dataset %s to user %s: %s",
+            dataset.uuid,
+            user.id,
+            e,
+        )
+
+
 def _validate_dataset_download_request(
     dataset_uuid: str, user_id: str
 ) -> tuple[dict | None, User | None, Dataset | None]:
@@ -190,6 +242,152 @@ def _validate_dataset_download_request(
     return None, user, dataset
 
 
+def _check_user_lock(
+    user_id: str, task_name: str, user: User, dataset: Dataset
+) -> dict | None:
+    """Check if user is locked and return error if so."""
+    if is_user_locked(user_id, task_name):
+        logger.warning("User %s already has a dataset download task running", user_id)
+        error_message = (
+            "You already have a dataset download in progress. "
+            "Please wait for it to complete."
+        )
+        _send_error_email(user, dataset, error_message)
+        return {
+            "status": "error",
+            "message": error_message,
+            "dataset_uuid": dataset.uuid,
+            "user_id": user_id,
+        }
+    return None
+
+
+def _acquire_user_lock(
+    user_id: str, task_name: str, user: User, dataset: Dataset
+) -> dict | None:
+    """Try to acquire lock for user and return error if failed."""
+    if not acquire_user_lock(user_id, task_name):
+        logger.warning("Failed to acquire lock for user %s", user_id)
+        error_message = "Unable to start download. Please try again in a moment."
+        _send_error_email(user, dataset, error_message)
+        return {
+            "status": "error",
+            "message": error_message,
+            "dataset_uuid": dataset.uuid,
+            "user_id": user_id,
+        }
+    return None
+
+
+def _get_dataset_files(user: User, dataset: Dataset) -> list[File]:
+    """Get all files for the dataset including those from captures."""
+    files = dataset.files.filter(
+        is_deleted=False,
+        owner=user,
+    )
+    captures = dataset.captures.filter(
+        is_deleted=False,
+        owner=user,
+    )
+    capture_files = File.objects.filter(
+        capture__in=captures,
+        is_deleted=False,
+        owner=user,
+    )
+    return list(files) + list(capture_files)
+
+
+def _process_dataset_files(
+    all_files: list[File], dataset: Dataset, user: User
+) -> tuple[dict | None, str, int, int, TemporaryZipFile | None]:
+    """Process dataset files and create zip."""
+    if not all_files:
+        logger.warning("No files found for dataset %s", dataset.uuid)
+        error_message = "No files found in dataset"
+        _send_error_email(user, dataset, error_message)
+        return (
+            {
+                "status": "error",
+                "message": error_message,
+                "dataset_uuid": dataset.uuid,
+                "total_size": 0,
+            },
+            "",
+            0,
+            0,
+            None,
+        )
+
+    safe_dataset_name = dataset.name.replace(" ", "_")
+    zip_filename = f"dataset_{safe_dataset_name}_{dataset.uuid}.zip"
+
+    # Create zip file using the generic function
+    zip_file_path, total_size, files_processed = create_zip_from_files(
+        all_files, zip_filename
+    )
+
+    if files_processed == 0:
+        logger.warning("No files were processed for dataset %s", dataset.uuid)
+        error_message = "No files could be processed"
+        _send_error_email(user, dataset, error_message)
+        return (
+            {
+                "status": "error",
+                "message": error_message,
+                "dataset_uuid": dataset.uuid,
+                "total_size": 0,
+            },
+            "",
+            0,
+            0,
+            None,
+        )
+
+    temp_zip = TemporaryZipFile.objects.create(
+        file_path=zip_file_path,
+        filename=zip_filename,
+        file_size=total_size,
+        files_processed=files_processed,
+        owner=user,
+    )
+
+    return None, zip_file_path, total_size, files_processed, temp_zip
+
+
+def _send_dataset_email(
+    user: User, dataset: Dataset, temp_zip: TemporaryZipFile | None
+) -> None:
+    """Send email with download link."""
+    if temp_zip is None:
+        return
+
+    subject = f"Your dataset '{dataset.name}' is ready for download"
+    context = {
+        "dataset_name": dataset.name,
+        "download_url": temp_zip.download_url,
+        "file_size": temp_zip.file_size,
+        "files_count": temp_zip.files_processed,
+        "expires_at": temp_zip.expires_at,
+    }
+
+    html_message = render_to_string("emails/dataset_download_ready.html", context)
+    plain_message = render_to_string("emails/dataset_download_ready.txt", context)
+
+    send_mail(
+        subject=subject,
+        message=plain_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        html_message=html_message,
+    )
+
+    logger.info(
+        "Successfully sent dataset download email for %s to %s",
+        dataset.uuid,
+        user.email,
+    )
+
+
 @shared_task
 def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
     """
@@ -202,8 +400,10 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
     Returns:
         dict: Task result with status and details
     """
-    # Initialize variables that might be used in finally block
     task_name = "dataset_download"
+    user = None
+    dataset = None
+    temp_zip = None
 
     try:
         # Validate the request
@@ -211,137 +411,61 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
             dataset_uuid, user_id
         )
         if error_result:
+            if user and dataset:
+                _send_error_email(user, dataset, error_result["message"])
             return error_result
 
-        # At this point, user and dataset are guaranteed to be not None
         assert user is not None
         assert dataset is not None
 
-        # Check if user already has a running task
-        if is_user_locked(user_id, task_name):
-            logger.warning(
-                "User %s already has a dataset download task running", user_id
-            )
-            return {
-                "status": "error",
-                "message": (
-                    "You already have a dataset download in progress. "
-                    "Please wait for it to complete."
-                ),
-                "dataset_uuid": dataset_uuid,
-                "user_id": user_id,
-            }
+        # Check user lock
+        error_result = _check_user_lock(user_id, task_name, user, dataset)
+        if error_result:
+            return error_result
 
-        # Try to acquire lock for this user
-        if not acquire_user_lock(user_id, task_name):
-            logger.warning("Failed to acquire lock for user %s", user_id)
-            return {
-                "status": "error",
-                "message": "Unable to start download. Please try again in a moment.",
-                "dataset_uuid": dataset_uuid,
-                "user_id": user_id,
-            }
+        # Acquire lock
+        error_result = _acquire_user_lock(user_id, task_name, user, dataset)
+        if error_result:
+            return error_result
 
         logger.info("Acquired lock for user %s, starting dataset download", user_id)
 
-        # Get all files and captures for the dataset
-        files = dataset.files.filter(
-            is_deleted=False,
-            owner=user,
+        # Get dataset files
+        all_files = _get_dataset_files(user, dataset)
+
+        # Process files and create zip
+        error_result, zip_file_path, total_size, files_processed, temp_zip = (
+            _process_dataset_files(all_files, dataset, user)
         )
-
-        captures = dataset.captures.filter(
-            is_deleted=False,
-            owner=user,
-        )
-
-        # Get files from captures
-        capture_files = File.objects.filter(
-            capture__in=captures,
-            is_deleted=False,
-            owner=user,
-        )
-
-        # Combine all files
-        all_files = list(files) + list(capture_files)
-
-        if not all_files:
-            logger.warning("No files found for dataset %s", dataset_uuid)
-            return {
-                "status": "error",
-                "message": "No files found in dataset",
-                "dataset_uuid": dataset_uuid,
-                "total_size": 0,
-            }
-
-        safe_dataset_name = dataset.name.replace(" ", "_")
-        zip_filename = f"dataset_{safe_dataset_name}_{dataset_uuid}.zip"
-
-        # Create zip file using the generic function
-        zip_file_path, total_size, files_processed = create_zip_from_files(
-            all_files, zip_filename
-        )
-
-        if files_processed == 0:
-            logger.warning("No files were processed for dataset %s", dataset_uuid)
-            return {
-                "status": "error",
-                "message": "No files could be processed",
-                "dataset_uuid": dataset_uuid,
-                "total_size": 0,
-            }
-
-        temp_zip = TemporaryZipFile.objects.create(
-            file_path=zip_file_path,
-            filename=zip_filename,
-            file_size=total_size,
-            files_processed=files_processed,
-            owner=user,
-        )
-
-        # Send email with download link
-        subject = f"Your dataset '{dataset.name}' is ready for download"
-
-        # Create email context
-        context = {
-            "dataset_name": dataset.name,
-            "download_url": temp_zip.download_url,
-            "file_size": total_size,
-            "files_count": files_processed,
-            "expires_at": temp_zip.expires_at,
-        }
-
-        # Render email template
-        html_message = render_to_string("emails/dataset_download_ready.html", context)
-        plain_message = render_to_string("emails/dataset_download_ready.txt", context)
-
-        user_email = user.email
+        if error_result:
+            return error_result
 
         # Send email
-        send_mail(
-            subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user_email],
-            html_message=html_message,
-        )
+        _send_dataset_email(user, dataset, temp_zip)
 
-        logger.info(
-            "Successfully sent dataset download email for %s to %s",
-            dataset_uuid,
-            user_email,
+    except (OSError, ValueError) as e:
+        logger.exception(
+            "Unexpected error in send_dataset_files_email for dataset %s", dataset_uuid
         )
-
+        error_message = f"An unexpected error occurred: {e!s}"
+        if user and dataset:
+            _send_error_email(user, dataset, error_message)
+        return {
+            "status": "error",
+            "message": error_message,
+            "dataset_uuid": dataset_uuid,
+            "user_id": user_id,
+        }
+    else:
         return {
             "status": "success",
             "message": "Dataset files email sent successfully",
             "dataset_uuid": dataset_uuid,
-            "files_processed": files_processed,
-            "temp_zip_uuid": temp_zip.uuid,
+            "files_processed": temp_zip.files_processed if temp_zip else 0,
+            "temp_zip_uuid": temp_zip.uuid if temp_zip else None,
         }
 
     finally:
-        # Always release the lock, even if there was an error
         if user_id is not None:
             release_user_lock(user_id, task_name)
             logger.info("Released lock for user %s", user_id)
