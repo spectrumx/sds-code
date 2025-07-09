@@ -1,6 +1,5 @@
 {% load static i18n %}
 {% load socialaccount %}
-{% load render_bundle from webpack_loader %}
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
@@ -21,7 +20,12 @@
         {% block css %}
             <!-- Your stuff: Third-party CSS libraries go here -->
             <!-- This file stores project-specific CSS -->
-            {% render_bundle 'project' 'css' %}
+            <link rel="stylesheet" href="{% static 'css/variables.css' %}">
+            <link rel="stylesheet" href="{% static 'css/layout.css' %}">
+            <link rel="stylesheet" href="{% static 'css/components.css' %}">
+            <link rel="stylesheet" href="{% static 'css/alerts.css' %}">
+            <link rel="stylesheet" href="{% static 'css/spectrumx_theme.css' %}">
+            <link rel="stylesheet" href="{% static 'css/bootstrap_overrides.css' %}">
         {% endblock css %}
         {% block head %}
         {% endblock head %}
@@ -29,16 +33,12 @@
     ================================================== -->
         {# Placed at the top of the document so pages load faster with defer #}
         {% block javascript %}
-            <!-- Vendor dependencies bundled as one file -->
-            {% render_bundle 'vendors' 'js' attrs='defer' %}
-            <!-- place project specific Javascript in this file -->
-            {% render_bundle 'project' 'js' attrs='defer' %}
+           
         {% endblock javascript %}
     </head>
     {# djlint:off H021 #}
     <body class="{% block bodyclass %}{% endblock bodyclass %}"
-          id="body"
-          style="display: none">
+          id="body">
         {# djlint:on #}
         <div class="top-gradient-bar"></div>
         <!-- Skip links for accessibility -->
@@ -49,7 +49,10 @@
              aria-live="polite"
              aria-atomic="true"
              id="aria-live-region"></div>
-        <header class="site-header">
+        
+        <!-- Page wrapper for sticky footer -->
+        <div class="page-wrapper">
+            <header class="site-header">
             <nav class="navbar navbar-expand-xl navbar-light bg-white"
                  id="navigation"
                  role="navigation"
@@ -93,25 +96,18 @@
                                 </li>
                             {% else %}
                                 <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle"
-                                       href="#"
-                                       id="navbarUserDropdown"
-                                       role="button"
-                                       data-bs-toggle="dropdown"
-                                       aria-expanded="false">{{ request.user.username|default:"User" }}</a>
+                                    <button class="nav-link dropdown-toggle"
+                                            id="navbarUserDropdown"
+                                            role="button"
+                                            data-bs-toggle="dropdown"
+                                            aria-expanded="false"
+                                            type="button">
+                                        {{ request.user.username|default:request.user.email }}
+                                    </button>
                                     <ul class="dropdown-menu dropdown-menu-end"
                                         aria-labelledby="navbarUserDropdown">
                                         <li>
-                                            <a class="dropdown-item" href="#">My Profile</a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item" href="#">Settings</a>
-                                        </li>
-                                        <li>
-                                            <hr class="dropdown-divider" />
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
+                                            <a class="dropdown-item" href="{% url 'account_logout' %}">{% translate "Logout" %}</a>
                                         </li>
                                     </ul>
                                 </li>
@@ -148,6 +144,7 @@
                     {% endblock content %}
                 {% endblock main %}
             {% endblock body %}
+           
         </main>
         <footer class="site-footer bg-dark text-light mt-5" role="contentinfo">
             <div class="container text-center py-5">
@@ -160,20 +157,17 @@
                     </div>
                 </div>
             </div>
-        </footer>
+            </footer>
+        </div>
         {% block modal %}
         {% endblock modal %}
         {% block inline_javascript %}
-            {% comment %} avoids showing a partially loaded page {% endcomment %}
-            <script type="text/javascript">
-                window.onload = function() {
-                    setTimeout(function() {
-                        document.getElementById("body").style.display = "";
-                        console.log("Page loaded");
-                    }, 200);
-                }
-            </script>
+            {# Removed JS that was hiding/showing the body #}
         {% endblock inline_javascript %}
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            
+            
+        </script>
     </body>
 </html>

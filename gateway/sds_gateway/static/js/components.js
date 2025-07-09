@@ -269,6 +269,14 @@ class CapturesTableManager extends TableManager {
 
 		// Create single persistent event handler using delegation
 		this.eventDelegationHandler = (e) => {
+			// Ignore Bootstrap dropdown toggles
+			if (
+				e.target.matches('[data-bs-toggle="dropdown"]') ||
+				e.target.closest('[data-bs-toggle="dropdown"]')
+			) {
+				return;
+			}
+
 			// Handle capture link clicks
 			if (
 				e.target.matches(".capture-link") ||
