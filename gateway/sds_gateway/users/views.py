@@ -1059,7 +1059,7 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
         dataset_uuid = kwargs.get("uuid")
         if not dataset_uuid:
             return JsonResponse(
-                {"detail": "Dataset UUID is required."},
+                {"success": False, "message": "Dataset UUID is required."},
                 status=400,
             )
 
@@ -1075,7 +1075,10 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
         user_email = request.user.email
         if not user_email:
             return JsonResponse(
-                {"detail": "User email is required for sending dataset files."},
+                {
+                    "success": False,
+                    "message": ("User email is required for sending dataset files."),
+                },
                 status=400,
             )
 
@@ -1083,10 +1086,11 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
         if is_user_locked(str(request.user.id), "dataset_download"):
             return JsonResponse(
                 {
-                    "detail": (
+                    "success": False,
+                    "message": (
                         "You already have a dataset download in progress. "
                         "Please wait for it to complete."
-                    )
+                    ),
                 },
                 status=400,
             )
@@ -1099,6 +1103,7 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
 
         return JsonResponse(
             {
+                "success": True,
                 "message": (
                     "Dataset download request accepted. You will receive an email "
                     "with the files shortly."
