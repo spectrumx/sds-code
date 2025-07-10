@@ -227,4 +227,163 @@
     {{ block.super }}
     <script src="{% static 'js/dataset-list.js' %}"></script>
     <script src="{% static 'js/userSearchComponent.js' %}"></script>
+    <script>
+        // Custom modal functions
+        function openCustomModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeCustomModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Close modal when clicking backdrop
+        document.addEventListener('click', function(event) {
+            if (event.target.classList.contains('custom-modal-backdrop')) {
+                const modal = event.target.closest('.custom-modal');
+                if (modal) {
+                    closeCustomModal(modal.id);
+                }
+            }
+        });
+
+        // Custom dropdown toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize user search for share modals
+            document.querySelectorAll('.modal[data-dataset-uuid]').forEach(modal => {
+                modal.addEventListener('show.bs.modal', function() {
+                    const datasetUuid = modal.getAttribute('data-dataset-uuid');
+                    if (window.UserSearchHandler) {
+                        window.userSearchHandler = new window.UserSearchHandler();
+                        window.userSearchHandler.setDatasetUuid(datasetUuid);
+                        window.userSearchHandler.init();
+                    }
+                });
+            });
+
+            let currentDatasetUuid = null;
+            let currentDatasetName = null;
+            let currentButton = null;
+
+            // Handle dropdown toggles
+            document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
+                toggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const dropdown = this.nextElementSibling;
+                    const isOpen = dropdown.classList.contains('show');
+
+                    // Close all other dropdowns
+                    document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
+                        menu.classList.remove('show');
+                    });
+
+                    // Toggle current dropdown
+                    if (!isOpen) {
+                        dropdown.classList.add('show');
+                    }
+                });
+            });
+
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.dropdown')) {
+                    document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
+                        menu.classList.remove('show');
+                    });
+                }
+            });
+
+            // Check for download alert messages
+            const downloadAlert = sessionStorage.getItem('downloadAlert');
+            if (downloadAlert) {
+                const alertData = JSON.parse(downloadAlert);
+                showAlert(alertData.message, alertData.type);
+                sessionStorage.removeItem('downloadAlert');
+            }
+
+            // Handle download button clicks
+            document.querySelectorAll('.download-dataset-btn').forEach(function(button) {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const datasetUuid = this.getAttribute('data-dataset-uuid');
+                    const datasetName = this.getAttribute('data-dataset-name');
+
+                    // Update modal content
+                    document.getElementById('downloadDatasetName').textContent = datasetName;
+
+                    // Show the modal
+                    openCustomModal('downloadModal');
+
+                    // Handle confirm download
+                    document.getElementById('confirmDownloadBtn').onclick = function() {
+                        // Close modal first
+                        closeCustomModal('downloadModal');
+
+                        // Show loading state
+                        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+                        button.disabled = true;
+
+                        // Make API request
+                        fetch(`/api/datasets/${datasetUuid}/download/`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    button.innerHTML = '<i class="bi bi-check-circle text-success"></i> Download Requested';
+                                    showAlert('Download request submitted successfully! You will receive an email when ready.', 'success');
+                                } else {
+                                    button.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+                                    showAlert(data.message || 'Download request failed. Please try again.', 'error');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Download error:', error);
+                                button.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+                                showAlert('An error occurred while processing your request.', 'error');
+                            })
+                            .finally(() => {
+                                // Reset button after 3 seconds
+                                setTimeout(() => {
+                                    button.innerHTML = '<i class="bi bi-download"></i>';
+                                    button.disabled = false;
+                                }, 3000);
+                            });
+                    };
+                });
+            });
+        });
+
+        // Function to show alerts
+        function showAlert(message, type) {
+            const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+            const alertHtml = `
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+
+            const alertContainer = document.querySelector('.alert-container') || document.querySelector('.container-fluid');
+            if (alertContainer) {
+                alertContainer.insertAdjacentHTML('afterbegin', alertHtml);
+            }
+        }
+    </script>
 {% endblock javascript %}
