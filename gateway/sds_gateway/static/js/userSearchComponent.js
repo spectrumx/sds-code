@@ -5,7 +5,7 @@ class UserSearchHandler {
 		this.searchTimeout = null;
 		this.currentRequest = null;
 		this.selectedUsersMap = {}; // key: input id, value: array of {name, email}
-		this.init();
+		this.pendingRemovals = new Set(); // Track users marked for removal
 	}
 
 	setDatasetUuid(uuid) {
@@ -13,42 +13,71 @@ class UserSearchHandler {
 	}
 
 	init() {
-		// Initialize user search for all modals
-		document.addEventListener("DOMContentLoaded", () => {
-			this.setupUserSearch();
-		});
-
-		// Handle modal show events for dynamically loaded content
-		document.addEventListener("shown.bs.modal", (event) => {
-			const modal = event.target;
-			const searchInput = modal.querySelector(".user-search-input");
-			if (searchInput) {
-				this.setupSearchInput(searchInput);
-			}
-
-			const shareButton = document.getElementById(
-				`share-dataset-btn-${this.datasetUuid}`,
+		if (!this.datasetUuid) {
+			console.error(
+				"Cannot initialize UserSearchHandler: dataset UUID not set",
 			);
-			if (shareButton) {
-				this.setupShareDataset(shareButton);
-			}
-		});
+			return;
+		}
+
+		this.setupRemoveUserButtons();
+
+		// Clear any existing search results when initializing
+		this.clearSearchResults();
+
+		// Setup modal-specific event handlers
+		this.setupModalEventHandlers();
 	}
 
-	setupUserSearch() {
-		const searchInputs = document.querySelectorAll(".user-search-input");
-		for (const input of searchInputs) {
-			this.setupSearchInput(input);
+	setupModalEventHandlers() {
+		// Find the specific modal for this dataset
+		const modal = document.getElementById(`share-modal-${this.datasetUuid}`);
+		if (!modal) {
+			console.error(`Modal not found for dataset: ${this.datasetUuid}`);
+			return;
+		}
+
+		// Setup search input for this specific modal
+		const searchInput = modal.querySelector(".user-search-input");
+		if (searchInput) {
+			this.setupSearchInput(searchInput);
+		}
+
+		// Setup share button for this specific modal
+		const shareButton = document.getElementById(
+			`share-dataset-btn-${this.datasetUuid}`,
+		);
+		if (shareButton) {
+			this.setupShareDataset(shareButton);
+		}
+	}
+
+	clearSearchResults() {
+		// Clear all search dropdowns
+		for (const dropdown of document.querySelectorAll(".user-search-dropdown")) {
+			dropdown.classList.add("d-none");
+			const listGroup = dropdown.querySelector(".list-group");
+			if (listGroup) {
+				listGroup.innerHTML = "";
+			}
+		}
+
+		// Clear search inputs
+		for (const input of document.querySelectorAll(".user-search-input")) {
+			input.value = "";
 		}
 	}
 
 	setupSearchInput(input) {
+		// Prevent duplicate event listener attachment
+		if (input.dataset.searchSetup === "true") {
+			return;
+		}
+		input.dataset.searchSetup = "true";
+
 		const dropdown = document.getElementById(
 			`user-search-dropdown-${input.id.replace("user-search-", "")}`,
 		);
-		const chipContainer = input
-			.closest(".user-search-input-container")
-			.querySelector(".selected-users-chips");
 		const form = input.closest("form");
 		const inputId = input.id;
 		if (!this.selectedUsersMap[inputId]) this.selectedUsersMap[inputId] = [];
@@ -57,7 +86,6 @@ class UserSearchHandler {
 		input.addEventListener("input", (e) => {
 			clearTimeout(this.searchTimeout);
 			const query = e.target.value.trim();
-			console.log(query);
 
 			if (query.length < 2) {
 				this.hideDropdown(dropdown);
@@ -128,18 +156,111 @@ class UserSearchHandler {
 	}
 
 	setupShareDataset(shareButton) {
-		shareButton.addEventListener("click", () => {
+		// Prevent duplicate event listener attachment
+		if (shareButton.dataset.shareSetup === "true") {
+			return;
+		}
+		shareButton.dataset.shareSetup = "true";
+
+		shareButton.addEventListener("click", async () => {
 			// get the user emails from the selected users map
-			const userEmails = Object.values(this.selectedUsersMap)
-				.map((u) => u.email)
-				.join(",");
-			console.log(userEmails);
+			// The selectedUsersMap is keyed by input ID, so we need to get the first (and only) array
+			const inputId = `user-search-${this.datasetUuid}`;
+
+			const selectedUsers = this.selectedUsersMap[inputId] || [];
+
+			const userEmails = selectedUsers.map((u) => u.email).join(",");
+
+			// Get CSRF token from the form
+			const form = document.getElementById(`share-form-${this.datasetUuid}`);
+			const csrfToken = form.querySelector(
+				'input[name="csrfmiddlewaretoken"]',
+			).value;
+
 			const formData = new FormData();
 			formData.append("user-search", userEmails);
-			fetch(`/users/share-dataset/${this.datasetUuid}/`, {
-				method: "POST",
-				body: formData,
-			});
+
+			// Add notify_users and notify_message if present
+			const notifyCheckbox = document.getElementById(
+				`notify-users-checkbox-${this.datasetUuid}`,
+			);
+			if (notifyCheckbox?.checked) {
+				formData.append("notify_users", "1");
+				const messageTextarea = document.getElementById(
+					`notify-message-textarea-${this.datasetUuid}`,
+				);
+				if (messageTextarea?.value.trim()) {
+					formData.append("notify_message", messageTextarea.value.trim());
+				}
+			}
+
+			// Handle pending removals
+			if (this.pendingRemovals.size > 0) {
+				formData.append(
+					"remove_users",
+					JSON.stringify(Array.from(this.pendingRemovals)),
+				);
+			}
+
+			try {
+				const response = await fetch(
+					`/users/share-dataset/${this.datasetUuid}/`,
+					{
+						method: "POST",
+						body: formData,
+						headers: {
+							"X-CSRFToken": csrfToken,
+						},
+					},
+				);
+
+				const result = await response.json();
+
+				if (response.ok) {
+					// Show success message
+					showToast(
+						result.message || "Dataset shared successfully!",
+						"success",
+					);
+					// Close modal
+					const modal = document.getElementById(
+						`share-modal-${this.datasetUuid}`,
+					);
+					const bootstrapModal = bootstrap.Modal.getInstance(modal);
+					if (bootstrapModal) {
+						bootstrapModal.hide();
+					}
+
+					// Manually remove backdrop if it remains
+					const backdrop = document.querySelector(".modal-backdrop");
+					if (backdrop) {
+						backdrop.remove();
+					}
+
+					// Remove modal-open class from body
+					document.body.classList.remove("modal-open");
+					document.body.style.overflow = "";
+					document.body.style.paddingRight = "";
+
+					// Clear selected users and pending removals
+					this.selectedUsersMap = {};
+					this.pendingRemovals.clear();
+
+					// Refresh the dataset list instead of reloading the page
+					await this.refreshDatasetList();
+
+					// Re-initialize dropdowns after refresh
+					if (typeof initDropdowns === "function") {
+						initDropdowns();
+					}
+				} else {
+					// Show error message
+					showToast(result.error || "Error sharing dataset", "danger");
+				}
+			} catch (error) {
+				console.error("Error sharing dataset:", error);
+				showToast("Error sharing dataset. Please try again.", "danger");
+			}
 		});
 	}
 
@@ -148,6 +269,7 @@ class UserSearchHandler {
 			console.error("Dataset UUID not set on UserSearchHandler");
 			return;
 		}
+
 		// Cancel previous request if still pending
 		if (this.currentRequest) {
 			this.currentRequest.abort();
@@ -198,6 +320,14 @@ class UserSearchHandler {
             `,
 				)
 				.join("");
+
+			// Add click event listeners to the dropdown items
+			const input = document.getElementById(`user-search-${this.datasetUuid}`);
+			for (const item of listGroup.querySelectorAll(".list-group-item")) {
+				item.addEventListener("click", () => {
+					this.selectUser(item, input);
+				});
+			}
 		}
 
 		this.showDropdown(dropdown);
@@ -223,9 +353,22 @@ class UserSearchHandler {
 		}
 
 		// Calculate new index
-		let newIndex = currentIndex + direction;
-		if (newIndex < 0) newIndex = items.length - 1;
-		if (newIndex >= items.length) newIndex = 0;
+		let newIndex;
+		if (currentIndex === -1) {
+			// No item is currently selected
+			if (direction > 0) {
+				// ArrowDown: start from first item
+				newIndex = 0;
+			} else {
+				// ArrowUp: start from last item
+				newIndex = items.length - 1;
+			}
+		} else {
+			// An item is currently selected
+			newIndex = currentIndex + direction;
+			if (newIndex < 0) newIndex = items.length - 1;
+			if (newIndex >= items.length) newIndex = 0;
+		}
 
 		// Add selection to new item
 		if (items[newIndex]) {
@@ -238,10 +381,16 @@ class UserSearchHandler {
 		const userName = item.dataset.userName;
 		const userEmail = item.dataset.userEmail;
 		const inputId = input.id;
+
+		if (!this.selectedUsersMap[inputId]) {
+			this.selectedUsersMap[inputId] = [];
+		}
+
 		if (!this.selectedUsersMap[inputId].some((u) => u.email === userEmail)) {
 			this.selectedUsersMap[inputId].push({ name: userName, email: userEmail });
 			this.renderChips(input);
 		}
+
 		input.value = "";
 		this.hideDropdown(item.closest(".user-search-dropdown"));
 		input.focus();
@@ -269,6 +418,89 @@ class UserSearchHandler {
 			chip.appendChild(remove);
 			chipContainer.appendChild(chip);
 		}
+
+		// Toggle notify/message and users-with-access sections
+		const datasetUuid = inputId.replace("user-search-", "");
+		const notifySection = document.getElementById(
+			`notify-message-section-${datasetUuid}`,
+		);
+		const usersWithAccessSection = document.getElementById(
+			`users-with-access-section-${datasetUuid}`,
+		);
+		const saveBtn = document.getElementById(`share-dataset-btn-${datasetUuid}`);
+		const modalDivider = document.querySelector(
+			`#share-modal-${datasetUuid} .modal-divider`,
+		);
+
+		if (
+			this.selectedUsersMap[inputId] &&
+			this.selectedUsersMap[inputId].length > 0
+		) {
+			notifySection.classList.remove("d-none");
+			usersWithAccessSection.classList.add("d-none");
+
+			// Hide the modal divider when chips are present
+			if (modalDivider) {
+				modalDivider.classList.add("d-none");
+			}
+
+			// Clear pending removals when adding new users
+			this.pendingRemovals.clear();
+
+			// Reset all dropdown buttons to their original state
+			const modal = document.getElementById(`share-modal-${datasetUuid}`);
+			for (const button of modal.querySelectorAll(".btn-icon-dropdown")) {
+				button.innerHTML =
+					'<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
+				button.classList.remove("btn-outline-danger");
+				button.classList.add("btn-light");
+				button.disabled = false;
+			}
+
+			// Change button text to "Share"
+			saveBtn.textContent = "Share";
+
+			// Setup notify checkbox functionality
+			setupNotifyCheckbox(datasetUuid);
+		} else {
+			notifySection.classList.add("d-none");
+			usersWithAccessSection.classList.remove("d-none");
+
+			// Show the modal divider when no chips are present
+			if (modalDivider) {
+				modalDivider.classList.remove("d-none");
+			}
+
+			// Change button text back to "Save"
+			saveBtn.textContent = "Save";
+		}
+
+		// Update save button state
+		this.updateSaveButtonState(datasetUuid);
+	}
+
+	updateSaveButtonState(datasetUuid) {
+		const inputId = `user-search-${datasetUuid}`;
+		const selectedUsers = this.selectedUsersMap[inputId] || [];
+		const hasSelectedUsers = selectedUsers.length > 0;
+		const hasPendingRemovals = this.pendingRemovals.size > 0;
+
+		const saveBtn = document.getElementById(`share-dataset-btn-${datasetUuid}`);
+		const pendingMessage = document.getElementById(
+			`pending-changes-message-${datasetUuid}`,
+		);
+
+		if (hasSelectedUsers || hasPendingRemovals) {
+			saveBtn.disabled = false;
+			if (hasPendingRemovals) {
+				pendingMessage.classList.remove("d-none");
+			} else {
+				pendingMessage.classList.add("d-none");
+			}
+		} else {
+			saveBtn.disabled = true;
+			pendingMessage.classList.add("d-none");
+		}
 	}
 
 	showDropdown(dropdown) {
@@ -282,8 +514,311 @@ class UserSearchHandler {
 			item.classList.remove("selected");
 		}
 	}
+
+	resetAll() {
+		// Clear selected users
+		this.selectedUsersMap = {};
+
+		// Clear pending removals
+		this.pendingRemovals.clear();
+
+		// Reset all dropdown buttons to their original state
+		for (const button of document.querySelectorAll(".btn-icon-dropdown")) {
+			button.innerHTML =
+				'<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
+			button.classList.remove("btn-outline-danger");
+			button.classList.add("btn-light");
+			button.disabled = false;
+		}
+
+		// Reset save button state for all modals
+		for (const btn of document.querySelectorAll('[id^="share-dataset-btn-"]')) {
+			btn.disabled = true;
+			btn.textContent = "Save";
+		}
+
+		// Hide pending changes messages
+		for (const msg of document.querySelectorAll(
+			'[id^="pending-changes-message-"]',
+		)) {
+			msg.classList.add("d-none");
+		}
+
+		// Clear chips
+		for (const container of document.querySelectorAll(
+			".selected-users-chips",
+		)) {
+			container.innerHTML = "";
+		}
+
+		// Hide notify sections and show users-with-access sections
+		for (const section of document.querySelectorAll(
+			'[id^="notify-message-section-"]',
+		)) {
+			section.classList.add("d-none");
+		}
+		for (const section of document.querySelectorAll(
+			'[id^="users-with-access-section-"]',
+		)) {
+			section.classList.remove("d-none");
+		}
+
+		// Show modal dividers
+		for (const divider of document.querySelectorAll(".modal-divider")) {
+			divider.classList.remove("d-none");
+		}
+
+		// Clear search inputs
+		for (const input of document.querySelectorAll(".user-search-input")) {
+			input.value = "";
+		}
+
+		// Hide dropdowns and clear their content
+		for (const dropdown of document.querySelectorAll(".user-search-dropdown")) {
+			dropdown.classList.add("d-none");
+			const listGroup = dropdown.querySelector(".list-group");
+			if (listGroup) {
+				listGroup.innerHTML = "";
+			}
+		}
+
+		// Reset notify checkboxes and textareas
+		for (const checkbox of document.querySelectorAll(
+			'[id^="notify-users-checkbox-"]',
+		)) {
+			checkbox.checked = true;
+		}
+		for (const textarea of document.querySelectorAll(
+			'[id^="notify-message-textarea-"]',
+		)) {
+			textarea.value = "";
+		}
+	}
+
+	setupRemoveUserButtons() {
+		// Find the specific modal for this dataset
+		const modal = document.getElementById(`share-modal-${this.datasetUuid}`);
+		if (!modal) {
+			console.error(`Modal not found for dataset: ${this.datasetUuid}`);
+			return;
+		}
+
+		// Prevent duplicate event listener attachment
+		if (modal.dataset.removeButtonsSetup === "true") {
+			return;
+		}
+		modal.dataset.removeButtonsSetup = "true";
+
+		// Setup remove access buttons for this specific modal only
+		modal.addEventListener("click", async (e) => {
+			if (e.target.closest(".remove-access-btn")) {
+				const button = e.target.closest(".remove-access-btn");
+				const userEmail = button.dataset.userEmail;
+				const userName = button.dataset.userName;
+				const datasetUuid = button.dataset.datasetUuid;
+
+				if (!userEmail || !datasetUuid) {
+					console.error("Missing user email or dataset UUID");
+					return;
+				}
+
+				// Add to pending removals
+				this.pendingRemovals.add(userEmail);
+
+				// Update the button to show "Remove Access" is selected
+				const dropdownMenu = button.closest(".dropdown-menu");
+				const dropdownButton = dropdownMenu.previousElementSibling;
+
+				// Change the dropdown button to show "Remove Access" is selected
+				dropdownButton.innerHTML =
+					'<i class="bi bi-person-slash text-danger"></i>';
+				dropdownButton.classList.add("btn-outline-danger");
+				dropdownButton.classList.remove("btn-light");
+
+				// Disable the dropdown to prevent further changes
+				dropdownButton.disabled = true;
+
+				// Close the dropdown menu
+				const dropdownToggle = dropdownButton;
+				if (dropdownToggle?.classList.contains("dropdown-toggle")) {
+					const dropdownMenu = dropdownToggle.nextElementSibling;
+					if (dropdownMenu?.classList.contains("dropdown-menu")) {
+						dropdownMenu.classList.remove("show");
+						dropdownToggle.setAttribute("aria-expanded", "false");
+					}
+				}
+
+				// Update save button state
+				this.updateSaveButtonState(datasetUuid);
+			}
+		});
+	}
+
+	async refreshDatasetList() {
+		try {
+			// Get current URL parameters
+			const urlParams = new URLSearchParams(window.location.search);
+			const currentPage = urlParams.get("page") || "1";
+			const sortBy = urlParams.get("sort_by") || "created_at";
+			const sortOrder = urlParams.get("sort_order") || "desc";
+
+			// Fetch updated dataset list
+			const response = await fetch(
+				`/users/dataset-list/?page=${currentPage}&sort_by=${sortBy}&sort_order=${sortOrder}`,
+				{
+					headers: {
+						"X-Requested-With": "XMLHttpRequest",
+					},
+				},
+			);
+
+			if (response.ok) {
+				const html = await response.text();
+
+				// Create a temporary div to parse the HTML
+				const tempDiv = document.createElement("div");
+				tempDiv.innerHTML = html;
+
+				// Extract the table content
+				const newTableContainer = tempDiv.querySelector(
+					"#dynamic-table-container",
+				);
+				const currentTableContainer = document.querySelector(
+					"#dynamic-table-container",
+				);
+
+				if (newTableContainer && currentTableContainer) {
+					// Update the table content
+					currentTableContainer.innerHTML = newTableContainer.innerHTML;
+
+					// Update pagination if it exists
+					const newPagination = tempDiv.querySelector("#pagination-controls");
+					const currentPagination = document.querySelector(
+						"#pagination-controls",
+					);
+					if (newPagination && currentPagination) {
+						currentPagination.innerHTML = newPagination.innerHTML;
+					}
+
+					// Update results count if it exists
+					const newResultsCount = tempDiv.querySelector("#results-count");
+					const currentResultsCount = document.querySelector("#results-count");
+					if (newResultsCount && currentResultsCount) {
+						currentResultsCount.innerHTML = newResultsCount.innerHTML;
+					}
+
+					// Re-initialize any necessary event listeners
+					this.initializeDatasetListEventListeners();
+
+					initDropdowns();
+				}
+			}
+		} catch (error) {
+			console.error("Error refreshing dataset list:", error);
+			// Fallback to page reload if refresh fails
+			location.reload();
+		}
+	}
+
+	initializeDatasetListEventListeners() {
+		// Re-attach event listeners for the updated dataset list
+		// This ensures the share buttons and other interactions still work
+
+		// Re-initialize sort functionality
+		const sortableHeaders = document.querySelectorAll("th.sortable");
+		for (const header of sortableHeaders) {
+			header.style.cursor = "pointer";
+			header.addEventListener("click", () => {
+				const sortField = header.getAttribute("data-sort");
+				const urlParams = new URLSearchParams(window.location.search);
+				let newOrder = "desc";
+
+				// If already sorting by this field, toggle order
+				if (
+					urlParams.get("sort_by") === sortField &&
+					urlParams.get("sort_order") === "asc"
+				) {
+					newOrder = "desc";
+				}
+
+				// Update URL with new sort parameters
+				urlParams.set("sort_by", sortField);
+				urlParams.set("sort_order", newOrder);
+				urlParams.set("page", "1"); // Reset to first page when sorting
+
+				// Navigate to sorted results
+				window.location.search = urlParams.toString();
+			});
+		}
+
+		// Re-initialize download buttons
+		const downloadButtons = document.querySelectorAll(".download-dataset-btn");
+		for (const button of downloadButtons) {
+			button.addEventListener("click", (e) => {
+				e.preventDefault();
+				const datasetUuid = button.dataset.datasetUuid;
+				const datasetName = button.dataset.datasetName;
+
+				if (datasetUuid && datasetName) {
+					// Show download confirmation modal
+					const modal = document.getElementById("downloadModal");
+					const datasetNameSpan = document.getElementById(
+						"downloadDatasetName",
+					);
+					if (modal && datasetNameSpan) {
+						datasetNameSpan.textContent = datasetName;
+						openCustomModal("downloadModal");
+					}
+				}
+			});
+		}
+	}
 }
 
 window.UserSearchHandler = UserSearchHandler;
 
+// Global event listeners are now handled per-modal in setupRemoveUserButtons()
+
 export { UserSearchHandler };
+
+// Toast utility for notifications
+function showToast(message, type = "success") {
+	const toastContainer = document.getElementById("toast-container");
+	if (!toastContainer) return;
+	const toastId = `toast-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+	const bgClass =
+		type === "success" ? "bg-success text-white" : "bg-danger text-white";
+	const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center ${bgClass}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3500">
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+	toastContainer.insertAdjacentHTML("beforeend", toastHtml);
+	const toastElem = document.getElementById(toastId);
+	const toast = new bootstrap.Toast(toastElem);
+	toast.show();
+	toastElem.addEventListener("hidden.bs.toast", () => toastElem.remove());
+}
+
+// Add logic to show/hide textarea based on notify checkbox
+function setupNotifyCheckbox(datasetUuid) {
+	const notifyCheckbox = document.getElementById(
+		`notify-users-checkbox-${datasetUuid}`,
+	);
+	const textareaContainer = document.getElementById(
+		`notify-message-textarea-container-${datasetUuid}`,
+	);
+	if (!notifyCheckbox || !textareaContainer) return;
+	function toggleTextarea() {
+		if (notifyCheckbox.checked) {
+			textareaContainer.classList.add("show");
+		} else {
+			textareaContainer.classList.remove("show");
+		}
+	}
+	notifyCheckbox.addEventListener("change", toggleTextarea);
+	toggleTextarea();
+}

@@ -183,3 +183,44 @@ document.addEventListener("click", (event) => {
 		}
 	}
 });
+
+function initDropdowns() {
+	// Remove existing event listeners by cloning and replacing elements
+	for (const toggle of document.querySelectorAll(".dropdown-toggle")) {
+		const newToggle = toggle.cloneNode(true);
+		toggle.parentNode.replaceChild(newToggle, toggle);
+	}
+
+	// Handle dropdown toggles
+	for (const toggle of document.querySelectorAll(".dropdown-toggle")) {
+		toggle.addEventListener("click", function (e) {
+			e.preventDefault();
+			e.stopPropagation();
+
+			const dropdown = this.nextElementSibling;
+			const isOpen = dropdown.classList.contains("show");
+
+			// Close all other dropdowns
+			for (const menu of document.querySelectorAll(".dropdown-menu.show")) {
+				menu.classList.remove("show");
+			}
+
+			// Toggle current dropdown
+			if (!isOpen) {
+				dropdown.classList.add("show");
+			}
+		});
+	}
+}
+
+// Global event listener for closing dropdowns (only add once)
+if (!window.dropdownOutsideListenerAdded) {
+	document.addEventListener("click", (e) => {
+		if (!e.target.closest(".dropdown")) {
+			for (const menu of document.querySelectorAll(".dropdown-menu.show")) {
+				menu.classList.remove("show");
+			}
+		}
+	});
+	window.dropdownOutsideListenerAdded = true;
+}
