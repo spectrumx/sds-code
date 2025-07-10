@@ -1,59 +1,59 @@
 /* Alert theme variables */
 :root {
-    /* Light theme colors */
-    --light-background: #fff;
-    --light-border-debug: #d6e9c6;
-    --light-border-error: #eed3d7;
-    --light-color-debug: #000;
-    --light-color-error: #b94a48;
-    --light-alert-dismissible: #333;
-    
-    /* Dark theme colors */
-    --dark-background: #23272f;
-    --dark-border-debug: #3fc1a5;
-    --dark-border-error: #b30059;
-    --dark-color-debug: #f5f5f5;
-    --dark-color-error: #ff6f91;
-    --dark-alert-dismissible: #e0e0e0;
+	/* Light theme colors */
+	--light-background: #fff;
+	--light-border-debug: #d6e9c6;
+	--light-border-error: #eed3d7;
+	--light-color-debug: #000;
+	--light-color-error: #b94a48;
+	--light-alert-dismissible: #333;
+
+	/* Dark theme colors */
+	--dark-background: #23272f;
+	--dark-border-debug: #3fc1a5;
+	--dark-border-error: #b30059;
+	--dark-color-debug: #f5f5f5;
+	--dark-color-error: #ff6f91;
+	--dark-alert-dismissible: #e0e0e0;
 }
 
 /* Light theme */
 .theme-light .alert-debug {
-    background-color: var(--light-background);
-    border-color: var(--light-border-debug);
-    color: var(--light-color-debug);
+	background-color: var(--light-background);
+	border-color: var(--light-border-debug);
+	color: var(--light-color-debug);
 }
 
 .theme-light .alert-error {
-    background-color: var(--light-background);
-    border-color: var(--light-border-error);
-    color: var(--light-color-error);
+	background-color: var(--light-background);
+	border-color: var(--light-border-error);
+	color: var(--light-color-error);
 }
 
 .theme-light .alert-dismissible {
-    font-size: 1.25rem;
-    color: var(--light-alert-dismissible);
+	font-size: 1.25rem;
+	color: var(--light-alert-dismissible);
 }
 
 /* Dark theme */
 .theme-dark .alert-debug {
-    background-color: var(--dark-background);
-    border-color: var(--dark-border-debug);
-    color: var(--dark-color-debug);
+	background-color: var(--dark-background);
+	border-color: var(--dark-border-debug);
+	color: var(--dark-color-debug);
 }
 
 .theme-dark .alert-error {
-    background-color: var(--dark-background);
-    border-color: var(--dark-border-error);
-    color: var(--dark-color-error);
+	background-color: var(--dark-background);
+	border-color: var(--dark-border-error);
+	color: var(--dark-color-error);
 }
 
 .theme-dark .alert-dismissible {
-    font-size: 1.25rem;
-    color: var(--dark-alert-dismissible);
+	font-size: 1.25rem;
+	color: var(--dark-alert-dismissible);
 }
 
 /* Generic styles outside themes */
 .italic-text {
-    font-style: italic;
-} 
+	font-style: italic;
+}

@@ -1,13 +1,19 @@
 /* Colors and variables for new styles */
 :root {
-    --primary-color: #002147;
-    --secondary-color: #0056b3;
-    --text-color: #333;
-    --light-gray: #f5f5f5;
-    --white: #fff;
-    --mint-green: #d6e9c6;
-    --black: #000;
-    --pink: #f2dede;
-    --dark-pink: #eed3d7;
-    --red: #b94a48;
-} 
+	--primary-color: #002147;
+	--secondary-color: #0056b3;
+	--text-color: #333;
+	--light-gray: #f5f5f5;
+	--white: #fff;
+	--mint-green: #d6e9c6;
+	--black: #000;
+	--pink: #f2dede;
+	--dark-pink: #eed3d7;
+	--red: #b94a48;
+}
+
+/* External link styling */
+.external-link {
+	color: #005a9c;
+	text-decoration: underline;
+}
