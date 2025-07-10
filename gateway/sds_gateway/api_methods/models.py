@@ -232,6 +232,11 @@ class Capture(BaseModel):
         related_name="captures",
         on_delete=models.SET_NULL,
     )
+    shared_with = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="shared_captures",
+    )
 
     def __str__(self):
         if self.name:
@@ -538,6 +543,11 @@ class Dataset(BaseModel):
     provenance = models.JSONField(blank=True, null=True)
     citation = models.JSONField(blank=True, null=True)
     other = models.JSONField(blank=True, null=True)
+    shared_with = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="shared_datasets",
+    )
 
     def __str__(self) -> str:
         return self.name
