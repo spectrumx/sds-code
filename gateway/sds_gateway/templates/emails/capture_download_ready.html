@@ -1,0 +1,13 @@
+<p>
+    Capture <strong>{{ capture_name }}</strong> is ready for download.
+</p>
+<p>
+    <a href="{{ download_url }}">Download your capture</a>
+    <br />
+    This file will expire on {{ expires_at_local|default:expires_at }}
+</p>
+<p>
+    Files: {{ files_count }}
+    <br />
+    Size: {{ file_size|filesizeformat }}
+</p>

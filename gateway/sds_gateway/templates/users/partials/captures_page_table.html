@@ -1,5 +1,8 @@
 {% load custom_filters %}
 
+<!-- Add Bootstrap Icons for actions dropdown -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
 <!-- Search Results -->
 <div id="search-results">
     <div class="d-flex justify-content-end align-items-baseline">
@@ -15,66 +18,65 @@
         <table class="table table-striped table-hover table-sm captures-table-fixed"
                aria-labelledby="search-results-heading">
             <caption id="search-results-heading" class="visually-hidden">
-                Search results for captures showing UUID, channel, creation date, type, author, file count, center frequency, and sample rate
+                Search results for captures showing name, channel, creation date, type, author, center frequency, sample rate, and actions
             </caption>
             <thead>
                 <tr>
-                    <th scope="col" id="uuid-header">
-                        <abbr title="Universally Unique Identifier">UUID</abbr>
-                    </th>
+                    <th scope="col" id="name-header" class="w-auto">Name</th>
                     <th scope="col"
                         id="channel-header"
-                        class="sortable"
+                        class="sortable w-auto"
                         data-sort="channel"
                         aria-sort="none">
                         Channel <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
                     <th scope="col"
                         id="created-header"
-                        class="sortable"
+                        class="sortable w-auto"
                         data-sort="created_at"
                         aria-sort="none">
                         Created <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
                     <th scope="col"
                         id="type-header"
-                        class="sortable"
+                        class="sortable w-auto"
                         data-sort="capture_type"
                         aria-sort="none">
                         Type <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
                     <th scope="col"
                         id="author-header"
-                        class="sortable"
+                        class="sortable w-auto"
                         data-sort="owner__name"
                         aria-sort="none">
                         Author <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
-                    <th scope="col" id="files-header">Files</th>
                     <th scope="col"
                         id="frequency-header"
-                        class="sortable"
+                        class="sortable w-auto"
                         data-sort="center_frequency_ghz"
                         aria-sort="none">
                         <abbr title="Center Frequency">Center Freq</abbr> <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
                     <th scope="col"
                         id="sample-rate-header"
-                        class="sortable"
+                        class="sortable w-auto"
                         data-sort="sample_rate_mhz"
                         aria-sort="none">
                         Sample Rate <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
+                    <th scope="col" id="actions-header" class="w-auto text-center">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% if captures %}
                     {% for cap in captures %}
                         <tr class="capture-row">
-                            <td headers="uuid-header">
+                            <td headers="name-header">
                                 <a href="#"
                                    class="capture-link"
                                    data-uuid="{{ cap.uuid }}"
+                                   data-name="{{ cap.name|default:'' }}"
                                    data-channel="{% if cap.is_multi_channel %}{% for channel in cap.channels %}{{ channel.channel }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ cap.channel }}{% endif %}"
                                    data-scan-group="{{ cap.scan_group }}"
                                    data-capture-type="{{ cap.capture_type }}"
@@ -88,8 +90,10 @@
                                    data-center-frequency-ghz="{{ cap.center_frequency_ghz }}"
                                    data-is-multi-channel="{{ cap.is_multi_channel|yesno:'True,False' }}"
                                    data-channels="{{ cap.channels|safe }}"
-                                   aria-label="View details for capture {{ cap.uuid }}"
-                                   title="View capture details: {{ cap.uuid }}">{{ cap.uuid }}</a>
+                                   aria-label="View details for capture {{ cap.name|default:cap.uuid }}"
+                                   title="View capture details: {{ cap.name|default:cap.uuid }}">
+                                    {{ cap.name|default:"Unnamed Capture" }}
+                                </a>
                             </td>
                             <td headers="channel-header">
                                 {% if cap.is_multi_channel %}
@@ -121,13 +125,6 @@
                                     -
                                 {% endif %}
                             </td>
-                            <td headers="files-header">
-                                {{ cap.files_count }}
-                                {% if cap.total_file_size %}
-                                    <br />
-                                    <small class="text-muted">{{ cap.total_file_size|filesizeformat }}</small>
-                                {% endif %}
-                            </td>
                             <td headers="frequency-header">
                                 {% if cap.center_frequency_ghz %}
                                     {{ cap.center_frequency_ghz|floatformat:1 }} GHz
@@ -141,6 +138,45 @@
                                 {% else %}
                                     -
                                 {% endif %}
+                            </td>
+                            <td headers="actions-header" class="text-center">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center mx-auto"
+                                            type="button"
+                                            data-bs-toggle="dropdown"
+                                            data-bs-popper="static"
+                                            aria-expanded="false"
+                                            aria-label="Actions for capture {{ cap.name|default:cap.uuid }}">
+                                        <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <button class="dropdown-item capture-details-btn"
+                                                    type="button"
+                                                    data-uuid="{{ cap.uuid }}"
+                                                    data-name="{{ cap.name|default:'' }}"
+                                                    data-channel="{% if cap.is_multi_channel %}{% for channel in cap.channels %}{{ channel.channel }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ cap.channel }}{% endif %}"
+                                                    data-scan-group="{{ cap.scan_group }}"
+                                                    data-capture-type="{{ cap.capture_type }}"
+                                                    data-top-level-dir="{{ cap.top_level_dir }}"
+                                                    data-owner="{{ cap.owner }}"
+                                                    data-origin="{{ cap.origin }}"
+                                                    data-dataset="{{ cap.dataset }}"
+                                                    data-created-at="{{ cap.created_at }}"
+                                                    data-updated-at="{{ cap.updated_at }}"
+                                                    data-is-public="{{ cap.is_public }}"
+                                                    data-center-frequency-ghz="{{ cap.center_frequency_ghz }}"
+                                                    data-is-multi-channel="{{ cap.is_multi_channel|yesno:'True,False' }}"
+                                                    data-channels="{{ cap.channels|safe }}">Edit</button>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item download-capture-btn"
+                                                    type="button"
+                                                    data-capture-uuid="{{ cap.uuid }}"
+                                                    data-capture-name="{{ cap.name|default:'' }}">Download</button>
+                                        </li>
+                                    </ul>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -171,10 +207,16 @@
                 <!-- Page numbers -->
                 {% for num in captures.paginator.page_range %}
                     <li class="page-item {% if num == captures.number %}active{% endif %}">
-                        <a class="page-link"
-                           href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
-                           aria-label="Go to page {{ num }}"
-                           {% if num == captures.number %}aria-current="page"{% endif %}>{{ num }}</a>
+                        {% if num == captures.number %}
+                            <a class="page-link"
+                               href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
+                               aria-label="Go to page {{ num }}"
+                               aria-current="page">{{ num }}</a>
+                        {% else %}
+                            <a class="page-link"
+                               href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
+                               aria-label="Go to page {{ num }}">{{ num }}</a>
+                        {% endif %}
                     </li>
                 {% endfor %}
                 <!-- Next button -->
