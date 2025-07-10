@@ -24,6 +24,43 @@ def get_redis_client() -> Redis:
     """Get Redis client for locking."""
     return Redis.from_url(settings.CELERY_BROKER_URL)
 
+def send_email(
+    subject,
+    recipient_list,
+    plain_template=None,
+    html_template=None,
+    context=None,
+    plain_message=None,
+    html_message=None,
+):
+    """
+    Generic utility to send an email with optional template rendering.
+    Args:
+        subject: Email subject
+        recipient_list: List of recipient emails
+        plain_template: Path to plain text template (optional)
+        html_template: Path to HTML template (optional)
+        context: Context for rendering templates (optional)
+        plain_message: Raw plain text message (optional, overrides template)
+        html_message: Raw HTML message (optional, overrides template)
+    """
+    from django.conf import settings
+
+    if not recipient_list:
+        return False
+    if not plain_message and plain_template and context:
+        plain_message = render_to_string(plain_template, context)
+    if not html_message and html_template and context:
+        html_message = render_to_string(html_template, context)
+    send_mail(
+        subject=subject,
+        message=plain_message or "",
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=recipient_list,
+        html_message=html_message,
+    )
+    return True
+
 
 def acquire_user_lock(user_id: str, task_name: str, timeout: int = 300) -> bool:
     """
@@ -140,7 +177,7 @@ def test_email_task(email_address: str = "test@example.com") -> str:
         return f"Test email sent to {email_address}"
 
 
-def _send_error_email(user: User, dataset: Dataset, error_message: str) -> None:
+def _send_download_error_email(user: User, dataset: Dataset, error_message: str) -> None:
     """
     Send an error email to the user when dataset download fails.
 
@@ -161,25 +198,18 @@ def _send_error_email(user: User, dataset: Dataset, error_message: str) -> None:
             ),
         }
 
-        # Render email template
-        html_message = render_to_string("emails/dataset_download_error.html", context)
-        plain_message = render_to_string("emails/dataset_download_error.txt", context)
-
-        user_email = user.email
-
-        # Send email
-        send_mail(
+        send_email(
             subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user_email],
-            html_message=html_message,
+            recipient_list=[user.email],
+            plain_template="emails/dataset_download_error.txt",
+            html_template="emails/dataset_download_error.html",
+            context=context,
         )
 
         logger.info(
             "Sent error email for dataset %s to %s: %s",
             dataset.uuid,
-            user_email,
+            user.email,
             error_message,
         )
 
@@ -190,7 +220,6 @@ def _send_error_email(user: User, dataset: Dataset, error_message: str) -> None:
             user.id,
             e,
         )
-
 
 def _validate_dataset_download_request(
     dataset_uuid: str, user_id: str
@@ -252,7 +281,7 @@ def _check_user_lock(
             "You already have a dataset download in progress. "
             "Please wait for it to complete."
         )
-        _send_error_email(user, dataset, error_message)
+        _send_download_error_email(user, dataset, error_message)
         return {
             "status": "error",
             "message": error_message,
@@ -269,7 +298,7 @@ def _acquire_user_lock(
     if not acquire_user_lock(user_id, task_name):
         logger.warning("Failed to acquire lock for user %s", user_id)
         error_message = "Unable to start download. Please try again in a moment."
-        _send_error_email(user, dataset, error_message)
+        _send_download_error_email(user, dataset, error_message)
         return {
             "status": "error",
             "message": error_message,
@@ -304,7 +333,7 @@ def _process_dataset_files(
     if not all_files:
         logger.warning("No files found for dataset %s", dataset.uuid)
         error_message = "No files found in dataset"
-        _send_error_email(user, dataset, error_message)
+        _send_download_error_email(user, dataset, error_message)
         return (
             {
                 "status": "error",
@@ -329,7 +358,7 @@ def _process_dataset_files(
     if files_processed == 0:
         logger.warning("No files were processed for dataset %s", dataset.uuid)
         error_message = "No files could be processed"
-        _send_error_email(user, dataset, error_message)
+        _send_download_error_email(user, dataset, error_message)
         return (
             {
                 "status": "error",
@@ -352,40 +381,6 @@ def _process_dataset_files(
     )
 
     return None, zip_file_path, total_size, files_processed, temp_zip
-
-
-def _send_dataset_email(
-    user: User, dataset: Dataset, temp_zip: TemporaryZipFile | None
-) -> None:
-    """Send email with download link."""
-    if temp_zip is None:
-        return
-
-    subject = f"Your dataset '{dataset.name}' is ready for download"
-    context = {
-        "dataset_name": dataset.name,
-        "download_url": temp_zip.download_url,
-        "file_size": temp_zip.file_size,
-        "files_count": temp_zip.files_processed,
-        "expires_at": temp_zip.expires_at,
-    }
-
-    html_message = render_to_string("emails/dataset_download_ready.html", context)
-    plain_message = render_to_string("emails/dataset_download_ready.txt", context)
-
-    send_mail(
-        subject=subject,
-        message=plain_message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        html_message=html_message,
-    )
-
-    logger.info(
-        "Successfully sent dataset download email for %s to %s",
-        dataset.uuid,
-        user.email,
-    )
 
 
 @shared_task
@@ -412,7 +407,7 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
         )
         if error_result:
             if user and dataset:
-                _send_error_email(user, dataset, error_result["message"])
+                _send_download_error_email(user, dataset, error_result["message"])
             return error_result
 
         assert user is not None
@@ -440,8 +435,31 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
         if error_result:
             return error_result
 
+        assert temp_zip is not None
+
+        subject = f"Your dataset '{dataset.name}' is ready for download"
+        context = {
+            "dataset_name": dataset.name,
+            "download_url": temp_zip.download_url,
+            "file_size": temp_zip.file_size,
+            "files_count": temp_zip.files_processed,
+            "expires_at": temp_zip.expires_at,
+        }
+
         # Send email
-        _send_dataset_email(user, dataset, temp_zip)
+        send_email(
+            subject=subject,
+            recipient_list=[user.email],
+            plain_template="emails/dataset_download_ready.txt",
+            html_template="emails/dataset_download_ready.html",
+            context=context,
+        )
+
+        logger.info(
+            "Successfully sent dataset download email for %s to %s",
+            dataset.uuid,
+            user.email,
+        )
 
     except (OSError, ValueError) as e:
         logger.exception(
@@ -464,7 +482,6 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
             "files_processed": temp_zip.files_processed if temp_zip else 0,
             "temp_zip_uuid": temp_zip.uuid if temp_zip else None,
         }
-
     finally:
         if user_id is not None:
             release_user_lock(user_id, task_name)
@@ -655,3 +672,45 @@ def get_user_task_status(user_id: str, task_name: str) -> dict:
             "task_name": task_name,
             "user_id": user_id,
         }
+
+
+@shared_task
+def notify_shared_users(dataset_uuid, user_emails, *, notify=True, message=None):
+    """
+    Celery task to notify users when a dataset is shared with them.
+    Args:
+        dataset_uuid: UUID of the shared dataset
+        user_emails: List of user emails to notify
+        notify: Whether to send notification emails
+        message: Optional custom message to include
+    """
+    if not notify or not user_emails:
+        return "No notifications sent."
+    try:
+        dataset = Dataset.objects.get(uuid=dataset_uuid)
+    except Dataset.DoesNotExist:
+        return f"Dataset {dataset_uuid} does not exist."
+    subject = f"A dataset has been shared with you: {dataset.name}"
+    for email in user_emails:
+        # Use HTTPS if available, otherwise HTTP
+        protocol = "https" if settings.USE_HTTPS else "http"
+        site_url = f"{protocol}://{settings.SITE_DOMAIN}"
+
+        if message:
+            body = (
+                f"You have been granted access to the dataset '{dataset.name}'.\n\n"
+                f"Message from the owner:\n{message}\n\n"
+                f"View your shared datasets: {site_url}/users/datasets/"
+            )
+        else:
+            body = (
+                f"You have been granted access to the dataset '{dataset.name}'.\n\n"
+                f"View your shared datasets: {site_url}/users/datasets/"
+            )
+
+        send_email(
+            subject=subject,
+            recipient_list=[email],
+            plain_message=body,
+        )
+    return f"Notified {len(user_emails)} users about shared dataset {dataset_uuid}."
