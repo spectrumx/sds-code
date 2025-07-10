@@ -80,8 +80,21 @@
                                         {% for dataset in page_obj %}
                                             <tr class="clickable-row">
                                                 <td class="text-break">
-                                                    <a href="{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}"
-                                                       aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
+                                                    {% if dataset.is_owner %}
+                                                        <a href="{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}"
+                                                           aria-label="View details for {{ dataset.name }}">
+                                                            {{ dataset.name }}
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted">{{ dataset.name }}</span>
+                                                    {% endif %}
+                                                    {% if dataset.is_shared_with_me %}
+                                                        <span class="ms-2 align-middle"
+                                                              data-bs-toggle="tooltip"
+                                                              title="Shared with you">
+                                                            <i class="bi bi-people-fill text-success"></i>
+                                                        </span>
+                                                    {% endif %}
                                                 </td>
                                                 <td class="text-break">{{ dataset.description|truncatechars:80 }}</td>
                                                 <td class="text-break">{{ dataset.authors }}</td>
@@ -97,21 +110,23 @@
                                                             <i class="bi bi-three-dots-vertical"></i>
                                                         </button>
                                                         <ul class="dropdown-menu">
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
-                                                                    Edit
-                                                                </button>
-                                                            </li>
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        data-bs-toggle="modal"
-                                                                        data-bs-target="#share-modal-{{ dataset.uuid }}">
-                                                                    Share
-                                                                </button>
-                                                            </li>
+                                                            {% if dataset.is_owner %}
+                                                                <li>
+                                                                    <button class="dropdown-item"
+                                                                            type="button"
+                                                                            onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
+                                                                        Edit
+                                                                    </button>
+                                                                </li>
+                                                                <li>
+                                                                    <button class="dropdown-item"
+                                                                            type="button"
+                                                                            data-bs-toggle="modal"
+                                                                            data-bs-target="#share-modal-{{ dataset.uuid }}">
+                                                                        Share
+                                                                    </button>
+                                                                </li>
+                                                            {% endif %}
                                                             <li>
                                                                 <button class="dropdown-item download-dataset-btn"
                                                                         type="button"
@@ -222,6 +237,12 @@
     {% for dataset in page_obj %}
         {% include "users/partials/dataset_share_modal.html" with dataset=dataset %}
     {% endfor %}
+    <!-- Toast container for notifications -->
+    <div aria-live="polite"
+         aria-atomic="true"
+         class="position-fixed top-0 end-0 p-3 toast-container">
+        <div id="toast-container"></div>
+    </div>
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
@@ -255,53 +276,33 @@
             }
         });
 
-        // Custom dropdown toggle functionality
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize user search for share modals
+            // Create a UserSearchHandler for each share modal
             document.querySelectorAll('.modal[data-dataset-uuid]').forEach(modal => {
-                modal.addEventListener('show.bs.modal', function() {
-                    const datasetUuid = modal.getAttribute('data-dataset-uuid');
-                    if (window.UserSearchHandler) {
-                        window.userSearchHandler = new window.UserSearchHandler();
-                        window.userSearchHandler.setDatasetUuid(datasetUuid);
-                        window.userSearchHandler.init();
-                    }
-                });
-            });
-
-            let currentDatasetUuid = null;
-            let currentDatasetName = null;
-            let currentButton = null;
-
-            // Handle dropdown toggles
-            document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
-                toggle.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    const dropdown = this.nextElementSibling;
-                    const isOpen = dropdown.classList.contains('show');
-
-                    // Close all other dropdowns
-                    document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
-                        menu.classList.remove('show');
-                    });
-
-                    // Toggle current dropdown
-                    if (!isOpen) {
-                        dropdown.classList.add('show');
-                    }
-                });
-            });
-
-            // Close dropdowns when clicking outside
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('.dropdown')) {
-                    document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
-                        menu.classList.remove('show');
-                    });
+                const datasetUuid = modal.getAttribute('data-dataset-uuid');
+                if (window.UserSearchHandler) {
+                    const handler = new window.UserSearchHandler();
+                    // Store the handler on the modal element
+                    modal.userSearchHandler = handler;
                 }
+
+                // On modal show, set the datasetUuid and call init()
+                modal.addEventListener('show.bs.modal', function() {
+                    if (modal.userSearchHandler) {
+                        modal.userSearchHandler.setDatasetUuid(datasetUuid);
+                        modal.userSearchHandler.init();
+                    }
+                });
+
+                // On modal hide, reset all selections and entered data
+                modal.addEventListener('hidden.bs.modal', function() {
+                    if (modal.userSearchHandler) {
+                        modal.userSearchHandler.resetAll();
+                    }
+                });
             });
+
+            initDropdowns();
 
             // Check for download alert messages
             const downloadAlert = sessionStorage.getItem('downloadAlert');

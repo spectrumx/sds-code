@@ -50,8 +50,13 @@ class Auth0LoginRequiredMixin(LoginRequiredMixin):
 class UserSearchMixin:
     """Mixin to handle user search functionality for sharing."""
 
-    def search_users(self, request) -> JsonResponse:
-        """Search for users by name or email."""
+    def search_users(self, request, exclude_user_ids=None) -> JsonResponse:
+        """Search for users by name or email.
+
+        Args:
+            request: The HTTP request
+            exclude_user_ids: Optional list of user IDs to exclude from search results
+        """
         query = request.GET.get("q", "").strip()
         limit = min(int(request.GET.get("limit", 10)), 20)  # Max 20 results
 
@@ -60,11 +65,17 @@ class UserSearchMixin:
                 {"error": "Search query must be at least 2 characters long"}, status=400
             )
 
-        # Search for users by name or email, excluding the current user
+        # Start with base queryset
         users = User.objects.filter(
             Q(name__icontains=query) | Q(email__icontains=query),
             is_approved=True,  # Only show approved users
-        ).exclude(id=request.user.id)[:limit]
+        ).exclude(id=request.user.id)
+
+        # Add additional exclusions if provided
+        if exclude_user_ids:
+            users = users.exclude(id__in=exclude_user_ids)
+
+        users = users[:limit]
 
         # Serialize users for response
         users_data = [

@@ -190,6 +190,44 @@ def _validate_dataset_download_request(
     return None, user, dataset
 
 
+def send_email(
+    subject,
+    recipient_list,
+    plain_template=None,
+    html_template=None,
+    context=None,
+    plain_message=None,
+    html_message=None,
+):
+    """
+    Generic utility to send an email with optional template rendering.
+    Args:
+        subject: Email subject
+        recipient_list: List of recipient emails
+        plain_template: Path to plain text template (optional)
+        html_template: Path to HTML template (optional)
+        context: Context for rendering templates (optional)
+        plain_message: Raw plain text message (optional, overrides template)
+        html_message: Raw HTML message (optional, overrides template)
+    """
+    from django.conf import settings
+
+    if not recipient_list:
+        return False
+    if not plain_message and plain_template and context:
+        plain_message = render_to_string(plain_template, context)
+    if not html_message and html_template and context:
+        html_message = render_to_string(html_template, context)
+    send_mail(
+        subject=subject,
+        message=plain_message or "",
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=recipient_list,
+        html_message=html_message,
+    )
+    return True
+
+
 @shared_task
 def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
     """
@@ -301,8 +339,6 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
 
         # Send email with download link
         subject = f"Your dataset '{dataset.name}' is ready for download"
-
-        # Create email context
         context = {
             "dataset_name": dataset.name,
             "download_url": temp_zip.download_url,
@@ -310,28 +346,19 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
             "files_count": files_processed,
             "expires_at": temp_zip.expires_at,
         }
-
-        # Render email template
-        html_message = render_to_string("emails/dataset_download_ready.html", context)
-        plain_message = render_to_string("emails/dataset_download_ready.txt", context)
-
         user_email = user.email
-
-        # Send email
-        send_mail(
+        send_email(
             subject=subject,
-            message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user_email],
-            html_message=html_message,
+            plain_template="emails/dataset_download_ready.txt",
+            html_template="emails/dataset_download_ready.html",
+            context=context,
         )
-
         logger.info(
             "Successfully sent dataset download email for %s to %s",
             dataset_uuid,
             user_email,
         )
-
         return {
             "status": "success",
             "message": "Dataset files email sent successfully",
@@ -339,7 +366,6 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
             "files_processed": files_processed,
             "temp_zip_uuid": temp_zip.uuid,
         }
-
     finally:
         # Always release the lock, even if there was an error
         if user_id is not None:
@@ -531,3 +557,45 @@ def get_user_task_status(user_id: str, task_name: str) -> dict:
             "task_name": task_name,
             "user_id": user_id,
         }
+
+
+@shared_task
+def notify_shared_users(dataset_uuid, user_emails, *, notify=True, message=None):
+    """
+    Celery task to notify users when a dataset is shared with them.
+    Args:
+        dataset_uuid: UUID of the shared dataset
+        user_emails: List of user emails to notify
+        notify: Whether to send notification emails
+        message: Optional custom message to include
+    """
+    if not notify or not user_emails:
+        return "No notifications sent."
+    try:
+        dataset = Dataset.objects.get(uuid=dataset_uuid)
+    except Dataset.DoesNotExist:
+        return f"Dataset {dataset_uuid} does not exist."
+    subject = f"A dataset has been shared with you: {dataset.name}"
+    for email in user_emails:
+        # Use HTTPS if available, otherwise HTTP
+        protocol = "https" if settings.USE_HTTPS else "http"
+        site_url = f"{protocol}://{settings.SITE_DOMAIN}"
+
+        if message:
+            body = (
+                f"You have been granted access to the dataset '{dataset.name}'.\n\n"
+                f"Message from the owner:\n{message}\n\n"
+                f"View your shared datasets: {site_url}/users/datasets/"
+            )
+        else:
+            body = (
+                f"You have been granted access to the dataset '{dataset.name}'.\n\n"
+                f"View your shared datasets: {site_url}/users/datasets/"
+            )
+
+        send_email(
+            subject=subject,
+            recipient_list=[email],
+            plain_message=body,
+        )
+    return f"Notified {len(user_emails)} users about shared dataset {dataset_uuid}."

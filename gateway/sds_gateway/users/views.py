@@ -42,6 +42,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.tasks import is_user_locked
+from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_dataset_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
@@ -165,7 +166,111 @@ class ShareDatasetView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Handle user search requests."""
-        return self.search_users(request)
+        dataset_uuid = kwargs.get("dataset_uuid")
+
+        # Get the dataset to check existing shared users
+        try:
+            dataset = Dataset.objects.get(uuid=dataset_uuid, owner=request.user)
+            # Get users already shared with this dataset
+            shared_user_ids = list(dataset.shared_with.values_list("id", flat=True))
+        except Dataset.DoesNotExist:
+            return JsonResponse({"error": "Dataset not found"}, status=404)
+
+        # Use the enhanced mixin method with exclusions
+        return self.search_users(request, exclude_user_ids=shared_user_ids)
+
+    def _parse_remove_users(self, request: HttpRequest) -> list[str]:
+        """Parse the remove_users JSON from the request."""
+        remove_users_json = request.POST.get("remove_users", "")
+        if not remove_users_json:
+            return []
+        try:
+            return json.loads(remove_users_json)
+        except json.JSONDecodeError as err:
+            msg = "Invalid remove_users format"
+            raise ValueError(msg) from err
+
+    def _add_users_to_dataset(
+        self, dataset: Dataset, user_emails_str: str, request_user: User
+    ) -> tuple[list[str], list[str]]:
+        """Add users to dataset sharing and return (shared_users, errors)."""
+        if not user_emails_str:
+            return [], []
+
+        user_emails = [
+            email.strip() for email in user_emails_str.split(",") if email.strip()
+        ]
+
+        shared_users = []
+        errors = []
+
+        for user_email in user_emails:
+            try:
+                user_to_share_with = User.objects.get(
+                    email=user_email, is_approved=True
+                )
+
+                if user_to_share_with.id == request_user.id:
+                    errors.append(
+                        f"You cannot share a dataset with yourself ({user_email})"
+                    )
+                    continue
+
+                if dataset.shared_with.filter(id=user_to_share_with.id).exists():
+                    errors.append(f"Dataset is already shared with {user_email}")
+                    continue
+
+                dataset.shared_with.add(user_to_share_with)
+                shared_users.append(user_email)
+
+            except User.DoesNotExist:
+                errors.append(f"User with email {user_email} not found or not approved")
+
+        return shared_users, errors
+
+    def _remove_users_from_dataset(
+        self, dataset: Dataset, users_to_remove: list[str]
+    ) -> tuple[list[str], list[str]]:
+        """Remove users from dataset sharing and return (removed_users, errors)."""
+        removed_users = []
+        errors = []
+
+        for user_email in users_to_remove:
+            try:
+                user_to_remove = User.objects.get(email=user_email)
+
+                if not dataset.shared_with.filter(id=user_to_remove.id).exists():
+                    errors.append(f"Dataset is not shared with user: {user_email}")
+                    continue
+
+                dataset.shared_with.remove(user_to_remove)
+                removed_users.append(user_email)
+
+            except User.DoesNotExist:
+                errors.append(f"User with email {user_email} not found")
+
+        return removed_users, errors
+
+    def _build_response(
+        self, shared_users: list[str], removed_users: list[str], errors: list[str]
+    ) -> JsonResponse:
+        """Build the response message based on the results."""
+        response_parts = []
+        if shared_users:
+            response_parts.append(f"Dataset shared with {', '.join(shared_users)}")
+        if removed_users:
+            response_parts.append(f"Removed access for {', '.join(removed_users)}")
+
+        if response_parts and not errors:
+            message = ". ".join(response_parts)
+            return JsonResponse({"success": True, "message": message})
+        if response_parts and errors:
+            message = ". ".join(response_parts) + f". Issues: {'; '.join(errors)}"
+            return JsonResponse({"success": True, "message": message})
+        if not response_parts and errors:
+            return JsonResponse({"error": "; ".join(errors)}, status=400)
+
+        return JsonResponse({"success": True, "message": "No changes made"})
 
     def post(
         self, request: HttpRequest, dataset_uuid: str, *args: Any, **kwargs: Any
@@ -177,57 +282,74 @@ class ShareDatasetView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         # Get the user emails from the form (comma-separated string)
         user_emails_str = request.POST.get("user-search", "").strip()
 
-        if not user_emails_str:
+        # Parse users to remove
+        try:
+            users_to_remove = self._parse_remove_users(request)
+        except ValueError:
+            return JsonResponse({"error": "Invalid remove_users format"}, status=400)
+
+        # Handle adding new users
+        shared_users, add_errors = self._add_users_to_dataset(
+            dataset, user_emails_str, request.user
+        )
+
+        # Handle removing users
+        removed_users, remove_errors = self._remove_users_from_dataset(
+            dataset, users_to_remove
+        )
+
+        # Combine all errors
+        errors = add_errors + remove_errors
+
+        # Notify shared users if requested
+        notify = request.POST.get("notify_users") == "1"
+        message = request.POST.get("notify_message", "").strip() or None
+        if shared_users and notify:
+            notify_shared_users.delay(
+                dataset.uuid, shared_users, notify=True, message=message
+            )
+
+        # Build and return response
+        return self._build_response(shared_users, removed_users, errors)
+
+    def delete(
+        self, request: HttpRequest, dataset_uuid: str, *args: Any, **kwargs: Any
+    ) -> HttpResponse:
+        """Remove a user from dataset sharing."""
+        # Get the dataset
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, owner=request.user)
+
+        # Get the user email from the request
+        user_email = request.POST.get("user_email", "").strip()
+
+        if not user_email:
             return JsonResponse({"error": "User email is required"}, status=400)
 
-        # Split by comma and clean up each email
-        user_emails = [
-            email.strip() for email in user_emails_str.split(",") if email.strip()
-        ]
+        try:
+            # Find the user to remove
+            user_to_remove = User.objects.get(email=user_email)
 
-        if not user_emails:
-            return JsonResponse(
-                {"error": "At least one valid user email is required"}, status=400
-            )
-
-        shared_users = []
-        errors = []
-
-        for user_email in user_emails:
-            try:
-                # Find the user to share with
-                user_to_share_with = User.objects.get(
-                    email=user_email, is_approved=True
+            # Check if the user is actually shared with this dataset
+            if not dataset.shared_with.filter(id=user_to_remove.id).exists():
+                return JsonResponse(
+                    {"error": f"User {user_email} is not shared with this dataset"},
+                    status=400,
                 )
 
-                if user_to_share_with.id == request.user.id:
-                    errors.append(
-                        f"You cannot share a dataset with yourself ({user_email})"
-                    )
-                    continue
+            # Remove the user from the dataset
+            dataset.shared_with.remove(user_to_remove)
 
-                # Check if already shared
-                if dataset.shared_with.filter(id=user_to_share_with.id).exists():
-                    errors.append(f"Dataset is already shared with {user_email}")
-                    continue
-
-                dataset.shared_with.add(user_to_share_with)
-                shared_users.append(user_email)
-
-            except User.DoesNotExist:
-                errors.append(f"User with email {user_email} not found or not approved")
-
-        # Prepare response message
-        if shared_users and not errors:
-            message = f"Dataset shared successfully with {', '.join(shared_users)}"
-            return JsonResponse({"success": True, "message": message})
-        if shared_users and errors:
-            message = (
-                f"Dataset shared with {', '.join(shared_users)}. "
-                f"Issues: {'; '.join(errors)}"
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": f"Removed {user_email} from dataset sharing",
+                }
             )
-            return JsonResponse({"success": True, "message": message})
-        return JsonResponse({"error": "; ".join(errors)}, status=400)
+
+        except User.DoesNotExist:
+            return JsonResponse(
+                {"error": f"User with email {user_email} not found"}, status=400
+            )
 
 
 user_share_dataset_view = ShareDatasetView.as_view()
@@ -872,24 +994,44 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             # Default sorting
             order_by = "-created_at"
 
-        # Get datasets with sorting applied
-        datasets = (
+        # Get datasets owned by the user
+        owned_datasets = (
             request.user.datasets.filter(is_deleted=False).all().order_by(order_by)
         )
+        # Get datasets shared with the user (exclude owned)
+        shared_datasets = (
+            Dataset.objects.filter(shared_with=request.user, is_deleted=False)
+            .exclude(owner=request.user)
+            .order_by(order_by)
+        )
 
-        # Prepare datasets with shared users
+        # Prepare datasets with shared users and flags
         datasets_with_shared_users = []
-        for dataset in datasets:
+        for dataset in owned_datasets:
             dataset_data = DatasetGetSerializer(dataset).data
-            # Get shared users for this dataset
             shared_users = dataset.shared_with.all()
             dataset_data["shared_users"] = [
-                {
-                    "name": user.name,
-                    "email": user.email,
-                }
-                for user in shared_users
+                {"name": user.name, "email": user.email} for user in shared_users
             ]
+            dataset_data["is_owner"] = True
+            dataset_data["is_shared_with_me"] = False
+            dataset_data["owner_name"] = (
+                dataset.owner.name if dataset.owner else "Owner"
+            )
+            dataset_data["owner_email"] = dataset.owner.email if dataset.owner else ""
+            datasets_with_shared_users.append(dataset_data)
+        for dataset in shared_datasets:
+            dataset_data = DatasetGetSerializer(dataset).data
+            shared_users = dataset.shared_with.all()
+            dataset_data["shared_users"] = [
+                {"name": user.name, "email": user.email} for user in shared_users
+            ]
+            dataset_data["is_owner"] = False
+            dataset_data["is_shared_with_me"] = True
+            dataset_data["owner_name"] = (
+                dataset.owner.name if dataset.owner else "Owner"
+            )
+            dataset_data["owner_email"] = dataset.owner.email if dataset.owner else ""
             datasets_with_shared_users.append(dataset_data)
 
         paginator = Paginator(datasets_with_shared_users, per_page=15)

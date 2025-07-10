@@ -10,8 +10,8 @@ from .views import user_file_detail_view
 from .views import user_generate_api_key_view
 from .views import user_group_captures_view
 from .views import user_redirect_view
-from .views import user_temporary_zip_download_view
 from .views import user_share_dataset_view
+from .views import user_temporary_zip_download_view
 from .views import user_update_view
 
 app_name = "users"
