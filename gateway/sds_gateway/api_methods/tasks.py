@@ -245,23 +245,41 @@ def _validate_dataset_download_request(
             None,
         )
 
-    # Get the dataset
+    # Get the dataset - allow both owners and shared users to download
     try:
         dataset = Dataset.objects.get(
             uuid=dataset_uuid,
             is_deleted=False,
-            owner=user,
         )
     except Dataset.DoesNotExist:
         logger.warning(
-            "Dataset %s not found or not owned by user %s",
+            "Dataset %s not found",
             dataset_uuid,
-            user_id,
         )
         return (
             {
                 "status": "error",
                 "message": "Dataset not found",
+                "dataset_uuid": dataset_uuid,
+            },
+            None,
+            None,
+        )
+
+    # Check if user is owner or shared user
+    is_owner = dataset.owner == user
+    is_shared_user = user in dataset.shared_with.all()
+
+    if not (is_owner or is_shared_user):
+        logger.warning(
+            "User %s does not have permission to download dataset %s",
+            user_id,
+            dataset_uuid,
+        )
+        return (
+            {
+                "status": "error",
+                "message": "You don't have permission to download this dataset",
                 "dataset_uuid": dataset_uuid,
             },
             None,
