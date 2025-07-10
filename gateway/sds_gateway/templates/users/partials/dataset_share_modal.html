@@ -1,6 +1,7 @@
 <!-- Share Modal -->
 <div class="modal fade"
      id="share-modal-{{ dataset.uuid }}"
+     data-dataset-uuid="{{ dataset.uuid }}"
      tabindex="-1"
      aria-labelledby="share-modal-label-{{ dataset.uuid }}"
      aria-hidden="true">
@@ -20,32 +21,18 @@
                         {% csrf_token %}
                         <div class="user-search-input-container">
                             <div class="selected-users-chips d-flex flex-wrap align-items-center mb-2"></div>
-                            <div class="input-group mb-3">
-                                <input type="text"
-                                       class="form-control user-search-input"
-                                       placeholder="Search users by name or email..."
-                                       aria-label="Search users by name or email"
-                                       aria-describedby="add-user-button"
-                                       id="user-search-{{ dataset.uuid }}"
-                                       name="user-search"
-                                       autocomplete="off" />
-                                <button class="btn btn-outline-success" type="button" id="add-user-button">
-                                    <i class="bi bi-person-plus"></i>
-                                </button>
-                            </div>
+                            <input type="text"
+                                   class="form-control user-search-input mb-3"
+                                   placeholder="Search users by name or email..."
+                                   id="user-search-{{ dataset.uuid }}"
+                                   name="user-search"
+                                   autocomplete="off" />
                             <!-- User search dropdown -->
                             <div class="user-search-dropdown d-none"
                                  id="user-search-dropdown-{{ dataset.uuid }}">
                                 <div class="list-group">
                                     <!-- Search results will be populated here -->
                                 </div>
-                            </div>
-                            <div class="mt-2">
-                                <input type="checkbox"
-                                       class="form-check-input"
-                                       id="notify-users"
-                                       name="notify-users" />
-                                <label class="form-check-label" for="notify-users">Notify users by email</label>
                             </div>
                         </div>
                     </form>
@@ -86,7 +73,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary">Share</button>
+                <button type="button"
+                        class="btn btn-primary"
+                        id="share-dataset-btn-{{ dataset.uuid }}">Share</button>
             </div>
         </div>
     </div>

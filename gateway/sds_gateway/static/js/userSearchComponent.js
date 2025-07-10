@@ -1,10 +1,15 @@
 // User search functionality for dataset sharing
 class UserSearchHandler {
 	constructor() {
+		this.datasetUuid = null;
 		this.searchTimeout = null;
 		this.currentRequest = null;
 		this.selectedUsersMap = {}; // key: input id, value: array of {name, email}
 		this.init();
+	}
+
+	setDatasetUuid(uuid) {
+		this.datasetUuid = uuid;
 	}
 
 	init() {
@@ -20,6 +25,13 @@ class UserSearchHandler {
 			if (searchInput) {
 				this.setupSearchInput(searchInput);
 			}
+
+			const shareButton = document.getElementById(
+				`share-dataset-btn-${this.datasetUuid}`,
+			);
+			if (shareButton) {
+				this.setupShareDataset(shareButton);
+			}
 		});
 	}
 
@@ -31,9 +43,8 @@ class UserSearchHandler {
 	}
 
 	setupSearchInput(input) {
-		const datasetUuid = input.id.replace("user-search-", "");
 		const dropdown = document.getElementById(
-			`user-search-dropdown-${datasetUuid}`,
+			`user-search-dropdown-${input.id.replace("user-search-", "")}`,
 		);
 		const chipContainer = input
 			.closest(".user-search-input-container")
@@ -54,7 +65,7 @@ class UserSearchHandler {
 			}
 
 			this.searchTimeout = setTimeout(() => {
-				this.searchUsers(query, dropdown, datasetUuid);
+				this.searchUsers(query, dropdown);
 			}, 300);
 		});
 
@@ -116,18 +127,35 @@ class UserSearchHandler {
 		});
 	}
 
-	async searchUsers(query, dropdown, datasetUuid) {
+	setupShareDataset(shareButton) {
+		shareButton.addEventListener("click", () => {
+			// get the user emails from the selected users map
+			const userEmails = Object.values(this.selectedUsersMap)
+				.map((u) => u.email)
+				.join(",");
+			console.log(userEmails);
+			const formData = new FormData();
+			formData.append("user-search", userEmails);
+			fetch(`/users/share-dataset/${this.datasetUuid}/`, {
+				method: "POST",
+				body: formData,
+			});
+		});
+	}
+
+	async searchUsers(query, dropdown) {
+		if (!this.datasetUuid) {
+			console.error("Dataset UUID not set on UserSearchHandler");
+			return;
+		}
 		// Cancel previous request if still pending
 		if (this.currentRequest) {
 			this.currentRequest.abort();
 		}
-
 		try {
-			// Create new AbortController for this request
 			this.currentRequest = new AbortController();
-
 			const response = await fetch(
-				`/users/share-dataset/${datasetUuid}/?q=${encodeURIComponent(query)}&limit=10`,
+				`/users/share-dataset/${this.datasetUuid}/?q=${encodeURIComponent(query)}&limit=10`,
 				{
 					signal: this.currentRequest.signal,
 					headers: {
@@ -135,16 +163,13 @@ class UserSearchHandler {
 					},
 				},
 			);
-
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
-
 			const users = await response.json();
 			this.displayResults(users, dropdown, query);
 		} catch (error) {
 			if (error.name === "AbortError") {
-				// Request was cancelled, ignore
 				return;
 			}
 			console.error("Error searching users:", error);
