@@ -50,6 +50,7 @@ from sds_gateway.users.forms import FileSearchForm
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FormSearchMixin
+from sds_gateway.users.mixins import UserSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.utils import deduplicate_composite_captures
@@ -157,6 +158,52 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
 
 
 user_generate_api_key_view = GenerateAPIKeyView.as_view()
+
+
+class ShareDatasetView(Auth0LoginRequiredMixin, UserSearchMixin, View):
+    """Handle dataset sharing functionality."""
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        """Handle user search requests."""
+        return self.search_users(request)
+
+    def post(
+        self, request: HttpRequest, dataset_uuid: str, *args: Any, **kwargs: Any
+    ) -> HttpResponse:
+        """Share a dataset with another user."""
+        # Get the dataset
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, owner=request.user)
+
+        # Get the user email from the form
+        user_emails = request.POST.getlist("user-search", "").strip()
+
+        notify_users = request.POST.get("notify-users", False)
+
+        if not user_emails:
+            return JsonResponse({"error": "User email is required"}, status=400)
+
+        # Find the user to share with
+        for user_email in user_emails:
+            user_to_share_with = User.objects.get(email=user_email, is_approved=True)
+            if user_to_share_with.id == request.user.id:
+                return JsonResponse(
+                    {"error": "You cannot share a dataset with yourself"}, status=400
+                )
+
+            dataset.shared_with.add(user_to_share_with)
+            if notify_users:
+                # TODO: Implement email notification
+                pass
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Dataset shared successfully with {user_emails}",
+            }
+        )
+
+
+user_share_dataset_view = ShareDatasetView.as_view()
 
 
 class ListFilesView(Auth0LoginRequiredMixin, View):
