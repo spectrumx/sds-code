@@ -13,6 +13,7 @@ from loguru import logger
 from redis import Redis
 
 from sds_gateway.api_methods.helpers.download_file import download_file
+from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import TemporaryZipFile
@@ -531,3 +532,202 @@ def get_user_task_status(user_id: str, task_name: str) -> dict:
             "task_name": task_name,
             "user_id": user_id,
         }
+
+
+@shared_task
+def send_capture_files_email(capture_uuid: str, user_id: str) -> dict:
+    """
+    Celery task to create a zip file of capture files and send it via email.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+        user_id: ID of the user requesting the download
+
+    Returns:
+        dict: Task result with status and details
+    """
+    # Initialize variables that might be used in finally block
+    task_name = "capture_download"
+
+    try:
+        # Validate the request
+        error_result, user, capture = _validate_capture_download_request(
+            capture_uuid, user_id
+        )
+        if error_result:
+            return error_result
+
+        # At this point, user and capture are guaranteed to be not None
+        assert user is not None
+        assert capture is not None
+
+        # Check if user already has a running task
+        if is_user_locked(user_id, task_name):
+            logger.warning(
+                "User %s already has a capture download task running", user_id
+            )
+            return {
+                "status": "error",
+                "message": (
+                    "You already have a capture download in progress. "
+                    "Please wait for it to complete."
+                ),
+                "capture_uuid": capture_uuid,
+                "user_id": user_id,
+            }
+
+        # Try to acquire lock for this user
+        if not acquire_user_lock(user_id, task_name):
+            logger.warning("Failed to acquire lock for user %s", user_id)
+            return {
+                "status": "error",
+                "message": "Unable to start download. Please try again in a moment.",
+                "capture_uuid": capture_uuid,
+                "user_id": user_id,
+            }
+
+        logger.info("Acquired lock for user %s, starting capture download", user_id)
+
+        # Get all files for the capture
+        files = capture.files.filter(
+            is_deleted=False,
+            owner=user,
+        )
+
+        if not files:
+            logger.warning("No files found for capture %s", capture_uuid)
+            return {
+                "status": "error",
+                "message": "No files found in capture",
+                "capture_uuid": capture_uuid,
+                "total_size": 0,
+            }
+
+        safe_capture_name = (capture.name or "capture").replace(" ", "_")
+        zip_filename = f"capture_{safe_capture_name}_{capture_uuid}.zip"
+
+        # Create zip file using the generic function
+        zip_file_path, total_size, files_processed = create_zip_from_files(
+            files, zip_filename
+        )
+
+        if files_processed == 0:
+            logger.warning("No files were processed for capture %s", capture_uuid)
+            return {
+                "status": "error",
+                "message": "No files could be processed",
+                "capture_uuid": capture_uuid,
+                "total_size": 0,
+            }
+
+        temp_zip = TemporaryZipFile.objects.create(
+            file_path=zip_file_path,
+            filename=zip_filename,
+            file_size=total_size,
+            files_processed=files_processed,
+            owner=user,
+        )
+
+        # Send email with download link
+        capture_display_name = capture.name or f"Capture {capture_uuid}"
+        subject = f"Your capture '{capture_display_name}' is ready for download"
+
+        # Create email context
+        context = {
+            "capture_name": capture_display_name,
+            "download_url": temp_zip.download_url,
+            "file_size": total_size,
+            "files_count": files_processed,
+            "expires_at": temp_zip.expires_at,
+        }
+
+        # Render email template
+        html_message = render_to_string("emails/capture_download_ready.html", context)
+        plain_message = render_to_string("emails/capture_download_ready.txt", context)
+
+        user_email = user.email
+
+        # Send email
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            html_message=html_message,
+        )
+
+        logger.info(
+            "Successfully sent capture download email for %s to %s",
+            capture_uuid,
+            user_email,
+        )
+
+        return {
+            "status": "success",
+            "message": "Capture files email sent successfully",
+            "capture_uuid": capture_uuid,
+            "files_processed": files_processed,
+            "temp_zip_uuid": temp_zip.uuid,
+        }
+
+    finally:
+        # Always release the lock, even if there was an error
+        if user_id is not None:
+            release_user_lock(user_id, task_name)
+            logger.info("Released lock for user %s", user_id)
+
+
+def _validate_capture_download_request(
+    capture_uuid: str, user_id: str
+) -> tuple[dict | None, User | None, Capture | None]:
+    """
+    Validate capture download request parameters.
+
+    Args:
+        capture_uuid: UUID of the capture to download
+        user_id: ID of the user requesting the download
+
+    Returns:
+        tuple: (error_result, user, capture) where error_result is None if valid
+    """
+    # Validate user
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        logger.warning("User %s not found for capture download", user_id)
+        return (
+            {
+                "status": "error",
+                "message": "User not found",
+                "capture_uuid": capture_uuid,
+                "user_id": user_id,
+            },
+            None,
+            None,
+        )
+
+    # Validate capture
+    try:
+        capture = Capture.objects.get(
+            uuid=capture_uuid,
+            owner=user,
+            is_deleted=False,
+        )
+    except Capture.DoesNotExist:
+        logger.warning(
+            "Capture %s not found or not owned by user %s",
+            capture_uuid,
+            user_id,
+        )
+        return (
+            {
+                "status": "error",
+                "message": "Capture not found or access denied",
+                "capture_uuid": capture_uuid,
+                "user_id": user_id,
+            },
+            None,
+            None,
+        )
+
+    return None, user, capture

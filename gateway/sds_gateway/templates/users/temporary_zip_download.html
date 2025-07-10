@@ -5,127 +5,125 @@
 {% block title %}
     Download - {{ temp_zip.filename }}
 {% endblock title %}
-{# djlint:off H021 #}
-<body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %}"
-      id="body"
-      style="display: none">
-    {# djlint:on #}
-    {% block content %}
-        <div class="container mt-5">
-            <div class="row justify-content-center">
-                <div class="col-md-8">
-                    <div class="card">
-                        <div class="card-header text-center">
-                            <h2>
-                                <i class="fas fa-file-archive"></i> File Download
-                            </h2>
-                        </div>
-                        <div class="card-body text-center">
-                            {% if status == "available" %}
-                                <!-- File is available for download -->
-                                <div class="alert alert-info">
-                                    <i class="fas fa-download fa-2x mb-3"></i>
-                                    <h4>Downloading File...</h4>
-                                    <p class="mb-3">{{ temp_zip.filename }}</p>
-                                    <p class="text-muted">
-                                        Size: {{ temp_zip.file_size|filesizeformat }} |
-                                        Files: {{ temp_zip.files_processed }} files
-                                    </p>
-                                    <div class="mt-3">
-                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                            <span class="visually-hidden">Downloading...</span>
-                                        </div>
-                                        <span class="ms-2">Preparing download...</span>
+{% block bodyclass %}
+    hero-white-page
+{% endblock bodyclass %}
+{% block content %}
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header text-center">
+                        <h2>
+                            <i class="fas fa-file-archive"></i> File Download
+                        </h2>
+                    </div>
+                    <div class="card-body text-center">
+                        {% if status == "available" %}
+                            <!-- File is available for download -->
+                            <div class="alert alert-info">
+                                <i class="fas fa-download fa-2x mb-3"></i>
+                                <h4>Downloading File...</h4>
+                                <p class="mb-3">{{ temp_zip.filename }}</p>
+                                <p class="text-muted">
+                                    Size: {{ temp_zip.file_size|filesizeformat }} |
+                                    Files: {{ temp_zip.files_processed }} files
+                                </p>
+                                <div class="mt-3">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                        <span class="visually-hidden">Downloading...</span>
                                     </div>
+                                    <span class="ms-2">Preparing download...</span>
                                 </div>
-                            {% else %}
-                                <!-- File is not available -->
-                                <div class="alert alert-danger">
-                                    <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
-                                    <h4>Download Not Available</h4>
-                                    <p>{{ message }}</p>
-                                </div>
-                            {% endif %}
-                        </div>
+                            </div>
+                        {% else %}
+                            <!-- File is not available -->
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                <h4>Download Not Available</h4>
+                                <p>{{ message }}</p>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
-        {# djlint:off #}
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                {
-                    %
-                    if status == "available" %
-                }
+    </div>
+    {# djlint:off #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            {% if status == "available" %}
                 // Automatically start download when page loads
                 downloadFile();
-                {
-                    %
-                    else %
-                }
+            {% else %}
                 // Show error and redirect after a short delay
                 setTimeout(function() {
                     showAlertAndRedirect('danger', '{{ message }}');
                 }, 1000);
-                {
-                    %
-                    endif %
-                }
-            });
+            {% endif %}
+        });
 
-            function downloadFile() {
-                // Create download URL with query parameter
-                const downloadUrl = '{% url "users:temporary_zip_download" temp_zip.uuid %}?download=true';
+        function downloadFile() {
+            // Create download URL with query parameter
+            const downloadUrl = '{% url "users:temporary_zip_download" temp_zip.uuid %}?download=true';
 
-                fetch(downloadUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/zip',
-                        }
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(data => {
-                                throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
-                            });
-                        }
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        // Create blob URL and trigger download
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = '{{ temp_zip.filename }}';
-                        a.style.display = 'none';
-                        document.body.appendChild(a);
-                        a.click();
+            // Add timeout of 5 minutes
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 300000);
 
-                        // Clean up
-                        window.URL.revokeObjectURL(url);
-                        document.body.removeChild(a);
+            fetch(downloadUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/zip',
+                    },
+                    signal: controller.signal
+                })
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
+                        });
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    // Create blob URL and trigger download
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = '{{ temp_zip.filename }}';
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
 
-                        // Show success message and redirect
-                        showAlertAndRedirect('success', 'File downloaded successfully!');
-                    })
-                    .catch(error => {
-                        console.error('Download failed:', error);
-                        showAlertAndRedirect('danger', `Download failed: ${error.message}`);
-                    });
-            }
+                    // Clean up
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
 
-            function showAlertAndRedirect(type, message) {
-                // Store the alert message in sessionStorage to show on the next page
-                sessionStorage.setItem('downloadAlert', JSON.stringify({
-                    type: type,
-                    message: message
-                }));
+                    // Show success message and redirect
+                    showAlertAndRedirect('success', 'File downloaded successfully!');
+                })
+                .catch(error => {
+                    console.error('Download failed:', error);
+                    clearTimeout(timeoutId);
+                    const errorMessage = error.name === 'AbortError'
+                        ? 'Download timed out after 5 minutes. Please try again.'
+                        : `Download failed: ${error.message}`;
+                    showAlertAndRedirect('danger', errorMessage);
+                });
+        }
 
-                // Redirect to dataset list page
-                window.location.href = '{% url "users:dataset_list" %}';
-            }
+        function showAlertAndRedirect(type, message) {
+            // Store the alert message in sessionStorage to show on the next page
+            sessionStorage.setItem('downloadAlert', JSON.stringify({
+                type: type,
+                message: message
+            }));
+
+            // Redirect to dataset list page
+            window.location.href = '{% url "users:dataset_list" %}';
+        }
 </script>
-        {# djlint:on #}
-    {% endblock content %}
-</body>
+    {# djlint:on #}
+{% endblock content %}

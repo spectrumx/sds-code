@@ -42,6 +42,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.tasks import is_user_locked
+from sds_gateway.api_methods.tasks import send_capture_files_email
 from sds_gateway.api_methods.tasks import send_dataset_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
@@ -1128,3 +1129,84 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 
 
 user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()
+
+
+class CaptureDownloadView(Auth0LoginRequiredMixin, View):
+    """View to handle capture download requests from the web interface."""
+
+    def post(self, request, *args, **kwargs):
+        """Handle capture download request."""
+        capture_uuid = kwargs.get("uuid")
+        if not capture_uuid:
+            return JsonResponse(
+                {"status": "error", "detail": "Capture UUID is required."},
+                status=400,
+            )
+
+        # Get the capture
+        capture = get_object_or_404(
+            Capture,
+            uuid=capture_uuid,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        # Check if capture has files
+        files = capture.files.filter(is_deleted=False, owner=request.user)
+        if not files.exists():
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "detail": "No files found in capture",
+                    "capture_uuid": capture_uuid,
+                },
+                status=400,
+            )
+
+        # Get user email
+        user_email = request.user.email
+        if not user_email:
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "detail": "User email is required for sending capture files.",
+                },
+                status=400,
+            )
+
+        # Check if a user already has a task running
+        if is_user_locked(str(request.user.id), "capture_download"):
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "detail": (
+                        "You already have a capture download in progress. "
+                        "Please wait for it to complete."
+                    ),
+                },
+                status=400,
+            )
+
+        # Trigger the Celery task
+        task = send_capture_files_email.delay(
+            str(capture.uuid),
+            str(request.user.id),
+        )
+
+        capture_display_name = capture.name or f"Capture {capture.uuid}"
+        return JsonResponse(
+            {
+                "status": "success",
+                "message": (
+                    "Capture download request accepted. You will receive an email "
+                    "with the files shortly."
+                ),
+                "task_id": task.id,
+                "capture_name": capture_display_name,
+                "user_email": user_email,
+            },
+            status=202,
+        )
+
+
+user_capture_download_view = CaptureDownloadView.as_view()

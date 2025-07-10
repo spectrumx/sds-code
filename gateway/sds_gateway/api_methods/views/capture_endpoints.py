@@ -16,6 +16,7 @@ from loguru import logger as log
 from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework import viewsets
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -46,6 +47,8 @@ from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_clien
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
+MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
+
 
 class CapturePagination(PageNumberPagination):
     page_size = 30
@@ -54,7 +57,7 @@ class CapturePagination(PageNumberPagination):
 
 
 class CaptureViewSet(viewsets.ViewSet):
-    authentication_classes = [APIKeyAuthentication]
+    authentication_classes = [SessionAuthentication, APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
     def _validate_and_index_metadata(
@@ -599,6 +602,78 @@ class CaptureViewSet(viewsets.ViewSet):
             msg = f"Error connecting to OpenSearch: {e}"
             log.error(msg)
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # Return updated capture
+        serializer = CaptureGetSerializer(target_capture)
+        return Response(serializer.data)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Capture UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "New name for the capture",
+                        "maxLength": 255,
+                    }
+                },
+                "required": ["name"],
+            }
+        },
+        responses={
+            200: CaptureGetSerializer,
+            400: OpenApiResponse(description="Bad Request"),
+            404: OpenApiResponse(description="Not Found"),
+        },
+        description="Update the name of a capture.",
+        summary="Update Capture Name",
+    )
+    def partial_update(self, request: Request, pk: str | None = None) -> Response:
+        """Update the name of a capture."""
+        if pk is None:
+            return Response(
+                {"detail": "Capture UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target_capture = get_object_or_404(
+            Capture,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        # Get the new name from request data
+        new_name = request.data.get("name")
+        if not new_name:
+            return Response(
+                {"detail": "Name field is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(new_name) > MAX_CAPTURE_NAME_LENGTH:
+            return Response(
+                {
+                    "detail": (
+                        f"Name must be {MAX_CAPTURE_NAME_LENGTH} characters or less."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Update the name
+        target_capture.name = new_name.strip()
+        target_capture.save(update_fields=["name"])
 
         # Return updated capture
         serializer = CaptureGetSerializer(target_capture)

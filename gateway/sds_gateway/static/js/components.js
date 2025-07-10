@@ -277,6 +277,32 @@ class CapturesTableManager extends TableManager {
 				return;
 			}
 
+			// Handle capture details button clicks from actions dropdown
+			if (
+				e.target.matches(".capture-details-btn") ||
+				e.target.closest(".capture-details-btn")
+			) {
+				e.preventDefault();
+				const button = e.target.matches(".capture-details-btn")
+					? e.target
+					: e.target.closest(".capture-details-btn");
+				this.openCaptureModal(button);
+				return;
+			}
+
+			// Handle download capture button clicks from actions dropdown
+			if (
+				e.target.matches(".download-capture-btn") ||
+				e.target.closest(".download-capture-btn")
+			) {
+				e.preventDefault();
+				const button = e.target.matches(".download-capture-btn")
+					? e.target
+					: e.target.closest(".download-capture-btn");
+				this.handleDownloadCapture(button);
+				return;
+			}
+
 			// Handle capture link clicks
 			if (
 				e.target.matches(".capture-link") ||
@@ -306,6 +332,133 @@ class CapturesTableManager extends TableManager {
 
 		// Add the persistent event listener
 		document.addEventListener("click", this.eventDelegationHandler);
+	}
+
+	/**
+	 * Handle download capture action
+	 */
+	handleDownloadCapture(button) {
+		const captureUuid = button.dataset.captureUuid;
+		const captureName =
+			button.dataset.captureName || button.dataset.captureUuid;
+
+		if (!captureUuid) {
+			console.error("No capture UUID found for download");
+			return;
+		}
+
+		// Show loading state
+		const originalContent = button.innerHTML;
+		button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+		button.disabled = true;
+
+		// Make API request
+		fetch(`/users/capture-download/${captureUuid}/`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-CSRFToken": this.getCSRFToken(),
+			},
+		})
+			.then((response) => response.json())
+			.then((data) => {
+				if (data.status === "success") {
+					button.innerHTML =
+						'<i class="bi bi-check-circle text-success"></i> Download Requested';
+					this.showDownloadSuccessMessage(data.message);
+				} else {
+					button.innerHTML =
+						'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+					this.showDownloadErrorMessage(
+						data.detail ||
+							data.message ||
+							"Download request failed. Please try again.",
+					);
+				}
+			})
+			.catch((error) => {
+				console.error("Download error:", error);
+				button.innerHTML =
+					'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+				this.showDownloadErrorMessage(
+					"An error occurred while processing your request.",
+				);
+			})
+			.finally(() => {
+				// Reset button after 3 seconds
+				setTimeout(() => {
+					button.innerHTML = originalContent;
+					button.disabled = false;
+				}, 3000);
+			});
+	}
+
+	/**
+	 * Show download success message
+	 */
+	showDownloadSuccessMessage(message) {
+		// Try to find an existing alert container or create one
+		let alertContainer = document.querySelector(".alert-container");
+		if (!alertContainer) {
+			alertContainer = document.createElement("div");
+			alertContainer.className = "alert-container";
+			// Insert at the top of the main content area
+			const mainContent =
+				document.querySelector(".container-fluid") || document.body;
+			mainContent.insertBefore(alertContainer, mainContent.firstChild);
+		}
+
+		const alertHtml = `
+			<div class="alert alert-success alert-dismissible fade show" role="alert">
+				<i class="bi bi-check-circle-fill me-2"></i>
+				${ComponentUtils.escapeHtml(message)}
+				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+			</div>
+		`;
+
+		alertContainer.innerHTML = alertHtml;
+
+		// Auto-dismiss after 5 seconds
+		setTimeout(() => {
+			const alert = alertContainer.querySelector(".alert");
+			if (alert) {
+				alert.remove();
+			}
+		}, 5000);
+	}
+
+	/**
+	 * Show download error message
+	 */
+	showDownloadErrorMessage(message) {
+		// Try to find an existing alert container or create one
+		let alertContainer = document.querySelector(".alert-container");
+		if (!alertContainer) {
+			alertContainer = document.createElement("div");
+			alertContainer.className = "alert-container";
+			// Insert at the top of the main content area
+			const mainContent =
+				document.querySelector(".container-fluid") || document.body;
+			mainContent.insertBefore(alertContainer, mainContent.firstChild);
+		}
+
+		const alertHtml = `
+			<div class="alert alert-danger alert-dismissible fade show" role="alert">
+				<i class="bi bi-exclamation-triangle-fill me-2"></i>
+				${ComponentUtils.escapeHtml(message)}
+				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+			</div>
+		`;
+
+		alertContainer.innerHTML = alertHtml;
+
+		// Auto-dismiss after 8 seconds (longer for error messages)
+		setTimeout(() => {
+			const alert = alertContainer.querySelector(".alert");
+			if (alert) {
+				alert.remove();
+			}
+		}, 8000);
 	}
 
 	renderRow(capture, index) {
@@ -392,10 +545,18 @@ class CapturesTableManager extends TableManager {
 	/**
 	 * Open capture modal with XSS protection
 	 */
-	openCaptureModal(link) {
+	openCaptureModal(linkElement) {
 		if (this.modalHandler) {
-			this.modalHandler.openCaptureModal(link);
+			this.modalHandler.openCaptureModal(linkElement);
 		}
+	}
+
+	/**
+	 * Get CSRF token for API requests
+	 */
+	getCSRFToken() {
+		const token = document.querySelector("[name=csrfmiddlewaretoken]");
+		return token ? token.value : "";
 	}
 
 	/**
@@ -652,6 +813,9 @@ class ModalManager {
 				uuid: ComponentUtils.escapeHtml(
 					linkElement.getAttribute("data-uuid") || "",
 				),
+				name: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-name") || "",
+				),
 				channel: ComponentUtils.escapeHtml(
 					linkElement.getAttribute("data-channel") || "",
 				),
@@ -693,38 +857,141 @@ class ModalManager {
 
 			let modalContent = `
 				<div class="mb-4">
-					<h6>Basic Information</h6>
-					<p><strong>UUID:</strong> ${data.uuid || "N/A"}</p>
-					<p><strong>Capture Type:</strong> ${data.captureType || "N/A"}</p>
-					<p><strong>Origin:</strong> ${data.origin || "N/A"}</p>
-					<p><strong>Owner:</strong> ${ownerDisplay}</p>
+					<div class="d-flex align-items-center mb-3">
+						<h6 class="mb-0 fw-bold">
+							<i class="bi bi-info-circle me-2"></i>Basic Information
+						</h6>
+					</div>
+					<div class="mb-3">
+						<label for="capture-name-input" class="form-label fw-medium">
+							<strong>Name:</strong>
+						</label>
+						<div class="input-group">
+							<input type="text"
+								   class="form-control"
+								   id="capture-name-input"
+								   value="${data.name || ""}"
+								   placeholder="Enter capture name"
+								   maxlength="255"
+								   data-uuid="${data.uuid}">
+							<button class="btn btn-outline-secondary"
+									type="button"
+									id="edit-name-btn"
+									title="Edit capture name">
+								<i class="bi bi-pencil"></i>
+							</button>
+						</div>
+						<div class="form-text">Click the edit button to modify the capture name</div>
+					</div>
+					<div class="row">
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Capture Type:</span>
+								<span class="ms-2">${data.captureType || "N/A"}</span>
+							</p>
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Origin:</span>
+								<span class="ms-2">${data.origin || "N/A"}</span>
+							</p>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Owner:</span>
+								<span class="ms-2">${ownerDisplay}</span>
+							</p>
+						</div>
+					</div>
 			`;
 
 			// Handle composite vs single capture display
 			if (isComposite) {
 				modalContent += `
-					<p><strong>Channels:</strong> ${data.channel || "N/A"}</p>
+					<div class="mb-2">
+						<span class="fw-medium text-muted">Channels:</span>
+						<span class="ms-2">${data.channel || "N/A"}</span>
+					</div>
 				`;
 			} else {
 				modalContent += `
-					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
+					<div class="mb-2">
+						<span class="fw-medium text-muted">Channel:</span>
+						<span class="ms-2">${data.channel || "N/A"}</span>
+					</div>
 				`;
 			}
 
 			modalContent += `
 				</div>
 				<div class="mb-4">
-					<h6>Technical Details</h6>
-					<p><strong>Scan Group:</strong> ${data.scanGroup || "N/A"}</p>
-					<p><strong>Top Level Directory:</strong> ${data.topLevelDir || "N/A"}</p>
-					<p><strong>Dataset:</strong> ${data.dataset || "N/A"}</p>
-					<p><strong>Center Frequency:</strong> ${data.centerFrequencyGhz && data.centerFrequencyGhz !== "None" ? `${Number.parseFloat(data.centerFrequencyGhz).toFixed(3)} GHz` : "N/A"}</p>
-					<p><strong>Is Public:</strong> ${data.isPublic === "True" ? "Yes" : "No"}</p>
+					<div class="d-flex align-items-center mb-3">
+						<h6 class="mb-0 fw-bold">
+							<i class="bi bi-gear me-2"></i>Technical Details
+						</h6>
+					</div>
+					<div class="row">
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Scan Group:</span>
+								<span class="ms-2">${data.scanGroup || "N/A"}</span>
+							</p>
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Dataset:</span>
+								<span class="ms-2">${data.dataset || "N/A"}</span>
+							</p>
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Is Public:</span>
+								<span class="ms-2">${data.isPublic === "True" ? "Yes" : "No"}</span>
+							</p>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Top Level Directory:</span>
+								<span class="ms-2 text-break">${data.topLevelDir || "N/A"}</span>
+							</p>
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Center Frequency:</span>
+								<span class="ms-2">
+									${data.centerFrequencyGhz && data.centerFrequencyGhz !== "None" ? `${Number.parseFloat(data.centerFrequencyGhz).toFixed(3)} GHz` : "N/A"}
+								</span>
+							</p>
+						</div>
+					</div>
 				</div>
-				<div>
-					<h6>Timestamps</h6>
-					<p><strong>Created At:</strong> ${data.createdAt && data.createdAt !== "None" ? `${new Date(data.createdAt).toLocaleString()} UTC` : "N/A"}</p>
-					<p><strong>Updated At:</strong> ${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}</p>
+				<div class="mb-4">
+					<div class="d-flex align-items-center mb-3">
+						<h6 class="mb-0 fw-bold">
+							<i class="bi bi-clock me-2"></i>Timestamps
+						</h6>
+					</div>
+					<div class="row">
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Created At:</span>
+								<br>
+								<small class="text-muted">
+									${data.createdAt && data.createdAt !== "None" ? `${new Date(data.createdAt).toLocaleString()} UTC` : "N/A"}
+								</small>
+							</p>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Updated At:</span>
+								<br>
+								<small class="text-muted">
+									${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}
+								</small>
+							</p>
+						</div>
+					</div>
+				</div>
+				<!-- Files section placeholder -->
+				<div id="files-section-placeholder" class="mt-4">
+					<div class="d-flex justify-content-center py-3">
+						<div class="spinner-border spinner-border-sm me-2" role="status" style="color: #005a9c;">
+							<span class="visually-hidden">Loading files...</span>
+						</div>
+						<span class="text-muted">Loading files...</span>
+					</div>
 				</div>
 			`;
 
@@ -911,9 +1178,733 @@ class ModalManager {
 
 			const title = `Capture Details - ${data.channel || "Unknown"}`;
 			this.show(title, modalContent);
+
+			// Setup name editing handlers after modal content is loaded
+			this.setupNameEditingHandlers();
+
+			// Load and display files for this capture
+			this.loadCaptureFiles(data.uuid);
 		} catch (error) {
 			console.error("Error opening capture modal:", error);
 			this.show("Error", "Error displaying capture details");
+		}
+	}
+
+	/**
+	 * Setup handlers for name editing functionality
+	 */
+	setupNameEditingHandlers() {
+		const nameInput = document.getElementById("capture-name-input");
+		const editBtn = document.getElementById("edit-name-btn");
+		const saveBtn = document.getElementById("save-capture-btn");
+
+		if (!nameInput || !editBtn || !saveBtn) return;
+
+		// Initially disable the input
+		nameInput.disabled = true;
+		let originalName = nameInput.value;
+		let isEditing = false;
+
+		// Edit button handler
+		editBtn.addEventListener("click", () => {
+			if (!isEditing) {
+				// Start editing
+				nameInput.disabled = false;
+				nameInput.focus();
+				nameInput.select();
+				editBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+				editBtn.title = "Cancel editing";
+				saveBtn.style.display = "inline-block";
+				isEditing = true;
+			} else {
+				// Cancel editing
+				nameInput.value = originalName;
+				nameInput.disabled = true;
+				editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+				editBtn.title = "Edit capture name";
+				saveBtn.style.display = "none";
+				isEditing = false;
+			}
+		});
+
+		// Save button handler
+		saveBtn.addEventListener("click", async () => {
+			const newName = nameInput.value.trim();
+			const uuid = nameInput.getAttribute("data-uuid");
+
+			if (!uuid) {
+				console.error("No UUID found for capture");
+				return;
+			}
+
+			// Disable buttons during save
+			editBtn.disabled = true;
+			saveBtn.disabled = true;
+			saveBtn.innerHTML =
+				'<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+			try {
+				await this.updateCaptureName(uuid, newName);
+
+				// Success - update UI
+				originalName = newName;
+				nameInput.disabled = true;
+				editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+				editBtn.title = "Edit capture name";
+				saveBtn.style.display = "none";
+				isEditing = false;
+
+				// Update the table display
+				this.updateTableNameDisplay(uuid, newName);
+
+				// Show success message
+				this.showSuccessMessage("Capture name updated successfully!");
+			} catch (error) {
+				console.error("Error updating capture name:", error);
+				this.showErrorMessage(
+					"Failed to update capture name. Please try again.",
+				);
+			} finally {
+				// Re-enable buttons
+				editBtn.disabled = false;
+				saveBtn.disabled = false;
+				saveBtn.innerHTML = "Save Changes";
+			}
+		});
+
+		// Handle Enter key to save
+		nameInput.addEventListener("keypress", (e) => {
+			if (e.key === "Enter" && !nameInput.disabled) {
+				saveBtn.click();
+			}
+		});
+
+		// Handle Escape key to cancel
+		nameInput.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && !nameInput.disabled) {
+				editBtn.click();
+			}
+		});
+	}
+
+	/**
+	 * Update capture name via API
+	 */
+	async updateCaptureName(uuid, newName) {
+		const response = await fetch(`/api/v1/assets/captures/${uuid}/`, {
+			method: "PATCH",
+			headers: {
+				"Content-Type": "application/json",
+				"X-CSRFToken": this.getCSRFToken(),
+			},
+			body: JSON.stringify({ name: newName }),
+		});
+
+		if (!response.ok) {
+			const errorData = await response.json();
+			throw new Error(errorData.detail || "Failed to update capture name");
+		}
+
+		return response.json();
+	}
+
+	/**
+	 * Update the table display with the new name
+	 */
+	updateTableNameDisplay(uuid, newName) {
+		// Find all elements with this UUID and update their display
+		const captureLinks = document.querySelectorAll(`[data-uuid="${uuid}"]`);
+
+		for (const link of captureLinks) {
+			// Update data attribute
+			link.dataset.name = newName;
+
+			// Update display text if it's a capture link
+			if (link.classList.contains("capture-link")) {
+				link.textContent = newName || "Unnamed Capture";
+				link.setAttribute(
+					"aria-label",
+					`View details for capture ${newName || uuid}`,
+				);
+				link.setAttribute("title", `View capture details: ${newName || uuid}`);
+			}
+		}
+	}
+
+	/**
+	 * Clear existing alert messages from the modal
+	 */
+	clearAlerts() {
+		const modalBody = document.getElementById("capture-modal-body");
+		if (modalBody) {
+			const existingAlerts = modalBody.querySelectorAll(".alert");
+			for (const alert of existingAlerts) {
+				alert.remove();
+			}
+		}
+	}
+
+	/**
+	 * Show success message
+	 */
+	showSuccessMessage(message) {
+		// Clear existing alerts first
+		this.clearAlerts();
+
+		// Create a temporary alert
+		const alert = document.createElement("div");
+		alert.className = "alert alert-success alert-dismissible fade show";
+		alert.innerHTML = `
+			${message}
+			<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+		`;
+
+		// Insert at the top of the modal body
+		const modalBody = document.getElementById("capture-modal-body");
+		if (modalBody) {
+			modalBody.insertBefore(alert, modalBody.firstChild);
+
+			// Auto-dismiss after 3 seconds
+			setTimeout(() => {
+				if (alert.parentNode) {
+					alert.remove();
+				}
+			}, 3000);
+		}
+	}
+
+	/**
+	 * Show error message
+	 */
+	showErrorMessage(message) {
+		// Clear existing alerts first
+		this.clearAlerts();
+
+		// Create a temporary alert
+		const alert = document.createElement("div");
+		alert.className = "alert alert-danger alert-dismissible fade show";
+		alert.innerHTML = `
+			${message}
+			<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+		`;
+
+		// Insert at the top of the modal body
+		const modalBody = document.getElementById("capture-modal-body");
+		if (modalBody) {
+			modalBody.insertBefore(alert, modalBody.firstChild);
+
+			// Auto-dismiss after 5 seconds
+			setTimeout(() => {
+				if (alert.parentNode) {
+					alert.remove();
+				}
+			}, 5000);
+		}
+	}
+
+	/**
+	 * Load and display files associated with the capture
+	 */
+	async loadCaptureFiles(captureUuid) {
+		try {
+			const response = await fetch(`/api/v1/assets/captures/${captureUuid}/`, {
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+					"X-CSRFToken": this.getCSRFToken(),
+				},
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+
+			const captureData = await response.json();
+			const files = captureData.files || [];
+
+			// Add files accordion to the modal
+			this.addFilesAccordion(files);
+		} catch (error) {
+			console.error("Error loading capture files:", error);
+			this.addFilesAccordion([], "Error loading files");
+		}
+	}
+
+	/**
+	 * Add files accordion to the modal
+	 */
+	addFilesAccordion(files, errorMessage = null) {
+		const filesPlaceholder = document.getElementById(
+			"files-section-placeholder",
+		);
+		if (!filesPlaceholder) return;
+
+		// Create files accordion section
+		const filesSection = `
+			<div class="accordion" id="filesAccordion">
+				<div class="accordion-item">
+					<h2 class="accordion-header" id="filesHeading">
+						<button class="accordion-button collapsed"
+								type="button"
+								data-bs-toggle="collapse"
+								data-bs-target="#filesCollapse"
+								aria-expanded="false"
+								aria-controls="filesCollapse">
+							<i class="bi bi-file-earmark me-2"></i>
+							Files (${files.length})
+						</button>
+					</h2>
+					<div id="filesCollapse"
+						 class="accordion-collapse collapse"
+						 aria-labelledby="filesHeading"
+						 data-bs-parent="#filesAccordion">
+						<div class="accordion-body">
+							${this.renderFilesContent(files, errorMessage)}
+						</div>
+					</div>
+				</div>
+			</div>
+		`;
+
+		// Replace the placeholder content with the files accordion
+		filesPlaceholder.innerHTML = filesSection;
+	}
+
+	/**
+	 * Render the content for the files accordion
+	 */
+	renderFilesContent(files, errorMessage = null) {
+		if (errorMessage) {
+			return `
+				<div class="alert alert-warning">
+					<i class="bi bi-exclamation-triangle me-2"></i>
+					${errorMessage}
+				</div>
+			`;
+		}
+
+		if (files.length === 0) {
+			return `
+				<div class="text-muted text-center py-3">
+					<i class="bi bi-inbox me-2"></i>
+					No files associated with this capture
+				</div>
+			`;
+		}
+
+		// Create file browser structure matching SpectrumX theme
+		let filesHtml = `
+			<div class="file-browser">
+				<div class="file-browser-header">
+					<span class="selection-info">
+						<i class="bi bi-files me-2"></i>
+						${files.length} file${files.length !== 1 ? "s" : ""} found
+					</span>
+				</div>
+				<ul role="tree" aria-label="Capture files">
+		`;
+
+		// Group files by directory for hierarchical display
+		const filesByDirectory = {};
+		for (const file of files) {
+			const directory = file.directory || file.relative_path || "/";
+			if (!filesByDirectory[directory]) {
+				filesByDirectory[directory] = [];
+			}
+			filesByDirectory[directory].push(file);
+		}
+
+		// Sort directories
+		const sortedDirectories = Object.keys(filesByDirectory).sort();
+
+		sortedDirectories.forEach((directory, index) => {
+			const directoryFiles = filesByDirectory[directory];
+			const directoryName =
+				directory === "/"
+					? "Root Directory"
+					: directory.split("/").pop() || directory;
+
+			if (sortedDirectories.length > 1) {
+				// Show directory as a collapsible folder if there are multiple directories
+				filesHtml += `
+					<li role="treeitem" aria-expanded="false">
+						<span tabindex="0" data-type="folder" data-name="${ComponentUtils.escapeHtml(directoryName)}"
+							  onclick="this.closest('li').setAttribute('aria-expanded', this.closest('li').getAttribute('aria-expanded') === 'false' ? 'true' : 'false');
+							          this.querySelector('.folder-icon').className = this.closest('li').getAttribute('aria-expanded') === 'true' ? 'bi bi-folder2-open folder-icon' : 'bi bi-folder-fill folder-icon';
+							          this.closest('li').querySelector('ul').style.display = this.closest('li').getAttribute('aria-expanded') === 'true' ? 'block' : 'none';"
+							  style="cursor: pointer;">
+							<div class="item-content">
+								<i class="bi bi-folder-fill folder-icon" aria-hidden="true"></i> ${ComponentUtils.escapeHtml(directoryName)}
+								<small class="text-muted ms-2">(${directoryFiles.length} file${directoryFiles.length !== 1 ? "s" : ""})</small>
+							</div>
+						</span>
+						<ul role="group" style="display: none;">
+				`;
+
+				// Add individual files within this directory
+				for (const file of directoryFiles) {
+					const fileName = ComponentUtils.escapeHtml(
+						file.name || "Unnamed File",
+					);
+					const fileUuid = ComponentUtils.escapeHtml(file.uuid || "");
+					const fileExtension = fileName.includes(".")
+						? fileName.split(".").pop().toLowerCase()
+						: "";
+
+					// Get appropriate icon based on file extension
+					let fileIcon = "bi-file-earmark";
+					switch (fileExtension) {
+						case "pdf":
+							fileIcon = "bi-file-earmark-pdf";
+							break;
+						case "json":
+							fileIcon = "bi-file-earmark-code";
+							break;
+						case "csv":
+						case "xlsx":
+							fileIcon = "bi-file-earmark-spreadsheet";
+							break;
+						case "txt":
+						case "md":
+							fileIcon = "bi-file-earmark-text";
+							break;
+						case "zip":
+						case "tar":
+						case "gz":
+							fileIcon = "bi-file-earmark-zip";
+							break;
+						case "bin":
+						case "dat":
+							fileIcon = "bi-file-earmark-binary";
+							break;
+						case "jpg":
+						case "jpeg":
+						case "png":
+						case "gif":
+							fileIcon = "bi-file-earmark-image";
+							break;
+						default:
+							fileIcon = "bi-file-earmark";
+					}
+
+					filesHtml += `
+						<li role="treeitem">
+							<span tabindex="0" data-type="file" data-name="${fileName}" data-extension="${fileExtension}"
+								  onclick="window.fileListController.modalManager.loadFileMetadata('${fileUuid}', '${fileName}')"
+								  style="cursor: pointer;">
+								<div class="item-content">
+									<i class="bi ${fileIcon}" aria-hidden="true"></i> ${fileName}
+									${file.size ? `<small class="text-muted ms-2">(${ComponentUtils.formatFileSize(file.size)})</small>` : ""}
+								</div>
+							</span>
+							<!-- File metadata section (initially hidden) -->
+							<div id="file-metadata-${fileUuid}" style="display: none; margin-left: 2rem; margin-top: 0.5rem; padding: 1rem; background-color: #f8f9fa; border-radius: 0.375rem;">
+								<h6 class="mb-3"><i class="bi bi-info-circle me-2"></i>File Metadata</h6>
+								<div class="metadata-content">
+									<div class="d-flex justify-content-center py-2">
+										<div class="spinner-border spinner-border-sm me-2" role="status">
+											<span class="visually-hidden">Loading...</span>
+										</div>
+										<span class="text-muted">Click to load metadata...</span>
+									</div>
+								</div>
+							</div>
+						</li>
+					`;
+				}
+
+				filesHtml += `
+						</ul>
+					</li>
+				`;
+			} else {
+				// If there's only one directory, show files directly without folder structure
+				for (const file of directoryFiles) {
+					const fileName = ComponentUtils.escapeHtml(
+						file.name || "Unnamed File",
+					);
+					const fileUuid = ComponentUtils.escapeHtml(file.uuid || "");
+					const fileExtension = fileName.includes(".")
+						? fileName.split(".").pop().toLowerCase()
+						: "";
+
+					// Get appropriate icon based on file extension
+					let fileIcon = "bi-file-earmark";
+					switch (fileExtension) {
+						case "pdf":
+							fileIcon = "bi-file-earmark-pdf";
+							break;
+						case "json":
+							fileIcon = "bi-file-earmark-code";
+							break;
+						case "csv":
+						case "xlsx":
+							fileIcon = "bi-file-earmark-spreadsheet";
+							break;
+						case "txt":
+						case "md":
+							fileIcon = "bi-file-earmark-text";
+							break;
+						case "zip":
+						case "tar":
+						case "gz":
+							fileIcon = "bi-file-earmark-zip";
+							break;
+						case "bin":
+						case "dat":
+							fileIcon = "bi-file-earmark-binary";
+							break;
+						case "jpg":
+						case "jpeg":
+						case "png":
+						case "gif":
+							fileIcon = "bi-file-earmark-image";
+							break;
+						default:
+							fileIcon = "bi-file-earmark";
+					}
+
+					filesHtml += `
+						<li role="treeitem">
+							<span tabindex="0" data-type="file" data-name="${fileName}" data-extension="${fileExtension}"
+								  onclick="window.fileListController.modalManager.loadFileMetadata('${fileUuid}', '${fileName}')"
+								  style="cursor: pointer;">
+								<div class="item-content">
+									<i class="bi ${fileIcon}" aria-hidden="true"></i> ${fileName}
+									${file.size ? `<small class="text-muted ms-2">(${ComponentUtils.formatFileSize(file.size)})</small>` : ""}
+								</div>
+							</span>
+							<!-- File metadata section (initially hidden) -->
+							<div id="file-metadata-${fileUuid}" style="display: none; margin-left: 2rem; margin-top: 0.5rem; padding: 1rem; background-color: #f8f9fa; border-radius: 0.375rem;">
+								<h6 class="mb-3"><i class="bi bi-info-circle me-2"></i>File Metadata</h6>
+								<div class="metadata-content">
+									<div class="d-flex justify-content-center py-2">
+										<div class="spinner-border spinner-border-sm me-2" role="status">
+											<span class="visually-hidden">Loading...</span>
+										</div>
+										<span class="text-muted">Click to load metadata...</span>
+									</div>
+								</div>
+							</div>
+						</li>
+					`;
+				}
+			}
+		});
+
+		filesHtml += `
+				</ul>
+			</div>
+		`;
+
+		// Add CSS for folder expand/collapse animation
+		filesHtml += `
+			<style>
+				.file-browser [role="treeitem"][aria-expanded="false"] > ul {
+					display: none;
+				}
+				.file-browser [role="treeitem"][aria-expanded="true"] > ul {
+					display: block;
+				}
+				.file-browser [data-type="folder"] {
+					cursor: pointer;
+				}
+				.file-browser [data-type="folder"]:hover {
+					background-color: rgba(0, 0, 0, 0.05);
+				}
+				.file-browser [data-type="file"]:hover {
+					background-color: rgba(0, 0, 0, 0.05);
+				}
+			</style>
+		`;
+
+		return filesHtml;
+	}
+
+	/**
+	 * Format file metadata for display
+	 */
+	formatFileMetadata(file) {
+		const metadata = [];
+
+		// Primary file information - most useful for users
+		if (file.size) {
+			metadata.push(
+				`<strong>Size:</strong> ${ComponentUtils.formatFileSize(file.size)} (${file.size.toLocaleString()} bytes)`,
+			);
+		}
+
+		if (file.media_type) {
+			metadata.push(
+				`<strong>Media Type:</strong> ${ComponentUtils.escapeHtml(file.media_type)}`,
+			);
+		}
+
+		if (file.created_at) {
+			metadata.push(
+				`<strong>Created:</strong> ${new Date(file.created_at).toLocaleString()}`,
+			);
+		}
+
+		if (file.updated_at) {
+			metadata.push(
+				`<strong>Updated:</strong> ${new Date(file.updated_at).toLocaleString()}`,
+			);
+		}
+
+		// File properties and attributes
+		if (file.name) {
+			metadata.push(
+				`<strong>Name:</strong> ${ComponentUtils.escapeHtml(file.name)}`,
+			);
+		}
+
+		if (file.directory || file.relative_path) {
+			metadata.push(
+				`<strong>Directory:</strong> ${ComponentUtils.escapeHtml(file.directory || file.relative_path)}`,
+			);
+		}
+
+		// Removed permissions display
+		// if (file.permissions) {
+		// 	metadata.push(`<strong>Permissions:</strong> <span style="color: #005a9c; font-family: monospace;">${ComponentUtils.escapeHtml(file.permissions)}</span>`);
+		// }
+
+		if (file.owner?.username) {
+			metadata.push(
+				`<strong>Owner:</strong> ${ComponentUtils.escapeHtml(file.owner.username)}`,
+			);
+		}
+
+		if (file.expiration_date) {
+			metadata.push(
+				`<strong>Expires:</strong> ${new Date(file.expiration_date).toLocaleDateString()}`,
+			);
+		}
+
+		if (file.bucket_name) {
+			metadata.push(
+				`<strong>Storage Bucket:</strong> ${ComponentUtils.escapeHtml(file.bucket_name)}`,
+			);
+		}
+
+		// Removed checksum display
+		// if (file.sum_blake3) {
+		// 	metadata.push(`<strong>Checksum:</strong> <span style="color: #005a9c; font-family: monospace;">${ComponentUtils.escapeHtml(file.sum_blake3)}</span>`);
+		// }
+
+		// Associated resources
+		if (file.capture?.name) {
+			metadata.push(
+				`<strong>Associated Capture:</strong> ${ComponentUtils.escapeHtml(file.capture.name)}`,
+			);
+		}
+
+		if (file.dataset?.name) {
+			metadata.push(
+				`<strong>Associated Dataset:</strong> ${ComponentUtils.escapeHtml(file.dataset.name)}`,
+			);
+		}
+
+		// Additional metadata if available
+		if (file.metadata && typeof file.metadata === "object") {
+			for (const [key, value] of Object.entries(file.metadata)) {
+				if (value !== null && value !== undefined) {
+					const formattedKey = key
+						.replace(/_/g, " ")
+						.replace(/\b\w/g, (l) => l.toUpperCase());
+					let formattedValue;
+
+					// Format different types of values
+					if (typeof value === "boolean") {
+						formattedValue = value ? "Yes" : "No";
+					} else if (typeof value === "number") {
+						formattedValue = value.toLocaleString();
+					} else if (typeof value === "object") {
+						formattedValue = `<span style="color: #005a9c; font-family: monospace;">${JSON.stringify(value, null, 2)}</span>`;
+					} else {
+						formattedValue = ComponentUtils.escapeHtml(String(value));
+					}
+
+					metadata.push(`<strong>${formattedKey}:</strong> ${formattedValue}`);
+				}
+			}
+		}
+
+		if (metadata.length === 0) {
+			return '<p class="text-muted mb-0">No metadata available for this file.</p>';
+		}
+
+		return `<div class="metadata-list">${metadata.join("<br>")}</div>`;
+	}
+
+	/**
+	 * Get CSRF token for API requests
+	 */
+	getCSRFToken() {
+		const token = document.querySelector("[name=csrfmiddlewaretoken]");
+		return token ? token.value : "";
+	}
+
+	/**
+	 * Load and display file metadata for a specific file in the modal
+	 */
+	async loadFileMetadata(fileUuid, fileName) {
+		const fileMetadataSection = document.getElementById(
+			`file-metadata-${fileUuid}`,
+		);
+		const metadataContent =
+			fileMetadataSection?.querySelector(".metadata-content");
+
+		if (!fileMetadataSection || !metadataContent) return;
+
+		// Toggle visibility
+		if (fileMetadataSection.style.display === "none") {
+			fileMetadataSection.style.display = "block";
+
+			// Check if metadata is already loaded
+			if (metadataContent.innerHTML.includes("Click to load metadata...")) {
+				// Show loading state
+				metadataContent.innerHTML = `
+					<div class="d-flex justify-content-center py-2">
+						<div class="spinner-border spinner-border-sm me-2" role="status">
+							<span class="visually-hidden">Loading...</span>
+						</div>
+						<span class="text-muted">Loading metadata...</span>
+					</div>
+				`;
+
+				try {
+					const response = await fetch(`/api/v1/assets/files/${fileUuid}/`, {
+						method: "GET",
+						headers: {
+							"Content-Type": "application/json",
+							"X-CSRFToken": this.getCSRFToken(),
+						},
+					});
+
+					if (!response.ok) {
+						throw new Error(`HTTP error! status: ${response.status}`);
+					}
+
+					const fileData = await response.json();
+
+					// Format and display the metadata
+					const formattedMetadata = this.formatFileMetadata(fileData);
+					metadataContent.innerHTML = formattedMetadata;
+				} catch (error) {
+					console.error("Error loading file metadata:", error);
+					metadataContent.innerHTML = `
+						<div class="alert alert-warning mb-0">
+							<i class="bi bi-exclamation-triangle me-2"></i>
+							Failed to load metadata for ${ComponentUtils.escapeHtml(fileName)}.
+							<br><small>Error: ${ComponentUtils.escapeHtml(error.message)}</small>
+						</div>
+					`;
+				}
+			}
+		} else {
+			fileMetadataSection.style.display = "none";
 		}
 	}
 }
