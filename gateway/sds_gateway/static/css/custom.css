@@ -188,3 +188,9 @@ body {
 	padding: 2rem 0;
 	border-bottom: 1px solid #eee;
 }
+
+/* Toast container styles */
+.toast-container {
+	z-index: 1080;
+	min-width: 300px;
+}

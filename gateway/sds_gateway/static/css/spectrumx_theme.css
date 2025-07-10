@@ -503,6 +503,7 @@ textarea:focus-visible {
 
 th.sortable {
 	cursor: pointer;
+	-webkit-user-select: none;
 	user-select: none;
 }
 
@@ -923,27 +924,28 @@ input[type="number"].form-control-sm {
 
 #dynamic-table-container .table th:nth-child(1),
 #dynamic-table-container .table td:nth-child(1) {
-	width: 20% !important;
+	width: 22% !important;
 }
 
 #dynamic-table-container .table th:nth-child(2),
 #dynamic-table-container .table td:nth-child(2) {
-	width: 35% !important;
+	width: 37% !important;
 }
 
 #dynamic-table-container .table th:nth-child(3),
 #dynamic-table-container .table td:nth-child(3) {
-	width: 15% !important;
+	width: 16% !important;
 }
 
 #dynamic-table-container .table th:nth-child(4),
 #dynamic-table-container .table td:nth-child(4) {
-	width: 15% !important;
+	width: 17% !important;
 }
 
 #dynamic-table-container .table th:nth-child(5),
 #dynamic-table-container .table td:nth-child(5) {
-	width: 15% !important;
+	width: 8% !important;
+	min-width: 60px !important;
 }
 
 #dynamic-table-container .table td:nth-child(2) {
@@ -1074,6 +1076,53 @@ input[type="number"].form-control-sm {
 
 .custom-modal-footer .btn {
 	margin: 0;
+}
+
+/* Share Modal Specific Styles */
+#pending-changes-message {
+	font-size: 0.875rem;
+	color: #856404;
+	background-color: #fff3cd;
+	border: 1px solid #ffeaa7;
+	border-radius: 0.25rem;
+	padding: 0.5rem 0.75rem;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+#pending-changes-message i {
+	color: #f39c12;
+}
+
+/* Disabled dropdown button styles */
+.btn-icon-dropdown:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.btn-icon-dropdown.btn-outline-danger {
+	color: #dc3545 !important;
+	border-color: #dc3545 !important;
+	background-color: transparent !important;
+}
+
+.btn-icon-dropdown.btn-outline-danger:hover {
+	color: #fff !important;
+	background-color: #dc3545 !important;
+	border-color: #dc3545 !important;
+}
+
+/* Dropdown item text (read-only) */
+.dropdown-item-text {
+	cursor: default;
+	color: #6c757d !important;
+	background-color: transparent !important;
+}
+
+.dropdown-item-text:hover {
+	background-color: transparent !important;
+	color: #6c757d !important;
 }
 
 /* Responsive adjustments for smaller screens */
