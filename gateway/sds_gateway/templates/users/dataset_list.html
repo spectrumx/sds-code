@@ -105,6 +105,14 @@
                                                                 </button>
                                                             </li>
                                                             <li>
+                                                                <button class="dropdown-item"
+                                                                        type="button"
+                                                                        data-bs-toggle="modal"
+                                                                        data-bs-target="#share-modal-{{ dataset.uuid }}">
+                                                                    Share
+                                                                </button>
+                                                            </li>
+                                                            <li>
                                                                 <button class="dropdown-item download-dataset-btn"
                                                                         type="button"
                                                                         data-dataset-uuid="{{ dataset.uuid }}"
@@ -209,8 +217,14 @@
             </div>
         </div>
     </div>
+    <!-- Modals to reveal on click -->
+    {% include "users/partials/download_confirmation.html" %}
+    {% for dataset in page_obj %}
+        {% include "users/partials/dataset_share_modal.html" with dataset=dataset %}
+    {% endfor %}
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
     <script src="{% static 'js/dataset-list.js' %}"></script>
+    <script src="{% static 'js/userSearchComponent.js' %}"></script>
 {% endblock javascript %}
