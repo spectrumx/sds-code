@@ -1005,3 +1005,17 @@ body {
 .user-chip .remove-chip:hover {
 	color: #c00;
 }
+
+.notify-message-anim {
+	overflow: hidden;
+	transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s
+		cubic-bezier(0.4, 0, 0.2, 1);
+	max-height: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+.notify-message-anim.show {
+	max-height: 200px; /* adjust as needed */
+	opacity: 1;
+	pointer-events: auto;
+}
