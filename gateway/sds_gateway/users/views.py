@@ -1198,13 +1198,22 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
                 status=400,
             )
 
-        # Get the dataset
+        # Get the dataset - allow both owners and shared users to download
         dataset = get_object_or_404(
             Dataset,
             uuid=dataset_uuid,
-            owner=request.user,
             is_deleted=False,
         )
+
+        # Check if user is owner or shared user
+        is_owner = dataset.owner == request.user
+        is_shared_user = request.user in dataset.shared_with.all()
+
+        if not (is_owner or is_shared_user):
+            return JsonResponse(
+                {"detail": "You don't have permission to download this dataset."},
+                status=403,
+            )
 
         # Get user email
         user_email = request.user.email

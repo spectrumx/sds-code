@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('api_methods', '0006_temporaryzipfile'),
+        ('api_methods', '0008_populate_capture_name_field'),
     ]
 
     operations = [

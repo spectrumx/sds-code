@@ -8,6 +8,44 @@ class UserSearchHandler {
 		this.pendingRemovals = new Set(); // Track users marked for removal
 	}
 
+	getCSRFToken() {
+		// Try to get CSRF token from meta tag first
+		const metaToken = document.querySelector('meta[name="csrf-token"]');
+		if (metaToken) {
+			return metaToken.getAttribute("content");
+		}
+
+		// Fallback to input field
+		const inputToken = document.querySelector('[name="csrfmiddlewaretoken"]');
+		if (inputToken) {
+			return inputToken.value;
+		}
+
+		// If still not found, try to get from cookie
+		const cookieToken = this.getCookie("csrftoken");
+		if (cookieToken) {
+			return cookieToken;
+		}
+
+		console.error("CSRF token not found");
+		return "";
+	}
+
+	getCookie(name) {
+		let cookieValue = null;
+		if (document.cookie && document.cookie !== "") {
+			const cookies = document.cookie.split(";");
+			for (let i = 0; i < cookies.length; i++) {
+				const cookie = cookies[i].trim();
+				if (cookie.substring(0, name.length + 1) === `${name}=`) {
+					cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+					break;
+				}
+			}
+		}
+		return cookieValue;
+	}
+
 	setDatasetUuid(uuid) {
 		this.datasetUuid = uuid;
 	}
@@ -171,11 +209,8 @@ class UserSearchHandler {
 
 			const userEmails = selectedUsers.map((u) => u.email).join(",");
 
-			// Get CSRF token from the form
-			const form = document.getElementById(`share-form-${this.datasetUuid}`);
-			const csrfToken = form.querySelector(
-				'input[name="csrfmiddlewaretoken"]',
-			).value;
+			// Get CSRF token
+			const csrfToken = this.getCSRFToken();
 
 			const formData = new FormData();
 			formData.append("user-search", userEmails);
@@ -248,11 +283,6 @@ class UserSearchHandler {
 
 					// Refresh the dataset list instead of reloading the page
 					await this.refreshDatasetList();
-
-					// Re-initialize dropdowns after refresh
-					if (typeof initDropdowns === "function") {
-						initDropdowns();
-					}
 				} else {
 					// Show error message
 					showToast(result.error || "Error sharing dataset", "danger");
@@ -679,44 +709,54 @@ class UserSearchHandler {
 				const tempDiv = document.createElement("div");
 				tempDiv.innerHTML = html;
 
-				// Extract the table content
-				const newTableContainer = tempDiv.querySelector(
-					"#dynamic-table-container",
-				);
-				const currentTableContainer = document.querySelector(
-					"#dynamic-table-container",
-				);
+				// Update the main content area
+				const mainContent = document.querySelector("main");
+				const newMainContent = tempDiv.querySelector("main");
 
-				if (newTableContainer && currentTableContainer) {
-					// Update the table content
-					currentTableContainer.innerHTML = newTableContainer.innerHTML;
-
-					// Update pagination if it exists
-					const newPagination = tempDiv.querySelector("#pagination-controls");
-					const currentPagination = document.querySelector(
-						"#pagination-controls",
-					);
-					if (newPagination && currentPagination) {
-						currentPagination.innerHTML = newPagination.innerHTML;
-					}
-
-					// Update results count if it exists
-					const newResultsCount = tempDiv.querySelector("#results-count");
-					const currentResultsCount = document.querySelector("#results-count");
-					if (newResultsCount && currentResultsCount) {
-						currentResultsCount.innerHTML = newResultsCount.innerHTML;
-					}
+				if (mainContent && newMainContent) {
+					// Update the main content
+					mainContent.innerHTML = newMainContent.innerHTML;
 
 					// Re-initialize any necessary event listeners
 					this.initializeDatasetListEventListeners();
 
-					initDropdowns();
+					// Re-initialize modals and their handlers
+					this.initializeModals();
 				}
 			}
 		} catch (error) {
 			console.error("Error refreshing dataset list:", error);
 			// Fallback to page reload if refresh fails
 			location.reload();
+		}
+	}
+
+	initializeModals() {
+		// Re-create UserSearchHandler for each share modal
+		for (const modal of document.querySelectorAll(
+			".modal[data-dataset-uuid]",
+		)) {
+			const datasetUuid = modal.getAttribute("data-dataset-uuid");
+			if (window.UserSearchHandler) {
+				const handler = new window.UserSearchHandler();
+				// Store the handler on the modal element
+				modal.userSearchHandler = handler;
+			}
+
+			// On modal show, set the datasetUuid and call init()
+			modal.addEventListener("show.bs.modal", () => {
+				if (modal.userSearchHandler) {
+					modal.userSearchHandler.setDatasetUuid(datasetUuid);
+					modal.userSearchHandler.init();
+				}
+			});
+
+			// On modal hide, reset all selections and entered data
+			modal.addEventListener("hidden.bs.modal", () => {
+				if (modal.userSearchHandler) {
+					modal.userSearchHandler.resetAll();
+				}
+			});
 		}
 	}
 
@@ -756,30 +796,88 @@ class UserSearchHandler {
 		for (const button of downloadButtons) {
 			button.addEventListener("click", (e) => {
 				e.preventDefault();
-				const datasetUuid = button.dataset.datasetUuid;
-				const datasetName = button.dataset.datasetName;
+				e.stopPropagation();
 
-				if (datasetUuid && datasetName) {
-					// Show download confirmation modal
-					const modal = document.getElementById("downloadModal");
-					const datasetNameSpan = document.getElementById(
-						"downloadDatasetName",
-					);
-					if (modal && datasetNameSpan) {
-						datasetNameSpan.textContent = datasetName;
-						openCustomModal("downloadModal");
-					}
-				}
+				const datasetUuid = button.getAttribute("data-dataset-uuid");
+				const datasetName = button.getAttribute("data-dataset-name");
+
+				// Update modal content
+				document.getElementById("downloadDatasetName").textContent =
+					datasetName;
+
+				// Show the modal
+				openCustomModal("downloadModal");
+
+				// Handle confirm download
+				document.getElementById("confirmDownloadBtn").onclick = () => {
+					// Close modal first
+					closeCustomModal("downloadModal");
+
+					// Show loading state
+					button.innerHTML =
+						'<i class="bi bi-hourglass-split"></i> Processing...';
+					button.disabled = true;
+
+					// Make API request
+					fetch(`/users/dataset-download/${datasetUuid}/`, {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							"X-CSRFToken": this.getCSRFToken(),
+						},
+					})
+						.then((response) => {
+							// Check if response is JSON
+							const contentType = response.headers.get("content-type");
+							if (contentType?.includes("application/json")) {
+								return response.json();
+							}
+							// If not JSON, throw an error with the response text
+							return response.text().then((text) => {
+								throw new Error(`Server returned non-JSON response: ${text}`);
+							});
+						})
+						.then((data) => {
+							if (data.message && data.task_id) {
+								button.innerHTML =
+									'<i class="bi bi-check-circle text-success"></i> Download Requested';
+								showAlert(
+									"Download request submitted successfully! You will receive an email when ready.",
+									"success",
+								);
+							} else {
+								button.innerHTML =
+									'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+								showAlert(
+									data.message || "Download request failed. Please try again.",
+									"error",
+								);
+							}
+						})
+						.catch((error) => {
+							console.error("Download error:", error);
+							button.innerHTML =
+								'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+							showAlert(
+								error.message ||
+									"An error occurred while processing your request.",
+								"error",
+							);
+						})
+						.finally(() => {
+							// Reset button after 3 seconds
+							setTimeout(() => {
+								button.innerHTML = "Download";
+								button.disabled = false;
+							}, 3000);
+						});
+				};
 			});
 		}
 	}
 }
 
 window.UserSearchHandler = UserSearchHandler;
-
-// Global event listeners are now handled per-modal in setupRemoveUserButtons()
-
-export { UserSearchHandler };
 
 // Toast utility for notifications
 function showToast(message, type = "success") {

@@ -1,226 +1,228 @@
-html, body {
-    height: 100%;
+html,
+body {
+	height: 100%;
 }
 
 body {
-    font-family: 'Roboto', sans-serif;
-    font-weight: 300;
-    line-height: 1.6;
-    color: var(--text-color);
-    background-color: var(--white);
-    margin: 0;
-    padding: 0;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+	font-family: "Roboto", sans-serif;
+	font-weight: 300;
+	line-height: 1.6;
+	color: var(--text-color);
+	background-color: var(--white);
+	margin: 0;
+	padding: 0;
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
 }
 
 .container {
-    max-width: 95vw;
-    margin: 0 auto;
-    padding: 0 10px;
+	max-width: 95vw;
+	margin: 0 auto;
+	padding: 0 10px;
 }
 
 .container-white-page .container {
-    background-color: var(--white);
-    color: var(--text-color); /* Ensure text is visible */
+	background-color: var(--white);
+	color: var(--text-color); /* Ensure text is visible */
 }
 
 /* Rainbow Bar - Remove fixed positioning */
 .rainbow-bar {
-    height: 4px;
-    width: 100%;
-    background: linear-gradient(to right,
-        #FF0000,  /* Red */
-        #FF7F00,  /* Orange */
-        #FFFF00,  /* Yellow */
-        #00FF00,  /* Green */
-        #0000FF,  /* Blue */
-        #4B0082,  /* Indigo */
-        #8F00FF   /* Violet */
-    );
-    /* Remove fixed positioning */
-    position: relative;
-    top: 0;
-    left: 0;
-    z-index: 1001;
+	height: 4px;
+	width: 100%;
+	background: linear-gradient(
+		to right,
+		#ff0000 /* Red */,
+		#ff7f00 /* Orange */,
+		#ffff00 /* Yellow */,
+		#00ff00 /* Green */,
+		#0000ff /* Blue */,
+		#4b0082 /* Indigo */,
+		#8f00ff /* Violet */
+	);
+	/* Remove fixed positioning */
+	position: relative;
+	top: 0;
+	left: 0;
+	z-index: 1001;
 }
 
 /* Header Styles - Remove fixed positioning */
 .site-header {
-    background: var(--white);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-    width: 100%;
-    z-index: 10;
-    padding: 0 0 4px 0;
-    /* Remove fixed positioning and top margin */
-    position: relative;
-    top: 0;
-    left: 0;
+	background: var(--white);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+	width: 100%;
+	z-index: 10;
+	padding: 0 0 4px 0;
+	/* Remove fixed positioning and top margin */
+	position: relative;
+	top: 0;
+	left: 0;
 }
 
 .header-content {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 0;
-    gap: 2rem;
+	width: 100%;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 1rem 0;
+	gap: 2rem;
 }
 
 /* logo container to take more space */
 .header-content > div:first-child {
-    flex: 0 0 auto;
-    min-width: 200px;
-    padding-left: 0.5rem;
-    flex-grow: 1;
+	flex: 0 0 auto;
+	min-width: 200px;
+	padding-left: 0.5rem;
+	flex-grow: 1;
 }
 
 /* Navigation container */
 .header-content > div:last-child {
-    min-width: 200px;
-    padding-right: 1rem;
+	min-width: 200px;
+	padding-right: 1rem;
 }
 
 .logo {
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-    /* a gap between the logo image and the site name */
+	display: flex;
+	align-items: center;
+	gap: 2rem;
+	/* a gap between the logo image and the site name */
 }
 
 .logo img {
-    height: 30px;
+	height: 30px;
 }
 
 main {
-    flex: 1 0 auto;
-    display: flex;
-    flex-direction: column;
-    background-color: var(--white);
-    /* Remove padding-top since header is no longer fixed */
-    padding-top: 0;
-    margin-top: 0;
+	flex: 1 0 auto;
+	display: flex;
+	flex-direction: column;
+	background-color: var(--white);
+	/* Remove padding-top since header is no longer fixed */
+	padding-top: 0;
+	margin-top: 0;
 }
 
 .main-white-page main {
-    background-color: var(--white);
-    color: var(--text-color); /* Ensure text is visible */
+	background-color: var(--white);
+	color: var(--text-color); /* Ensure text is visible */
 }
 
 /* Added to remove underline/hyperlink from website name*/
 .no-underline {
-    text-decoration: none;
+	text-decoration: none;
 }
 
 .no-underline:hover,
 .no-underline:focus,
 .no-underline:active {
-    text-decoration: none;
+	text-decoration: none;
 }
 
 /* Center the brand section */
 .navbar-brand {
-    display: flex;
-    align-items: center;
+	display: flex;
+	align-items: center;
 }
 
 /* Style the logo text - Updated to match SpectrumX theme */
 .navbar-brand .system-name {
-    font-size: 1.2rem;
-    font-weight: 300;
-    color: #495057;
+	font-size: 1.2rem;
+	font-weight: 300;
+	color: #495057;
 }
 
 @media (max-width: 768px) {
-    .navbar-brand {
-        /* Reset any mobile-specific styles */
-    }
+	.navbar-brand {
+		/* Reset any mobile-specific styles */
+	}
 }
 
 /* Navigation */
 .main-nav {
-    display: flex;
-    gap: 2rem;
-    padding: 0;
+	display: flex;
+	gap: 2rem;
+	padding: 0;
 }
 
 .main-nav ul {
-    list-style: none;
-    display: flex;
-    gap: 1.5rem;
-    margin-bottom: 0;
-    padding-left: 0;
+	list-style: none;
+	display: flex;
+	gap: 1.5rem;
+	margin-bottom: 0;
+	padding-left: 0;
 }
 
 .main-nav a {
-    text-decoration: none;
-    color: var(--text-color);
-    font-weight: 500;
-    transition: color 0.3s;
-    align-content: center;
+	text-decoration: none;
+	color: var(--text-color);
+	font-weight: 500;
+	transition: color 0.3s;
+	align-content: center;
 }
 
 .main-nav a:hover {
-    color: var(--secondary-color);
+	color: var(--secondary-color);
 }
 
 h2 {
-    text-align: center;
+	text-align: center;
 }
 
 .center-heading {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100px; /* Adjust based on your layout */
-    text-align: center;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	height: 100px; /* Adjust based on your layout */
+	text-align: center;
 }
 
 .styled-paragraph {
-    margin-bottom: 1.0rem;
-    line-height: 1.6;
+	margin-bottom: 1.0rem;
+	line-height: 1.6;
 }
 
 .centered-list {
-    text-align: center;
-    list-style: none;
-    padding: 0;
-    margin: 0;
+	text-align: center;
+	list-style: none;
+	padding: 0;
+	margin: 0;
 }
 
 /* Page wrapper for sticky footer */
 .page-wrapper {
-    flex: 1 0 auto;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+	flex: 1 0 auto;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 }
 
 /* Footer */
 .site-footer {
-    background: #000;
-    width: 100%;
-    color: var(--white);
-    padding: 1rem 0;
-    margin-top: auto; /* This pushes the footer to the bottom when content is short */
+	background: #000;
+	width: 100%;
+	color: var(--white);
+	padding: 1rem 0;
+	margin-top: auto; /* This pushes the footer to the bottom when content is short */
 }
 
 .footer-content {
-    display: grid;
-    grid-template-columns: 1fr 2fr 1fr;
-    gap: 2rem;
+	display: grid;
+	grid-template-columns: 1fr 2fr 1fr;
+	gap: 2rem;
 }
 
 .footer-logos {
-    display: flex;
-    gap: 2rem;
+	display: flex;
+	gap: 2rem;
 }
 
 .footer-logos img {
-    height: 40px;
+	height: 40px;
 }
 
 .left-title {
-    text-align: left;
-} 
+	text-align: left;
+}
