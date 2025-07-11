@@ -347,50 +347,62 @@ class CapturesTableManager extends TableManager {
 			return;
 		}
 
-		// Show loading state
-		const originalContent = button.innerHTML;
-		button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
-		button.disabled = true;
+		// Update modal content
+		document.getElementById("downloadCaptureName").textContent = captureName;
 
-		// Make API request
-		fetch(`/users/capture-download/${captureUuid}/`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"X-CSRFToken": this.getCSRFToken(),
-			},
-		})
-			.then((response) => response.json())
-			.then((data) => {
-				if (data.status === "success") {
-					button.innerHTML =
-						'<i class="bi bi-check-circle text-success"></i> Download Requested';
-					this.showDownloadSuccessMessage(data.message);
-				} else {
+		// Show the modal
+		this.openCustomModal("downloadModal");
+
+		// Handle confirm download
+		document.getElementById("confirmDownloadBtn").onclick = () => {
+			// Close modal first
+			this.closeCustomModal("downloadModal");
+
+			// Show loading state
+			const originalContent = button.innerHTML;
+			button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+			button.disabled = true;
+
+			// Make API request
+			fetch(`/users/capture-download/${captureUuid}/`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-CSRFToken": this.getCSRFToken(),
+				},
+			})
+				.then((response) => response.json())
+				.then((data) => {
+					if (data.status === "success") {
+						button.innerHTML =
+							'<i class="bi bi-check-circle text-success"></i> Download Requested';
+						this.showDownloadSuccessMessage(data.message);
+					} else {
+						button.innerHTML =
+							'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+						this.showDownloadErrorMessage(
+							data.detail ||
+								data.message ||
+								"Download request failed. Please try again.",
+						);
+					}
+				})
+				.catch((error) => {
+					console.error("Download error:", error);
 					button.innerHTML =
 						'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
 					this.showDownloadErrorMessage(
-						data.detail ||
-							data.message ||
-							"Download request failed. Please try again.",
+						"An error occurred while processing your request.",
 					);
-				}
-			})
-			.catch((error) => {
-				console.error("Download error:", error);
-				button.innerHTML =
-					'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-				this.showDownloadErrorMessage(
-					"An error occurred while processing your request.",
-				);
-			})
-			.finally(() => {
-				// Reset button after 3 seconds
-				setTimeout(() => {
-					button.innerHTML = originalContent;
-					button.disabled = false;
-				}, 3000);
-			});
+				})
+				.finally(() => {
+					// Reset button after 3 seconds
+					setTimeout(() => {
+						button.innerHTML = originalContent;
+						button.disabled = false;
+					}, 3000);
+				});
+		};
 	}
 
 	/**
@@ -557,6 +569,28 @@ class CapturesTableManager extends TableManager {
 	getCSRFToken() {
 		const token = document.querySelector("[name=csrfmiddlewaretoken]");
 		return token ? token.value : "";
+	}
+
+	/**
+	 * Open a custom modal
+	 */
+	openCustomModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (modal) {
+			modal.style.display = "block";
+			document.body.style.overflow = "hidden";
+		}
+	}
+
+	/**
+	 * Close a custom modal
+	 */
+	closeCustomModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (modal) {
+			modal.style.display = "none";
+			document.body.style.overflow = "auto";
+		}
 	}
 
 	/**
@@ -1200,8 +1234,9 @@ class ModalManager {
 
 		if (!nameInput || !editBtn || !saveBtn) return;
 
-		// Initially disable the input
+		// Initially disable the input and hide save button
 		nameInput.disabled = true;
+		saveBtn.style.display = "none";
 		let originalName = nameInput.value;
 		let isEditing = false;
 

@@ -233,3 +233,34 @@
         </nav>
     {% endif %}
 </div>
+<!-- Download Confirmation Modal -->
+<div class="custom-modal"
+     id="downloadModal"
+     tabindex="-1"
+     aria-labelledby="downloadModalLabel">
+    <div class="custom-modal-backdrop"></div>
+    <div class="custom-modal-dialog">
+        <div class="custom-modal-content">
+            <div class="custom-modal-header">
+                <h5 class="custom-modal-title" id="downloadModalLabel">Download Capture</h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"
+                        onclick="closeCustomModal('downloadModal')"></button>
+            </div>
+            <div class="custom-modal-body">
+                <p>Are you sure you want to download this capture?</p>
+                <p>
+                    <strong>Capture:</strong> <span id="downloadCaptureName"></span>
+                </p>
+            </div>
+            <div class="custom-modal-footer">
+                <button type="button"
+                        class="btn btn-secondary"
+                        onclick="closeCustomModal('downloadModal')">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmDownloadBtn">Download</button>
+            </div>
+        </div>
+    </div>
+</div>
