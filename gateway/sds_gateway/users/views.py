@@ -1129,9 +1129,18 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         owned_datasets = (
             request.user.datasets.filter(is_deleted=False).all().order_by(order_by)
         )
-        # Get datasets shared with the user (exclude owned)
+
+        # Get datasets shared with the user using the new UserSharePermission model
+        shared_permissions = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            item_type=ItemType.DATASET,
+            is_deleted=False,
+            is_enabled=True,
+        ).select_related("owner")
+
+        shared_dataset_uuids = [perm.item_uuid for perm in shared_permissions]
         shared_datasets = (
-            Dataset.objects.filter(shared_with=request.user, is_deleted=False)
+            Dataset.objects.filter(uuid__in=shared_dataset_uuids, is_deleted=False)
             .exclude(owner=request.user)
             .order_by(order_by)
         )
@@ -1140,10 +1149,19 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         datasets_with_shared_users = []
         for dataset in owned_datasets:
             dataset_data = DatasetGetSerializer(dataset).data
-            shared_users = dataset.shared_with.all()
-            dataset_data["shared_users"] = [
-                {"name": user.name, "email": user.email} for user in shared_users
+            # Get shared users using the new model
+            shared_permissions = UserSharePermission.objects.filter(
+                item_uuid=dataset.uuid,
+                item_type=ItemType.DATASET,
+                owner=request.user,
+                is_deleted=False,
+                is_enabled=True,
+            ).select_related("shared_with")
+            shared_users = [
+                {"name": perm.shared_with.name, "email": perm.shared_with.email}
+                for perm in shared_permissions
             ]
+            dataset_data["shared_users"] = shared_users
             dataset_data["is_owner"] = True
             dataset_data["is_shared_with_me"] = False
             dataset_data["owner_name"] = (
@@ -1151,12 +1169,22 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             )
             dataset_data["owner_email"] = dataset.owner.email if dataset.owner else ""
             datasets_with_shared_users.append(dataset_data)
+
         for dataset in shared_datasets:
             dataset_data = DatasetGetSerializer(dataset).data
-            shared_users = dataset.shared_with.all()
-            dataset_data["shared_users"] = [
-                {"name": user.name, "email": user.email} for user in shared_users
+            # Get shared users using the new model
+            shared_permissions = UserSharePermission.objects.filter(
+                item_uuid=dataset.uuid,
+                item_type=ItemType.DATASET,
+                owner=dataset.owner,
+                is_deleted=False,
+                is_enabled=True,
+            ).select_related("shared_with")
+            shared_users = [
+                {"name": perm.shared_with.name, "email": perm.shared_with.email}
+                for perm in shared_permissions
             ]
+            dataset_data["shared_users"] = shared_users
             dataset_data["is_owner"] = False
             dataset_data["is_shared_with_me"] = True
             dataset_data["owner_name"] = (
