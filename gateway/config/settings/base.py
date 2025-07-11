@@ -25,6 +25,10 @@ env.read_env()
 
 SITE_DOMAIN: str = env.str("SITE_DOMAIN", default="localhost:8000")
 USE_HTTPS: bool = env.bool("USE_HTTPS", default=False)
+SITE_URL: str = env.str(
+    "SITE_URL",
+    default=f"{'https' if USE_HTTPS else 'http'}://{SITE_DOMAIN}",
+)
 
 BASE_DIR: Path = Path(__file__).resolve(strict=True).parent.parent.parent
 
