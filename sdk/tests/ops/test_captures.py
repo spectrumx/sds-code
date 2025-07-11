@@ -1041,22 +1041,9 @@ def test_upload_capture_with_name_success(
     capture_requests = [
         call
         for call in responses.calls
-<<<<<<< HEAD
-        if call.request.url
-        and "/captures" in call.request.url
-        and call.request.method == "POST"
-    ]
-    assert len(capture_requests) == 1
-    if capture_requests[0].request.body:
-        body = capture_requests[0].request.body
-        if isinstance(body, bytes):
-            body = body.decode("utf-8")
-        request_data = parse_qs(body)
-=======
         if "/captures" in call.request.url and call.request.method == "POST"
     ]
     assert len(capture_requests) == 1
     if capture_requests[0].request.body:
         request_data = parse_qs(capture_requests[0].request.body)
->>>>>>> e56255d (test feedback)
         assert request_data["name"][0] == capture_name
