@@ -15,6 +15,7 @@ from .views import user_detail_view
 from .views import user_file_detail_view
 from .views import user_group_captures_view
 from .views import user_redirect_view
+from .views import user_share_item_view
 from .views import user_temporary_zip_download_view
 from .views import user_update_view
 
@@ -39,6 +40,11 @@ urlpatterns = [
         "temporary-zip/<uuid:uuid>/download/",
         user_temporary_zip_download_view,
         name="temporary_zip_download",
+    ),
+    path(
+        "share-item/<str:item_type>/<uuid:item_uuid>/",
+        user_share_item_view,
+        name="share_item",
     ),
     # Used by SVI Server to get API key for a user
     path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),

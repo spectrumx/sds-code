@@ -45,6 +45,13 @@ class KeySources(StrEnum):
     SVIWebUI = "svi_web_ui"
 
 
+class ItemType(StrEnum):
+    """The type of item that can be shared."""
+
+    DATASET = "dataset"
+    CAPTURE = "capture"
+
+
 def default_expiration_date() -> datetime.datetime:
     """Returns the default expiration date for a file."""
     # 2 years from now
@@ -231,6 +238,11 @@ class Capture(BaseModel):
         null=True,
         related_name="captures",
         on_delete=models.SET_NULL,
+    )
+    shared_with = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="shared_captures",
     )
 
     def __str__(self):
@@ -540,6 +552,11 @@ class Dataset(BaseModel):
     provenance = models.JSONField(blank=True, null=True)
     citation = models.JSONField(blank=True, null=True)
     other = models.JSONField(blank=True, null=True)
+    shared_with = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="shared_datasets",
+    )
 
     def __str__(self) -> str:
         return self.name
@@ -638,6 +655,102 @@ class TemporaryZipFile(BaseModel):
         except OSError:
             pass
         return False
+
+
+class UserSharePermission(BaseModel):
+    """
+    Model to handle user share permissions for different item types.
+
+    This model generalizes the sharing mechanism to work with both datasets and
+    captures, and can be extended to other item types in the future.
+    """
+
+    ITEM_TYPE_CHOICES = [
+        (ItemType.DATASET, "Dataset"),
+        (ItemType.CAPTURE, "Capture"),
+    ]
+
+    class PermissionType(models.TextChoices):
+        """Enumeration of permission types."""
+
+        VIEW = "view", "View"
+
+    # The user who owns the item being shared
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="owned_share_permissions",
+    )
+
+    # The user who is being granted access
+    shared_with = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_share_permissions",
+    )
+
+    # The type of item being shared
+    item_type = models.CharField(
+        max_length=20,
+        choices=ITEM_TYPE_CHOICES,
+    )
+
+    # The UUID of the item being shared (either dataset or capture)
+    item_uuid = models.UUIDField()
+
+    # Optional message from the owner when sharing
+    message = models.TextField(blank=True)
+
+    # Whether the shared user has been notified
+    notified = models.BooleanField(default=False)
+
+    # Whether this share permission is currently active
+    is_enabled = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ["owner", "shared_with", "item_type", "item_uuid"]
+        indexes = [
+            models.Index(fields=["item_type", "item_uuid"]),
+            models.Index(fields=["shared_with", "item_type"]),
+            models.Index(fields=["owner", "item_type"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.owner.email} shared {self.item_type} {self.item_uuid} "
+            f"with {self.shared_with.email}"
+        )
+
+    @property
+    def item(self):
+        """Get the actual item object based on item_type and item_uuid."""
+        if self.item_type == ItemType.DATASET:
+            return Dataset.objects.filter(uuid=self.item_uuid).first()
+        if self.item_type == ItemType.CAPTURE:
+            return Capture.objects.filter(uuid=self.item_uuid).first()
+        return None
+
+    @classmethod
+    def get_shared_items_for_user(cls, user, item_type=None):
+        """Get all items shared with a user, optionally filtered by item type."""
+        queryset = cls.objects.filter(
+            shared_with=user,
+            is_deleted=False,
+            is_enabled=True,
+        )
+        if item_type:
+            queryset = queryset.filter(item_type=item_type)
+        return queryset
+
+    @classmethod
+    def get_shared_users_for_item(cls, item_uuid, item_type):
+        """Get all users who have been shared a specific item."""
+        return cls.objects.filter(
+            item_uuid=item_uuid,
+            item_type=item_type,
+            is_deleted=False,
+            is_enabled=True,
+        ).select_related("shared_with")
 
 
 def _extract_drf_capture_props(
@@ -818,3 +931,69 @@ def _extract_bulk_frequency_data(
         "frequency_min": search_props.get("frequency_min"),
         "frequency_max": search_props.get("frequency_max"),
     }
+
+
+def user_has_access_to_item(user, item_uuid, item_type):
+    """
+    Check if a user has access to an item (either as owner or shared user).
+
+    Args:
+        user: The user to check access for
+        item_uuid: UUID of the item
+        item_type: Type of item (e.g., "dataset", "capture")
+
+    Returns:
+        bool: True if user has access, False otherwise
+    """
+    # Map item types to their corresponding models
+    item_models = {
+        ItemType.DATASET: Dataset,
+        ItemType.CAPTURE: Capture,
+        # Easy to add new item types here
+        # ItemType.FILE: File,
+    }
+
+    # Check if user is the owner
+    if item_type in item_models:
+        model_class = item_models[item_type]
+        if model_class.objects.filter(
+            uuid=item_uuid, owner=user, is_deleted=False
+        ).exists():
+            return True
+
+    # Check if user has been shared the item
+    return UserSharePermission.objects.filter(
+        item_uuid=item_uuid,
+        item_type=item_type,
+        shared_with=user,
+        is_deleted=False,
+        is_enabled=True,
+    ).exists()
+
+
+def get_shared_users_for_item(item_uuid, item_type):
+    """
+    Get all users who have been shared a specific item.
+
+    Args:
+        item_uuid: UUID of the item
+        item_type: Type of item (e.g., "dataset" or "capture")
+
+    Returns:
+        QuerySet: Users who have been shared the item
+    """
+    return UserSharePermission.get_shared_users_for_item(item_uuid, item_type)
+
+
+def get_shared_items_for_user(user, item_type=None):
+    """
+    Get all items shared with a user, optionally filtered by item type.
+
+    Args:
+        user: The user to get shared items for
+        item_type: Optional item type filter (e.g., "dataset" or "capture")
+
+    Returns:
+        QuerySet: UserSharePermission objects for items shared with the user
+    """
+    return UserSharePermission.get_shared_items_for_user(user, item_type)
