@@ -1,13 +1,66 @@
-<p>
-    Dataset <strong>{{ dataset_name }}</strong> is ready for download.
-</p>
-<p>
-    <a href="{{ download_url }}">Download your dataset</a>
-    <br />
-    This file will expire on {{ expires_at_local|default:expires_at }}
-</p>
-<p>
-    Files: {{ files_count }}
-    <br />
-    Size: {{ file_size|filesizeformat }}
-</p>
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Dataset Ready for Download</title>
+        <style>
+            {
+                % include 'emails/email_styles.html' %
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header success">
+                <span class="icon">📦</span>
+                <h1>Dataset Ready!</h1>
+            </div>
+            <div class="content">
+                <div class="success-message">
+                    <h3>Success!</h3>
+                    <p>
+                        Your dataset <strong>{{ dataset_name }}</strong> has been prepared and is ready for download.
+                    </p>
+                </div>
+                <div class="download-section">
+                    <h2 class="section-title">Download Your Dataset</h2>
+                    <a href="{{ download_url }}" class="download-btn">📥 Download Now</a>
+                </div>
+                <div class="dataset-info">
+                    <h3>Dataset Details</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Dataset Name</span>
+                            <span class="info-value">{{ dataset_name }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">File Count</span>
+                            <span class="info-value">{{ files_count }} files</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Total Size</span>
+                            <span class="info-value">{{ file_size|filesizeformat }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Expires</span>
+                            <span class="info-value">{{ expires_at_local|default:expires_at }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="expiry-warning">
+                    <p>
+                        ⚠️ <strong>Important:</strong> This download link will expire on {{ expires_at_local|default:expires_at }} Please download your files before then.
+                    </p>
+                </div>
+            </div>
+            <div class="footer">
+                <img src="{{ site_url }}/static/images/logo.svg"
+                     alt="SpectrumX Logo"
+                     class="email-logo" />
+                <p>This is an automated message from the SpectrumX Data System.</p>
+                <p>If you have any questions, please contact our support team.</p>
+            </div>
+        </div>
+    </body>
+</html>

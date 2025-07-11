@@ -197,6 +197,7 @@ def _send_download_error_email(
         # Create email context
         context = {
             "dataset_name": dataset.name,
+            "site_url": settings.SITE_URL,
             "error_message": error_message,
             "requested_at": datetime.datetime.now(datetime.UTC).strftime(
                 "%Y-%m-%d %H:%M:%S UTC"
@@ -468,6 +469,7 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
             "file_size": temp_zip.file_size,
             "files_count": temp_zip.files_processed,
             "expires_at": temp_zip.expires_at,
+            "site_url": settings.SITE_URL,
         }
 
         # Send email
@@ -917,7 +919,7 @@ def notify_shared_users(
     if not notify or not user_emails:
         return "No notifications sent."
 
-        # Map item types to their corresponding models
+    # Map item types to their corresponding models
     item_models = {
         "dataset": Dataset,
         "capture": Capture,
@@ -931,32 +933,51 @@ def notify_shared_users(
     try:
         item = model_class.objects.get(uuid=item_uuid)
         item_name = getattr(item, "name", str(item))
+        owner = getattr(item, "owner", None)
+        owner_name = getattr(owner, "name", "The owner") if owner else "The owner"
+        owner_email = getattr(owner, "email", "") if owner else ""
     except model_class.DoesNotExist:
         return f"{item_type.capitalize()} {item_uuid} does not exist."
 
     subject = f"A {item_type} has been shared with you: {item_name}"
 
-    for email in user_emails:
-        # Use HTTPS if available, otherwise HTTP
-        protocol = "https" if settings.USE_HTTPS else "http"
-        site_url = f"{protocol}://{settings.SITE_DOMAIN}"
+    # Build item_url if possible
+    # Try to provide a direct link to the item list page
+    if item_type == "dataset":
+        item_url = f"{settings.SITE_URL}/users/dataset-list/"
+    elif item_type == "capture":
+        item_url = f"{settings.SITE_URL}/users/file-list/"
+    else:
+        item_url = settings.SITE_URL
 
+    for email in user_emails:
+        context = {
+            "item_type": item_type,
+            "item_name": item_name,
+            "owner_name": owner_name,
+            "owner_email": owner_email,
+            "message": message,
+            "item_url": item_url,
+            "site_url": settings.SITE_URL,
+        }
         if message:
             body = (
                 f"You have been granted access to the {item_type} '{item_name}'.\n\n"
                 f"Message from the owner:\n{message}\n\n"
-                f"View your shared {item_type}s: {site_url}/users/{item_type.lower()}s/"
+                f"View your shared {item_type}s: {item_url}"
             )
         else:
             body = (
                 f"You have been granted access to the {item_type} '{item_name}'.\n\n"
-                f"View your shared {item_type}s: {site_url}/users/{item_type.lower()}s/"
+                f"View your shared {item_type}s: {item_url}"
             )
 
         send_email(
             subject=subject,
             recipient_list=[email],
             plain_message=body,
+            html_template="emails/share_notification.html",
+            context=context,
         )
 
     return f"Notified {len(user_emails)} users about shared {item_type} {item_uuid}."

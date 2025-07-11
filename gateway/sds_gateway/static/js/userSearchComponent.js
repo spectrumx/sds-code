@@ -1,7 +1,8 @@
-// User search functionality for dataset sharing
+// User search functionality for item sharing (datasets, captures, etc.)
 class UserSearchHandler {
 	constructor() {
-		this.datasetUuid = null;
+		this.itemUuid = null;
+		this.itemType = null;
 		this.searchTimeout = null;
 		this.currentRequest = null;
 		this.selectedUsersMap = {}; // key: input id, value: array of {name, email}
@@ -46,14 +47,15 @@ class UserSearchHandler {
 		return cookieValue;
 	}
 
-	setDatasetUuid(uuid) {
-		this.datasetUuid = uuid;
+	setItemInfo(uuid, type) {
+		this.itemUuid = uuid;
+		this.itemType = type;
 	}
 
 	init() {
-		if (!this.datasetUuid) {
+		if (!this.itemUuid || !this.itemType) {
 			console.error(
-				"Cannot initialize UserSearchHandler: dataset UUID not set",
+				"Cannot initialize UserSearchHandler: item UUID and type not set",
 			);
 			return;
 		}
@@ -68,10 +70,10 @@ class UserSearchHandler {
 	}
 
 	setupModalEventHandlers() {
-		// Find the specific modal for this dataset
-		const modal = document.getElementById(`share-modal-${this.datasetUuid}`);
+		// Find the specific modal for this item
+		const modal = document.getElementById(`share-modal-${this.itemUuid}`);
 		if (!modal) {
-			console.error(`Modal not found for dataset: ${this.datasetUuid}`);
+			console.error(`Modal not found for ${this.itemType}: ${this.itemUuid}`);
 			return;
 		}
 
@@ -83,11 +85,14 @@ class UserSearchHandler {
 
 		// Setup share button for this specific modal
 		const shareButton = document.getElementById(
-			`share-dataset-btn-${this.datasetUuid}`,
+			`share-item-btn-${this.itemUuid}`,
 		);
 		if (shareButton) {
-			this.setupShareDataset(shareButton);
+			this.setupShareItem(shareButton);
 		}
+
+		// Setup notify checkbox functionality
+		setupNotifyCheckbox(this.itemUuid);
 	}
 
 	clearSearchResults() {
@@ -193,7 +198,7 @@ class UserSearchHandler {
 		});
 	}
 
-	setupShareDataset(shareButton) {
+	setupShareItem(shareButton) {
 		// Prevent duplicate event listener attachment
 		if (shareButton.dataset.shareSetup === "true") {
 			return;
@@ -203,7 +208,7 @@ class UserSearchHandler {
 		shareButton.addEventListener("click", async () => {
 			// get the user emails from the selected users map
 			// The selectedUsersMap is keyed by input ID, so we need to get the first (and only) array
-			const inputId = `user-search-${this.datasetUuid}`;
+			const inputId = `user-search-${this.itemUuid}`;
 
 			const selectedUsers = this.selectedUsersMap[inputId] || [];
 
@@ -217,12 +222,12 @@ class UserSearchHandler {
 
 			// Add notify_users and notify_message if present
 			const notifyCheckbox = document.getElementById(
-				`notify-users-checkbox-${this.datasetUuid}`,
+				`notify-users-checkbox-${this.itemUuid}`,
 			);
 			if (notifyCheckbox?.checked) {
 				formData.append("notify_users", "1");
 				const messageTextarea = document.getElementById(
-					`notify-message-textarea-${this.datasetUuid}`,
+					`notify-message-textarea-${this.itemUuid}`,
 				);
 				if (messageTextarea?.value.trim()) {
 					formData.append("notify_message", messageTextarea.value.trim());
@@ -239,7 +244,7 @@ class UserSearchHandler {
 
 			try {
 				const response = await fetch(
-					`/users/share-dataset/${this.datasetUuid}/`,
+					`/users/share-item/${this.itemType}/${this.itemUuid}/`,
 					{
 						method: "POST",
 						body: formData,
@@ -254,13 +259,11 @@ class UserSearchHandler {
 				if (response.ok) {
 					// Show success message
 					showToast(
-						result.message || "Dataset shared successfully!",
+						result.message || `${this.itemType} shared successfully!`,
 						"success",
 					);
 					// Close modal
-					const modal = document.getElementById(
-						`share-modal-${this.datasetUuid}`,
-					);
+					const modal = document.getElementById(`share-modal-${this.itemUuid}`);
 					const bootstrapModal = bootstrap.Modal.getInstance(modal);
 					if (bootstrapModal) {
 						bootstrapModal.hide();
@@ -281,22 +284,25 @@ class UserSearchHandler {
 					this.selectedUsersMap = {};
 					this.pendingRemovals.clear();
 
-					// Refresh the dataset list instead of reloading the page
-					await this.refreshDatasetList();
+					// Refresh the appropriate list based on item type
+					await this.refreshItemList();
 				} else {
 					// Show error message
-					showToast(result.error || "Error sharing dataset", "danger");
+					showToast(result.error || `Error sharing ${this.itemType}`, "danger");
 				}
 			} catch (error) {
-				console.error("Error sharing dataset:", error);
-				showToast("Error sharing dataset. Please try again.", "danger");
+				console.error(`Error sharing ${this.itemType}:`, error);
+				showToast(
+					`Error sharing ${this.itemType}. Please try again.`,
+					"danger",
+				);
 			}
 		});
 	}
 
 	async searchUsers(query, dropdown) {
-		if (!this.datasetUuid) {
-			console.error("Dataset UUID not set on UserSearchHandler");
+		if (!this.itemUuid || !this.itemType) {
+			console.error("Item UUID and type not set on UserSearchHandler");
 			return;
 		}
 
@@ -307,7 +313,7 @@ class UserSearchHandler {
 		try {
 			this.currentRequest = new AbortController();
 			const response = await fetch(
-				`/users/share-dataset/${this.datasetUuid}/?q=${encodeURIComponent(query)}&limit=10`,
+				`/users/share-item/${this.itemType}/${this.itemUuid}/?q=${encodeURIComponent(query)}&limit=10`,
 				{
 					signal: this.currentRequest.signal,
 					headers: {
@@ -352,7 +358,7 @@ class UserSearchHandler {
 				.join("");
 
 			// Add click event listeners to the dropdown items
-			const input = document.getElementById(`user-search-${this.datasetUuid}`);
+			const input = document.getElementById(`user-search-${this.itemUuid}`);
 			for (const item of listGroup.querySelectorAll(".list-group-item")) {
 				item.addEventListener("click", () => {
 					this.selectUser(item, input);
@@ -450,16 +456,16 @@ class UserSearchHandler {
 		}
 
 		// Toggle notify/message and users-with-access sections
-		const datasetUuid = inputId.replace("user-search-", "");
+		const itemUuid = inputId.replace("user-search-", "");
 		const notifySection = document.getElementById(
-			`notify-message-section-${datasetUuid}`,
+			`notify-message-section-${itemUuid}`,
 		);
 		const usersWithAccessSection = document.getElementById(
-			`users-with-access-section-${datasetUuid}`,
+			`users-with-access-section-${itemUuid}`,
 		);
-		const saveBtn = document.getElementById(`share-dataset-btn-${datasetUuid}`);
+		const saveBtn = document.getElementById(`share-item-btn-${itemUuid}`);
 		const modalDivider = document.querySelector(
-			`#share-modal-${datasetUuid} .modal-divider`,
+			`#share-modal-${itemUuid} .modal-divider`,
 		);
 
 		if (
@@ -478,7 +484,7 @@ class UserSearchHandler {
 			this.pendingRemovals.clear();
 
 			// Reset all dropdown buttons to their original state
-			const modal = document.getElementById(`share-modal-${datasetUuid}`);
+			const modal = document.getElementById(`share-modal-${itemUuid}`);
 			for (const button of modal.querySelectorAll(".btn-icon-dropdown")) {
 				button.innerHTML =
 					'<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
@@ -490,8 +496,10 @@ class UserSearchHandler {
 			// Change button text to "Share"
 			saveBtn.textContent = "Share";
 
-			// Setup notify checkbox functionality
-			setupNotifyCheckbox(datasetUuid);
+			// Setup notify checkbox functionality with a small delay to ensure DOM is updated
+			setTimeout(() => {
+				setupNotifyCheckbox(itemUuid);
+			}, 10);
 		} else {
 			notifySection.classList.add("d-none");
 			usersWithAccessSection.classList.remove("d-none");
@@ -506,18 +514,18 @@ class UserSearchHandler {
 		}
 
 		// Update save button state
-		this.updateSaveButtonState(datasetUuid);
+		this.updateSaveButtonState(itemUuid);
 	}
 
-	updateSaveButtonState(datasetUuid) {
-		const inputId = `user-search-${datasetUuid}`;
+	updateSaveButtonState(itemUuid) {
+		const inputId = `user-search-${itemUuid}`;
 		const selectedUsers = this.selectedUsersMap[inputId] || [];
 		const hasSelectedUsers = selectedUsers.length > 0;
 		const hasPendingRemovals = this.pendingRemovals.size > 0;
 
-		const saveBtn = document.getElementById(`share-dataset-btn-${datasetUuid}`);
+		const saveBtn = document.getElementById(`share-item-btn-${itemUuid}`);
 		const pendingMessage = document.getElementById(
-			`pending-changes-message-${datasetUuid}`,
+			`pending-changes-message-${itemUuid}`,
 		);
 
 		if (hasSelectedUsers || hasPendingRemovals) {
@@ -562,7 +570,7 @@ class UserSearchHandler {
 		}
 
 		// Reset save button state for all modals
-		for (const btn of document.querySelectorAll('[id^="share-dataset-btn-"]')) {
+		for (const btn of document.querySelectorAll('[id^="share-item-btn-"]')) {
 			btn.disabled = true;
 			btn.textContent = "Save";
 		}
@@ -617,6 +625,9 @@ class UserSearchHandler {
 			'[id^="notify-users-checkbox-"]',
 		)) {
 			checkbox.checked = true;
+			// Get the item UUID from the checkbox ID and setup the notify functionality
+			const itemUuid = checkbox.id.replace("notify-users-checkbox-", "");
+			setupNotifyCheckbox(itemUuid);
 		}
 		for (const textarea of document.querySelectorAll(
 			'[id^="notify-message-textarea-"]',
@@ -626,10 +637,10 @@ class UserSearchHandler {
 	}
 
 	setupRemoveUserButtons() {
-		// Find the specific modal for this dataset
-		const modal = document.getElementById(`share-modal-${this.datasetUuid}`);
+		// Find the specific modal for this item
+		const modal = document.getElementById(`share-modal-${this.itemUuid}`);
 		if (!modal) {
-			console.error(`Modal not found for dataset: ${this.datasetUuid}`);
+			console.error(`Modal not found for ${this.itemType}: ${this.itemUuid}`);
 			return;
 		}
 
@@ -645,10 +656,11 @@ class UserSearchHandler {
 				const button = e.target.closest(".remove-access-btn");
 				const userEmail = button.dataset.userEmail;
 				const userName = button.dataset.userName;
-				const datasetUuid = button.dataset.datasetUuid;
+				const itemUuid = button.dataset.itemUuid;
+				const itemType = button.dataset.itemType;
 
-				if (!userEmail || !datasetUuid) {
-					console.error("Missing user email or dataset UUID");
+				if (!userEmail || !itemUuid || !itemType) {
+					console.error("Missing user email, item UUID, or item type");
 					return;
 				}
 
@@ -679,12 +691,12 @@ class UserSearchHandler {
 				}
 
 				// Update save button state
-				this.updateSaveButtonState(datasetUuid);
+				this.updateSaveButtonState(itemUuid);
 			}
 		});
 	}
 
-	async refreshDatasetList() {
+	async refreshItemList() {
 		try {
 			// Get current URL parameters
 			const urlParams = new URLSearchParams(window.location.search);
@@ -692,15 +704,23 @@ class UserSearchHandler {
 			const sortBy = urlParams.get("sort_by") || "created_at";
 			const sortOrder = urlParams.get("sort_order") || "desc";
 
-			// Fetch updated dataset list
-			const response = await fetch(
-				`/users/dataset-list/?page=${currentPage}&sort_by=${sortBy}&sort_order=${sortOrder}`,
-				{
-					headers: {
-						"X-Requested-With": "XMLHttpRequest",
-					},
+			// Determine the appropriate URL based on item type
+			let refreshUrl;
+			if (this.itemType === "dataset") {
+				refreshUrl = `/users/dataset-list/?page=${currentPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
+			} else if (this.itemType === "capture") {
+				refreshUrl = `/users/file-list/?page=${currentPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
+			} else {
+				console.error(`Unknown item type: ${this.itemType}`);
+				return;
+			}
+
+			// Fetch updated list
+			const response = await fetch(refreshUrl, {
+				headers: {
+					"X-Requested-With": "XMLHttpRequest",
 				},
-			);
+			});
 
 			if (response.ok) {
 				const html = await response.text();
@@ -718,14 +738,14 @@ class UserSearchHandler {
 					mainContent.innerHTML = newMainContent.innerHTML;
 
 					// Re-initialize any necessary event listeners
-					this.initializeDatasetListEventListeners();
+					this.initializeItemListEventListeners();
 
 					// Re-initialize modals and their handlers
 					this.initializeModals();
 				}
 			}
 		} catch (error) {
-			console.error("Error refreshing dataset list:", error);
+			console.error(`Error refreshing ${this.itemType} list:`, error);
 			// Fallback to page reload if refresh fails
 			location.reload();
 		}
@@ -733,20 +753,19 @@ class UserSearchHandler {
 
 	initializeModals() {
 		// Re-create UserSearchHandler for each share modal
-		for (const modal of document.querySelectorAll(
-			".modal[data-dataset-uuid]",
-		)) {
-			const datasetUuid = modal.getAttribute("data-dataset-uuid");
+		for (const modal of document.querySelectorAll(".modal[data-item-uuid]")) {
+			const itemUuid = modal.getAttribute("data-item-uuid");
+			const itemType = modal.getAttribute("data-item-type");
 			if (window.UserSearchHandler) {
 				const handler = new window.UserSearchHandler();
 				// Store the handler on the modal element
 				modal.userSearchHandler = handler;
 			}
 
-			// On modal show, set the datasetUuid and call init()
+			// On modal show, set the item info and call init()
 			modal.addEventListener("show.bs.modal", () => {
 				if (modal.userSearchHandler) {
-					modal.userSearchHandler.setDatasetUuid(datasetUuid);
+					modal.userSearchHandler.setItemInfo(itemUuid, itemType);
 					modal.userSearchHandler.init();
 				}
 			});
@@ -760,8 +779,8 @@ class UserSearchHandler {
 		}
 	}
 
-	initializeDatasetListEventListeners() {
-		// Re-attach event listeners for the updated dataset list
+	initializeItemListEventListeners() {
+		// Re-attach event listeners for the updated item list
 		// This ensures the share buttons and other interactions still work
 
 		// Re-initialize sort functionality
@@ -791,88 +810,93 @@ class UserSearchHandler {
 			});
 		}
 
-		// Re-initialize download buttons
-		const downloadButtons = document.querySelectorAll(".download-dataset-btn");
-		for (const button of downloadButtons) {
-			button.addEventListener("click", (e) => {
-				e.preventDefault();
-				e.stopPropagation();
+		// Re-initialize download buttons (only for datasets)
+		if (this.itemType === "dataset") {
+			const downloadButtons = document.querySelectorAll(
+				".download-dataset-btn",
+			);
+			for (const button of downloadButtons) {
+				button.addEventListener("click", (e) => {
+					e.preventDefault();
+					e.stopPropagation();
 
-				const datasetUuid = button.getAttribute("data-dataset-uuid");
-				const datasetName = button.getAttribute("data-dataset-name");
+					const datasetUuid = button.getAttribute("data-dataset-uuid");
+					const datasetName = button.getAttribute("data-dataset-name");
 
-				// Update modal content
-				document.getElementById("downloadDatasetName").textContent =
-					datasetName;
+					// Update modal content
+					document.getElementById("downloadDatasetName").textContent =
+						datasetName;
 
-				// Show the modal
-				openCustomModal("downloadModal");
+					// Show the modal
+					openCustomModal("downloadModal");
 
-				// Handle confirm download
-				document.getElementById("confirmDownloadBtn").onclick = () => {
-					// Close modal first
-					closeCustomModal("downloadModal");
+					// Handle confirm download
+					document.getElementById("confirmDownloadBtn").onclick = () => {
+						// Close modal first
+						closeCustomModal("downloadModal");
 
-					// Show loading state
-					button.innerHTML =
-						'<i class="bi bi-hourglass-split"></i> Processing...';
-					button.disabled = true;
+						// Show loading state
+						button.innerHTML =
+							'<i class="bi bi-hourglass-split"></i> Processing...';
+						button.disabled = true;
 
-					// Make API request
-					fetch(`/users/dataset-download/${datasetUuid}/`, {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-							"X-CSRFToken": this.getCSRFToken(),
-						},
-					})
-						.then((response) => {
-							// Check if response is JSON
-							const contentType = response.headers.get("content-type");
-							if (contentType?.includes("application/json")) {
-								return response.json();
-							}
-							// If not JSON, throw an error with the response text
-							return response.text().then((text) => {
-								throw new Error(`Server returned non-JSON response: ${text}`);
-							});
+						// Make API request
+						fetch(`/users/dataset-download/${datasetUuid}/`, {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								"X-CSRFToken": this.getCSRFToken(),
+							},
 						})
-						.then((data) => {
-							if (data.message && data.task_id) {
-								button.innerHTML =
-									'<i class="bi bi-check-circle text-success"></i> Download Requested';
-								showAlert(
-									"Download request submitted successfully! You will receive an email when ready.",
-									"success",
-								);
-							} else {
+							.then((response) => {
+								// Check if response is JSON
+								const contentType = response.headers.get("content-type");
+								if (contentType?.includes("application/json")) {
+									return response.json();
+								}
+								// If not JSON, throw an error with the response text
+								return response.text().then((text) => {
+									throw new Error(`Server returned non-JSON response: ${text}`);
+								});
+							})
+							.then((data) => {
+								if (data.message && data.task_id) {
+									button.innerHTML =
+										'<i class="bi bi-check-circle text-success"></i> Download Requested';
+									showAlert(
+										"Download request submitted successfully! You will receive an email when ready.",
+										"success",
+									);
+								} else {
+									button.innerHTML =
+										'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+									showAlert(
+										data.message ||
+											"Download request failed. Please try again.",
+										"error",
+									);
+								}
+							})
+							.catch((error) => {
+								console.error("Download error:", error);
 								button.innerHTML =
 									'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
 								showAlert(
-									data.message || "Download request failed. Please try again.",
+									error.message ||
+										"An error occurred while processing your request.",
 									"error",
 								);
-							}
-						})
-						.catch((error) => {
-							console.error("Download error:", error);
-							button.innerHTML =
-								'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-							showAlert(
-								error.message ||
-									"An error occurred while processing your request.",
-								"error",
-							);
-						})
-						.finally(() => {
-							// Reset button after 3 seconds
-							setTimeout(() => {
-								button.innerHTML = "Download";
-								button.disabled = false;
-							}, 3000);
-						});
-				};
-			});
+							})
+							.finally(() => {
+								// Reset button after 3 seconds
+								setTimeout(() => {
+									button.innerHTML = "Download";
+									button.disabled = false;
+								}, 3000);
+							});
+					};
+				});
+			}
 		}
 	}
 }
@@ -902,14 +926,23 @@ function showToast(message, type = "success") {
 }
 
 // Add logic to show/hide textarea based on notify checkbox
-function setupNotifyCheckbox(datasetUuid) {
+function setupNotifyCheckbox(itemUuid) {
 	const notifyCheckbox = document.getElementById(
-		`notify-users-checkbox-${datasetUuid}`,
+		`notify-users-checkbox-${itemUuid}`,
 	);
 	const textareaContainer = document.getElementById(
-		`notify-message-textarea-container-${datasetUuid}`,
+		`notify-message-textarea-container-${itemUuid}`,
 	);
-	if (!notifyCheckbox || !textareaContainer) return;
+
+	if (!notifyCheckbox || !textareaContainer) {
+		console.error("Missing elements for setupNotifyCheckbox:", {
+			itemUuid,
+			notifyCheckbox: !!notifyCheckbox,
+			textareaContainer: !!textareaContainer,
+		});
+		return;
+	}
+
 	function toggleTextarea() {
 		if (notifyCheckbox.checked) {
 			textareaContainer.classList.add("show");
@@ -917,6 +950,11 @@ function setupNotifyCheckbox(datasetUuid) {
 			textareaContainer.classList.remove("show");
 		}
 	}
+
+	// Remove any existing event listeners to prevent duplicates
+	notifyCheckbox.removeEventListener("change", toggleTextarea);
 	notifyCheckbox.addEventListener("change", toggleTextarea);
+
+	// Call toggleTextarea immediately to set initial state
 	toggleTextarea();
 }
