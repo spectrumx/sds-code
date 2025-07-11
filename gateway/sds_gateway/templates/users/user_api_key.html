@@ -1,81 +1,150 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% load static %}
-{% load static i18n %}
 {% load custom_filters %}
 
-{# djlint:off H021 #}
-<body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %}"
-      id="body"
-      style="display: none">
-    {# djlint:on #}
-    {% block title %}
-        Generate API Key
-    {% endblock title %}
-    {% block content %}
-        <div class="container mt-5">
-            <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
-                <div class="hero-content text-center mt-5">
-                    <h2>Generate an API Key</h2>
-                    {% if api_key and not expired %}
-                        {% if api_key|is_string %}
-                            <p>Your new API Key:</p>
-                            {# djlint:off H021 #}
-                            <div class="d-inline-block p-3 rounded border"
-                                 style="background-color: white">
-                                <pre class="api-key-text"><strong>{{ api_key }}</strong></pre>
-                            </div>
-                            {# djlint:on #}
-                            <p class="text-danger">Keep this key safe and secure. You will not be able to view it again.</p>
-                        </br />
-                    {% endif %}
-                    <p>
-                        {% if expires_at %}
-                            Your key expires at: <strong>{{ expires_at }}</strong>
-                            <p>When expired, you will be prompted to generate a new key.</p>
-                        {% else %}
-                            Your key does not expire.
-                        {% endif %}
-                    </p>
-                    {% if not api_key|is_string %}
-                        <p>If you have lost your API key, you may generate a new one below (this will invalidate the current key).</p>
-                        <form method="post" action="{% url 'users:generate_api_key' %}">
-                            {% csrf_token %}
-                            <button class="btn btn-danger" type="submit">Invalidate Existing Key and Generate New One</button>
-                        </form>
-                    {% endif %}
-                {% else %}
-                    {% if expired %}
-                        <p>Your API Key has expired. Generate a new key below.</p>
-                    {% else %}
-                        <p>You do not have an API Key. Generate one.</p>
-                    {% endif %}
-                    <form method="post" action="{% url 'users:generate_api_key' %}">
-                        {% csrf_token %}
-                        <button class="btn btn-primary" type="submit">Generate API Key</button>
-                    </form>
-                {% endif %}
-                <br />
-                <br />
-                <div class="resources-section text-center mt-5">
-                    <h2>{% translate "Resources" %}</h2>
-                    <div class="row g-3">
-                        <div class="col-md-6 mb-3">
-                            {# djlint:off H021 #}
-                            <div class="resource-box" style="box-shadow: none;">
-                                {# djlint:on #}
-                                {% translate "Writing a Python program?" %}
-                                <a class="btn btn-info"
-                                   href="https://pypi.org/project/spectrumx/"
-                                   target="_blank">{% translate "SpectrumX SDK in PyPI" %}</a>
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            {# djlint:off H021 #}
-                            <div class="resource-box" style="box-shadow: none;">
-                                {# djlint:on #}
-                                {% translate "Try the lower-level API" %}
-                                <a class="btn btn-info" href="{% url 'api-docs' %}" target="_blank">{% translate "API Documentation" %}</a>
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/user_api_key_table.css' %}" />
+{% endblock css %}
+{% block bodyclass %}
+    hero-white-page
+{% endblock bodyclass %}
+{% block content %}
+    {% csrf_token %}
+    <!-- Add Bootstrap Icons for sort arrows -->
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+    <div class="content-wrapper">
+        <div class="main-content-area">
+            <div class="container mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 id="current-api-keys-section" class="page-title">API Keys</h1>
+                    <a href="{% url 'users:generate_api_key_form' %}"
+                       class="btn btn-primary">
+                        <i class="bi bi-plus-lg"></i> Generate API Key
+                    </a>
+                </div>
+                <hr />
+                <div id="dynamic-table-container" class="table-and-pagination">
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            {% if current_api_keys and current_api_keys|length > 0 %}
+                                <table class="table table-striped user-api-key-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col" class="col-prefix">Prefix</th>
+                                            <th scope="col" class="col-name">Name</th>
+                                            <th scope="col" class="col-description">Description</th>
+                                            <th scope="col" class="col-created">Created</th>
+                                            <th scope="col" class="col-expires">Expires</th>
+                                            <th scope="col" class="col-revoked">Revoked</th>
+                                            <th scope="col" class="col-action">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for key in current_api_keys %}
+                                            <tr>
+                                                <td>
+                                                    {{ key.prefix }}
+                                                    {% if key.expiry_date and key.expiry_date < now %}
+                                                        <div class="text-danger mt-1">
+                                                            <strong>Expired</strong>
+                                                        </div>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.name|length > 25 %}
+                                                        {{ key.name|slice:":25" }}...
+                                                        <button type="button"
+                                                                class="btn btn-link btn-sm p-0"
+                                                                onclick="var nameDiv = document.getElementById('nameDropdown{{ key.id }}'); var btn = this; nameDiv.classList.toggle('d-none'); btn.textContent = nameDiv.classList.contains('d-none') ? 'View More' : 'View Less';">
+                                                            View More
+                                                        </button>
+                                                        <div id="nameDropdown{{ key.id }}" class="d-none mt-2">{{ key.name }}</div>
+                                                    {% else %}
+                                                        {{ key.name }}
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.description|length > 25 %}
+                                                        {{ key.description|slice:":25" }}...
+                                                        <button type="button"
+                                                                class="btn btn-link btn-sm p-0"
+                                                                onclick="var desc = document.getElementById('descDropdown{{ key.id }}'); var btn = this; desc.classList.toggle('d-none'); btn.textContent = desc.classList.contains('d-none') ? 'View More' : 'View Less';">
+                                                            View More
+                                                        </button>
+                                                        <div id="descDropdown{{ key.id }}" class="d-none mt-2">{{ key.description }}</div>
+                                                    {% else %}
+                                                        {{ key.description }}
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ key.created }}</td>
+                                                <td>
+                                                    {% if key.expiry_date %}
+                                                        {{ key.expiry_date }}
+                                                    {% else %}
+                                                        Does not expire
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.revoked %}
+                                                        <span class="text-danger">Yes</span>
+                                                    {% else %}
+                                                        <span class="text-success">No</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                                type="button"
+                                                                id="actionDropdown{{ key.id }}"
+                                                                data-bs-toggle="dropdown"
+                                                                data-bs-popper="static"
+                                                                aria-expanded="false">
+                                                            <i class="bi bi-three-dots-vertical"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu" aria-labelledby="actionDropdown{{ key.id }}">
+                                                            <li>
+                                                                <form method="post" action="{% url 'users:delete_api_key' %}">
+                                                                    {% csrf_token %}
+                                                                    <input type="hidden" name="key_id" value="{{ key.id }}" />
+                                                                    <button type="submit"
+                                                                            class="dropdown-item text-danger"
+                                                                            onclick="return confirm('Are you sure you want to delete this API Key?');">
+                                                                        Delete
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                            {% if not key.revoked %}
+                                                                <li>
+                                                                    <form method="post" action="{% url 'users:revoke_api_key' %}">
+                                                                        {% csrf_token %}
+                                                                        <input type="hidden" name="key_id" value="{{ key.id }}" />
+                                                                        <button type="submit"
+                                                                                class="dropdown-item text-danger"
+                                                                                onclick="return confirm('Are you sure you want to revoke this API Key? This cannot be undone.');">
+                                                                            Revoke
+                                                                        </button>
+                                                                    </form>
+                                                                </li>
+                                                            {% endif %}
+                                                        </ul>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% else %}
+                                <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0">
+                                    <p>You currently do not have any API Keys.</p>
+                                </div>
+                            {% endif %}
+                            <div class="text-center">
+                                <a type="button"
+                                   class="btn btn-link btn-sm p-0"
+                                   href="#current-api-keys-section">Back to Top</a>
                             </div>
                         </div>
                     </div>
@@ -84,4 +153,3 @@
         </div>
     </div>
 {% endblock content %}
-</body>
