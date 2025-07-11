@@ -235,7 +235,7 @@
     <!-- Modals to reveal on click -->
     {% include "users/partials/download_confirmation.html" %}
     {% for dataset in page_obj %}
-        {% include "users/partials/dataset_share_modal.html" with dataset=dataset %}
+        {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
     {% endfor %}
     <!-- Toast container for notifications -->
     <div aria-live="polite"
@@ -278,18 +278,19 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             // Create a UserSearchHandler for each share modal
-            document.querySelectorAll('.modal[data-dataset-uuid]').forEach(modal => {
-                const datasetUuid = modal.getAttribute('data-dataset-uuid');
+            document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
+                const itemUuid = modal.getAttribute('data-item-uuid');
+                const itemType = modal.getAttribute('data-item-type');
                 if (window.UserSearchHandler) {
                     const handler = new window.UserSearchHandler();
                     // Store the handler on the modal element
                     modal.userSearchHandler = handler;
                 }
 
-                // On modal show, set the datasetUuid and call init()
+                // On modal show, set the item info and call init()
                 modal.addEventListener('show.bs.modal', function() {
                     if (modal.userSearchHandler) {
-                        modal.userSearchHandler.setDatasetUuid(datasetUuid);
+                        modal.userSearchHandler.setItemInfo(itemUuid, itemType);
                         modal.userSearchHandler.init();
                     }
                 });

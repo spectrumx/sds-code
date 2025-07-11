@@ -1,0 +1,164 @@
+<!-- Generic Share Modal -->
+<div class="modal fade"
+     id="share-modal-{{ item.uuid }}"
+     data-item-uuid="{{ item.uuid }}"
+     data-item-type="{{ item_type }}"
+     tabindex="-1"
+     aria-labelledby="share-modal-label-{{ item.uuid }}"
+     aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="share-modal-label-{{ item.uuid }}">Share {{ item_type|title }}</h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">Share this {{ item_type }} with others:</p>
+                <div>
+                    <form id="share-form-{{ item.uuid }}"
+                          action="{% url 'users:share_item' item_type item.uuid %}"
+                          method="post">
+                        {% csrf_token %}
+                        <div class="user-search-input-container">
+                            <div class="selected-users-chips d-flex flex-wrap align-items-center mb-2"></div>
+                            <input type="text"
+                                   class="form-control user-search-input mb-3"
+                                   placeholder="Search users by name or email..."
+                                   id="user-search-{{ item.uuid }}"
+                                   name="user-search"
+                                   autocomplete="off" />
+                            <!-- User search dropdown -->
+                            <div class="user-search-dropdown d-none"
+                                 id="user-search-dropdown-{{ item.uuid }}">
+                                <div class="list-group">
+                                    <!-- Search results will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Notify/message section, shown only if chips are present -->
+                        <div id="notify-message-section-{{ item.uuid }}" class="d-none mt-3">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       value="1"
+                                       id="notify-users-checkbox-{{ item.uuid }}"
+                                       name="notify_users"
+                                       checked />
+                                <label class="form-check-label" for="notify-users-checkbox-{{ item.uuid }}">Notify users by email</label>
+                            </div>
+                            <div id="notify-message-textarea-container-{{ item.uuid }}"
+                                 class="mb-2 notify-message-anim">
+                                <textarea class="form-control"
+                                          id="notify-message-textarea-{{ item.uuid }}"
+                                          name="notify_message"
+                                          rows="3"
+                                          placeholder="Add a message (optional)"></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <hr class="modal-divider" />
+                <!-- Users with Access section, hidden if chips are present -->
+                <div id="users-with-access-section-{{ item.uuid }}">
+                    <p class="fw-bold">Users with Access:</p>
+                    <table class="table table-bordered rounded-3">
+                        <tbody>
+                            <!-- Owner row -->
+                            <tr>
+                                <td class="p-2 shadow-sm">
+                                    <div class="row">
+                                        <div class="col-md-10">
+                                            <div>
+                                                <h5 class="mb-1">
+                                                    {{ item.owner_name|default:"Owner" }}
+                                                    <i class="bi bi-person-fill text-primary"
+                                                       data-bs-toggle="tooltip"
+                                                       title="Owner"></i>
+                                                </h5>
+                                                <p class="mb-0">
+                                                    <small class="text-muted">{{ item.owner_email }}</small>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2 d-flex justify-content-end align-items-center">
+                                            <h5>
+                                                <span class="badge bg-primary ms-2 align-middle">Owner</span>
+                                            </h5>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <!-- Shared users (excluding owner) -->
+                            {% for user in item.shared_users %}
+                                {% if user.email != item.owner_email %}
+                                    <tr>
+                                        <td class="p-2 shadow-sm">
+                                            <div class="row">
+                                                <div class="col-md-10">
+                                                    <div>
+                                                        <h5 class="mb-1">{{ user.name }}</h5>
+                                                        <p class="mb-0">
+                                                            <small class="text-muted">{{ user.email }}</small>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-2 d-flex justify-content-end align-items-center">
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                                type="button"
+                                                                data-bs-toggle="dropdown"
+                                                                data-bs-popper="static"
+                                                                aria-expanded="false"
+                                                                aria-label="Actions for {{ user.name }}">
+                                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu">
+                                                            <li>
+                                                                <span class="dropdown-item-text text-muted">
+                                                                    <i class="bi bi-eye me-2"></i>View
+                                                                </span>
+                                                            </li>
+                                                            <li>
+                                                                <hr class="dropdown-divider" />
+                                                            </li>
+                                                            <li>
+                                                                <button class="dropdown-item text-danger remove-access-btn"
+                                                                        type="button"
+                                                                        data-user-email="{{ user.email }}"
+                                                                        data-user-name="{{ user.name }}"
+                                                                        data-item-uuid="{{ item.uuid }}"
+                                                                        data-item-type="{{ item_type }}">
+                                                                    <i class="bi bi-person-slash me-2"></i>Remove Access
+                                                                </button>
+                                                            </li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="d-flex align-items-center gap-2">
+                    <span id="pending-changes-message-{{ item.uuid }}"
+                          class="text-muted d-none">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Pending changes
+                    </span>
+                    <button type="button"
+                            class="btn btn-primary"
+                            id="share-item-btn-{{ item.uuid }}"
+                            disabled>Save</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
