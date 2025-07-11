@@ -1422,303 +1422,48 @@ class ModalManager {
 			const captureData = await response.json();
 			const files = captureData.files || [];
 
-			// Add files accordion to the modal
-			this.addFilesAccordion(files);
-		} catch (error) {
-			console.error("Error loading capture files:", error);
-			this.addFilesAccordion([], "Error loading files");
-		}
-	}
+			// Calculate total size
+			const totalSize = files.reduce((sum, file) => sum + (file.size || 0), 0);
 
-	/**
-	 * Add files accordion to the modal
-	 */
-	addFilesAccordion(files, errorMessage = null) {
-		const filesPlaceholder = document.getElementById(
-			"files-section-placeholder",
-		);
-		if (!filesPlaceholder) return;
-
-		// Create files accordion section
-		const filesSection = `
-			<div class="accordion" id="filesAccordion">
-				<div class="accordion-item">
-					<h2 class="accordion-header" id="filesHeading">
-						<button class="accordion-button collapsed"
-								type="button"
-								data-bs-toggle="collapse"
-								data-bs-target="#filesCollapse"
-								aria-expanded="false"
-								aria-controls="filesCollapse">
-							<i class="bi bi-file-earmark me-2"></i>
-							Files (${files.length})
-						</button>
-					</h2>
-					<div id="filesCollapse"
-						 class="accordion-collapse collapse"
-						 aria-labelledby="filesHeading"
-						 data-bs-parent="#filesAccordion">
-						<div class="accordion-body">
-							${this.renderFilesContent(files, errorMessage)}
+			// Update files section with simple summary
+			const filesSection = document.getElementById("files-section-placeholder");
+			if (filesSection) {
+				filesSection.innerHTML = `
+					<div class="card">
+						<div class="card-body">
+							<h6 class="card-title mb-3">
+								<i class="bi bi-files me-2"></i>Files Summary
+							</h6>
+							<div class="row">
+								<div class="col-md-6">
+									<p class="mb-2">
+										<span class="fw-medium text-muted">Number of Files:</span>
+										<span class="ms-2">${files.length}</span>
+									</p>
+								</div>
+								<div class="col-md-6">
+									<p class="mb-2">
+										<span class="fw-medium text-muted">Total Size:</span>
+										<span class="ms-2">${ComponentUtils.formatFileSize(totalSize)}</span>
+									</p>
+								</div>
+							</div>
 						</div>
 					</div>
-				</div>
-			</div>
-		`;
-
-		// Replace the placeholder content with the files accordion
-		filesPlaceholder.innerHTML = filesSection;
-	}
-
-	/**
-	 * Render the content for the files accordion
-	 */
-	renderFilesContent(files, errorMessage = null) {
-		if (errorMessage) {
-			return `
-				<div class="alert alert-warning">
-					<i class="bi bi-exclamation-triangle me-2"></i>
-					${errorMessage}
-				</div>
-			`;
-		}
-
-		if (files.length === 0) {
-			return `
-				<div class="text-muted text-center py-3">
-					<i class="bi bi-inbox me-2"></i>
-					No files associated with this capture
-				</div>
-			`;
-		}
-
-		// Create file browser structure matching SpectrumX theme
-		let filesHtml = `
-			<div class="file-browser">
-				<div class="file-browser-header">
-					<span class="selection-info">
-						<i class="bi bi-files me-2"></i>
-						${files.length} file${files.length !== 1 ? "s" : ""} found
-					</span>
-				</div>
-				<ul role="tree" aria-label="Capture files">
-		`;
-
-		// Group files by directory for hierarchical display
-		const filesByDirectory = {};
-		for (const file of files) {
-			const directory = file.directory || file.relative_path || "/";
-			if (!filesByDirectory[directory]) {
-				filesByDirectory[directory] = [];
-			}
-			filesByDirectory[directory].push(file);
-		}
-
-		// Sort directories
-		const sortedDirectories = Object.keys(filesByDirectory).sort();
-
-		sortedDirectories.forEach((directory, index) => {
-			const directoryFiles = filesByDirectory[directory];
-			const directoryName =
-				directory === "/"
-					? "Root Directory"
-					: directory.split("/").pop() || directory;
-
-			if (sortedDirectories.length > 1) {
-				// Show directory as a collapsible folder if there are multiple directories
-				filesHtml += `
-					<li role="treeitem" aria-expanded="false">
-						<span tabindex="0" data-type="folder" data-name="${ComponentUtils.escapeHtml(directoryName)}"
-							  onclick="this.closest('li').setAttribute('aria-expanded', this.closest('li').getAttribute('aria-expanded') === 'false' ? 'true' : 'false');
-							          this.querySelector('.folder-icon').className = this.closest('li').getAttribute('aria-expanded') === 'true' ? 'bi bi-folder2-open folder-icon' : 'bi bi-folder-fill folder-icon';
-							          this.closest('li').querySelector('ul').style.display = this.closest('li').getAttribute('aria-expanded') === 'true' ? 'block' : 'none';"
-							  style="cursor: pointer;">
-							<div class="item-content">
-								<i class="bi bi-folder-fill folder-icon" aria-hidden="true"></i> ${ComponentUtils.escapeHtml(directoryName)}
-								<small class="text-muted ms-2">(${directoryFiles.length} file${directoryFiles.length !== 1 ? "s" : ""})</small>
-							</div>
-						</span>
-						<ul role="group" style="display: none;">
 				`;
-
-				// Add individual files within this directory
-				for (const file of directoryFiles) {
-					const fileName = ComponentUtils.escapeHtml(
-						file.name || "Unnamed File",
-					);
-					const fileUuid = ComponentUtils.escapeHtml(file.uuid || "");
-					const fileExtension = fileName.includes(".")
-						? fileName.split(".").pop().toLowerCase()
-						: "";
-
-					// Get appropriate icon based on file extension
-					let fileIcon = "bi-file-earmark";
-					switch (fileExtension) {
-						case "pdf":
-							fileIcon = "bi-file-earmark-pdf";
-							break;
-						case "json":
-							fileIcon = "bi-file-earmark-code";
-							break;
-						case "csv":
-						case "xlsx":
-							fileIcon = "bi-file-earmark-spreadsheet";
-							break;
-						case "txt":
-						case "md":
-							fileIcon = "bi-file-earmark-text";
-							break;
-						case "zip":
-						case "tar":
-						case "gz":
-							fileIcon = "bi-file-earmark-zip";
-							break;
-						case "bin":
-						case "dat":
-							fileIcon = "bi-file-earmark-binary";
-							break;
-						case "jpg":
-						case "jpeg":
-						case "png":
-						case "gif":
-							fileIcon = "bi-file-earmark-image";
-							break;
-						default:
-							fileIcon = "bi-file-earmark";
-					}
-
-					filesHtml += `
-						<li role="treeitem">
-							<span tabindex="0" data-type="file" data-name="${fileName}" data-extension="${fileExtension}"
-								  onclick="window.fileListController.modalManager.loadFileMetadata('${fileUuid}', '${fileName}')"
-								  style="cursor: pointer;">
-								<div class="item-content">
-									<i class="bi ${fileIcon}" aria-hidden="true"></i> ${fileName}
-									${file.size ? `<small class="text-muted ms-2">(${ComponentUtils.formatFileSize(file.size)})</small>` : ""}
-								</div>
-							</span>
-							<!-- File metadata section (initially hidden) -->
-							<div id="file-metadata-${fileUuid}" style="display: none; margin-left: 2rem; margin-top: 0.5rem; padding: 1rem; background-color: #f8f9fa; border-radius: 0.375rem;">
-								<h6 class="mb-3"><i class="bi bi-info-circle me-2"></i>File Metadata</h6>
-								<div class="metadata-content">
-									<div class="d-flex justify-content-center py-2">
-										<div class="spinner-border spinner-border-sm me-2" role="status">
-											<span class="visually-hidden">Loading...</span>
-										</div>
-										<span class="text-muted">Click to load metadata...</span>
-									</div>
-								</div>
-							</div>
-						</li>
-					`;
-				}
-
-				filesHtml += `
-						</ul>
-					</li>
-				`;
-			} else {
-				// If there's only one directory, show files directly without folder structure
-				for (const file of directoryFiles) {
-					const fileName = ComponentUtils.escapeHtml(
-						file.name || "Unnamed File",
-					);
-					const fileUuid = ComponentUtils.escapeHtml(file.uuid || "");
-					const fileExtension = fileName.includes(".")
-						? fileName.split(".").pop().toLowerCase()
-						: "";
-
-					// Get appropriate icon based on file extension
-					let fileIcon = "bi-file-earmark";
-					switch (fileExtension) {
-						case "pdf":
-							fileIcon = "bi-file-earmark-pdf";
-							break;
-						case "json":
-							fileIcon = "bi-file-earmark-code";
-							break;
-						case "csv":
-						case "xlsx":
-							fileIcon = "bi-file-earmark-spreadsheet";
-							break;
-						case "txt":
-						case "md":
-							fileIcon = "bi-file-earmark-text";
-							break;
-						case "zip":
-						case "tar":
-						case "gz":
-							fileIcon = "bi-file-earmark-zip";
-							break;
-						case "bin":
-						case "dat":
-							fileIcon = "bi-file-earmark-binary";
-							break;
-						case "jpg":
-						case "jpeg":
-						case "png":
-						case "gif":
-							fileIcon = "bi-file-earmark-image";
-							break;
-						default:
-							fileIcon = "bi-file-earmark";
-					}
-
-					filesHtml += `
-						<li role="treeitem">
-							<span tabindex="0" data-type="file" data-name="${fileName}" data-extension="${fileExtension}"
-								  onclick="window.fileListController.modalManager.loadFileMetadata('${fileUuid}', '${fileName}')"
-								  style="cursor: pointer;">
-								<div class="item-content">
-									<i class="bi ${fileIcon}" aria-hidden="true"></i> ${fileName}
-									${file.size ? `<small class="text-muted ms-2">(${ComponentUtils.formatFileSize(file.size)})</small>` : ""}
-								</div>
-							</span>
-							<!-- File metadata section (initially hidden) -->
-							<div id="file-metadata-${fileUuid}" style="display: none; margin-left: 2rem; margin-top: 0.5rem; padding: 1rem; background-color: #f8f9fa; border-radius: 0.375rem;">
-								<h6 class="mb-3"><i class="bi bi-info-circle me-2"></i>File Metadata</h6>
-								<div class="metadata-content">
-									<div class="d-flex justify-content-center py-2">
-										<div class="spinner-border spinner-border-sm me-2" role="status">
-											<span class="visually-hidden">Loading...</span>
-										</div>
-										<span class="text-muted">Click to load metadata...</span>
-									</div>
-								</div>
-							</div>
-						</li>
-					`;
-				}
 			}
-		});
-
-		filesHtml += `
-				</ul>
-			</div>
-		`;
-
-		// Add CSS for folder expand/collapse animation
-		filesHtml += `
-			<style>
-				.file-browser [role="treeitem"][aria-expanded="false"] > ul {
-					display: none;
-				}
-				.file-browser [role="treeitem"][aria-expanded="true"] > ul {
-					display: block;
-				}
-				.file-browser [data-type="folder"] {
-					cursor: pointer;
-				}
-				.file-browser [data-type="folder"]:hover {
-					background-color: rgba(0, 0, 0, 0.05);
-				}
-				.file-browser [data-type="file"]:hover {
-					background-color: rgba(0, 0, 0, 0.05);
-				}
-			</style>
-		`;
-
-		return filesHtml;
+		} catch (error) {
+			console.error("Error loading capture files:", error);
+			const filesSection = document.getElementById("files-section-placeholder");
+			if (filesSection) {
+				filesSection.innerHTML = `
+					<div class="alert alert-warning">
+						<i class="bi bi-exclamation-triangle me-2"></i>
+						Error loading files information
+					</div>
+				`;
+			}
+		}
 	}
 
 	/**

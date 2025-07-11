@@ -17,7 +17,6 @@ from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
 from loguru import logger as log
 from rest_framework import status
-from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
@@ -50,7 +49,7 @@ class FilePagination(PageNumberPagination):
 
 
 class FileViewSet(ViewSet):
-    authentication_classes = [SessionAuthentication, APIKeyAuthentication]
+    authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -484,7 +483,7 @@ class FileViewSet(ViewSet):
 
 
 class CheckFileContentsExistView(APIView):
-    authentication_classes = [SessionAuthentication, APIKeyAuthentication]
+    authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
