@@ -13,8 +13,10 @@ from loguru import logger
 from redis import Redis
 
 from sds_gateway.api_methods.helpers.download_file import download_file
+from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
@@ -693,22 +695,45 @@ def get_user_task_status(user_id: str, task_name: str) -> dict:
 
 
 @shared_task
-def notify_shared_users(dataset_uuid, user_emails, *, notify=True, message=None):
+def notify_shared_users(
+    item_uuid: str,
+    item_type: ItemType,
+    user_emails: list[str],
+    *,
+    notify: bool = True,
+    message: str | None = None,
+):
     """
-    Celery task to notify users when a dataset is shared with them.
+    Celery task to notify users when an item is shared with them.
     Args:
-        dataset_uuid: UUID of the shared dataset
+        item_uuid: UUID of the shared item
+        item_type: Type of item (e.g., "dataset", "capture")
         user_emails: List of user emails to notify
         notify: Whether to send notification emails
         message: Optional custom message to include
     """
     if not notify or not user_emails:
         return "No notifications sent."
+
+        # Map item types to their corresponding models
+    item_models = {
+        "dataset": Dataset,
+        "capture": Capture,
+    }
+
+    if item_type not in item_models:
+        return f"Invalid item type: {item_type}"
+
+    model_class = item_models[item_type]
+
     try:
-        dataset = Dataset.objects.get(uuid=dataset_uuid)
-    except Dataset.DoesNotExist:
-        return f"Dataset {dataset_uuid} does not exist."
-    subject = f"A dataset has been shared with you: {dataset.name}"
+        item = model_class.objects.get(uuid=item_uuid)
+        item_name = getattr(item, "name", str(item))
+    except model_class.DoesNotExist:
+        return f"{item_type.capitalize()} {item_uuid} does not exist."
+
+    subject = f"A {item_type} has been shared with you: {item_name}"
+
     for email in user_emails:
         # Use HTTPS if available, otherwise HTTP
         protocol = "https" if settings.USE_HTTPS else "http"
@@ -716,14 +741,14 @@ def notify_shared_users(dataset_uuid, user_emails, *, notify=True, message=None)
 
         if message:
             body = (
-                f"You have been granted access to the dataset '{dataset.name}'.\n\n"
+                f"You have been granted access to the {item_type} '{item_name}'.\n\n"
                 f"Message from the owner:\n{message}\n\n"
-                f"View your shared datasets: {site_url}/users/datasets/"
+                f"View your shared {item_type}s: {site_url}/users/{item_type.lower()}s/"
             )
         else:
             body = (
-                f"You have been granted access to the dataset '{dataset.name}'.\n\n"
-                f"View your shared datasets: {site_url}/users/datasets/"
+                f"You have been granted access to the {item_type} '{item_name}'.\n\n"
+                f"View your shared {item_type}s: {site_url}/users/{item_type.lower()}s/"
             )
 
         send_email(
@@ -731,4 +756,5 @@ def notify_shared_users(dataset_uuid, user_emails, *, notify=True, message=None)
             recipient_list=[email],
             plain_message=body,
         )
-    return f"Notified {len(user_emails)} users about shared dataset {dataset_uuid}."
+
+    return f"Notified {len(user_emails)} users about shared {item_type} {item_uuid}."
