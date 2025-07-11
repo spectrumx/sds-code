@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <!-- Add Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet" />
+    <div class="drive-container">
+        <div class="drive-header">
+            <a href="{% url 'users:files' %}" class="drive-link">Files</a>
+            <div class="search-box">
+                <input type="text" placeholder="Search files" class="search-input" />
+            </div>
+        </div>
+        <div class="breadcrumb">
+            {% for part in breadcrumb_parts %}
+                {% if not part.is_last %}
+                    {% if part.url_name == 'users:files' %}
+                        <a href="{% url part.url_name %}">{{ part.name }}</a>
+                    {% else %}
+                        <a href="{% url part.url_name path=part.path %}">{{ part.name }}</a>
+                    {% endif %}
+                    <span class="separator">›</span>
+                {% else %}
+                    <span>{{ part.name }}</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <div class="files-list">
+            <div class="files-header">
+                <div class="col-name">Name</div>
+                <div class="col-modified">Last modified</div>
+                <div class="col-size">Size</div>
+            </div>
+            {% for item in items %}
+                <div class="file-row">
+                    <div class="col-name">
+                        {% if item.is_dir %}
+                            <span class="material-icons folder-icon">folder</span>
+                            <a href="{% url 'users:files_with_path' path=item.path %}"
+                               class="folder-link">{{ item.name }}</a>
+                        {% else %}
+                            <span class="material-icons file-icon">description</span>
+                            <span class="file-name">{{ item.name }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-modified">{{ item.modified_at|date:"M d, Y" }}</div>
+                    <div class="col-size">
+                        {% if not item.is_dir %}{{ item.size|filesizeformat }}{% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <div class="no-files">
+                    <span class="material-icons empty-folder-icon">folder_open</span>
+                    <p>This folder is empty</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    <style>
+        .drive-container {
+            padding: 0 16px;
+            font-family: Arial, sans-serif;
+            height: calc(100vh - 120px);
+            /* Account for header and footer */
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            max-width: none;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .drive-header {
+            padding: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 2;
+            background: white;
+        }
+
+        .drive-link {
+            color: #005a9c;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .search-box {
+            flex: 1;
+            max-width: 720px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dfe1e5;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: #005a9c;
+            box-shadow: 0 0 0 2px rgba(0, 90, 156, 0.1);
+        }
+
+        .breadcrumb {
+            color: #5f6368;
+            font-size: 13px;
+            padding: 8px 0;
+            border-bottom: 1px solid #dadce0;
+            flex-shrink: 0;
+            margin: 0;
+            position: relative;
+            z-index: 2;
+            background: white;
+        }
+
+        .breadcrumb a {
+            color: #5f6368;
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            color: #005a9c;
+        }
+
+        .breadcrumb .separator {
+            margin: 0 8px;
+            color: #5f6368;
+        }
+
+        .files-list {
+            flex: 1;
+            overflow-y: auto;
+            margin-top: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 1;
+        }
+
+        .files-header {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr;
+            padding: 0 16px;
+            border-bottom: 1px solid #dadce0;
+            color: #5f6368;
+            font-size: 13px;
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 1;
+        }
+
+        .files-header>div {
+            padding: 8px 0;
+        }
+
+        .file-row {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr;
+            padding: 0 16px;
+            border-bottom: 1px solid #dadce0;
+            font-size: 14px;
+            color: #3c4043;
+        }
+
+        .file-row:hover {
+            background-color: #f8f9fa;
+        }
+
+        .file-row:last-child {
+            border-bottom: none;
+        }
+
+        .file-row>div {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .material-icons {
+            font-size: 20px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .folder-icon {
+            margin-right: 8px;
+            color: #005a9c;
+        }
+
+        .file-icon {
+            margin-right: 8px;
+            color: #005a9c;
+        }
+
+        .folder-link {
+            color: #3c4043;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .folder-link:hover {
+            color: #005a9c;
+        }
+
+        .file-name {
+            color: #3c4043;
+        }
+
+        .no-files {
+            padding: 48px 16px;
+            text-align: center;
+            color: #5f6368;
+            font-style: italic;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .empty-folder-icon {
+            font-size: 48px !important;
+            width: 48px;
+            height: 48px;
+            color: #005a9c;
+            opacity: 0.6;
+        }
+
+        .no-files p {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .col-size {
+            color: #5f6368;
+            font-size: 13px;
+        }
+    </style>
+{% endblock content %}

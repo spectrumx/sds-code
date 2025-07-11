@@ -1,6 +1,6 @@
-import datetime
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -128,7 +128,7 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
                 "expires_at": api_key.expiry_date.strftime("%Y-%m-%d %H:%M:%S")
                 if api_key.expiry_date
                 else "Does not expire",
-                "expired": api_key.expiry_date < datetime.datetime.now(datetime.UTC)
+                "expired": api_key.expiry_date < datetime.now(timezone.UTC)
                 if api_key.expiry_date
                 else False,
             },
@@ -485,71 +485,133 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 user_share_item_view = ShareItemView.as_view()
 
 
-class ListFilesView(Auth0LoginRequiredMixin, View):
-    template_name = "users/file_list.html"
-    items_per_page = 25
+class ListFilesView(Auth0LoginRequiredMixin, TemplateView):
+    """View for listing files."""
 
-    def get(self, request, *args, **kwargs) -> HttpResponse:
-        # Get query parameters
-        page = int(request.GET.get("page", 1))
-        sort_by = request.GET.get("sort_by", "created_at")
-        sort_order = request.GET.get("sort_order", "desc")
+    template_name = "pages/files.html"
 
-        # Get filter parameters
-        search = request.GET.get("search", "")
-        date_start = request.GET.get("date_start", "")
-        date_end = request.GET.get("date_end", "")
-        center_freq = request.GET.get("center_freq", "")
-        bandwidth = request.GET.get("bandwidth", "")
-        location = request.GET.get("location", "")
+    def _build_breadcrumbs(self, current_path):
+        """Build breadcrumb navigation data."""
+        breadcrumb_parts = [
+            {"name": "Files", "url_name": "users:files", "is_last": not current_path}
+        ]
 
-        # Base queryset
-        files_qs = request.user.files.filter(is_deleted=False)
+        if current_path:
+            path_parts = current_path.split("/")
+            current_full_path = ""
+            for i, part in enumerate(path_parts, 1):
+                current_full_path = "/".join(path_parts[:i])
+                breadcrumb_parts.append(
+                    {
+                        "name": part,
+                        "url_name": "users:files_with_path",
+                        "path": current_full_path,
+                        "is_last": i == len(path_parts),
+                    }
+                )
+        return breadcrumb_parts
 
-        # Apply search filter
-        if search:
-            files_qs = files_qs.filter(name__icontains=search)
+    def _group_files_by_directory(self, files, current_path):
+        """Group files by directory and create items list."""
+        items = []
+        seen_dirs = set()
 
-        # Apply date range filter
-        if date_start:
-            files_qs = files_qs.filter(created_at__gte=date_start)
-        if date_end:
-            files_qs = files_qs.filter(created_at__lte=date_end)
+        for file in files:
+            # Get directory parts
+            parts = file.directory.strip("/").split("/")
 
-        # Apply other filters
-        if center_freq:
-            files_qs = files_qs.filter(center_frequency=center_freq)
-        if bandwidth:
-            files_qs = files_qs.filter(bandwidth=bandwidth)
-        if location:
-            files_qs = files_qs.filter(location=location)
+            # Skip files that don't have the expected structure
+            if (
+                len(parts) < self.MIN_PATH_PARTS
+            ):  # Should have at least: files/email/something
+                continue
 
-        # Handle sorting
-        if sort_by:
-            if sort_order == "desc":
-                files_qs = files_qs.order_by(f"-{sort_by}")
+            # Remove /files/email prefix to get relative path
+            rel_path = "/".join(parts[2:])  # Skip 'files' and email parts
+
+            if not current_path:
+                # At root level - show top-level directories
+                top_dir = rel_path.split("/")[0]
+                if top_dir and top_dir not in seen_dirs:
+                    seen_dirs.add(top_dir)
+                    items.append(
+                        {
+                            "name": top_dir,
+                            "path": top_dir,
+                            "is_dir": True,
+                            "modified_at": file.created_at,
+                            "size": "",
+                        }
+                    )
             else:
-                files_qs = files_qs.order_by(sort_by)
+                # In a subdirectory
+                current_dir_parts = current_path.strip("/").split("/")
+                rel_path_parts = rel_path.strip("/").split("/")
 
-        # Paginate the results
-        paginator = Paginator(files_qs, self.items_per_page)
-        try:
-            files_page = paginator.page(page)
-        except (EmptyPage, PageNotAnInteger):
-            files_page = paginator.page(1)
+                # Check if we're in the correct directory level
+                if len(rel_path_parts) >= len(current_dir_parts):
+                    # Check if the current path matches the start of the relative path
+                    matches = all(
+                        a == b
+                        for a, b in zip(current_dir_parts, rel_path_parts, strict=False)
+                    )
 
-        return render(
-            request,
-            template_name=self.template_name,
-            context={
-                "files": files_page,
-                "total_pages": paginator.num_pages,
-                "current_page": page,
-                "total_items": paginator.count,
-                "sort_by": sort_by,
-                "sort_order": sort_order,
-            },
+                    if matches:
+                        if len(rel_path_parts) == len(current_dir_parts):
+                            # This is a file in the current directory
+                            items.append(
+                                {
+                                    "name": file.name,
+                                    "path": f"{current_path}/{file.name}",
+                                    "is_dir": False,
+                                    "modified_at": file.created_at,
+                                    "size": file.size,
+                                    "media_type": file.media_type,
+                                }
+                            )
+                        elif len(rel_path_parts) > len(current_dir_parts):
+                            # This is a subdirectory or file in a subdirectory
+                            next_dir = rel_path_parts[len(current_dir_parts)]
+                            if next_dir and next_dir not in seen_dirs:
+                                seen_dirs.add(next_dir)
+                                items.append(
+                                    {
+                                        "name": next_dir,
+                                        "path": f"{current_path}/{next_dir}",
+                                        "is_dir": True,
+                                        "modified_at": file.created_at,
+                                        "size": "",
+                                    }
+                                )
+        return items
+
+    # Minimum number of path parts required for valid file structure
+    MIN_PATH_PARTS = 3
+
+    def get_context_data(self, **kwargs):
+        """Add files to the context."""
+        context = super().get_context_data(**kwargs)
+
+        # Get the current path from kwargs or use root
+        current_path = kwargs.get("path", "")
+
+        # Build breadcrumb navigation
+        context["breadcrumb_parts"] = self._build_breadcrumbs(current_path)
+
+        # Get all files for the user
+        files = File.objects.filter(
+            owner=self.request.user,
+            is_deleted=False,
+        ).order_by("directory", "name")
+
+        # Group files by directory
+        items = self._group_files_by_directory(files, current_path)
+
+        # Sort items: directories first, then by name
+        context["items"] = sorted(
+            items, key=lambda x: (not x["is_dir"], x["name"].lower())
         )
+        return context
 
 
 user_file_list_view = ListFilesView.as_view()

@@ -20,12 +20,12 @@
         {% block css %}
             <!-- Your stuff: Third-party CSS libraries go here -->
             <!-- This file stores project-specific CSS -->
-            <link rel="stylesheet" href="{% static 'css/variables.css' %}">
-            <link rel="stylesheet" href="{% static 'css/layout.css' %}">
-            <link rel="stylesheet" href="{% static 'css/components.css' %}">
-            <link rel="stylesheet" href="{% static 'css/alerts.css' %}">
-            <link rel="stylesheet" href="{% static 'css/spectrumx_theme.css' %}">
-            <link rel="stylesheet" href="{% static 'css/bootstrap_overrides.css' %}">
+            <link rel="stylesheet" href="{% static 'css/variables.css' %}" />
+            <link rel="stylesheet" href="{% static 'css/layout.css' %}" />
+            <link rel="stylesheet" href="{% static 'css/components.css' %}" />
+            <link rel="stylesheet" href="{% static 'css/alerts.css' %}" />
+            <link rel="stylesheet" href="{% static 'css/spectrumx_theme.css' %}" />
+            <link rel="stylesheet" href="{% static 'css/bootstrap_overrides.css' %}" />
         {% endblock css %}
         {% block head %}
         {% endblock head %}
@@ -33,12 +33,10 @@
     ================================================== -->
         {# Placed at the top of the document so pages load faster with defer #}
         {% block javascript %}
-           
         {% endblock javascript %}
     </head>
     {# djlint:off H021 #}
-    <body class="{% block bodyclass %}{% endblock bodyclass %}"
-          id="body">
+    <body class="{% block bodyclass %}{% endblock bodyclass %}" id="body">
         {# djlint:on #}
         <div class="top-gradient-bar"></div>
         <!-- Skip links for accessibility -->
@@ -49,114 +47,115 @@
              aria-live="polite"
              aria-atomic="true"
              id="aria-live-region"></div>
-        
         <!-- Page wrapper for sticky footer -->
         <div class="page-wrapper">
             <header class="site-header">
-            <nav class="navbar navbar-expand-xl navbar-light bg-white"
-                 id="navigation"
-                 role="navigation"
-                 aria-label="Main navigation">
-                <div class="container">
-                    <a class="navbar-brand d-flex align-items-center"
-                       href="{% url 'home' %}">
-                        <img src="{% static 'images/Logo.png' %}"
-                             alt="NSF and SpectrumX Logo"
-                             class="logo" />
-                        <span class="vr mx-3 d-none d-md-inline" aria-hidden="true"></span>
-                        <span class="system-name d-none d-md-inline">SpectrumX Data System</span>
-                    </a>
-                    <button class="navbar-toggler"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#navbarNav"
-                            aria-controls="navbarNav"
-                            aria-expanded="false"
-                            aria-label="Toggle navigation">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
-                    <div class="collapse navbar-collapse" id="navbarNav">
-                        <ul class="navbar-nav ms-auto">
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'home' %}">Home</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'users:dataset_list' %}?page=1">Datasets</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'users:file_list' %}?page=1">Captures</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'users:generate_api_key' %}">API Key</a>
-                            </li>
-                            {% if not request.user.is_authenticated %}
+                <nav class="navbar navbar-expand-xl navbar-light bg-white"
+                     id="navigation"
+                     role="navigation"
+                     aria-label="Main navigation">
+                    <div class="container">
+                        <a class="navbar-brand d-flex align-items-center"
+                           href="{% url 'home' %}">
+                            <img src="{% static 'images/Logo.png' %}"
+                                 alt="NSF and SpectrumX Logo"
+                                 class="logo" />
+                            <span class="vr mx-3 d-none d-md-inline" aria-hidden="true"></span>
+                            <span class="system-name d-none d-md-inline">SpectrumX Data System</span>
+                        </a>
+                        <button class="navbar-toggler"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#navbarNav"
+                                aria-controls="navbarNav"
+                                aria-expanded="false"
+                                aria-label="Toggle navigation">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                        <div class="collapse navbar-collapse" id="navbarNav">
+                            <ul class="navbar-nav ms-auto">
                                 <li class="nav-item">
-                                    {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
-                                    <a id="log-in-nav-link" class="nav-link" href="{% url 'auth0_login' %}">{% translate "Sign In" %}</a>
+                                    <a class="nav-link" href="{% url 'home' %}">Home</a>
                                 </li>
-                            {% else %}
-                                <li class="nav-item dropdown">
-                                    <button class="nav-link dropdown-toggle"
-                                            id="navbarUserDropdown"
-                                            role="button"
-                                            data-bs-toggle="dropdown"
-                                            aria-expanded="false"
-                                            type="button">
-                                        {{ request.user.username|default:request.user.email }}
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end"
-                                        aria-labelledby="navbarUserDropdown">
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'account_logout' %}">{% translate "Logout" %}</a>
-                                        </li>
-                                    </ul>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'users:dataset_list' %}?page=1">Datasets</a>
                                 </li>
-                            {% endif %}
-                        </ul>
-                    </div>
-                </div>
-            </nav>
-        </header>
-        <main class="container-fluid" id="main-content" role="main">
-            {% block body %}
-                {% comment %} system-wide notifications {% endcomment %}
-                {% if system_notifications %}
-                    {% for notification in system_notifications %}
-                        <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
-                    {% endfor %}
-                {% endif %}
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
-                            {{ message }}
-                            <button type="button"
-                                    class="btn-close"
-                                    data-bs-dismiss="alert"
-                                    aria-label="Close"></button>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'users:files' %}">Files</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'users:file_list' %}?page=1">Captures</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{% url 'users:generate_api_key' %}">API Key</a>
+                                </li>
+                                {% if not request.user.is_authenticated %}
+                                    <li class="nav-item">
+                                        {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
+                                        <a id="log-in-nav-link" class="nav-link" href="{% url 'auth0_login' %}">{% translate "Sign In" %}</a>
+                                    </li>
+                                {% else %}
+                                    <li class="nav-item dropdown">
+                                        <button class="nav-link dropdown-toggle"
+                                                id="navbarUserDropdown"
+                                                role="button"
+                                                data-bs-toggle="dropdown"
+                                                aria-expanded="false"
+                                                type="button">
+                                            {{ request.user.username|default:request.user.email }}
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end"
+                                            aria-labelledby="navbarUserDropdown">
+                                            <li>
+                                                <a class="dropdown-item" href="{% url 'account_logout' %}">{% translate "Logout" %}</a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                {% endif %}
+                            </ul>
                         </div>
-                    {% endfor %}
-                {% endif %}
-                {% block main %}
-                    {% block content %}
-                        <p>
-                            The <b>SpectrumX Data System (SDS)</b> is a data management and retrieval platform for radio-frequency experiments.
-                        </p>
-                    {% endblock content %}
-                {% endblock main %}
-            {% endblock body %}
-           
-        </main>
-        <footer class="site-footer bg-dark text-light mt-5" role="contentinfo">
-            <div class="container text-center py-5">
-                <div class="row">
-                    <div class="col-md-8 mx-auto">
-                        <p class="footer-text">
-                            NSF SpectrumX is an NSF Spectrum Innovation Center funded via Award 2132700 operated under cooperative agreement by the University of Notre Dame.
-                        </p>
-                        <p class="copyright-text mb-0 mt-4">©2025 SpectrumX | All Rights Reserved</p>
+                    </div>
+                </nav>
+            </header>
+            <main class="container-fluid" id="main-content" role="main">
+                {% block body %}
+                    {% comment %} system-wide notifications {% endcomment %}
+                    {% if system_notifications %}
+                        {% for notification in system_notifications %}
+                            <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+                                {{ message }}
+                                <button type="button"
+                                        class="btn-close"
+                                        data-bs-dismiss="alert"
+                                        aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    {% block main %}
+                        {% block content %}
+                            <p>
+                                The <b>SpectrumX Data System (SDS)</b> is a data management and retrieval platform for radio-frequency experiments.
+                            </p>
+                        {% endblock content %}
+                    {% endblock main %}
+                {% endblock body %}
+            </main>
+            <footer class="site-footer bg-dark text-light mt-5" role="contentinfo">
+                <div class="container text-center py-5">
+                    <div class="row">
+                        <div class="col-md-8 mx-auto">
+                            <p class="footer-text">
+                                NSF SpectrumX is an NSF Spectrum Innovation Center funded via Award 2132700 operated under cooperative agreement by the University of Notre Dame.
+                            </p>
+                            <p class="copyright-text mb-0 mt-4">©2025 SpectrumX | All Rights Reserved</p>
+                        </div>
                     </div>
                 </div>
-            </div>
             </footer>
         </div>
         {% block modal %}
@@ -165,9 +164,6 @@
             {# Removed JS that was hiding/showing the body #}
         {% endblock inline_javascript %}
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-        <script>
-            
-            
-        </script>
+        <script></script>
     </body>
 </html>
