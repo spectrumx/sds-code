@@ -908,11 +908,25 @@ class ModalManager {
 								   placeholder="Enter capture name"
 								   maxlength="255"
 								   data-uuid="${data.uuid}">
-							<button class="btn btn-outline-secondary"
+							<button class="btn btn-outline-secondary edit-btn"
 									type="button"
 									id="edit-name-btn"
 									title="Edit capture name">
 								<i class="bi bi-pencil"></i>
+							</button>
+							<button class="btn btn-outline-danger cancel-btn"
+									type="button"
+									id="cancel-name-btn"
+									title="Cancel editing"
+									style="display: none;">
+								<i class="bi bi-x-lg"></i>
+							</button>
+							<button class="btn btn-outline-primary save-btn"
+									type="button"
+									id="save-name-btn"
+									title="Save changes"
+									style="display: none;">
+								<i class="bi bi-check-lg"></i>
 							</button>
 						</div>
 						<div class="form-text">Click the edit button to modify the capture name</div>
@@ -1230,37 +1244,44 @@ class ModalManager {
 	setupNameEditingHandlers() {
 		const nameInput = document.getElementById("capture-name-input");
 		const editBtn = document.getElementById("edit-name-btn");
-		const saveBtn = document.getElementById("save-capture-btn");
+		const saveBtn = document.getElementById("save-name-btn");
+		const cancelBtn = document.getElementById("cancel-name-btn");
 
-		if (!nameInput || !editBtn || !saveBtn) return;
+		if (!nameInput || !editBtn || !saveBtn || !cancelBtn) return;
 
-		// Initially disable the input and hide save button
+		// Initially disable the input
 		nameInput.disabled = true;
-		saveBtn.style.display = "none";
 		let originalName = nameInput.value;
 		let isEditing = false;
+
+		const startEditing = () => {
+			nameInput.disabled = false;
+			nameInput.focus();
+			nameInput.select();
+			editBtn.style.display = "none";
+			saveBtn.classList.add("show");
+			cancelBtn.classList.add("show");
+			isEditing = true;
+		};
+
+		const cancelEditing = () => {
+			nameInput.value = originalName;
+			nameInput.disabled = true;
+			editBtn.style.display = "inline-block";
+			saveBtn.classList.remove("show");
+			cancelBtn.classList.remove("show");
+			isEditing = false;
+		};
 
 		// Edit button handler
 		editBtn.addEventListener("click", () => {
 			if (!isEditing) {
-				// Start editing
-				nameInput.disabled = false;
-				nameInput.focus();
-				nameInput.select();
-				editBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
-				editBtn.title = "Cancel editing";
-				saveBtn.style.display = "inline-block";
-				isEditing = true;
-			} else {
-				// Cancel editing
-				nameInput.value = originalName;
-				nameInput.disabled = true;
-				editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
-				editBtn.title = "Edit capture name";
-				saveBtn.style.display = "none";
-				isEditing = false;
+				startEditing();
 			}
 		});
+
+		// Cancel button handler
+		cancelBtn.addEventListener("click", cancelEditing);
 
 		// Save button handler
 		saveBtn.addEventListener("click", async () => {
@@ -1275,8 +1296,9 @@ class ModalManager {
 			// Disable buttons during save
 			editBtn.disabled = true;
 			saveBtn.disabled = true;
+			cancelBtn.disabled = true;
 			saveBtn.innerHTML =
-				'<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+				'<span class="spinner-border spinner-border-sm"></span>';
 
 			try {
 				await this.updateCaptureName(uuid, newName);
@@ -1284,9 +1306,9 @@ class ModalManager {
 				// Success - update UI
 				originalName = newName;
 				nameInput.disabled = true;
-				editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
-				editBtn.title = "Edit capture name";
-				saveBtn.style.display = "none";
+				editBtn.style.display = "inline-block";
+				saveBtn.classList.remove("show");
+				cancelBtn.classList.remove("show");
 				isEditing = false;
 
 				// Update the table display
@@ -1299,11 +1321,14 @@ class ModalManager {
 				this.showErrorMessage(
 					"Failed to update capture name. Please try again.",
 				);
+				// Revert to original name
+				nameInput.value = originalName;
 			} finally {
-				// Re-enable buttons
+				// Re-enable buttons and restore icons
 				editBtn.disabled = false;
 				saveBtn.disabled = false;
-				saveBtn.innerHTML = "Save Changes";
+				cancelBtn.disabled = false;
+				saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
 			}
 		});
 
@@ -1317,7 +1342,7 @@ class ModalManager {
 		// Handle Escape key to cancel
 		nameInput.addEventListener("keydown", (e) => {
 			if (e.key === "Escape" && !nameInput.disabled) {
-				editBtn.click();
+				cancelEditing();
 			}
 		});
 	}
@@ -1471,25 +1496,23 @@ class ModalManager {
 			const filesSection = document.getElementById("files-section-placeholder");
 			if (filesSection) {
 				filesSection.innerHTML = `
-					<div class="card">
-						<div class="card-body">
-							<h6 class="card-title mb-3">
+					<div class="row">
+						<div class="col-12">
+							<h6 class="mb-3">
 								<i class="bi bi-files me-2"></i>Files Summary
 							</h6>
-							<div class="row">
-								<div class="col-md-6">
-									<p class="mb-2">
-										<span class="fw-medium text-muted">Number of Files:</span>
-										<span class="ms-2">${filesCount}</span>
-									</p>
-								</div>
-								<div class="col-md-6">
-									<p class="mb-2">
-										<span class="fw-medium text-muted">Total Size:</span>
-										<span class="ms-2">${ComponentUtils.formatFileSize(totalSize)}</span>
-									</p>
-								</div>
-							</div>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Number of Files:</span>
+								<span class="ms-2">${filesCount}</span>
+							</p>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Total Size:</span>
+								<span class="ms-2">${ComponentUtils.formatFileSize(totalSize)}</span>
+							</p>
 						</div>
 					</div>
 				`;
