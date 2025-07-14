@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -25,8 +26,10 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import TemplateView
@@ -1800,3 +1803,112 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 
 
 user_dataset_details_view = DatasetDetailsView.as_view()
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class UploadFilesView(View):
+    def _handle_file_uploads(self, request, files, relative_paths):
+        saved_files = []
+        errors = []
+        for f, rel_path in zip(files, relative_paths, strict=False):
+            try:
+                if "/" in rel_path:
+                    directory, filename = os.path.split(rel_path)
+                    directory = (
+                        "/" + directory if not directory.startswith("/") else directory
+                    )
+                else:
+                    directory = "/"
+                    filename = rel_path
+                if not filename or filename.strip() == "":
+                    errors.append(f"Invalid filename for file: {f.name}")
+                    continue
+                file_size = f.size
+                content_type = f.content_type or "application/octet-stream"
+                file_obj = File.objects.create(
+                    owner=request.user,
+                    name=filename,
+                    directory=directory,
+                    file=f,
+                    size=file_size,
+                    media_type=content_type,
+                )
+                saved_files.append(
+                    {
+                        "name": filename,
+                        "directory": directory,
+                        "size": file_size,
+                        "uuid": str(file_obj.uuid)
+                        if hasattr(file_obj, "uuid")
+                        else None,
+                    }
+                )
+                logger.info("Successfully uploaded file: %s to %s", filename, directory)
+            except Exception as exc:
+                error_msg = f"Failed to upload {f.name}: {exc!s}"
+                errors.append(error_msg)
+                logger.exception(error_msg)
+                continue
+        return saved_files, errors
+
+    def _create_captures(self, request, channels, relative_paths):
+        created_captures = []
+        if not channels:
+            return created_captures
+        from pathlib import PurePosixPath
+
+        from sds_gateway.api_methods.models import Capture
+
+        if relative_paths:
+            first_rel_path = relative_paths[0]
+            if "/" in first_rel_path:
+                top_level_dir = "/" + first_rel_path.split("/")[0]
+            else:
+                top_level_dir = "/"
+        else:
+            top_level_dir = "/"
+        for channel in channels:
+            try:
+                capture = Capture.objects.create(
+                    owner=request.user,
+                    top_level_dir=PurePosixPath(top_level_dir),
+                    capture_type="digitalrf",
+                    channel=channel,
+                    index_name="captures-digitalrf",
+                )
+                capture.refresh_from_db()
+                logger.info("DEBUG: Created capture with uuid: %s", capture.uuid)
+                created_captures.append(
+                    {
+                        "uuid": str(capture.uuid) if hasattr(capture, "uuid") else None,
+                        "channel": channel,
+                        "top_level_dir": str(top_level_dir),
+                    }
+                )
+            except Exception:
+                logger.exception("Failed to create capture for channel %s", channel)
+                continue
+        return created_captures
+
+    def post(self, request, *args, **kwargs):
+        files = request.FILES.getlist("files")
+        relative_paths = request.POST.getlist("relative_paths")
+        channels_str = request.POST.get("channels", "")
+        channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
+        saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
+        created_captures = self._create_captures(request, channels, relative_paths)
+        response_data = {
+            "status": "success" if saved_files else "error",
+            "files": saved_files,
+            "total_uploaded": len(saved_files),
+            "total_files": len(files),
+            "captures": created_captures,
+        }
+        if errors:
+            response_data["errors"] = errors
+            response_data["status"] = "partial_success" if saved_files else "error"
+        status_code = 200 if saved_files else 400
+        return JsonResponse(response_data, status=status_code)
+
+
+user_upload_files_view = UploadFilesView.as_view()
