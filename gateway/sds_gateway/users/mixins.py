@@ -7,14 +7,19 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.db.models import QuerySet
 from django.http import HttpResponseRedirect
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import File
+from sds_gateway.users.models import User
 from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import serialize_composite_capture_for_display
+
+# Constants
+MIN_SEARCH_QUERY_LENGTH = 2
 
 
 class ApprovedUserRequiredMixin(AccessMixin):
@@ -40,6 +45,43 @@ class Auth0LoginRequiredMixin(LoginRequiredMixin):
 
     def get_login_url(self) -> str:
         return reverse("auth0_login")
+
+
+class UserSearchMixin:
+    """Mixin to handle user search functionality for sharing."""
+
+    def search_users(self, request, exclude_user_ids=None) -> JsonResponse:
+        """Search for users by name or email."""
+        query = request.GET.get("q", "").strip()
+        limit = min(int(request.GET.get("limit", 10)), 20)  # Max 20 results
+
+        if not query or len(query) < MIN_SEARCH_QUERY_LENGTH:
+            return JsonResponse(
+                {"error": "Search query must be at least 2 characters long"}, status=400
+            )
+
+        # Search for users by name or email, excluding the current user
+        users = User.objects.filter(
+            Q(name__icontains=query) | Q(email__icontains=query),
+            is_approved=True,  # Only show approved users
+        ).exclude(id=request.user.id)
+
+        # Exclude additional users if provided
+        if exclude_user_ids:
+            users = users.exclude(id__in=exclude_user_ids)
+
+        users = users[:limit]
+
+        # Serialize users for response
+        users_data = [
+            {
+                "name": user.name,
+                "email": user.email,
+            }
+            for user in users
+        ]
+
+        return JsonResponse(users_data, safe=False)
 
 
 class FormSearchMixin:

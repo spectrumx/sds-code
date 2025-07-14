@@ -30,18 +30,22 @@ from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import TemplateView
 from django.views.generic import UpdateView
+from rest_framework import status
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import TemporaryZipFile
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.tasks import is_user_locked
+from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_capture_files_email
 from sds_gateway.api_methods.tasks import send_dataset_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
@@ -51,6 +55,7 @@ from sds_gateway.users.forms import FileSearchForm
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FormSearchMixin
+from sds_gateway.users.mixins import UserSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.utils import deduplicate_composite_captures
@@ -158,6 +163,327 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
 
 
 user_generate_api_key_view = GenerateAPIKeyView.as_view()
+
+
+class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
+    """Handle item sharing functionality using the generalized UserSharePermission model."""  # noqa: E501
+
+    # Map item types to their corresponding models
+    ITEM_MODELS = {
+        ItemType.DATASET: Dataset,
+        ItemType.CAPTURE: Capture,
+    }
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        """Handle user search requests."""
+        item_uuid = kwargs.get("item_uuid")
+        item_type = kwargs.get("item_type")
+
+        # Validate item type
+        if item_type not in self.ITEM_MODELS:
+            return JsonResponse(
+                {"error": "Invalid item type"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get the item to check existing shared users
+        try:
+            model_class = self.ITEM_MODELS[item_type]
+            # Verify the item exists and user owns it
+            model_class.objects.get(uuid=item_uuid, owner=request.user)
+
+            # Get users already shared with this item using the new model
+            shared_user_ids = list(
+                UserSharePermission.objects.filter(
+                    item_uuid=item_uuid,
+                    item_type=item_type,
+                    owner=request.user,
+                    is_deleted=False,
+                    is_enabled=True,
+                ).values_list("shared_with__id", flat=True)
+            )
+        except model_class.DoesNotExist:
+            return JsonResponse(
+                {"error": f"{item_type.capitalize()} not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Use the enhanced mixin method with exclusions
+        return self.search_users(request, exclude_user_ids=shared_user_ids)
+
+    def _parse_remove_users(self, request: HttpRequest) -> list[str]:
+        """Parse the remove_users JSON from the request."""
+        remove_users_json = request.POST.get("remove_users", "")
+        if not remove_users_json:
+            return []
+        try:
+            return json.loads(remove_users_json)
+        except json.JSONDecodeError as err:
+            msg = "Invalid remove_users format"
+            raise ValueError(msg) from err
+
+    def _add_users_to_item(
+        self,
+        item_uuid: str,
+        item_type: ItemType,
+        user_emails_str: str,
+        request_user: User,
+        message: str = "",
+    ) -> tuple[list[str], list[str]]:
+        """Add users to item sharing using UserSharePermission and return (shared_users, errors)."""  # noqa: E501
+        if not user_emails_str:
+            return [], []
+
+        user_emails = [
+            email.strip() for email in user_emails_str.split(",") if email.strip()
+        ]
+
+        shared_users = []
+        errors = []
+
+        for user_email in user_emails:
+            try:
+                user_to_share_with = User.objects.get(
+                    email=user_email, is_approved=True
+                )
+
+                if user_to_share_with.id == request_user.id:
+                    errors.append(
+                        f"You cannot share a {item_type.lower()} with yourself ({user_email})"  # noqa: E501
+                    )
+                    continue
+
+                # Check if already shared using the new model
+                existing_permission = UserSharePermission.objects.filter(
+                    item_uuid=item_uuid,
+                    item_type=item_type,
+                    owner=request_user,
+                    shared_with=user_to_share_with,
+                    is_deleted=False,
+                ).first()
+
+                if existing_permission:
+                    if existing_permission.is_enabled:
+                        errors.append(
+                            f"{item_type.capitalize()} is already shared with {user_email}"  # noqa: E501
+                        )
+                        continue
+                    # Re-enable the existing disabled permission
+                    existing_permission.is_enabled = True
+                    existing_permission.message = message
+                    existing_permission.save()
+                    shared_users.append(user_email)
+                    continue
+
+                # Create the share permission
+                UserSharePermission.objects.create(
+                    owner=request_user,
+                    shared_with=user_to_share_with,
+                    item_type=item_type,
+                    item_uuid=item_uuid,
+                    message=message,
+                    is_enabled=True,
+                )
+                shared_users.append(user_email)
+
+            except User.DoesNotExist:
+                errors.append(f"User with email {user_email} not found or not approved")
+
+        return shared_users, errors
+
+    def _remove_users_from_item(
+        self,
+        item_uuid: str,
+        item_type: str,
+        users_to_remove: list[str],
+        request_user: User,
+    ) -> tuple[list[str], list[str]]:
+        """Remove users from item sharing using UserSharePermission and return (removed_users, errors)."""  # noqa: E501
+        removed_users = []
+        errors = []
+
+        for user_email in users_to_remove:
+            try:
+                user_to_remove = User.objects.get(email=user_email)
+
+                # Check if the user is actually shared with this item
+                share_permission = UserSharePermission.objects.filter(
+                    item_uuid=item_uuid,
+                    item_type=item_type,
+                    owner=request_user,
+                    shared_with=user_to_remove,
+                    is_deleted=False,
+                ).first()
+
+                if not share_permission or not share_permission.is_enabled:
+                    errors.append(
+                        f"{item_type.capitalize()} is not shared with user: {user_email}"  # noqa: E501
+                    )
+                    continue
+
+                # Disable the share permission instead of soft deleting
+                share_permission.is_enabled = False
+                share_permission.save()
+                removed_users.append(user_email)
+
+            except User.DoesNotExist:
+                errors.append(f"User with email {user_email} not found")
+
+        return removed_users, errors
+
+    def _build_response(
+        self,
+        item_type: str,
+        shared_users: list[str],
+        removed_users: list[str],
+        errors: list[str],
+    ) -> JsonResponse:
+        """Build the response message based on the results."""
+        response_parts = []
+        if shared_users:
+            response_parts.append(
+                f"{item_type.capitalize()} shared with {', '.join(shared_users)}"
+            )
+        if removed_users:
+            response_parts.append(f"Removed access for {', '.join(removed_users)}")
+
+        if response_parts and not errors:
+            message = ". ".join(response_parts)
+            return JsonResponse({"success": True, "message": message})
+        if response_parts and errors:
+            message = ". ".join(response_parts) + f". Issues: {'; '.join(errors)}"
+            return JsonResponse({"success": True, "message": message})
+        if not response_parts and errors:
+            return JsonResponse({"error": "; ".join(errors)}, status=400)
+
+        return JsonResponse({"success": True, "message": "No changes made"})
+
+    def post(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: ItemType,
+        *args: Any,
+        **kwargs: Any,
+    ) -> HttpResponse:
+        """Share an item with another user using the generalized permission system."""
+        # Validate item type
+        if item_type not in self.ITEM_MODELS:
+            return JsonResponse({"error": "Invalid item type"}, status=400)
+
+        # Verify the item exists and user owns it
+        try:
+            model_class = self.ITEM_MODELS[item_type]
+            # Verify ownership
+            model_class.objects.get(uuid=item_uuid, owner=request.user)
+        except model_class.DoesNotExist:
+            return JsonResponse(
+                {"error": f"{item_type.capitalize()} not found"}, status=404
+            )
+
+        # Get the user emails from the form (comma-separated string)
+        user_emails_str = request.POST.get("user-search", "").strip()
+
+        # Parse users to remove
+        try:
+            users_to_remove = self._parse_remove_users(request)
+        except ValueError:
+            return JsonResponse({"error": "Invalid remove_users format"}, status=400)
+
+        # Get optional message
+        message = request.POST.get("notify_message", "").strip() or ""
+
+        # Handle adding new users
+        shared_users, add_errors = self._add_users_to_item(
+            item_uuid, item_type, user_emails_str, request.user, message
+        )
+
+        # Handle removing users
+        removed_users, remove_errors = self._remove_users_from_item(
+            item_uuid, item_type, users_to_remove, request.user
+        )
+
+        # Combine all errors
+        errors = add_errors + remove_errors
+
+        # Notify shared users if requested
+        notify = request.POST.get("notify_users") == "1"
+        if shared_users and notify:
+            # Use the generalized notification task for all item types
+            notify_shared_users.delay(
+                item_uuid, item_type, shared_users, notify=True, message=message
+            )
+
+        # Build and return response
+        return self._build_response(item_type, shared_users, removed_users, errors)
+
+    def delete(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> HttpResponse:
+        """Remove a user from item sharing using the generalized permission system."""
+        # Validate item type
+        if item_type not in self.ITEM_MODELS:
+            return JsonResponse({"error": "Invalid item type"}, status=400)
+
+        # Verify the item exists and user owns it
+        try:
+            model_class = self.ITEM_MODELS[item_type]
+            # Verify ownership
+            model_class.objects.get(uuid=item_uuid, owner=request.user)
+        except model_class.DoesNotExist:
+            return JsonResponse(
+                {"error": f"{item_type.capitalize()} not found"}, status=404
+            )
+
+        # Get the user email from the request
+        user_email = request.POST.get("user_email", "").strip()
+
+        if not user_email:
+            return JsonResponse({"error": "User email is required"}, status=400)
+
+        try:
+            # Find the user to remove
+            user_to_remove = User.objects.get(email=user_email)
+
+            # Check if the user is actually shared with this item
+            share_permission = UserSharePermission.objects.filter(
+                item_uuid=item_uuid,
+                item_type=item_type,
+                owner=request.user,
+                shared_with=user_to_remove,
+                is_deleted=False,
+            ).first()
+
+            if not share_permission or not share_permission.is_enabled:
+                return JsonResponse(
+                    {
+                        "error": f"User {user_email} is not shared with this {item_type.lower()}"  # noqa: E501
+                    },
+                    status=400,
+                )
+
+            # Disable the share permission instead of soft deleting
+            share_permission.is_enabled = False
+            share_permission.save()
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": f"Removed {user_email} from {item_type.lower()} sharing",
+                }
+            )
+
+        except User.DoesNotExist:
+            return JsonResponse(
+                {"error": f"User with email {user_email} not found"}, status=400
+            )
+
+
+user_share_item_view = ShareItemView.as_view()
 
 
 class ListFilesView(Auth0LoginRequiredMixin, View):
@@ -799,14 +1125,47 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             # Default sorting
             order_by = "-created_at"
 
-        # Get datasets with sorting applied
-        datasets = (
+        # Get datasets owned by the user
+        owned_datasets = (
             request.user.datasets.filter(is_deleted=False).all().order_by(order_by)
         )
+        # Get datasets shared with the user (exclude owned)
+        shared_datasets = (
+            Dataset.objects.filter(shared_with=request.user, is_deleted=False)
+            .exclude(owner=request.user)
+            .order_by(order_by)
+        )
 
-        # Serialize and paginate
-        serializer = DatasetGetSerializer(datasets, many=True)
-        paginator = Paginator(serializer.data, per_page=15)
+        # Prepare datasets with shared users and flags
+        datasets_with_shared_users = []
+        for dataset in owned_datasets:
+            dataset_data = DatasetGetSerializer(dataset).data
+            shared_users = dataset.shared_with.all()
+            dataset_data["shared_users"] = [
+                {"name": user.name, "email": user.email} for user in shared_users
+            ]
+            dataset_data["is_owner"] = True
+            dataset_data["is_shared_with_me"] = False
+            dataset_data["owner_name"] = (
+                dataset.owner.name if dataset.owner else "Owner"
+            )
+            dataset_data["owner_email"] = dataset.owner.email if dataset.owner else ""
+            datasets_with_shared_users.append(dataset_data)
+        for dataset in shared_datasets:
+            dataset_data = DatasetGetSerializer(dataset).data
+            shared_users = dataset.shared_with.all()
+            dataset_data["shared_users"] = [
+                {"name": user.name, "email": user.email} for user in shared_users
+            ]
+            dataset_data["is_owner"] = False
+            dataset_data["is_shared_with_me"] = True
+            dataset_data["owner_name"] = (
+                dataset.owner.name if dataset.owner else "Owner"
+            )
+            dataset_data["owner_email"] = dataset.owner.email if dataset.owner else ""
+            datasets_with_shared_users.append(dataset_data)
+
+        paginator = Paginator(datasets_with_shared_users, per_page=15)
         page_number = request.GET.get("page")
         page_obj = paginator.get_page(page_number)
 
@@ -980,23 +1339,35 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
         dataset_uuid = kwargs.get("uuid")
         if not dataset_uuid:
             return JsonResponse(
-                {"detail": "Dataset UUID is required."},
+                {"success": False, "message": "Dataset UUID is required."},
                 status=400,
             )
 
-        # Get the dataset
+        # Get the dataset - allow both owners and shared users to download
         dataset = get_object_or_404(
             Dataset,
             uuid=dataset_uuid,
-            owner=request.user,
             is_deleted=False,
         )
+
+        # Check if user is owner or shared user
+        is_owner = dataset.owner == request.user
+        is_shared_user = request.user in dataset.shared_with.all()
+
+        if not (is_owner or is_shared_user):
+            return JsonResponse(
+                {"detail": "You don't have permission to download this dataset."},
+                status=403,
+            )
 
         # Get user email
         user_email = request.user.email
         if not user_email:
             return JsonResponse(
-                {"detail": "User email is required for sending dataset files."},
+                {
+                    "success": False,
+                    "message": ("User email is required for sending dataset files."),
+                },
                 status=400,
             )
 
@@ -1004,10 +1375,11 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
         if is_user_locked(str(request.user.id), "dataset_download"):
             return JsonResponse(
                 {
-                    "detail": (
+                    "success": False,
+                    "message": (
                         "You already have a dataset download in progress. "
                         "Please wait for it to complete."
-                    )
+                    ),
                 },
                 status=400,
             )
@@ -1020,6 +1392,7 @@ class DatasetDownloadView(Auth0LoginRequiredMixin, View):
 
         return JsonResponse(
             {
+                "success": True,
                 "message": (
                     "Dataset download request accepted. You will receive an email "
                     "with the files shortly."

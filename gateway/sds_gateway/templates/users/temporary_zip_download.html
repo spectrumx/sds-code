@@ -51,78 +51,68 @@
     </div>
     {# djlint:off #}
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener("DOMContentLoaded", function() {
             {% if status == "available" %}
-                // Automatically start download when page loads
                 downloadFile();
             {% else %}
-                // Show error and redirect after a short delay
                 setTimeout(function() {
-                    showAlertAndRedirect('danger', '{{ message }}');
+                    showAlertAndRedirect("danger", "{{ message }}");
                 }, 1000);
             {% endif %}
         });
 
         function downloadFile() {
-            // Create download URL with query parameter
-            const downloadUrl = '{% url "users:temporary_zip_download" temp_zip.uuid %}?download=true';
-
-            // Add timeout of 5 minutes
+            const downloadUrl = "{% url 'users:temporary_zip_download' temp_zip.uuid %}?download=true";
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 300000);
 
             fetch(downloadUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/zip',
-                    },
-                    signal: controller.signal
-                })
-                .then(response => {
-                    clearTimeout(timeoutId);
-                    if (!response.ok) {
-                        return response.json().then(data => {
-                            throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
-                        });
-                    }
-                    return response.blob();
-                })
-                .then(blob => {
-                    // Create blob URL and trigger download
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = '{{ temp_zip.filename }}';
-                    a.style.display = 'none';
-                    document.body.appendChild(a);
-                    a.click();
+                method: "GET",
+                headers: {
+                    "Accept": "application/zip"
+                },
+                signal: controller.signal
+            })
+            .then(response => {
+                clearTimeout(timeoutId);
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "{{ temp_zip.filename }}";
+                a.style.display = "none";
+                document.body.appendChild(a);
+                a.click();
 
-                    // Clean up
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
 
-                    // Show success message and redirect
-                    showAlertAndRedirect('success', 'File downloaded successfully!');
-                })
-                .catch(error => {
-                    console.error('Download failed:', error);
-                    clearTimeout(timeoutId);
-                    const errorMessage = error.name === 'AbortError'
-                        ? 'Download timed out after 5 minutes. Please try again.'
-                        : `Download failed: ${error.message}`;
-                    showAlertAndRedirect('danger', errorMessage);
-                });
+                showAlertAndRedirect("success", "File downloaded successfully!");
+            })
+            .catch(error => {
+                console.error("Download failed:", error);
+                clearTimeout(timeoutId);
+                const errorMessage = error.name === "AbortError"
+                    ? "Download timed out after 5 minutes. Please try again."
+                    : `Download failed: ${error.message}`;
+                showAlertAndRedirect("danger", errorMessage);
+            });
         }
 
         function showAlertAndRedirect(type, message) {
-            // Store the alert message in sessionStorage to show on the next page
-            sessionStorage.setItem('downloadAlert', JSON.stringify({
+            sessionStorage.setItem("downloadAlert", JSON.stringify({
                 type: type,
                 message: message
             }));
 
-            // Redirect to dataset list page
-            window.location.href = '{% url "users:dataset_list" %}';
+            window.location.href = "{% url 'users:dataset_list' %}";
         }
 </script>
     {# djlint:on #}

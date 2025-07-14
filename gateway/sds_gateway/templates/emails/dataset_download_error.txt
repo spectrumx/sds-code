@@ -1,0 +1,8 @@
+We encountered an issue while preparing your dataset "{{ dataset_name }}" for download.
+
+Error: {{ error_message }}
+
+Please try again later, or contact support if the problem persists.
+
+Dataset: {{ dataset_name }}
+Requested at: {{ requested_at }}
