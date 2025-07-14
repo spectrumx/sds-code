@@ -78,9 +78,9 @@ class FileListController {
 	 */
 	initializeComponents() {
 		this.modalManager = new ModalManager({
-			modalId: "channelModal",
-			modalBodyId: "channelModalBody",
-			modalTitleId: "channelModalLabel",
+			modalId: "capture-modal",
+			modalBodyId: "capture-modal-body",
+			modalTitleId: "capture-modal-label",
 		});
 
 		this.tableManager = new FileListCapturesTableManager({
@@ -396,8 +396,11 @@ class FileListController {
 	 * Clear all filter inputs
 	 */
 	clearAllFilters() {
-		// Reset all filter inputs
-		if (this.elements.searchInput) this.elements.searchInput.value = "";
+		// Get current URL parameters
+		const urlParams = new URLSearchParams(window.location.search);
+		const currentSearch = urlParams.get("search");
+
+		// Reset all filter inputs except search
 		if (this.elements.startDate) this.elements.startDate.value = "";
 		if (this.elements.endDate) this.elements.endDate.value = "";
 		if (this.elements.centerFreqMin) this.elements.centerFreqMin.value = "";
@@ -406,8 +409,26 @@ class FileListController {
 		// Reset interaction tracking
 		this.userInteractedWithFrequency = false;
 
-		// Redirect to base URL to show original table state
-		window.location.href = window.location.pathname;
+		// Reset frequency slider if it exists
+		if (window.frequencyRangeSlider?.noUiSlider) {
+			window.frequencyRangeSlider.noUiSlider.set([0, 10]);
+		}
+
+		// Create new URL parameters with only search and sort parameters preserved
+		const newParams = new URLSearchParams();
+		if (currentSearch) {
+			newParams.set("search", currentSearch);
+		}
+		newParams.set("sort_by", this.currentSortBy);
+		newParams.set("sort_order", this.currentSortOrder);
+
+		// Update URL and trigger search
+		window.history.pushState(
+			{},
+			"",
+			`${window.location.pathname}?${newParams.toString()}`,
+		);
+		this.performSearch();
 	}
 
 	/**
@@ -525,6 +546,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		// Sanitize all data before rendering
 		const safeData = {
 			uuid: ComponentUtils.escapeHtml(capture.uuid || ""),
+			name: ComponentUtils.escapeHtml(capture.name || ""),
 			channel: ComponentUtils.escapeHtml(capture.channel || ""),
 			scanGroup: ComponentUtils.escapeHtml(capture.scan_group || ""),
 			captureType: ComponentUtils.escapeHtml(capture.capture_type || ""),
@@ -575,11 +597,15 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			}
 		}
 
+		// Display name with fallback to "Unnamed Capture"
+		const nameDisplay = safeData.name || "Unnamed Capture";
+
 		return `
 			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
 				<td>
 					<a href="#" class="capture-link"
 					   data-uuid="${safeData.uuid}"
+					   data-name="${safeData.name}"
 					   data-channel="${safeData.channel}"
 					   data-scan-group="${safeData.scanGroup}"
 					   data-capture-type="${safeData.captureType}"
@@ -595,17 +621,62 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					   data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
 					   data-is-multi-channel="${capture.is_multi_channel || false}"
 					   data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}"
-					   aria-label="View details for ${safeData.uuid || "unknown capture"}">
-						${safeData.uuid}
+					   aria-label="View details for ${nameDisplay}">
+						${nameDisplay}
 					</a>
 				</td>
 				<td>${channelDisplay}</td>
 				<td class="text-nowrap">${ComponentUtils.formatDate(capture.created_at)}</td>
 				<td>${typeDisplay}</td>
 				<td>${authorDisplay}</td>
-				<td>${capture.files_count || "0"}${capture.total_file_size ? ` / ${ComponentUtils.formatFileSize(capture.total_file_size)}` : ""}</td>
 				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
 				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
+				<td class="text-center">
+					<div class="dropdown">
+						<button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center mx-auto"
+								type="button"
+								data-bs-toggle="dropdown"
+								data-bs-popper="static"
+								aria-expanded="false"
+								aria-label="Actions for capture ${nameDisplay}"
+								style="width: 32px; height: 32px; padding: 0;">
+							<i class="bi bi-three-dots-vertical"></i>
+						</button>
+						<ul class="dropdown-menu">
+							<li>
+								<button class="dropdown-item capture-details-btn"
+										type="button"
+										data-uuid="${safeData.uuid}"
+										data-name="${safeData.name}"
+										data-channel="${safeData.channel}"
+										data-scan-group="${safeData.scanGroup}"
+										data-capture-type="${safeData.captureType}"
+										data-top-level-dir="${safeData.topLevelDir}"
+										data-index-name="${safeData.indexName}"
+										data-owner="${safeData.owner}"
+										data-origin="${safeData.origin}"
+										data-dataset="${safeData.dataset}"
+										data-created-at="${safeData.createdAt}"
+										data-updated-at="${safeData.updatedAt}"
+										data-is-public="${safeData.isPublic}"
+										data-is-deleted="${safeData.isDeleted}"
+										data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
+										data-is-multi-channel="${capture.is_multi_channel || false}"
+										data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}">
+									Edit
+								</button>
+							</li>
+							<li>
+								<button class="dropdown-item download-capture-btn"
+										type="button"
+										data-capture-uuid="${safeData.uuid}"
+										data-capture-name="${safeData.name}">
+									Download
+								</button>
+							</li>
+						</ul>
+					</div>
+				</td>
 			</tr>
 		`;
 	}
