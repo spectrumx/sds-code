@@ -3,6 +3,7 @@ from django.urls import path
 from .api.views import GetAPIKeyView
 from .views import ListCapturesView
 from .views import user_capture_download_view
+from .views import UploadFilesView
 from .views import user_captures_api_view
 from .views import user_dataset_download_view
 from .views import user_dataset_list_view
@@ -46,6 +47,7 @@ urlpatterns = [
         user_share_item_view,
         name="share_item",
     ),
+    path("upload-files/", UploadFilesView.as_view(), name="upload_files"),
     # Used by SVI Server to get API key for a user
     path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),
 ]
