@@ -2,6 +2,7 @@ from django.urls import path
 
 from .api.views import GetAPIKeyView
 from .views import ListCapturesView
+from .views import user_capture_download_view
 from .views import user_captures_api_view
 from .views import user_dataset_download_view
 from .views import user_dataset_list_view
@@ -28,6 +29,11 @@ urlpatterns = [
         "dataset-download/<uuid:uuid>/",
         user_dataset_download_view,
         name="dataset_download",
+    ),
+    path(
+        "capture-download/<uuid:uuid>/",
+        user_capture_download_view,
+        name="capture_download",
     ),
     path("group-captures/", user_group_captures_view, name="group_captures"),
     path(

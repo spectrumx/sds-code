@@ -277,6 +277,32 @@ class CapturesTableManager extends TableManager {
 				return;
 			}
 
+			// Handle capture details button clicks from actions dropdown
+			if (
+				e.target.matches(".capture-details-btn") ||
+				e.target.closest(".capture-details-btn")
+			) {
+				e.preventDefault();
+				const button = e.target.matches(".capture-details-btn")
+					? e.target
+					: e.target.closest(".capture-details-btn");
+				this.openCaptureModal(button);
+				return;
+			}
+
+			// Handle download capture button clicks from actions dropdown
+			if (
+				e.target.matches(".download-capture-btn") ||
+				e.target.closest(".download-capture-btn")
+			) {
+				e.preventDefault();
+				const button = e.target.matches(".download-capture-btn")
+					? e.target
+					: e.target.closest(".download-capture-btn");
+				this.handleDownloadCapture(button);
+				return;
+			}
+
 			// Handle capture link clicks
 			if (
 				e.target.matches(".capture-link") ||
@@ -306,6 +332,145 @@ class CapturesTableManager extends TableManager {
 
 		// Add the persistent event listener
 		document.addEventListener("click", this.eventDelegationHandler);
+	}
+
+	/**
+	 * Handle download capture action
+	 */
+	handleDownloadCapture(button) {
+		const captureUuid = button.dataset.captureUuid;
+		const captureName =
+			button.dataset.captureName || button.dataset.captureUuid;
+
+		if (!captureUuid) {
+			console.error("No capture UUID found for download");
+			return;
+		}
+
+		// Update modal content
+		document.getElementById("downloadCaptureName").textContent = captureName;
+
+		// Show the modal
+		this.openCustomModal("downloadModal");
+
+		// Handle confirm download
+		document.getElementById("confirmDownloadBtn").onclick = () => {
+			// Close modal first
+			this.closeCustomModal("downloadModal");
+
+			// Show loading state
+			const originalContent = button.innerHTML;
+			button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+			button.disabled = true;
+
+			// Make API request
+			fetch(`/users/capture-download/${captureUuid}/`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-CSRFToken": this.getCSRFToken(),
+				},
+			})
+				.then((response) => response.json())
+				.then((data) => {
+					if (data.status === "success") {
+						button.innerHTML =
+							'<i class="bi bi-check-circle text-success"></i> Download Requested';
+						this.showDownloadSuccessMessage(data.message);
+					} else {
+						button.innerHTML =
+							'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+						this.showDownloadErrorMessage(
+							data.detail ||
+								data.message ||
+								"Download request failed. Please try again.",
+						);
+					}
+				})
+				.catch((error) => {
+					console.error("Download error:", error);
+					button.innerHTML =
+						'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+					this.showDownloadErrorMessage(
+						"An error occurred while processing your request.",
+					);
+				})
+				.finally(() => {
+					// Reset button after 3 seconds
+					setTimeout(() => {
+						button.innerHTML = originalContent;
+						button.disabled = false;
+					}, 3000);
+				});
+		};
+	}
+
+	/**
+	 * Show download success message
+	 */
+	showDownloadSuccessMessage(message) {
+		// Try to find an existing alert container or create one
+		let alertContainer = document.querySelector(".alert-container");
+		if (!alertContainer) {
+			alertContainer = document.createElement("div");
+			alertContainer.className = "alert-container";
+			// Insert at the top of the main content area
+			const mainContent =
+				document.querySelector(".container-fluid") || document.body;
+			mainContent.insertBefore(alertContainer, mainContent.firstChild);
+		}
+
+		const alertHtml = `
+			<div class="alert alert-success alert-dismissible fade show" role="alert">
+				<i class="bi bi-check-circle-fill me-2"></i>
+				${ComponentUtils.escapeHtml(message)}
+				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+			</div>
+		`;
+
+		alertContainer.innerHTML = alertHtml;
+
+		// Auto-dismiss after 5 seconds
+		setTimeout(() => {
+			const alert = alertContainer.querySelector(".alert");
+			if (alert) {
+				alert.remove();
+			}
+		}, 5000);
+	}
+
+	/**
+	 * Show download error message
+	 */
+	showDownloadErrorMessage(message) {
+		// Try to find an existing alert container or create one
+		let alertContainer = document.querySelector(".alert-container");
+		if (!alertContainer) {
+			alertContainer = document.createElement("div");
+			alertContainer.className = "alert-container";
+			// Insert at the top of the main content area
+			const mainContent =
+				document.querySelector(".container-fluid") || document.body;
+			mainContent.insertBefore(alertContainer, mainContent.firstChild);
+		}
+
+		const alertHtml = `
+			<div class="alert alert-danger alert-dismissible fade show" role="alert">
+				<i class="bi bi-exclamation-triangle-fill me-2"></i>
+				${ComponentUtils.escapeHtml(message)}
+				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+			</div>
+		`;
+
+		alertContainer.innerHTML = alertHtml;
+
+		// Auto-dismiss after 8 seconds (longer for error messages)
+		setTimeout(() => {
+			const alert = alertContainer.querySelector(".alert");
+			if (alert) {
+				alert.remove();
+			}
+		}, 8000);
 	}
 
 	renderRow(capture, index) {
@@ -392,9 +557,39 @@ class CapturesTableManager extends TableManager {
 	/**
 	 * Open capture modal with XSS protection
 	 */
-	openCaptureModal(link) {
+	openCaptureModal(linkElement) {
 		if (this.modalHandler) {
-			this.modalHandler.openCaptureModal(link);
+			this.modalHandler.openCaptureModal(linkElement);
+		}
+	}
+
+	/**
+	 * Get CSRF token for API requests
+	 */
+	getCSRFToken() {
+		const token = document.querySelector("[name=csrfmiddlewaretoken]");
+		return token ? token.value : "";
+	}
+
+	/**
+	 * Open a custom modal
+	 */
+	openCustomModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (modal) {
+			modal.style.display = "block";
+			document.body.style.overflow = "hidden";
+		}
+	}
+
+	/**
+	 * Close a custom modal
+	 */
+	closeCustomModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (modal) {
+			modal.style.display = "none";
+			document.body.style.overflow = "auto";
 		}
 	}
 
@@ -419,6 +614,7 @@ class FilterManager {
 		this.applyButton = document.getElementById(config.applyButtonId);
 		this.clearButton = document.getElementById(config.clearButtonId);
 		this.onFilterChange = config.onFilterChange;
+		this.searchInputId = config.searchInputId || "search-input";
 
 		this.initializeEventListeners();
 		this.loadFromURL();
@@ -475,9 +671,15 @@ class FilterManager {
 	clearFilters() {
 		if (!this.form) return;
 
-		// Clear all form inputs
+		// Get all form inputs except the search input
 		const inputs = this.form.querySelectorAll("input, select, textarea");
 		for (const input of inputs) {
+			// Skip the search input
+			if (input.id === this.searchInputId) {
+				continue;
+			}
+
+			// Clear other inputs
 			if (input.type === "checkbox" || input.type === "radio") {
 				input.checked = false;
 			} else {
@@ -485,11 +687,38 @@ class FilterManager {
 			}
 		}
 
-		// Clear URL parameters
-		this.updateURL({});
+		// Get current URL parameters
+		const urlParams = new URLSearchParams(window.location.search);
+		const searchValue = urlParams.get("search");
+		const sortBy = urlParams.get("sort_by") || "created_at";
+		const sortOrder = urlParams.get("sort_order") || "desc";
 
+		// Clear all parameters except search and sort
+		urlParams.forEach((_, key) => {
+			if (key !== "search" && key !== "sort_by" && key !== "sort_order") {
+				urlParams.delete(key);
+			}
+		});
+
+		// Ensure sort parameters are set
+		urlParams.set("sort_by", sortBy);
+		urlParams.set("sort_order", sortOrder);
+		urlParams.set("page", "1");
+
+		// Update URL
+		const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+		window.history.pushState({}, "", newUrl);
+
+		// Trigger filter change callback
 		if (this.onFilterChange) {
-			this.onFilterChange({});
+			const filters = {
+				sort_by: sortBy,
+				sort_order: sortOrder,
+			};
+			if (searchValue) {
+				filters.search = searchValue;
+			}
+			this.onFilterChange(filters);
 		}
 	}
 
@@ -514,6 +743,9 @@ class FilterManager {
 	updateURL(filters) {
 		const urlParams = new URLSearchParams(window.location.search);
 
+		// Preserve search parameter if it exists
+		const searchValue = urlParams.get("search");
+
 		// Remove old filter parameters
 		const formData = new FormData(this.form || document.createElement("form"));
 		for (const key of formData.keys()) {
@@ -525,6 +757,11 @@ class FilterManager {
 			if (value) {
 				urlParams.set(key, value);
 			}
+		}
+
+		// Restore search parameter if it existed
+		if (searchValue) {
+			urlParams.set("search", searchValue);
 		}
 
 		// Reset to first page when filters change
@@ -542,18 +779,20 @@ class SearchManager {
 	constructor(config) {
 		this.searchInput = document.getElementById(config.searchInputId);
 		this.searchButton = document.getElementById(config.searchButtonId);
-		this.clearButton = document.getElementById(config.clearButtonId);
+		this.clearButton = document.getElementById("clear-search-btn");
 		this.onSearch = config.onSearch;
 		this.debounceDelay = config.debounceDelay || 300;
 		this.debounceTimer = null;
 
 		this.initializeEventListeners();
+		this.updateClearButtonVisibility();
 	}
 
 	initializeEventListeners() {
 		if (this.searchInput) {
 			this.searchInput.addEventListener("input", () => {
 				this.debounceSearch();
+				this.updateClearButtonVisibility();
 			});
 
 			this.searchInput.addEventListener("keypress", (e) => {
@@ -579,6 +818,14 @@ class SearchManager {
 		}
 	}
 
+	updateClearButtonVisibility() {
+		if (this.clearButton) {
+			this.clearButton.style.display = this.searchInput?.value
+				? "block"
+				: "none";
+		}
+	}
+
 	debounceSearch() {
 		if (this.debounceTimer) {
 			clearTimeout(this.debounceTimer);
@@ -600,6 +847,7 @@ class SearchManager {
 	clearSearch() {
 		if (this.searchInput) {
 			this.searchInput.value = "";
+			this.updateClearButtonVisibility();
 		}
 
 		this.performSearch();
@@ -652,6 +900,9 @@ class ModalManager {
 				uuid: ComponentUtils.escapeHtml(
 					linkElement.getAttribute("data-uuid") || "",
 				),
+				name: ComponentUtils.escapeHtml(
+					linkElement.getAttribute("data-name") || "",
+				),
 				channel: ComponentUtils.escapeHtml(
 					linkElement.getAttribute("data-channel") || "",
 				),
@@ -693,38 +944,153 @@ class ModalManager {
 
 			let modalContent = `
 				<div class="mb-4">
-					<h6>Basic Information</h6>
-					<p><strong>UUID:</strong> ${data.uuid || "N/A"}</p>
-					<p><strong>Capture Type:</strong> ${data.captureType || "N/A"}</p>
-					<p><strong>Origin:</strong> ${data.origin || "N/A"}</p>
-					<p><strong>Owner:</strong> ${ownerDisplay}</p>
+					<div class="d-flex align-items-center mb-3">
+						<h6 class="mb-0 fw-bold">
+							<i class="bi bi-info-circle me-2"></i>Basic Information
+						</h6>
+					</div>
+					<div class="mb-3">
+						<label for="capture-name-input" class="form-label fw-medium">
+							<strong>Name:</strong>
+						</label>
+						<div class="input-group">
+							<input type="text"
+								   class="form-control"
+								   id="capture-name-input"
+								   value="${data.name || ""}"
+								   placeholder="Enter capture name"
+								   maxlength="255"
+								   data-uuid="${data.uuid}">
+							<button class="btn btn-outline-secondary edit-name-btn"
+									type="button"
+									id="edit-name-btn"
+									title="Edit capture name">
+								<i class="bi bi-pencil"></i>
+							</button>
+							<button class="btn btn-outline-danger d-none"
+									type="button"
+									id="cancel-name-btn"
+									title="Cancel editing">
+								<i class="bi bi-x-lg"></i>
+							</button>
+							<button class="btn btn-outline-primary save-name-btn d-none"
+									type="button"
+									id="save-name-btn"
+									title="Save changes">
+								<i class="bi bi-check-lg"></i>
+							</button>
+						</div>
+						<div class="form-text">Click the edit button to modify the capture name</div>
+					</div>
+					<div class="row">
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Capture Type:</span>
+								<span class="ms-2">${data.captureType || "N/A"}</span>
+							</p>
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Origin:</span>
+								<span class="ms-2">${data.origin || "N/A"}</span>
+							</p>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Owner:</span>
+								<span class="ms-2">${ownerDisplay}</span>
+							</p>
+						</div>
+					</div>
 			`;
 
 			// Handle composite vs single capture display
 			if (isComposite) {
 				modalContent += `
-					<p><strong>Channels:</strong> ${data.channel || "N/A"}</p>
+					<div class="mb-2">
+						<span class="fw-medium text-muted">Channels:</span>
+						<span class="ms-2">${data.channel || "N/A"}</span>
+					</div>
 				`;
 			} else {
 				modalContent += `
-					<p><strong>Channel:</strong> ${data.channel || "N/A"}</p>
+					<div class="mb-2">
+						<span class="fw-medium text-muted">Channel:</span>
+						<span class="ms-2">${data.channel || "N/A"}</span>
+					</div>
 				`;
 			}
 
 			modalContent += `
 				</div>
 				<div class="mb-4">
-					<h6>Technical Details</h6>
-					<p><strong>Scan Group:</strong> ${data.scanGroup || "N/A"}</p>
-					<p><strong>Top Level Directory:</strong> ${data.topLevelDir || "N/A"}</p>
-					<p><strong>Dataset:</strong> ${data.dataset || "N/A"}</p>
-					<p><strong>Center Frequency:</strong> ${data.centerFrequencyGhz && data.centerFrequencyGhz !== "None" ? `${Number.parseFloat(data.centerFrequencyGhz).toFixed(3)} GHz` : "N/A"}</p>
-					<p><strong>Is Public:</strong> ${data.isPublic === "True" ? "Yes" : "No"}</p>
+					<div class="d-flex align-items-center mb-3">
+						<h6 class="mb-0 fw-bold">
+							<i class="bi bi-gear me-2"></i>Technical Details
+						</h6>
+					</div>
+					<div class="row">
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Scan Group:</span>
+								<span class="ms-2">${data.scanGroup || "N/A"}</span>
+							</p>
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Dataset:</span>
+								<span class="ms-2">${data.dataset || "N/A"}</span>
+							</p>
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Is Public:</span>
+								<span class="ms-2">${data.isPublic === "True" ? "Yes" : "No"}</span>
+							</p>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Top Level Directory:</span>
+								<span class="ms-2 text-break">${data.topLevelDir || "N/A"}</span>
+							</p>
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Center Frequency:</span>
+								<span class="ms-2">
+									${data.centerFrequencyGhz && data.centerFrequencyGhz !== "None" ? `${Number.parseFloat(data.centerFrequencyGhz).toFixed(3)} GHz` : "N/A"}
+								</span>
+							</p>
+						</div>
+					</div>
 				</div>
-				<div>
-					<h6>Timestamps</h6>
-					<p><strong>Created At:</strong> ${data.createdAt && data.createdAt !== "None" ? `${new Date(data.createdAt).toLocaleString()} UTC` : "N/A"}</p>
-					<p><strong>Updated At:</strong> ${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}</p>
+				<div class="mb-4">
+					<div class="d-flex align-items-center mb-3">
+						<h6 class="mb-0 fw-bold">
+							<i class="bi bi-clock me-2"></i>Timestamps
+						</h6>
+					</div>
+					<div class="row">
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Created At:</span>
+								<br>
+								<small class="text-muted">
+									${data.createdAt && data.createdAt !== "None" ? `${new Date(data.createdAt).toLocaleString()} UTC` : "N/A"}
+								</small>
+							</p>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Updated At:</span>
+								<br>
+								<small class="text-muted">
+									${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}
+								</small>
+							</p>
+						</div>
+					</div>
+				</div>
+				<!-- Files section placeholder -->
+				<div id="files-section-placeholder" class="mt-4">
+					<div class="d-flex justify-content-center py-3">
+						<div class="spinner-border spinner-border-sm me-2" role="status" style="color: #005a9c;">
+							<span class="visually-hidden">Loading files...</span>
+						</div>
+						<span class="text-muted">Loading files...</span>
+					</div>
 				</div>
 			`;
 
@@ -909,11 +1275,509 @@ class ModalManager {
 				}
 			}
 
-			const title = `Capture Details - ${data.channel || "Unknown"}`;
+			const title = data.name
+				? data.name
+				: data.topLevelDir || "Unnamed Capture";
 			this.show(title, modalContent);
+
+			// Store capture data for later use
+			this.currentCaptureData = data;
+
+			// Setup name editing handlers after modal content is loaded
+			this.setupNameEditingHandlers();
+
+			// Load and display files for this capture
+			this.loadCaptureFiles(data.uuid);
 		} catch (error) {
 			console.error("Error opening capture modal:", error);
 			this.show("Error", "Error displaying capture details");
+		}
+	}
+
+	/**
+	 * Setup handlers for name editing functionality
+	 */
+	setupNameEditingHandlers() {
+		const nameInput = document.getElementById("capture-name-input");
+		const editBtn = document.getElementById("edit-name-btn");
+		const saveBtn = document.getElementById("save-name-btn");
+		const cancelBtn = document.getElementById("cancel-name-btn");
+
+		if (!nameInput || !editBtn || !saveBtn || !cancelBtn) return;
+
+		// Initially disable the input
+		nameInput.disabled = true;
+		let originalName = nameInput.value;
+		let isEditing = false;
+
+		const startEditing = () => {
+			nameInput.disabled = false;
+			nameInput.focus();
+			nameInput.select();
+			editBtn.classList.add("d-none");
+			saveBtn.classList.remove("d-none");
+			cancelBtn.classList.remove("d-none");
+			isEditing = true;
+		};
+
+		const stopEditing = () => {
+			nameInput.disabled = true;
+			editBtn.classList.remove("d-none");
+			saveBtn.classList.add("d-none");
+			cancelBtn.classList.add("d-none");
+			isEditing = false;
+		};
+
+		const cancelEditing = () => {
+			nameInput.value = originalName;
+			stopEditing();
+		};
+
+		// Edit button handler
+		editBtn.addEventListener("click", () => {
+			if (!isEditing) {
+				startEditing();
+			}
+		});
+
+		// Cancel button handler
+		cancelBtn.addEventListener("click", cancelEditing);
+
+		// Save button handler
+		saveBtn.addEventListener("click", async () => {
+			const newName = nameInput.value.trim();
+			const uuid = nameInput.getAttribute("data-uuid");
+
+			if (!uuid) {
+				console.error("No UUID found for capture");
+				return;
+			}
+
+			// Disable buttons during save
+			editBtn.disabled = true;
+			saveBtn.disabled = true;
+			cancelBtn.disabled = true;
+			saveBtn.innerHTML =
+				'<span class="spinner-border spinner-border-sm"></span>';
+
+			try {
+				await this.updateCaptureName(uuid, newName);
+
+				// Success - update UI
+				originalName = newName;
+				stopEditing();
+
+				// Update the table display
+				this.updateTableNameDisplay(uuid, newName);
+
+				// Update modal title using stored capture data
+				if (this.modalTitle && this.currentCaptureData) {
+					this.currentCaptureData.name = newName;
+					this.modalTitle.textContent =
+						newName || this.currentCaptureData.topLevelDir || "Unnamed Capture";
+				}
+
+				// Show success message
+				this.showSuccessMessage("Capture name updated successfully!");
+			} catch (error) {
+				console.error("Error updating capture name:", error);
+				this.showErrorMessage(
+					"Failed to update capture name. Please try again.",
+				);
+				// Revert to original name
+				nameInput.value = originalName;
+			} finally {
+				// Re-enable buttons and restore icons
+				editBtn.disabled = false;
+				saveBtn.disabled = false;
+				cancelBtn.disabled = false;
+				saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+			}
+		});
+
+		// Handle Enter key to save
+		nameInput.addEventListener("keypress", (e) => {
+			if (e.key === "Enter" && !nameInput.disabled) {
+				saveBtn.click();
+			}
+		});
+
+		// Handle Escape key to cancel
+		nameInput.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && !nameInput.disabled) {
+				cancelEditing();
+			}
+		});
+	}
+
+	/**
+	 * Update capture name via API
+	 */
+	async updateCaptureName(uuid, newName) {
+		const response = await fetch(`/api/v1/assets/captures/${uuid}/`, {
+			method: "PATCH",
+			headers: {
+				"Content-Type": "application/json",
+				"X-CSRFToken": this.getCSRFToken(),
+			},
+			body: JSON.stringify({ name: newName }),
+		});
+
+		if (!response.ok) {
+			const errorData = await response.json();
+			throw new Error(errorData.detail || "Failed to update capture name");
+		}
+
+		return response.json();
+	}
+
+	/**
+	 * Update the table display with the new name
+	 */
+	updateTableNameDisplay(uuid, newName) {
+		// Find all elements with this UUID and update their display
+		const captureLinks = document.querySelectorAll(`[data-uuid="${uuid}"]`);
+
+		for (const link of captureLinks) {
+			// Update data attribute
+			link.dataset.name = newName;
+
+			// Update display text if it's a capture link
+			if (link.classList.contains("capture-link")) {
+				link.textContent = newName || "Unnamed Capture";
+				link.setAttribute(
+					"aria-label",
+					`View details for capture ${newName || uuid}`,
+				);
+				link.setAttribute("title", `View capture details: ${newName || uuid}`);
+			}
+		}
+	}
+
+	/**
+	 * Clear existing alert messages from the modal
+	 */
+	clearAlerts() {
+		const modalBody = document.getElementById("capture-modal-body");
+		if (modalBody) {
+			const existingAlerts = modalBody.querySelectorAll(".alert");
+			for (const alert of existingAlerts) {
+				alert.remove();
+			}
+		}
+	}
+
+	/**
+	 * Show success message
+	 */
+	showSuccessMessage(message) {
+		// Clear existing alerts first
+		this.clearAlerts();
+
+		// Create a temporary alert
+		const alert = document.createElement("div");
+		alert.className = "alert alert-success alert-dismissible fade show";
+		alert.innerHTML = `
+			${message}
+			<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+		`;
+
+		// Insert at the top of the modal body
+		const modalBody = document.getElementById("capture-modal-body");
+		if (modalBody) {
+			modalBody.insertBefore(alert, modalBody.firstChild);
+
+			// Auto-dismiss after 3 seconds
+			setTimeout(() => {
+				if (alert.parentNode) {
+					alert.remove();
+				}
+			}, 3000);
+		}
+	}
+
+	/**
+	 * Show error message
+	 */
+	showErrorMessage(message) {
+		// Clear existing alerts first
+		this.clearAlerts();
+
+		// Create a temporary alert
+		const alert = document.createElement("div");
+		alert.className = "alert alert-danger alert-dismissible fade show";
+		alert.innerHTML = `
+			${message}
+			<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+		`;
+
+		// Insert at the top of the modal body
+		const modalBody = document.getElementById("capture-modal-body");
+		if (modalBody) {
+			modalBody.insertBefore(alert, modalBody.firstChild);
+
+			// Auto-dismiss after 5 seconds
+			setTimeout(() => {
+				if (alert.parentNode) {
+					alert.remove();
+				}
+			}, 5000);
+		}
+	}
+
+	/**
+	 * Load and display files associated with the capture
+	 */
+	async loadCaptureFiles(captureUuid) {
+		try {
+			const response = await fetch(`/api/v1/assets/captures/${captureUuid}/`, {
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+					"X-CSRFToken": this.getCSRFToken(),
+				},
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+
+			const captureData = await response.json();
+			console.log("Raw capture data:", captureData);
+
+			const files = captureData.files || [];
+			const filesCount = captureData.files_count || 0;
+			const totalSize = captureData.total_file_size || 0;
+
+			console.log("Files info:", {
+				filesCount,
+				totalSize,
+				numFiles: files.length,
+			});
+
+			// Update files section with simple summary
+			const filesSection = document.getElementById("files-section-placeholder");
+			if (filesSection) {
+				filesSection.innerHTML = `
+					<div class="row">
+						<div class="col-12">
+							<h6 class="mb-3">
+								<i class="bi bi-files me-2"></i>Files Summary
+							</h6>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Number of Files:</span>
+								<span class="ms-2">${filesCount}</span>
+							</p>
+						</div>
+						<div class="col-md-6">
+							<p class="mb-2">
+								<span class="fw-medium text-muted">Total Size:</span>
+								<span class="ms-2">${ComponentUtils.formatFileSize(totalSize)}</span>
+							</p>
+						</div>
+					</div>
+				`;
+			}
+		} catch (error) {
+			console.error("Error loading capture files:", error);
+			const filesSection = document.getElementById("files-section-placeholder");
+			if (filesSection) {
+				filesSection.innerHTML = `
+					<div class="alert alert-warning">
+						<i class="bi bi-exclamation-triangle me-2"></i>
+						Error loading files information
+					</div>
+				`;
+			}
+		}
+	}
+
+	/**
+	 * Format file metadata for display
+	 */
+	formatFileMetadata(file) {
+		const metadata = [];
+
+		// Primary file information - most useful for users
+		if (file.size) {
+			metadata.push(
+				`<strong>Size:</strong> ${ComponentUtils.formatFileSize(file.size)} (${file.size.toLocaleString()} bytes)`,
+			);
+		}
+
+		if (file.media_type) {
+			metadata.push(
+				`<strong>Media Type:</strong> ${ComponentUtils.escapeHtml(file.media_type)}`,
+			);
+		}
+
+		if (file.created_at) {
+			metadata.push(
+				`<strong>Created:</strong> ${new Date(file.created_at).toLocaleString()}`,
+			);
+		}
+
+		if (file.updated_at) {
+			metadata.push(
+				`<strong>Updated:</strong> ${new Date(file.updated_at).toLocaleString()}`,
+			);
+		}
+
+		// File properties and attributes
+		if (file.name) {
+			metadata.push(
+				`<strong>Name:</strong> ${ComponentUtils.escapeHtml(file.name)}`,
+			);
+		}
+
+		if (file.directory || file.relative_path) {
+			metadata.push(
+				`<strong>Directory:</strong> ${ComponentUtils.escapeHtml(file.directory || file.relative_path)}`,
+			);
+		}
+
+		// Removed permissions display
+		// if (file.permissions) {
+		// 	metadata.push(`<strong>Permissions:</strong> <span style="color: #005a9c; font-family: monospace;">${ComponentUtils.escapeHtml(file.permissions)}</span>`);
+		// }
+
+		if (file.owner?.username) {
+			metadata.push(
+				`<strong>Owner:</strong> ${ComponentUtils.escapeHtml(file.owner.username)}`,
+			);
+		}
+
+		if (file.expiration_date) {
+			metadata.push(
+				`<strong>Expires:</strong> ${new Date(file.expiration_date).toLocaleDateString()}`,
+			);
+		}
+
+		if (file.bucket_name) {
+			metadata.push(
+				`<strong>Storage Bucket:</strong> ${ComponentUtils.escapeHtml(file.bucket_name)}`,
+			);
+		}
+
+		// Removed checksum display
+		// if (file.sum_blake3) {
+		// 	metadata.push(`<strong>Checksum:</strong> <span style="color: #005a9c; font-family: monospace;">${ComponentUtils.escapeHtml(file.sum_blake3)}</span>`);
+		// }
+
+		// Associated resources
+		if (file.capture?.name) {
+			metadata.push(
+				`<strong>Associated Capture:</strong> ${ComponentUtils.escapeHtml(file.capture.name)}`,
+			);
+		}
+
+		if (file.dataset?.name) {
+			metadata.push(
+				`<strong>Associated Dataset:</strong> ${ComponentUtils.escapeHtml(file.dataset.name)}`,
+			);
+		}
+
+		// Additional metadata if available
+		if (file.metadata && typeof file.metadata === "object") {
+			for (const [key, value] of Object.entries(file.metadata)) {
+				if (value !== null && value !== undefined) {
+					const formattedKey = key
+						.replace(/_/g, " ")
+						.replace(/\b\w/g, (l) => l.toUpperCase());
+					let formattedValue;
+
+					// Format different types of values
+					if (typeof value === "boolean") {
+						formattedValue = value ? "Yes" : "No";
+					} else if (typeof value === "number") {
+						formattedValue = value.toLocaleString();
+					} else if (typeof value === "object") {
+						formattedValue = `<span style="color: #005a9c; font-family: monospace;">${JSON.stringify(value, null, 2)}</span>`;
+					} else {
+						formattedValue = ComponentUtils.escapeHtml(String(value));
+					}
+
+					metadata.push(`<strong>${formattedKey}:</strong> ${formattedValue}`);
+				}
+			}
+		}
+
+		if (metadata.length === 0) {
+			return '<p class="text-muted mb-0">No metadata available for this file.</p>';
+		}
+
+		return `<div class="metadata-list">${metadata.join("<br>")}</div>`;
+	}
+
+	/**
+	 * Get CSRF token for API requests
+	 */
+	getCSRFToken() {
+		const token = document.querySelector("[name=csrfmiddlewaretoken]");
+		return token ? token.value : "";
+	}
+
+	/**
+	 * Load and display file metadata for a specific file in the modal
+	 */
+	async loadFileMetadata(fileUuid, fileName) {
+		const fileMetadataSection = document.getElementById(
+			`file-metadata-${fileUuid}`,
+		);
+		const metadataContent =
+			fileMetadataSection?.querySelector(".metadata-content");
+
+		if (!fileMetadataSection || !metadataContent) return;
+
+		// Toggle visibility
+		if (fileMetadataSection.style.display === "none") {
+			fileMetadataSection.style.display = "block";
+
+			// Check if metadata is already loaded
+			if (metadataContent.innerHTML.includes("Click to load metadata...")) {
+				// Show loading state
+				metadataContent.innerHTML = `
+					<div class="d-flex justify-content-center py-2">
+						<div class="spinner-border spinner-border-sm me-2" role="status">
+							<span class="visually-hidden">Loading...</span>
+						</div>
+						<span class="text-muted">Loading metadata...</span>
+					</div>
+				`;
+
+				try {
+					const response = await fetch(`/api/v1/assets/files/${fileUuid}/`, {
+						method: "GET",
+						headers: {
+							"Content-Type": "application/json",
+							"X-CSRFToken": this.getCSRFToken(),
+						},
+					});
+
+					if (!response.ok) {
+						throw new Error(`HTTP error! status: ${response.status}`);
+					}
+
+					const fileData = await response.json();
+
+					// Format and display the metadata
+					const formattedMetadata = this.formatFileMetadata(fileData);
+					metadataContent.innerHTML = formattedMetadata;
+				} catch (error) {
+					console.error("Error loading file metadata:", error);
+					metadataContent.innerHTML = `
+						<div class="alert alert-warning mb-0">
+							<i class="bi bi-exclamation-triangle me-2"></i>
+							Failed to load metadata for ${ComponentUtils.escapeHtml(fileName)}.
+							<br><small>Error: ${ComponentUtils.escapeHtml(error.message)}</small>
+						</div>
+					`;
+				}
+			}
+		} else {
+			fileMetadataSection.style.display = "none";
 		}
 	}
 }
@@ -1009,3 +1873,19 @@ if (typeof module !== "undefined" && module.exports) {
 		PaginationManager,
 	};
 }
+
+// Add custom styles
+const style = document.createElement("style");
+style.textContent = `
+  .edit-name-btn:hover i,
+  .save-name-btn:hover i {
+    color: white !important;
+  }
+
+  /* Hide native clear button in Chrome */
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    display: none;
+  }
+`;
+document.head.appendChild(style);
