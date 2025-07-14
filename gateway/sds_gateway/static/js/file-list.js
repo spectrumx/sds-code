@@ -406,8 +406,13 @@ class FileListController {
 		// Reset interaction tracking
 		this.userInteractedWithFrequency = false;
 
-		// Redirect to base URL to show original table state
-		window.location.href = window.location.pathname;
+		// Reset frequency slider if it exists
+		if (window.frequencyRangeSlider?.noUiSlider) {
+			window.frequencyRangeSlider.noUiSlider.set([0, 10]);
+		}
+
+		// Perform search with cleared filters
+		this.performSearch();
 	}
 
 	/**

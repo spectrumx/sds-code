@@ -830,12 +830,26 @@ def _apply_basic_filters(
 ) -> QuerySet[Capture]:
     """Apply basic filters: search, date range, and capture type."""
     if search:
-        qs = qs.filter(
+        # First get the base queryset with direct field matches
+        base_filter = (
             Q(channel__icontains=search)
             | Q(index_name__icontains=search)
             | Q(capture_type__icontains=search)
             | Q(uuid__icontains=search)
         )
+
+        # Then add any captures where the display value matches
+        display_matches = [
+            capture.pk
+            for capture in qs
+            if search.lower() in capture.get_capture_type_display().lower()
+        ]
+
+        if display_matches:
+            base_filter |= Q(pk__in=display_matches)
+
+        qs = qs.filter(base_filter)
+
     if date_start:
         qs = qs.filter(created_at__gte=date_start)
     if date_end:

@@ -614,6 +614,7 @@ class FilterManager {
 		this.applyButton = document.getElementById(config.applyButtonId);
 		this.clearButton = document.getElementById(config.clearButtonId);
 		this.onFilterChange = config.onFilterChange;
+		this.searchInputId = config.searchInputId || "search-input";
 
 		this.initializeEventListeners();
 		this.loadFromURL();
@@ -670,9 +671,15 @@ class FilterManager {
 	clearFilters() {
 		if (!this.form) return;
 
-		// Clear all form inputs
+		// Get all form inputs except the search input
 		const inputs = this.form.querySelectorAll("input, select, textarea");
 		for (const input of inputs) {
+			// Skip the search input
+			if (input.id === this.searchInputId) {
+				continue;
+			}
+
+			// Clear other inputs
 			if (input.type === "checkbox" || input.type === "radio") {
 				input.checked = false;
 			} else {
@@ -680,11 +687,38 @@ class FilterManager {
 			}
 		}
 
-		// Clear URL parameters
-		this.updateURL({});
+		// Get current URL parameters
+		const urlParams = new URLSearchParams(window.location.search);
+		const searchValue = urlParams.get("search");
+		const sortBy = urlParams.get("sort_by") || "created_at";
+		const sortOrder = urlParams.get("sort_order") || "desc";
 
+		// Clear all parameters except search and sort
+		urlParams.forEach((_, key) => {
+			if (key !== "search" && key !== "sort_by" && key !== "sort_order") {
+				urlParams.delete(key);
+			}
+		});
+
+		// Ensure sort parameters are set
+		urlParams.set("sort_by", sortBy);
+		urlParams.set("sort_order", sortOrder);
+		urlParams.set("page", "1");
+
+		// Update URL
+		const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+		window.history.pushState({}, "", newUrl);
+
+		// Trigger filter change callback
 		if (this.onFilterChange) {
-			this.onFilterChange({});
+			const filters = {
+				sort_by: sortBy,
+				sort_order: sortOrder,
+			};
+			if (searchValue) {
+				filters.search = searchValue;
+			}
+			this.onFilterChange(filters);
 		}
 	}
 
@@ -709,6 +743,9 @@ class FilterManager {
 	updateURL(filters) {
 		const urlParams = new URLSearchParams(window.location.search);
 
+		// Preserve search parameter if it exists
+		const searchValue = urlParams.get("search");
+
 		// Remove old filter parameters
 		const formData = new FormData(this.form || document.createElement("form"));
 		for (const key of formData.keys()) {
@@ -720,6 +757,11 @@ class FilterManager {
 			if (value) {
 				urlParams.set(key, value);
 			}
+		}
+
+		// Restore search parameter if it existed
+		if (searchValue) {
+			urlParams.set("search", searchValue);
 		}
 
 		// Reset to first page when filters change
@@ -737,18 +779,20 @@ class SearchManager {
 	constructor(config) {
 		this.searchInput = document.getElementById(config.searchInputId);
 		this.searchButton = document.getElementById(config.searchButtonId);
-		this.clearButton = document.getElementById(config.clearButtonId);
+		this.clearButton = document.getElementById("clear-search-btn");
 		this.onSearch = config.onSearch;
 		this.debounceDelay = config.debounceDelay || 300;
 		this.debounceTimer = null;
 
 		this.initializeEventListeners();
+		this.updateClearButtonVisibility();
 	}
 
 	initializeEventListeners() {
 		if (this.searchInput) {
 			this.searchInput.addEventListener("input", () => {
 				this.debounceSearch();
+				this.updateClearButtonVisibility();
 			});
 
 			this.searchInput.addEventListener("keypress", (e) => {
@@ -774,6 +818,14 @@ class SearchManager {
 		}
 	}
 
+	updateClearButtonVisibility() {
+		if (this.clearButton) {
+			this.clearButton.style.display = this.searchInput?.value
+				? "block"
+				: "none";
+		}
+	}
+
 	debounceSearch() {
 		if (this.debounceTimer) {
 			clearTimeout(this.debounceTimer);
@@ -795,6 +847,7 @@ class SearchManager {
 	clearSearch() {
 		if (this.searchInput) {
 			this.searchInput.value = "";
+			this.updateClearButtonVisibility();
 		}
 
 		this.performSearch();
@@ -908,24 +961,22 @@ class ModalManager {
 								   placeholder="Enter capture name"
 								   maxlength="255"
 								   data-uuid="${data.uuid}">
-							<button class="btn btn-outline-secondary edit-btn"
+							<button class="btn btn-outline-secondary edit-name-btn"
 									type="button"
 									id="edit-name-btn"
 									title="Edit capture name">
 								<i class="bi bi-pencil"></i>
 							</button>
-							<button class="btn btn-outline-danger cancel-btn"
+							<button class="btn btn-outline-danger d-none"
 									type="button"
 									id="cancel-name-btn"
-									title="Cancel editing"
-									style="display: none;">
+									title="Cancel editing">
 								<i class="bi bi-x-lg"></i>
 							</button>
-							<button class="btn btn-outline-primary save-btn"
+							<button class="btn btn-outline-primary save-name-btn d-none"
 									type="button"
 									id="save-name-btn"
-									title="Save changes"
-									style="display: none;">
+									title="Save changes">
 								<i class="bi bi-check-lg"></i>
 							</button>
 						</div>
@@ -1224,8 +1275,13 @@ class ModalManager {
 				}
 			}
 
-			const title = `Capture Details - ${data.channel || "Unknown"}`;
+			const title = data.name
+				? data.name
+				: data.topLevelDir || "Unnamed Capture";
 			this.show(title, modalContent);
+
+			// Store capture data for later use
+			this.currentCaptureData = data;
 
 			// Setup name editing handlers after modal content is loaded
 			this.setupNameEditingHandlers();
@@ -1258,19 +1314,23 @@ class ModalManager {
 			nameInput.disabled = false;
 			nameInput.focus();
 			nameInput.select();
-			editBtn.style.display = "none";
-			saveBtn.classList.add("show");
-			cancelBtn.classList.add("show");
+			editBtn.classList.add("d-none");
+			saveBtn.classList.remove("d-none");
+			cancelBtn.classList.remove("d-none");
 			isEditing = true;
+		};
+
+		const stopEditing = () => {
+			nameInput.disabled = true;
+			editBtn.classList.remove("d-none");
+			saveBtn.classList.add("d-none");
+			cancelBtn.classList.add("d-none");
+			isEditing = false;
 		};
 
 		const cancelEditing = () => {
 			nameInput.value = originalName;
-			nameInput.disabled = true;
-			editBtn.style.display = "inline-block";
-			saveBtn.classList.remove("show");
-			cancelBtn.classList.remove("show");
-			isEditing = false;
+			stopEditing();
 		};
 
 		// Edit button handler
@@ -1305,14 +1365,17 @@ class ModalManager {
 
 				// Success - update UI
 				originalName = newName;
-				nameInput.disabled = true;
-				editBtn.style.display = "inline-block";
-				saveBtn.classList.remove("show");
-				cancelBtn.classList.remove("show");
-				isEditing = false;
+				stopEditing();
 
 				// Update the table display
 				this.updateTableNameDisplay(uuid, newName);
+
+				// Update modal title using stored capture data
+				if (this.modalTitle && this.currentCaptureData) {
+					this.currentCaptureData.name = newName;
+					this.modalTitle.textContent =
+						newName || this.currentCaptureData.topLevelDir || "Unnamed Capture";
+				}
 
 				// Show success message
 				this.showSuccessMessage("Capture name updated successfully!");
@@ -1810,3 +1873,19 @@ if (typeof module !== "undefined" && module.exports) {
 		PaginationManager,
 	};
 }
+
+// Add custom styles
+const style = document.createElement("style");
+style.textContent = `
+  .edit-name-btn:hover i,
+  .save-name-btn:hover i {
+    color: white !important;
+  }
+
+  /* Hide native clear button in Chrome */
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    display: none;
+  }
+`;
+document.head.appendChild(style);
