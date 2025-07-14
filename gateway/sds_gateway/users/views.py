@@ -1887,6 +1887,7 @@ class UploadFilesView(View):
                 )
             except Exception:
                 logger.exception("Failed to create capture for channel %s", channel)
+                # Continue to next channel, do not raise
                 continue
         return created_captures
 
@@ -1896,9 +1897,31 @@ class UploadFilesView(View):
         channels_str = request.POST.get("channels", "")
         channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
         saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
-        created_captures = self._create_captures(request, channels, relative_paths)
+        created_captures = []
+        file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
+        # Only create captures if all uploads succeeded
+        if saved_files and len(saved_files) == len(files) and not errors:
+            created_captures = self._create_captures(request, channels, relative_paths)
+            # Link all uploaded files to all created captures
+            from sds_gateway.api_methods.models import Capture
+            from sds_gateway.api_methods.models import File
+
+            if created_captures:
+                # Get File objects by uuid
+                file_objs = File.objects.filter(uuid__in=file_uuids)
+                capture_uuids = [c["uuid"] for c in created_captures if c.get("uuid")]
+                captures = Capture.objects.filter(uuid__in=capture_uuids)
+                for capture in captures:
+                    file_objs.update(capture=capture)
+        elif errors:
+            logger.error(
+                "File upload errors occurred, skipping capture creation. Errors: %s",
+                errors,
+            )
         response_data = {
-            "status": "success" if saved_files else "error",
+            "status": "success"
+            if saved_files and len(saved_files) == len(files) and not errors
+            else ("partial_success" if saved_files else "error"),
             "files": saved_files,
             "total_uploaded": len(saved_files),
             "total_files": len(files),
@@ -1906,7 +1929,6 @@ class UploadFilesView(View):
         }
         if errors:
             response_data["errors"] = errors
-            response_data["status"] = "partial_success" if saved_files else "error"
         status_code = 200 if saved_files else 400
         return JsonResponse(response_data, status=status_code)
 
