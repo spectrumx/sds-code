@@ -396,8 +396,11 @@ class FileListController {
 	 * Clear all filter inputs
 	 */
 	clearAllFilters() {
-		// Reset all filter inputs
-		if (this.elements.searchInput) this.elements.searchInput.value = "";
+		// Get current URL parameters
+		const urlParams = new URLSearchParams(window.location.search);
+		const currentSearch = urlParams.get("search");
+
+		// Reset all filter inputs except search
 		if (this.elements.startDate) this.elements.startDate.value = "";
 		if (this.elements.endDate) this.elements.endDate.value = "";
 		if (this.elements.centerFreqMin) this.elements.centerFreqMin.value = "";
@@ -411,7 +414,20 @@ class FileListController {
 			window.frequencyRangeSlider.noUiSlider.set([0, 10]);
 		}
 
-		// Perform search with cleared filters
+		// Create new URL parameters with only search and sort parameters preserved
+		const newParams = new URLSearchParams();
+		if (currentSearch) {
+			newParams.set("search", currentSearch);
+		}
+		newParams.set("sort_by", this.currentSortBy);
+		newParams.set("sort_order", this.currentSortOrder);
+
+		// Update URL and trigger search
+		window.history.pushState(
+			{},
+			"",
+			`${window.location.pathname}?${newParams.toString()}`,
+		);
 		this.performSearch();
 	}
 
