@@ -1,7 +1,7 @@
 import datetime
 import json
 import logging
-import os
+import mimetypes
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -36,12 +36,16 @@ from django.views.generic import UpdateView
 from rest_framework import status
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    CapturePostSerializer,
+)
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -65,6 +69,38 @@ from sds_gateway.users.utils import deduplicate_composite_captures
 
 # Add logger for debugging
 logger = logging.getLogger(__name__)
+
+
+def is_valid_file(file_path):
+    """Returns True if the path is a valid file for SDS upload."""
+    disallowed_mimes = [
+        "application/x-msdownload",  # .exe
+        "application/x-msdos-program",  # .com
+        "application/x-msi",  # .msi
+    ]
+    mime_type, _ = mimetypes.guess_type(file_path)
+    reasons = []
+    path_obj = Path(file_path)
+    if mime_type in disallowed_mimes:
+        reasons.append(f"Invalid MIME type: {mime_type}")
+    if not path_obj.is_file():
+        reasons.append("Not a file")
+    if path_obj.stat().st_size == 0:
+        reasons.append("Empty file")
+    return len(reasons) == 0, reasons
+
+
+def get_valid_files(root_dir: Path):
+    """
+    Recursively yields (relative_path, file_path) for valid files under root_dir.
+    """
+    for file_path in root_dir.rglob("*"):
+        if not file_path.is_file():
+            continue
+        is_valid, reasons = is_valid_file(str(file_path))
+        if is_valid:
+            rel_path = str(file_path.relative_to(root_dir))
+            yield rel_path, file_path
 
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -1696,56 +1732,96 @@ user_capture_download_view = CaptureDownloadView.as_view()
 @method_decorator(csrf_exempt, name="dispatch")
 class UploadFilesView(View):
     def _handle_file_uploads(self, request, files, relative_paths):
+        import tempfile
+
+        from sds_gateway.api_methods.serializers.file_serializers import (
+            FilePostSerializer,
+        )
+
         saved_files = []
         errors = []
-        for f, rel_path in zip(files, relative_paths, strict=False):
-            try:
+
+        # Save uploaded files to a temporary directory to use Path interface
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir_path = Path(temp_dir)
+            # Map relative_paths to files and save them to disk
+            for f, rel_path in zip(files, relative_paths, strict=True):
+                file_disk_path = temp_dir_path / rel_path
+                file_disk_path.parent.mkdir(parents=True, exist_ok=True)
+                with file_disk_path.open("wb") as out_f:
+                    for chunk in f.chunks():
+                        out_f.write(chunk)
+
+            # Use get_valid_files to filter only valid files
+            valid_relpaths = set()
+            for rel_path, file_disk_path in get_valid_files(temp_dir_path):
+                valid_relpaths.add(rel_path)
                 if "/" in rel_path:
-                    directory, filename = os.path.split(rel_path)
+                    directory, filename = rel_path.rsplit("/", 1)
                     directory = (
                         "/" + directory if not directory.startswith("/") else directory
                     )
                 else:
                     directory = "/"
                     filename = rel_path
-                if not filename or filename.strip() == "":
-                    errors.append(f"Invalid filename for file: {f.name}")
-                    continue
-                file_size = f.size
-                content_type = f.content_type or "application/octet-stream"
-                file_obj = File.objects.create(
-                    owner=request.user,
-                    name=filename,
-                    directory=directory,
-                    file=f,
-                    size=file_size,
-                    media_type=content_type,
-                )
-                saved_files.append(
-                    {
+                file_size = file_disk_path.stat().st_size
+                content_type, _ = mimetypes.guess_type(str(file_disk_path))
+                content_type = content_type or "application/octet-stream"
+                with file_disk_path.open("rb") as fdata:
+                    from django.core.files.uploadedfile import SimpleUploadedFile
+
+                    django_file = SimpleUploadedFile(
+                        filename, fdata.read(), content_type=content_type
+                    )
+                    data = {
+                        "owner": request.user.pk,
                         "name": filename,
                         "directory": directory,
+                        "file": django_file,
                         "size": file_size,
-                        "uuid": str(file_obj.uuid)
-                        if hasattr(file_obj, "uuid")
-                        else None,
+                        "media_type": content_type,
                     }
-                )
-                logger.info("Successfully uploaded file: %s to %s", filename, directory)
-            except Exception as exc:
-                error_msg = f"Failed to upload {f.name}: {exc!s}"
-                errors.append(error_msg)
-                logger.exception(error_msg)
-                continue
+                    serializer = FilePostSerializer(
+                        data=data, context={"request_user": request.user}
+                    )
+                    if serializer.is_valid():
+                        file_obj_db = serializer.save()
+                        saved_files.append(
+                            {
+                                "name": filename,
+                                "directory": directory,
+                                "size": file_size,
+                                "uuid": str(file_obj_db.uuid)
+                                if hasattr(file_obj_db, "uuid")
+                                else None,
+                            }
+                        )
+                        logger.info(
+                            "Successfully uploaded file: %s to %s",
+                            filename,
+                            directory,
+                        )
+                    else:
+                        error_msg = f"Failed to upload {filename}: {serializer.errors}"
+                        errors.append(error_msg)
+                        logger.error(error_msg)
+
+            # For files that were not valid, collect reasons
+            for _f, rel_path in zip(files, relative_paths, strict=True):
+                if rel_path not in valid_relpaths:
+                    file_disk_path = temp_dir_path / rel_path
+                    is_valid, reasons = is_valid_file(str(file_disk_path))
+                    if not is_valid:
+                        error_msg = f"File {rel_path} skipped: {', '.join(reasons)}"
+                        errors.append(error_msg)
+                        logger.warning(error_msg)
         return saved_files, errors
 
     def _create_captures(self, request, channels, relative_paths):
         created_captures = []
+        errors = []
         if not channels:
             return created_captures
-        from pathlib import PurePosixPath
-
-        from sds_gateway.api_methods.models import Capture
 
         if relative_paths:
             first_rel_path = relative_paths[0]
@@ -1757,26 +1833,50 @@ class UploadFilesView(View):
             top_level_dir = "/"
         for channel in channels:
             try:
-                capture = Capture.objects.create(
-                    owner=request.user,
-                    top_level_dir=PurePosixPath(top_level_dir),
-                    capture_type="digitalrf",
-                    channel=channel,
-                    index_name="captures-digitalrf",
+                data = {
+                    "owner": request.user.pk,
+                    "top_level_dir": str(top_level_dir),
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel,
+                    "index_name": "captures-digitalrf",
+                }
+                serializer = CapturePostSerializer(
+                    data=data, context={"request_user": request.user}
                 )
-                capture.refresh_from_db()
-                logger.info("DEBUG: Created capture with uuid: %s", capture.uuid)
-                created_captures.append(
-                    {
-                        "uuid": str(capture.uuid) if hasattr(capture, "uuid") else None,
-                        "channel": channel,
-                        "top_level_dir": str(top_level_dir),
-                    }
-                )
-            except Exception:
+                if serializer.is_valid():
+                    capture = serializer.save()
+                    capture.refresh_from_db()
+                    logger.info(
+                        "DEBUG: Created capture with uuid: %s",
+                        capture.uuid,
+                    )
+                    created_captures.append(
+                        {
+                            "uuid": str(capture.uuid)
+                            if hasattr(capture, "uuid")
+                            else None,
+                            "channel": channel,
+                            "top_level_dir": str(top_level_dir),
+                        }
+                    )
+                else:
+                    logger.error(
+                        "Failed to create capture for channel %s: %s",
+                        channel,
+                        serializer.errors,
+                    )
+                    errors.append(
+                        f"Failed to create capture for channel {channel}: "
+                        f"{serializer.errors}"
+                    )
+            except Exception as exc:
                 logger.exception("Failed to create capture for channel %s", channel)
-                # Continue to next channel, do not raise
+                errors.append(
+                    f"Failed to create capture for channel {channel}: {exc!s}"
+                )
                 continue
+        if errors:
+            logger.error("Capture creation errors: %s", errors)
         return created_captures
 
     def post(self, request, *args, **kwargs):
