@@ -481,6 +481,8 @@
                     })
                     .then(response => response.json())
                     .then(data => {
+                        let modalBody = document.getElementById('uploadResultModalBody');
+                        let modal = new bootstrap.Modal(document.getElementById('uploadResultModal'));
                         if (data.status === 'success' || data.status === 'partial_success') {
                             let msg = `<b>Upload complete!</b><br />Files uploaded: <strong>${data.total_uploaded}</strong> / ${data.total_files}`;
                             if (data.captures && data.captures.length > 0) {
@@ -491,14 +493,16 @@
                                 let errs = data.errors.map(e => `<li>${e}</li>`).join('');
                                 msg += `<br /><b>Errors:</b><ul>${errs}</ul>`;
                             }
-                            showUploadAlert(msg, 'success');
+                            modalBody.innerHTML = msg;
+                            modal.show();
                         } else {
                             let msg = 'Upload failed: ' + (data.error || 'Unknown error');
                             if (data.errors && data.errors.length > 0) {
                                 let errs = data.errors.map(e => `<li>${e}</li>`).join('');
                                 msg += `<br /><b>Errors:</b><ul>${errs}</ul>`;
                             }
-                            showUploadAlert(msg, 'danger');
+                            modalBody.innerHTML = msg;
+                            modal.show();
                         }
                     })
                     .catch(error => {
