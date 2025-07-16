@@ -83,7 +83,9 @@ class OpenSearchRHIndexResetTest(APITestCase):
 
         # Setup test data and create initial capture
         self._setup_test_data()
-        self.capture = self._create_test_capture(self.user, self.top_level_dir)
+        self.capture = self._create_test_capture(
+            owner=self.user, top_level_dir=self.top_level_dir
+        )
         self._initialize_test_index()
         self._index_test_capture(self.capture)
 
@@ -152,6 +154,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
 
     def _create_test_capture(self, owner: User, top_level_dir: str) -> Capture:
         """Create and index a test capture."""
+        # TODO: create files for this capture
         return Capture.objects.create(
             owner=owner,
             scan_group=self.scan_group,
@@ -165,7 +168,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
         json_content = json.dumps(self.json_file).encode("utf-8")
         self.uploaded_file = SimpleUploadedFile(
             "test.rh.json",
-            json_content,
+            content=json_content,
             content_type="application/json",
         )
 
@@ -388,7 +391,9 @@ class OpenSearchRHIndexResetTest(APITestCase):
         assert initial_response["hits"]["total"]["value"] == 1
 
         # Create duplicate capture
-        duplicate_capture = self._create_test_capture(self.user, self.top_level_dir)
+        duplicate_capture = self._create_test_capture(
+            owner=self.user, top_level_dir=self.top_level_dir
+        )
         self._index_test_capture(duplicate_capture)
 
         # Verify duplicate capture was created
@@ -508,7 +513,9 @@ class OpenSearchDRFIndexResetTest(APITestCase):
 
         # setup test data and create initial capture
         self._setup_test_data()
-        self.capture = self._create_test_capture(self.user, self.top_level_dir)
+        self.capture = self._create_test_capture(
+            owner=self.user, top_level_dir=self.top_level_dir
+        )
         self._initialize_test_index()
         self._index_test_capture(self.capture)
 
@@ -792,7 +799,9 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         assert initial_response["hits"]["total"]["value"] == 1
 
         # Create duplicate capture
-        duplicate_capture = self._create_test_capture(self.user, self.top_level_dir)
+        duplicate_capture = self._create_test_capture(
+            owner=self.user, top_level_dir=self.top_level_dir
+        )
         self._index_test_capture(duplicate_capture)
 
         # Verify duplicate capture was created
@@ -832,7 +841,9 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         other_top_level_dir = f"/files/{other_user.email}/{self.channel}"
         expected_count = 2
         # Create a duplicate capture for the second user
-        duplicate_capture = self._create_test_capture(other_user, other_top_level_dir)
+        duplicate_capture = self._create_test_capture(
+            owner=other_user, top_level_dir=other_top_level_dir
+        )
         self._index_test_capture(duplicate_capture)
 
         # Get initial document
