@@ -166,7 +166,15 @@ user_generate_api_key_view = GenerateAPIKeyView.as_view()
 
 
 class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
-    """Handle item sharing functionality using the generalized UserSharePermission model."""  # noqa: E501
+    """
+    View to handle item sharing functionality using
+    the generalized UserSharePermission model.
+
+    This view is used to search for users to share with,
+    add users to item sharing, and remove users from item sharing.
+
+    It also handles the notification of shared users.
+    """
 
     # Map item types to their corresponding models
     ITEM_MODELS = {
@@ -229,7 +237,20 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         request_user: User,
         message: str = "",
     ) -> tuple[list[str], list[str]]:
-        """Add users to item sharing using UserSharePermission and return (shared_users, errors)."""  # noqa: E501
+        """
+        Add users to item sharing using UserSharePermission
+        and return (shared_users, errors).
+
+        Args:
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share from ItemType enum
+            user_emails_str: A comma-separated string of user emails to share with
+            request_user: The user sharing the item
+            message: A message to share with the users
+
+        Returns:
+            A tuple containing a list of shared users and a list of errors
+        """
         if not user_emails_str:
             return [], []
 
@@ -297,7 +318,19 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         users_to_remove: list[str],
         request_user: User,
     ) -> tuple[list[str], list[str]]:
-        """Remove users from item sharing using UserSharePermission and return (removed_users, errors)."""  # noqa: E501
+        """
+        Remove users from item sharing using UserSharePermission
+        and return (removed_users, errors).
+
+        Args:
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share from ItemType enum
+            users_to_remove: A list of user emails to remove
+            request_user: The user removing the users
+
+        Returns:
+            A tuple containing a list of removed users and a list of errors
+        """
         removed_users = []
         errors = []
 
@@ -337,7 +370,18 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         removed_users: list[str],
         errors: list[str],
     ) -> JsonResponse:
-        """Build the response message based on the results."""
+        """
+        Build the response message based on the results.
+
+        Args:
+            item_type: The type of item to share from ItemType enum
+            shared_users: A list of user emails that were shared
+            removed_users: A list of user emails that were removed
+            errors: A list of error messages
+
+        Returns:
+            A JSON response containing the response message
+        """
         response_parts = []
         if shared_users:
             response_parts.append(
@@ -365,7 +409,17 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         *args: Any,
         **kwargs: Any,
     ) -> HttpResponse:
-        """Share an item with another user using the generalized permission system."""
+        """
+        Share an item with another user using the generalized permission system.
+
+        Args:
+            request: The HTTP request object
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share from ItemType enum
+
+        Returns:
+            A JSON response containing the response message
+        """
         # Validate item type
         if item_type not in self.ITEM_MODELS:
             return JsonResponse({"error": "Invalid item type"}, status=400)
@@ -424,7 +478,16 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         *args: Any,
         **kwargs: Any,
     ) -> HttpResponse:
-        """Remove a user from item sharing using the generalized permission system."""
+        """Remove a user from item sharing using the generalized permission system.
+
+        Args:
+            request: The HTTP request object
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share from ItemType enum
+
+        Returns:
+            A JSON response containing the response message
+        """
         # Validate item type
         if item_type not in self.ITEM_MODELS:
             return JsonResponse({"error": "Invalid item type"}, status=400)

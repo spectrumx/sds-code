@@ -899,6 +899,7 @@ def _validate_capture_download_request(
     return None, user, capture
 
 
+@shared_task
 def notify_shared_users(
     item_uuid: str,
     item_type: ItemType,
