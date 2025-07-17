@@ -18,9 +18,14 @@ from rest_framework.test import APITestCase
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.users.models import UserAPIKey
+
+# Test constants
+TEST_USER_PASSWORD = "testpass123"  # noqa: S105
 
 if TYPE_CHECKING:
     from rest_framework_api_key.models import AbstractAPIKey
@@ -912,6 +917,58 @@ class CaptureTestCases(APITestCase):
         """Test deleting a capture returns 204."""
         response = self.client.delete(self.detail_url(self.drf_capture_v0.uuid))
         assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    def test_soft_delete_capture_deletes_share_permissions(self) -> None:
+        """
+        Test that soft deleting a capture also
+        soft deletes related share permissions.
+        """
+
+        # Create a test user to share with
+        shared_user = User.objects.create_user(
+            email="shared@example.com",
+            password=TEST_USER_PASSWORD,
+            name="Shared User",
+        )
+
+        # Create a capture
+        capture = Capture.objects.create(
+            owner=self.user,
+            capture_type=CaptureType.DigitalRF,
+            channel="test_channel",
+            top_level_dir="/test/dir",
+            index_name="test_index",
+        )
+
+        # Create a share permission for this capture
+        share_permission = UserSharePermission.objects.create(
+            owner=self.user,
+            shared_with=shared_user,
+            item_type=ItemType.CAPTURE,
+            item_uuid=capture.uuid,
+            is_enabled=True,
+        )
+
+        # Verify the share permission exists and is not deleted
+        assert UserSharePermission.objects.filter(
+            item_uuid=capture.uuid, item_type=ItemType.CAPTURE, is_deleted=False
+        ).exists()
+
+        # Soft delete the capture
+        capture.soft_delete()
+
+        # Verify the capture is soft deleted
+        capture.refresh_from_db()
+        assert capture.is_deleted is True
+
+        # Verify the share permission is also soft deleted
+        share_permission.refresh_from_db()
+        assert share_permission.is_deleted is True
+
+        # Verify no active share permissions exist for this capture
+        assert not UserSharePermission.objects.filter(
+            item_uuid=capture.uuid, item_type=ItemType.CAPTURE, is_deleted=False
+        ).exists()
 
 
 class OpenSearchErrorTestCases(APITestCase):

@@ -679,8 +679,16 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         # Extract request parameters
         params = self._extract_request_params(request)
 
-        # Query database for captures
-        qs = request.user.captures.filter(is_deleted=False)
+        # Get captures owned by the user
+        owned_captures = request.user.captures.filter(is_deleted=False)
+
+        # Get captures shared with the user (exclude owned)
+        shared_captures = Capture.objects.filter(
+            shared_with=request.user, is_deleted=False
+        ).exclude(owner=request.user)
+
+        # Combine owned and shared captures
+        qs = owned_captures.union(shared_captures)
 
         # Apply all filters
         qs = _apply_basic_filters(
@@ -713,6 +721,15 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         for capture in page_obj:
             # Use composite serialization to handle multi-channel captures properly
             capture_data = serialize_capture_or_composite(capture)
+
+            # Add ownership flags for template display
+            capture_data["is_owner"] = capture.owner == request.user
+            capture_data["is_shared_with_me"] = capture.owner != request.user
+            capture_data["owner_name"] = (
+                capture.owner.name if capture.owner else "Owner"
+            )
+            capture_data["owner_email"] = capture.owner.email if capture.owner else ""
+
             enhanced_captures.append(capture_data)
 
         # Update the page_obj with enhanced captures
@@ -760,8 +777,18 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             # Extract and validate parameters
             params = self._extract_request_params(request)
 
-            # Start with base queryset
-            qs = Capture.objects.filter(owner=request.user)
+            # Get captures owned by the user
+            owned_captures = Capture.objects.filter(
+                owner=request.user, is_deleted=False
+            )
+
+            # Get captures shared with the user (exclude owned)
+            shared_captures = Capture.objects.filter(
+                shared_with=request.user, is_deleted=False
+            ).exclude(owner=request.user)
+
+            # Combine owned and shared captures
+            qs = owned_captures.union(shared_captures)
 
             # Apply filters
             qs = _apply_basic_filters(
@@ -791,6 +818,17 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                     # Use composite serialization to handle multi-channel captures
                     # properly
                     capture_data = serialize_capture_or_composite(capture)
+
+                    # Add ownership flags for API response
+                    capture_data["is_owner"] = capture.owner == request.user
+                    capture_data["is_shared_with_me"] = capture.owner != request.user
+                    capture_data["owner_name"] = (
+                        capture.owner.name if capture.owner else "Owner"
+                    )
+                    capture_data["owner_email"] = (
+                        capture.owner.email if capture.owner else ""
+                    )
+
                     captures_data.append(capture_data)
                 except Exception:
                     logger.exception("Error serializing capture %s", capture.uuid)
@@ -1144,10 +1182,21 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
         selected_captures_details: dict[str, Any] = {}
         composite_capture_dirs: set[str] = set()
         if existing_dataset:
-            captures_queryset = existing_dataset.captures.filter(
+            # Get captures owned by the user
+            owned_captures = existing_dataset.captures.filter(
                 is_deleted=False,
                 owner=self.request.user,
             )
+
+            # Get captures shared with the user (exclude owned)
+            shared_captures = existing_dataset.captures.filter(
+                is_deleted=False,
+                shared_with=self.request.user,
+            ).exclude(owner=self.request.user)
+
+            # Combine owned and shared captures
+            captures_queryset = owned_captures.union(shared_captures)
+
             # Only include one composite per group
             for capture in captures_queryset.order_by("-created_at"):
                 if capture.is_multi_channel:
