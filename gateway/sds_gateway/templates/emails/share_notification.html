@@ -4,11 +4,11 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{{ item_type|title }} Shared With You</title>
+        <!-- djlint:off -->
         <style>
-            {
-                % include 'emails/email_styles.html' %
-            }
+            {% include 'emails/email_styles.html' %}
         </style>
+        <!-- djlint:on -->
     </head>
     <body>
         <div class="container">
