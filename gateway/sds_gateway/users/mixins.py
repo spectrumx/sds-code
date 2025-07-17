@@ -126,10 +126,20 @@ class FormSearchMixin:
     """Mixin for search form in group captures view"""
 
     def search_captures(self, search_data, request) -> list[Capture]:
-        queryset = Capture.objects.filter(
+        # Get captures owned by the user
+        owned_captures = Capture.objects.filter(
             owner=request.user,
             is_deleted=False,
         )
+
+        # Get captures shared with the user (exclude owned)
+        shared_captures = Capture.objects.filter(
+            shared_with=request.user,
+            is_deleted=False,
+        ).exclude(owner=request.user)
+
+        # Combine owned and shared captures
+        queryset = owned_captures.union(shared_captures)
 
         # Build a Q object for complex queries
         q_objects = Q()

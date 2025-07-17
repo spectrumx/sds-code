@@ -995,3 +995,41 @@ def get_shared_items_for_user(user, item_type=None):
         QuerySet: UserSharePermission objects for items shared with the user
     """
     return UserSharePermission.get_shared_items_for_user(user, item_type)
+
+
+@receiver(pre_delete, sender=Capture)
+def handle_capture_soft_delete(sender, instance: Capture, **kwargs) -> None:
+    """
+    Handle soft deletion of captures by also
+    soft deleting related share permissions.
+    """
+    if instance.is_deleted:
+        # This is a soft delete, so we need to soft delete related share permissions
+        # Soft delete all UserSharePermission records for this capture
+        share_permissions = UserSharePermission.objects.filter(
+            item_uuid=instance.uuid,
+            item_type=ItemType.CAPTURE,
+            is_deleted=False,
+        )
+
+        for permission in share_permissions:
+            permission.soft_delete()
+
+
+@receiver(pre_delete, sender=Dataset)
+def handle_dataset_soft_delete(sender, instance: Dataset, **kwargs) -> None:
+    """
+    Handle soft deletion of datasets by also
+    soft deleting related share permissions.
+    """
+    if instance.is_deleted:
+        # This is a soft delete, so we need to soft delete related share permissions
+        # Soft delete all UserSharePermission records for this dataset
+        share_permissions = UserSharePermission.objects.filter(
+            item_uuid=instance.uuid,
+            item_type=ItemType.DATASET,
+            is_deleted=False,
+        )
+
+        for permission in share_permissions:
+            permission.soft_delete()
