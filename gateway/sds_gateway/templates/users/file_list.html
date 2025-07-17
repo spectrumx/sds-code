@@ -247,6 +247,7 @@
     {{ block.super }}
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
+    <script src="{% static 'js/userSearchComponent.js' %}"></script>
     <script>
         // Initialize noUiSlider for frequency range
         document.addEventListener('DOMContentLoaded', function() {
@@ -322,6 +323,35 @@
                     window.initializeFrequencySlider();
                 }
             }
+        });
+
+        // Initialize share modals for captures
+        document.addEventListener('DOMContentLoaded', function() {
+            // Create a UserSearchHandler for each share modal
+            document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
+                const itemUuid = modal.getAttribute('data-item-uuid');
+                const itemType = modal.getAttribute('data-item-type');
+                if (window.UserSearchHandler) {
+                    const handler = new window.UserSearchHandler();
+                    // Store the handler on the modal element
+                    modal.userSearchHandler = handler;
+                }
+
+                // On modal show, set the item info and call init()
+                modal.addEventListener('show.bs.modal', function() {
+                    if (modal.userSearchHandler) {
+                        modal.userSearchHandler.setItemInfo(itemUuid, itemType);
+                        modal.userSearchHandler.init();
+                    }
+                });
+
+                // On modal hide, reset all selections and entered data
+                modal.addEventListener('hidden.bs.modal', function() {
+                    if (modal.userSearchHandler) {
+                        modal.userSearchHandler.resetAll();
+                    }
+                });
+            });
         });
     </script>
 {% endblock javascript %}

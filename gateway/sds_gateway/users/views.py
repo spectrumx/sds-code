@@ -682,9 +682,16 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         # Get captures owned by the user
         owned_captures = request.user.captures.filter(is_deleted=False)
 
-        # Get captures shared with the user (exclude owned)
+        # Get captures shared with the user using the new UserSharePermission model
+        shared_permissions = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            item_type=ItemType.CAPTURE,
+            is_deleted=False,
+            is_enabled=True,
+        ).values_list("item_uuid", flat=True)
+
         shared_captures = Capture.objects.filter(
-            shared_with=request.user, is_deleted=False
+            uuid__in=shared_permissions, is_deleted=False
         ).exclude(owner=request.user)
 
         # Combine owned and shared captures
@@ -729,6 +736,24 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
                 capture.owner.name if capture.owner else "Owner"
             )
             capture_data["owner_email"] = capture.owner.email if capture.owner else ""
+
+            # Add shared users data for share modal
+            if capture.owner == request.user:
+                # Get shared users using the new model
+                shared_permissions = UserSharePermission.objects.filter(
+                    item_uuid=capture.uuid,
+                    item_type=ItemType.CAPTURE,
+                    owner=request.user,
+                    is_deleted=False,
+                    is_enabled=True,
+                ).select_related("shared_with")
+                shared_users = [
+                    {"name": perm.shared_with.name, "email": perm.shared_with.email}
+                    for perm in shared_permissions
+                ]
+                capture_data["shared_users"] = shared_users
+            else:
+                capture_data["shared_users"] = []
 
             enhanced_captures.append(capture_data)
 
@@ -782,9 +807,16 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                 owner=request.user, is_deleted=False
             )
 
-            # Get captures shared with the user (exclude owned)
+            # Get captures shared with the user using the new UserSharePermission model
+            shared_permissions = UserSharePermission.objects.filter(
+                shared_with=request.user,
+                item_type=ItemType.CAPTURE,
+                is_deleted=False,
+                is_enabled=True,
+            ).values_list("item_uuid", flat=True)
+
             shared_captures = Capture.objects.filter(
-                shared_with=request.user, is_deleted=False
+                uuid__in=shared_permissions, is_deleted=False
             ).exclude(owner=request.user)
 
             # Combine owned and shared captures
@@ -828,6 +860,27 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                     capture_data["owner_email"] = (
                         capture.owner.email if capture.owner else ""
                     )
+
+                    # Add shared users data for share modal
+                    if capture.owner == request.user:
+                        # Get shared users using the new model
+                        shared_permissions = UserSharePermission.objects.filter(
+                            item_uuid=capture.uuid,
+                            item_type=ItemType.CAPTURE,
+                            owner=request.user,
+                            is_deleted=False,
+                            is_enabled=True,
+                        ).select_related("shared_with")
+                        shared_users = [
+                            {
+                                "name": perm.shared_with.name,
+                                "email": perm.shared_with.email,
+                            }
+                            for perm in shared_permissions
+                        ]
+                        capture_data["shared_users"] = shared_users
+                    else:
+                        capture_data["shared_users"] = []
 
                     captures_data.append(capture_data)
                 except Exception:
