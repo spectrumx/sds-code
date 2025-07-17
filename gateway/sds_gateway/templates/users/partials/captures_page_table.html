@@ -24,18 +24,11 @@
                 <tr>
                     <th scope="col" id="name-header" class="w-auto">Name</th>
                     <th scope="col"
-                        id="channel-header"
+                        id="top-level-dir-header"
                         class="sortable w-auto"
-                        data-sort="channel"
+                        data-sort="top_level_dir"
                         aria-sort="none">
-                        Channel <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
-                    </th>
-                    <th scope="col"
-                        id="created-header"
-                        class="sortable w-auto"
-                        data-sort="created_at"
-                        aria-sort="none">
-                        Created <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
+                        Directory <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
                     <th scope="col"
                         id="type-header"
@@ -45,25 +38,11 @@
                         Type <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
                     <th scope="col"
-                        id="author-header"
+                        id="created-header"
                         class="sortable w-auto"
-                        data-sort="owner__name"
+                        data-sort="created_at"
                         aria-sort="none">
-                        Author <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
-                    </th>
-                    <th scope="col"
-                        id="frequency-header"
-                        class="sortable w-auto"
-                        data-sort="center_frequency_ghz"
-                        aria-sort="none">
-                        <abbr title="Center Frequency">Center Freq</abbr> <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
-                    </th>
-                    <th scope="col"
-                        id="sample-rate-header"
-                        class="sortable w-auto"
-                        data-sort="sample_rate_mhz"
-                        aria-sort="none">
-                        Sample Rate <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
+                        Created <i class="bi bi-caret-down-fill sort-icon" aria-hidden="true"></i>
                     </th>
                     <th scope="col" id="actions-header" class="w-auto text-center">Actions</th>
                 </tr>
@@ -76,7 +55,7 @@
                                 <a href="#"
                                    class="capture-link"
                                    data-uuid="{{ cap.uuid }}"
-                                   data-name="{{ cap.name|default:'' }}"
+                                   data-name="{{ cap.name|default:'-' }}"
                                    data-channel="{% if cap.is_multi_channel %}{% for channel in cap.channels %}{{ channel.channel }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ cap.channel }}{% endif %}"
                                    data-scan-group="{{ cap.scan_group }}"
                                    data-capture-type="{{ cap.capture_type }}"
@@ -94,18 +73,16 @@
                                    title="View capture details: {{ cap.name|default:cap.uuid }}">
                                     {{ cap.name|default:"Unnamed Capture" }}
                                 </a>
-                            </td>
-                            <td headers="channel-header">
-                                {% if cap.is_multi_channel %}
-                                    <!-- Composite capture - show all channels -->
-                                    {% for channel_data in cap.channels %}
-                                        {{ channel_data.channel }}
-                                        {% if not forloop.last %},{% endif %}
-                                    {% endfor %}
-                                {% else %}
-                                    {{ cap.channel }}
+                                {% if cap.is_shared_with_me %}
+                                    <span class="ms-2 align-middle"
+                                          data-bs-toggle="tooltip"
+                                          title="Shared with you">
+                                        <i class="bi bi-people-fill text-success"></i>
+                                    </span>
                                 {% endif %}
                             </td>
+                            <td headers="top-level-dir-header">{{ cap.top_level_dir|default:"-" }}</td>
+                            <td headers="type-header">{{ cap.capture_type_display }}</td>
                             <td headers="created-header" class="text-nowrap">
                                 {% if cap.formatted_created_at %}
                                     <div>{{ cap.formatted_created_at|split:" ,0" }}</div>
@@ -113,30 +90,6 @@
                                 {% else %}
                                     <div>-</div>
                                     <small class="text-muted">No date</small>
-                                {% endif %}
-                            </td>
-                            <td headers="type-header">{{ cap.capture_type_display }}</td>
-                            <td headers="author-header">
-                                {% if cap.owner and cap.owner.name %}
-                                    {{ cap.owner.name }}
-                                {% elif cap.owner %}
-                                    {{ cap.owner.email }}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td headers="frequency-header">
-                                {% if cap.center_frequency_ghz %}
-                                    {{ cap.center_frequency_ghz|floatformat:1 }} GHz
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td headers="sample-rate-header">
-                                {% if cap.sample_rate_mhz %}
-                                    {{ cap.sample_rate_mhz|floatformat:0 }} MHz
-                                {% else %}
-                                    -
                                 {% endif %}
                             </td>
                             <td headers="actions-header" class="text-center">
@@ -150,31 +103,14 @@
                                         <i class="bi bi-three-dots-vertical"></i>
                                     </button>
                                     <ul class="dropdown-menu">
-                                        <li>
-                                            <button class="dropdown-item capture-details-btn"
-                                                    type="button"
-                                                    data-uuid="{{ cap.uuid }}"
-                                                    data-name="{{ cap.name|default:'' }}"
-                                                    data-channel="{% if cap.is_multi_channel %}{% for channel in cap.channels %}{{ channel.channel }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ cap.channel }}{% endif %}"
-                                                    data-scan-group="{{ cap.scan_group }}"
-                                                    data-capture-type="{{ cap.capture_type }}"
-                                                    data-top-level-dir="{{ cap.top_level_dir }}"
-                                                    data-owner="{{ cap.owner }}"
-                                                    data-origin="{{ cap.origin }}"
-                                                    data-dataset="{{ cap.dataset }}"
-                                                    data-created-at="{{ cap.created_at }}"
-                                                    data-updated-at="{{ cap.updated_at }}"
-                                                    data-is-public="{{ cap.is_public }}"
-                                                    data-center-frequency-ghz="{{ cap.center_frequency_ghz }}"
-                                                    data-is-multi-channel="{{ cap.is_multi_channel|yesno:'True,False' }}"
-                                                    data-channels="{{ cap.channels|safe }}">Edit</button>
-                                        </li>
-                                        <li>
-                                            <button class="dropdown-item download-capture-btn"
-                                                    type="button"
-                                                    data-capture-uuid="{{ cap.uuid }}"
-                                                    data-capture-name="{{ cap.name|default:'' }}">Download</button>
-                                        </li>
+                                        {% if cap.is_owner %}
+                                            <li>
+                                                <button class="dropdown-item"
+                                                        type="button"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#share-modal-{{ cap.uuid }}">Share</button>
+                                            </li>
+                                        {% endif %}
                                     </ul>
                                 </div>
                             </td>
@@ -182,7 +118,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">
+                        <td colspan="5" class="text-center text-muted py-4">
                             <em>No captures found matching your search criteria.</em>
                         </td>
                     </tr>
@@ -263,4 +199,16 @@
             </div>
         </div>
     </div>
+</div>
+<!-- Modals to reveal on click -->
+{% for cap in captures %}
+    {% if cap.is_owner %}
+        {% include "users/partials/share_modal.html" with item=cap item_type="capture" %}
+    {% endif %}
+{% endfor %}
+<!-- Toast container for notifications -->
+<div aria-live="polite"
+     aria-atomic="true"
+     class="position-fixed top-0 end-0 p-3 toast-container">
+    <div id="toast-container"></div>
 </div>
