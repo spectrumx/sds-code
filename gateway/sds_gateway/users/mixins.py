@@ -14,6 +14,7 @@ from django.utils.translation import gettext_lazy as _
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.models import User
 from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import serialize_composite_capture_for_display
@@ -51,20 +52,57 @@ class UserSearchMixin:
     """Mixin to handle user search functionality for sharing."""
 
     def search_users(self, request, exclude_user_ids=None) -> JsonResponse:
-        """Search for users by name or email."""
+        """
+        Search for users to share with by name or email.
+
+        This method searches for users by exact name or email, and also includes users
+        that the current user has previously interacted with.
+
+        Args:
+            request: The HTTP request object
+            exclude_user_ids: A list of user IDs to exclude from the search results
+
+        Returns:
+            A JSON response containing the search results
+        """
         query = request.GET.get("q", "").strip()
-        limit = min(int(request.GET.get("limit", 10)), 20)  # Max 20 results
+        limit = 10  # max 10 results
 
         if not query or len(query) < MIN_SEARCH_QUERY_LENGTH:
             return JsonResponse(
                 {"error": "Search query must be at least 2 characters long"}, status=400
             )
 
+        previously_shared_with_users = UserSharePermission.objects.filter(
+            owner=request.user,
+            is_deleted=False,
+        ).values_list("shared_with__id", flat=True)
+
+        previously_shared_from_users = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            is_deleted=False,
+        ).values_list("owner__id", flat=True)
+
+        # Queryset of previously interacted with users
+        previously_interacted_with_users = User.objects.filter(
+            Q(id__in=previously_shared_with_users)
+            | Q(id__in=previously_shared_from_users)
+        )
+
         # Search for users by name or email, excluding the current user
-        users = User.objects.filter(
-            Q(name__icontains=query) | Q(email__icontains=query),
-            is_approved=True,  # Only show approved users
-        ).exclude(id=request.user.id)
+        users = (
+            User.objects.filter(
+                Q(email=query)
+                | (
+                    Q(id__in=previously_interacted_with_users)
+                    & (Q(name__icontains=query) | Q(email__icontains=query))
+                )
+            )
+            .filter(
+                is_approved=True,  # Only show approved users
+            )
+            .exclude(id=request.user.id)
+        )
 
         # Exclude additional users if provided
         if exclude_user_ids:
