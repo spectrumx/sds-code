@@ -9,6 +9,7 @@
         "django-allauth[socialaccount]>=64.2.1",
         "django-allauth>=65.1",
         "django-celery-beat>=2.7.0",
+        "django-cog>=0.1.0",
         "django-cors-headers>=4.5.0",
         "django-crispy-forms>=2.3",
         "django-extensions>=3.2.3",
