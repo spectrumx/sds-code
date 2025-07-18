@@ -1,7 +1,0 @@
-Dataset {{ dataset_name }} is ready for download.
-
-Download link: {{ download_url }}
-This file will expire on {{ expires_at_local|default:expires_at }}
-
-Files: {{ files_count }}
-Size: {{ file_size|filesizeformat }}

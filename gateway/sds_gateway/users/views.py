@@ -39,6 +39,7 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -46,8 +47,7 @@ from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSe
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
-from sds_gateway.api_methods.tasks import send_capture_files_email
-from sds_gateway.api_methods.tasks import send_dataset_files_email
+from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
@@ -679,8 +679,23 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         # Extract request parameters
         params = self._extract_request_params(request)
 
-        # Query database for captures
-        qs = request.user.captures.filter(is_deleted=False)
+        # Get captures owned by the user
+        owned_captures = request.user.captures.filter(is_deleted=False)
+
+        # Get captures shared with the user using the new UserSharePermission model
+        shared_permissions = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            item_type=ItemType.CAPTURE,
+            is_deleted=False,
+            is_enabled=True,
+        ).values_list("item_uuid", flat=True)
+
+        shared_captures = Capture.objects.filter(
+            uuid__in=shared_permissions, is_deleted=False
+        ).exclude(owner=request.user)
+
+        # Combine owned and shared captures
+        qs = owned_captures.union(shared_captures)
 
         # Apply all filters
         qs = _apply_basic_filters(
@@ -713,6 +728,33 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         for capture in page_obj:
             # Use composite serialization to handle multi-channel captures properly
             capture_data = serialize_capture_or_composite(capture)
+
+            # Add ownership flags for template display
+            capture_data["is_owner"] = capture.owner == request.user
+            capture_data["is_shared_with_me"] = capture.owner != request.user
+            capture_data["owner_name"] = (
+                capture.owner.name if capture.owner else "Owner"
+            )
+            capture_data["owner_email"] = capture.owner.email if capture.owner else ""
+
+            # Add shared users data for share modal
+            if capture.owner == request.user:
+                # Get shared users using the new model
+                shared_permissions = UserSharePermission.objects.filter(
+                    item_uuid=capture.uuid,
+                    item_type=ItemType.CAPTURE,
+                    owner=request.user,
+                    is_deleted=False,
+                    is_enabled=True,
+                ).select_related("shared_with")
+                shared_users = [
+                    {"name": perm.shared_with.name, "email": perm.shared_with.email}
+                    for perm in shared_permissions
+                ]
+                capture_data["shared_users"] = shared_users
+            else:
+                capture_data["shared_users"] = []
+
             enhanced_captures.append(capture_data)
 
         # Update the page_obj with enhanced captures
@@ -760,8 +802,25 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             # Extract and validate parameters
             params = self._extract_request_params(request)
 
-            # Start with base queryset
-            qs = Capture.objects.filter(owner=request.user)
+            # Get captures owned by the user
+            owned_captures = Capture.objects.filter(
+                owner=request.user, is_deleted=False
+            )
+
+            # Get captures shared with the user using the new UserSharePermission model
+            shared_permissions = UserSharePermission.objects.filter(
+                shared_with=request.user,
+                item_type=ItemType.CAPTURE,
+                is_deleted=False,
+                is_enabled=True,
+            ).values_list("item_uuid", flat=True)
+
+            shared_captures = Capture.objects.filter(
+                uuid__in=shared_permissions, is_deleted=False
+            ).exclude(owner=request.user)
+
+            # Combine owned and shared captures
+            qs = owned_captures.union(shared_captures)
 
             # Apply filters
             qs = _apply_basic_filters(
@@ -791,6 +850,38 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                     # Use composite serialization to handle multi-channel captures
                     # properly
                     capture_data = serialize_capture_or_composite(capture)
+
+                    # Add ownership flags for API response
+                    capture_data["is_owner"] = capture.owner == request.user
+                    capture_data["is_shared_with_me"] = capture.owner != request.user
+                    capture_data["owner_name"] = (
+                        capture.owner.name if capture.owner else "Owner"
+                    )
+                    capture_data["owner_email"] = (
+                        capture.owner.email if capture.owner else ""
+                    )
+
+                    # Add shared users data for share modal
+                    if capture.owner == request.user:
+                        # Get shared users using the new model
+                        shared_permissions = UserSharePermission.objects.filter(
+                            item_uuid=capture.uuid,
+                            item_type=ItemType.CAPTURE,
+                            owner=request.user,
+                            is_deleted=False,
+                            is_enabled=True,
+                        ).select_related("shared_with")
+                        shared_users = [
+                            {
+                                "name": perm.shared_with.name,
+                                "email": perm.shared_with.email,
+                            }
+                            for perm in shared_permissions
+                        ]
+                        capture_data["shared_users"] = shared_users
+                    else:
+                        capture_data["shared_users"] = []
+
                     captures_data.append(capture_data)
                 except Exception:
                     logger.exception("Error serializing capture %s", capture.uuid)
@@ -1144,10 +1235,21 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
         selected_captures_details: dict[str, Any] = {}
         composite_capture_dirs: set[str] = set()
         if existing_dataset:
-            captures_queryset = existing_dataset.captures.filter(
+            # Get captures owned by the user
+            owned_captures = existing_dataset.captures.filter(
                 is_deleted=False,
                 owner=self.request.user,
             )
+
+            # Get captures shared with the user (exclude owned)
+            shared_captures = existing_dataset.captures.filter(
+                is_deleted=False,
+                shared_with=self.request.user,
+            ).exclude(owner=self.request.user)
+
+            # Combine owned and shared captures
+            captures_queryset = owned_captures.union(shared_captures)
+
             # Only include one composite per group
             for capture in captures_queryset.order_by("-created_at"):
                 if capture.is_multi_channel:
@@ -1422,83 +1524,6 @@ def _apply_sorting(
 user_dataset_list_view = ListDatasetsView.as_view()
 
 
-class DatasetDownloadView(Auth0LoginRequiredMixin, View):
-    """View to handle dataset download requests from the web interface."""
-
-    def post(self, request, *args, **kwargs):
-        """Handle dataset download request."""
-        dataset_uuid = kwargs.get("uuid")
-        if not dataset_uuid:
-            return JsonResponse(
-                {"success": False, "message": "Dataset UUID is required."},
-                status=400,
-            )
-
-        # Get the dataset - allow both owners and shared users to download
-        dataset = get_object_or_404(
-            Dataset,
-            uuid=dataset_uuid,
-            is_deleted=False,
-        )
-
-        # Check if user is owner or shared user
-        is_owner = dataset.owner == request.user
-        is_shared_user = request.user in dataset.shared_with.all()
-
-        if not (is_owner or is_shared_user):
-            return JsonResponse(
-                {"detail": "You don't have permission to download this dataset."},
-                status=403,
-            )
-
-        # Get user email
-        user_email = request.user.email
-        if not user_email:
-            return JsonResponse(
-                {
-                    "success": False,
-                    "message": ("User email is required for sending dataset files."),
-                },
-                status=400,
-            )
-
-        # Check if a user already has a task running
-        if is_user_locked(str(request.user.id), "dataset_download"):
-            return JsonResponse(
-                {
-                    "success": False,
-                    "message": (
-                        "You already have a dataset download in progress. "
-                        "Please wait for it to complete."
-                    ),
-                },
-                status=400,
-            )
-
-        # Trigger the Celery task
-        task = send_dataset_files_email.delay(
-            str(dataset.uuid),
-            str(request.user.id),
-        )
-
-        return JsonResponse(
-            {
-                "success": True,
-                "message": (
-                    "Dataset download request accepted. You will receive an email "
-                    "with the files shortly."
-                ),
-                "task_id": task.id,
-                "dataset_name": dataset.name,
-                "user_email": user_email,
-            },
-            status=202,
-        )
-
-
-user_dataset_download_view = DatasetDownloadView.as_view()
-
-
 class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
     """View to display a temporary zip file download page and serve the file."""
 
@@ -1609,36 +1634,73 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()
 
 
-class CaptureDownloadView(Auth0LoginRequiredMixin, View):
-    """View to handle capture download requests from the web interface."""
+class DownloadItemView(Auth0LoginRequiredMixin, View):
+    """
+    Unified view to handle item download requests for both datasets and captures.
 
-    def post(self, request, *args, **kwargs):
-        """Handle capture download request."""
-        capture_uuid = kwargs.get("uuid")
-        if not capture_uuid:
+    This view follows the same pattern as ShareItemView, accepting item_type
+    as a URL parameter and handling the download logic generically.
+    """
+
+    # Map item types to their corresponding models
+    ITEM_MODELS = {
+        ItemType.DATASET: Dataset,
+        ItemType.CAPTURE: Capture,
+    }
+
+    def post(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: ItemType,
+        *args: Any,
+        **kwargs: Any,
+    ) -> HttpResponse:
+        """
+        Handle item download request.
+
+        Args:
+            request: The HTTP request object
+            item_uuid: The UUID of the item to download
+            item_type: The type of item to download from ItemType enum
+
+        Returns:
+            A JSON response containing the download status
+        """
+        # Validate item type
+        if item_type not in self.ITEM_MODELS:
             return JsonResponse(
-                {"status": "error", "detail": "Capture UUID is required."},
+                {"success": False, "message": "Invalid item type"},
                 status=400,
             )
 
-        # Get the capture
-        capture = get_object_or_404(
-            Capture,
-            uuid=capture_uuid,
-            owner=request.user,
-            is_deleted=False,
-        )
-
-        # Check if capture has files
-        files = capture.files.filter(is_deleted=False, owner=request.user)
-        if not files.exists():
+        # Check if user has access to the item (either as owner or shared user)
+        if not user_has_access_to_item(request.user, item_uuid, item_type):
             return JsonResponse(
                 {
-                    "status": "error",
-                    "detail": "No files found in capture",
-                    "capture_uuid": capture_uuid,
+                    "success": False,
+                    "message": f"{item_type.capitalize()} not found or access denied",
+                    "item_uuid": item_uuid,
                 },
-                status=400,
+                status=404,
+            )
+
+        # Get the item
+        try:
+            model_class = self.ITEM_MODELS[item_type]
+            item = get_object_or_404(
+                model_class,
+                uuid=item_uuid,
+                is_deleted=False,
+            )
+        except model_class.DoesNotExist:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": f"{item_type.capitalize()} not found",
+                    "item_uuid": item_uuid,
+                },
+                status=404,
             )
 
         # Get user email
@@ -1646,45 +1708,46 @@ class CaptureDownloadView(Auth0LoginRequiredMixin, View):
         if not user_email:
             return JsonResponse(
                 {
-                    "status": "error",
-                    "detail": "User email is required for sending capture files.",
+                    "success": False,
+                    "message": f"User email is required for sending {item_type} files.",
                 },
                 status=400,
             )
 
         # Check if a user already has a task running
-        if is_user_locked(str(request.user.id), "capture_download"):
+        task_name = f"{item_type}_download"
+        if is_user_locked(str(request.user.id), task_name):
             return JsonResponse(
                 {
-                    "status": "error",
-                    "detail": (
-                        "You already have a capture download in progress. "
+                    "success": False,
+                    "message": (
+                        f"You already have a {item_type} download in progress. "
                         "Please wait for it to complete."
                     ),
                 },
                 status=400,
             )
 
-        # Trigger the Celery task
-        task = send_capture_files_email.delay(
-            str(capture.uuid),
+        # Trigger the unified Celery task
+        task = send_item_files_email.delay(
+            str(item.uuid),
             str(request.user.id),
+            item_type,
         )
 
-        capture_display_name = capture.name or f"Capture {capture.uuid}"
         return JsonResponse(
             {
-                "status": "success",
+                "success": True,
                 "message": (
-                    "Capture download request accepted. You will receive an email "
-                    "with the files shortly."
+                    f"{item_type.capitalize()} download request accepted. "
+                    "You will receive an email with the files shortly."
                 ),
                 "task_id": task.id,
-                "capture_name": capture_display_name,
+                "item_name": getattr(item, "name", str(item)),
                 "user_email": user_email,
             },
             status=202,
         )
 
 
-user_capture_download_view = CaptureDownloadView.as_view()
+user_download_item_view = DownloadItemView.as_view()

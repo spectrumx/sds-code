@@ -841,7 +841,7 @@ class UserSearchHandler {
 						button.disabled = true;
 
 						// Make API request
-						fetch(`/users/dataset-download/${datasetUuid}/`, {
+						fetch(`/users/download-item/dataset/${datasetUuid}/`, {
 							method: "POST",
 							headers: {
 								"Content-Type": "application/json",
@@ -860,11 +860,12 @@ class UserSearchHandler {
 								});
 							})
 							.then((data) => {
-								if (data.message && data.task_id) {
+								if (data.success === true) {
 									button.innerHTML =
 										'<i class="bi bi-check-circle text-success"></i> Download Requested';
 									showAlert(
-										"Download request submitted successfully! You will receive an email when ready.",
+										data.message ||
+											"Download request submitted successfully! You will receive an email when ready.",
 										"success",
 									);
 								} else {

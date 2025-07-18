@@ -14,6 +14,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
+from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
@@ -564,11 +565,33 @@ class Dataset(BaseModel):
         for field in self.list_fields:
             field_value = getattr(self, field)
             if field_value:
-                if isinstance(getattr(self, field), list):
-                    setattr(self, field, json.dumps(getattr(self, field)))
+                if isinstance(field_value, list):
+                    setattr(self, field, json.dumps(field_value))
+                elif isinstance(field_value, str):
+                    # If it's already a string, it might be JSON - try to parse it
+                    try:
+                        # Validate that it's valid JSON
+                        json.loads(field_value)
+                        # If it's already valid JSON, leave it as is
+                    except (json.JSONDecodeError, TypeError):
+                        # If it's not valid JSON, raise an error
+                        msg = (
+                            f"A field you are trying to populate ('{field}') "
+                            "must be a list, but you provided a value of type: "
+                            f"{type(field_value).__name__}. For your convenience, "
+                            f"the list fields in this table include: "
+                            f"{self.list_fields!s}."
+                        )
+                        raise ValueError(msg) from None
                 else:
                     # raise ValueError exception if a list field is not in list format
-                    msg = f"A field you are trying to populate ('{field}') must be a list, but you provided a value of type: {type(field_value).__name__}. For your convenience, the list fields in this table include: {self.list_fields!s}."  # noqa: E501
+                    msg = (
+                        f"A field you are trying to populate ('{field}') "
+                        "must be a list, but you provided a value of type: "
+                        f"{type(field_value).__name__}. For your convenience, "
+                        f"the list fields in this table include: "
+                        f"{self.list_fields!s}."
+                    )
                     raise ValueError(msg)
 
         super().save(*args, **kwargs)
@@ -995,3 +1018,41 @@ def get_shared_items_for_user(user, item_type=None):
         QuerySet: UserSharePermission objects for items shared with the user
     """
     return UserSharePermission.get_shared_items_for_user(user, item_type)
+
+
+@receiver(post_save, sender=Capture)
+def handle_capture_soft_delete(sender, instance: Capture, **kwargs) -> None:
+    """
+    Handle soft deletion of captures by also
+    soft deleting related share permissions.
+    """
+    if instance.is_deleted:
+        # This is a soft delete, so we need to soft delete related share permissions
+        # Soft delete all UserSharePermission records for this capture
+        share_permissions = UserSharePermission.objects.filter(
+            item_uuid=instance.uuid,
+            item_type=ItemType.CAPTURE,
+            is_deleted=False,
+        )
+
+        for permission in share_permissions:
+            permission.soft_delete()
+
+
+@receiver(post_save, sender=Dataset)
+def handle_dataset_soft_delete(sender, instance: Dataset, **kwargs) -> None:
+    """
+    Handle soft deletion of datasets by also
+    soft deleting related share permissions.
+    """
+    if instance.is_deleted:
+        # This is a soft delete, so we need to soft delete related share permissions
+        # Soft delete all UserSharePermission records for this dataset
+        share_permissions = UserSharePermission.objects.filter(
+            item_uuid=instance.uuid,
+            item_type=ItemType.DATASET,
+            is_deleted=False,
+        )
+
+        for permission in share_permissions:
+            permission.soft_delete()

@@ -17,7 +17,7 @@ from sds_gateway.users.api.views import UserViewSet
 from sds_gateway.users.models import User
 
 # Test constants
-TEST_PASSWORD = "testpass123"  # noqa: S106
+TEST_PASSWORD = "testpass123"  # noqa: S105
 EXPECTED_PERMISSIONS_COUNT = 2
 
 API_VERSION = settings.API_VERSION
@@ -306,3 +306,57 @@ class TestShareItemView:
         assert permissions.count() == EXPECTED_PERMISSIONS_COUNT
         assert permissions.filter(shared_with=user_to_share_with).exists()
         assert permissions.filter(shared_with=user2).exists()
+
+    def test_unified_download_dataset_success(
+        self, client: Client, owner: User, dataset: Dataset
+    ) -> None:
+        """Test successful download request using the unified download endpoint."""
+        client.force_login(owner)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+        )
+
+        response = client.post(url)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        result = response.json()
+        assert result["success"] is True
+        assert "download request accepted" in result["message"].lower()
+        assert "task_id" in result
+        assert result["item_name"] == dataset.name
+        assert result["user_email"] == owner.email
+
+    def test_unified_download_dataset_not_owner(
+        self, client: Client, user_to_share_with: User, dataset: Dataset
+    ) -> None:
+        """Test download request when user is not the owner."""
+        client.force_login(user_to_share_with)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+        )
+
+        response = client.post(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        result = response.json()
+        assert result["success"] is False
+        assert "not found or access denied" in result["message"].lower()
+
+    def test_unified_download_dataset_invalid_type(
+        self, client: Client, owner: User, dataset: Dataset
+    ) -> None:
+        """Test download request with invalid item type."""
+        client.force_login(owner)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": "invalid_type", "item_uuid": dataset.uuid},
+        )
+
+        response = client.post(url)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        result = response.json()
+        assert result["success"] is False
+        assert "invalid item type" in result["message"].lower()

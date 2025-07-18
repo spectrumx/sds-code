@@ -18,13 +18,14 @@ from django.test import override_settings
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.tasks import acquire_user_lock
 from sds_gateway.api_methods.tasks import cleanup_expired_temp_zips
 from sds_gateway.api_methods.tasks import get_user_task_status
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import release_user_lock
-from sds_gateway.api_methods.tasks import send_dataset_files_email
+from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.tasks import test_celery_task
 from sds_gateway.api_methods.tasks import test_email_task
 
@@ -183,8 +184,8 @@ class TestCeleryTasks(TestCase):
         mail.outbox.clear()
 
         # Test the task
-        result = send_dataset_files_email.delay(
-            str(self.dataset.uuid), str(self.user.id)
+        result = send_item_files_email.delay(
+            str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
         )
 
         # Get the result
@@ -244,8 +245,8 @@ class TestCeleryTasks(TestCase):
         mail.outbox.clear()
 
         # Test the task
-        result = send_dataset_files_email.delay(
-            str(self.dataset.uuid), str(self.user.id)
+        result = send_item_files_email.delay(
+            str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
         )
 
         # Get the result
@@ -266,7 +267,7 @@ class TestCeleryTasks(TestCase):
         # Verify error email was sent
         assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
         email = mail.outbox[0]
-        expected_subject = f"Dataset download failed: {self.dataset.name}"
+        expected_subject = f"Error downloading your dataset: {self.dataset.name}"
         assert email.subject == expected_subject, (
             f"Expected subject '{expected_subject}', got '{email.subject}'"
         )
@@ -288,8 +289,8 @@ class TestCeleryTasks(TestCase):
         mail.outbox.clear()
 
         # Test the task
-        result = send_dataset_files_email.delay(
-            str(self.dataset.uuid), str(self.user.id)
+        result = send_item_files_email.delay(
+            str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
         )
 
         # Get the result
@@ -307,7 +308,7 @@ class TestCeleryTasks(TestCase):
         # Verify error email was sent
         assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
         email = mail.outbox[0]
-        expected_subject = f"Dataset download failed: {self.dataset.name}"
+        expected_subject = f"Error downloading your dataset: {self.dataset.name}"
         assert email.subject == expected_subject, (
             f"Expected subject '{expected_subject}', got '{email.subject}'"
         )
@@ -339,8 +340,8 @@ class TestCeleryTasks(TestCase):
         mail.outbox.clear()
 
         # Test the task
-        result = send_dataset_files_email.delay(
-            str(empty_dataset.uuid), str(self.user.id)
+        result = send_item_files_email.delay(
+            str(empty_dataset.uuid), str(self.user.id), ItemType.DATASET
         )
 
         # Get the result
@@ -358,7 +359,7 @@ class TestCeleryTasks(TestCase):
         # Verify error email was sent
         assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
         email = mail.outbox[0]
-        expected_subject = f"Dataset download failed: {empty_dataset.name}"
+        expected_subject = f"Error downloading your dataset: {empty_dataset.name}"
         assert email.subject == expected_subject, (
             f"Expected subject '{expected_subject}', got '{email.subject}'"
         )
@@ -380,8 +381,8 @@ class TestCeleryTasks(TestCase):
         mail.outbox.clear()
 
         # Test with non-existent dataset UUID
-        result = send_dataset_files_email.delay(
-            "00000000-0000-0000-0000-000000000000", str(self.user.id)
+        result = send_item_files_email.delay(
+            "00000000-0000-0000-0000-000000000000", str(self.user.id), ItemType.DATASET
         )
 
         # Get the result
@@ -391,7 +392,7 @@ class TestCeleryTasks(TestCase):
         assert task_result["status"] == "error", (
             f"Expected status 'error', got '{task_result['status']}'"
         )
-        expected_message = "Dataset not found"
+        expected_message = "Dataset not found or access denied"
         assert task_result["message"] == expected_message, (
             f"Expected message '{expected_message}', got '{task_result['message']}'"
         )
@@ -419,8 +420,8 @@ class TestCeleryTasks(TestCase):
         mail.outbox.clear()
 
         # Test the task
-        result = send_dataset_files_email.delay(
-            str(self.dataset.uuid), str(self.user.id)
+        result = send_item_files_email.delay(
+            str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
         )
 
         # Get the result
@@ -438,7 +439,7 @@ class TestCeleryTasks(TestCase):
         # Verify error email was sent
         assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
         email = mail.outbox[0]
-        expected_subject = f"Dataset download failed: {self.dataset.name}"
+        expected_subject = f"Error downloading your dataset: {self.dataset.name}"
         assert email.subject == expected_subject, (
             f"Expected subject '{expected_subject}', got '{email.subject}'"
         )

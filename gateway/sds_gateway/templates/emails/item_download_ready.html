@@ -3,32 +3,32 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Dataset Ready for Download</title>
+        <title>{{ item_type|title }} Ready for Download</title>
         {% include 'emails/email_styles.html' %}
     </head>
     <body>
         <div class="container">
             <div class="header success">
                 <span class="icon">📦</span>
-                <h1>Dataset Ready!</h1>
+                <h1>{{ item_type|title }} Ready!</h1>
             </div>
             <div class="content">
                 <div class="success-message">
                     <h3>Success!</h3>
                     <p>
-                        Your dataset <strong>{{ dataset_name }}</strong> has been prepared and is ready for download.
+                        Your {{ item_type }} <strong>{{ item_name }}</strong> has been prepared and is ready for download.
                     </p>
                 </div>
                 <div class="download-section">
-                    <h2 class="section-title">Download Your Dataset</h2>
+                    <h2 class="section-title">Download Your {{ item_type|title }}</h2>
                     <a href="{{ download_url }}" class="download-btn">📥 Download Now</a>
                 </div>
-                <div class="dataset-info">
-                    <h3>Dataset Details</h3>
+                <div class="item-info">
+                    <h3>{{ item_type|title }} Details</h3>
                     <div class="info-grid">
                         <div class="info-item">
-                            <span class="info-label">Dataset Name</span>
-                            <span class="info-value">{{ dataset_name }}</span>
+                            <span class="info-label">{{ item_type|title }} Name</span>
+                            <span class="info-value">{{ item_name }}</span>
                         </div>
                         <div class="info-item">
                             <span class="info-label">File Count</span>
