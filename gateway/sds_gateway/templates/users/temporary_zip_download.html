@@ -107,12 +107,29 @@
         }
 
         function showAlertAndRedirect(type, message) {
-            sessionStorage.setItem("downloadAlert", JSON.stringify({
+            // Determine the appropriate redirect URL and alert key based on the filename
+            const filename = "{{ temp_zip.filename }}";
+            let redirectUrl;
+            let alertKey;
+
+            if (filename.startsWith("dataset_")) {
+                redirectUrl = "{% url 'users:dataset_list' %}";
+                alertKey = "datasetDownloadAlert";
+            } else if (filename.startsWith("capture_")) {
+                redirectUrl = "{% url 'users:file_list' %}";
+                alertKey = "captureDownloadAlert";
+            } else {
+                // Default to dataset list if we can't determine the type
+                redirectUrl = "{% url 'users:dataset_list' %}";
+                alertKey = "datasetDownloadAlert";
+            }
+
+            sessionStorage.setItem(alertKey, JSON.stringify({
                 type: type,
                 message: message
             }));
 
-            window.location.href = "{% url 'users:dataset_list' %}";
+            window.location.href = redirectUrl;
         }
 </script>
     {# djlint:on #}

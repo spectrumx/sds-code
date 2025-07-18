@@ -105,12 +105,37 @@
                                     <ul class="dropdown-menu">
                                         {% if cap.is_owner %}
                                             <li>
+                                                <button class="dropdown-item capture-details-btn"
+                                                        type="button"
+                                                        data-uuid="{{ cap.uuid }}"
+                                                        data-name="{{ cap.name|default:'' }}"
+                                                        data-channel="{% if cap.is_multi_channel %}{% for channel in cap.channels %}{{ channel.channel }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ cap.channel }}{% endif %}"
+                                                        data-scan-group="{{ cap.scan_group }}"
+                                                        data-capture-type="{{ cap.capture_type }}"
+                                                        data-top-level-dir="{{ cap.top_level_dir }}"
+                                                        data-owner="{{ cap.owner }}"
+                                                        data-origin="{{ cap.origin }}"
+                                                        data-dataset="{{ cap.dataset }}"
+                                                        data-created-at="{{ cap.created_at }}"
+                                                        data-updated-at="{{ cap.updated_at }}"
+                                                        data-is-public="{{ cap.is_public }}"
+                                                        data-center-frequency-ghz="{{ cap.center_frequency_ghz }}"
+                                                        data-is-multi-channel="{{ cap.is_multi_channel|yesno:'True,False' }}"
+                                                        data-channels="{{ cap.channels|safe }}">Edit</button>
+                                            </li>
+                                            <li>
                                                 <button class="dropdown-item"
                                                         type="button"
                                                         data-bs-toggle="modal"
                                                         data-bs-target="#share-modal-{{ cap.uuid }}">Share</button>
                                             </li>
                                         {% endif %}
+                                        <li>
+                                            <button class="dropdown-item download-capture-btn"
+                                                    type="button"
+                                                    data-capture-uuid="{{ cap.uuid }}"
+                                                    data-capture-name="{{ cap.name|default:'' }}">Download</button>
+                                        </li>
                                     </ul>
                                 </div>
                             </td>
