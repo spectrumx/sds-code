@@ -1,0 +1,16 @@
+Error downloading your {{ item_type }}: {{ item_name }}
+
+We encountered an issue while preparing your {{ item_type }} for download.
+
+Error Details:
+{{ error_message }}
+
+Request Information:
+{{ item_type|title }}: {{ item_name }}
+Requested at: {{ requested_at }}
+
+Please try again later, or contact support if the problem persists.
+
+---
+This is an automated message from the SpectrumX Data System.
+If you have any questions, please contact our support team.

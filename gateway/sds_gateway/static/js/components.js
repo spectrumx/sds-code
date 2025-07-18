@@ -363,8 +363,8 @@ class CapturesTableManager extends TableManager {
 			button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
 			button.disabled = true;
 
-			// Make API request
-			fetch(`/users/capture-download/${captureUuid}/`, {
+			// Make API request using the unified download endpoint
+			fetch(`/users/download-item/capture/${captureUuid}/`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -373,7 +373,7 @@ class CapturesTableManager extends TableManager {
 			})
 				.then((response) => response.json())
 				.then((data) => {
-					if (data.status === "success") {
+					if (data.success === true) {
 						button.innerHTML =
 							'<i class="bi bi-check-circle text-success"></i> Download Requested';
 						this.showDownloadSuccessMessage(data.message);

@@ -970,6 +970,52 @@ class CaptureTestCases(APITestCase):
             item_uuid=capture.uuid, item_type=ItemType.CAPTURE, is_deleted=False
         ).exists()
 
+    def test_unified_download_capture_202(self) -> None:
+        """Test that the unified download endpoint works for captures."""
+        # Login the user for session authentication
+        self.client.force_login(self.user)
+
+        # Test the unified download endpoint for captures
+        response = self.client.post(
+            f"/users/download-item/capture/{self.drf_capture_v0.uuid}/",
+        )
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        data = response.json()
+        assert data["success"] is True
+        assert "download request accepted" in data["message"].lower()
+        assert "task_id" in data
+        assert data["item_name"] == self.drf_capture_v0.name or str(
+            self.drf_capture_v0.uuid
+        )
+        assert data["user_email"] == self.user.email
+
+    def test_unified_download_capture_invalid_type_400(self) -> None:
+        """Test that the unified download endpoint rejects invalid item types."""
+        # Login the user for session authentication
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            f"/users/download-item/invalid_type/{self.drf_capture_v0.uuid}/",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert data["success"] is False
+        assert "invalid item type" in data["message"].lower()
+
+    def test_unified_download_capture_not_found_404(self) -> None:
+        """Test that the unified download endpoint returns 404 for non-existent captures."""  # noqa: E501
+        # Login the user for session authentication
+        self.client.force_login(self.user)
+
+        fake_uuid = "00000000-0000-0000-0000-000000000000"
+        response = self.client.post(
+            f"/users/download-item/capture/{fake_uuid}/",
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        data = response.json()
+        assert data["success"] is False
+        assert "not found or access denied" in data["message"].lower()
+
 
 class OpenSearchErrorTestCases(APITestCase):
     """Test cases for OpenSearch error handling in capture endpoints."""

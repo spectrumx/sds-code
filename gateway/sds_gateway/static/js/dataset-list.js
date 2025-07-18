@@ -59,12 +59,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	// Bootstrap handles dropdowns natively with data-bs-toggle="dropdown" - no custom handling needed
 
-	// Check for download alert messages
-	const downloadAlert = sessionStorage.getItem("downloadAlert");
+	// Check for dataset download alert messages only
+	const downloadAlert = sessionStorage.getItem("datasetDownloadAlert");
 	if (downloadAlert) {
 		const alertData = JSON.parse(downloadAlert);
 		showAlert(alertData.message, alertData.type);
-		sessionStorage.removeItem("downloadAlert");
+		sessionStorage.removeItem("datasetDownloadAlert");
 	}
 
 	// Handle download button clicks
@@ -93,7 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
 				button.disabled = true;
 
 				// Make API request
-				fetch(`/users/dataset-download/${datasetUuid}/`, {
+				fetch(`/users/download-item/dataset/${datasetUuid}/`, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
@@ -113,11 +113,12 @@ document.addEventListener("DOMContentLoaded", () => {
 						});
 					})
 					.then((data) => {
-						if (data.message && data.task_id) {
+						if (data.success === true) {
 							button.innerHTML =
 								'<i class="bi bi-check-circle text-success"></i> Download Requested';
 							showAlert(
-								"Download request submitted successfully! You will receive an email when ready.",
+								data.message ||
+									"Download request submitted successfully! You will receive an email when ready.",
 								"success",
 							);
 						} else {
