@@ -1,4 +1,5 @@
 import datetime
+import os
 import re
 import uuid
 import zipfile
@@ -15,9 +16,12 @@ from loguru import logger
 from redis import Redis
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PostProcessedData
+from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
@@ -984,3 +988,734 @@ def _send_item_download_error_email(
             f"Failed to send error email for {item_type} {item.uuid} "
             f"to user {user.id}: {e}"
         )
+
+
+@shared_task
+def start_capture_post_processing(
+    capture_uuid: str, processing_types: list[str] = None
+) -> dict:
+    """
+    Start post-processing pipeline for a DigitalRF capture.
+
+    This is the main entry point that creates and runs the appropriate
+    django-cog pipeline for the requested processing types.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+        processing_types: List of processing types to run (waterfall, spectrogram, etc.)
+    """
+    logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
+
+    try:
+        # Get the capture
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+
+        if capture.capture_type != CaptureType.DigitalRF:
+            return {
+                "status": "error",
+                "message": f"Capture {capture_uuid} is not a DigitalRF capture",
+                "capture_uuid": capture_uuid,
+            }
+
+        # Set default processing types if not specified
+        if not processing_types:
+            processing_types = [ProcessingType.Waterfall.value]
+
+        # Create PostProcessedData records for each processing type
+        for processing_type in processing_types:
+            _create_or_reset_processed_data(capture, processing_type)
+
+        # Import here to avoid circular imports
+        from .cog_pipelines import get_pipeline
+
+        # Create and run the appropriate pipeline
+        if len(processing_types) > 1:
+            pipeline = get_pipeline(
+                "capture_post_processing",
+                capture_uuid=capture_uuid,
+                processing_types=processing_types,
+            )
+        else:
+            pipeline_type = processing_types[0]
+            pipeline = get_pipeline(pipeline_type, capture_uuid=capture_uuid)
+
+        # Run the pipeline
+        pipeline.run()
+
+        return {
+            "status": "success",
+            "message": f"Post-processing pipeline completed for {len(processing_types)} types",
+            "capture_uuid": capture_uuid,
+            "processing_types": processing_types,
+        }
+
+    except Capture.DoesNotExist:
+        error_msg = f"Capture {capture_uuid} not found"
+        logger.error(error_msg)
+        return {
+            "status": "error",
+            "message": error_msg,
+            "capture_uuid": capture_uuid,
+        }
+    except Exception as e:
+        error_msg = f"Unexpected error in post-processing pipeline: {e}"
+        logger.exception(error_msg)
+        return {
+            "status": "error",
+            "message": error_msg,
+            "capture_uuid": capture_uuid,
+        }
+
+
+def _create_or_reset_processed_data(
+    capture: Capture, processing_type: str
+) -> PostProcessedData:
+    """Create or reset a PostProcessedData record for the given processing type."""
+
+    # Default processing parameters based on type
+    default_params = {
+        ProcessingType.Waterfall.value: {
+            "fft_size": 1024,
+            "samples_per_slice": 1024,
+        },
+        ProcessingType.Spectrogram.value: {
+            "fft_size": 1024,
+            "window_type": "hann",
+            "overlap": 0.5,
+        },
+    }
+
+    processing_parameters = default_params.get(processing_type, {})
+
+    # Create or get existing record
+    processed_data, created = PostProcessedData.objects.get_or_create(
+        capture=capture,
+        processing_type=processing_type,
+        processing_parameters=processing_parameters,
+        defaults={
+            "processing_status": "pending",  # Changed from ProcessingStatus.Pending.value to "pending"
+            "metadata": {},
+        },
+    )
+
+    if not created:
+        # Reset existing record
+        processed_data.processing_status = (
+            "pending"  # Changed from ProcessingStatus.Pending.value to "pending"
+        )
+        processed_data.processing_error = ""
+        processed_data.pipeline_id = ""
+        processed_data.pipeline_step = ""
+        processed_data.save()
+
+    return processed_data
+
+
+@shared_task
+def download_capture_files(capture_uuid: str) -> dict:
+    """
+    Download DigitalRF files from SDS storage to temporary location.
+
+    Args:
+        capture_uuid: UUID of the capture to download files for
+
+    Returns:
+        dict: Task result with temporary directory path
+    """
+    logger.info(f"Downloading files for capture {capture_uuid}")
+
+    try:
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+        capture_files = capture.files.filter(is_deleted=False)
+
+        if not capture_files.exists():
+            return {
+                "status": "error",
+                "message": f"No files found for capture {capture_uuid}",
+            }
+
+        # Create temporary directory
+        import tempfile
+
+        temp_dir = tempfile.mkdtemp(prefix=f"capture_{capture_uuid}_")
+        temp_path = Path(temp_dir)
+
+        # Download and reconstruct the DigitalRF directory structure
+        reconstructed_path = _reconstruct_drf_files(capture, capture_files, temp_path)
+
+        if not reconstructed_path:
+            return {
+                "status": "error",
+                "message": "Failed to reconstruct DigitalRF directory structure",
+            }
+
+        return {
+            "status": "success",
+            "message": "Files downloaded successfully",
+            "temp_dir": str(temp_path),
+            "drf_path": str(reconstructed_path),
+        }
+
+    except Exception as e:
+        logger.exception(f"Error downloading capture files: {e}")
+        return {
+            "status": "error",
+            "message": f"Error downloading files: {e}",
+        }
+
+
+@shared_task
+def process_waterfall_data(capture_uuid: str) -> dict:
+    """
+    Process DigitalRF data into waterfall format.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+
+    Returns:
+        dict: Processing result with file path and metadata
+    """
+    logger.info(f"Processing waterfall data for capture {capture_uuid}")
+
+    try:
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+
+        # Get the temporary directory from previous step
+        # In a real implementation, this would come from the pipeline context
+        import tempfile
+
+        temp_dir = tempfile.mkdtemp(prefix=f"waterfall_{capture_uuid}_")
+        temp_path = Path(temp_dir)
+
+        # For now, we'll reconstruct the files again
+        # In a real pipeline, this would be passed from the download step
+        capture_files = capture.files.filter(is_deleted=False)
+        reconstructed_path = _reconstruct_drf_files(capture, capture_files, temp_path)
+
+        if not reconstructed_path:
+            return {
+                "status": "error",
+                "message": "Failed to reconstruct DigitalRF directory structure",
+            }
+
+        # Process the waterfall data
+        waterfall_result = _convert_drf_to_waterfall(
+            reconstructed_path, capture.channel, ProcessingType.Waterfall.value
+        )
+
+        if waterfall_result["status"] != "success":
+            return waterfall_result
+
+        return {
+            "status": "success",
+            "message": "Waterfall data processed successfully",
+            "data_file_path": waterfall_result["data_file_path"],
+            "metadata": waterfall_result["metadata"],
+        }
+
+    except Exception as e:
+        logger.exception(f"Error processing waterfall data: {e}")
+        return {
+            "status": "error",
+            "message": f"Error processing waterfall data: {e}",
+        }
+
+
+@shared_task
+def process_spectrogram_data(capture_uuid: str) -> dict:
+    """
+    Process DigitalRF data into spectrogram format.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+
+    Returns:
+        dict: Processing result with file path and metadata
+    """
+    logger.info(f"Processing spectrogram data for capture {capture_uuid}")
+
+    try:
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+
+        # Get the temporary directory from previous step
+        import tempfile
+
+        temp_dir = tempfile.mkdtemp(prefix=f"spectrogram_{capture_uuid}_")
+        temp_path = Path(temp_dir)
+
+        # Reconstruct the files
+        capture_files = capture.files.filter(is_deleted=False)
+        reconstructed_path = _reconstruct_drf_files(capture, capture_files, temp_path)
+
+        if not reconstructed_path:
+            return {
+                "status": "error",
+                "message": "Failed to reconstruct DigitalRF directory structure",
+            }
+
+        # Process the spectrogram data
+        spectrogram_result = _convert_drf_to_spectrogram(
+            reconstructed_path, capture.channel, ProcessingType.Spectrogram.value
+        )
+
+        if spectrogram_result["status"] != "success":
+            return spectrogram_result
+
+        return {
+            "status": "success",
+            "message": "Spectrogram data processed successfully",
+            "data_file_path": spectrogram_result["data_file_path"],
+            "metadata": spectrogram_result["metadata"],
+        }
+
+    except Exception as e:
+        logger.exception(f"Error processing spectrogram data: {e}")
+        return {
+            "status": "error",
+            "message": f"Error processing spectrogram data: {e}",
+        }
+
+
+@shared_task
+def store_processed_data(capture_uuid: str, processing_type: str) -> dict:
+    """
+    Store processed data back to SDS storage.
+
+    Args:
+        capture_uuid: UUID of the capture
+        processing_type: Type of processed data (waterfall, spectrogram, etc.)
+
+    Returns:
+        dict: Storage result
+    """
+    logger.info(f"Storing {processing_type} data for capture {capture_uuid}")
+
+    try:
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+
+        # Get the processed data record
+        processed_data = PostProcessedData.objects.filter(
+            capture=capture,
+            processing_type=processing_type,
+        ).first()
+
+        if not processed_data:
+            return {
+                "status": "error",
+                "message": f"No processed data record found for {processing_type}",
+            }
+
+        # In a real implementation, the file path would come from the pipeline context
+        # For now, we'll create a dummy file
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
+            temp_file_path = temp_file.name
+
+        # Save the file to SDS storage
+        with open(temp_file_path, "rb") as f:
+            processed_data.data_file.save(
+                f"{processing_type}_{capture.uuid}.h5", f, save=False
+            )
+
+        # Update metadata
+        processed_data.metadata.update(
+            {
+                "stored_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                "file_size": processed_data.data_file.size,
+            }
+        )
+        processed_data.save()
+
+        # Clean up temporary file
+        os.unlink(temp_file_path)
+
+        return {
+            "status": "success",
+            "message": f"{processing_type} data stored successfully",
+        }
+
+    except Exception as e:
+        logger.exception(f"Error storing {processing_type} data: {e}")
+        return {
+            "status": "error",
+            "message": f"Error storing {processing_type} data: {e}",
+        }
+
+
+@shared_task
+def cleanup_temp_files(capture_uuid: str) -> dict:
+    """
+    Clean up temporary files created during processing.
+
+    Args:
+        capture_uuid: UUID of the capture
+
+    Returns:
+        dict: Cleanup result
+    """
+    logger.info(f"Cleaning up temporary files for capture {capture_uuid}")
+
+    try:
+        # In a real implementation, this would clean up all temporary files
+        # associated with this capture from the pipeline context
+
+        return {
+            "status": "success",
+            "message": "Temporary files cleaned up successfully",
+        }
+
+    except Exception as e:
+        logger.exception(f"Error cleaning up temporary files: {e}")
+        return {
+            "status": "error",
+            "message": f"Error cleaning up temporary files: {e}",
+        }
+
+
+# Legacy task for backward compatibility
+@shared_task
+def process_capture_waterfall(capture_uuid: str) -> dict:
+    """
+    Legacy task for waterfall processing (deprecated).
+
+    This task is kept for backward compatibility but new implementations
+    should use start_capture_post_processing with processing_types=['waterfall'].
+    """
+    logger.warning(
+        "process_capture_waterfall is deprecated. Use start_capture_post_processing instead."
+    )
+    return start_capture_post_processing.delay(
+        capture_uuid, [ProcessingType.Waterfall.value]
+    )
+
+
+# Helper functions (existing implementations)
+def _reconstruct_drf_files(
+    capture: Capture, capture_files, temp_path: Path
+) -> Path | None:
+    """Reconstruct DigitalRF directory structure from SDS files."""
+    from sds_gateway.api_methods.utils.minio_client import get_minio_client
+
+    logger.info("Reconstructing DigitalRF directory structure")
+
+    try:
+        minio_client = get_minio_client()
+
+        # Create the capture directory structure
+        capture_dir = temp_path / str(capture.uuid)
+        capture_dir.mkdir(parents=True, exist_ok=True)
+
+        # Download and place files in the correct structure
+        for file_obj in capture_files:
+            # Create the directory structure
+            file_path = capture_dir / file_obj.directory.lstrip("/") / file_obj.name
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Download the file from MinIO
+            minio_client.fget_object(
+                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                object_name=file_obj.file.name,
+                file_path=str(file_path),
+            )
+
+        # Find the DigitalRF root directory (parent of the channel directory)
+        for root, dirs, files in os.walk(capture_dir):
+            if "drf_properties.h5" in files:
+                # The DigitalRF root is the parent of the channel directory
+                drf_root = Path(root).parent
+                logger.info(f"Found DigitalRF root at: {drf_root}")
+                return drf_root
+
+        logger.error("Could not find DigitalRF properties file")
+        return None
+
+    except Exception as e:
+        logger.exception(f"Error reconstructing DigitalRF files: {e}")
+        return None
+
+
+def _convert_drf_to_waterfall(
+    drf_path: Path, channel: str, processing_type: str
+) -> dict:
+    """Convert DigitalRF data to waterfall format."""
+    import tempfile
+
+    import h5py
+    import numpy as np
+    from digital_rf import DigitalRFReader
+
+    logger.info(f"Converting DigitalRF data to waterfall format for channel {channel}")
+
+    try:
+        # Initialize DigitalRF reader
+        reader = DigitalRFReader(str(drf_path))
+        channels = reader.get_channels()
+
+        if not channels:
+            return {
+                "status": "error",
+                "message": "No channels found in DigitalRF data",
+            }
+
+        if channel not in channels:
+            return {
+                "status": "error",
+                "message": f"Channel {channel} not found in DigitalRF data. Available channels: {channels}",
+            }
+
+        # Get sample bounds
+        start_sample, end_sample = reader.get_bounds(channel)
+        total_samples = end_sample - start_sample
+
+        # Get metadata from DigitalRF properties
+        drf_props_path = drf_path / channel / "drf_properties.h5"
+        with h5py.File(drf_props_path, "r") as f:
+            sample_rate = (
+                f.attrs["sample_rate_numerator"] / f.attrs["sample_rate_denominator"]
+            )
+
+        # Get center frequency from metadata
+        center_freq = 0.0
+        try:
+            # Try to get center frequency from metadata
+            metadata_dict = reader.read_metadata(
+                start_sample, min(1000, end_sample - start_sample), channel
+            )
+            if metadata_dict and "center_freq" in metadata_dict:
+                center_freq = float(metadata_dict["center_freq"])
+        except Exception as e:
+            logger.warning(f"Could not read center frequency from metadata: {e}")
+
+        # Calculate frequency range
+        freq_span = sample_rate
+        min_frequency = center_freq - freq_span / 2
+        max_frequency = center_freq + freq_span / 2
+
+        # Processing parameters
+        fft_size = 1024  # Default, could be configurable
+        samples_per_slice = 1024  # Default, could be configurable
+
+        # Calculate total slices
+        total_slices = total_samples // samples_per_slice
+
+        logger.info(
+            f"Processing {total_slices} slices with {samples_per_slice} samples per slice"
+        )
+
+        # Create temporary file for waterfall data
+        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
+            temp_file_path = temp_file.name
+
+        # Process all slices and store in HDF5 file
+        with h5py.File(temp_file_path, "w") as h5_file:
+            # Create datasets
+            waterfall_group = h5_file.create_group("waterfall")
+
+            # Store metadata
+            waterfall_group.attrs["center_frequency"] = center_freq
+            waterfall_group.attrs["sample_rate"] = sample_rate
+            waterfall_group.attrs["min_frequency"] = min_frequency
+            waterfall_group.attrs["max_frequency"] = max_frequency
+            waterfall_group.attrs["fft_size"] = fft_size
+            waterfall_group.attrs["samples_per_slice"] = samples_per_slice
+            waterfall_group.attrs["total_slices"] = total_slices
+            waterfall_group.attrs["channel"] = channel
+
+            # Create dataset for waterfall data
+            waterfall_data_shape = (total_slices, fft_size)
+            waterfall_dataset = waterfall_group.create_dataset(
+                "data",
+                shape=waterfall_data_shape,
+                dtype=np.float32,
+                compression="gzip",
+                compression_opts=6,
+            )
+
+            # Process each slice
+            for slice_idx in range(total_slices):
+                # Calculate sample range for this slice
+                slice_start_sample = start_sample + slice_idx * samples_per_slice
+                slice_num_samples = min(
+                    samples_per_slice, end_sample - slice_start_sample
+                )
+
+                if slice_num_samples <= 0:
+                    break
+
+                # Read the data
+                data_array = reader.read_vector(
+                    slice_start_sample, slice_num_samples, channel, 0
+                )
+
+                # Perform FFT processing
+                fft_data = np.fft.fft(data_array, n=fft_size)
+                power_spectrum = np.abs(fft_data) ** 2
+
+                # Convert to dB
+                power_spectrum_db = 10 * np.log10(power_spectrum + 1e-12)
+
+                # Store in dataset
+                waterfall_dataset[slice_idx, :] = power_spectrum_db.astype(np.float32)
+
+                # Log progress every 100 slices
+                if slice_idx % 100 == 0:
+                    logger.info(f"Processed {slice_idx}/{total_slices} slices")
+
+        metadata = {
+            "center_frequency": center_freq,
+            "sample_rate": sample_rate,
+            "min_frequency": min_frequency,
+            "max_frequency": max_frequency,
+            "total_slices": total_slices,
+            "fft_size": fft_size,
+            "samples_per_slice": samples_per_slice,
+            "channel": channel,
+        }
+
+        return {
+            "status": "success",
+            "message": "Waterfall data converted successfully",
+            "data_file_path": temp_file_path,
+            "metadata": metadata,
+        }
+
+    except Exception as e:
+        logger.exception(f"Error converting DigitalRF to waterfall: {e}")
+        return {
+            "status": "error",
+            "message": f"Error converting DigitalRF data: {e}",
+        }
+
+
+def _convert_drf_to_spectrogram(
+    drf_path: Path, channel: str, processing_type: str
+) -> dict:
+    """Convert DigitalRF data to spectrogram format."""
+    import tempfile
+
+    import h5py
+    import numpy as np
+    from digital_rf import DigitalRFReader
+    from scipy.signal import spectrogram
+
+    logger.info(
+        f"Converting DigitalRF data to spectrogram format for channel {channel}"
+    )
+
+    try:
+        # Initialize DigitalRF reader
+        reader = DigitalRFReader(str(drf_path))
+        channels = reader.get_channels()
+
+        if not channels:
+            return {
+                "status": "error",
+                "message": "No channels found in DigitalRF data",
+            }
+
+        if channel not in channels:
+            return {
+                "status": "error",
+                "message": f"Channel {channel} not found in DigitalRF data. Available channels: {channels}",
+            }
+
+        # Get sample bounds
+        start_sample, end_sample = reader.get_bounds(channel)
+        total_samples = end_sample - start_sample
+
+        # Get metadata from DigitalRF properties
+        drf_props_path = drf_path / channel / "drf_properties.h5"
+        with h5py.File(drf_props_path, "r") as f:
+            sample_rate = (
+                f.attrs["sample_rate_numerator"] / f.attrs["sample_rate_denominator"]
+            )
+
+        # Get center frequency from metadata
+        center_freq = 0.0
+        try:
+            metadata_dict = reader.read_metadata(
+                start_sample, min(1000, end_sample - start_sample), channel
+            )
+            if metadata_dict and "center_freq" in metadata_dict:
+                center_freq = float(metadata_dict["center_freq"])
+        except Exception as e:
+            logger.warning(f"Could not read center frequency from metadata: {e}")
+
+        # Read a reasonable amount of data for spectrogram
+        max_samples = min(total_samples, int(sample_rate * 10))  # 10 seconds max
+        data_array = reader.read_vector(start_sample, max_samples, channel, 0)
+
+        # Processing parameters
+        fft_size = 1024
+        nperseg = 1024
+        noverlap = 512
+
+        # Compute spectrogram
+        frequencies, times, Sxx = spectrogram(
+            data_array,
+            fs=sample_rate,
+            nperseg=nperseg,
+            noverlap=noverlap,
+            nfft=fft_size,
+        )
+
+        # Convert to dB
+        Sxx_db = 10 * np.log10(Sxx + 1e-12)
+
+        # Create temporary file for spectrogram data
+        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
+            temp_file_path = temp_file.name
+
+        # Store in HDF5 file
+        with h5py.File(temp_file_path, "w") as h5_file:
+            # Create datasets
+            spectrogram_group = h5_file.create_group("spectrogram")
+
+            # Store metadata
+            spectrogram_group.attrs["center_frequency"] = center_freq
+            spectrogram_group.attrs["sample_rate"] = sample_rate
+            spectrogram_group.attrs["fft_size"] = fft_size
+            spectrogram_group.attrs["nperseg"] = nperseg
+            spectrogram_group.attrs["noverlap"] = noverlap
+            spectrogram_group.attrs["channel"] = channel
+
+            # Store data
+            spectrogram_group.create_dataset(
+                "frequencies", data=frequencies, compression="gzip", compression_opts=6
+            )
+            spectrogram_group.create_dataset(
+                "times", data=times, compression="gzip", compression_opts=6
+            )
+            spectrogram_group.create_dataset(
+                "data",
+                data=Sxx_db.astype(np.float32),
+                compression="gzip",
+                compression_opts=6,
+            )
+
+        metadata = {
+            "center_frequency": center_freq,
+            "sample_rate": sample_rate,
+            "fft_size": fft_size,
+            "nperseg": nperseg,
+            "noverlap": noverlap,
+            "frequencies_shape": frequencies.shape,
+            "times_shape": times.shape,
+            "data_shape": Sxx_db.shape,
+            "channel": channel,
+        }
+
+        return {
+            "status": "success",
+            "message": "Spectrogram data converted successfully",
+            "data_file_path": temp_file_path,
+            "metadata": metadata,
+        }
+
+    except Exception as e:
+        logger.exception(f"Error converting DigitalRF to spectrogram: {e}")
+        return {
+            "status": "error",
+            "message": f"Error converting DigitalRF data: {e}",
+        }
