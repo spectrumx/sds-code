@@ -32,10 +32,26 @@ class CaptureType(StrEnum):
 
 
 class CaptureOrigin(StrEnum):
-    """How a capture was created."""
+    """The origin of the capture."""
 
     System = "system"
     User = "user"
+
+
+class ProcessingType(StrEnum):
+    """The type of post-processing."""
+
+    Waterfall = "waterfall"
+    Spectrogram = "spectrogram"
+
+
+class ProcessingStatus(StrEnum):
+    """The status of post-processing."""
+
+    Pending = "pending"
+    Processing = "processing"
+    Completed = "completed"
+    Failed = "failed"
 
 
 class KeySources(StrEnum):
@@ -774,6 +790,185 @@ class UserSharePermission(BaseModel):
         ).select_related("shared_with")
 
 
+class PostProcessedData(BaseModel):
+    """
+    Generalized model to store post-processed data for captures.
+
+    This model can store any type of post-processed data (waterfall, spectrogram, etc.)
+    and tracks processing status and metadata.
+    """
+
+    capture = models.ForeignKey(
+        "Capture",
+        on_delete=models.CASCADE,
+        related_name="post_processed_data",
+        help_text="The capture this processed data belongs to",
+    )
+
+    processing_type = models.CharField(
+        max_length=50,
+        choices=[(pt.value, pt.value.title()) for pt in ProcessingType],
+        help_text="Type of post-processing (waterfall, spectrogram, etc.)",
+    )
+
+    # Processing parameters (stored as JSON for flexibility)
+    processing_parameters = models.JSONField(
+        default=dict,
+        help_text="Processing parameters (FFT size, window type, etc.)",
+    )
+
+    # Data storage
+    data_file = models.FileField(
+        upload_to="post_processed_data/",
+        help_text="File containing the processed data",
+    )
+
+    # Metadata (stored as JSON for flexibility)
+    metadata = models.JSONField(
+        default=dict,
+        help_text="Processing metadata (frequencies, timestamps, etc.)",
+    )
+
+    # Processing status
+    processing_status = models.CharField(
+        max_length=20,
+        choices=[(ps.value, ps.value.title()) for ps in ProcessingStatus],
+        default=ProcessingStatus.Pending.value,
+        help_text="Current processing status",
+    )
+    processing_error = models.TextField(
+        blank=True,
+        help_text="Error message if processing failed",
+    )
+    processed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the processing was completed",
+    )
+
+    # Cog pipeline tracking
+    pipeline_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Cog pipeline ID for tracking",
+    )
+    pipeline_step = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Current step in the processing pipeline",
+    )
+
+    class Meta:
+        unique_together = ["capture", "processing_type", "processing_parameters"]
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["capture", "processing_type"]),
+            models.Index(fields=["processing_status"]),
+            models.Index(fields=["pipeline_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.processing_type} data for {self.capture.name} ({self.processing_status})"
+
+    @property
+    def is_ready(self) -> bool:
+        """Check if the processed data is ready for use."""
+        return (
+            self.processing_status == ProcessingStatus.Completed.value
+            and self.data_file.name
+        )
+
+    def mark_processing_started(
+        self, pipeline_id: str = None, step: str = None
+    ) -> None:
+        """Mark processing as started."""
+        self.processing_status = ProcessingStatus.Processing.value
+        if pipeline_id:
+            self.pipeline_id = pipeline_id
+        if step:
+            self.pipeline_step = step
+        self.save(update_fields=["processing_status", "pipeline_id", "pipeline_step"])
+
+    def mark_processing_completed(self) -> None:
+        """Mark processing as completed."""
+        self.processing_status = ProcessingStatus.Completed.value
+        self.processed_at = datetime.datetime.now(datetime.UTC)
+        self.save(update_fields=["processing_status", "processed_at"])
+
+    def mark_processing_failed(self, error_message: str) -> None:
+        """Mark processing as failed with error message."""
+        self.processing_status = ProcessingStatus.Failed.value
+        self.processing_error = error_message
+        self.save(update_fields=["processing_status", "processing_error"])
+
+    def update_pipeline_step(self, step: str) -> None:
+        """Update the current pipeline step."""
+        self.pipeline_step = step
+        self.save(update_fields=["pipeline_step"])
+
+    def get_metadata_value(self, key: str, default: Any = None) -> Any:
+        """Get a value from the metadata JSON field."""
+        return self.metadata.get(key, default)
+
+    def set_metadata_value(self, key: str, value: Any) -> None:
+        """Set a value in the metadata JSON field."""
+        self.metadata[key] = value
+        self.save(update_fields=["metadata"])
+
+
+# Legacy WaterfallData model for backward compatibility
+class WaterfallData(PostProcessedData):
+    """
+    Legacy model for waterfall data (deprecated).
+
+    This model is kept for backward compatibility but new implementations
+    should use PostProcessedData with processing_type='waterfall'.
+    """
+
+    class Meta:
+        proxy = True
+
+    def save(self, *args, **kwargs):
+        """Ensure processing_type is set to waterfall."""
+        self.processing_type = ProcessingType.Waterfall.value
+        super().save(*args, **kwargs)
+
+    @property
+    def center_frequency(self) -> float:
+        """Get center frequency from metadata."""
+        return self.get_metadata_value("center_frequency", 0.0)
+
+    @property
+    def sample_rate(self) -> float:
+        """Get sample rate from metadata."""
+        return self.get_metadata_value("sample_rate", 0.0)
+
+    @property
+    def min_frequency(self) -> float:
+        """Get minimum frequency from metadata."""
+        return self.get_metadata_value("min_frequency", 0.0)
+
+    @property
+    def max_frequency(self) -> float:
+        """Get maximum frequency from metadata."""
+        return self.get_metadata_value("max_frequency", 0.0)
+
+    @property
+    def fft_size(self) -> int:
+        """Get FFT size from processing parameters."""
+        return self.processing_parameters.get("fft_size", 1024)
+
+    @property
+    def samples_per_slice(self) -> int:
+        """Get samples per slice from processing parameters."""
+        return self.processing_parameters.get("samples_per_slice", 1024)
+
+    @property
+    def total_slices(self) -> int:
+        """Get total slices from metadata."""
+        return self.get_metadata_value("total_slices", 0)
+
+
 def _extract_drf_capture_props(
     capture_props: dict[str, Any],
     center_frequency: float | None = None,
@@ -1056,3 +1251,18 @@ def handle_dataset_soft_delete(sender, instance: Dataset, **kwargs) -> None:
 
         for permission in share_permissions:
             permission.soft_delete()
+
+
+@receiver(post_save, sender=Capture)
+def trigger_post_processing(sender, instance: Capture, created: bool, **kwargs):
+    """Trigger post-processing when a new DigitalRF capture is created."""
+    if created and instance.capture_type == CaptureType.DigitalRF:
+        log.info(
+            f"New DigitalRF capture created: {instance.uuid}, triggering post-processing"
+        )
+
+        # Import here to avoid circular imports
+        from .tasks import start_capture_post_processing
+
+        # Trigger the post-processing pipeline
+        start_capture_post_processing.delay(str(instance.uuid))

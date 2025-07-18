@@ -17,6 +17,7 @@ from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -35,6 +36,7 @@ from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
 from sds_gateway.api_methods.helpers.search_captures import search_captures
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
@@ -732,6 +734,186 @@ class CaptureViewSet(viewsets.ViewSet):
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"])
+    @extend_schema(
+        summary="Trigger post-processing for a capture",
+        description="Manually trigger post-processing pipeline for a DigitalRF capture",
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "processing_types": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Types of processing to run (waterfall, spectrogram, etc.)",
+                        "default": ["waterfall"],
+                    },
+                },
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                description="Post-processing started successfully",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={
+                            "status": "success",
+                            "message": "Post-processing pipeline started",
+                            "capture_uuid": "123e4567-e89b-12d3-a456-426614174000",
+                            "processing_types": ["waterfall"],
+                        },
+                    )
+                ],
+            ),
+            400: OpenApiResponse(description="Invalid request"),
+            404: OpenApiResponse(description="Capture not found"),
+        },
+    )
+    def trigger_post_processing(self, request, pk=None):
+        """Trigger post-processing for a capture."""
+        try:
+            capture = self.get_object()
+
+            if capture.capture_type != CaptureType.DigitalRF:
+                return Response(
+                    {
+                        "error": "Post-processing is only available for DigitalRF captures"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get processing types from request
+            processing_types = request.data.get(
+                "processing_types", [ProcessingType.Waterfall.value]
+            )
+
+            # Validate processing types
+            valid_types = [pt.value for pt in ProcessingType]
+            invalid_types = [pt for pt in processing_types if pt not in valid_types]
+            if invalid_types:
+                return Response(
+                    {"error": f"Invalid processing types: {invalid_types}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Start the post-processing pipeline
+            from sds_gateway.api_methods.tasks import start_capture_post_processing
+
+            result = start_capture_post_processing.delay(
+                str(capture.uuid), processing_types
+            )
+
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Post-processing pipeline started",
+                    "capture_uuid": str(capture.uuid),
+                    "processing_types": processing_types,
+                    "task_id": result.id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            log.exception(f"Error triggering post-processing: {e}")
+            return Response(
+                {"error": f"Internal server error: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["get"])
+    @extend_schema(
+        summary="Get post-processing status",
+        description="Get the status of post-processing for a capture",
+        responses={
+            200: OpenApiResponse(
+                description="Post-processing status",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={
+                            "capture_uuid": "123e4567-e89b-12d3-a456-426614174000",
+                            "post_processed_data": [
+                                {
+                                    "id": 1,
+                                    "processing_type": "waterfall",
+                                    "processing_status": "completed",
+                                    "processed_at": "2024-01-01T12:00:00Z",
+                                    "is_ready": True,
+                                }
+                            ],
+                        },
+                    )
+                ],
+            ),
+            404: OpenApiResponse(description="Capture not found"),
+        },
+    )
+    def post_processing_status(self, request, pk=None):
+        """Get post-processing status for a capture."""
+        try:
+            capture = self.get_object()
+
+            # Get all post-processed data for this capture
+            processed_data = capture.post_processed_data.all().order_by(
+                "processing_type", "-created_at"
+            )
+
+            from sds_gateway.api_methods.serializers.capture_serializers import (
+                PostProcessedDataSerializer,
+            )
+
+            return Response(
+                {
+                    "capture_uuid": str(capture.uuid),
+                    "post_processed_data": PostProcessedDataSerializer(
+                        processed_data, many=True
+                    ).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            log.exception(f"Error getting post-processing status: {e}")
+            return Response(
+                {"error": f"Internal server error: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # Legacy endpoint for backward compatibility
+    @action(detail=True, methods=["post"])
+    @extend_schema(
+        summary="Trigger waterfall processing (deprecated)",
+        description="Manually trigger waterfall processing for a DigitalRF capture (deprecated, use trigger_post_processing instead)",
+        responses={
+            200: OpenApiResponse(
+                description="Waterfall processing started successfully"
+            ),
+            400: OpenApiResponse(description="Invalid request"),
+            404: OpenApiResponse(description="Capture not found"),
+        },
+    )
+    def trigger_waterfall_processing(self, request, pk=None):
+        """Trigger waterfall processing for a capture (deprecated)."""
+        log.warning(
+            "trigger_waterfall_processing is deprecated. Use trigger_post_processing instead."
+        )
+
+        # Redirect to the new endpoint
+        request.data["processing_types"] = [ProcessingType.Waterfall.value]
+        return self.trigger_post_processing(request, pk)
 
 
 def _check_capture_creation_constraints(
