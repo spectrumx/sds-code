@@ -916,59 +916,6 @@ class PostProcessedData(BaseModel):
         self.save(update_fields=["metadata"])
 
 
-# Legacy WaterfallData model for backward compatibility
-class WaterfallData(PostProcessedData):
-    """
-    Legacy model for waterfall data (deprecated).
-
-    This model is kept for backward compatibility but new implementations
-    should use PostProcessedData with processing_type='waterfall'.
-    """
-
-    class Meta:
-        proxy = True
-
-    def save(self, *args, **kwargs):
-        """Ensure processing_type is set to waterfall."""
-        self.processing_type = ProcessingType.Waterfall.value
-        super().save(*args, **kwargs)
-
-    @property
-    def center_frequency(self) -> float:
-        """Get center frequency from metadata."""
-        return self.get_metadata_value("center_frequency", 0.0)
-
-    @property
-    def sample_rate(self) -> float:
-        """Get sample rate from metadata."""
-        return self.get_metadata_value("sample_rate", 0.0)
-
-    @property
-    def min_frequency(self) -> float:
-        """Get minimum frequency from metadata."""
-        return self.get_metadata_value("min_frequency", 0.0)
-
-    @property
-    def max_frequency(self) -> float:
-        """Get maximum frequency from metadata."""
-        return self.get_metadata_value("max_frequency", 0.0)
-
-    @property
-    def fft_size(self) -> int:
-        """Get FFT size from processing parameters."""
-        return self.processing_parameters.get("fft_size", 1024)
-
-    @property
-    def samples_per_slice(self) -> int:
-        """Get samples per slice from processing parameters."""
-        return self.processing_parameters.get("samples_per_slice", 1024)
-
-    @property
-    def total_slices(self) -> int:
-        """Get total slices from metadata."""
-        return self.get_metadata_value("total_slices", 0)
-
-
 def _extract_drf_capture_props(
     capture_props: dict[str, Any],
     center_frequency: float | None = None,
