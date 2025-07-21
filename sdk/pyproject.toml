@@ -153,13 +153,13 @@
             # https://docs.astral.sh/ruff/settings/#lint_ignore
             "COM812", # disabled following ruff's recommendation
             "ISC001", # disabled following ruff's recommendation
-            # "N811",   # Constant imports aliased to non-constant-style names (false positives with django)
             "RUF012", # Mutable class attributes should be annotated with `typing.ClassVar`
             "S101",   # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
             "S104",   # Possible binding to all interfaces
             "SIM102", # sometimes it's better to nest
             "UP038",  # Checks for uses of isinstance/issubclass that take a tuple
             # of types for comparison.
+            # "N811",   # Constant imports aliased to non-constant-style names (false positives with django)
             # UP038 deactivated because it can make the code slow:
             # https://github.com/astral-sh/ruff/issues/7871
         ]
