@@ -528,4 +528,42 @@
             }
         });
     </script>
+    <!-- Load the WASM library first -->
+    <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var modal = document.getElementById('uploadCaptureModal');
+            if (!modal) {
+                console.warn('uploadCaptureModal not found');
+                return;
+            }
+            modal.addEventListener('shown.bs.modal', function() {
+                var fileInput = document.getElementById('captureFileInput');
+                if (!fileInput) {
+                    console.warn('captureFileInput not found');
+                    return;
+                }
+                // Remove any previous handler to avoid duplicates
+                fileInput.removeEventListener('change', window._blake3CaptureHandler);
+
+                window._blake3CaptureHandler = async function(event) {
+                    console.log('File input changed!');
+                    const files = event.target.files;
+                    if (!files || files.length === 0) {
+                        console.log("No files selected.");
+                        return;
+                    }
+                    for (const file of files) {
+                        const buffer = await file.arrayBuffer();
+                        const hasher = await hashwasm.createBLAKE3(); // async!
+                        hasher.init();
+                        hasher.update(new Uint8Array(buffer));
+                        const hashHex = hasher.digest('hex');
+                        console.log(`BLAKE3 hash for ${file.name}:`, hashHex);
+                    }
+                };
+                fileInput.addEventListener('change', window._blake3CaptureHandler);
+            });
+        });
+    </script>
 {% endblock javascript %}
