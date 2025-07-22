@@ -19,7 +19,7 @@
 	--transition: 0.2s ease;
 }
 
-/* Hide Chrome's default search cancel button */
+/* Hide native clear button in Chrome */
 input[type="search"]::-webkit-search-cancel-button {
 	-webkit-appearance: none;
 	display: none;

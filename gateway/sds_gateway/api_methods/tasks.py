@@ -26,6 +26,7 @@ def get_redis_client() -> Redis:
     """Get Redis client for locking."""
     return Redis.from_url(settings.CELERY_BROKER_URL)
 
+
 def send_email(
     subject,
     recipient_list,
@@ -179,7 +180,9 @@ def test_email_task(email_address: str = "test@example.com") -> str:
         return f"Test email sent to {email_address}"
 
 
-def _send_download_error_email(user: User, dataset: Dataset, error_message: str) -> None:
+def _send_download_error_email(
+    user: User, dataset: Dataset, error_message: str
+) -> None:
     """
     Send an error email to the user when dataset download fails.
 
@@ -194,6 +197,7 @@ def _send_download_error_email(user: User, dataset: Dataset, error_message: str)
         # Create email context
         context = {
             "dataset_name": dataset.name,
+            "site_url": settings.SITE_URL,
             "error_message": error_message,
             "requested_at": datetime.datetime.now(datetime.UTC).strftime(
                 "%Y-%m-%d %H:%M:%S UTC"
@@ -222,6 +226,7 @@ def _send_download_error_email(user: User, dataset: Dataset, error_message: str)
             user.id,
             e,
         )
+
 
 def _validate_dataset_download_request(
     dataset_uuid: str, user_id: str
@@ -464,6 +469,7 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
             "file_size": temp_zip.file_size,
             "files_count": temp_zip.files_processed,
             "expires_at": temp_zip.expires_at,
+            "site_url": settings.SITE_URL,
         }
 
         # Send email
@@ -487,7 +493,7 @@ def send_dataset_files_email(dataset_uuid: str, user_id: str) -> dict:
         )
         error_message = f"An unexpected error occurred: {e!s}"
         if user and dataset:
-            _send_error_email(user, dataset, error_message)
+            _send_download_error_email(user, dataset, error_message)
         return {
             "status": "error",
             "message": error_message,
@@ -695,6 +701,205 @@ def get_user_task_status(user_id: str, task_name: str) -> dict:
 
 
 @shared_task
+def send_capture_files_email(capture_uuid: str, user_id: str) -> dict:
+    """
+    Celery task to create a zip file of capture files and send it via email.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+        user_id: ID of the user requesting the download
+
+    Returns:
+        dict: Task result with status and details
+    """
+    # Initialize variables that might be used in finally block
+    task_name = "capture_download"
+
+    try:
+        # Validate the request
+        error_result, user, capture = _validate_capture_download_request(
+            capture_uuid, user_id
+        )
+        if error_result:
+            return error_result
+
+        # At this point, user and capture are guaranteed to be not None
+        assert user is not None
+        assert capture is not None
+
+        # Check if user already has a running task
+        if is_user_locked(user_id, task_name):
+            logger.warning(
+                "User %s already has a capture download task running", user_id
+            )
+            return {
+                "status": "error",
+                "message": (
+                    "You already have a capture download in progress. "
+                    "Please wait for it to complete."
+                ),
+                "capture_uuid": capture_uuid,
+                "user_id": user_id,
+            }
+
+        # Try to acquire lock for this user
+        if not acquire_user_lock(user_id, task_name):
+            logger.warning("Failed to acquire lock for user %s", user_id)
+            return {
+                "status": "error",
+                "message": "Unable to start download. Please try again in a moment.",
+                "capture_uuid": capture_uuid,
+                "user_id": user_id,
+            }
+
+        logger.info("Acquired lock for user %s, starting capture download", user_id)
+
+        # Get all files for the capture
+        files = capture.files.filter(
+            is_deleted=False,
+            owner=user,
+        )
+
+        if not files:
+            logger.warning("No files found for capture %s", capture_uuid)
+            return {
+                "status": "error",
+                "message": "No files found in capture",
+                "capture_uuid": capture_uuid,
+                "total_size": 0,
+            }
+
+        safe_capture_name = (capture.name or "capture").replace(" ", "_")
+        zip_filename = f"capture_{safe_capture_name}_{capture_uuid}.zip"
+
+        # Create zip file using the generic function
+        zip_file_path, total_size, files_processed = create_zip_from_files(
+            files, zip_filename
+        )
+
+        if files_processed == 0:
+            logger.warning("No files were processed for capture %s", capture_uuid)
+            return {
+                "status": "error",
+                "message": "No files could be processed",
+                "capture_uuid": capture_uuid,
+                "total_size": 0,
+            }
+
+        temp_zip = TemporaryZipFile.objects.create(
+            file_path=zip_file_path,
+            filename=zip_filename,
+            file_size=total_size,
+            files_processed=files_processed,
+            owner=user,
+        )
+
+        # Send email with download link
+        capture_display_name = capture.name or f"Capture {capture_uuid}"
+        subject = f"Your capture '{capture_display_name}' is ready for download"
+
+        # Create email context
+        context = {
+            "capture_name": capture_display_name,
+            "download_url": temp_zip.download_url,
+            "file_size": total_size,
+            "files_count": files_processed,
+            "expires_at": temp_zip.expires_at,
+        }
+
+        # Render email template
+        html_message = render_to_string("emails/capture_download_ready.html", context)
+        plain_message = render_to_string("emails/capture_download_ready.txt", context)
+
+        user_email = user.email
+
+        # Send email
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            html_message=html_message,
+        )
+
+        logger.info(
+            "Successfully sent capture download email for %s to %s",
+            capture_uuid,
+            user_email,
+        )
+
+        return {
+            "status": "success",
+            "message": "Capture files email sent successfully",
+            "capture_uuid": capture_uuid,
+            "files_processed": files_processed,
+            "temp_zip_uuid": temp_zip.uuid,
+        }
+
+    finally:
+        # Always release the lock, even if there was an error
+        if user_id is not None:
+            release_user_lock(user_id, task_name)
+            logger.info("Released lock for user %s", user_id)
+
+
+def _validate_capture_download_request(
+    capture_uuid: str, user_id: str
+) -> tuple[dict | None, User | None, Capture | None]:
+    """
+    Validate capture download request parameters.
+
+    Args:
+        capture_uuid: UUID of the capture to download
+        user_id: ID of the user requesting the download
+
+    Returns:
+        tuple: (error_result, user, capture) where error_result is None if valid
+    """
+    # Validate user
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        logger.warning("User %s not found for capture download", user_id)
+        return (
+            {
+                "status": "error",
+                "message": "User not found",
+                "capture_uuid": capture_uuid,
+                "user_id": user_id,
+            },
+            None,
+            None,
+        )
+
+    # Validate capture
+    try:
+        capture = Capture.objects.get(
+            uuid=capture_uuid,
+            owner=user,
+            is_deleted=False,
+        )
+    except Capture.DoesNotExist:
+        logger.warning(
+            "Capture %s not found or not owned by user %s",
+            capture_uuid,
+            user_id,
+        )
+        return (
+            {
+                "status": "error",
+                "message": "Capture not found or access denied",
+                "capture_uuid": capture_uuid,
+                "user_id": user_id,
+            },
+            None,
+            None,
+        )
+
+    return None, user, capture
+
+
+@shared_task
 def notify_shared_users(
     item_uuid: str,
     item_type: ItemType,
@@ -715,7 +920,7 @@ def notify_shared_users(
     if not notify or not user_emails:
         return "No notifications sent."
 
-        # Map item types to their corresponding models
+    # Map item types to their corresponding models
     item_models = {
         "dataset": Dataset,
         "capture": Capture,
@@ -729,32 +934,51 @@ def notify_shared_users(
     try:
         item = model_class.objects.get(uuid=item_uuid)
         item_name = getattr(item, "name", str(item))
+        owner = getattr(item, "owner", None)
+        owner_name = getattr(owner, "name", "The owner") if owner else "The owner"
+        owner_email = getattr(owner, "email", "") if owner else ""
     except model_class.DoesNotExist:
         return f"{item_type.capitalize()} {item_uuid} does not exist."
 
     subject = f"A {item_type} has been shared with you: {item_name}"
 
-    for email in user_emails:
-        # Use HTTPS if available, otherwise HTTP
-        protocol = "https" if settings.USE_HTTPS else "http"
-        site_url = f"{protocol}://{settings.SITE_DOMAIN}"
+    # Build item_url if possible
+    # Try to provide a direct link to the item list page
+    if item_type == "dataset":
+        item_url = f"{settings.SITE_URL}/users/dataset-list/"
+    elif item_type == "capture":
+        item_url = f"{settings.SITE_URL}/users/file-list/"
+    else:
+        item_url = settings.SITE_URL
 
+    for email in user_emails:
+        context = {
+            "item_type": item_type,
+            "item_name": item_name,
+            "owner_name": owner_name,
+            "owner_email": owner_email,
+            "message": message,
+            "item_url": item_url,
+            "site_url": settings.SITE_URL,
+        }
         if message:
             body = (
                 f"You have been granted access to the {item_type} '{item_name}'.\n\n"
                 f"Message from the owner:\n{message}\n\n"
-                f"View your shared {item_type}s: {site_url}/users/{item_type.lower()}s/"
+                f"View your shared {item_type}s: {item_url}"
             )
         else:
             body = (
                 f"You have been granted access to the {item_type} '{item_name}'.\n\n"
-                f"View your shared {item_type}s: {site_url}/users/{item_type.lower()}s/"
+                f"View your shared {item_type}s: {item_url}"
             )
 
         send_email(
             subject=subject,
             recipient_list=[email],
             plain_message=body,
+            html_template="emails/share_notification.html",
+            context=context,
         )
 
     return f"Notified {len(user_emails)} users about shared {item_type} {item_uuid}."

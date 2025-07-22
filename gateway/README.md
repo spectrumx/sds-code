@@ -72,7 +72,7 @@ For the local deploy:
     Either create an `sds-network-local` network manually, or run the [Traefik service](../network/compose.yaml) that creates it:
 
     ```bash
-    docker network create sds-network-local --driver=bridge --name=sds-network-local
+    docker network create sds-network-local --driver=bridge
     ```
 
     Then, run the services:
@@ -193,7 +193,7 @@ Keep this in mind, however:
     Either create an `sds-network-prod` network manually, or run the [Traefik service](../network/compose.yaml) that creates it:
 
     ```bash
-    docker network create sds-network-prod --driver=bridge --name=sds-network-prod
+    docker network create sds-network-prod --driver=bridge
     ```
 
     Generate the OpenSearch certificates:

@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	// Initialize sort icons
 	updateSortIcons();
 
-	// Bootstrap handles dropdowns natively - no custom handling needed
+	// Bootstrap handles dropdowns natively with data-bs-toggle="dropdown" - no custom handling needed
 
 	// Check for download alert messages
 	const downloadAlert = sessionStorage.getItem("downloadAlert");
@@ -101,7 +101,17 @@ document.addEventListener("DOMContentLoaded", () => {
 							.value,
 					},
 				})
-					.then((response) => response.json())
+					.then((response) => {
+						// Check if response is JSON
+						const contentType = response.headers.get("content-type");
+						if (contentType?.includes("application/json")) {
+							return response.json();
+						}
+						// If not JSON, throw an error with the response text
+						return response.text().then((text) => {
+							throw new Error(`Server returned non-JSON response: ${text}`);
+						});
+					})
 					.then((data) => {
 						if (data.message && data.task_id) {
 							button.innerHTML =
@@ -124,7 +134,8 @@ document.addEventListener("DOMContentLoaded", () => {
 						button.innerHTML =
 							'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
 						showAlert(
-							"An error occurred while processing your request.",
+							error.message ||
+								"An error occurred while processing your request.",
 							"error",
 						);
 					})
@@ -156,6 +167,10 @@ function closeCustomModal(modalId) {
 	}
 }
 
+// Make functions available globally
+window.openCustomModal = openCustomModal;
+window.closeCustomModal = closeCustomModal;
+
 // Function to show alerts
 function showAlert(message, type) {
 	const alertClass = type === "success" ? "alert-success" : "alert-danger";
@@ -174,6 +189,9 @@ function showAlert(message, type) {
 	}
 }
 
+// Make function available globally
+window.showAlert = showAlert;
+
 // Close modal when clicking backdrop
 document.addEventListener("click", (event) => {
 	if (event.target.classList.contains("custom-modal-backdrop")) {
@@ -183,3 +201,5 @@ document.addEventListener("click", (event) => {
 		}
 	}
 });
+
+// Bootstrap handles dropdowns natively with data-bs-toggle="dropdown" - no custom handling needed

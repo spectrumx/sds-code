@@ -1,6 +1,8 @@
+import datetime
+import hashlib
 import json
 import logging
-from datetime import datetime
+import mimetypes
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -24,21 +26,26 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import TemplateView
 from django.views.generic import UpdateView
 from rest_framework import status
 
+from sds_gateway.api_methods.helpers.file_helpers import upload_file_helper_simple
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.serializers.capture_serializers import CapturePostSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -46,6 +53,7 @@ from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSe
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
+from sds_gateway.api_methods.tasks import send_capture_files_email
 from sds_gateway.api_methods.tasks import send_dataset_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
@@ -61,6 +69,47 @@ from sds_gateway.users.utils import deduplicate_composite_captures
 
 # Add logger for debugging
 logger = logging.getLogger(__name__)
+
+
+def is_valid_file(file_path):
+    """Returns True if the path is a valid file for SDS upload."""
+    disallowed_mimes = [
+        "application/x-msdownload",  # .exe
+        "application/x-msdos-program",  # .com
+        "application/x-msi",  # .msi
+    ]
+    mime_type, _ = mimetypes.guess_type(file_path)
+    reasons = []
+    path_obj = Path(file_path)
+    if mime_type in disallowed_mimes:
+        reasons.append(f"Invalid MIME type: {mime_type}")
+    if not path_obj.is_file():
+        reasons.append("Not a file")
+    if path_obj.stat().st_size == 0:
+        reasons.append("Empty file")
+    return len(reasons) == 0, reasons
+
+
+def get_valid_files(root_dir: Path):
+    """
+    Recursively yields (relative_path, file_path) for valid files under root_dir.
+    """
+    for file_path in root_dir.rglob("*"):
+        if not file_path.is_file():
+            continue
+        is_valid, reasons = is_valid_file(str(file_path))
+        if is_valid:
+            rel_path = str(file_path.relative_to(root_dir))
+            yield rel_path, file_path
+
+
+def compute_blake3_checksum(file_path):
+    # Use hashlib.blake2b with digest_size=32 to match 64 hex chars
+    h = hashlib.blake2b(digest_size=32)
+    with file_path.open("rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -165,7 +214,15 @@ user_generate_api_key_view = GenerateAPIKeyView.as_view()
 
 
 class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
-    """Handle item sharing functionality using the generalized UserSharePermission model."""  # noqa: E501
+    """
+    View to handle item sharing functionality using
+    the generalized UserSharePermission model.
+
+    This view is used to search for users to share with,
+    add users to item sharing, and remove users from item sharing.
+
+    It also handles the notification of shared users.
+    """
 
     # Map item types to their corresponding models
     ITEM_MODELS = {
@@ -228,7 +285,20 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         request_user: User,
         message: str = "",
     ) -> tuple[list[str], list[str]]:
-        """Add users to item sharing using UserSharePermission and return (shared_users, errors)."""  # noqa: E501
+        """
+        Add users to item sharing using UserSharePermission
+        and return (shared_users, errors).
+
+        Args:
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share from ItemType enum
+            user_emails_str: A comma-separated string of user emails to share with
+            request_user: The user sharing the item
+            message: A message to share with the users
+
+        Returns:
+            A tuple containing a list of shared users and a list of errors
+        """
         if not user_emails_str:
             return [], []
 
@@ -296,7 +366,19 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         users_to_remove: list[str],
         request_user: User,
     ) -> tuple[list[str], list[str]]:
-        """Remove users from item sharing using UserSharePermission and return (removed_users, errors)."""  # noqa: E501
+        """
+        Remove users from item sharing using UserSharePermission
+        and return (removed_users, errors).
+
+        Args:
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share from ItemType enum
+            users_to_remove: A list of user emails to remove
+            request_user: The user removing the users
+
+        Returns:
+            A tuple containing a list of removed users and a list of errors
+        """
         removed_users = []
         errors = []
 
@@ -336,7 +418,18 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         removed_users: list[str],
         errors: list[str],
     ) -> JsonResponse:
-        """Build the response message based on the results."""
+        """
+        Build the response message based on the results.
+
+        Args:
+            item_type: The type of item to share from ItemType enum
+            shared_users: A list of user emails that were shared
+            removed_users: A list of user emails that were removed
+            errors: A list of error messages
+
+        Returns:
+            A JSON response containing the response message
+        """
         response_parts = []
         if shared_users:
             response_parts.append(
@@ -364,7 +457,17 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         *args: Any,
         **kwargs: Any,
     ) -> HttpResponse:
-        """Share an item with another user using the generalized permission system."""
+        """
+        Share an item with another user using the generalized permission system.
+
+        Args:
+            request: The HTTP request object
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share from ItemType enum
+
+        Returns:
+            A JSON response containing the response message
+        """
         # Validate item type
         if item_type not in self.ITEM_MODELS:
             return JsonResponse({"error": "Invalid item type"}, status=400)
@@ -423,7 +526,16 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         *args: Any,
         **kwargs: Any,
     ) -> HttpResponse:
-        """Remove a user from item sharing using the generalized permission system."""
+        """Remove a user from item sharing using the generalized permission system.
+
+        Args:
+            request: The HTTP request object
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share from ItemType enum
+
+        Returns:
+            A JSON response containing the response message
+        """
         # Validate item type
         if item_type not in self.ITEM_MODELS:
             return JsonResponse({"error": "Invalid item type"}, status=400)
@@ -1190,9 +1302,18 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         owned_datasets = (
             request.user.datasets.filter(is_deleted=False).all().order_by(order_by)
         )
-        # Get datasets shared with the user (exclude owned)
+
+        # Get datasets shared with the user using the new UserSharePermission model
+        shared_permissions = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            item_type=ItemType.DATASET,
+            is_deleted=False,
+            is_enabled=True,
+        ).select_related("owner")
+
+        shared_dataset_uuids = [perm.item_uuid for perm in shared_permissions]
         shared_datasets = (
-            Dataset.objects.filter(shared_with=request.user, is_deleted=False)
+            Dataset.objects.filter(uuid__in=shared_dataset_uuids, is_deleted=False)
             .exclude(owner=request.user)
             .order_by(order_by)
         )
@@ -1201,10 +1322,19 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         datasets_with_shared_users = []
         for dataset in owned_datasets:
             dataset_data = DatasetGetSerializer(dataset).data
-            shared_users = dataset.shared_with.all()
-            dataset_data["shared_users"] = [
-                {"name": user.name, "email": user.email} for user in shared_users
+            # Get shared users using the new model
+            shared_permissions = UserSharePermission.objects.filter(
+                item_uuid=dataset.uuid,
+                item_type=ItemType.DATASET,
+                owner=request.user,
+                is_deleted=False,
+                is_enabled=True,
+            ).select_related("shared_with")
+            shared_users = [
+                {"name": perm.shared_with.name, "email": perm.shared_with.email}
+                for perm in shared_permissions
             ]
+            dataset_data["shared_users"] = shared_users
             dataset_data["is_owner"] = True
             dataset_data["is_shared_with_me"] = False
             dataset_data["owner_name"] = (
@@ -1212,12 +1342,22 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             )
             dataset_data["owner_email"] = dataset.owner.email if dataset.owner else ""
             datasets_with_shared_users.append(dataset_data)
+
         for dataset in shared_datasets:
             dataset_data = DatasetGetSerializer(dataset).data
-            shared_users = dataset.shared_with.all()
-            dataset_data["shared_users"] = [
-                {"name": user.name, "email": user.email} for user in shared_users
+            # Get shared users using the new model
+            shared_permissions = UserSharePermission.objects.filter(
+                item_uuid=dataset.uuid,
+                item_type=ItemType.DATASET,
+                owner=dataset.owner,
+                is_deleted=False,
+                is_enabled=True,
+            ).select_related("shared_with")
+            shared_users = [
+                {"name": perm.shared_with.name, "email": perm.shared_with.email}
+                for perm in shared_permissions
             ]
+            dataset_data["shared_users"] = shared_users
             dataset_data["is_owner"] = False
             dataset_data["is_shared_with_me"] = True
             dataset_data["owner_name"] = (
@@ -1250,12 +1390,26 @@ def _apply_basic_filters(
 ) -> QuerySet[Capture]:
     """Apply basic filters: search, date range, and capture type."""
     if search:
-        qs = qs.filter(
+        # First get the base queryset with direct field matches
+        base_filter = (
             Q(channel__icontains=search)
             | Q(index_name__icontains=search)
             | Q(capture_type__icontains=search)
             | Q(uuid__icontains=search)
         )
+
+        # Then add any captures where the display value matches
+        display_matches = [
+            capture.pk
+            for capture in qs
+            if search.lower() in capture.get_capture_type_display().lower()
+        ]
+
+        if display_matches:
+            base_filter |= Q(pk__in=display_matches)
+
+        qs = qs.filter(base_filter)
+
     if date_start:
         qs = qs.filter(created_at__gte=date_start)
     if date_end:
@@ -1563,3 +1717,251 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 
 
 user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()
+
+
+class CaptureDownloadView(Auth0LoginRequiredMixin, View):
+    """View to handle capture download requests from the web interface."""
+
+    def post(self, request, *args, **kwargs):
+        """Handle capture download request."""
+        capture_uuid = kwargs.get("uuid")
+        if not capture_uuid:
+            return JsonResponse(
+                {"status": "error", "detail": "Capture UUID is required."},
+                status=400,
+            )
+
+        # Get the capture
+        capture = get_object_or_404(
+            Capture,
+            uuid=capture_uuid,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        # Check if capture has files
+        files = capture.files.filter(is_deleted=False, owner=request.user)
+        if not files.exists():
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "detail": "No files found in capture",
+                    "capture_uuid": capture_uuid,
+                },
+                status=400,
+            )
+
+        # Get user email
+        user_email = request.user.email
+        if not user_email:
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "detail": "User email is required for sending capture files.",
+                },
+                status=400,
+            )
+
+        # Check if a user already has a task running
+        if is_user_locked(str(request.user.id), "capture_download"):
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "detail": (
+                        "You already have a capture download in progress. "
+                        "Please wait for it to complete."
+                    ),
+                },
+                status=400,
+            )
+
+        # Trigger the Celery task
+        task = send_capture_files_email.delay(
+            str(capture.uuid),
+            str(request.user.id),
+        )
+
+        capture_display_name = capture.name or f"Capture {capture.uuid}"
+        return JsonResponse(
+            {
+                "status": "success",
+                "message": (
+                    "Capture download request accepted. You will receive an email "
+                    "with the files shortly."
+                ),
+                "task_id": task.id,
+                "capture_name": capture_display_name,
+                "user_email": user_email,
+            },
+            status=202,
+        )
+
+
+user_capture_download_view = CaptureDownloadView.as_view()
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class UploadFilesView(View):
+    def _handle_file_uploads(self, request, files, relative_paths):
+        saved_files = []
+        errors = []
+        skipped_files = []
+        metadata_only_files = []
+
+        for f, rel_path in zip(files, relative_paths, strict=True):
+            if "/" in rel_path:
+                directory, filename = rel_path.rsplit("/", 1)
+                directory = (
+                    "/" + directory if not directory.startswith("/") else directory
+                )
+            else:
+                directory = "/"
+                filename = rel_path
+            file_size = f.size
+            content_type = getattr(f, "content_type", "application/octet-stream")
+            file_data = {
+                "owner": request.user.pk,
+                "name": filename,
+                "directory": directory,
+                "file": f,
+                "size": file_size,
+                "media_type": content_type,
+            }
+            responses, errors = upload_file_helper_simple(request, file_data)
+            for response in responses:
+                if response.status_code in (
+                    status.HTTP_200_OK,
+                    status.HTTP_201_CREATED,
+                ):
+                    resp_data = response.data
+                    saved_files.append(
+                        {
+                            "name": filename,
+                            "directory": directory,
+                            "size": file_size,
+                            "uuid": (
+                                resp_data.get("uuid")
+                                if isinstance(resp_data, dict)
+                                else None
+                            ),
+                            "status": response.status_code,
+                            "note": (
+                                "File uploaded successfully."
+                                if response.status_code == status.HTTP_201_CREATED
+                                else "File upload processed."
+                            ),
+                        }
+                    )
+                else:
+                    error_msg = f"Failed to upload {filename}: {response.data}"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+        errors.extend(skipped_files)
+        errors.extend(metadata_only_files)
+        return saved_files, errors
+
+    def _create_captures(self, request, channels, relative_paths):
+        created_captures = []
+        errors = []
+        if not channels:
+            return created_captures
+
+        if relative_paths:
+            first_rel_path = relative_paths[0]
+            if "/" in first_rel_path:
+                top_level_dir = "/" + first_rel_path.split("/")[0]
+            else:
+                top_level_dir = "/"
+        else:
+            top_level_dir = "/"
+        for channel in channels:
+            try:
+                data = {
+                    "owner": request.user.pk,
+                    "top_level_dir": str(top_level_dir),
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel,
+                    "index_name": "captures-digitalrf",
+                }
+                serializer = CapturePostSerializer(
+                    data=data, context={"request_user": request.user}
+                )
+                if serializer.is_valid():
+                    capture = serializer.save()
+                    capture.refresh_from_db()
+                    logger.info(
+                        "DEBUG: Created capture with uuid: %s",
+                        capture.uuid,
+                    )
+                    created_captures.append(
+                        {
+                            "uuid": str(capture.uuid)
+                            if hasattr(capture, "uuid")
+                            else None,
+                            "channel": channel,
+                            "top_level_dir": str(top_level_dir),
+                        }
+                    )
+                else:
+                    logger.error(
+                        "Failed to create capture for channel %s: %s",
+                        channel,
+                        serializer.errors,
+                    )
+                    errors.append(
+                        f"Failed to create capture for channel {channel}: "
+                        f"{serializer.errors}"
+                    )
+            except Exception as exc:
+                logger.exception("Failed to create capture for channel %s", channel)
+                errors.append(
+                    f"Failed to create capture for channel {channel}: {exc!s}"
+                )
+                continue
+        if errors:
+            logger.error("Capture creation errors: %s", errors)
+        return created_captures
+
+    def post(self, request, *args, **kwargs):
+        files = request.FILES.getlist("files")
+        relative_paths = request.POST.getlist("relative_paths")
+        channels_str = request.POST.get("channels", "")
+        channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
+        saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
+        created_captures = []
+        file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
+        # Only create captures if all uploads succeeded
+        if saved_files and len(saved_files) == len(files) and not errors:
+            created_captures = self._create_captures(request, channels, relative_paths)
+            # Link all uploaded files to all created captures
+            from sds_gateway.api_methods.models import Capture
+            from sds_gateway.api_methods.models import File
+
+            if created_captures:
+                # Get File objects by uuid
+                file_objs = File.objects.filter(uuid__in=file_uuids)
+                capture_uuids = [c["uuid"] for c in created_captures if c.get("uuid")]
+                captures = Capture.objects.filter(uuid__in=capture_uuids)
+                for capture in captures:
+                    file_objs.update(capture=capture)
+        elif errors:
+            logger.error(
+                "File upload errors occurred, skipping capture creation. Errors: %s",
+                errors,
+            )
+        response_data = {
+            "status": "success"
+            if saved_files and len(saved_files) == len(files) and not errors
+            else ("partial_success" if saved_files else "error"),
+            "files": saved_files,
+            "total_uploaded": len(saved_files),
+            "total_files": len(files),
+            "captures": created_captures,
+        }
+        if errors:
+            response_data["errors"] = errors
+        status_code = 200 if saved_files else 400
+        return JsonResponse(response_data, status=status_code)
+
+
+user_upload_files_view = UploadFilesView.as_view()

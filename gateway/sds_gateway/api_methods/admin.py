@@ -31,3 +31,11 @@ class TemporaryZipFileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingT
     list_display = ("uuid", "owner", "created_at", "expires_at")
     search_fields = ("uuid", "owner")
     ordering = ("-created_at",)
+
+
+@admin.register(models.UserSharePermission)
+class UserSharePermissionAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
+    list_display = ("item_uuid", "item_type", "shared_with", "owner", "is_enabled")
+    search_fields = ("item_uuid", "item_type", "shared_with", "owner")
+    list_filter = ("item_type", "is_enabled")
+    ordering = ("-updated_at",)

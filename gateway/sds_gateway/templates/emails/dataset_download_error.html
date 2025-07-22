@@ -1,12 +1,48 @@
-<p>
-    We encountered an issue while preparing your dataset <strong>{{ dataset_name }}</strong> for download.
-</p>
-<p>
-    <strong>Error:</strong> {{ error_message }}
-</p>
-<p>Please try again later, or contact support if the problem persists.</p>
-<p>
-    <strong>Dataset:</strong> {{ dataset_name }}
-    <br />
-    <strong>Requested at:</strong> {{ requested_at }}
-</p>
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Dataset Download Error</title>
+        {% include 'emails/email_styles.html' %}
+    </head>
+    <body>
+        <div class="container">
+            <div class="header error">
+                <span class="icon">⚠️</span>
+                <h1>Download Error</h1>
+            </div>
+            <div class="content">
+                <p>
+                    We encountered an issue while preparing your dataset <strong>{{ dataset_name }}</strong> for download.
+                </p>
+                <div class="error-message">
+                    <h3>Error Details</h3>
+                    <p>{{ error_message }}</p>
+                </div>
+                <div class="dataset-info">
+                    <h3>Request Information</h3>
+                    <div class="info-row">
+                        <span class="info-label">Dataset:</span>
+                        <span class="info-value">{{ dataset_name }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Requested at:</span>
+                        <span class="info-value">{{ requested_at }}</span>
+                    </div>
+                </div>
+                <p>Please try again later, or contact support if the problem persists.</p>
+                <div class="action-buttons">
+                    <a href="{{ site_url }}/users/dataset-list/" class="btn btn-primary">Try Again</a>
+                </div>
+            </div>
+            <div class="footer">
+                <img src="{{ site_url }}/static/images/logo.svg"
+                     alt="SpectrumX Logo"
+                     class="email-logo" />
+                <p>This is an automated message from the SpectrumX Data System.</p>
+                <p>If you have any questions, please contact our support team.</p>
+            </div>
+        </div>
+    </body>
+</html>

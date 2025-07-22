@@ -1,7 +1,7 @@
 /* Import CSS files in the correct order */
-@import 'variables.css';
-@import 'bootstrap_overrides.css';
-@import 'layout.css';
-@import 'components.css';
-@import 'alerts.css';
-@import 'spectrumx_theme.css';
+@import "variables.css";
+@import "bootstrap_overrides.css";
+@import "layout.css";
+@import "components.css";
+@import "alerts.css";
+@import "spectrumx_theme.css";

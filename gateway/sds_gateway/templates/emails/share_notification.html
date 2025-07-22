@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{ item_type|title }} Shared With You</title>
+        {% include 'emails/email_styles.html' %}
+    </head>
+    <body>
+        <div class="container">
+            <div class="header success">
+                <span class="icon">📤</span>
+                <h1>{{ item_type|title }} Shared With You</h1>
+            </div>
+            <div class="content">
+                <div class="success-message">
+                    <h3>Access Granted!</h3>
+                    <p>
+                        <strong>{{ owner_name }}</strong> has shared a {{ item_type|lower }} with you.
+                    </p>
+                </div>
+                <div class="dataset-info">
+                    <h3>{{ item_type|title }} Details</h3>
+                    <div class="info-row">
+                        <span class="info-label">{{ item_type|title }} Name:</span>
+                        <span class="info-value">{{ item_name }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Shared by:</span>
+                        <span class="info-value">{{ owner_name }} ({{ owner_email }})</span>
+                    </div>
+                </div>
+                {% if message %}
+                    <div class="expiry-warning">
+                        <h3>Message from {{ owner_name }}:</h3>
+                        <p>{{ message }}</p>
+                    </div>
+                {% endif %}
+                {% if item_url %}
+                    <div class="action-buttons">
+                        <a href="{{ item_url }}" class="btn btn-primary">View {{ item_type|title }}</a>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="footer">
+                <img src="{{ site_url }}/static/images/logo.svg"
+                     alt="SpectrumX Logo"
+                     class="email-logo" />
+                <p>This is an automated message from the SpectrumX Data System.</p>
+                <p>If you have any questions, please contact our support team.</p>
+            </div>
+        </div>
+    </body>
+</html>
