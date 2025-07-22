@@ -13,7 +13,6 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import PostProcessedData
-from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 
 
@@ -89,49 +88,6 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
         return obj.get_metadata_value("total_slices", 0)
 
 
-class WaterfallDataSerializer(PostProcessedDataSerializer):
-    """Serializer for waterfall data (backward compatibility)."""
-
-    class Meta(PostProcessedDataSerializer.Meta):
-        model = PostProcessedData
-        fields = PostProcessedDataSerializer.Meta.fields + [
-            "fft_size",
-            "samples_per_slice",
-        ]
-
-    def get_fft_size(self, obj: PostProcessedData) -> int:
-        """Get FFT size from processing parameters."""
-        return obj.processing_parameters.get("fft_size", 1024)
-
-    def get_samples_per_slice(self, obj: PostProcessedData) -> int:
-        """Get samples per slice from processing parameters."""
-        return obj.processing_parameters.get("samples_per_slice", 1024)
-
-
-class SpectrogramDataSerializer(PostProcessedDataSerializer):
-    """Serializer for spectrogram data."""
-
-    class Meta(PostProcessedDataSerializer.Meta):
-        model = PostProcessedData
-        fields = PostProcessedDataSerializer.Meta.fields + [
-            "fft_size",
-            "nperseg",
-            "noverlap",
-        ]
-
-    def get_fft_size(self, obj: PostProcessedData) -> int:
-        """Get FFT size from processing parameters."""
-        return obj.processing_parameters.get("fft_size", 1024)
-
-    def get_nperseg(self, obj: PostProcessedData) -> int:
-        """Get nperseg from processing parameters."""
-        return obj.processing_parameters.get("nperseg", 1024)
-
-    def get_noverlap(self, obj: PostProcessedData) -> int:
-        """Get noverlap from processing parameters."""
-        return obj.processing_parameters.get("noverlap", 512)
-
-
 class FileCaptureListSerializer(serializers.ModelSerializer[File]):
     class Meta:
         model = File
@@ -152,11 +108,9 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
-    waterfall_data = serializers.SerializerMethodField()
 
     # Add post-processed data
     post_processed_data = serializers.SerializerMethodField()
-    spectrogram_data = serializers.SerializerMethodField()
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
@@ -192,11 +146,36 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
 
     @extend_schema_field(serializers.IntegerField)
     def get_total_file_size(self, capture: Capture) -> int:
-        """Get the total size of files associated with this capture."""
-        total_size = capture.files.filter(is_deleted=False).aggregate(
-            total=Sum("size")
-        )["total"]
-        return total_size or 0
+        """Get the total file size of all files associated with this capture."""
+        result = capture.files.filter(is_deleted=False).aggregate(
+            total_size=Sum("size")
+        )
+        return result["total_size"] or 0
+
+    @extend_schema_field(serializers.DictField)
+    def get_capture_props(self, capture: Capture) -> dict[str, Any]:
+        """Retrieve the indexed metadata for the capture."""
+        # check if this is a many=True serialization
+        is_many = bool(
+            self.parent and isinstance(self.parent, serializers.ListSerializer),
+        )
+
+        if not is_many or not self.parent:
+            return retrieve_indexed_metadata(capture)
+
+        # cache the metadata for all objects if not already done
+        if not hasattr(self.parent, "capture_props_cache") and self.parent.instance:
+            # convert QuerySet to list if needed
+            instances: list[Capture] = cast(
+                "list[Capture]",
+                list(self.parent.instance)
+                if self.parent is not None and hasattr(self.parent.instance, "__iter__")
+                else [self.parent.instance if self.parent else capture],
+            )
+            self.parent.capture_props_cache = retrieve_indexed_metadata(instances)
+
+        # return the cached metadata for this specific object
+        return self.parent.capture_props_cache.get(str(capture.uuid), {})
 
     @extend_schema_field(serializers.CharField)
     def get_formatted_created_at(self, capture: Capture) -> str:
@@ -215,22 +194,6 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             "processing_type", "-created_at"
         )
         return PostProcessedDataSerializer(processed_data, many=True).data
-
-    @extend_schema_field(WaterfallDataSerializer(many=True))
-    def get_waterfall_data(self, obj: Capture) -> Any:
-        """Get waterfall data for this capture (backward compatibility)."""
-        waterfall_data = obj.post_processed_data.filter(
-            processing_type=ProcessingType.Waterfall.value
-        ).order_by("-created_at")
-        return WaterfallDataSerializer(waterfall_data, many=True).data
-
-    @extend_schema_field(SpectrogramDataSerializer(many=True))
-    def get_spectrogram_data(self, obj: Capture) -> Any:
-        """Get spectrogram data for this capture."""
-        spectrogram_data = obj.post_processed_data.filter(
-            processing_type=ProcessingType.Spectrogram.value
-        ).order_by("-created_at")
-        return SpectrogramDataSerializer(spectrogram_data, many=True).data
 
     class Meta:
         model = Capture
@@ -254,9 +217,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             "total_file_size",
             "formatted_created_at",
             "capture_type_display",
-            "waterfall_data",
             "post_processed_data",
-            "spectrogram_data",
             "created_at",
             "updated_at",
         ]
