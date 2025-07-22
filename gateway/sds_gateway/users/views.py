@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import json
 import logging
 import mimetypes
@@ -35,6 +36,7 @@ from django.views.generic import TemplateView
 from django.views.generic import UpdateView
 from rest_framework import status
 
+from sds_gateway.api_methods.helpers.file_helpers import upload_file_helper_simple
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
@@ -101,6 +103,15 @@ def get_valid_files(root_dir: Path):
         if is_valid:
             rel_path = str(file_path.relative_to(root_dir))
             yield rel_path, file_path
+
+
+def compute_blake3_checksum(file_path):
+    # Use hashlib.blake2b with digest_size=32 to match 64 hex chars
+    h = hashlib.blake2b(digest_size=32)
+    with file_path.open("rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -1732,89 +1743,61 @@ user_capture_download_view = CaptureDownloadView.as_view()
 @method_decorator(csrf_exempt, name="dispatch")
 class UploadFilesView(View):
     def _handle_file_uploads(self, request, files, relative_paths):
-        import tempfile
-
-        from sds_gateway.api_methods.serializers.file_serializers import (
-            FilePostSerializer,
-        )
-
         saved_files = []
         errors = []
+        skipped_files = []
+        metadata_only_files = []
 
-        # Save uploaded files to a temporary directory to use Path interface
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_dir_path = Path(temp_dir)
-            # Map relative_paths to files and save them to disk
-            for f, rel_path in zip(files, relative_paths, strict=True):
-                file_disk_path = temp_dir_path / rel_path
-                file_disk_path.parent.mkdir(parents=True, exist_ok=True)
-                with file_disk_path.open("wb") as out_f:
-                    for chunk in f.chunks():
-                        out_f.write(chunk)
-
-            # Use get_valid_files to filter only valid files
-            valid_relpaths = set()
-            for rel_path, file_disk_path in get_valid_files(temp_dir_path):
-                valid_relpaths.add(rel_path)
-                if "/" in rel_path:
-                    directory, filename = rel_path.rsplit("/", 1)
-                    directory = (
-                        "/" + directory if not directory.startswith("/") else directory
+        for f, rel_path in zip(files, relative_paths, strict=True):
+            if "/" in rel_path:
+                directory, filename = rel_path.rsplit("/", 1)
+                directory = (
+                    "/" + directory if not directory.startswith("/") else directory
+                )
+            else:
+                directory = "/"
+                filename = rel_path
+            file_size = f.size
+            content_type = getattr(f, "content_type", "application/octet-stream")
+            file_data = {
+                "owner": request.user.pk,
+                "name": filename,
+                "directory": directory,
+                "file": f,
+                "size": file_size,
+                "media_type": content_type,
+            }
+            responses, errors = upload_file_helper_simple(request, file_data)
+            for response in responses:
+                if response.status_code in (
+                    status.HTTP_200_OK,
+                    status.HTTP_201_CREATED,
+                ):
+                    resp_data = response.data
+                    saved_files.append(
+                        {
+                            "name": filename,
+                            "directory": directory,
+                            "size": file_size,
+                            "uuid": (
+                                resp_data.get("uuid")
+                                if isinstance(resp_data, dict)
+                                else None
+                            ),
+                            "status": response.status_code,
+                            "note": (
+                                "File uploaded successfully."
+                                if response.status_code == status.HTTP_201_CREATED
+                                else "File upload processed."
+                            ),
+                        }
                     )
                 else:
-                    directory = "/"
-                    filename = rel_path
-                file_size = file_disk_path.stat().st_size
-                content_type, _ = mimetypes.guess_type(str(file_disk_path))
-                content_type = content_type or "application/octet-stream"
-                with file_disk_path.open("rb") as fdata:
-                    from django.core.files.uploadedfile import SimpleUploadedFile
-
-                    django_file = SimpleUploadedFile(
-                        filename, fdata.read(), content_type=content_type
-                    )
-                    data = {
-                        "owner": request.user.pk,
-                        "name": filename,
-                        "directory": directory,
-                        "file": django_file,
-                        "size": file_size,
-                        "media_type": content_type,
-                    }
-                    serializer = FilePostSerializer(
-                        data=data, context={"request_user": request.user}
-                    )
-                    if serializer.is_valid():
-                        file_obj_db = serializer.save()
-                        saved_files.append(
-                            {
-                                "name": filename,
-                                "directory": directory,
-                                "size": file_size,
-                                "uuid": str(file_obj_db.uuid)
-                                if hasattr(file_obj_db, "uuid")
-                                else None,
-                            }
-                        )
-                        logger.info(
-                            "Successfully uploaded file: %s to %s",
-                            filename,
-                            directory,
-                        )
-                    else:
-                        error_msg = f"Failed to upload {filename}: {serializer.errors}"
-                        errors.append(error_msg)
-                        logger.error(error_msg)
-
-            # For files that were not valid, collect reasons
-            for _f, rel_path in zip(files, relative_paths, strict=True):
-                if rel_path not in valid_relpaths:
-                    file_disk_path = temp_dir_path / rel_path
-                    is_valid, reasons = is_valid_file(str(file_disk_path))
-                    if not is_valid:
-                        error_msg = f"File {rel_path} skipped: {', '.join(reasons)}"
-                        errors.append(error_msg)
-                        logger.warning(error_msg)
+                    error_msg = f"Failed to upload {filename}: {response.data}"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+        errors.extend(skipped_files)
+        errors.extend(metadata_only_files)
         return saved_files, errors
 
     def _create_captures(self, request, channels, relative_paths):
