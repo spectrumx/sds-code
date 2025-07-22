@@ -1,8 +1,6 @@
 import datetime
-import hashlib
 import json
 import logging
-import mimetypes
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -71,47 +69,6 @@ from sds_gateway.users.utils import deduplicate_composite_captures
 
 # Add logger for debugging
 logger = logging.getLogger(__name__)
-
-
-def is_valid_file(file_path):
-    """Returns True if the path is a valid file for SDS upload."""
-    disallowed_mimes = [
-        "application/x-msdownload",  # .exe
-        "application/x-msdos-program",  # .com
-        "application/x-msi",  # .msi
-    ]
-    mime_type, _ = mimetypes.guess_type(file_path)
-    reasons = []
-    path_obj = Path(file_path)
-    if mime_type in disallowed_mimes:
-        reasons.append(f"Invalid MIME type: {mime_type}")
-    if not path_obj.is_file():
-        reasons.append("Not a file")
-    if path_obj.stat().st_size == 0:
-        reasons.append("Empty file")
-    return len(reasons) == 0, reasons
-
-
-def get_valid_files(root_dir: Path):
-    """
-    Recursively yields (relative_path, file_path) for valid files under root_dir.
-    """
-    for file_path in root_dir.rglob("*"):
-        if not file_path.is_file():
-            continue
-        is_valid, reasons = is_valid_file(str(file_path))
-        if is_valid:
-            rel_path = str(file_path.relative_to(root_dir))
-            yield rel_path, file_path
-
-
-def compute_blake3_checksum(file_path):
-    # Use hashlib.blake2b with digest_size=32 to match 64 hex chars
-    h = hashlib.blake2b(digest_size=32)
-    with file_path.open("rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -1746,17 +1703,11 @@ class UploadFilesView(View):
         saved_files = []
         errors = []
         skipped_files = []
-        metadata_only_files = []
 
         for f, rel_path in zip(files, relative_paths, strict=True):
-            if "/" in rel_path:
-                directory, filename = rel_path.rsplit("/", 1)
-                directory = (
-                    "/" + directory if not directory.startswith("/") else directory
-                )
-            else:
-                directory = "/"
-                filename = rel_path
+            path = Path(rel_path)
+            directory = "/" + str(path.parent) if path.parent != Path() else "/"
+            filename = path.name
             file_size = f.size
             content_type = getattr(f, "content_type", "application/octet-stream")
             file_data = {
@@ -1797,9 +1748,11 @@ class UploadFilesView(View):
                     errors.append(error_msg)
                     logger.error(error_msg)
         errors.extend(skipped_files)
-        errors.extend(metadata_only_files)
         return saved_files, errors
 
+    # TODO: This __create_captures() method directly uses the CapturePostSerializer.
+    # It is just a placeholder to be replaced with the new
+    # capture creation logic calling capture endpoints.
     def _create_captures(self, request, channels, relative_paths):
         created_captures = []
         errors = []
@@ -1852,11 +1805,19 @@ class UploadFilesView(View):
                         f"Failed to create capture for channel {channel}: "
                         f"{serializer.errors}"
                     )
+            except (ValueError, TypeError, AttributeError) as exc:
+                logger.exception("Data validation error for channel %s", channel)
+                errors.append(f"Data validation error for channel {channel}: {exc}")
+                continue
+            except IntegrityError as exc:
+                logger.exception("Database integrity error for channel %s", channel)
+                errors.append(f"Database integrity error for channel {channel}: {exc}")
+                continue
             except Exception as exc:
-                logger.exception("Failed to create capture for channel %s", channel)
-                errors.append(
-                    f"Failed to create capture for channel {channel}: {exc!s}"
+                logger.exception(
+                    "Unexpected error creating capture for channel %s", channel
                 )
+                errors.append(f"Unexpected error for channel {channel}: {exc}")
                 continue
         if errors:
             logger.error("Capture creation errors: %s", errors)
