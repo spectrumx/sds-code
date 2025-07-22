@@ -12,7 +12,80 @@ from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_meta
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import PostProcessedData
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
+
+
+class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]):
+    """Serializer for PostProcessedData model."""
+
+    processing_type = serializers.CharField(source="processing_type")
+    processing_status = serializers.CharField(source="processing_status")
+    is_ready = serializers.BooleanField(read_only=True)
+
+    # Metadata fields for backward compatibility
+    center_frequency = serializers.SerializerMethodField()
+    sample_rate = serializers.SerializerMethodField()
+    min_frequency = serializers.SerializerMethodField()
+    max_frequency = serializers.SerializerMethodField()
+    total_slices = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PostProcessedData
+        fields = [
+            "id",
+            "processing_type",
+            "processing_parameters",
+            "data_file",
+            "metadata",
+            "processing_status",
+            "processing_error",
+            "processed_at",
+            "pipeline_id",
+            "pipeline_step",
+            "is_ready",
+            "created_at",
+            "updated_at",
+            # Backward compatibility fields
+            "center_frequency",
+            "sample_rate",
+            "min_frequency",
+            "max_frequency",
+            "total_slices",
+        ]
+        read_only_fields = [
+            "id",
+            "data_file",
+            "metadata",
+            "processing_status",
+            "processing_error",
+            "processed_at",
+            "pipeline_id",
+            "pipeline_step",
+            "is_ready",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_center_frequency(self, obj: PostProcessedData) -> float:
+        """Get center frequency from metadata."""
+        return obj.get_metadata_value("center_frequency", 0.0)
+
+    def get_sample_rate(self, obj: PostProcessedData) -> float:
+        """Get sample rate from metadata."""
+        return obj.get_metadata_value("sample_rate", 0.0)
+
+    def get_min_frequency(self, obj: PostProcessedData) -> float:
+        """Get minimum frequency from metadata."""
+        return obj.get_metadata_value("min_frequency", 0.0)
+
+    def get_max_frequency(self, obj: PostProcessedData) -> float:
+        """Get maximum frequency from metadata."""
+        return obj.get_metadata_value("max_frequency", 0.0)
+
+    def get_total_slices(self, obj: PostProcessedData) -> int:
+        """Get total slices from metadata."""
+        return obj.get_metadata_value("total_slices", 0)
 
 
 class FileCaptureListSerializer(serializers.ModelSerializer[File]):
@@ -35,6 +108,9 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
+
+    # Add post-processed data
+    post_processed_data = serializers.SerializerMethodField()
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
@@ -101,17 +177,51 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         # return the cached metadata for this specific object
         return self.parent.capture_props_cache.get(str(capture.uuid), {})
 
+    @extend_schema_field(serializers.CharField)
     def get_formatted_created_at(self, capture: Capture) -> str:
-        """Get the created_at date in the desired format."""
-        return capture.created_at.strftime("%m/%d/%Y %I:%M:%S %p")
+        """Get the formatted created_at timestamp."""
+        return capture.created_at.strftime("%Y-%m-%d %H:%M:%S")
 
+    @extend_schema_field(serializers.CharField)
     def get_capture_type_display(self, capture: Capture) -> str:
         """Get the display value for the capture type."""
         return capture.get_capture_type_display()
 
+    @extend_schema_field(PostProcessedDataSerializer(many=True))
+    def get_post_processed_data(self, obj: Capture) -> Any:
+        """Get all post-processed data for this capture."""
+        processed_data = obj.post_processed_data.all().order_by(
+            "processing_type", "-created_at"
+        )
+        return PostProcessedDataSerializer(processed_data, many=True).data
+
     class Meta:
         model = Capture
-        fields = "__all__"
+        fields = [
+            "uuid",
+            "channel",
+            "scan_group",
+            "capture_type",
+            "top_level_dir",
+            "index_name",
+            "name",
+            "owner",
+            "origin",
+            "dataset",
+            "shared_with",
+            "capture_props",
+            "files",
+            "center_frequency_ghz",
+            "sample_rate_mhz",
+            "files_count",
+            "total_file_size",
+            "formatted_created_at",
+            "capture_type_display",
+            "post_processed_data",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["uuid", "created_at", "updated_at"]
 
 
 class CapturePostSerializer(serializers.ModelSerializer[Capture]):
@@ -359,6 +469,7 @@ def serialize_capture_or_composite(
         dict: Serialized capture data
     """
     capture_data = capture.get_capture()
+    context = context or {}
 
     if capture_data["is_composite"]:
         # Serialize as composite
