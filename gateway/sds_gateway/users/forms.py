@@ -244,19 +244,19 @@ class MultipleFileInput(forms.FileInput):
             if array_name in files:
                 return files[array_name]
 
-            # Try getting file list
-            file_list = files.getlist(array_name) or files.getlist(name)
-            if file_list:
-                logger.debug("Got file list: %s", file_list)
-                for file in file_list:
-                    logger.debug("\nFile in list:")
-                    logger.debug("Name: %s", getattr(file, "name", "No name"))
-                    logger.debug("Size: %s", getattr(file, "size", "No size"))
-                    logger.debug(
-                        "Content type: %s",
-                        getattr(file, "content_type", "No content type"),
-                    )
-                return file_list
+                # Try getting file list
+                file_list = files.getlist(array_name) or files.getlist(name)
+                if file_list:
+                    logger.debug("Got file list: %s", file_list)
+                    for file in file_list:
+                        logger.debug("\nFile in list:")
+                        logger.debug("Name: %s", getattr(file, "name", "No name"))
+                        logger.debug("Size: %s", getattr(file, "size", "No size"))
+                        logger.debug(
+                            "Content type: %s",
+                            getattr(file, "content_type", "No content type"),
+                        )
+                    return file_list
 
             # Try direct access
             if name in files:

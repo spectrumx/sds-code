@@ -8,354 +8,52 @@
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <style>
-        .drive-header {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 8px 16px;
-            border-bottom: 1px solid #dadce0;
-        }
-
-        .drive-link {
-            color: #202124;
-            text-decoration: none;
-            font-size: 16px;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-
-        .search-box {
-            flex: 1;
-            max-width: 720px;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 8px 16px;
-            border: none;
+        /* Drop Zone Styles */
+        .drop-zone {
+            border: 2px dashed #dadce0;
             border-radius: 8px;
-            background-color: #f1f3f4;
-            font-size: 14px;
-        }
-
-        .search-input:focus {
-            outline: none;
-            background-color: #fff;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        }
-
-        .directory-item {
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-color: #f8f9fa;
+            margin-bottom: 1rem;
+            position: relative;
+            min-height: 200px;
             display: flex;
             align-items: center;
-            padding: 8px;
-            cursor: pointer;
+            justify-content: center;
         }
 
-        .directory-item .material-icons {
-            margin-right: 8px;
-            color: #5f6368;
-        }
-
-        /* Ensure modals are visible */
-        .modal {
-            display: none;
-            z-index: 1050;
-        }
-
-        .modal.show {
-            display: block;
-        }
-
-        .modal-backdrop {
-            z-index: 1040;
-        }
-
-        .modal-dialog {
-            z-index: 1050;
-        }
-
-        .new-button {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 24px;
+        .drop-zone:hover {
             background-color: #f1f3f4;
-            border: none;
-            border-radius: 100px;
-            color: #202124;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.2s;
+            border-color: #1a73e8;
         }
 
-        .new-button:hover {
-            background-color: #e8eaed;
+        .drop-zone.drag-over {
+            background-color: #e8f0fe;
+            border-color: #1a73e8;
+            border-style: solid;
         }
 
-        .new-button i {
-            font-size: 20px;
-        }
-
-        .new-menu {
-            padding: 8px 0;
-            border: 1px solid #dadce0;
-            border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-            min-width: 200px;
-            margin-top: 4px;
-        }
-
-        .new-menu .dropdown-item {
+        .drop-message {
             display: flex;
+            flex-direction: column;
             align-items: center;
             gap: 12px;
-            padding: 8px 24px;
-            color: #3c4043;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        .new-menu .dropdown-item:hover {
-            background-color: #f8f9fa;
-        }
-
-        .new-menu .dropdown-item i {
-            font-size: 18px;
-            color: #5f6368;
-            width: 20px;
-            text-align: center;
-        }
-
-        .new-menu .dropdown-item:hover i {
-            color: #00857c;
-        }
-
-        /* Update the New button to be a dropdown toggle */
-        .new-button[aria-expanded="true"] {
-            background-color: #e8eaed;
-        }
-
-        /* Ensure dropdown is visible */
-        .dropdown {
-            position: relative;
-        }
-
-        .dropdown-menu.show {
-            display: block;
-            position: absolute;
-            z-index: 1000;
-            top: 100%;
-            left: 0;
-        }
-
-        .folder-summary {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        .folder-summary i {
-            font-size: 24px;
-            margin-right: 12px;
-        }
-
-        .folder-info {
-            flex: 1;
-        }
-
-        .folder-name {
-            font-weight: 500;
-            color: #202124;
-            margin-bottom: 4px;
-        }
-
-        .folder-stats {
-            font-size: 13px;
             color: #5f6368;
         }
 
-        /* Directory Browser Styles */
-        .directory-breadcrumb {
-            padding: 8px 16px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        .directory-breadcrumb .breadcrumb-item {
-            color: #1a73e8;
-            cursor: pointer;
-        }
-
-        .directory-breadcrumb .breadcrumb-item:hover {
-            text-decoration: underline;
-        }
-
-        .directory-breadcrumb .breadcrumb-separator {
-            color: #5f6368;
-            margin: 0 8px;
-        }
-
-        .directory-breadcrumb .breadcrumb-item:last-child {
-            color: #202124;
-            cursor: default;
-        }
-
-        .directory-breadcrumb .breadcrumb-item:last-child:hover {
-            text-decoration: none;
-        }
-
-        .file-row {
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .file-row:hover {
-            background-color: #f8f9fa;
-        }
-
-        .file-row.selected {
-            background-color: #e8f0fe;
-        }
-
-        .file-row .folder-icon {
-            color: #5f6368;
-            margin-right: 8px;
-        }
-
-        .file-row.selected .folder-icon {
-            color: #1a73e8;
-        }
-
-        /* Empty folder message */
-        .no-files {
-            text-align: center;
-            padding: 32px;
-            color: #5f6368;
-        }
-
-        .no-files .empty-folder-icon {
+        .drop-message i {
             font-size: 48px;
-            margin-bottom: 16px;
-        }
-
-        /* Directory Browser Modal Styles */
-        .modal-files-list {
-            border: 1px solid #dadce0;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .modal-files-header {
-            display: flex;
-            padding: 8px 16px;
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #dadce0;
-            font-weight: 500;
             color: #5f6368;
         }
 
-        .modal-files-header .col-name {
-            flex: 1;
+        .drop-message .btn {
+            margin-top: 8px;
         }
 
-        .modal-files-header .col-modified {
-            width: 150px;
-        }
-
-        .modal-files-header .col-size {
-            width: 100px;
-            text-align: right;
-        }
-
-        .modal-directory-breadcrumb {
-            padding: 8px 16px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        .modal-directory-breadcrumb .breadcrumb-item {
-            color: #1a73e8;
-            cursor: pointer;
-        }
-
-        .modal-directory-breadcrumb .breadcrumb-item:hover {
-            text-decoration: underline;
-        }
-
-        .modal-directory-breadcrumb .breadcrumb-separator {
-            color: #5f6368;
-            margin: 0 8px;
-        }
-
-        .modal-directory-breadcrumb .breadcrumb-item:last-child {
-            color: #202124;
-            cursor: default;
-        }
-
-        .modal-directory-breadcrumb .breadcrumb-item:last-child:hover {
-            text-decoration: none;
-        }
-
-        .modal-file-row {
-            display: flex;
-            padding: 8px 16px;
-            border-bottom: 1px solid #dadce0;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .modal-file-row:hover {
-            background-color: #f8f9fa;
-        }
-
-        .modal-file-row.selected {
-            background-color: #e8f0fe;
-        }
-
-        .modal-file-row .col-name {
-            flex: 1;
-            display: flex;
-            align-items: center;
-        }
-
-        .modal-file-row .col-modified {
-            width: 150px;
-        }
-
-        .modal-file-row .col-size {
-            width: 100px;
-            text-align: right;
-        }
-
-        .modal-no-files {
-            text-align: center;
-            padding: 32px;
-            color: #5f6368;
-        }
-
-        .modal-no-files .empty-folder-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-        }
-
-        /* Add event listeners for breadcrumb items */
-        .modal-directory-breadcrumb .breadcrumb-item {
-            cursor: pointer;
-        }
-
-        .modal-directory-breadcrumb .breadcrumb-item:hover {
-            text-decoration: underline;
-        }
-
-        .file-input {
+        .hidden-input {
             display: none;
         }
     </style>
@@ -369,7 +67,7 @@
             <div class="dropdown">
                 <button type="button"
                         id="newButton"
-                        class="new-button dropdown-toggle"
+                        class="new-button"
                         data-bs-toggle="dropdown"
                         aria-expanded="false">
                     <i class="bi bi-plus"></i>
@@ -452,7 +150,6 @@
                               id="fileUploadForm"
                               class="upload-form">
                             {% csrf_token %}
-                            <!-- Directory Selection -->
                             <div class="mb-3">
                                 <label class="form-label">Select Directory</label>
                                 <div class="input-group">
@@ -483,56 +180,48 @@
             </div>
         </div>
         <!-- Capture Upload Modal -->
-        <div class="modal" id="captureUploadModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
+        <div class="modal fade" id="captureUploadModal" tabindex="-1">
+            <div class="modal-dialog">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Upload Capture</h5>
-                        <button type="button"
-                                class="btn-close"
-                                data-bs-dismiss="modal"
-                                aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form method="post"
-                              enctype="multipart/form-data"
-                              id="captureUploadForm"
-                              class="upload-form">
-                            {% csrf_token %}
-                            <div class="mb-3">
-                                <label class="form-label">Capture Type</label>
-                                {{ capture_form.capture_type }}
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Channel Name (required for Digital RF)</label>
-                                {{ capture_form.channel }}
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Capture Name (optional)</label>
-                                {{ capture_form.name }}
-                            </div>
+                    <form id="uploadCaptureForm" enctype="multipart/form-data">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Upload Capture</h5>
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
                             <div class="drop-zone" id="captureDropZone">
                                 <div class="drop-message">
                                     <i class="bi bi-folder-symlink"></i>
-                                    <div>Drag and drop a directory here or click to select</div>
-                                    <div class="text-muted small">For RadioHound captures, select the directory containing .rh.json files</div>
+                                    <div>Drag and drop a folder here</div>
+                                    <div>- or -</div>
+                                    <button type="button" id="captureBrowseBtn" class="btn btn-outline-primary">Browse for folder</button>
                                 </div>
-                                <input type="file" class="file-input" id="captureFileInput" multiple />
+                                <input type="file"
+                                       id="captureFileInput"
+                                       name="files"
+                                       class="hidden-input"
+                                       webkitdirectory
+                                       directory />
                             </div>
-                            <div id="captureFileList" class="file-list mb-3"></div>
-                            <div class="capture-total-size text-muted mb-3"></div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary" id="captureUploadBtn">
-                                    <span class="upload-text">Upload</span>
-                                    <span class="spinner-border spinner-border-sm d-none"
-                                          role="status"
-                                          aria-hidden="true"></span>
-                                    <span class="uploading-text d-none">Uploading...</span>
-                                </button>
+                            <div id="captureFileList" class="mb-3"></div>
+                            <div class="mb-3">
+                                <label for="captureChannelsInput" class="form-label">Capture Channel Names (comma-separated)</label>
+                                <input type="text"
+                                       id="captureChannelsInput"
+                                       name="channels"
+                                       class="form-control"
+                                       placeholder="e.g. ch1,ch2,ch3"
+                                       required />
                             </div>
-                        </form>
-                    </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Upload</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -548,6 +237,8 @@
                                 aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
+                        <!-- Add hidden input for selected directory -->
+                        <input type="hidden" id="selectedDirectory" value="" />
                         <div class="modal-files-list">
                             <div class="modal-files-header">
                                 <div class="col-name">Name</div>
@@ -581,38 +272,44 @@
                 {% endfor %}
             </div>
         {% endif %}
-        <div class="breadcrumb">
-            <a href="{% url 'users:files' %}">Files</a>
-            {% for part in breadcrumb_parts %}
-                <span class="separator">›</span>
-                {% if not part.is_last %}
-                    <a href="{% url 'users:files' %}?path={{ part.path }}">{{ part.name }}</a>
-                {% else %}
-                    <span>{{ part.name }}</span>
-                {% endif %}
-            {% endfor %}
-        </div>
+        <!-- Breadcrumb Navigation -->
+        <nav aria-label="breadcrumb" class="breadcrumb-nav mb-3">
+            <ol class="breadcrumb">
+                {% for part in breadcrumb_parts %}
+                    {% if not forloop.first %}<li class="breadcrumb-separator">/</li>{% endif %}
+                    {% if part.is_last %}
+                        <li class="breadcrumb-item active" aria-current="page">{{ part.name }}</li>
+                    {% else %}
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'users:files' %}{% if part.path %}?path={{ part.path }}{% endif %}">{{ part.name }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ol>
+        </nav>
+        <!-- Files List -->
         <div class="files-list">
             <div class="files-header">
                 <div class="col-name">Name</div>
                 <div class="col-modified">Last modified</div>
                 <div class="col-size">Size</div>
             </div>
-            {% for file in files %}
-                <div class="file-row">
+            {% for item in items %}
+                <div class="file-row"
+                     data-type="{% if item.is_dir %}directory{% else %}file{% endif %}"
+                     data-path="{{ item.path }}">
                     <div class="col-name">
-                        {% if file.is_dir %}
+                        {% if item.is_dir %}
                             <span class="material-icons folder-icon">folder</span>
-                            <a href="{% url 'users:files' %}?path={{ file.directory }}"
-                               class="folder-link">{{ file.name }}</a>
+                            <span class="folder-name">{{ item.name }}</span>
                         {% else %}
                             <span class="material-icons file-icon">description</span>
-                            <span class="file-name">{{ file.name }}</span>
+                            <a href="{% url 'users:file_detail' item.uuid %}" class="file-link">{{ item.name }}</a>
                         {% endif %}
                     </div>
-                    <div class="col-modified">{{ file.updated_at|date:"M d, Y" }}</div>
+                    <div class="col-modified">{{ item.modified_at|date:"M d, Y" }}</div>
                     <div class="col-size">
-                        {% if not file.is_dir %}{{ file.size|filesizeformat }}{% endif %}
+                        {% if not item.is_dir %}{{ item.size|filesizeformat }}{% endif %}
                     </div>
                 </div>
             {% empty %}
@@ -622,533 +319,567 @@
                 </div>
             {% endfor %}
         </div>
-    </div>
-{% endblock content %}
-{% block javascript %}
-    {{ block.super }}
-    <!-- Make sure Bootstrap JS is loaded before our modal code -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize dropdown
-            const dropdownButton = document.getElementById('newButton');
-            if (dropdownButton) {
-                const dropdown = new bootstrap.Dropdown(dropdownButton);
-
-                // Add click handler
-                dropdownButton.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    dropdown.toggle();
-                });
+        <!-- Add styles -->
+        <style>
+            .breadcrumb-nav {
+                background-color: #f8f9fa;
+                padding: 8px 16px;
+                border-radius: 4px;
             }
 
-            // Initialize modals
-            const fileUploadModal = new bootstrap.Modal(document.getElementById('fileUploadModal'));
-            const captureUploadModal = new bootstrap.Modal(document.getElementById('captureUploadModal'));
-            const directoryBrowserModal = new bootstrap.Modal(document.getElementById('directoryBrowserModal'));
+            .breadcrumb {
+                display: flex;
+                align-items: center;
+                list-style: none;
+                margin: 0;
+                padding: 0;
+                font-size: 14px;
+            }
 
-            // File Upload Elements
-            const regularDropZone = document.getElementById('regularDropZone');
-            const regularFileInput = document.getElementById('regularFileInput');
-            const regularFileList = document.getElementById('regularFileList');
-            const fileBrowseDirBtn = document.getElementById('fileBrowseDirBtn');
-            const fileDirectoryPath = document.getElementById('fileDirectoryPath');
+            .breadcrumb-item {
+                display: flex;
+                align-items: center;
+            }
+
+            .breadcrumb-item a {
+                color: #202124;
+                text-decoration: none;
+            }
+
+            .breadcrumb-item a:hover {
+                color: #202124;
+                text-decoration: none;
+            }
+
+            .breadcrumb-item.active {
+                color: #202124;
+                font-weight: 500;
+            }
+
+            .breadcrumb-separator {
+                color: #5f6368;
+                margin: 0 8px;
+                user-select: none;
+            }
+
+            .files-list {
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                overflow: hidden;
+            }
+
+            .files-header {
+                display: flex;
+                padding: 8px 16px;
+                background-color: #f8f9fa;
+                border-bottom: 1px solid #e0e0e0;
+                font-weight: 500;
+            }
+
+            .file-row {
+                display: flex;
+                padding: 8px 16px;
+                border-bottom: 1px solid #e0e0e0;
+                cursor: pointer;
+                transition: background-color 0.2s;
+            }
+
+            .file-row:hover {
+                background-color: #f8f9fa;
+            }
+
+            .col-name {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .col-modified {
+                width: 150px;
+            }
+
+            .col-size {
+                width: 100px;
+                text-align: right;
+            }
+
+            .folder-icon,
+            .file-icon {
+                color: #5f6368;
+            }
+
+            .folder-name {
+                color: #202124;
+                cursor: pointer;
+            }
+
+            .folder-name:hover {
+                color: #202124;
+                text-decoration: none;
+            }
+
+            .file-link {
+                color: #202124 !important;
+                text-decoration: none;
+            }
+
+            .file-link:hover {
+                color: #202124;
+                text-decoration: none;
+            }
+
+            .folder-name {
+                color: #202124;
+                cursor: pointer;
+            }
+
+            .folder-name:hover {
+                color: #202124;
+                text-decoration: none;
+            }
+
+            .breadcrumb-item a {
+                color: #202124;
+                text-decoration: none;
+            }
+
+            .breadcrumb-item a:hover {
+                color: #202124;
+                text-decoration: none;
+            }
+
+            .folder-contents {
+                margin-left: 24px;
+                border-left: 1px solid #e0e0e0;
+            }
+
+            .expanded .folder-icon {
+                transform: rotate(90deg);
+            }
+
+            .no-files {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 32px;
+                color: #5f6368;
+            }
+
+            .empty-folder-icon {
+                font-size: 48px;
+                margin-bottom: 16px;
+            }
+
+            /* Drop Zone Styles */
+            .drop-zone {
+                border: 2px dashed #dadce0;
+                border-radius: 8px;
+                padding: 32px;
+                text-align: center;
+                cursor: pointer;
+                transition: all 0.2s;
+                background-color: #f8f9fa;
+            }
+
+            .drop-zone:hover {
+                background-color: #f1f3f4;
+                border-color: #1a73e8;
+            }
+
+            .drop-zone.drag-over {
+                background-color: #e8f0fe;
+                border-color: #1a73e8;
+            }
+
+            .drop-message {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+                color: #5f6368;
+            }
+
+            .drop-message i {
+                font-size: 48px;
+            }
+
+            .file-input {
+                display: none;
+            }
+
+            .file-list {
+                margin-top: 16px;
+            }
+
+            .file-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+                margin-bottom: 8px;
+            }
+
+            .file-item i {
+                color: #5f6368;
+            }
+
+            .file-name {
+                flex: 1;
+                font-size: 14px;
+                color: #202124;
+            }
+
+            .file-size {
+                font-size: 12px;
+                color: #5f6368;
+            }
+
+            /* Folder Summary Styles */
+            .folder-summary {
+                display: flex;
+                align-items: center;
+                padding: 12px;
+                background: #f8f9fa;
+                border-radius: 8px;
+                margin-bottom: 10px;
+            }
+
+            .folder-summary i {
+                font-size: 24px;
+                margin-right: 12px;
+                color: #5f6368;
+            }
+
+            .folder-info {
+                flex: 1;
+            }
+
+            .folder-name {
+                font-weight: 500;
+                color: #202124;
+                margin-bottom: 4px;
+            }
+
+            .folder-stats {
+                font-size: 13px;
+                color: #5f6368;
+            }
+        </style>
+        <!-- Add click handlers -->
+        <script>
+            // Helper function to generate file detail URLs
+            function getFileDetailUrl(uuid) {
+                const urlPattern = document.querySelector('.files-list').dataset.fileDetailUrl;
+                return urlPattern.replace('UUID_PLACEHOLDER', uuid);
+            }
+
+            // Helper function to format file sizes
+            function formatFileSize(bytes) {
+                if (!bytes || isNaN(bytes)) return '0 B';
+                const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+                let i = 0;
+                while (bytes >= 1024 && i < units.length - 1) {
+                    bytes /= 1024;
+                    i++;
+                }
+                return bytes.toFixed(1) + ' ' + units[i];
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                // Add click handlers for file rows
+                document.querySelectorAll('.file-row').forEach(row => {
+                    row.addEventListener('click', async function(e) {
+                        // Don't trigger if clicking a link
+                        if (e.target.tagName === 'A') return;
+
+                        const type = this.dataset.type;
+                        const path = this.dataset.path;
+
+                        if (type === 'directory') {
+                            // Navigate to the directory
+                            window.location.href = `{% url 'users:files' %}?path=${encodeURIComponent(path)}`;
+                        } else {
+                            // For files, click the link
+                            const fileLink = this.querySelector('.file-link');
+                            if (fileLink) fileLink.click();
+                        }
+                    });
+                });
+            });
+        </script>
+        <!-- Upload Result Modal -->
+        <div class="modal fade"
+             id="uploadResultModal"
+             tabindex="-1"
+             aria-labelledby="uploadResultModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="uploadResultModalLabel">Upload Result</h5>
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="modal"
+                                aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="uploadResultModalBody">
+                        <!-- Content will be set by JS -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+{% block extra_javascript %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Bootstrap components
+            const dropdownButton = document.getElementById('newButton');
+            if (dropdownButton) {
+                new bootstrap.Dropdown(dropdownButton);
+            }
+
+            const captureUploadModal = new bootstrap.Modal(document.getElementById('captureUploadModal'));
 
             // Capture Upload Elements
             const captureDropZone = document.getElementById('captureDropZone');
             const captureFileInput = document.getElementById('captureFileInput');
             const captureFileList = document.getElementById('captureFileList');
+            const uploadCaptureForm = document.getElementById('uploadCaptureForm');
+            const captureBrowseBtn = document.getElementById('captureBrowseBtn');
 
-            let selectedDirectory = null;
-            let activeDirectoryInput = null;
+            if (captureDropZone && captureFileInput && captureBrowseBtn && uploadCaptureForm) {
+                console.log('Initializing capture upload handlers');
 
-            // File Upload Handlers
-            if (regularDropZone && regularFileInput) {
-                regularDropZone.addEventListener('click', () => {
-                    console.log('Regular drop zone clicked');
-                    regularFileInput.click();
-                });
-
-                regularDropZone.addEventListener('dragover', (e) => {
+                // Prevent default drag behaviors on document
+                document.addEventListener('dragover', function(e) {
                     e.preventDefault();
-                    regularDropZone.classList.add('drag-over');
-                });
+                    e.stopPropagation();
+                }, false);
 
-                regularDropZone.addEventListener('dragleave', () => {
-                    regularDropZone.classList.remove('drag-over');
-                });
-
-                regularDropZone.addEventListener('drop', (e) => {
+                document.addEventListener('drop', function(e) {
                     e.preventDefault();
-                    regularDropZone.classList.remove('drag-over');
-                    const files = e.dataTransfer.files;
-                    regularFileInput.files = files;
-                    updateFileList(files, regularFileList);
-                });
+                    e.stopPropagation();
+                }, false);
 
-                regularFileInput.addEventListener('change', function(e) {
-                    console.log('Files selected:', e.target.files);
-                    updateFileList(e.target.files, regularFileList);
-                });
-            }
+                // Add drag and drop handlers to the drop zone
+                captureDropZone.addEventListener('dragenter', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Drop zone dragenter');
+                    captureDropZone.classList.add('drag-over');
+                }, false);
 
-            // Capture Upload Handlers
-            if (captureDropZone && captureFileInput) {
-                captureDropZone.addEventListener('click', () => {
-                    console.log('Capture drop zone clicked');
+                captureDropZone.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Drop zone dragover');
+                    captureDropZone.classList.add('drag-over');
+                }, false);
+
+                captureDropZone.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Drop zone dragleave');
+                    if (!captureDropZone.contains(e.relatedTarget)) {
+                        captureDropZone.classList.remove('drag-over');
+                    }
+                }, false);
+
+                captureDropZone.addEventListener('drop', async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Drop zone drop');
+                    captureDropZone.classList.remove('drag-over');
+
+                    const dt = e.dataTransfer;
+                    const items = dt.items;
+
+                    if (items) {
+                        console.log('Processing', items.length, 'dropped items');
+
+                        const dataTransfer = new DataTransfer();
+                        let folderName = '';
+                        let fileCount = 0;
+
+                        for (let i = 0; i < items.length; i++) {
+                            const item = items[i].webkitGetAsEntry();
+                            if (item) {
+                                console.log('Processing item:', item.name, 'isDirectory:', item.isDirectory);
+                                if (item.isDirectory) {
+                                    folderName = item.name;
+                                    const files = [];
+                                    await readDirectoryRecursively(item, '', files);
+                                    console.log('Found', files.length, 'files in directory');
+                                    files.forEach(file => {
+                                        dataTransfer.items.add(file);
+                                        fileCount++;
+                                    });
+                                }
+                            }
+                        }
+
+                        if (fileCount > 0) {
+                            console.log('Setting files on input:', fileCount, 'files');
+                            captureFileInput.files = dataTransfer.files;
+                            updateFileDisplay(folderName, fileCount);
+                        } else {
+                            console.log('No valid files found in drop');
+                            showUploadAlert('Please drop a folder containing files.', 'warning');
+                        }
+                    }
+                }, false);
+
+                // Browse button click handler
+                captureBrowseBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Browse button clicked');
                     captureFileInput.click();
                 });
 
-                captureDropZone.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    captureDropZone.classList.add('drag-over');
-                });
-
-                captureDropZone.addEventListener('dragleave', () => {
-                    captureDropZone.classList.remove('drag-over');
-                });
-
-                captureDropZone.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    captureDropZone.classList.remove('drag-over');
-
-                    const items = e.dataTransfer.items;
-                    if (items) {
-                        for (let i = 0; i < items.length; i++) {
-                            const item = items[i].webkitGetAsEntry();
-                            if (item && item.isDirectory) {
-                                handleDirectoryEntry(item);
-                            }
-                        }
-                    }
-                });
-
+                // File input change handler
                 captureFileInput.addEventListener('change', function(e) {
-                    console.log('Directory selected:', e.target.files);
-                    const files = Array.from(e.target.files);
+                    console.log('File input change event triggered');
+                    const files = this.files;
+                    console.log('Files selected:', files?.length);
 
-                    if (files.length > 0) {
-                        // Get the directory name from the first file's path
+                    if (files?.length > 0) {
                         const dirPath = files[0].webkitRelativePath.split('/')[0];
-
-                        // Update the display with folder summary
-                        const captureFileList = document.getElementById('captureFileList');
-                        captureFileList.innerHTML = `
-                            <div class="folder-summary">
-                                <i class="bi bi-folder-fill text-secondary"></i>
-                                <div class="folder-info">
-                                    <div class="folder-name">${dirPath}</div>
-                                    <div class="folder-stats">
-                                        ${files.length} file${files.length !== 1 ? 's' : ''}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+                        console.log('Directory path:', dirPath);
+                        updateFileDisplay(dirPath, files.length);
                     }
                 });
-            }
 
-            // Directory Browser Handlers
-            fileBrowseDirBtn?.addEventListener('click', function(e) {
-                e.preventDefault();
-                activeDirectoryInput = fileDirectoryPath;
-                openDirectoryBrowser();
-            });
+                // Form submission handler
+                uploadCaptureForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    console.log('Submitting capture upload form');
 
-            function openDirectoryBrowser() {
-                directoryBrowserModal.show();
-                const directoryTree = document.getElementById('modalDirectoryTree');
-                directoryTree.innerHTML = '';
-                loadDirectoryContents('/files/{{ request.user.email }}');
-            }
+                    const files = captureFileInput.files;
+                    if (!files || files.length === 0) {
+                        showUploadAlert('Please select a folder to upload.', 'danger');
+                        return;
+                    }
 
-            // Directory Selection Handler
-            document.getElementById('selectDirectoryBtn')?.addEventListener('click', function() {
-                console.log('Select button clicked, selected directory:', selectedDirectory);
-                if (selectedDirectory && activeDirectoryInput) {
-                    activeDirectoryInput.value = selectedDirectory;
-                    directoryBrowserModal.hide();
-                }
-            });
+                    const formData = new FormData();
+                    const channels = document.getElementById('captureChannelsInput').value;
+                    formData.append('channels', channels);
 
-            // Form Submissions
-            document.getElementById('fileUploadForm')?.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                console.log('File upload form submitted');
+                    // Add files with their relative paths
+                    for (let i = 0; i < files.length; i++) {
+                        formData.append('files', files[i]);
+                        const relativePath = files[i].webkitRelativePath || files[i].name;
+                        const cleanPath = relativePath.replace(/^files\/[^/]+\//, '');
+                        const fullPath = `/files/{{ request.user.email }}/${cleanPath}`;
+                        formData.append('relative_paths', fullPath);
+                    }
 
-                const formData = new FormData(this);
-                formData.append('uploadType', 'regular');
+                    try {
+                        const response = await fetch("{% url 'users:upload_files' %}", {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: formData
+                        });
 
-                const files = Array.from(regularFileInput.files);
-                files.forEach(file => {
-                    formData.append('files[]', file, file.name);
-                });
+                        const data = await response.json();
 
-                try {
-                    await submitUploadForm(formData, fileUploadModal);
-                } catch (error) {
-                    showErrorMessage(error.message);
-                }
-            });
+                        if (data.status === 'success' || data.status === 'partial_success') {
+                            let msg = `Upload complete!\nFiles uploaded: ${data.total_uploaded} / ${data.total_files}`;
+                            if (data.captures && data.captures.length > 0) {
+                                msg += `\nCreated capture(s): ${data.captures.map(c => c.uuid).join(', ')}`;
+                            }
+                            showUploadAlert(msg, 'success');
 
-            document.getElementById('captureUploadForm')?.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                console.log('Capture upload form submitted');
-
-                const uploadBtn = document.getElementById('captureUploadBtn');
-                const spinner = uploadBtn.querySelector('.spinner-border');
-                const uploadText = uploadBtn.querySelector('.upload-text');
-                const uploadingText = uploadBtn.querySelector('.uploading-text');
-
-                // Disable the button and show spinner
-                uploadBtn.disabled = true;
-                uploadBtn.classList.add('uploading');
-
-                const formData = new FormData(this);
-                formData.append('uploadType', 'capture');
-
-                const files = Array.from(captureFileInput.files);
-                if (files.length === 0) {
-                    showErrorMessage('Please select a directory to upload');
-                    // Re-enable the button and hide spinner
-                    uploadBtn.disabled = false;
-                    uploadBtn.classList.remove('uploading');
-                    return;
-                }
-
-                // Get the base directory name from the first file's path
-                const basePath = files[0].webkitRelativePath.split('/')[0];
-                console.log('Base directory:', basePath);
-
-                // Check for RadioHound files
-                const rhFiles = files.filter(f => f.name.endsWith('.rh.json'));
-                if (rhFiles.length > 0) {
-                    // For RadioHound, use the original directory name
-                    formData.append('directory', basePath);
-
-                    // Add files with their original paths preserved
-                    files.forEach(file => {
-                        const relativePath = file.webkitRelativePath;
-                        formData.append('files[]', file);
-                        formData.append('file_paths[]', relativePath);
-                        console.log('Adding RH file:', file.name, 'with path:', relativePath);
-                    });
-                } else {
-                    // For Digital RF and other captures, use the original directory name
-                    formData.append('directory', basePath);
-
-                    // Add files with their original paths preserved
-                    files.forEach(file => {
-                        const relativePath = file.webkitRelativePath;
-                        formData.append('files[]', file);
-                        formData.append('file_paths[]', relativePath);
-                        console.log('Adding file:', file.name, 'with path:', relativePath);
-                    });
-                }
-
-                try {
-                    const response = await fetch(window.location.pathname, {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                        }
-                    });
-
-                    if (!response.ok) {
-                        const contentType = response.headers.get('content-type');
-                        let errorMessage = 'Upload failed';
-
-                        if (contentType && contentType.includes('application/json')) {
-                            const errorData = await response.json();
-                            errorMessage = errorData.message || errorData.error || JSON.stringify(errorData);
+                            // Reload the page after successful upload
+                            setTimeout(() => window.location.reload(), 1500);
                         } else {
-                            errorMessage = await response.text();
+                            showUploadAlert(`Upload failed: ${data.errors?.join('\n') || 'Unknown error'}`, 'danger');
                         }
 
-                        throw new Error(errorMessage);
-                    }
+                        // Close the modal
+                        captureUploadModal.hide();
 
-                    showSuccessMessage('Capture uploaded successfully');
-                    captureUploadModal.hide();
-                    window.location.reload();
-                } catch (error) {
-                    showErrorMessage(error.message);
-                    // Re-enable the button and hide spinner on error
-                    uploadBtn.disabled = false;
-                    uploadBtn.classList.remove('uploading');
-                }
-            });
-
-            // Helper Functions
-            function updateFileList(files, listElement) {
-                const fileArray = Array.from(files);
-                if (fileArray.length > 0) {
-                    listElement.innerHTML = fileArray.map(file => `
-                        <div class="file-item">
-                            <i class="bi bi-file-earmark"></i>
-                            <span class="file-name">${file.name}</span>
-                            <span class="file-size">${formatFileSize(file.size)}</span>
-                        </div>
-                    `).join('');
-                }
-            }
-
-            async function submitUploadForm(formData, modal) {
-                const response = await fetch(window.location.pathname, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    } catch (error) {
+                        console.error('Error uploading capture:', error);
+                        showUploadAlert(`Error uploading capture: ${error.message}`, 'danger');
                     }
                 });
 
-                if (!response.ok) {
-                    const contentType = response.headers.get('content-type');
-                    let errorMessage = 'Upload failed';
-
-                    if (contentType && contentType.includes('application/json')) {
-                        const errorData = await response.json();
-                        errorMessage = errorData.message || errorData.error || JSON.stringify(errorData);
-                    } else {
-                        errorMessage = await response.text();
-                    }
-
-                    throw new Error(errorMessage);
-                }
-
-                showSuccessMessage('Files uploaded successfully');
-                modal.hide();
-                window.location.reload();
-            }
-
-            function showSuccessMessage(message) {
-                const alert = document.createElement('div');
-                alert.className = 'alert alert-success alert-dismissible fade show';
-                alert.innerHTML = `
-                    <strong>Success!</strong> ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                `;
-                document.querySelector('.messages')?.appendChild(alert);
-            }
-
-            function showErrorMessage(message) {
-                const alert = document.createElement('div');
-                alert.className = 'alert alert-danger alert-dismissible fade show';
-                alert.innerHTML = `
-                    <strong>Error!</strong> ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                `;
-                document.querySelector('.messages')?.appendChild(alert);
-            }
-
-            function formatFileSize(bytes) {
-                if (!bytes || bytes === 0) return '0 Bytes';
-                const k = 1024;
-                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-            }
-
-            // Directory Browser Functions
-            async function loadDirectoryContents(path) {
-                try {
-                    const response = await fetch(`/users/files/list/?directory=${encodeURIComponent(path)}`);
-                    const data = await response.json();
-
-                    const directoryTree = document.getElementById('modalDirectoryTree');
-                    if (!directoryTree) return;
-
-                    directoryTree.innerHTML = '';
-
-                    // Add breadcrumb navigation
-                    const breadcrumb = document.createElement('div');
-                    breadcrumb.className = 'modal-directory-breadcrumb mb-3';
-                    const pathParts = path.split('/').filter(Boolean);
-                    let currentPath = '';
-
-                    // Add root
-                    const rootSpan = document.createElement('span');
-                    rootSpan.className = 'breadcrumb-item';
-                    rootSpan.textContent = 'Root';
-                    rootSpan.dataset.path = `/files/${encodeURIComponent('{{ request.user.email }}')}`;
-                    rootSpan.addEventListener('click', function() {
-                        loadDirectoryContents(this.dataset.path);
-                        // Store clean path without email prefix
-                        selectedDirectory = '';
-                        document.getElementById('selectedDirectory').value = '';
-                    });
-                    breadcrumb.appendChild(rootSpan);
-
-                    // Add path parts
-                    let skipFirst = true; // Skip the email part in the path
-                    pathParts.forEach((part, index) => {
-                        // Skip the first part (email) and files
-                        if (skipFirst && (part === '{{ request.user.email }}' || part === 'files')) {
-                            return;
-                        }
-                        skipFirst = false;
-
-                        currentPath += '/' + part;
-
-                        const separator = document.createElement('span');
-                        separator.className = 'breadcrumb-separator';
-                        separator.textContent = '/';
-                        breadcrumb.appendChild(separator);
-
-                        const partSpan = document.createElement('span');
-                        partSpan.className = 'breadcrumb-item';
-                        partSpan.textContent = part;
-                        partSpan.dataset.path = `/files/{{ request.user.email }}${currentPath}`;
-
-                        if (index < pathParts.length - 1) {
-                            partSpan.addEventListener('click', function() {
-                                loadDirectoryContents(this.dataset.path);
-                                // Store clean path without email prefix
-                                selectedDirectory = currentPath.replace(/^\/+/, '');
-                                document.getElementById('selectedDirectory').value = selectedDirectory;
+                // Drag and drop helper functions
+                async function readDirectoryRecursively(item, path, files) {
+                    if (item.isFile) {
+                        return new Promise(resolve => {
+                            item.file(file => {
+                                // Create a new file with the full path
+                                const newFile = new File([file], path + file.name, {
+                                    type: file.type,
+                                    lastModified: file.lastModified
+                                });
+                                Object.defineProperty(newFile, 'webkitRelativePath', {
+                                    value: path + file.name
+                                });
+                                files.push(newFile);
+                                resolve();
                             });
-                        }
+                        });
+                    } else if (item.isDirectory) {
+                        const dirReader = item.createReader();
+                        const entries = await new Promise(resolve => {
+                            const results = [];
 
-                        breadcrumb.appendChild(partSpan);
-                    });
-
-                    directoryTree.appendChild(breadcrumb);
-
-                    // Add parent directory link if not at root
-                    if (path !== `/files/${encodeURIComponent('{{ request.user.email }}')}`) {
-                        const parentDir = document.createElement('div');
-                        parentDir.className = 'modal-file-row';
-                        const parentPath = path.split('/').slice(0, -1).join('/');
-                        parentDir.innerHTML = `
-                            <div class="col-name" data-path="${parentPath}">
-                                <span class="material-icons folder-icon">arrow_upward</span>
-                                <span class="folder-link">..</span>
-                            </div>
-                            <div class="col-modified"></div>
-                            <div class="col-size"></div>
-                        `;
-
-                        parentDir.querySelector('.col-name').addEventListener('click', function(e) {
-                            e.stopPropagation();
-                            loadDirectoryContents(this.dataset.path);
-                            // Store clean path without email prefix
-                            const cleanPath = this.dataset.path
-                                .replace(`/files/${encodeURIComponent('{{ request.user.email }}')}`, '')
-                                .replace(`/files/{{ request.user.email }}`, '')
-                                .replace(/^\/+/, '');
-                            selectedDirectory = cleanPath;
-                            document.getElementById('selectedDirectory').value = cleanPath;
+                            function readEntries() {
+                                dirReader.readEntries(async entries => {
+                                    if (entries.length > 0) {
+                                        results.push(...entries);
+                                        readEntries();
+                                    } else {
+                                        resolve(results);
+                                    }
+                                });
+                            }
+                            readEntries();
                         });
 
-                        directoryTree.appendChild(parentDir);
+                        const promises = entries.map(entry =>
+                            readDirectoryRecursively(entry, path + item.name + '/', files)
+                        );
+                        await Promise.all(promises);
                     }
-
-                    if (data.directories && data.directories.length > 0) {
-                        data.directories.forEach(dir => {
-                            const div = document.createElement('div');
-                            div.className = 'modal-file-row';
-                            div.innerHTML = `
-                                <div class="col-name" data-path="${dir.path}">
-                                    <span class="material-icons folder-icon">folder</span>
-                                    <span class="folder-link">${dir.name}</span>
-                                </div>
-                                <div class="col-modified"></div>
-                                <div class="col-size"></div>
-                            `;
-
-                            const dirItem = div.querySelector('.col-name');
-                            dirItem.addEventListener('click', function(e) {
-                                e.stopPropagation();
-                                if (e.detail === 2) {
-                                    // Double click - navigate into directory
-                                    loadDirectoryContents(this.dataset.path);
-                                    // Store clean path without email prefix
-                                    const cleanPath = this.dataset.path
-                                        .replace(`/files/${encodeURIComponent('{{ request.user.email }}')}`, '')
-                                        .replace(`/files/{{ request.user.email }}`, '')
-                                        .replace(/^\/+/, '');
-                                    selectedDirectory = cleanPath;
-                                    document.getElementById('selectedDirectory').value = cleanPath;
-                                } else {
-                                    // Single click - select directory
-                                    document.querySelectorAll('.modal-file-row.selected').forEach(item => {
-                                        item.classList.remove('selected');
-                                    });
-                                    div.classList.add('selected');
-                                    // Store clean path without email prefix
-                                    const cleanPath = this.dataset.path
-                                        .replace(`/files/${encodeURIComponent('{{ request.user.email }}')}`, '')
-                                        .replace(`/files/{{ request.user.email }}`, '')
-                                        .replace(/^\/+/, '');
-                                    selectedDirectory = cleanPath;
-                                    document.getElementById('selectedDirectory').value = cleanPath;
-                                }
-                            });
-
-                            directoryTree.appendChild(div);
-                        });
-                    } else {
-                        directoryTree.appendChild(createEmptyFolderMessage());
-                    }
-                } catch (error) {
-                    console.error('Error loading directory contents:', error);
-                    directoryTree.innerHTML = `
-                        <div class="alert alert-danger">
-                            Error loading directory contents: ${error.message}
-                        </div>
-                    `;
                 }
-            }
 
-            function createEmptyFolderMessage() {
-                const div = document.createElement('div');
-                div.className = 'modal-no-files';
-                div.innerHTML = `
-                    <span class="material-icons empty-folder-icon">folder_open</span>
-                    <p>This folder is empty</p>
-                `;
-                return div;
-            }
-
-            // Helper function to handle directory entries
-            async function handleDirectoryEntry(entry) {
-                const files = [];
-                await readDirectoryEntry(entry, files);
-
-                if (files.length > 0) {
-                    // Update the display with folder summary
-                    const captureFileList = document.getElementById('captureFileList');
+                // Helper functions
+                function updateFileDisplay(dirName, fileCount) {
                     captureFileList.innerHTML = `
-                        <div class="folder-summary">
-                            <i class="bi bi-folder-fill text-secondary"></i>
-                            <div class="folder-info">
-                                <div class="folder-name">${entry.name}</div>
-                                <div class="folder-stats">
-                                    ${files.length} file${files.length !== 1 ? 's' : ''}
-                                </div>
-                            </div>
+                <div class="alert alert-info">
+                    <i class="bi bi-folder-fill me-2"></i>
+                    Selected folder: <strong>${dirName}</strong> (${fileCount} files)
                         </div>
                     `;
                 }
-            }
 
-            // Helper function to recursively read directory entries
-            async function readDirectoryEntry(entry, files) {
-                if (entry.isFile) {
-                    const file = await new Promise((resolve) => entry.file(resolve));
-                    files.push(file);
-                } else if (entry.isDirectory) {
-                    const reader = entry.createReader();
-                    const entries = await new Promise((resolve) => reader.readEntries(resolve));
-                    for (const childEntry of entries) {
-                        await readDirectoryEntry(childEntry, files);
-                    }
+                function showUploadAlert(message, type) {
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+                    alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+                    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
+
+                    setTimeout(() => {
+                        alertDiv.remove();
+                    }, 5000);
                 }
             }
         });
     </script>
-    <script src="{% static 'js/upload-modal.js' %}"></script>
-{% endblock javascript %}
+{% endblock extra_javascript %}

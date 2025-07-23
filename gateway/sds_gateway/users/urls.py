@@ -3,9 +3,9 @@ from django.urls import path
 from .api.views import GetAPIKeyView
 from .views import ListCapturesView
 from .views import ListFilesView
+from .views import UploadFilesView
 from .views import list_directories
 from .views import user_capture_download_view
-from .views import UploadFilesView
 from .views import user_captures_api_view
 from .views import user_dataset_download_view
 from .views import user_dataset_list_view

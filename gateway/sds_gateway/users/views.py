@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
@@ -45,7 +46,9 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.serializers.capture_serializers import CapturePostSerializer
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    CapturePostSerializer,
+)
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -602,25 +605,45 @@ class ListFilesView(Auth0LoginRequiredMixin, TemplateView):
 
     template_name = "pages/files.html"
 
+    # Constants for path handling
+    FILES_PREFIX = "files"
+    MIN_PATH_PARTS = 2  # Minimum number of path parts required (files/email)
+
     def _build_breadcrumbs(self, current_path):
         """Build breadcrumb navigation data."""
-        breadcrumb_parts = [
-            {"name": "Files", "url_name": "users:files", "is_last": not current_path}
-        ]
+        breadcrumb_parts = []
+
+        # Always add root
+        breadcrumb_parts.append(
+            {"name": "Files", "path": "", "is_last": not current_path}
+        )
 
         if current_path:
-            path_parts = current_path.split("/")
+            # Split the path and build up the breadcrumbs
+            path_parts = current_path.strip("/").split("/")
             current_full_path = ""
+
+            # Skip the /files/email prefix if present
+            if (
+                len(path_parts) > self.MIN_PATH_PARTS
+                and path_parts[0] == self.FILES_PREFIX
+            ):
+                path_parts = path_parts[
+                    self.MIN_PATH_PARTS :
+                ]  # Skip 'files' and email parts
+
             for i, part in enumerate(path_parts, 1):
+                if not part:  # Skip empty parts
+                    continue
                 current_full_path = "/".join(path_parts[:i])
                 breadcrumb_parts.append(
                     {
                         "name": part,
-                        "url_name": "users:files_with_path",
                         "path": current_full_path,
                         "is_last": i == len(path_parts),
                     }
                 )
+
         return breadcrumb_parts
 
     def _group_files_by_directory(self, files, current_path):
@@ -639,11 +662,13 @@ class ListFilesView(Auth0LoginRequiredMixin, TemplateView):
                 continue
 
             # Remove /files/email prefix to get relative path
-            rel_path = "/".join(parts[2:])  # Skip 'files' and email parts
+            rel_path = "/".join(
+                parts[self.MIN_PATH_PARTS :]
+            )  # Skip 'files' and email parts
 
             if not current_path:
                 # At root level - show top-level directories
-                top_dir = rel_path.split("/")[0]
+                top_dir = rel_path.split("/")[0] if rel_path else ""
                 if top_dir and top_dir not in seen_dirs:
                     seen_dirs.add(top_dir)
                     items.append(
@@ -658,7 +683,7 @@ class ListFilesView(Auth0LoginRequiredMixin, TemplateView):
             else:
                 # In a subdirectory
                 current_dir_parts = current_path.strip("/").split("/")
-                rel_path_parts = rel_path.strip("/").split("/")
+                rel_path_parts = rel_path.strip("/").split("/") if rel_path else []
 
                 # Check if we're in the correct directory level
                 if len(rel_path_parts) >= len(current_dir_parts):
@@ -679,10 +704,11 @@ class ListFilesView(Auth0LoginRequiredMixin, TemplateView):
                                     "modified_at": file.created_at,
                                     "size": file.size,
                                     "media_type": file.media_type,
+                                    "uuid": file.uuid,
                                 }
                             )
                         elif len(rel_path_parts) > len(current_dir_parts):
-                            # This is a subdirectory or file in a subdirectory
+                            # This is a subdirectory
                             next_dir = rel_path_parts[len(current_dir_parts)]
                             if next_dir and next_dir not in seen_dirs:
                                 seen_dirs.add(next_dir)
@@ -695,20 +721,16 @@ class ListFilesView(Auth0LoginRequiredMixin, TemplateView):
                                         "size": "",
                                     }
                                 )
-        return items
 
-    # Minimum number of path parts required for valid file structure
-    MIN_PATH_PARTS = 3
+        # Sort items: directories first, then files by name
+        return sorted(items, key=lambda x: (not x["is_dir"], x["name"].lower()))
 
     def get_context_data(self, **kwargs):
         """Add files to the context."""
         context = super().get_context_data(**kwargs)
 
-        # Get the current path from kwargs or use root
-        current_path = kwargs.get("path", "")
-
-        # Build breadcrumb navigation
-        context["breadcrumb_parts"] = self._build_breadcrumbs(current_path)
+        # Get current path from query params
+        current_path = self.request.GET.get("path", "")
 
         # Get all files for the user
         files = File.objects.filter(
@@ -719,10 +741,17 @@ class ListFilesView(Auth0LoginRequiredMixin, TemplateView):
         # Group files by directory
         items = self._group_files_by_directory(files, current_path)
 
-        # Sort items: directories first, then by name
-        context["items"] = sorted(
-            items, key=lambda x: (not x["is_dir"], x["name"].lower())
+        # Build breadcrumb navigation
+        breadcrumb_parts = self._build_breadcrumbs(current_path)
+
+        context.update(
+            {
+                "items": items,
+                "current_path": current_path,
+                "breadcrumb_parts": breadcrumb_parts,
+            }
         )
+
         return context
 
 
@@ -1930,29 +1959,30 @@ class UploadFilesView(View):
         saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
         created_captures = []
         file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
-        # Only create captures if all uploads succeeded
-        if saved_files and len(saved_files) == len(files) and not errors:
-            created_captures = self._create_captures(request, channels, relative_paths)
-            # Link all uploaded files to all created captures
-            from sds_gateway.api_methods.models import Capture
-            from sds_gateway.api_methods.models import File
 
+        # Create captures if we have files and channels
+        if saved_files and channels:
+            logger.info("Creating captures for channels: %s", channels)
+            created_captures = self._create_captures(request, channels, relative_paths)
+            logger.info("Created captures: %s", created_captures)
+
+            # Link files to captures if any captures were created
             if created_captures:
+                from sds_gateway.api_methods.models import Capture
+                from sds_gateway.api_methods.models import File
+
                 # Get File objects by uuid
                 file_objs = File.objects.filter(uuid__in=file_uuids)
                 capture_uuids = [c["uuid"] for c in created_captures if c.get("uuid")]
                 captures = Capture.objects.filter(uuid__in=capture_uuids)
+
+                # Link each file to each capture
                 for capture in captures:
+                    logger.info("Linking files to capture %s", capture.uuid)
                     file_objs.update(capture=capture)
-        elif errors:
-            logger.error(
-                "File upload errors occurred, skipping capture creation. Errors: %s",
-                errors,
-            )
+
         response_data = {
-            "status": "success"
-            if saved_files and len(saved_files) == len(files) and not errors
-            else ("partial_success" if saved_files else "error"),
+            "status": "success" if saved_files else "error",
             "files": saved_files,
             "total_uploaded": len(saved_files),
             "total_files": len(files),
@@ -1960,8 +1990,88 @@ class UploadFilesView(View):
         }
         if errors:
             response_data["errors"] = errors
+        if not created_captures and channels:
+            response_data["errors"] = [
+                *response_data.get("errors", []),
+                "No captures were created",
+            ]
+
         status_code = 200 if saved_files else 400
         return JsonResponse(response_data, status=status_code)
 
 
 user_upload_files_view = UploadFilesView.as_view()
+
+
+@login_required
+def list_directories(request):
+    """Handle AJAX requests for directory listing."""
+    try:
+        # Get the directory path from the request
+        directory = request.GET.get("directory", "/files/" + request.user.email)
+        logger.info("Requested directory: %s", directory)
+
+        # Sanitize and validate the path
+        safe_path = sanitize_path_rel_to_user(directory, request)
+        if not safe_path:
+            logger.error("Invalid directory path: %s", directory)
+            return JsonResponse({"error": "Invalid directory path"}, status=400)
+
+        logger.info("Safe path: %s", safe_path)
+
+        # Get all files for the user
+        files = File.objects.filter(
+            owner=request.user,
+            is_deleted=False,
+        ).order_by("directory", "name")
+
+        # Get files in the current directory
+        current_files = [
+            {
+                "name": file.name,
+                "path": str(Path(safe_path) / file.name),
+                "is_dir": False,
+                "modified_at": file.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "size": file.size,
+                "uuid": file.uuid,
+            }
+            for file in files
+            if file.directory == str(safe_path)
+        ]
+
+        # Get subdirectories
+        all_dirs = set()
+        for file in files:
+            if file.directory.startswith(str(safe_path)):
+                rel_path = file.directory[len(str(safe_path)) :].strip("/")
+                if rel_path:
+                    top_dir = rel_path.split("/")[0]
+                    if top_dir:  # Only add non-empty directory names
+                        all_dirs.add(top_dir)
+
+        # Format directories for response
+        directories = [
+            {
+                "name": dirname,
+                "path": str(Path(safe_path) / dirname),
+                "is_dir": True,
+                "modified_at": None,
+                "size": "",
+            }
+            for dirname in sorted(all_dirs)
+        ]
+
+        logger.info("Found directories: %s", directories)
+        logger.info("Found files: %s", current_files)
+
+        return JsonResponse(
+            {
+                "directories": directories,
+                "files": current_files,
+                "current_path": str(safe_path),
+            }
+        )
+
+    except Exception as e:
+        logger.exception("Error listing directories")
+        return JsonResponse({"error": str(e)}, status=500)
