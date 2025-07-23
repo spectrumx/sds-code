@@ -8,7 +8,6 @@ import redis
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import EmailMessage
-from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from loguru import logger
 from redis import Redis
@@ -37,9 +36,12 @@ def send_email(
     context=None,
     plain_message=None,
     html_message=None,
+    *,
+    attach_logo=True,
 ):
     """
-    Generic utility to send an email with optional template rendering.
+    Generic utility to send an email with optional template rendering and logo
+    attachment.
     Args:
         subject: Email subject
         recipient_list: List of recipient emails
@@ -48,7 +50,9 @@ def send_email(
         context: Context for rendering templates (optional)
         plain_message: Raw plain text message (optional, overrides template)
         html_message: Raw HTML message (optional, overrides template)
+        attach_logo: Whether to attach the logo as an embedded image (default: True)
     """
+
     from django.conf import settings
 
     if not recipient_list:
@@ -57,13 +61,35 @@ def send_email(
         plain_message = render_to_string(plain_template, context)
     if not html_message and html_template and context:
         html_message = render_to_string(html_template, context)
-    send_mail(
+
+    # Use EmailMessage for better control over attachments
+    email = EmailMessage(
         subject=subject,
-        message=plain_message or "",
+        body=html_message or plain_message or "",
         from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=recipient_list,
-        html_message=html_message,
+        to=recipient_list,
     )
+
+    # Set content type for HTML emails
+    if html_message:
+        email.content_subtype = "html"
+
+    # Attach logo if requested
+    if attach_logo:
+        logo_path = Path(settings.STATIC_ROOT) / "images" / "Logo.png"
+        if logo_path.exists():
+            with logo_path.open("rb") as logo_file:
+                logo_content = logo_file.read()
+                # Attach logo with Content-ID for embedding
+                from email.mime.image import MIMEImage
+
+                logo_mime = MIMEImage(logo_content)
+                logo_mime.add_header("Content-ID", "<logo>")
+                email.attach(logo_mime)
+                # Set mixed subtype for related content
+                email.mixed_subtype = "related"
+
+    email.send()
     return True
 
 
@@ -429,6 +455,7 @@ def notify_shared_users(
             "message": message,
             "item_url": item_url,
             "site_url": settings.SITE_URL,
+            "debug": settings.DEBUG,
         }
         if message:
             body = (
@@ -516,7 +543,9 @@ def _process_item_files(
 
 
 @shared_task
-def send_item_files_email(item_uuid: str, user_id: str, item_type: ItemType) -> dict:
+def send_item_files_email(
+    item_uuid: str, user_id: str, item_type: str | ItemType
+) -> dict:
     """
     Unified Celery task to create a zip file of item files and send it via email.
 
@@ -534,11 +563,24 @@ def send_item_files_email(item_uuid: str, user_id: str, item_type: ItemType) -> 
     task_name = f"{item_type}_download"
     user = None
     item = None
+    result = None
 
     try:
+        # Convert string item_type to enum if needed
+        if isinstance(item_type, str):
+            try:
+                item_type = ItemType(item_type)
+            except ValueError:
+                return _create_error_response(
+                    "error", f"Invalid item type: {item_type}", item_uuid, user_id
+                )
+
+        # At this point, item_type is guaranteed to be ItemType
+        item_type_enum: ItemType = item_type
+
         # Validate the request
         error_result, user, item = _validate_item_download_request(
-            item_uuid, user_id, item_type
+            item_uuid, user_id, item_type_enum
         )
         if error_result:
             return error_result
@@ -550,37 +592,39 @@ def send_item_files_email(item_uuid: str, user_id: str, item_type: ItemType) -> 
         # Check user lock status and acquire lock
         if is_user_locked(user_id, task_name):
             logger.warning(
-                "User %s already has a %s download task running", user_id, item_type
+                "User %s already has a %s download task running",
+                user_id,
+                item_type_enum,
             )
             error_message = (
-                f"You already have a {item_type} download in progress. "
+                f"You already have a {item_type_enum} download in progress. "
                 "Please wait for it to complete."
             )
-            _send_item_download_error_email(user, item, item_type, error_message)
+            _send_item_download_error_email(user, item, item_type_enum, error_message)
             return _create_error_response("error", error_message, item_uuid, user_id)
 
         if not acquire_user_lock(user_id, task_name):
             logger.warning("Failed to acquire lock for user %s", user_id)
             error_message = "Unable to start download. Please try again in a moment."
-            _send_item_download_error_email(user, item, item_type, error_message)
+            _send_item_download_error_email(user, item, item_type_enum, error_message)
             return _create_error_response("error", error_message, item_uuid, user_id)
 
         logger.info(
-            "Acquired lock for user %s, starting %s download", user_id, item_type
+            "Acquired lock for user %s, starting %s download", user_id, item_type_enum
         )
 
         # Process files and create zip
         error_response, zip_file_path, total_size, files_processed = (
-            _process_item_files(user, item, item_type, item_uuid)
+            _process_item_files(user, item, item_type_enum, item_uuid)
         )
         if error_response:
             return error_response
 
         # Create temporary zip file record
-        safe_item_name = (getattr(item, "name", str(item)) or item_type).replace(
+        safe_item_name = (getattr(item, "name", str(item)) or item_type_enum).replace(
             " ", "_"
         )
-        zip_filename = f"{item_type}_{safe_item_name}_{item_uuid}.zip"
+        zip_filename = f"{item_type_enum}_{safe_item_name}_{item_uuid}.zip"
 
         temp_zip = TemporaryZipFile.objects.create(
             file_path=zip_file_path,
@@ -592,19 +636,21 @@ def send_item_files_email(item_uuid: str, user_id: str, item_type: ItemType) -> 
 
         # Send email with download link
         item_display_name = (
-            getattr(item, "name", str(item)) or f"{item_type.capitalize()} {item_uuid}"
+            getattr(item, "name", str(item))
+            or f"{item_type_enum.capitalize()} {item_uuid}"
         )
-        subject = f"Your {item_type} '{item_display_name}' is ready for download"
+        subject = f"Your {item_type_enum} '{item_display_name}' is ready for download"
 
         # Create email context
         context = {
-            "item_type": item_type,
+            "item_type": item_type_enum,
             "item_name": item_display_name,
             "download_url": temp_zip.download_url,
             "file_size": total_size,
             "files_count": files_processed,
             "expires_at": temp_zip.expires_at,
             "site_url": settings.SITE_URL,
+            "debug": settings.DEBUG,
         }
 
         # Send email using the unified template
@@ -618,14 +664,14 @@ def send_item_files_email(item_uuid: str, user_id: str, item_type: ItemType) -> 
 
         logger.info(
             "Successfully sent %s download email for %s to %s",
-            item_type,
+            item_type_enum,
             item_uuid,
             user.email,
         )
 
-        return {
+        result = {
             "status": "success",
-            "message": f"{item_type.capitalize()} files email sent successfully",
+            "message": f"{item_type_enum.capitalize()} files email sent successfully",
             "item_uuid": item_uuid,
             "files_processed": files_processed,
             "temp_zip_uuid": temp_zip.uuid,
@@ -634,21 +680,23 @@ def send_item_files_email(item_uuid: str, user_id: str, item_type: ItemType) -> 
     except (OSError, ValueError, RuntimeError) as e:
         logger.exception(
             "Error processing %s download for %s: %s",
-            item_type,
+            item_type_enum,
             item_uuid,
             e,
         )
         # Send error email if we have user and item
-        error_message = f"Error processing {item_type} download: {e!s}"
+        error_message = f"Error processing {item_type_enum} download: {e!s}"
         if user is not None and item is not None:
-            _send_item_download_error_email(user, item, item_type, error_message)
-        return _create_error_response("error", error_message, item_uuid)
+            _send_item_download_error_email(user, item, item_type_enum, error_message)
+        result = _create_error_response("error", error_message, item_uuid)
 
     finally:
         # Always release the lock, even if there was an error
         if user_id is not None:
             release_user_lock(user_id, task_name)
             logger.info("Released lock for user %s", user_id)
+
+    return result
 
 
 def _validate_item_download_request(
@@ -806,6 +854,7 @@ def _send_item_download_error_email(
                 "%Y-%m-%d %H:%M:%S UTC"
             ),
             "site_url": settings.SITE_URL,
+            "debug": settings.DEBUG,
         }
 
         send_email(

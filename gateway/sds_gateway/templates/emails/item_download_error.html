@@ -1,49 +1,108 @@
+{# djlint:off #}
 <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{{ item_type|title }} Download Error</title>
-        {% include 'emails/email_styles.html' %}
+        <!--
+        NOTE: Inline styles are used instead of external CSS because Gmail and many email clients
+        strip out <style> tags from the <head> section. Inline styles ensure consistent rendering
+        across all email clients including Gmail, Outlook, Apple Mail, etc.
+        -->
     </head>
-    <body>
-        <div class="container">
-            <div class="header error">
-                <span class="icon">⚠️</span>
-                <h1>Download Error</h1>
-            </div>
-            <div class="content">
-                <p>
-                    We encountered an issue while preparing your {{ item_type }} <strong>{{ item_name }}</strong> for download.
-                </p>
-                <div class="error-message">
-                    <h3>Error Details</h3>
-                    <p>{{ error_message }}</p>
-                </div>
-                <div class="item-info">
-                    <h3>Request Information</h3>
-                    <div class="info-row">
-                        <span class="info-label">{{ item_type|title }}:</span>
-                        <span class="info-value">{{ item_name }}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Requested at:</span>
-                        <span class="info-value">{{ requested_at }}</span>
-                    </div>
-                </div>
-                <p>Please try again later, or contact support if the problem persists.</p>
-                <div class="action-buttons">
-                    <a href="{{ site_url }}/users/{% if item_type == 'dataset' %}dataset-list{% else %}file-list{% endif %}/"
-                       class="btn btn-primary">Try Again</a>
-                </div>
-            </div>
-            <div class="footer">
-                <img src="{{ site_url }}/static/images/logo.svg"
-                     alt="SpectrumX Logo"
-                     class="email-logo" />
-                <p>This is an automated message from the SpectrumX Data System.</p>
-                <p>If you have any questions, please contact our support team.</p>
-            </div>
-        </div>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f8f9fa;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa;">
+            <tr>
+                <td align="center" style="padding: 20px;">
+                    <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 30px 40px; text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+                                <h1 style="margin: 0; font-size: 24px; font-weight: 300;">Download Error</h1>
+                            </td>
+                        </tr>
+
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 40px;">
+                                <p style="margin: 0 0 20px 0; font-size: 16px;">
+                                    We encountered an issue while preparing your {{ item_type }} <strong>{{ item_name }}</strong> for download.
+                                </p>
+
+                                <!-- Error Message -->
+                                <table width="100%" cellpadding="20" cellspacing="0" style="background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 6px; margin: 20px 0;">
+                                    <tr>
+                                        <td>
+                                            <h3 style="color: #721c24; margin: 0 0 10px 0; font-size: 18px;">Error Details</h3>
+                                            <p style="color: #721c24; margin: 0; font-size: 14px;">{{ error_message }}</p>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <!-- Item Info -->
+                                <table width="100%" cellpadding="20" cellspacing="0" style="background-color: #f8f9fa; border-radius: 6px; margin: 20px 0;">
+                                    <tr>
+                                        <td>
+                                            <h3 style="color: #495057; margin: 0 0 15px 0; font-size: 16px;">Request Information</h3>
+                                            <table width="100%" cellpadding="5" cellspacing="0">
+                                                <tr>
+                                                    <td style="width: 120px; font-weight: 600; color: #6c757d;">{{ item_type|title }}:</td>
+                                                    <td style="color: #495057;">{{ item_name }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="width: 120px; font-weight: 600; color: #6c757d;">Requested at:</td>
+                                                    <td style="color: #495057;">{{ requested_at }}</td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <!-- Warning Message -->
+                                <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; margin: 20px 0; text-align: center;">
+                                    <tr>
+                                        <td>
+                                            <p style="color: #856404; margin: 0; font-size: 14px;">
+                                                ⚠️ <strong>Please try again later, or contact support if the problem persists.</strong>
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <!-- Action Button -->
+                                <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0; text-align: center;">
+                                    <tr>
+                                        <td>
+                                            <table cellpadding="0" cellspacing="0" style="display: inline-block;">
+                                                <tr>
+                                                    <td style="background-color: #005a9c; border-radius: 8px; padding: 12px 24px;">
+                                                        <a href="{{ site_url }}/users/{% if item_type == 'dataset' %}dataset-list{% else %}file-list{% endif %}/"
+                                                           style="color: white; text-decoration: none; font-weight: 300; font-size: 14px; display: inline-block;">
+                                                            Try Again
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f8f9fa; padding: 20px 40px; text-align: center; font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6;">
+                                <img src="{% if debug %}{{ site_url }}/static/images/Logo.png{% else %}cid:logo{% endif %}" alt="SpectrumX Logo" style="width: 200px; max-width: 90vw; height: auto; margin-bottom: 15px; border-radius: 6px; display: block; margin-left: auto; margin-right: auto;" />
+                                <p style="margin: 10px 0; font-size: 12px; color: #6c757d;">This is an automated message from the SpectrumX Data System.</p>
+                                <p style="margin: 10px 0; font-size: 12px; color: #6c757d;">If you have any questions, please contact our support team.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
     </body>
 </html>
+{# djlint:on #}
