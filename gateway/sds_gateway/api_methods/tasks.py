@@ -1,4 +1,5 @@
 import datetime
+import re
 import uuid
 import zipfile
 from pathlib import Path
@@ -522,7 +523,8 @@ def _process_item_files(
             None,
         )
 
-    safe_item_name = (getattr(item, "name", str(item)) or item_type).replace(" ", "_")
+    unsafe_item_name = getattr(item, "name", str(item)) or item_type
+    safe_item_name = re.sub(r"[^a-zA-Z0-9._-]", "", unsafe_item_name.replace(" ", "_"))
     zip_filename = f"{item_type}_{safe_item_name}_{item_uuid}.zip"
     zip_file_path, total_size, files_processed = create_zip_from_files(
         files, zip_filename
@@ -621,8 +623,9 @@ def send_item_files_email(
             return error_response
 
         # Create temporary zip file record
-        safe_item_name = (getattr(item, "name", str(item)) or item_type_enum).replace(
-            " ", "_"
+        unsafe_item_name = getattr(item, "name", str(item)) or item_type_enum
+        safe_item_name = re.sub(
+            r"[^a-zA-Z0-9._-]", "", unsafe_item_name.replace(" ", "_")
         )
         zip_filename = f"{item_type_enum}_{safe_item_name}_{item_uuid}.zip"
 
@@ -677,7 +680,7 @@ def send_item_files_email(
             "temp_zip_uuid": temp_zip.uuid,
         }
 
-    except (OSError, ValueError, RuntimeError) as e:
+    except (OSError, ValueError) as e:
         logger.exception(
             "Error processing %s download for %s: %s",
             item_type_enum,
