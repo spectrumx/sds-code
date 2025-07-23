@@ -118,6 +118,11 @@ COPY --from=client-builder --chown=django:django ${APP_HOME} ${APP_HOME}
 # make django owner of the WORKDIR directory as well.
 RUN chown -R django:django ${APP_HOME}
 
+# Create temp_zips directory and set permissions
+RUN mkdir -p /app/sds_gateway/media/temp_zips && \
+    chown -R django:django /app/sds_gateway/media/temp_zips && \
+    chmod -R 755 /app/sds_gateway/media/temp_zips
+
 USER django
 
 ENTRYPOINT ["/entrypoint"]

@@ -1,54 +1,109 @@
+{# djlint:off #}
 <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{{ item_type|title }} Shared With You</title>
-        {% include 'emails/email_styles.html' %}
+        <!--
+        NOTE: Inline styles are used instead of external CSS because Gmail and many email clients
+        strip out <style> tags from the <head> section. Inline styles ensure consistent rendering
+        across all email clients including Gmail, Outlook, Apple Mail, etc.
+        -->
     </head>
-    <body>
-        <div class="container">
-            <div class="header success">
-                <span class="icon">📤</span>
-                <h1>{{ item_type|title }} Shared With You</h1>
-            </div>
-            <div class="content">
-                <div class="success-message">
-                    <h3>Access Granted!</h3>
-                    <p>
-                        <strong>{{ owner_name }}</strong> has shared a {{ item_type|lower }} with you.
-                    </p>
-                </div>
-                <div class="dataset-info">
-                    <h3>{{ item_type|title }} Details</h3>
-                    <div class="info-row">
-                        <span class="info-label">{{ item_type|title }} Name:</span>
-                        <span class="info-value">{{ item_name }}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Shared by:</span>
-                        <span class="info-value">{{ owner_name }} ({{ owner_email }})</span>
-                    </div>
-                </div>
-                {% if message %}
-                    <div class="expiry-warning">
-                        <h3>Message from {{ owner_name }}:</h3>
-                        <p>{{ message }}</p>
-                    </div>
-                {% endif %}
-                {% if item_url %}
-                    <div class="action-buttons">
-                        <a href="{{ item_url }}" class="btn btn-primary">View {{ item_type|title }}</a>
-                    </div>
-                {% endif %}
-            </div>
-            <div class="footer">
-                <img src="{{ site_url }}/static/images/logo.svg"
-                     alt="SpectrumX Logo"
-                     class="email-logo" />
-                <p>This is an automated message from the SpectrumX Data System.</p>
-                <p>If you have any questions, please contact our support team.</p>
-            </div>
-        </div>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f8f9fa;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa;">
+            <tr>
+                <td align="center" style="padding: 20px;">
+                    <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 30px 40px; text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 15px;">📤</div>
+                                <h1 style="margin: 0; font-size: 24px; font-weight: 300;">{{ item_type|title }} Shared With You</h1>
+                            </td>
+                        </tr>
+
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 40px;">
+                                <!-- Success Message -->
+                                <table width="100%" cellpadding="20" cellspacing="0" style="background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 6px; margin: 20px 0;">
+                                    <tr>
+                                        <td>
+                                            <h3 style="color: #155724; margin: 0 0 10px 0; font-size: 18px;">Access Granted!</h3>
+                                            <p style="color: #155724; margin: 0; font-size: 14px;">
+                                                <strong>{{ owner_name }}</strong> has shared a {{ item_type|lower }} with you.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <!-- Item Info -->
+                                <table width="100%" cellpadding="20" cellspacing="0" style="background-color: #f8f9fa; border-radius: 6px; margin: 20px 0;">
+                                    <tr>
+                                        <td>
+                                            <h3 style="color: #495057; margin: 0 0 15px 0; font-size: 16px;">{{ item_type|title }} Details</h3>
+                                            <table width="100%" cellpadding="5" cellspacing="0">
+                                                <tr>
+                                                    <td style="width: 120px; font-weight: 600; color: #6c757d;">{{ item_type|title }} Name:</td>
+                                                    <td style="color: #495057;">{{ item_name }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="width: 120px; font-weight: 600; color: #6c757d;">Shared by:</td>
+                                                    <td style="color: #495057;">{{ owner_name }} ({{ owner_email }})</td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                {% if message %}
+                                <!-- Message from Owner -->
+                                <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; margin: 20px 0;">
+                                    <tr>
+                                        <td>
+                                            <h3 style="color: #856404; margin: 0 0 10px 0; font-size: 16px;">Message from {{ owner_name }}:</h3>
+                                            <p style="color: #856404; margin: 0; font-size: 14px;">{{ message }}</p>
+                                        </td>
+                                    </tr>
+                                </table>
+                                {% endif %}
+
+                                {% if item_url %}
+                                <!-- Action Button -->
+                                <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0; text-align: center;">
+                                    <tr>
+                                        <td>
+                                            <table cellpadding="0" cellspacing="0" style="display: inline-block;">
+                                                <tr>
+                                                    <td style="background-color: #005a9c; border-radius: 8px; padding: 12px 24px;">
+                                                        <a href="{{ item_url }}"
+                                                           style="color: white; text-decoration: none; font-weight: 300; font-size: 14px; display: inline-block;">
+                                                            View {{ item_type|title }}
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f8f9fa; padding: 20px 40px; text-align: center; font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6;">
+                                <img src="{% if debug %}{{ site_url }}/static/images/Logo.png{% else %}cid:logo{% endif %}" alt="SpectrumX Logo" style="width: 200px; max-width: 90vw; height: auto; margin-bottom: 15px; border-radius: 6px; display: block; margin-left: auto; margin-right: auto;" />
+                                <p style="margin: 10px 0; font-size: 12px; color: #6c757d;">This is an automated message from the SpectrumX Data System.</p>
+                                <p style="margin: 10px 0; font-size: 12px; color: #6c757d;">If you have any questions, please contact our support team.</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
     </body>
 </html>
+{# djlint:on #}
