@@ -649,6 +649,47 @@ class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[re
 user_file_detail_view = FileDetailView.as_view()
 
 
+def _get_captures_for_template(
+    captures: QuerySet[Capture],
+    request: HttpRequest,
+) -> list[dict[str, Any]]:
+    """Get enhanced captures for the template."""
+    enhanced_captures = []
+    for capture in captures:
+        # Use composite serialization to handle multi-channel captures properly
+        capture_data = serialize_capture_or_composite(capture)
+
+        # Add ownership flags for template display
+        capture_data["is_owner"] = capture.owner == request.user
+        capture_data["is_shared_with_me"] = capture.owner != request.user
+        capture_data["owner_name"] = (
+            capture.owner.name if capture.owner.name else "Owner"
+        )
+        capture_data["owner_email"] = capture.owner.email if capture.owner.email else ""
+
+        # Add shared users data for share modal
+        if capture.owner == request.user:
+            # Get shared users using the new model
+            shared_permissions = UserSharePermission.objects.filter(
+                item_uuid=capture.uuid,
+                item_type=ItemType.CAPTURE,
+                owner=request.user,
+                is_deleted=False,
+                is_enabled=True,
+            ).select_related("shared_with")
+            shared_users = [
+                {"name": perm.shared_with.name, "email": perm.shared_with.email}
+                for perm in shared_permissions
+            ]
+            capture_data["shared_users"] = shared_users
+        else:
+            capture_data["shared_users"] = []
+
+        enhanced_captures.append(capture_data)
+
+    return enhanced_captures
+
+
 class ListCapturesView(Auth0LoginRequiredMixin, View):
     """Handle HTML requests for the captures list page."""
 
@@ -723,42 +764,8 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         except (EmptyPage, PageNotAnInteger):
             page_obj = paginator.page(1)
 
-        # Serialize captures for template using composite serialization
-        enhanced_captures = []
-        for capture in page_obj:
-            # Use composite serialization to handle multi-channel captures properly
-            capture_data = serialize_capture_or_composite(capture)
-
-            # Add ownership flags for template display
-            capture_data["is_owner"] = capture.owner == request.user
-            capture_data["is_shared_with_me"] = capture.owner != request.user
-            capture_data["owner_name"] = (
-                capture.owner.name if capture.owner else "Owner"
-            )
-            capture_data["owner_email"] = capture.owner.email if capture.owner else ""
-
-            # Add shared users data for share modal
-            if capture.owner == request.user:
-                # Get shared users using the new model
-                shared_permissions = UserSharePermission.objects.filter(
-                    item_uuid=capture.uuid,
-                    item_type=ItemType.CAPTURE,
-                    owner=request.user,
-                    is_deleted=False,
-                    is_enabled=True,
-                ).select_related("shared_with")
-                shared_users = [
-                    {"name": perm.shared_with.name, "email": perm.shared_with.email}
-                    for perm in shared_permissions
-                ]
-                capture_data["shared_users"] = shared_users
-            else:
-                capture_data["shared_users"] = []
-
-            enhanced_captures.append(capture_data)
-
         # Update the page_obj with enhanced captures
-        page_obj.object_list = enhanced_captures
+        page_obj.object_list = _get_captures_for_template(page_obj, request)
 
         return render(
             request,
@@ -844,48 +851,7 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             # Limit results for API performance
             captures_list = list(unique_captures[:25])
 
-            captures_data = []
-            for capture in captures_list:
-                try:
-                    # Use composite serialization to handle multi-channel captures
-                    # properly
-                    capture_data = serialize_capture_or_composite(capture)
-
-                    # Add ownership flags for API response
-                    capture_data["is_owner"] = capture.owner == request.user
-                    capture_data["is_shared_with_me"] = capture.owner != request.user
-                    capture_data["owner_name"] = (
-                        capture.owner.name if capture.owner else "Owner"
-                    )
-                    capture_data["owner_email"] = (
-                        capture.owner.email if capture.owner else ""
-                    )
-
-                    # Add shared users data for share modal
-                    if capture.owner == request.user:
-                        # Get shared users using the new model
-                        shared_permissions = UserSharePermission.objects.filter(
-                            item_uuid=capture.uuid,
-                            item_type=ItemType.CAPTURE,
-                            owner=request.user,
-                            is_deleted=False,
-                            is_enabled=True,
-                        ).select_related("shared_with")
-                        shared_users = [
-                            {
-                                "name": perm.shared_with.name,
-                                "email": perm.shared_with.email,
-                            }
-                            for perm in shared_permissions
-                        ]
-                        capture_data["shared_users"] = shared_users
-                    else:
-                        capture_data["shared_users"] = []
-
-                    captures_data.append(capture_data)
-                except Exception:
-                    logger.exception("Error serializing capture %s", capture.uuid)
-                    raise
+            captures_data = _get_captures_for_template(captures_list, request)
 
             response_data = {
                 "captures": captures_data,
@@ -894,9 +860,12 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             }
             return JsonResponse(response_data)
 
-        except Exception as e:
-            logger.exception("API request failed")
-            return JsonResponse({"error": f"Search failed: {e!s}"}, status=500)
+        except (ValueError, TypeError) as e:
+            logger.warning("Invalid parameter in captures API request: %s", e)
+            return JsonResponse({"error": "Invalid search parameters"}, status=400)
+        except DatabaseError:
+            logger.exception("Database error in captures API request")
+            return JsonResponse({"error": "Database error occurred"}, status=500)
 
 
 user_capture_list_view = ListCapturesView.as_view()
@@ -905,6 +874,31 @@ user_captures_api_view = CapturesAPIView.as_view()
 
 class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
     template_name = "users/group_captures.html"
+
+    def search_captures(self, search_data, request) -> list[Capture]:
+        """Override to only return captures owned by the user for dataset creation."""
+        # Only get captures owned by the user (no shared captures)
+        queryset = Capture.objects.filter(
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        # Build a Q object for complex queries
+        q_objects = Q()
+
+        if search_data.get("directory"):
+            q_objects &= Q(top_level_dir__icontains=search_data["directory"])
+        if search_data.get("capture_type"):
+            q_objects &= Q(capture_type=search_data["capture_type"])
+        if search_data.get("scan_group"):
+            q_objects &= Q(scan_group__icontains=search_data["scan_group"])
+        if search_data.get("channel"):
+            q_objects &= Q(channel__icontains=search_data["channel"])
+
+        queryset = queryset.filter(q_objects).order_by("-created_at")
+
+        # Use utility function to deduplicate composite captures
+        return deduplicate_composite_captures(list(queryset))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1007,76 +1001,30 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         """Handle dataset creation/update with selected captures and files."""
         try:
-            # Process the dataset form for actual submission
-            dataset_form = DatasetInfoForm(request.POST, user=request.user)
-            if not dataset_form.is_valid():
-                return JsonResponse(
-                    {"success": False, "errors": dataset_form.errors},
-                    status=400,
-                )
+            # Validate form and get selected items
+            validation_result = self._validate_dataset_form(request)
+            if validation_result:
+                return validation_result
 
-            # Get selected captures and files from hidden fields
-            selected_captures = request.POST.get("selected_captures", "").split(",")
-            selected_files = request.POST.get("selected_files", "").split(",")
+            dataset_form, selected_captures, selected_files = (
+                self._get_form_and_selections(request)
+            )
 
-            # Validate that at least one capture or file is selected
-            if not selected_captures[0] and not selected_files[0]:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "errors": {
-                            "non_field_errors": [
-                                "Please select at least one capture or file.",
-                            ],
-                        },
-                    },
-                    status=400,
-                )
+            # Create or update dataset
+            dataset = self._create_or_update_dataset(request, dataset_form)
 
-            # Check if we're editing an existing dataset
-            dataset_uuid = request.GET.get("dataset_uuid", None)
-            if dataset_uuid:
-                dataset = get_object_or_404(
-                    Dataset, uuid=dataset_uuid, owner=request.user
-                )
-                dataset.name = dataset_form.cleaned_data["name"]
-                dataset.description = dataset_form.cleaned_data["description"]
-                dataset.authors = [dataset_form.cleaned_data["author"]]
-                dataset.save()
+            # Add captures to dataset
+            capture_error = self._add_captures_to_dataset(
+                dataset, selected_captures, request
+            )
+            if capture_error:
+                return capture_error
 
-                # Clear existing relationships
-                dataset.captures.clear()
-                dataset.files.clear()
-            else:
-                # Create new dataset
-                dataset = Dataset.objects.create(
-                    name=dataset_form.cleaned_data["name"],
-                    description=dataset_form.cleaned_data["description"],
-                    authors=[dataset_form.cleaned_data["author"]],
-                    owner=request.user,
-                )
+            # Add files to dataset
+            self._add_files_to_dataset(dataset, selected_files)
 
-            # Add selected captures to the dataset
-            if selected_captures[0]:
-                for capture_id in selected_captures:
-                    if not capture_id:
-                        continue
-                    capture = Capture.objects.get(uuid=capture_id)
-                    if capture.is_multi_channel:
-                        # Add all captures in this composite
-                        all_captures = Capture.objects.filter(
-                            top_level_dir=capture.top_level_dir,
-                            owner=request.user,
-                            is_deleted=False,
-                        )
-                        dataset.captures.add(*all_captures)
-                    else:
-                        dataset.captures.add(capture)
-
-            # Add selected files to the dataset
-            if selected_files[0]:
-                files = File.objects.filter(uuid__in=selected_files)
-                dataset.files.add(*files)
+            # If this dataset is shared with users, also share any newly added captures
+            self._share_new_dataset_captures(dataset)
 
             # Return success response with redirect URL
             return JsonResponse(
@@ -1088,6 +1036,121 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
                 {"success": False, "errors": {"non_field_errors": [str(e)]}},
                 status=500,
             )
+
+    def _validate_dataset_form(self, request) -> JsonResponse | None:
+        """Validate the dataset form and return error response if invalid."""
+        dataset_form = DatasetInfoForm(request.POST, user=request.user)
+        if not dataset_form.is_valid():
+            return JsonResponse(
+                {"success": False, "errors": dataset_form.errors},
+                status=400,
+            )
+
+        # Get selected captures and files from hidden fields
+        selected_captures = request.POST.get("selected_captures", "").split(",")
+        selected_files = request.POST.get("selected_files", "").split(",")
+
+        # Validate that at least one capture or file is selected
+        if not selected_captures[0] and not selected_files[0]:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "errors": {
+                        "non_field_errors": [
+                            "Please select at least one capture or file.",
+                        ],
+                    },
+                },
+                status=400,
+            )
+
+        return None
+
+    def _get_form_and_selections(
+        self, request
+    ) -> tuple[DatasetInfoForm, list[str], list[str]]:
+        """Get the form and selected items from the request."""
+        dataset_form = DatasetInfoForm(request.POST, user=request.user)
+        dataset_form.is_valid()  # We already validated above
+
+        selected_captures = request.POST.get("selected_captures", "").split(",")
+        selected_files = request.POST.get("selected_files", "").split(",")
+
+        return dataset_form, selected_captures, selected_files
+
+    def _create_or_update_dataset(self, request, dataset_form) -> Dataset:
+        """Create a new dataset or update an existing one."""
+        dataset_uuid = request.GET.get("dataset_uuid", None)
+
+        if dataset_uuid:
+            dataset = get_object_or_404(Dataset, uuid=dataset_uuid, owner=request.user)
+            dataset.name = dataset_form.cleaned_data["name"]
+            dataset.description = dataset_form.cleaned_data["description"]
+            dataset.authors = [dataset_form.cleaned_data["author"]]
+            dataset.save()
+
+            # Clear existing relationships
+            dataset.captures.clear()
+            dataset.files.clear()
+        else:
+            # Create new dataset
+            dataset = Dataset.objects.create(
+                name=dataset_form.cleaned_data["name"],
+                description=dataset_form.cleaned_data["description"],
+                authors=[dataset_form.cleaned_data["author"]],
+                owner=request.user,
+            )
+
+        return dataset
+
+    def _add_captures_to_dataset(
+        self, dataset: Dataset, selected_captures: list[str], request
+    ) -> JsonResponse | None:
+        """Add selected captures to the dataset."""
+        if not selected_captures[0]:
+            return None
+
+        for capture_id in selected_captures:
+            if not capture_id:
+                continue
+            try:
+                # Only allow adding captures owned by the user
+                capture = Capture.objects.get(
+                    uuid=capture_id, owner=request.user, is_deleted=False
+                )
+                if capture.is_multi_channel:
+                    # Add all captures in this composite
+                    all_captures = Capture.objects.filter(
+                        top_level_dir=capture.top_level_dir,
+                        owner=request.user,
+                        is_deleted=False,
+                    )
+                    dataset.captures.add(*all_captures)
+                else:
+                    dataset.captures.add(capture)
+            except Capture.DoesNotExist:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "errors": {
+                            "non_field_errors": [
+                                f"Capture {capture_id} not found or you don't have "
+                                "permission to add it to a dataset.",
+                            ],
+                        },
+                    },
+                    status=400,
+                )
+
+        return None
+
+    def _add_files_to_dataset(
+        self, dataset: Dataset, selected_files: list[str]
+    ) -> None:
+        """Add selected files to the dataset."""
+        if selected_files[0]:
+            files = File.objects.filter(uuid__in=selected_files)
+            dataset.files.add(*files)
 
     def _get_directory_tree(
         self, files: QuerySet[File], base_dir: str
@@ -1235,20 +1298,10 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
         selected_captures_details: dict[str, Any] = {}
         composite_capture_dirs: set[str] = set()
         if existing_dataset:
-            # Get captures owned by the user
-            owned_captures = existing_dataset.captures.filter(
+            captures_queryset = existing_dataset.captures.filter(
                 is_deleted=False,
                 owner=self.request.user,
             )
-
-            # Get captures shared with the user (exclude owned)
-            shared_captures = existing_dataset.captures.filter(
-                is_deleted=False,
-                shared_with=self.request.user,
-            ).exclude(owner=self.request.user)
-
-            # Combine owned and shared captures
-            captures_queryset = owned_captures.union(shared_captures)
 
             # Only include one composite per group
             for capture in captures_queryset.order_by("-created_at"):
@@ -1330,9 +1383,11 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             dataset_data["is_owner"] = True
             dataset_data["is_shared_with_me"] = False
             dataset_data["owner_name"] = (
-                dataset.owner.name if dataset.owner else "Owner"
+                dataset.owner.name if dataset.owner.name else "Owner"
             )
-            dataset_data["owner_email"] = dataset.owner.email if dataset.owner else ""
+            dataset_data["owner_email"] = (
+                dataset.owner.email if dataset.owner.email else ""
+            )
             datasets_with_shared_users.append(dataset_data)
 
         for dataset in shared_datasets:
@@ -1353,9 +1408,11 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             dataset_data["is_owner"] = False
             dataset_data["is_shared_with_me"] = True
             dataset_data["owner_name"] = (
-                dataset.owner.name if dataset.owner else "Owner"
+                dataset.owner.name if dataset.owner.name else "Owner"
             )
-            dataset_data["owner_email"] = dataset.owner.email if dataset.owner else ""
+            dataset_data["owner_email"] = (
+                dataset.owner.email if dataset.owner.email else ""
+            )
             datasets_with_shared_users.append(dataset_data)
 
         paginator = Paginator(datasets_with_shared_users, per_page=15)
