@@ -147,6 +147,9 @@
         .col-name {
             flex: 1;
             min-width: 200px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .col-modified {
@@ -163,6 +166,7 @@
             padding: 12px 16px;
             border-bottom: 1px solid #dee2e6;
             transition: background-color 0.2s;
+            cursor: pointer;
         }
 
         .file-row:hover {
@@ -208,12 +212,26 @@
             gap: 8px;
             color: #5f6368;
             font-size: 14px;
+            background-color: #f8f9fa;
+            padding: 8px 16px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            list-style: none;
+            margin: 0;
+            padding: 0;
         }
 
         .breadcrumb-item {
             color: #1a73e8;
             text-decoration: none;
             cursor: pointer;
+            display: flex;
+            align-items: center;
         }
 
         .breadcrumb-item:hover {
@@ -223,11 +241,13 @@
         .breadcrumb-item.current {
             color: #202124;
             pointer-events: none;
+            font-weight: 500;
         }
 
         .breadcrumb-separator {
             color: #5f6368;
-            margin: 0 4px;
+            margin: 0 8px;
+            user-select: none;
         }
 
         /* Empty State */
@@ -235,6 +255,9 @@
             text-align: center;
             padding: 48px 16px;
             color: #5f6368;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .empty-folder-icon {
@@ -291,12 +314,70 @@
         .hidden-input {
             display: none;
         }
+
+        /* File List Styles */
+        .file-list {
+            margin-top: 16px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            margin-bottom: 8px;
+        }
+
+        .file-item i {
+            color: #5f6368;
+        }
+
+        .file-name {
+            flex: 1;
+            font-size: 14px;
+            color: #202124;
+        }
+
+        .file-size {
+            font-size: 12px;
+            color: #5f6368;
+        }
+
+        /* Folder Summary Styles */
+        .folder-summary {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .folder-summary i {
+            font-size: 24px;
+            margin-right: 12px;
+            color: #5f6368;
+        }
+
+        .folder-info {
+            flex: 1;
+        }
+
+        .folder-name {
+            font-weight: 500;
+            color: #202124;
+            margin-bottom: 4px;
+        }
+
+        .folder-stats {
+            font-size: 13px;
+            color: #5f6368;
+        }
     </style>
 {% endblock css %}
 {% block content %}
-    <!-- Add Material Icons -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
-          rel="stylesheet" />
     <div class="drive-container">
         <div class="drive-header">
             <div class="dropdown">
@@ -553,321 +634,6 @@
                     <p>This folder is empty</p>
                 </div>
             {% endfor %}
-        </div>
-        <!-- Add styles -->
-        <style>
-            .breadcrumb-nav {
-                background-color: #f8f9fa;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-
-            .breadcrumb {
-                display: flex;
-                align-items: center;
-                list-style: none;
-                margin: 0;
-                padding: 0;
-                font-size: 14px;
-            }
-
-            .breadcrumb-item {
-                display: flex;
-                align-items: center;
-            }
-
-            .breadcrumb-item a {
-                color: #202124;
-                text-decoration: none;
-            }
-
-            .breadcrumb-item a:hover {
-                color: #202124;
-                text-decoration: none;
-            }
-
-            .breadcrumb-item.active {
-                color: #202124;
-                font-weight: 500;
-            }
-
-            .breadcrumb-separator {
-                color: #5f6368;
-                margin: 0 8px;
-                user-select: none;
-            }
-
-            .files-list {
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                overflow: hidden;
-            }
-
-            .files-header {
-                display: flex;
-                padding: 8px 16px;
-                background-color: #f8f9fa;
-                border-bottom: 1px solid #e0e0e0;
-                font-weight: 500;
-            }
-
-            .file-row {
-                display: flex;
-                padding: 8px 16px;
-                border-bottom: 1px solid #e0e0e0;
-                cursor: pointer;
-                transition: background-color 0.2s;
-            }
-
-            .file-row:hover {
-                background-color: #f8f9fa;
-            }
-
-            .col-name {
-                flex: 1;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .col-modified {
-                width: 150px;
-            }
-
-            .col-size {
-                width: 100px;
-                text-align: right;
-            }
-
-            .folder-icon,
-            .file-icon {
-                color: #5f6368;
-            }
-
-            .folder-name {
-                color: #202124;
-                cursor: pointer;
-            }
-
-            .folder-name:hover {
-                color: #202124;
-                text-decoration: none;
-            }
-
-            .file-link {
-                color: #202124 !important;
-                text-decoration: none;
-            }
-
-            .file-link:hover {
-                color: #202124;
-                text-decoration: none;
-            }
-
-            .folder-name {
-                color: #202124;
-                cursor: pointer;
-            }
-
-            .folder-name:hover {
-                color: #202124;
-                text-decoration: none;
-            }
-
-            .breadcrumb-item a {
-                color: #202124;
-                text-decoration: none;
-            }
-
-            .breadcrumb-item a:hover {
-                color: #202124;
-                text-decoration: none;
-            }
-
-            .folder-contents {
-                margin-left: 24px;
-                border-left: 1px solid #e0e0e0;
-            }
-
-            .expanded .folder-icon {
-                transform: rotate(90deg);
-            }
-
-            .no-files {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                padding: 32px;
-                color: #5f6368;
-            }
-
-            .empty-folder-icon {
-                font-size: 48px;
-                margin-bottom: 16px;
-            }
-
-            /* Drop Zone Styles */
-            .drop-zone {
-                border: 2px dashed #dadce0;
-                border-radius: 8px;
-                padding: 32px;
-                text-align: center;
-                cursor: pointer;
-                transition: all 0.2s;
-                background-color: #f8f9fa;
-            }
-
-            .drop-zone:hover {
-                background-color: #f1f3f4;
-                border-color: #1a73e8;
-            }
-
-            .drop-zone.drag-over {
-                background-color: #e8f0fe;
-                border-color: #1a73e8;
-            }
-
-            .drop-message {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 16px;
-                color: #5f6368;
-            }
-
-            .drop-message i {
-                font-size: 48px;
-            }
-
-            .file-input {
-                display: none;
-            }
-
-            .file-list {
-                margin-top: 16px;
-            }
-
-            .file-item {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                padding: 8px;
-                border-radius: 4px;
-                background-color: #f8f9fa;
-                margin-bottom: 8px;
-            }
-
-            .file-item i {
-                color: #5f6368;
-            }
-
-            .file-name {
-                flex: 1;
-                font-size: 14px;
-                color: #202124;
-            }
-
-            .file-size {
-                font-size: 12px;
-                color: #5f6368;
-            }
-
-            /* Folder Summary Styles */
-            .folder-summary {
-                display: flex;
-                align-items: center;
-                padding: 12px;
-                background: #f8f9fa;
-                border-radius: 8px;
-                margin-bottom: 10px;
-            }
-
-            .folder-summary i {
-                font-size: 24px;
-                margin-right: 12px;
-                color: #5f6368;
-            }
-
-            .folder-info {
-                flex: 1;
-            }
-
-            .folder-name {
-                font-weight: 500;
-                color: #202124;
-                margin-bottom: 4px;
-            }
-
-            .folder-stats {
-                font-size: 13px;
-                color: #5f6368;
-            }
-        </style>
-        <!-- Add click handlers -->
-        <script>
-            // Helper function to generate file detail URLs
-            function getFileDetailUrl(uuid) {
-                const urlPattern = document.querySelector('.files-list').dataset.fileDetailUrl;
-                return urlPattern.replace('UUID_PLACEHOLDER', uuid);
-            }
-
-            // Helper function to format file sizes
-            function formatFileSize(bytes) {
-                if (!bytes || isNaN(bytes)) return '0 B';
-                const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-                let i = 0;
-                while (bytes >= 1024 && i < units.length - 1) {
-                    bytes /= 1024;
-                    i++;
-                }
-                return bytes.toFixed(1) + ' ' + units[i];
-            }
-
-            document.addEventListener('DOMContentLoaded', function() {
-                // Add click handlers for file rows
-                document.querySelectorAll('.file-row').forEach(row => {
-                    row.addEventListener('click', async function(e) {
-                        // Don't trigger if clicking a link
-                        if (e.target.tagName === 'A') return;
-
-                        const type = this.dataset.type;
-                        const path = this.dataset.path;
-
-                        if (type === 'directory') {
-                            // Navigate to the directory
-                            window.location.href = `{% url 'users:files' %}?path=${encodeURIComponent(path)}`;
-                        } else {
-                            // For files, click the link
-                            const fileLink = this.querySelector('.file-link');
-                            if (fileLink) fileLink.click();
-                        }
-                    });
-                });
-            });
-        </script>
-        <!-- Upload Result Modal -->
-        <div class="modal fade"
-             id="uploadResultModal"
-             tabindex="-1"
-             aria-labelledby="uploadResultModalLabel"
-             aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="uploadResultModalLabel">Upload Result</h5>
-                        <button type="button"
-                                class="btn-close"
-                                data-bs-dismiss="modal"
-                                aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body" id="uploadResultModalBody">
-                        <!-- Content will be set by JS -->
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 {% endblock content %}
