@@ -54,8 +54,6 @@ services:
               read_only: false
               bind:
                 selinux: z
-              volume:
-                nocopy: true
             - source: sds-gateway-prod-static
               target: /app/staticfiles/
               type: volume
@@ -198,8 +196,6 @@ services:
               read_only: false
               bind:
                 selinux: z
-              volume:
-                nocopy: true
             - source: ./opensearch/data/certs-django
               target: /app/opensearch/data/certs
               type: bind
@@ -242,8 +238,6 @@ services:
               read_only: false
               bind:
                 selinux: z
-              volume:
-                nocopy: true
             - source: ./opensearch/data/certs-django
               target: /app/opensearch/data/certs
               type: bind
