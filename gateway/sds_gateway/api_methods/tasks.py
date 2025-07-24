@@ -682,8 +682,8 @@ def _handle_timeout_exception(
 
 
 @shared_task(
-    time_limit=20 * 60, soft_time_limit=10 * 60
-)  # 20 min hard limit, 10 min soft limit
+    time_limit=30 * 60, soft_time_limit=25 * 60
+)  # 30 min hard limit, 25 min soft limit
 def send_item_files_email(  # noqa: C901
     item_uuid: str, user_id: str, item_type: str | ItemType
 ) -> dict:
