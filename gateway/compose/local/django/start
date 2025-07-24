@@ -34,6 +34,11 @@ function main() {
         echo_wait_and_quit "Failed to initialize SVI server token."
     }
 
+    echo "Setting up django-cog pipelines..."
+    python manage.py setup_pipelines --force || {
+        echo_wait_and_quit "Failed to set up django-cog pipelines."
+    }
+
     echo "Starting Uvicorn server..."
     exec uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
 
