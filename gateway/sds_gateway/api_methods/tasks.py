@@ -7,6 +7,7 @@ from typing import Any
 
 import redis
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
@@ -662,10 +663,28 @@ def _send_download_email(
     )
 
 
+def _handle_timeout_exception(
+    user: User | None, item: Any, item_type: ItemType, item_uuid: str, e: Exception
+) -> dict:
+    """Handle timeout exceptions in the download task."""
+    logger.exception(
+        f"Timeout or soft time limit exceeded for {item_type} download "
+        f"for {item_uuid}: {e}"
+    )
+    error_message = (
+        f"The download process for {item_type} {item_uuid} "
+        "has timed out or exceeded the soft time limit. "
+        "Please try again or contact support."
+    )
+    if user is not None and item is not None:
+        _send_item_download_error_email(user, item, item_type, error_message)
+    return _create_error_response("error", error_message, item_uuid)
+
+
 @shared_task(
     time_limit=20 * 60, soft_time_limit=10 * 60
 )  # 20 min hard limit, 10 min soft limit
-def send_item_files_email(
+def send_item_files_email(  # noqa: C901
     item_uuid: str, user_id: str, item_type: str | ItemType
 ) -> dict:
     """
@@ -773,6 +792,9 @@ def send_item_files_email(
         if user is not None and item is not None:
             _send_item_download_error_email(user, item, item_type_enum, error_message)
         result = _create_error_response("error", error_message, item_uuid)
+
+    except (SoftTimeLimitExceeded, TimeoutError) as e:
+        result = _handle_timeout_exception(user, item, item_type_enum, item_uuid, e)
 
     finally:
         # Always release the lock, even if there was an error

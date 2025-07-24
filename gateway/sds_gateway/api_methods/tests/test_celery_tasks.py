@@ -373,6 +373,56 @@ class TestCeleryTasks(TestCase):
 
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
     @patch("sds_gateway.api_methods.tasks.is_user_locked")
+    def test_send_dataset_files_email_timeout_handling(
+        self, mock_is_locked, mock_acquire_lock
+    ):
+        """Test dataset email task when timeout occurs."""
+        # Mock Redis locking functions
+        mock_is_locked.return_value = False
+        mock_acquire_lock.return_value = True
+
+        # Clear any existing emails
+        mail.outbox.clear()
+
+        # Test the task with a timeout exception
+        with patch(
+            "sds_gateway.api_methods.tasks._validate_item_download_request"
+        ) as mock_validate:
+            # Mock successful validation
+            mock_validate.return_value = (None, self.user, self.dataset)
+
+            # Mock the _process_item_files to raise a timeout exception
+            with patch(
+                "sds_gateway.api_methods.tasks._process_item_files"
+            ) as mock_process:
+                from celery.exceptions import SoftTimeLimitExceeded
+
+                mock_process.side_effect = SoftTimeLimitExceeded("Task timed out")
+
+                # Test the task
+                result = send_item_files_email.delay(
+                    str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
+                )
+
+                # Get the result
+                task_result = result.get()
+
+                # Verify task completed with timeout error
+                assert task_result["status"] == "error", (
+                    f"Expected status 'error', got '{task_result['status']}'"
+                )
+                assert "timed out" in task_result["message"], (
+                    f"Expected timeout message, got '{task_result['message']}'"
+                )
+
+                # Verify error email was sent
+                assert len(mail.outbox) == 1, "Expected 1 error email to be sent"
+                error_email = mail.outbox[0]
+                assert "Error downloading your dataset" in error_email.subject
+                assert self.user.email in error_email.to
+
+    @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
+    @patch("sds_gateway.api_methods.tasks.is_user_locked")
     def test_send_dataset_files_email_no_files(self, mock_is_locked, mock_acquire_lock):
         """Test dataset email task when no files are found."""
         # Create a dataset with no files
