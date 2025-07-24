@@ -1209,7 +1209,28 @@ def trigger_post_processing(sender, instance: Capture, created: bool, **kwargs):
         )
 
         # Import here to avoid circular imports
-        from .tasks import start_capture_post_processing
+        from django_cog.models import Pipeline
 
-        # Trigger the post-processing pipeline
-        start_capture_post_processing.delay(str(instance.uuid))
+        try:
+            # Find the waterfall processing pipeline
+            pipeline = Pipeline.objects.get(name="Waterfall Processing", enabled=True)
+
+            # Launch the pipeline using the django-cog task
+            from config.celery_app import app as celery_app
+
+            # Get the launch_pipeline task from the celery app
+            launch_pipeline_task = celery_app.tasks.get("django_cog.launch_pipeline")
+            if launch_pipeline_task:
+                launch_pipeline_task.delay(
+                    pipeline_id=str(pipeline.id),
+                    pipeline_kwargs={"capture_uuid": str(instance.uuid)},
+                )
+            else:
+                log.error("django_cog.launch_pipeline task not found")
+
+            log.info(f"Launched waterfall pipeline for capture {instance.uuid}")
+
+        except Pipeline.DoesNotExist:
+            log.warning("Waterfall Processing pipeline not found or disabled")
+        except Exception as e:
+            log.error(f"Failed to launch pipeline for capture {instance.uuid}: {e}")
