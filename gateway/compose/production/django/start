@@ -37,6 +37,11 @@ function main() {
         echo_wait_and_quit "Failed to initialize SVI server token."
     }
 
+    echo "Setting up django-cog pipelines..."
+    python manage.py setup_pipelines --force || {
+        echo_wait_and_quit "Failed to set up django-cog pipelines."
+    }
+
     echo "Starting Gunicorn server..."
     exec /usr/local/bin/gunicorn config.asgi \
         --bind 0.0.0.0:18000 \
