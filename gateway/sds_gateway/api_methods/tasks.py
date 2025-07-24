@@ -13,7 +13,6 @@ from django.template.loader import render_to_string
 from loguru import logger
 from redis import Redis
 
-from sds_gateway.api_methods.helpers.download_file import download_file
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
@@ -170,7 +169,7 @@ def is_user_locked(user_id: str, task_name: str) -> bool:
 @shared_task
 def test_celery_task(message: str = "Hello from Celery!") -> str:
     """
-    Simple test task to verify Celery is working.
+    Test task to verify Celery is working.
 
     Args:
         message: Message to return
@@ -178,7 +177,7 @@ def test_celery_task(message: str = "Hello from Celery!") -> str:
     Returns:
         str: The message with a timestamp
     """
-    logger.info("Test Celery task executed with message: %s", message)
+    logger.info(f"Test Celery task executed with message: {message}")
     return f"{message} - Task completed successfully!"
 
 
@@ -201,9 +200,9 @@ def test_email_task(email_address: str = "test@example.com") -> str:
             to=[email_address],
         )
         email.send()
-        logger.info("Test email sent successfully to %s", email_address)
+        logger.info(f"Test email sent successfully to {email_address}")
     except (OSError, ValueError) as e:
-        logger.error("Failed to send test email: %s", e)
+        logger.error(f"Failed to send test email: {e}")
         return f"Failed to send email: {e}"
     else:
         return f"Test email sent to {email_address}"
@@ -211,23 +210,23 @@ def test_email_task(email_address: str = "test@example.com") -> str:
 
 def create_zip_from_files(files: list[File], zip_name: str) -> tuple[str, int, int]:
     """
-    Create a zip file from a list of files on disk in a persistent location.
+    Create a zip file by streaming files directly from MinIO storage.
+
+    This approach is memory-efficient and handles large files by streaming
+    directly from MinIO to the zip file in chunks.
 
     Args:
         files: List of File model instances to include in the zip
-        zip_name: Name for the zip file (default: "download.zip")
+        zip_name: Name for the zip file
 
     Returns:
         tuple: (zip_file_path, total_size, files_processed)
-
-    Raises:
-        OSError: If there's an error creating the zip file
-        ValueError: If there's an error processing files
     """
+    from sds_gateway.api_methods.utils.minio_client import get_minio_client
+
     # Create persistent zip file in media directory
     media_root = Path(settings.MEDIA_ROOT)
     temp_zips_dir = media_root / "temp_zips"
-    # Ensure the directory exists
     temp_zips_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a unique filename to avoid conflicts
@@ -237,35 +236,63 @@ def create_zip_from_files(files: list[File], zip_name: str) -> tuple[str, int, i
 
     total_size = 0
     files_processed = 0
+    client = get_minio_client()
 
     with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for file_obj in files:
             try:
-                # Download file content
-                file_content = download_file(file_obj)
-
-                # Create a safe filename for the zip
-                base_path = sanitize_path_rel_to_user("/", user=file_obj.owner)
-                if base_path is not None:
-                    # remove the base path from the file_obj.directory
-                    rel_path = Path(file_obj.directory).relative_to(base_path)
-                    safe_filename = f"{rel_path}/{file_obj.name}"
+                # Create the file path in the zip using the file tree structure
+                # Use sanitize_path_rel_to_user to get the full path, then strip the
+                # /files/user.email part
+                # This ensures the zip contains only the directories below the user's
+                # root
+                user_rel_path = sanitize_path_rel_to_user(
+                    file_obj.directory, user=file_obj.owner
+                )
+                if user_rel_path is not None:
+                    # Strip the /files/user.email part from the path
+                    # user_rel_path will be something like
+                    # "/files/user@email.com/dataset1/subfolder"
+                    # We want to extract just "dataset1/subfolder"
+                    user_root_pattern = f"/files/{file_obj.owner.email}"
+                    if str(user_rel_path).startswith(user_root_pattern):
+                        # Remove the user root pattern and any leading slash
+                        relative_path = str(user_rel_path)[
+                            len(user_root_pattern) :
+                        ].lstrip("/")
+                        safe_filename = f"{zip_name}/{relative_path}/{file_obj.name}"
+                    else:
+                        # Fallback if the pattern doesn't match
+                        safe_filename = f"{zip_name}/{file_obj.name}"
                 else:
-                    safe_filename = file_obj.name
+                    # Fallback to just the filename if path sanitization fails,
+                    # still wrapped in zip_name folder
+                    safe_filename = f"{zip_name}/{file_obj.name}"
 
-                # Add file to zip
-                zip_file.writestr(safe_filename, file_content)
-                total_size += len(file_content)
-                files_processed += 1
-
-                logger.info(
-                    "Added file %s to zip (%d bytes)",
-                    file_obj.name,
-                    len(file_content),
+                # Stream file directly from MinIO to zip
+                # Use file_obj.file.name to get the MinIO object key
+                response = client.get_object(
+                    bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                    object_name=file_obj.file.name,
                 )
 
-            except (OSError, ValueError):
-                logger.exception("Failed to process file %s", file_obj.name)
+                # Read file in chunks and write to zip
+                file_size = 0
+                with zip_file.open(safe_filename, "w") as zip_entry:
+                    for chunk in response.stream(32 * 1024):  # 32KB chunks
+                        zip_entry.write(chunk)
+                        file_size += len(chunk)
+
+                response.close()
+                response.release_conn()
+
+                total_size += file_size
+                files_processed += 1
+
+                logger.info(f"Streamed file {safe_filename} to zip ({file_size} bytes)")
+
+            except (OSError, ValueError, RuntimeError) as e:
+                logger.exception(f"Failed to process file {file_obj.name}: {e}")
                 # Continue with other files
                 continue
 
@@ -297,7 +324,7 @@ def cleanup_expired_temp_zips() -> dict:
                 "failed_count": 0,
             }
 
-        logger.info("Cleaning up %d expired temporary zip files", count)
+        logger.info(f"Cleaning up {count} expired temporary zip files")
 
         deleted_count = 0
         failed_count = 0
@@ -307,14 +334,12 @@ def cleanup_expired_temp_zips() -> dict:
                 # Delete the file from disk
                 temp_zip.delete_file()
                 deleted_count += 1
-                logger.info("Soft deleted expired file: %s", temp_zip.filename)
+                logger.info(f"Soft deleted expired file: {temp_zip.filename}")
             except (OSError, ValueError) as e:
                 failed_count += 1
-                logger.exception("Failed to delete %s: %s", temp_zip.filename, e)
+                logger.exception(f"Failed to delete {temp_zip.filename}: {e}")
 
-        logger.info(
-            "Cleanup complete: %s deleted, %s failed", deleted_count, failed_count
-        )
+        logger.info(f"Cleanup complete: {deleted_count} deleted, {failed_count} failed")
 
     except (OSError, ValueError) as e:
         logger.exception("Error in cleanup_expired_temp_zips")
@@ -513,7 +538,7 @@ def _process_item_files(
     """
     files = _get_item_files(user, item, item_type)
     if not files:
-        logger.warning("No files found for %s %s", item_type, item_uuid)
+        logger.warning(f"No files found for {item_type} {item_uuid}")
         error_message = f"No files found in {item_type}"
         _send_item_download_error_email(user, item, item_type, error_message)
         return (
@@ -531,7 +556,7 @@ def _process_item_files(
     )
 
     if files_processed == 0:
-        logger.warning("No files were processed for %s %s", item_type, item_uuid)
+        logger.warning(f"No files were processed for {item_type} {item_uuid}")
         error_message = "No files could be processed"
         _send_item_download_error_email(user, item, item_type, error_message)
         return (
@@ -544,7 +569,102 @@ def _process_item_files(
     return None, zip_file_path, total_size, files_processed
 
 
-@shared_task
+def _handle_user_lock_validation(
+    user_id: str, user: User, item: Any, item_type: ItemType, task_name: str
+) -> dict | None:
+    """
+    Handle user lock validation and acquisition.
+
+    Returns:
+        dict: Error response if lock validation fails, None if successful
+    """
+    if is_user_locked(user_id, task_name):
+        logger.warning(
+            f"User {user_id} already has a {item_type} download task running"
+        )
+        error_message = (
+            f"You already have a {item_type} download in progress. "
+            "Please wait for it to complete."
+        )
+        _send_item_download_error_email(user, item, item_type, error_message)
+        return _create_error_response("error", error_message, str(item.uuid), user_id)
+
+    if not acquire_user_lock(user_id, task_name):
+        logger.warning(f"Failed to acquire lock for user {user_id}")
+        error_message = (
+            "Another download is already in progress. Please wait for it to complete."
+        )
+        _send_item_download_error_email(user, item, item_type, error_message)
+        return {
+            "status": "error",
+            "message": error_message,
+            "item_uuid": str(item.uuid),
+            "user_id": user_id,
+        }
+
+    return None
+
+
+def _create_temp_zip_record(
+    user: User,
+    zip_file_path: str,
+    total_size: int,
+    files_processed: int,
+    item: Any,
+    item_type: ItemType,
+    item_uuid: str,
+) -> TemporaryZipFile:
+    """Create a temporary zip file record."""
+    unsafe_item_name = getattr(item, "name", str(item)) or item_type
+    safe_item_name = re.sub(r"[^a-zA-Z0-9._-]", "", unsafe_item_name.replace(" ", "_"))
+    zip_filename = f"{item_type}_{safe_item_name}_{item_uuid}.zip"
+
+    return TemporaryZipFile.objects.create(
+        file_path=zip_file_path,
+        filename=zip_filename,
+        file_size=total_size,
+        files_processed=files_processed,
+        owner=user,
+    )
+
+
+def _send_download_email(
+    user: User,
+    item: Any,
+    item_type: ItemType,
+    temp_zip: TemporaryZipFile,
+    total_size: int,
+    files_processed: int,
+) -> None:
+    """Send download email to user."""
+    item_display_name = (
+        getattr(item, "name", str(item)) or f"{item_type.capitalize()} {item.uuid}"
+    )
+    subject = f"Your {item_type} '{item_display_name}' is ready for download"
+
+    context = {
+        "item_type": item_type,
+        "item_name": item_display_name,
+        "download_url": temp_zip.download_url,
+        "file_size": total_size,
+        "files_count": files_processed,
+        "expires_at": temp_zip.expires_at,
+        "site_url": settings.SITE_URL,
+        "debug": settings.DEBUG,
+    }
+
+    send_email(
+        subject=subject,
+        recipient_list=[user.email],
+        html_template="emails/item_download_ready.html",
+        plain_template="emails/item_download_ready.txt",
+        context=context,
+    )
+
+
+@shared_task(
+    time_limit=20 * 60, soft_time_limit=10 * 60
+)  # 20 min hard limit, 10 min soft limit
 def send_item_files_email(
     item_uuid: str, user_id: str, item_type: str | ItemType
 ) -> dict:
@@ -592,27 +712,14 @@ def send_item_files_email(
         assert item is not None
 
         # Check user lock status and acquire lock
-        if is_user_locked(user_id, task_name):
-            logger.warning(
-                "User %s already has a %s download task running",
-                user_id,
-                item_type_enum,
-            )
-            error_message = (
-                f"You already have a {item_type_enum} download in progress. "
-                "Please wait for it to complete."
-            )
-            _send_item_download_error_email(user, item, item_type_enum, error_message)
-            return _create_error_response("error", error_message, item_uuid, user_id)
-
-        if not acquire_user_lock(user_id, task_name):
-            logger.warning("Failed to acquire lock for user %s", user_id)
-            error_message = "Unable to start download. Please try again in a moment."
-            _send_item_download_error_email(user, item, item_type_enum, error_message)
-            return _create_error_response("error", error_message, item_uuid, user_id)
+        lock_error = _handle_user_lock_validation(
+            user_id, user, item, item_type_enum, task_name
+        )
+        if lock_error:
+            return lock_error
 
         logger.info(
-            "Acquired lock for user %s, starting %s download", user_id, item_type_enum
+            f"Acquired lock for user {user_id}, starting {item_type_enum} download"
         )
 
         # Process files and create zip
@@ -622,54 +729,31 @@ def send_item_files_email(
         if error_response:
             return error_response
 
-        # Create temporary zip file record
-        unsafe_item_name = getattr(item, "name", str(item)) or item_type_enum
-        safe_item_name = re.sub(
-            r"[^a-zA-Z0-9._-]", "", unsafe_item_name.replace(" ", "_")
-        )
-        zip_filename = f"{item_type_enum}_{safe_item_name}_{item_uuid}.zip"
+        # Ensure we have valid values for zip creation
+        if zip_file_path is None or total_size is None or files_processed is None:
+            error_message = "Failed to process files for zip creation"
+            _send_item_download_error_email(user, item, item_type_enum, error_message)
+            return _create_error_response("error", error_message, item_uuid, user_id)
 
-        temp_zip = TemporaryZipFile.objects.create(
-            file_path=zip_file_path,
-            filename=zip_filename,
-            file_size=total_size,
-            files_processed=files_processed,
-            owner=user,
+        # Create temporary zip file record
+        temp_zip = _create_temp_zip_record(
+            user,
+            zip_file_path,
+            total_size,
+            files_processed,
+            item,
+            item_type_enum,
+            item_uuid,
         )
 
         # Send email with download link
-        item_display_name = (
-            getattr(item, "name", str(item))
-            or f"{item_type_enum.capitalize()} {item_uuid}"
-        )
-        subject = f"Your {item_type_enum} '{item_display_name}' is ready for download"
-
-        # Create email context
-        context = {
-            "item_type": item_type_enum,
-            "item_name": item_display_name,
-            "download_url": temp_zip.download_url,
-            "file_size": total_size,
-            "files_count": files_processed,
-            "expires_at": temp_zip.expires_at,
-            "site_url": settings.SITE_URL,
-            "debug": settings.DEBUG,
-        }
-
-        # Send email using the unified template
-        send_email(
-            subject=subject,
-            recipient_list=[user.email],
-            html_template="emails/item_download_ready.html",
-            plain_template="emails/item_download_ready.txt",
-            context=context,
+        _send_download_email(
+            user, item, item_type_enum, temp_zip, total_size, files_processed
         )
 
         logger.info(
-            "Successfully sent %s download email for %s to %s",
-            item_type_enum,
-            item_uuid,
-            user.email,
+            f"Successfully sent {item_type_enum} download email for {item_uuid} "
+            f"to {user.email}"
         )
 
         result = {
@@ -682,10 +766,7 @@ def send_item_files_email(
 
     except (OSError, ValueError) as e:
         logger.exception(
-            "Error processing %s download for %s: %s",
-            item_type_enum,
-            item_uuid,
-            e,
+            f"Error processing {item_type_enum} download for {item_uuid}: {e}"
         )
         # Send error email if we have user and item
         error_message = f"Error processing {item_type_enum} download: {e!s}"
@@ -697,7 +778,7 @@ def send_item_files_email(
         # Always release the lock, even if there was an error
         if user_id is not None:
             release_user_lock(user_id, task_name)
-            logger.info("Released lock for user %s", user_id)
+            logger.info(f"Released lock for user {user_id}")
 
     return result
 
@@ -740,7 +821,7 @@ def _validate_item_download_request(
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        logger.warning("User %s not found for %s download", user_id, item_type)
+        logger.warning(f"User {user_id} not found for {item_type} download")
         return (
             {
                 "status": "error",
@@ -755,10 +836,8 @@ def _validate_item_download_request(
     # Validate item access (either as owner or shared user)
     if not user_has_access_to_item(user, item_uuid, item_type):
         logger.warning(
-            "%s %s not found or access denied for user %s",
-            item_type.capitalize(),
-            item_uuid,
-            user_id,
+            f"{item_type.capitalize()} {item_uuid} not found or access denied "
+            f"for user {user_id}"
         )
         return (
             {
@@ -778,11 +857,7 @@ def _validate_item_download_request(
             is_deleted=False,
         )
     except model_class.DoesNotExist:
-        logger.warning(
-            "%s %s not found",
-            item_type.capitalize(),
-            item_uuid,
-        )
+        logger.warning(f"{item_type.capitalize()} {item_uuid} not found")
         return (
             {
                 "status": "error",
@@ -823,13 +898,22 @@ def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
             capture__in=captures,
             is_deleted=False,
         )
+
+        logger.info(
+            f"Found {len(files)} files and {len(capture_files)} capture files "
+            f"for dataset {item.uuid}"
+        )
+
         return list(files) + list(capture_files)
 
     if item_type == ItemType.CAPTURE:
         # Get all files for the capture
-        return list(item.files.filter(is_deleted=False))
+        files = list(item.files.filter(is_deleted=False))
+        logger.info(f"Found {len(files)} files for capture {item.uuid}")
 
-    logger.warning("Unknown item type: %s", item_type)
+        return files
+
+    logger.warning(f"Unknown item type: {item_type}")
     return []
 
 
@@ -869,18 +953,12 @@ def _send_item_download_error_email(
         )
 
         logger.info(
-            "Sent error email for %s %s to %s: %s",
-            item_type,
-            item.uuid,
-            user.email,
-            error_message,
+            f"Sent error email for {item_type} {item.uuid} to {user.email}: "
+            f"{error_message}"
         )
 
     except (OSError, ValueError) as e:
         logger.exception(
-            "Failed to send error email for %s %s to user %s: %s",
-            item_type,
-            item.uuid,
-            user.id,
-            e,
+            f"Failed to send error email for {item_type} {item.uuid} "
+            f"to user {user.id}: {e}"
         )
