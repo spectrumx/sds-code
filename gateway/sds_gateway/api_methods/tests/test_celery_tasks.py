@@ -164,16 +164,26 @@ class TestCeleryTasks(TestCase):
             f"got '{email.body}'"
         )
 
-    @patch("sds_gateway.api_methods.tasks.download_file")
+    @patch("sds_gateway.api_methods.utils.minio_client.get_minio_client")
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
     @patch("sds_gateway.api_methods.tasks.release_user_lock")
     @patch("sds_gateway.api_methods.tasks.is_user_locked")
     def test_send_dataset_files_email_success(
-        self, mock_is_locked, mock_release_lock, mock_acquire_lock, mock_download_file
+        self,
+        mock_is_locked,
+        mock_release_lock,
+        mock_acquire_lock,
+        mock_get_minio_client,
     ):
         """Test successful dataset files email sending with new workflow."""
-        # Mock the download_file function to return test content
-        mock_download_file.return_value = b"test file content"
+        # Mock MinIO client
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.stream.return_value = [b"test file content"]
+        mock_response.close.return_value = None
+        mock_response.release_conn.return_value = None
+        mock_client.get_object.return_value = mock_response
+        mock_get_minio_client.return_value = mock_client
 
         # Mock Redis locking functions
         mock_is_locked.return_value = False
@@ -300,7 +310,9 @@ class TestCeleryTasks(TestCase):
         assert task_result["status"] == "error", (
             f"Expected status 'error', got '{task_result['status']}'"
         )
-        expected_message = "Unable to start download. Please try again in a moment."
+        expected_message = (
+            "Another download is already in progress. Please wait for it to complete."
+        )
         assert task_result["message"] == expected_message, (
             f"Expected message '{expected_message}', got '{task_result['message']}'"
         )
@@ -316,13 +328,52 @@ class TestCeleryTasks(TestCase):
             f"Expected to [{self.user.email}], got {email.to}"
         )
 
-    @patch("sds_gateway.api_methods.tasks.download_file")
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
     @patch("sds_gateway.api_methods.tasks.release_user_lock")
     @patch("sds_gateway.api_methods.tasks.is_user_locked")
-    def test_send_dataset_files_email_no_files(
-        self, mock_is_locked, mock_release_lock, mock_acquire_lock, mock_download_file
+    def test_send_dataset_files_email_download_failure(
+        self, mock_is_locked, mock_release_lock, mock_acquire_lock
     ):
+        """Test dataset email task when file download fails."""
+        # Mock Redis locking functions
+        mock_is_locked.return_value = False
+        mock_acquire_lock.return_value = True
+        mock_release_lock.return_value = True
+
+        # Clear any existing emails
+        mail.outbox.clear()
+
+        # Test the task
+        result = send_item_files_email.delay(
+            str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
+        )
+
+        # Get the result
+        task_result = result.get()
+
+        # Verify task completed with error
+        assert task_result["status"] == "error", (
+            f"Expected status 'error', got '{task_result['status']}'"
+        )
+        expected_message = "No files could be processed"
+        assert task_result["message"] == expected_message, (
+            f"Expected message '{expected_message}', got '{task_result['message']}'"
+        )
+
+        # Verify error email was sent
+        assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
+        email = mail.outbox[0]
+        expected_subject = f"Error downloading your dataset: {self.dataset.name}"
+        assert email.subject == expected_subject, (
+            f"Expected subject '{expected_subject}', got '{email.subject}'"
+        )
+        assert email.to == [self.user.email], (
+            f"Expected to [{self.user.email}], got {email.to}"
+        )
+
+    @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
+    @patch("sds_gateway.api_methods.tasks.is_user_locked")
+    def test_send_dataset_files_email_no_files(self, mock_is_locked, mock_acquire_lock):
         """Test dataset email task when no files are found."""
         # Create a dataset with no files
         empty_dataset = Dataset.objects.create(
@@ -334,7 +385,6 @@ class TestCeleryTasks(TestCase):
         # Mock Redis locking functions
         mock_is_locked.return_value = False
         mock_acquire_lock.return_value = True
-        mock_release_lock.return_value = True
 
         # Clear any existing emails
         mail.outbox.clear()
@@ -399,53 +449,6 @@ class TestCeleryTasks(TestCase):
 
         # Verify no email was sent
         assert len(mail.outbox) == 0, f"Expected 0 emails, got {len(mail.outbox)}"
-
-    @patch("sds_gateway.api_methods.tasks.download_file")
-    @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
-    @patch("sds_gateway.api_methods.tasks.release_user_lock")
-    @patch("sds_gateway.api_methods.tasks.is_user_locked")
-    def test_send_dataset_files_email_download_failure(
-        self, mock_is_locked, mock_release_lock, mock_acquire_lock, mock_download_file
-    ):
-        """Test dataset email task when file download fails."""
-        # Mock download_file to raise an exception
-        mock_download_file.side_effect = OSError("Download failed")
-
-        # Mock Redis locking functions
-        mock_is_locked.return_value = False
-        mock_acquire_lock.return_value = True
-        mock_release_lock.return_value = True
-
-        # Clear any existing emails
-        mail.outbox.clear()
-
-        # Test the task
-        result = send_item_files_email.delay(
-            str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
-        )
-
-        # Get the result
-        task_result = result.get()
-
-        # Verify task completed with error
-        assert task_result["status"] == "error", (
-            f"Expected status 'error', got '{task_result['status']}'"
-        )
-        expected_message = "No files could be processed"
-        assert task_result["message"] == expected_message, (
-            f"Expected message '{expected_message}', got '{task_result['message']}'"
-        )
-
-        # Verify error email was sent
-        assert len(mail.outbox) == 1, f"Expected 1 error email, got {len(mail.outbox)}"
-        email = mail.outbox[0]
-        expected_subject = f"Error downloading your dataset: {self.dataset.name}"
-        assert email.subject == expected_subject, (
-            f"Expected subject '{expected_subject}', got '{email.subject}'"
-        )
-        assert email.to == [self.user.email], (
-            f"Expected to [{self.user.email}], got {email.to}"
-        )
 
     def test_task_error_handling(self):
         """Test that tasks handle errors gracefully."""

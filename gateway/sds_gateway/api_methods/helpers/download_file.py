@@ -33,6 +33,7 @@ def download_file(target_file: File) -> bytes:
     client = get_minio_client()
     temp_file = None
     file_content = None
+    file_path = None
 
     try:
         # Create a temporary file to download to
@@ -58,8 +59,10 @@ def download_file(target_file: File) -> bytes:
         raise
     finally:
         # Clean up temporary file
-        if temp_file and Path(temp_file_path).exists():
+        if temp_file and temp_file_path and Path(temp_file_path).exists():
             try:
+                if file_path is None:
+                    file_path = Path(temp_file_path)
                 file_path.unlink()
             except OSError:
                 logger.warning("Could not delete temporary file: %s", temp_file_path)

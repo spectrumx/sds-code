@@ -1023,17 +1023,28 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
             # Add files to dataset
             self._add_files_to_dataset(dataset, selected_files)
 
-            # If this dataset is shared with users, also share any newly added captures
-            self._share_new_dataset_captures(dataset)
-
             # Return success response with redirect URL
             return JsonResponse(
                 {"success": True, "redirect_url": reverse("users:dataset_list")},
             )
 
         except (DatabaseError, IntegrityError) as e:
+            logger.exception("Database error in dataset creation")
             return JsonResponse(
                 {"success": False, "errors": {"non_field_errors": [str(e)]}},
+                status=500,
+            )
+        except Exception:
+            logger.exception("Unexpected error in dataset creation")
+            return JsonResponse(
+                {
+                    "success": False,
+                    "errors": {
+                        "non_field_errors": [
+                            "An unexpected error occurred. Please try again."
+                        ]
+                    },
+                },
                 status=500,
             )
 
