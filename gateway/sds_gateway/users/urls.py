@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .api.views import GetAPIKeyView
+from .views import CheckFileExistsView
 from .views import ListCapturesView
 from .views import ListFilesView
 from .views import UploadFilesView
@@ -52,6 +53,6 @@ urlpatterns = [
         name="share_item",
     ),
     path("upload-files/", UploadFilesView.as_view(), name="upload_files"),
-    # Used by SVI Server to get API key for a user
+    path("check-file-exists/", CheckFileExistsView.as_view(), name="check_file_exists"),
     path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),
 ]

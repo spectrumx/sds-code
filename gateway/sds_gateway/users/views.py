@@ -1,8 +1,6 @@
 import datetime
-import hashlib
 import json
 import logging
-import mimetypes
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -37,6 +35,11 @@ from django.views.generic import TemplateView
 from django.views.generic import UpdateView
 from rest_framework import status
 
+# TODO: Use these helper method when implementing the file upload mode multiplexer.
+from sds_gateway.api_methods.helpers.file_helpers import (
+    check_file_contents_exist_helper,
+)
+from sds_gateway.api_methods.helpers.file_helpers import create_capture_helper_simple
 from sds_gateway.api_methods.helpers.file_helpers import upload_file_helper_simple
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
@@ -46,9 +49,6 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.serializers.capture_serializers import (
-    CapturePostSerializer,
-)
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -72,47 +72,6 @@ from sds_gateway.users.utils import deduplicate_composite_captures
 
 # Add logger for debugging
 logger = logging.getLogger(__name__)
-
-
-def is_valid_file(file_path):
-    """Returns True if the path is a valid file for SDS upload."""
-    disallowed_mimes = [
-        "application/x-msdownload",  # .exe
-        "application/x-msdos-program",  # .com
-        "application/x-msi",  # .msi
-    ]
-    mime_type, _ = mimetypes.guess_type(file_path)
-    reasons = []
-    path_obj = Path(file_path)
-    if mime_type in disallowed_mimes:
-        reasons.append(f"Invalid MIME type: {mime_type}")
-    if not path_obj.is_file():
-        reasons.append("Not a file")
-    if path_obj.stat().st_size == 0:
-        reasons.append("Empty file")
-    return len(reasons) == 0, reasons
-
-
-def get_valid_files(root_dir: Path):
-    """
-    Recursively yields (relative_path, file_path) for valid files under root_dir.
-    """
-    for file_path in root_dir.rglob("*"):
-        if not file_path.is_file():
-            continue
-        is_valid, reasons = is_valid_file(str(file_path))
-        if is_valid:
-            rel_path = str(file_path.relative_to(root_dir))
-            yield rel_path, file_path
-
-
-def compute_blake3_checksum(file_path):
-    # Use hashlib.blake2b with digest_size=32 to match 64 hex chars
-    h = hashlib.blake2b(digest_size=32)
-    with file_path.open("rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -1835,17 +1794,11 @@ class UploadFilesView(View):
         saved_files = []
         errors = []
         skipped_files = []
-        metadata_only_files = []
 
         for f, rel_path in zip(files, relative_paths, strict=True):
-            if "/" in rel_path:
-                directory, filename = rel_path.rsplit("/", 1)
-                directory = (
-                    "/" + directory if not directory.startswith("/") else directory
-                )
-            else:
-                directory = "/"
-                filename = rel_path
+            path = Path(rel_path)
+            directory = "/" + str(path.parent) if path.parent != Path() else "/"
+            filename = path.name
             file_size = f.size
             content_type = getattr(f, "content_type", "application/octet-stream")
             file_data = {
@@ -1886,15 +1839,86 @@ class UploadFilesView(View):
                     errors.append(error_msg)
                     logger.error(error_msg)
         errors.extend(skipped_files)
-        errors.extend(metadata_only_files)
         return saved_files, errors
 
+    def _create_single_capture(self, request, channel, top_level_dir):
+        """Create a single capture for a channel.
+
+        Returns (capture_data, error) where capture_data is the created capture
+        data or None if creation failed, and error is the error message or None.
+        """
+        try:
+            # Prepare capture data for the helper function
+            capture_data = {
+                "capture_type": CaptureType.DigitalRF,
+                "channel": channel,
+                "top_level_dir": str(top_level_dir),
+            }
+
+            # Use the helper function to create the capture
+            responses, capture_errors = create_capture_helper_simple(
+                request, capture_data
+            )
+
+            if responses:
+                # Capture created successfully
+                response = responses[0]
+                if hasattr(response, "data") and isinstance(response.data, dict):
+                    capture_data = response.data
+                    logger.info(
+                        "DEBUG: Created capture with uuid: %s",
+                        capture_data.get("uuid"),
+                    )
+                    return capture_data, None
+                logger.warning(
+                    "Unexpected response format for channel %s: %s",
+                    channel,
+                    response.data,
+                )
+                return (
+                    None,
+                    f"Unexpected response format for channel {channel}: "
+                    f"{response.data}",
+                )
+            # Capture creation failed
+            error_msg = capture_errors[0] if capture_errors else "Unknown error"
+            logger.error(
+                "Failed to create capture for channel %s: %s",
+                channel,
+                error_msg,
+            )
+            return (  # noqa: TRY300
+                None,
+                f"Failed to create capture for channel {channel}: {error_msg}",
+            )
+
+        except (ValueError, TypeError, AttributeError) as exc:
+            logger.exception(
+                "Data validation error creating capture for channel %s", channel
+            )
+            return None, f"Data validation error for channel {channel}: {exc}"
+        except (ConnectionError, TimeoutError) as exc:
+            logger.exception("Network error creating capture for channel %s", channel)
+            return None, f"Network error for channel {channel}: {exc}"
+        except Exception as exc:
+            logger.exception(
+                "Unexpected error creating capture for channel %s", channel
+            )
+            return None, f"Unexpected error for channel {channel}: {exc}"
+
     def _create_captures(self, request, channels, relative_paths):
+        """Create captures using the capture helper function.
+
+        Uses create_capture_helper_simple() to create captures for each channel.
+        Returns tuple of (created_captures, errors).
+        """
         created_captures = []
         errors = []
-        if not channels:
-            return created_captures
 
+        if not channels:
+            return created_captures, errors
+
+        # Determine top level directory from relative paths
         if relative_paths:
             first_rel_path = relative_paths[0]
             if "/" in first_rel_path:
@@ -1903,53 +1927,20 @@ class UploadFilesView(View):
                 top_level_dir = "/"
         else:
             top_level_dir = "/"
+
         for channel in channels:
-            try:
-                data = {
-                    "owner": request.user.pk,
-                    "top_level_dir": str(top_level_dir),
-                    "capture_type": CaptureType.DigitalRF,
-                    "channel": channel,
-                    "index_name": "captures-digitalrf",
-                }
-                serializer = CapturePostSerializer(
-                    data=data, context={"request_user": request.user}
-                )
-                if serializer.is_valid():
-                    capture = serializer.save()
-                    capture.refresh_from_db()
-                    logger.info(
-                        "DEBUG: Created capture with uuid: %s",
-                        capture.uuid,
-                    )
-                    created_captures.append(
-                        {
-                            "uuid": str(capture.uuid)
-                            if hasattr(capture, "uuid")
-                            else None,
-                            "channel": channel,
-                            "top_level_dir": str(top_level_dir),
-                        }
-                    )
-                else:
-                    logger.error(
-                        "Failed to create capture for channel %s: %s",
-                        channel,
-                        serializer.errors,
-                    )
-                    errors.append(
-                        f"Failed to create capture for channel {channel}: "
-                        f"{serializer.errors}"
-                    )
-            except Exception as exc:
-                logger.exception("Failed to create capture for channel %s", channel)
-                errors.append(
-                    f"Failed to create capture for channel {channel}: {exc!s}"
-                )
-                continue
+            capture_data, error = self._create_single_capture(
+                request, channel, top_level_dir
+            )
+            if capture_data:
+                created_captures.append(capture_data)
+            if error:
+                errors.append(error)
+
         if errors:
             logger.error("Capture creation errors: %s", errors)
-        return created_captures
+
+        return created_captures, errors
 
     def post(self, request, *args, **kwargs):
         files = request.FILES.getlist("files")
@@ -1960,26 +1951,25 @@ class UploadFilesView(View):
         created_captures = []
         file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
 
-        # Create captures if we have files and channels
-        if saved_files and channels:
-            logger.info("Creating captures for channels: %s", channels)
-            created_captures = self._create_captures(request, channels, relative_paths)
-            logger.info("Created captures: %s", created_captures)
+        # Only create captures if all uploads succeeded
+        capture_errors = []
+        if saved_files and len(saved_files) == len(files) and not errors:
+            created_captures, capture_errors = self._create_captures(
+                request, channels, relative_paths
+            )
+            # Link all uploaded files to all created captures
+            from sds_gateway.api_methods.models import Capture
+            from sds_gateway.api_methods.models import File
 
-            # Link files to captures if any captures were created
-            if created_captures:
-                from sds_gateway.api_methods.models import Capture
-                from sds_gateway.api_methods.models import File
+            # Get File objects by uuid
+            file_objs = File.objects.filter(uuid__in=file_uuids)
+            capture_uuids = [c["uuid"] for c in created_captures if c.get("uuid")]
+            captures = Capture.objects.filter(uuid__in=capture_uuids)
 
-                # Get File objects by uuid
-                file_objs = File.objects.filter(uuid__in=file_uuids)
-                capture_uuids = [c["uuid"] for c in created_captures if c.get("uuid")]
-                captures = Capture.objects.filter(uuid__in=capture_uuids)
-
-                # Link each file to each capture
-                for capture in captures:
-                    logger.info("Linking files to capture %s", capture.uuid)
-                    file_objs.update(capture=capture)
+            # Link each file to each capture
+            for capture in captures:
+                logger.info("Linking files to capture %s", capture.uuid)
+                file_objs.update(capture=capture)
 
         response_data = {
             "status": "success" if saved_files else "error",
@@ -1988,19 +1978,83 @@ class UploadFilesView(View):
             "total_files": len(files),
             "captures": created_captures,
         }
+
+        # Combine file upload errors and capture creation errors
+        all_errors = []
         if errors:
-            response_data["errors"] = errors
-        if not created_captures and channels:
-            response_data["errors"] = [
-                *response_data.get("errors", []),
-                "No captures were created",
-            ]
+            all_errors.extend(errors)
+        if capture_errors:
+            all_errors.extend(capture_errors)
+        if all_errors:
+            response_data["errors"] = all_errors
 
         status_code = 200 if saved_files else 400
         return JsonResponse(response_data, status=status_code)
 
 
 user_upload_files_view = UploadFilesView.as_view()
+
+
+# TODO: Use this view when implementing the file upload mode multiplexer.
+@method_decorator(csrf_exempt, name="dispatch")
+class CheckFileExistsView(View):
+    """View to check if a file exists based on path, name, and checksum."""
+
+    def post(self, request, *args, **kwargs):
+        """Check if a file exists using the provided path, name, and checksum."""
+        try:
+            # Get data from request
+            data = json.loads(request.body)
+            directory = data.get("directory", "")
+            filename = data.get("filename", "")
+            checksum = data.get("checksum", "")
+
+            # Validate required fields
+            if not all([directory, filename, checksum]):
+                return JsonResponse(
+                    {
+                        "error": (
+                            "Missing required fields: directory, filename, and "
+                            "checksum are required"
+                        )
+                    },
+                    status=400,
+                )
+
+            # Prepare data for check_file_contents_exist_helper
+            check_data = {
+                "directory": directory,
+                "name": filename,
+                "sum_blake3": checksum,
+            }
+
+            # Call the helper function
+            response = check_file_contents_exist_helper(request, check_data)
+
+            # Extract the response data
+            if hasattr(response, "data"):
+                response_data = response.data
+            else:
+                response_data = str(response)
+
+            # Return the result
+            http_ok = 200
+            return JsonResponse(
+                {
+                    "exists": response.status_code == http_ok,
+                    "status_code": response.status_code,
+                    "data": response_data,
+                }
+            )
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+        except Exception as e:
+            logger.exception("Error checking file existence")
+            return JsonResponse({"error": f"Internal server error: {e!s}"}, status=500)
+
+
+user_check_file_exists_view = CheckFileExistsView.as_view()
 
 
 @login_required

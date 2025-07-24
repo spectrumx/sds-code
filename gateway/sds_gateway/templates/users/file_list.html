@@ -272,7 +272,15 @@
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-primary">Upload</button>
+                                    <button type="submit" class="btn btn-primary" id="uploadSubmitBtn">
+                                        <span class="upload-text">Upload</span>
+                                        <span class="upload-spinner d-none">
+                                            <span class="spinner-border spinner-border-sm me-2"
+                                                  role="status"
+                                                  aria-hidden="true"></span>
+                                            Uploading...
+                                        </span>
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -401,6 +409,16 @@
                     showUploadAlert('Please select at least one file to upload.', 'danger');
                     return;
                 }
+
+                // Show uploading state
+                const uploadBtn = document.getElementById('uploadSubmitBtn');
+                const uploadText = uploadBtn.querySelector('.upload-text');
+                const uploadSpinner = uploadBtn.querySelector('.upload-spinner');
+
+                uploadText.classList.add('d-none');
+                uploadSpinner.classList.remove('d-none');
+                uploadBtn.disabled = true;
+
                 const formData = new FormData();
                 let topLevelFolder = '';
                 if (files.length > 0 && files[0].webkitRelativePath) {
@@ -425,17 +443,58 @@
                     })
                     .then(response => response.json())
                     .then(data => {
+                        // Reset uploading state
+                        const uploadBtn = document.getElementById('uploadSubmitBtn');
+                        const uploadText = uploadBtn.querySelector('.upload-text');
+                        const uploadSpinner = uploadBtn.querySelector('.upload-spinner');
+
+                        uploadText.classList.remove('d-none');
+                        uploadSpinner.classList.add('d-none');
+                        uploadBtn.disabled = false;
+
+                        // Debug logging
+                        console.log('Upload response data:', data);
+                        console.log('Status:', data.status);
+                        console.log('Captures:', data.captures);
+                        console.log('Errors:', data.errors);
+
                         let modalBody = document.getElementById('uploadResultModalBody');
-                        let modal = new bootstrap.Modal(document.getElementById('uploadResultModal'));
+                        let resultModalEl = document.getElementById('uploadResultModal');
+                        let modal = new bootstrap.Modal(resultModalEl);
+
+                        // Close the upload modal before showing result modal
+                        const uploadModal = bootstrap.Modal.getInstance(document.getElementById('uploadCaptureModal'));
+                        if (uploadModal) {
+                            uploadModal.hide();
+                        }
+
+                        // Add event listener for reload on close
+                        resultModalEl.addEventListener('hidden.bs.modal', function handler() {
+                            location.reload();
+                            resultModalEl.removeEventListener('hidden.bs.modal', handler);
+                        });
+
                         if (data.status === 'success' || data.status === 'partial_success') {
                             let msg = `<b>Upload complete!</b><br />Files uploaded: <strong>${data.total_uploaded}</strong> / ${data.total_files}`;
                             if (data.captures && data.captures.length > 0) {
                                 let uuids = data.captures.map(c => `<li>${c.uuid}</li>`).join('');
                                 msg += `<br />Created capture UUID(s):<ul>${uuids}</ul>`;
                             }
+                            // Show capture creation errors if any (for both success and partial_success)
                             if (data.errors && data.errors.length > 0) {
-                                let errs = data.errors.map(e => `<li>${e}</li>`).join('');
-                                msg += `<br /><b>Errors:</b><ul>${errs}</ul>`;
+                                let captureErrors = data.errors.filter(e => e.toLowerCase().includes('capture') || e.toLowerCase().includes('channel'));
+                                console.log('Capture errors found:', captureErrors);
+                                if (captureErrors.length > 0) {
+                                    let errs = captureErrors.map(e => `<li>${e}</li>`).join('');
+                                    msg += `<br /><b>Capture creation errors:</b><ul>${errs}</ul>`;
+                                }
+                                // Show other errors (non-capture related)
+                                let otherErrors = data.errors.filter(e => !e.toLowerCase().includes('capture') && !e.toLowerCase().includes('channel'));
+                                console.log('Other errors found:', otherErrors);
+                                if (otherErrors.length > 0) {
+                                    let errs = otherErrors.map(e => `<li>${e}</li>`).join('');
+                                    msg += `<br /><b>Other errors:</b><ul>${errs}</ul>`;
+                                }
                             }
                             modalBody.innerHTML = msg;
                             modal.show();
@@ -450,11 +509,18 @@
                         }
                     })
                     .catch(error => {
+                        // Reset uploading state
+                        const uploadBtn = document.getElementById('uploadSubmitBtn');
+                        const uploadText = uploadBtn.querySelector('.upload-text');
+                        const uploadSpinner = uploadBtn.querySelector('.upload-spinner');
+
+                        uploadText.classList.remove('d-none');
+                        uploadSpinner.classList.add('d-none');
+                        uploadBtn.disabled = false;
+
                         showUploadAlert('Upload failed: ' + error, 'danger');
                     });
-                // Optionally close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('uploadCaptureModal'));
-                modal.hide();
+                // Keep upload modal open during upload, it will be closed when result modal shows
             });
 
             function showUploadAlert(message, type) {
@@ -463,6 +529,13 @@
                 modalBody.innerHTML = message;
                 const resultModalEl = document.getElementById('uploadResultModal');
                 const resultModal = new bootstrap.Modal(resultModalEl);
+
+                // Close the upload modal before showing result modal
+                const uploadModal = bootstrap.Modal.getInstance(document.getElementById('uploadCaptureModal'));
+                if (uploadModal) {
+                    uploadModal.hide();
+                }
+
                 // Add event listener for reload on close
                 resultModalEl.addEventListener('hidden.bs.modal', function handler() {
                     location.reload();
@@ -472,7 +545,10 @@
             }
         });
     </script>
+    <!-- This code calculates BLAKE3 hashes in the browser for file deduplication -->
     <!-- Load the WASM library first -->
+    <!-- TODO: Uncomment when implementing the file upload mode multiplexer -->
+    <!--
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -504,10 +580,35 @@
                         hasher.update(new Uint8Array(buffer));
                         const hashHex = hasher.digest('hex');
                         console.log(`BLAKE3 hash for ${file.name}:`, hashHex);
+
+                        // Send checksum to Django endpoint
+                        const checkData = {
+                            directory: "/", // You can modify this based on your needs
+                            filename: file.name,
+                            checksum: hashHex
+                        };
+
+                        fetch("{% url 'users:check_file_exists' %}", {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token }}'
+                                },
+                                body: JSON.stringify(checkData)
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log(`File ${file.name} exists:`, data.exists);
+                                console.log(`Response data:`, data.data);
+                            })
+                            .catch(error => {
+                                console.error(`Error checking file ${file.name}:`, error);
+                            });
                     }
                 };
                 fileInput.addEventListener('change', window._blake3CaptureHandler);
             });
         });
     </script>
+-->
 {% endblock javascript %}
