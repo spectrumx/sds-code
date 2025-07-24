@@ -1034,19 +1034,6 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
                 {"success": False, "errors": {"non_field_errors": [str(e)]}},
                 status=500,
             )
-        except Exception:
-            logger.exception("Unexpected error in dataset creation")
-            return JsonResponse(
-                {
-                    "success": False,
-                    "errors": {
-                        "non_field_errors": [
-                            "An unexpected error occurred. Please try again."
-                        ]
-                    },
-                },
-                status=500,
-            )
 
     def _validate_dataset_form(self, request) -> JsonResponse | None:
         """Validate the dataset form and return error response if invalid."""
