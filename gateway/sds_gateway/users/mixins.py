@@ -215,12 +215,26 @@ class FormSearchMixin:
 
 
 class FileTreeMixin:
-    """Mixin for file tree rendering functionality used by GroupCapturesView and DatasetDetailsView."""
+    """
+    Mixin for file tree rendering functionality used by
+    GroupCapturesView and DatasetDetailsView.
+    """
 
     def _get_directory_tree(
         self, files: QuerySet[File], base_dir: str
     ) -> dict[str, Any]:
-        """Build a nested directory tree structure with a specific base directory (for GroupCapturesView)."""
+        """
+        Build a nested directory tree structure with
+        a specific base directory.
+
+        Args:
+            files: QuerySet of files to add to the tree
+            base_dir: The base directory to add files to
+
+        Returns:
+            A dictionary representing the directory tree
+        """
+
         tree = {}
 
         # Add files in base directory if they exist
@@ -283,7 +297,16 @@ class FileTreeMixin:
     def _add_files_to_tree_queryset(
         self, files: QuerySet[File], directory: str
     ) -> list[dict[str, Any]]:
-        """Add files to tree structure for a specific directory (for QuerySet)."""
+        """
+        Add files to tree structure for a specific directory.
+
+        Args:
+            files: QuerySet of files to add to the tree
+            directory: The directory to add files to
+
+        Returns:
+            A list of dictionaries representing the files in the directory
+        """
         files_in_directory = files.filter(directory=directory)
         return [
             {
@@ -324,7 +347,16 @@ class FileTreeMixin:
     def _add_files_to_tree(
         self, files: list[File], directory: str
     ) -> list[dict[str, Any]]:
-        """Add files to tree structure for a specific directory."""
+        """
+        Add files to tree structure for a specific directory.
+
+        Args:
+            files: List of files to add to the tree
+            directory: The directory to add files to
+
+        Returns:
+            A list of dictionaries representing the files in the directory
+        """
         files_in_directory = [f for f in files if str(f.directory) == directory]
         return [
             {
@@ -341,7 +373,12 @@ class FileTreeMixin:
         ]
 
     def _update_directory_stats(self, tree: dict[str, Any]) -> None:
-        """Update size and date stats for all directories in the tree."""
+        """
+        Update size and date stats for all directories in the tree.
+
+        Args:
+            tree: The tree to update
+        """
         # Process all directories first
         for dir_data in tree.get("children", {}).values():
             self._update_directory_stats(dir_data)
@@ -370,7 +407,15 @@ class FileTreeMixin:
         tree["created_at"] = earliest_date
 
     def _get_file_extension_choices(self, files: list[File]) -> list[tuple[str, str]]:
-        """Get file extension choices for the select dropdown."""
+        """
+        Get file extension choices for the select dropdown.
+
+        Args:
+            files: List of files to get extension choices for
+
+        Returns:
+            A list of tuples representing the file extension choices
+        """
         extensions = set()
         for file in files:
             if file.name and "." in file.name:
@@ -378,7 +423,6 @@ class FileTreeMixin:
                 extensions.add(ext)
 
         # Sort extensions and create choices
-        choices = [("", "All Extensions")] + [
+        return [("", "All Extensions")] + [
             (ext, f".{ext.upper()}") for ext in sorted(extensions)
         ]
-        return choices

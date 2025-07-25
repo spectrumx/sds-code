@@ -1708,7 +1708,16 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
     """View to handle dataset details modal requests."""
 
     def _get_dataset_files(self, dataset: Dataset) -> QuerySet[File]:
-        """Get all files associated with a dataset, including files from linked captures."""
+        """
+        Get all files associated with a dataset,
+        including files from linked captures.
+
+        Args:
+            dataset: The dataset to get files for
+
+        Returns:
+            A QuerySet of files associated with the dataset
+        """
         # Get files directly associated with the dataset
         dataset_files = dataset.files.filter(is_deleted=False)
 
@@ -1720,18 +1729,23 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
                 capture.files.filter(is_deleted=False).values_list("uuid", flat=True)
             )
 
-        # Combine using Q objects to avoid union issues
-        from django.db.models import Q
-
-        combined_files = File.objects.filter(
+        return File.objects.filter(
             Q(uuid__in=dataset_files.values_list("uuid", flat=True))
             | Q(uuid__in=capture_file_ids)
-        ).distinct()
-
-        return combined_files
+        )
 
     def get(self, request, *args, **kwargs) -> JsonResponse:
-        """Get dataset details and files for the modal."""
+        """
+        Get dataset details and files for the modal.
+
+        Args:
+            request: The HTTP request object
+            *args: Variable length argument list
+            **kwargs: Arbitrary keyword arguments
+
+        Returns:
+            A JSON response containing the dataset details and files
+        """
         dataset_uuid = request.GET.get("dataset_uuid")
 
         if not dataset_uuid:

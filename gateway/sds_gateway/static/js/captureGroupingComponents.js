@@ -531,8 +531,8 @@ class FormHandler {
 			this.submitBtn.dataset.originalText = this.submitBtn.textContent;
 			// Set loading state
 			this.submitBtn.disabled = true;
-			const busyText = this.isEditMode ? 'Updating...' : 'Creating...';
-			this.submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + busyText;
+			const busyText = this.isEditMode ? "Updating..." : "Creating...";
+			this.submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${busyText}`;
 		} else {
 			// Restore original state
 			this.submitBtn.disabled = false;

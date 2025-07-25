@@ -81,7 +81,7 @@
                                             <tr class="clickable-row" data-dataset-uuid="{{ dataset.uuid }}">
                                                 <td class="text-break">
                                                     {% if dataset.is_owner %}
-                                                        <a href="#" 
+                                                        <a href="#"
                                                            class="dataset-name-link"
                                                            data-bs-toggle="modal"
                                                            data-bs-target="#datasetDetailsModal"
@@ -90,13 +90,10 @@
                                                             {{ dataset.name }}
                                                         </a>
                                                     {% else %}
-                                                        <span class="text-muted dataset-name-link" 
+                                                        <span class="text-muted dataset-name-link"
                                                               data-bs-toggle="modal"
                                                               data-bs-target="#datasetDetailsModal"
-                                                              data-dataset-uuid="{{ dataset.uuid }}"
-                                                              style="cursor: pointer;">
-                                                            {{ dataset.name }}
-                                                        </span>
+                                                              data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</span>
                                                     {% endif %}
                                                     {% if dataset.is_shared_with_me %}
                                                         <span class="ms-2 align-middle"
@@ -325,7 +322,7 @@
 
             // Prevent row click when clicking on dropdown elements
             document.addEventListener('click', function(event) {
-                if (event.target.closest('.dropdown') || 
+                if (event.target.closest('.dropdown') ||
                     event.target.closest('.btn-icon-dropdown') ||
                     event.target.closest('.dropdown-toggle') ||
                     event.target.closest('.dropdown-menu')) {
