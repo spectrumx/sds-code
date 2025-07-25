@@ -429,7 +429,9 @@ class DatasetDetailsModal {
 			const inputs = searchContainer.querySelectorAll(
 				"input, select, textarea",
 			);
-			inputs.forEach((input) => (input.value = ""));
+			for (const input of inputs) {
+				input.value = "";
+			}
 		}
 
 		// Clear table
