@@ -41,7 +41,7 @@ django-allauth[socialaccount]==65.0.2  # https://github.com/pennersr/django-alla
 fido2==1.1.3  # https://github.com/Yubico/python-fido2
 django-extensions>=3.2.3  # https://github.com/django-extensions/django-extensions
 pytest-django==4.8.0  # https://github.com/pytest-dev/pytest-django
-django-cog>=1.3.11  # https://github.com/david-pettifor-nd/django_cog
+django-cog>=1.4.1  # https://github.com/david-pettifor-nd/django_cog
 
 # Testing (added to base in order to to run tests in QA)
 # ------------------------------------------------------------------------------
