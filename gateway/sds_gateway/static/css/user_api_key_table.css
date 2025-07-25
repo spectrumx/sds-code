@@ -1,0 +1,35 @@
+/* Custom table styles for user_api_key.html */
+
+#dynamic-table-container .user-api-key-table {
+	margin-bottom: 5rem !important;
+	width: 100%;
+	table-layout: fixed;
+}
+#dynamic-table-container .user-api-key-table th.col-prefix,
+#dynamic-table-container .user-api-key-table td.col-prefix {
+	width: 15% !important;
+}
+#dynamic-table-container .user-api-key-table th.col-name,
+#dynamic-table-container .user-api-key-table td.col-name {
+	width: 20% !important;
+}
+#dynamic-table-container .user-api-key-table th.col-description,
+#dynamic-table-container .user-api-key-table td.col-description {
+	width: 30% !important;
+}
+#dynamic-table-container .user-api-key-table th.col-created,
+#dynamic-table-container .user-api-key-table td.col-created {
+	width: 20% !important;
+}
+#dynamic-table-container .user-api-key-table th.col-expires,
+#dynamic-table-container .user-api-key-table td.col-expires {
+	width: 20% !important;
+}
+#dynamic-table-container .user-api-key-table th.col-revoked,
+#dynamic-table-container .user-api-key-table td.col-revoked {
+	width: 10% !important;
+}
+#dynamic-table-container .user-api-key-table th.col-action,
+#dynamic-table-container .user-api-key-table td.col-action {
+	width: 5% !important;
+}
