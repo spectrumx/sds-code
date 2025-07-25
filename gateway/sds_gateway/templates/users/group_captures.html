@@ -280,6 +280,7 @@
                             initialCaptures: new Set(initialCaptures),
                             initialFiles: new Set(initialFiles),
                             initialCaptureDetails: initialCaptureDetails,
+                            isEditMode: {% if existing_dataset %}true{% else %}false{% endif %},
                             onStepChange: (step) => {
                                 // Scroll card body to top
                                 document.getElementById('main-card-body').scrollTop = 0;

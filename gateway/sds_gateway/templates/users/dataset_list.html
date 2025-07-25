@@ -78,15 +78,25 @@
                                     </thead>
                                     <tbody>
                                         {% for dataset in page_obj %}
-                                            <tr class="clickable-row">
+                                            <tr class="clickable-row" data-dataset-uuid="{{ dataset.uuid }}">
                                                 <td class="text-break">
                                                     {% if dataset.is_owner %}
-                                                        <a href="{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}"
+                                                        <a href="#" 
+                                                           class="dataset-name-link"
+                                                           data-bs-toggle="modal"
+                                                           data-bs-target="#datasetDetailsModal"
+                                                           data-dataset-uuid="{{ dataset.uuid }}"
                                                            aria-label="View details for {{ dataset.name }}">
                                                             {{ dataset.name }}
                                                         </a>
                                                     {% else %}
-                                                        <span class="text-muted">{{ dataset.name }}</span>
+                                                        <span class="text-muted dataset-name-link" 
+                                                              data-bs-toggle="modal"
+                                                              data-bs-target="#datasetDetailsModal"
+                                                              data-dataset-uuid="{{ dataset.uuid }}"
+                                                              style="cursor: pointer;">
+                                                            {{ dataset.name }}
+                                                        </span>
                                                     {% endif %}
                                                     {% if dataset.is_shared_with_me %}
                                                         <span class="ms-2 align-middle"
@@ -110,15 +120,6 @@
                                                             <i class="bi bi-three-dots-vertical"></i>
                                                         </button>
                                                         <ul class="dropdown-menu">
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        data-bs-toggle="modal"
-                                                                        data-bs-target="#datasetDetailsModal"
-                                                                        data-dataset-uuid="{{ dataset.uuid }}">
-                                                                    <i class="bi bi-info-circle me-2"></i>View Details
-                                                                </button>
-                                                            </li>
                                                             {% if dataset.is_owner %}
                                                                 <li>
                                                                     <button class="dropdown-item"
@@ -322,6 +323,15 @@
                 sessionStorage.removeItem('datasetDownloadAlert');
             }
 
+            // Prevent row click when clicking on dropdown elements
+            document.addEventListener('click', function(event) {
+                if (event.target.closest('.dropdown') || 
+                    event.target.closest('.btn-icon-dropdown') ||
+                    event.target.closest('.dropdown-toggle') ||
+                    event.target.closest('.dropdown-menu')) {
+                    event.stopPropagation();
+                }
+            });
 
         });
     </script>
