@@ -6,6 +6,7 @@ class FormHandler {
 		this.steps = config.steps;
 		this.currentStep = 0;
 		this.onStepChange = config.onStepChange;
+		this.isEditMode = config.isEditMode || false; // Whether this is an edit form
 		this.capturesSearchHandler = null; // Reference to captures SearchHandler instance
 		this.filesSearchHandler = null; // Reference to files SearchHandler instance
 		this.searchHandler = null; // Current active SearchHandler
@@ -436,6 +437,9 @@ class FormHandler {
 	async handleSubmit(e) {
 		e.preventDefault();
 		if (this.validateCurrentStep()) {
+			// Set loading state
+			this.setSubmitButtonLoading(true);
+
 			// Update hidden fields one last time before submission
 			this.updateHiddenFields();
 
@@ -483,6 +487,8 @@ class FormHandler {
 								block: "start",
 							});
 						}
+						// Reset loading state on error
+						this.setSubmitButtonLoading(false);
 						return;
 					}
 					throw new Error("Server error");
@@ -501,6 +507,8 @@ class FormHandler {
 					this.show(errorContainer);
 					errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
 				}
+				// Reset loading state on error
+				this.setSubmitButtonLoading(false);
 			}
 		}
 	}
@@ -512,6 +520,26 @@ class FormHandler {
 		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
+	}
+
+	// Set loading state for submit button
+	setSubmitButtonLoading(isLoading) {
+		if (!this.submitBtn) return;
+
+		if (isLoading) {
+			// Store original text
+			this.submitBtn.dataset.originalText = this.submitBtn.textContent;
+			// Set loading state
+			this.submitBtn.disabled = true;
+			const busyText = this.isEditMode ? 'Updating...' : 'Creating...';
+			this.submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + busyText;
+		} else {
+			// Restore original state
+			this.submitBtn.disabled = false;
+			if (this.submitBtn.dataset.originalText) {
+				this.submitBtn.textContent = this.submitBtn.dataset.originalText;
+			}
+		}
 	}
 }
 
