@@ -1019,3 +1019,31 @@ body {
 	opacity: 1;
 	pointer-events: auto;
 }
+
+/* Dataset Name Link Styles */
+.dataset-name-link {
+	color: #0d6efd;
+	text-decoration: none;
+	transition: color 0.2s ease;
+}
+
+.dataset-name-link:hover {
+	color: #0a58ca;
+	text-decoration: underline;
+}
+
+.dataset-name-link.text-muted {
+	color: #6c757d !important;
+}
+
+.dataset-name-link.text-muted:hover {
+	color: #495057 !important;
+}
+
+.clickable-row {
+	cursor: pointer;
+}
+
+.clickable-row:hover {
+	background-color: rgba(0, 0, 0, 0.05);
+}
