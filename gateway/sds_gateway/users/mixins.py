@@ -212,3 +212,173 @@ class FormSearchMixin:
                 "num_pages": paginator.num_pages,
             },
         }
+
+
+class FileTreeMixin:
+    """Mixin for file tree rendering functionality used by GroupCapturesView and DatasetDetailsView."""
+
+    def _get_directory_tree(
+        self, files: QuerySet[File], base_dir: str
+    ) -> dict[str, Any]:
+        """Build a nested directory tree structure with a specific base directory (for GroupCapturesView)."""
+        tree = {}
+
+        # Add files in base directory if they exist
+        tree["files"] = self._add_files_to_tree_queryset(files, base_dir)
+
+        # Initialize the children
+        tree["children"] = {}
+
+        # Get all directories that start with base_dir
+        distinct_file_paths = (
+            files.filter(directory__startswith=base_dir)
+            .values_list("directory", flat=True)
+            .distinct()
+        )
+
+        for file_path in distinct_file_paths:
+            # Skip if it's the base directory itself
+            if file_path == base_dir:
+                continue
+
+            # Get relative path from base_dir
+            rel_path = file_path.replace(base_dir, "").strip("/")
+            if not rel_path:
+                continue
+
+            # Split path into parts and build nested structure
+            path_parts = rel_path.split("/")
+
+            # initialize the children
+            current_dict = tree["children"]
+
+            # Build the path one level at a time
+            current_path = base_dir
+            for part in path_parts:
+                current_path = f"{current_path}/{part}"
+
+                if part not in current_dict:
+                    current_dict[part] = {
+                        "type": "directory",
+                        "name": part,
+                        "path": current_path,
+                        "children": {},
+                        "files": [],
+                        "size": 0,
+                        "created_at": None,
+                    }
+                    # Add files for this directory level
+                    current_dict[part]["files"] = self._add_files_to_tree_queryset(
+                        files,
+                        current_path,
+                    )
+
+                # Move to the children dictionary for the next iteration
+                current_dict = current_dict[part]["children"]
+
+        # Now that the tree is built, calculate stats for all directories
+        self._update_directory_stats(tree)
+        return tree
+
+    def _add_files_to_tree_queryset(
+        self, files: QuerySet[File], directory: str
+    ) -> list[dict[str, Any]]:
+        """Add files to tree structure for a specific directory (for QuerySet)."""
+        files_in_directory = files.filter(directory=directory)
+        return [
+            {
+                "id": str(file.uuid),
+                "name": file.name,
+                "type": "file",
+                "media_type": file.media_type,
+                "size": file.size,
+                "created_at": file.created_at,
+            }
+            for file in files_in_directory
+        ]
+
+    def _find_common_prefix(self, directories: list[str]) -> str:
+        """Find the common prefix among all directories."""
+        if not directories:
+            return ""
+
+        # Find the shortest directory
+        shortest = min(directories, key=len)
+
+        # Find common prefix
+        common_prefix = ""
+        for i, char in enumerate(shortest):
+            if all(
+                directory[i] == char for directory in directories if len(directory) > i
+            ):
+                common_prefix += char
+            else:
+                break
+
+        # Return up to the last slash
+        last_slash = common_prefix.rfind("/")
+        if last_slash > 0:
+            return common_prefix[: last_slash + 1]
+        return ""
+
+    def _add_files_to_tree(
+        self, files: list[File], directory: str
+    ) -> list[dict[str, Any]]:
+        """Add files to tree structure for a specific directory."""
+        files_in_directory = [f for f in files if str(f.directory) == directory]
+        return [
+            {
+                "id": str(file.uuid),
+                "name": file.name,
+                "type": "file",
+                "file_type": "Capture" if file.capture else "Artifact",
+                "media_type": file.media_type,
+                "size": file.size or 0,
+                "created_at": file.created_at,
+                "directory": str(file.directory),
+            }
+            for file in files_in_directory
+        ]
+
+    def _update_directory_stats(self, tree: dict[str, Any]) -> None:
+        """Update size and date stats for all directories in the tree."""
+        # Process all directories first
+        for dir_data in tree.get("children", {}).values():
+            self._update_directory_stats(dir_data)
+
+        # Then calculate stats for current directory
+        total_size = 0
+        earliest_date = None
+
+        # Process files in current directory
+        for file in tree.get("files", []):
+            total_size += file.get("size", 0)
+            if file.get("created_at"):
+                if not earliest_date or file["created_at"] < earliest_date:
+                    earliest_date = file["created_at"]
+
+        # Add stats from all subdirectories
+        for dir_data in tree.get("children", {}).values():
+            total_size += dir_data.get("size", 0)
+            dir_date = dir_data.get("created_at")
+            if dir_date:
+                if not earliest_date or dir_date < earliest_date:
+                    earliest_date = dir_date
+
+        # Update current directory stats
+        tree["size"] = total_size
+        tree["created_at"] = earliest_date
+
+    def _get_file_extension_choices(self, files: list[File]) -> list[tuple[str, str]]:
+        """Get file extension choices for the select dropdown."""
+        extensions = set()
+        for file in files:
+            if file.name and "." in file.name:
+                ext = file.name.split(".")[-1].lower()
+                extensions.add(ext)
+
+        # Sort extensions and create choices
+        choices = [("", "All Extensions")] + [
+            (ext, f".{ext.upper()}") for ext in sorted(extensions)
+        ]
+        return choices

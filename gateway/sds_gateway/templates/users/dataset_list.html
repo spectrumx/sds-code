@@ -110,12 +110,21 @@
                                                             <i class="bi bi-three-dots-vertical"></i>
                                                         </button>
                                                         <ul class="dropdown-menu">
+                                                            <li>
+                                                                <button class="dropdown-item"
+                                                                        type="button"
+                                                                        data-bs-toggle="modal"
+                                                                        data-bs-target="#datasetDetailsModal"
+                                                                        data-dataset-uuid="{{ dataset.uuid }}">
+                                                                    <i class="bi bi-info-circle me-2"></i>View Details
+                                                                </button>
+                                                            </li>
                                                             {% if dataset.is_owner %}
                                                                 <li>
                                                                     <button class="dropdown-item"
                                                                             type="button"
                                                                             onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
-                                                                        Edit
+                                                                        <i class="bi bi-pencil me-2"></i>Edit
                                                                     </button>
                                                                 </li>
                                                                 <li>
@@ -123,7 +132,7 @@
                                                                             type="button"
                                                                             data-bs-toggle="modal"
                                                                             data-bs-target="#share-modal-{{ dataset.uuid }}">
-                                                                        Share
+                                                                        <i class="bi bi-share me-2"></i>Share
                                                                     </button>
                                                                 </li>
                                                             {% endif %}
@@ -132,7 +141,7 @@
                                                                         type="button"
                                                                         data-dataset-uuid="{{ dataset.uuid }}"
                                                                         data-dataset-name="{{ dataset.name }}">
-                                                                    Download
+                                                                    <i class="bi bi-download me-2"></i>Download
                                                                 </button>
                                                             </li>
                                                         </ul>
@@ -234,6 +243,7 @@
     </div>
     <!-- Modals to reveal on click -->
     {% include "users/partials/download_confirmation.html" %}
+    {% include "users/partials/dataset_details_modal.html" %}
     {% for dataset in page_obj %}
         {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
     {% endfor %}
@@ -248,6 +258,7 @@
     {{ block.super }}
     <script src="{% static 'js/dataset-list.js' %}"></script>
     <script src="{% static 'js/userSearchComponent.js' %}"></script>
+    <script src="{% static 'js/datasetDetailsModal.js' %}"></script>
     <script>
         // Custom modal functions
         function openCustomModal(modalId) {

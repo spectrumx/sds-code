@@ -14,6 +14,7 @@ from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
 from django.db.models import Q
+from django.db.models import Sum
 from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
 from django.http import Http404
@@ -54,6 +55,7 @@ from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
+from sds_gateway.users.mixins import FileTreeMixin
 from sds_gateway.users.mixins import FormSearchMixin
 from sds_gateway.users.mixins import UserSearchMixin
 from sds_gateway.users.models import User
@@ -872,7 +874,9 @@ user_capture_list_view = ListCapturesView.as_view()
 user_captures_api_view = CapturesAPIView.as_view()
 
 
-class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
+class GroupCapturesView(
+    Auth0LoginRequiredMixin, FormSearchMixin, FileTreeMixin, TemplateView
+):
     template_name = "users/group_captures.html"
 
     def search_captures(self, search_data, request) -> list[Capture]:
@@ -1149,114 +1153,6 @@ class GroupCapturesView(Auth0LoginRequiredMixin, FormSearchMixin, TemplateView):
         if selected_files[0]:
             files = File.objects.filter(uuid__in=selected_files)
             dataset.files.add(*files)
-
-    def _get_directory_tree(
-        self, files: QuerySet[File], base_dir: str
-    ) -> dict[str, Any]:
-        """Build a nested directory tree structure."""
-        tree = {}
-
-        # Add files in base directory if they exist
-        tree["files"] = self._add_files_to_tree(files, base_dir)
-
-        # Initialize the children
-        tree["children"] = {}
-
-        # Get all directories that start with base_dir
-        distinct_file_paths = (
-            files.filter(directory__startswith=base_dir)
-            .values_list("directory", flat=True)
-            .distinct()
-        )
-
-        for file_path in distinct_file_paths:
-            # Skip if it's the base directory itself
-            if file_path == base_dir:
-                continue
-
-            # Get relative path from base_dir
-            rel_path = file_path.replace(base_dir, "").strip("/")
-            if not rel_path:
-                continue
-
-            # Split path into parts and build nested structure
-            path_parts = rel_path.split("/")
-
-            # initialize the children
-            current_dict = tree["children"]
-
-            # Build the path one level at a time
-            current_path = base_dir
-            for part in path_parts:
-                current_path = f"{current_path}/{part}"
-
-                if part not in current_dict:
-                    current_dict[part] = {
-                        "type": "directory",
-                        "name": part,
-                        "path": current_path,
-                        "children": {},
-                        "files": [],
-                        "size": 0,
-                        "created_at": None,
-                    }
-                    # Add files for this directory level
-                    current_dict[part]["files"] = self._add_files_to_tree(
-                        files,
-                        current_path,
-                    )
-
-                # Move to the children dictionary for the next iteration
-                current_dict = current_dict[part]["children"]
-
-        # Now that the tree is built, calculate stats for all directories
-        self._update_directory_stats(tree)
-        return tree
-
-    def _update_directory_stats(self, tree: dict[str, Any]) -> None:
-        """Update size and date stats for all directories in the tree."""
-        # Process all directories first
-        for dir_data in tree.get("children", {}).values():
-            self._update_directory_stats(dir_data)
-
-        # Then calculate stats for current directory
-        total_size = 0
-        earliest_date = None
-
-        # Process files in current directory
-        for file in tree.get("files", []):
-            total_size += file["size"]
-            if file["created_at"]:
-                if not earliest_date or file["created_at"] < earliest_date:
-                    earliest_date = file["created_at"]
-
-        # Add stats from all subdirectories
-        for dir_data in tree.get("children", {}).values():
-            total_size += dir_data["size"]
-            dir_date = dir_data["created_at"]
-            if dir_date:
-                if not earliest_date or dir_date < earliest_date:
-                    earliest_date = dir_date
-
-        # Update current directory stats
-        tree["size"] = total_size
-        tree["created_at"] = earliest_date
-
-    def _add_files_to_tree(
-        self, files: QuerySet[File], directory: str
-    ) -> list[dict[str, Any]]:
-        files_in_directory = files.filter(directory=directory)
-        return [
-            {
-                "id": str(file.uuid),
-                "name": file.name,
-                "type": "file",
-                "media_type": file.media_type,
-                "size": file.size,
-                "created_at": file.created_at,
-            }
-            for file in files_in_directory
-        ]
 
     def _get_file_context(
         self,
@@ -1806,3 +1702,87 @@ class DownloadItemView(Auth0LoginRequiredMixin, View):
 
 
 user_download_item_view = DownloadItemView.as_view()
+
+
+class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
+    """View to handle dataset details modal requests."""
+
+    def _get_dataset_files(self, dataset: Dataset) -> QuerySet[File]:
+        """Get all files associated with a dataset, including files from linked captures."""
+        # Get files directly associated with the dataset
+        dataset_files = dataset.files.filter(is_deleted=False)
+
+        # Get files from linked captures
+        capture_file_ids = []
+        dataset_captures = dataset.captures.filter(is_deleted=False)
+        for capture in dataset_captures:
+            capture_file_ids.extend(
+                capture.files.filter(is_deleted=False).values_list("uuid", flat=True)
+            )
+
+        # Combine using Q objects to avoid union issues
+        from django.db.models import Q
+
+        combined_files = File.objects.filter(
+            Q(uuid__in=dataset_files.values_list("uuid", flat=True))
+            | Q(uuid__in=capture_file_ids)
+        ).distinct()
+
+        return combined_files
+
+    def get(self, request, *args, **kwargs) -> JsonResponse:
+        """Get dataset details and files for the modal."""
+        dataset_uuid = request.GET.get("dataset_uuid")
+
+        if not dataset_uuid:
+            return JsonResponse({"error": "Dataset UUID is required"}, status=400)
+
+        # Check if user has access to the dataset
+        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
+            return JsonResponse(
+                {"error": "Dataset not found or access denied"}, status=404
+            )
+
+        try:
+            dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
+
+            # Get dataset information
+            dataset_data = DatasetGetSerializer(dataset).data
+
+            # Get all files associated with the dataset
+            files_queryset = self._get_dataset_files(dataset)
+
+            # Calculate statistics
+            total_files = files_queryset.count()
+            captures_count = files_queryset.filter(capture__isnull=False).count()
+            artifacts_count = files_queryset.filter(capture__isnull=True).count()
+            total_size = files_queryset.aggregate(total=Sum("size"))["total"] or 0
+
+            # Use the same base directory logic as GroupCapturesView
+            base_dir = sanitize_path_rel_to_user(
+                unsafe_path="/",
+                request=request,
+            )
+            tree_data = self._get_directory_tree(files_queryset, str(base_dir))
+
+            response_data = {
+                "dataset": dataset_data,
+                "tree": tree_data,
+                "statistics": {
+                    "total_files": total_files,
+                    "captures": captures_count,
+                    "artifacts": artifacts_count,
+                    "total_size": total_size,
+                },
+            }
+
+            return JsonResponse(response_data)
+
+        except Dataset.DoesNotExist:
+            return JsonResponse({"error": "Dataset not found"}, status=404)
+        except Exception:
+            logger.exception("Error retrieving dataset details")
+            return JsonResponse({"error": "Internal server error"}, status=500)
+
+
+user_dataset_details_view = DatasetDetailsView.as_view()
