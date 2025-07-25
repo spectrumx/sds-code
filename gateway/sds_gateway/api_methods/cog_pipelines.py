@@ -174,10 +174,10 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
     4. "cleanup_stage" - cleanup_temp_files_cog (depends on store_stage)
 
     Tasks in each stage:
-    - download_stage: download_capture_files_cog with args: {"capture_uuid": "{{capture_uuid}}"}
-    - process_stage: process_waterfall_data_cog with args: {"capture_uuid": "{{capture_uuid}}"}
-    - store_stage: store_processed_data_cog with args: {"capture_uuid": "{{capture_uuid}}", "processing_type": "waterfall"}
-    - cleanup_stage: cleanup_temp_files_cog with args: {"capture_uuid": "{{capture_uuid}}"}
+    - download_stage: download_capture_files_cog (capture_uuid passed as runtime arg)
+    - process_stage: process_waterfall_data_cog (capture_uuid passed as runtime arg)
+    - store_stage: store_processed_data_cog (capture_uuid and processing_type passed as runtime args)
+    - cleanup_stage: cleanup_temp_files_cog (capture_uuid passed as runtime arg)
     """
     return {
         "pipeline_name": "Waterfall Processing",
@@ -189,7 +189,7 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
                     {
                         "name": "download_files",
                         "cog": "download_capture_files_cog",
-                        "args": {"capture_uuid": "{{capture_uuid}}"},
+                        "args": {},
                         "description": "Download capture files",
                     }
                 ],
@@ -202,7 +202,7 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
                     {
                         "name": "process_waterfall",
                         "cog": "process_waterfall_data_cog",
-                        "args": {"capture_uuid": "{{capture_uuid}}"},
+                        "args": {},
                         "description": "Process waterfall data",
                     }
                 ],
@@ -216,8 +216,7 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
                         "name": "store_waterfall",
                         "cog": "store_processed_data_cog",
                         "args": {
-                            "capture_uuid": "{{capture_uuid}}",
-                            "processing_type": "waterfall",
+                            "processing_type": "waterfall",  # Static arg for processing type
                         },
                         "description": "Store waterfall data",
                     }
@@ -231,7 +230,7 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
                     {
                         "name": "cleanup_files",
                         "cog": "cleanup_temp_files_cog",
-                        "args": {"capture_uuid": "{{capture_uuid}}"},
+                        "args": {},
                         "description": "Clean up temporary files",
                     }
                 ],

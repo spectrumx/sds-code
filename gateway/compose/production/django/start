@@ -38,7 +38,7 @@ function main() {
     }
 
     echo "Setting up django-cog pipelines..."
-    python manage.py setup_pipelines --force || {
+    python manage.py setup_pipelines --strategy=skip-if-exists || {
         echo_wait_and_quit "Failed to set up django-cog pipelines."
     }
 
