@@ -879,7 +879,7 @@ class PostProcessedData(BaseModel):
         )
 
     def mark_processing_started(
-        self, pipeline_id: str = None, step: str = None
+        self, pipeline_id: str | None = None, step: str | None = None
     ) -> None:
         """Mark processing as started."""
         self.processing_status = ProcessingStatus.Processing.value
@@ -1162,6 +1162,53 @@ def get_shared_items_for_user(user, item_type=None):
     return UserSharePermission.get_shared_items_for_user(user, item_type)
 
 
+def get_latest_pipeline_by_base_name(base_name: str):
+    """
+    Get the latest pipeline by base name, handling timestamped pipelines from smart recreation.
+
+    Args:
+        base_name: The base name of the pipeline (e.g., "Waterfall Processing")
+
+    Returns:
+        Pipeline: The most recent pipeline with this base name, or None if not found
+
+    Example:
+        - If "Waterfall Processing (v20241220_143052)" exists: returns that pipeline
+        - If multiple versioned pipelines exist: returns the most recent one
+    """
+    # Look for timestamped pipelines with this base name (primary method)
+    import re
+
+    from django_cog.models import Pipeline
+
+    # Use string pattern for Django regex filter, not compiled pattern
+    pattern_string = f"^{re.escape(base_name)} \\(v\\d{{8}}_\\d{{6}}\\)$"
+
+    versioned_pipelines = Pipeline.objects.filter(
+        name__regex=pattern_string, enabled=True
+    ).order_by("-created_date")
+
+    if versioned_pipelines.exists():
+        return versioned_pipelines.first()
+
+    # Fallback: try exact match (for backward compatibility)
+    try:
+        pipeline = Pipeline.objects.get(name=base_name, enabled=True)
+        return pipeline
+    except Pipeline.DoesNotExist:
+        pass
+
+    # Final fallback: try partial match
+    partial_matches = Pipeline.objects.filter(
+        name__startswith=base_name, enabled=True
+    ).order_by("-created_date")
+
+    if partial_matches.exists():
+        return partial_matches.first()
+
+    return None
+
+
 @receiver(post_save, sender=Capture)
 def handle_capture_soft_delete(sender, instance: Capture, **kwargs) -> None:
     """
@@ -1208,29 +1255,16 @@ def trigger_post_processing(sender, instance: Capture, created: bool, **kwargs):
             f"New DigitalRF capture created: {instance.uuid}, triggering post-processing"
         )
 
-        # Import here to avoid circular imports
-        from django_cog.models import Pipeline
-
         try:
-            # Find the waterfall processing pipeline
-            pipeline = Pipeline.objects.get(name="Waterfall Processing", enabled=True)
+            # Find the waterfall processing pipeline (handles versioned pipelines)
+            pipeline = get_latest_pipeline_by_base_name("Waterfall Processing")
+            if not pipeline:
+                log.warning("No Waterfall Processing pipeline found")
+                return
 
-            # Launch the pipeline using the django-cog task
-            from config.celery_app import app as celery_app
-
-            # Get the launch_pipeline task from the celery app
-            launch_pipeline_task = celery_app.tasks.get("django_cog.launch_pipeline")
-            if launch_pipeline_task:
-                launch_pipeline_task.delay(
-                    pipeline_id=str(pipeline.id),
-                    pipeline_kwargs={"capture_uuid": str(instance.uuid)},
-                )
-            else:
-                log.error("django_cog.launch_pipeline task not found")
-
+            # Launch the pipeline with runtime arguments
+            pipeline.launch(capture_uuid=str(instance.uuid))
             log.info(f"Launched waterfall pipeline for capture {instance.uuid}")
 
-        except Pipeline.DoesNotExist:
-            log.warning("Waterfall Processing pipeline not found or disabled")
         except Exception as e:
             log.error(f"Failed to launch pipeline for capture {instance.uuid}: {e}")
