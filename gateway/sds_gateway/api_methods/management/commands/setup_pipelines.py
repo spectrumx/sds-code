@@ -1,5 +1,6 @@
 """Management command to set up django-cog pipelines."""
 
+import datetime
 import json
 
 from django.core.management.base import BaseCommand
@@ -27,21 +28,17 @@ class Command(BaseCommand):
             help="Type of pipeline to set up",
         )
         parser.add_argument(
-            "--force",
-            action="store_true",
-            help="Force recreation of existing pipelines",
-        )
-        parser.add_argument(
-            "--skip-if-exists",
-            action="store_true",
-            help="Skip setup if pipelines already exist (useful for startup)",
+            "--strategy",
+            type=str,
+            choices=["interactive", "skip-if-exists", "force", "smart-recreate"],
+            default="interactive",
+            help="Strategy for handling existing pipelines: interactive (warn and exit), skip-if-exists (silent skip), force (delete and recreate), smart-recreate (intelligent updates)",
         )
 
     def handle(self, *args, **options):
         """Handle the command."""
         pipeline_type = options["pipeline_type"]
-        force = options["force"]
-        skip_if_exists = options["skip_if_exists"]
+        strategy = options["strategy"]
 
         if pipeline_type == "all":
             pipeline_types = list(PIPELINE_CONFIGS.keys())
@@ -49,10 +46,12 @@ class Command(BaseCommand):
             pipeline_types = [pipeline_type]
 
         for ptype in pipeline_types:
-            self.setup_pipeline(ptype, force, skip_if_exists)
+            self.setup_pipeline(ptype, strategy)
 
     def setup_pipeline(
-        self, pipeline_type: str, force: bool = False, skip_if_exists: bool = False
+        self,
+        pipeline_type: str,
+        strategy: str = "interactive",
     ):
         """Set up a specific pipeline."""
         self.stdout.write(f"Setting up {pipeline_type} pipeline...")
@@ -61,37 +60,75 @@ class Command(BaseCommand):
         config_func = PIPELINE_CONFIGS[pipeline_type]
         config = config_func()
 
-        # Check if pipeline already exists
-        pipeline, created = Pipeline.objects.get_or_create(
-            name=config["pipeline_name"],
-        )
+        # Check if pipeline already exists (including versioned pipelines)
+        from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
 
-        if not created and not force:
-            if skip_if_exists:
+        existing_pipeline = get_latest_pipeline_by_base_name(config["pipeline_name"])
+        if existing_pipeline:
+            pipeline = existing_pipeline
+        else:
+            # No existing pipeline found, create new one with timestamp
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_name = f"{config['pipeline_name']} (v{timestamp})"
+            pipeline = Pipeline.objects.create(name=new_name)
+
+        if existing_pipeline:
+            if strategy == "skip-if-exists":
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"Pipeline '{config['pipeline_name']}' already exists, skipping."
                     )
                 )
-            else:
+                return
+            if strategy == "interactive":
                 self.stdout.write(
                     self.style.WARNING(
-                        f"Pipeline '{config['pipeline_name']}' already exists. Use --force to recreate."
+                        f"Pipeline '{config['pipeline_name']}' already exists. Use --strategy force to recreate or --strategy smart-recreate for intelligent handling."
                     )
                 )
-            return
+                return
+            if strategy == "force":
+                # Delete existing pipeline and recreate (loses history)
+                pipeline.delete()
+                pipeline = Pipeline.objects.create(
+                    name=config["pipeline_name"],
+                )
+                self.stdout.write(
+                    f"Recreated pipeline '{config['pipeline_name']}' (history lost)"
+                )
+            elif strategy == "smart-recreate":
+                # Smart recreate: check if latest pipeline has runs
+                runs_count = pipeline.runs.count()
 
-        if not created and force:
-            # Delete existing pipeline and recreate
-            pipeline.delete()
-            pipeline = Pipeline.objects.create(
-                name=config["pipeline_name"],
-            )
-            self.stdout.write(f"Recreated pipeline '{config['pipeline_name']}'")
-        elif not created:
-            # Pipeline exists but we're not forcing recreation
-            # Clear existing stages and tasks to recreate them
-            pipeline.stages.all().delete()
+                if runs_count == 0:
+                    # No runs, delete the latest pipeline and create new one with timestamp
+                    old_name = pipeline.name
+                    pipeline.delete()
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    new_name = f"{config['pipeline_name']} (v{timestamp})"
+
+                    pipeline = Pipeline.objects.create(
+                        name=new_name,
+                    )
+                    self.stdout.write(
+                        f"Created new pipeline '{new_name}' (replaced unused pipeline '{old_name}')"
+                    )
+                else:
+                    # Has runs, create new pipeline with timestamp and preserve old one
+                    old_name = pipeline.name
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    new_name = f"{config['pipeline_name']} (v{timestamp})"
+
+                    # Disable the old pipeline to prevent conflicts
+                    pipeline.enabled = False
+                    pipeline.save()
+
+                    pipeline = Pipeline.objects.create(
+                        name=new_name,
+                    )
+                    self.stdout.write(
+                        f"Created new pipeline '{new_name}' and disabled old pipeline '{old_name}' (preserved with {runs_count} runs)"
+                    )
 
         # Create stages and tasks
         stage_objects = {}
