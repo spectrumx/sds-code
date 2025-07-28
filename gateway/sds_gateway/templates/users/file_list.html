@@ -13,8 +13,8 @@
     <!-- Add noUiSlider CSS first -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
-    <!-- Add file_list.css for upload modal styling -->
-    <link rel="stylesheet" href="{% static 'css/file_list.css' %}" />
+    <!-- Add file-list.css for upload modal styling -->
+    <link rel="stylesheet" href="{% static 'css/file-list.css' %}" />
     <!-- Add noUiSlider JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
     <style>
@@ -689,8 +689,6 @@
     </script>
     <!-- This code calculates BLAKE3 hashes in the browser for file deduplication -->
     <!-- Load the WASM library first -->
-    <!-- TODO: Uncomment when implementing the file upload mode multiplexer -->
-    <!--
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -752,5 +750,4 @@
             });
         });
     </script>
--->
 {% endblock javascript %}
