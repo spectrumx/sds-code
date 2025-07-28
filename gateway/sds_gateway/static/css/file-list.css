@@ -481,3 +481,10 @@ body {
 .items-per-page-select {
 	width: auto;
 }
+
+/* ================================
+   Upload Modal Input Groups
+   ================================ */
+.hidden-input-group {
+	display: none;
+}

@@ -13,6 +13,8 @@
     <!-- Add noUiSlider CSS first -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
+    <!-- Add file_list.css for upload modal styling -->
+    <link rel="stylesheet" href="{% static 'css/file_list.css' %}" />
     <!-- Add noUiSlider JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
     <style>
@@ -262,13 +264,43 @@
                                            webkitdirectory
                                            directory
                                            class="form-control" />
-                                    <label for="captureChannelsInput" class="form-label mt-3">Capture Channel Names (comma-separated)</label>
-                                    <input type="text"
-                                           id="captureChannelsInput"
-                                           name="channels"
-                                           class="form-control"
-                                           placeholder="e.g. ch1,ch2,ch3"
-                                           required />
+                                    <!-- Capture Type Selection -->
+                                    <div class="mt-3">
+                                        <label for="captureTypeSelect" class="form-label">Capture Type</label>
+                                        <select id="captureTypeSelect"
+                                                name="capture_type"
+                                                class="form-select"
+                                                required>
+                                            <option value="">Select capture type...</option>
+                                            <option value="drf">DigitalRF</option>
+                                            <option value="rh">RadioHound</option>
+                                        </select>
+                                        <div class="form-text">
+                                            <strong>DigitalRF:</strong> For .h5/.hdf5 files with channel-based structure
+                                            <br />
+                                            <strong>RadioHound:</strong> For .rh.json files with scan group metadata
+                                        </div>
+                                    </div>
+                                    <!-- Channel Input (shown for DigitalRF) -->
+                                    <div id="channelInputGroup" class="mt-3 hidden-input-group">
+                                        <label for="captureChannelsInput" class="form-label">Capture Channel Names (comma-separated)</label>
+                                        <input type="text"
+                                               id="captureChannelsInput"
+                                               name="channels"
+                                               class="form-control"
+                                               placeholder="e.g. ch1,ch2,ch3" />
+                                        <div class="form-text">Required for DigitalRF captures</div>
+                                    </div>
+                                    <!-- Scan Group Input (shown for RadioHound) -->
+                                    <div id="scanGroupInputGroup" class="mt-3 hidden-input-group">
+                                        <label for="captureScanGroupInput" class="form-label">Scan Group</label>
+                                        <input type="text"
+                                               id="captureScanGroupInput"
+                                               name="scan_group"
+                                               class="form-control"
+                                               placeholder="Enter scan group identifier" />
+                                        <div class="form-text">Required for RadioHound captures</div>
+                                    </div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -596,6 +628,62 @@
                     resultModalEl.removeEventListener('hidden.bs.modal', handler);
                 });
                 resultModal.show();
+            }
+        });
+    </script>
+    <!-- Capture Type Selection JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const captureTypeSelect = document.getElementById('captureTypeSelect');
+            const channelInputGroup = document.getElementById('channelInputGroup');
+            const scanGroupInputGroup = document.getElementById('scanGroupInputGroup');
+            const captureChannelsInput = document.getElementById('captureChannelsInput');
+            const captureScanGroupInput = document.getElementById('captureScanGroupInput');
+
+            if (captureTypeSelect) {
+                captureTypeSelect.addEventListener('change', function() {
+                    const selectedType = this.value;
+                    console.log('Capture type selected:', selectedType);
+
+                    // Hide both input groups initially
+                    if (channelInputGroup) channelInputGroup.classList.add('hidden-input-group');
+                    if (scanGroupInputGroup) scanGroupInputGroup.classList.add('hidden-input-group');
+
+                    // Clear required attributes
+                    if (captureChannelsInput) captureChannelsInput.removeAttribute('required');
+                    if (captureScanGroupInput) captureScanGroupInput.removeAttribute('required');
+
+                    // Show appropriate input group based on selection
+                    if (selectedType === 'drf') {
+                        console.log('Showing channel input for DigitalRF');
+                        if (channelInputGroup) channelInputGroup.classList.remove('hidden-input-group');
+                        if (captureChannelsInput) captureChannelsInput.setAttribute('required', 'required');
+                    } else if (selectedType === 'rh') {
+                        console.log('Showing scan group input for RadioHound');
+                        if (scanGroupInputGroup) scanGroupInputGroup.classList.remove('hidden-input-group');
+                        if (captureScanGroupInput) captureScanGroupInput.setAttribute('required', 'required');
+                    }
+                });
+            }
+
+            // Reset form when modal is hidden
+            const uploadModal = document.getElementById('uploadCaptureModal');
+            if (uploadModal) {
+                uploadModal.addEventListener('hidden.bs.modal', function() {
+                    // Reset the form
+                    const form = document.getElementById('uploadCaptureForm');
+                    if (form) {
+                        form.reset();
+                    }
+
+                    // Hide input groups
+                    if (channelInputGroup) channelInputGroup.classList.add('hidden-input-group');
+                    if (scanGroupInputGroup) scanGroupInputGroup.classList.add('hidden-input-group');
+
+                    // Clear required attributes
+                    if (captureChannelsInput) captureChannelsInput.removeAttribute('required');
+                    if (captureScanGroupInput) captureScanGroupInput.removeAttribute('required');
+                });
             }
         });
     </script>
