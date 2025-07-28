@@ -4,7 +4,6 @@ from .api.views import GetAPIKeyView
 from .views import CheckFileExistsView
 from .views import ListCapturesView
 from .views import UploadFilesView
-from .views import user_capture_download_view
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
