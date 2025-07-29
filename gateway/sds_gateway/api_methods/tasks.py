@@ -992,7 +992,7 @@ def _send_item_download_error_email(
 
 @shared_task
 def start_capture_post_processing(
-    capture_uuid: str, processing_types: list[str] = None
+    capture_uuid: str, processing_types: list[str] | None = None
 ) -> dict:
     """
     Start post-processing pipeline for a DigitalRF capture.
@@ -1007,8 +1007,41 @@ def start_capture_post_processing(
     logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
 
     try:
-        # Get the capture
-        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+        # Get the capture with retry mechanism for transaction timing issues
+        capture = None
+        max_retries = 3
+        retry_delay = 1  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+                break  # Found the capture, exit retry loop
+            except Capture.DoesNotExist:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Capture {capture_uuid} not found on attempt {attempt + 1}, "
+                        f"retrying in {retry_delay} seconds..."
+                    )
+                    import time
+
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    # Final attempt failed
+                    error_msg = (
+                        f"Capture {capture_uuid} not found after {max_retries} attempts"
+                    )
+                    logger.error(error_msg)
+                    return {
+                        "status": "error",
+                        "message": error_msg,
+                        "capture_uuid": capture_uuid,
+                    }
+
+        # At this point, capture should not be None due to the retry logic above
+        assert capture is not None, (
+            f"Capture {capture_uuid} should have been found by now"
+        )
 
         if capture.capture_type != CaptureType.DigitalRF:
             return {
@@ -1025,22 +1058,27 @@ def start_capture_post_processing(
         for processing_type in processing_types:
             _create_or_reset_processed_data(capture, processing_type)
 
-        # Import here to avoid circular imports
-        from .cog_pipelines import get_pipeline
+        # Get the appropriate pipeline from the database
+        from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
 
-        # Create and run the appropriate pipeline
-        if len(processing_types) > 1:
-            pipeline = get_pipeline(
-                "capture_post_processing",
-                capture_uuid=capture_uuid,
-                processing_types=processing_types,
-            )
+        # For now, we only support waterfall processing
+        if "waterfall" in processing_types:
+            pipeline = get_latest_pipeline_by_base_name("Waterfall Processing")
+            if not pipeline:
+                return {
+                    "status": "error",
+                    "message": "No Waterfall Processing pipeline found. Please run setup_pipelines.",
+                    "capture_uuid": capture_uuid,
+                }
+
+            # Launch the pipeline with runtime arguments
+            pipeline.launch(capture_uuid=capture_uuid)
         else:
-            pipeline_type = processing_types[0]
-            pipeline = get_pipeline(pipeline_type, capture_uuid=capture_uuid)
-
-        # Run the pipeline
-        pipeline.run()
+            return {
+                "status": "error",
+                "message": f"Unsupported processing types: {processing_types}",
+                "capture_uuid": capture_uuid,
+            }
 
         return {
             "status": "success",
