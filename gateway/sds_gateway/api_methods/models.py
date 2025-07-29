@@ -14,7 +14,6 @@ from django.conf import settings
 from django.db import models
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
-from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
@@ -1185,26 +1184,3 @@ def get_latest_pipeline_by_base_name(base_name: str):
         return partial_matches.first()
 
     return None
-
-
-@receiver(post_save, sender=Capture)
-def trigger_post_processing(sender, instance: Capture, created: bool, **kwargs):
-    """Trigger post-processing when a new DigitalRF capture is created."""
-    if created and instance.capture_type == CaptureType.DigitalRF:
-        log.info(
-            f"New DigitalRF capture created: {instance.uuid}, triggering post-processing"
-        )
-
-        try:
-            # Find the waterfall processing pipeline (handles versioned pipelines)
-            pipeline = get_latest_pipeline_by_base_name("Waterfall Processing")
-            if not pipeline:
-                log.warning("No Waterfall Processing pipeline found")
-                return
-
-            # Launch the pipeline with runtime arguments
-            pipeline.launch(capture_uuid=str(instance.uuid))
-            log.info(f"Launched waterfall pipeline for capture {instance.uuid}")
-
-        except Exception as e:
-            log.error(f"Failed to launch pipeline for capture {instance.uuid}: {e}")

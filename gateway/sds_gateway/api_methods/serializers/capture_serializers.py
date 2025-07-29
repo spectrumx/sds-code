@@ -19,8 +19,8 @@ from sds_gateway.api_methods.serializers.user_serializer import UserGetSerialize
 class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]):
     """Serializer for PostProcessedData model."""
 
-    processing_type = serializers.CharField(source="processing_type")
-    processing_status = serializers.CharField(source="processing_status")
+    processing_type = serializers.CharField()
+    processing_status = serializers.CharField()
     is_ready = serializers.BooleanField(read_only=True)
 
     # Metadata fields for backward compatibility
@@ -33,7 +33,7 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
     class Meta:
         model = PostProcessedData
         fields = [
-            "id",
+            "uuid",
             "processing_type",
             "processing_parameters",
             "data_file",
@@ -54,7 +54,7 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
             "total_slices",
         ]
         read_only_fields = [
-            "id",
+            "uuid",
             "data_file",
             "metadata",
             "processing_status",

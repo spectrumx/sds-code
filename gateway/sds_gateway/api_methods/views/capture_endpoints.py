@@ -184,6 +184,34 @@ class CaptureViewSet(viewsets.ViewSet):
                     f"files to capture '{capture.uuid}'",
                 )
 
+    def _trigger_post_processing(self, capture: Capture) -> None:
+        """Trigger post-processing for a DigitalRF capture after OpenSearch indexing is complete.
+
+        Args:
+            capture: The capture to trigger post-processing for
+        """
+        if capture.capture_type != CaptureType.DigitalRF:
+            return
+
+        log.info(f"Triggering post-processing for DigitalRF capture: {capture.uuid}")
+
+        try:
+            # Use the Celery task for post-processing to ensure proper async execution
+            from sds_gateway.api_methods.tasks import start_capture_post_processing
+
+            # Launch the post-processing task asynchronously
+            result = start_capture_post_processing.delay(
+                str(capture.uuid), ["waterfall"]
+            )
+            log.info(
+                f"Launched post-processing task for capture {capture.uuid}, task_id: {result.id}"
+            )
+
+        except Exception as e:
+            log.error(
+                f"Failed to launch post-processing task for capture {capture.uuid}: {e}"
+            )
+
     @extend_schema(
         request=CapturePostSerializer,
         responses={
@@ -287,6 +315,14 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=requester,
                 top_level_dir=requested_top_level_dir,
             )
+
+            # Trigger post-processing for DigitalRF captures after OpenSearch indexing is complete
+            if capture.capture_type == CaptureType.DigitalRF:
+                # Use transaction.on_commit to ensure the task is queued after the transaction is committed
+                from django.db import transaction
+
+                transaction.on_commit(lambda: self._trigger_post_processing(capture))
+
         except UnknownIndexError as e:
             user_msg = f"Unknown index: '{e}'. Try recreating this capture."
             server_msg = (
@@ -589,6 +625,16 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=owner,
                 top_level_dir=requested_top_level_dir,
             )
+
+            # Trigger post-processing for DigitalRF captures after OpenSearch indexing is complete
+            if target_capture.capture_type == CaptureType.DigitalRF:
+                # Use transaction.on_commit to ensure the task is queued after the transaction is committed
+                from django.db import transaction
+
+                transaction.on_commit(
+                    lambda: self._trigger_post_processing(target_capture)
+                )
+
         except UnknownIndexError as e:
             user_msg = f"Unknown index: '{e}'. Try recreating this capture."
             server_msg = (
