@@ -14,7 +14,6 @@ from django.conf import settings
 from django.db import models
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
-from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
