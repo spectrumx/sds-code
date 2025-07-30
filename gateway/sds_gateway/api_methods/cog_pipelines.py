@@ -25,8 +25,8 @@ def process_waterfall_data_cog(
         # Import models here to avoid Django app registry issues
         from .models import Capture
         from .models import ProcessingType
-        from .tasks import _convert_drf_to_waterfall_json
-        from .tasks import _reconstruct_drf_files
+        from .tasks import convert_drf_to_waterfall_json
+        from .tasks import reconstruct_drf_files
         from .tasks import store_processed_data
 
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
@@ -41,7 +41,7 @@ def process_waterfall_data_cog(
 
         # Reconstruct the DigitalRF files for processing
         capture_files = capture.files.filter(is_deleted=False)
-        reconstructed_path = _reconstruct_drf_files(capture, capture_files, temp_path)
+        reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
 
         if not reconstructed_path:
             return {
@@ -50,7 +50,7 @@ def process_waterfall_data_cog(
             }
 
         # Process the waterfall data in JSON format
-        waterfall_result = _convert_drf_to_waterfall_json(
+        waterfall_result = convert_drf_to_waterfall_json(
             reconstructed_path,
             capture.channel,
             ProcessingType.Waterfall.value,

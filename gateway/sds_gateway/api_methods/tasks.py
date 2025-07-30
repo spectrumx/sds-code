@@ -1061,60 +1061,6 @@ def start_capture_post_processing(
 
 
 @shared_task
-def download_capture_files(capture_uuid: str) -> dict:
-    """
-    Download DigitalRF files from SDS storage to temporary location.
-
-    Args:
-        capture_uuid: UUID of the capture to download files for
-
-    Returns:
-        dict: Task result with temporary directory path and DRF path
-    """
-    logger.info(f"Downloading files for capture {capture_uuid}")
-
-    try:
-        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
-        capture_files = capture.files.filter(is_deleted=False)
-
-        if not capture_files.exists():
-            return {
-                "status": "error",
-                "message": f"No files found for capture {capture_uuid}",
-            }
-
-        # Create temporary directory
-        import tempfile
-
-        temp_dir = tempfile.mkdtemp(prefix=f"capture_{capture_uuid}_")
-        temp_path = Path(temp_dir)
-
-        # Download and reconstruct the DigitalRF directory structure
-        reconstructed_path = _reconstruct_drf_files(capture, capture_files, temp_path)
-
-        if not reconstructed_path:
-            return {
-                "status": "error",
-                "message": "Failed to reconstruct DigitalRF directory structure",
-            }
-
-        return {
-            "status": "success",
-            "message": "Files downloaded successfully",
-            "temp_dir": str(temp_path),
-            "drf_path": str(reconstructed_path),
-            "capture_uuid": capture_uuid,
-        }
-
-    except Exception as e:
-        logger.exception(f"Error downloading capture files: {e}")
-        return {
-            "status": "error",
-            "message": f"Error downloading files: {e}",
-        }
-
-
-@shared_task
 def store_processed_data(
     capture_uuid: str,
     processing_type: str,
@@ -1185,38 +1131,8 @@ def store_processed_data(
         }
 
 
-@shared_task
-def cleanup_temp_files(capture_uuid: str) -> dict:
-    """
-    Clean up temporary files created during processing.
-
-    Args:
-        capture_uuid: UUID of the capture
-
-    Returns:
-        dict: Cleanup result
-    """
-    logger.info(f"Cleaning up temporary files for capture {capture_uuid}")
-
-    try:
-        # Clean up temporary files associated with this capture
-        # This would remove any temporary directories created during processing
-
-        return {
-            "status": "success",
-            "message": "Temporary files cleaned up successfully",
-        }
-
-    except Exception as e:
-        logger.exception(f"Error cleaning up temporary files: {e}")
-        return {
-            "status": "error",
-            "message": f"Error cleaning up temporary files: {e}",
-        }
-
-
 # Helper functions (existing implementations)
-def _reconstruct_drf_files(
+def reconstruct_drf_files(
     capture: Capture, capture_files, temp_path: Path
 ) -> Path | None:
     """Reconstruct DigitalRF directory structure from SDS files."""
@@ -1260,7 +1176,7 @@ def _reconstruct_drf_files(
         return None
 
 
-def _convert_drf_to_waterfall_json(
+def convert_drf_to_waterfall_json(
     drf_path: Path, channel: str, processing_type: str, max_slices: int = 100
 ) -> dict:
     """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
