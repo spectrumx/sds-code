@@ -938,29 +938,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # Legacy endpoint for backward compatibility
-    @action(detail=True, methods=["post"])
-    @extend_schema(
-        summary="Trigger waterfall processing (deprecated)",
-        description="Manually trigger waterfall processing for a DigitalRF capture (deprecated, use trigger_post_processing instead)",
-        responses={
-            200: OpenApiResponse(
-                description="Waterfall processing started successfully"
-            ),
-            400: OpenApiResponse(description="Invalid request"),
-            404: OpenApiResponse(description="Capture not found"),
-        },
-    )
-    def trigger_waterfall_processing(self, request, pk=None):
-        """Trigger waterfall processing for a capture (deprecated)."""
-        log.warning(
-            "trigger_waterfall_processing is deprecated. Use trigger_post_processing instead."
-        )
-
-        # Redirect to the new endpoint
-        request.data["processing_types"] = [ProcessingType.Waterfall.value]
-        return self.trigger_post_processing(request, pk)
-
 
 def _check_capture_creation_constraints(
     capture_candidate: dict[str, Any],

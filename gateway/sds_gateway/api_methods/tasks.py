@@ -16,7 +16,6 @@ from loguru import logger
 from redis import Redis
 
 from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
@@ -997,8 +996,8 @@ def start_capture_post_processing(
     """
     Start post-processing pipeline for a DigitalRF capture.
 
-    This is the main entry point that creates and runs the appropriate
-    django-cog pipeline for the requested processing types.
+    This is the main entry point that launches the django-cog pipeline.
+    Setup and validation are now handled within the pipeline itself.
 
     Args:
         capture_uuid: UUID of the capture to process
@@ -1007,56 +1006,9 @@ def start_capture_post_processing(
     logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
 
     try:
-        # Get the capture with retry mechanism for transaction timing issues
-        capture = None
-        max_retries = 3
-        retry_delay = 1  # seconds
-
-        for attempt in range(max_retries):
-            try:
-                capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
-                break  # Found the capture, exit retry loop
-            except Capture.DoesNotExist:
-                if attempt < max_retries - 1:
-                    logger.warning(
-                        f"Capture {capture_uuid} not found on attempt {attempt + 1}, "
-                        f"retrying in {retry_delay} seconds..."
-                    )
-                    import time
-
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
-                else:
-                    # Final attempt failed
-                    error_msg = (
-                        f"Capture {capture_uuid} not found after {max_retries} attempts"
-                    )
-                    logger.error(error_msg)
-                    return {
-                        "status": "error",
-                        "message": error_msg,
-                        "capture_uuid": capture_uuid,
-                    }
-
-        # At this point, capture should not be None due to the retry logic above
-        assert capture is not None, (
-            f"Capture {capture_uuid} should have been found by now"
-        )
-
-        if capture.capture_type != CaptureType.DigitalRF:
-            return {
-                "status": "error",
-                "message": f"Capture {capture_uuid} is not a DigitalRF capture",
-                "capture_uuid": capture_uuid,
-            }
-
         # Set default processing types if not specified
         if not processing_types:
             processing_types = [ProcessingType.Waterfall.value]
-
-        # Create PostProcessedData records for each processing type
-        for processing_type in processing_types:
-            _create_or_reset_processed_data(capture, processing_type)
 
         # Get the appropriate pipeline from the database
         from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
@@ -1072,7 +1024,10 @@ def start_capture_post_processing(
                 }
 
             # Launch the pipeline with runtime arguments
-            pipeline.launch(capture_uuid=capture_uuid)
+            # Setup and validation will be handled by the setup stage in the pipeline
+            pipeline.launch(
+                capture_uuid=capture_uuid, processing_types=processing_types
+            )
         else:
             return {
                 "status": "error",
@@ -1082,7 +1037,7 @@ def start_capture_post_processing(
 
         return {
             "status": "success",
-            "message": f"Post-processing pipeline completed for {len(processing_types)} types",
+            "message": f"Post-processing pipeline started for {len(processing_types)} types",
             "capture_uuid": capture_uuid,
             "processing_types": processing_types,
         }
@@ -1105,45 +1060,6 @@ def start_capture_post_processing(
         }
 
 
-def _create_or_reset_processed_data(
-    capture: Capture, processing_type: str
-) -> PostProcessedData:
-    """Create or reset a PostProcessedData record for the given processing type."""
-
-    # Default processing parameters based on type
-    default_params = {
-        ProcessingType.Waterfall.value: {
-            "fft_size": 1024,
-            "samples_per_slice": 1024,
-        },
-    }
-
-    processing_parameters = default_params.get(processing_type, {})
-
-    # Create or get existing record
-    processed_data, created = PostProcessedData.objects.get_or_create(
-        capture=capture,
-        processing_type=processing_type,
-        processing_parameters=processing_parameters,
-        defaults={
-            "processing_status": "pending",  # Changed from ProcessingStatus.Pending.value to "pending"
-            "metadata": {},
-        },
-    )
-
-    if not created:
-        # Reset existing record
-        processed_data.processing_status = (
-            "pending"  # Changed from ProcessingStatus.Pending.value to "pending"
-        )
-        processed_data.processing_error = ""
-        processed_data.pipeline_id = ""
-        processed_data.pipeline_step = ""
-        processed_data.save()
-
-    return processed_data
-
-
 @shared_task
 def download_capture_files(capture_uuid: str) -> dict:
     """
@@ -1153,7 +1069,7 @@ def download_capture_files(capture_uuid: str) -> dict:
         capture_uuid: UUID of the capture to download files for
 
     Returns:
-        dict: Task result with temporary directory path
+        dict: Task result with temporary directory path and DRF path
     """
     logger.info(f"Downloading files for capture {capture_uuid}")
 
@@ -1187,6 +1103,7 @@ def download_capture_files(capture_uuid: str) -> dict:
             "message": "Files downloaded successfully",
             "temp_dir": str(temp_path),
             "drf_path": str(reconstructed_path),
+            "capture_uuid": capture_uuid,
         }
 
     except Exception as e:
@@ -1198,75 +1115,27 @@ def download_capture_files(capture_uuid: str) -> dict:
 
 
 @shared_task
-def process_waterfall_data(capture_uuid: str) -> dict:
+def store_processed_data(
+    capture_uuid: str,
+    processing_type: str,
+    file_path: str,
+    filename: str,
+    metadata: dict | None = None,
+) -> dict:
     """
-    Process DigitalRF data into waterfall format.
-
-    Args:
-        capture_uuid: UUID of the capture to process
-
-    Returns:
-        dict: Processing result with file path and metadata
-    """
-    logger.info(f"Processing waterfall data for capture {capture_uuid}")
-
-    try:
-        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
-
-        # Get the temporary directory from previous step
-        # In a real implementation, this would come from the pipeline context
-        import tempfile
-
-        temp_dir = tempfile.mkdtemp(prefix=f"waterfall_{capture_uuid}_")
-        temp_path = Path(temp_dir)
-
-        # For now, we'll reconstruct the files again
-        # In a real pipeline, this would be passed from the download step
-        capture_files = capture.files.filter(is_deleted=False)
-        reconstructed_path = _reconstruct_drf_files(capture, capture_files, temp_path)
-
-        if not reconstructed_path:
-            return {
-                "status": "error",
-                "message": "Failed to reconstruct DigitalRF directory structure",
-            }
-
-        # Process the waterfall data
-        waterfall_result = _convert_drf_to_waterfall(
-            reconstructed_path, capture.channel, ProcessingType.Waterfall.value
-        )
-
-        if waterfall_result["status"] != "success":
-            return waterfall_result
-
-        return {
-            "status": "success",
-            "message": "Waterfall data processed successfully",
-            "data_file_path": waterfall_result["data_file_path"],
-            "metadata": waterfall_result["metadata"],
-        }
-
-    except Exception as e:
-        logger.exception(f"Error processing waterfall data: {e}")
-        return {
-            "status": "error",
-            "message": f"Error processing waterfall data: {e}",
-        }
-
-
-@shared_task
-def store_processed_data(capture_uuid: str, processing_type: str) -> dict:
-    """
-    Store processed data back to SDS storage.
+    Store processed data back to SDS storage as a file.
 
     Args:
         capture_uuid: UUID of the capture
         processing_type: Type of processed data (waterfall, spectrogram, etc.)
+        file_path: Path to the file to store
+        filename: Name for the stored file
+        metadata: Metadata to store
 
     Returns:
         dict: Storage result
     """
-    logger.info(f"Storing {processing_type} data for capture {capture_uuid}")
+    logger.info(f"Storing {processing_type} file for capture {capture_uuid}")
 
     try:
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
@@ -1283,41 +1152,36 @@ def store_processed_data(capture_uuid: str, processing_type: str) -> dict:
                 "message": f"No processed data record found for {processing_type}",
             }
 
-        # In a real implementation, the file path would come from the pipeline context
-        # For now, we'll create a dummy file
-        import tempfile
+        # Store the file
+        processed_data.set_processed_data_file(file_path, filename)
 
-        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
-            temp_file_path = temp_file.name
+        # Update metadata if provided
+        if metadata:
+            processed_data.metadata.update(metadata)
 
-        # Save the file to SDS storage
-        with open(temp_file_path, "rb") as f:
-            processed_data.data_file.save(
-                f"{processing_type}_{capture.uuid}.h5", f, save=False
-            )
-
-        # Update metadata
+        # Add storage metadata
         processed_data.metadata.update(
             {
                 "stored_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                "data_format": "file",
                 "file_size": processed_data.data_file.size,
             }
         )
         processed_data.save()
 
-        # Clean up temporary file
-        os.unlink(temp_file_path)
+        logger.info(f"Stored file {filename} for {processing_type} data")
 
         return {
             "status": "success",
-            "message": f"{processing_type} data stored successfully",
+            "message": f"{processing_type} file stored successfully",
+            "file_name": filename,
         }
 
     except Exception as e:
-        logger.exception(f"Error storing {processing_type} data: {e}")
+        logger.exception(f"Error storing {processing_type} file: {e}")
         return {
             "status": "error",
-            "message": f"Error storing {processing_type} data: {e}",
+            "message": f"Error storing {processing_type} file: {e}",
         }
 
 
@@ -1335,8 +1199,8 @@ def cleanup_temp_files(capture_uuid: str) -> dict:
     logger.info(f"Cleaning up temporary files for capture {capture_uuid}")
 
     try:
-        # In a real implementation, this would clean up all temporary files
-        # associated with this capture from the pipeline context
+        # Clean up temporary files associated with this capture
+        # This would remove any temporary directories created during processing
 
         return {
             "status": "success",
@@ -1349,23 +1213,6 @@ def cleanup_temp_files(capture_uuid: str) -> dict:
             "status": "error",
             "message": f"Error cleaning up temporary files: {e}",
         }
-
-
-# Legacy task for backward compatibility
-@shared_task
-def process_capture_waterfall(capture_uuid: str) -> dict:
-    """
-    Legacy task for waterfall processing (deprecated).
-
-    This task is kept for backward compatibility but new implementations
-    should use start_capture_post_processing with processing_types=['waterfall'].
-    """
-    logger.warning(
-        "process_capture_waterfall is deprecated. Use start_capture_post_processing instead."
-    )
-    return start_capture_post_processing.delay(
-        capture_uuid, [ProcessingType.Waterfall.value]
-    )
 
 
 # Helper functions (existing implementations)
@@ -1413,17 +1260,19 @@ def _reconstruct_drf_files(
         return None
 
 
-def _convert_drf_to_waterfall(
-    drf_path: Path, channel: str, processing_type: str
+def _convert_drf_to_waterfall_json(
+    drf_path: Path, channel: str, processing_type: str, max_slices: int = 100
 ) -> dict:
-    """Convert DigitalRF data to waterfall format."""
-    import tempfile
+    """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
+    import base64
 
     import h5py
     import numpy as np
     from digital_rf import DigitalRFReader
 
-    logger.info(f"Converting DigitalRF data to waterfall format for channel {channel}")
+    logger.info(
+        f"Converting DigitalRF data to waterfall JSON format for channel {channel}"
+    )
 
     try:
         # Initialize DigitalRF reader
@@ -1443,15 +1292,27 @@ def _convert_drf_to_waterfall(
             }
 
         # Get sample bounds
-        start_sample, end_sample = reader.get_bounds(channel)
+        bounds = reader.get_bounds(channel)
+        if bounds is None:
+            return {
+                "status": "error",
+                "message": "Could not get sample bounds for channel",
+            }
+
+        start_sample, end_sample = bounds
         total_samples = end_sample - start_sample
 
         # Get metadata from DigitalRF properties
         drf_props_path = drf_path / channel / "drf_properties.h5"
         with h5py.File(drf_props_path, "r") as f:
-            sample_rate = (
-                f.attrs["sample_rate_numerator"] / f.attrs["sample_rate_denominator"]
-            )
+            sample_rate_numerator = f.attrs.get("sample_rate_numerator")
+            sample_rate_denominator = f.attrs.get("sample_rate_denominator")
+            if sample_rate_numerator is None or sample_rate_denominator is None:
+                return {
+                    "status": "error",
+                    "message": "Sample rate information missing from DigitalRF properties",
+                }
+            sample_rate = float(sample_rate_numerator) / float(sample_rate_denominator)
 
         # Get center frequency from metadata
         center_freq = 0.0
@@ -1474,71 +1335,74 @@ def _convert_drf_to_waterfall(
         fft_size = 1024  # Default, could be configurable
         samples_per_slice = 1024  # Default, could be configurable
 
-        # Calculate total slices
+        # Calculate total slices and limit to max_slices
         total_slices = total_samples // samples_per_slice
+        slices_to_process = min(total_slices, max_slices)
 
         logger.info(
-            f"Processing {total_slices} slices with {samples_per_slice} samples per slice"
+            f"Processing {slices_to_process} slices with {samples_per_slice} samples per slice"
         )
 
-        # Create temporary file for waterfall data
-        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
-            temp_file_path = temp_file.name
+        # Process slices and create JSON data
+        waterfall_data = []
 
-        # Process all slices and store in HDF5 file
-        with h5py.File(temp_file_path, "w") as h5_file:
-            # Create datasets
-            waterfall_group = h5_file.create_group("waterfall")
+        for slice_idx in range(slices_to_process):
+            # Calculate sample range for this slice
+            slice_start_sample = start_sample + slice_idx * samples_per_slice
+            slice_num_samples = min(samples_per_slice, end_sample - slice_start_sample)
 
-            # Store metadata
-            waterfall_group.attrs["center_frequency"] = center_freq
-            waterfall_group.attrs["sample_rate"] = sample_rate
-            waterfall_group.attrs["min_frequency"] = min_frequency
-            waterfall_group.attrs["max_frequency"] = max_frequency
-            waterfall_group.attrs["fft_size"] = fft_size
-            waterfall_group.attrs["samples_per_slice"] = samples_per_slice
-            waterfall_group.attrs["total_slices"] = total_slices
-            waterfall_group.attrs["channel"] = channel
+            if slice_num_samples <= 0:
+                break
 
-            # Create dataset for waterfall data
-            waterfall_data_shape = (total_slices, fft_size)
-            waterfall_dataset = waterfall_group.create_dataset(
-                "data",
-                shape=waterfall_data_shape,
-                dtype=np.float32,
-                compression="gzip",
-                compression_opts=6,
+            # Read the data
+            data_array = reader.read_vector(
+                slice_start_sample, slice_num_samples, channel, 0
             )
 
-            # Process each slice
-            for slice_idx in range(total_slices):
-                # Calculate sample range for this slice
-                slice_start_sample = start_sample + slice_idx * samples_per_slice
-                slice_num_samples = min(
-                    samples_per_slice, end_sample - slice_start_sample
-                )
+            # Perform FFT processing
+            fft_data = np.fft.fft(data_array, n=fft_size)
+            power_spectrum = np.abs(fft_data) ** 2
 
-                if slice_num_samples <= 0:
-                    break
+            # Convert to dB
+            power_spectrum_db = 10 * np.log10(power_spectrum + 1e-12)
 
-                # Read the data
-                data_array = reader.read_vector(
-                    slice_start_sample, slice_num_samples, channel, 0
-                )
+            # Convert power spectrum to binary string for transmission
+            data_bytes = power_spectrum_db.astype(np.float32).tobytes()
+            data_string = base64.b64encode(data_bytes).decode("utf-8")
 
-                # Perform FFT processing
-                fft_data = np.fft.fft(data_array, n=fft_size)
-                power_spectrum = np.abs(fft_data) ** 2
+            # Create timestamp from sample index
+            timestamp = datetime.datetime.fromtimestamp(
+                slice_start_sample / sample_rate, tz=datetime.UTC
+            ).isoformat()
 
-                # Convert to dB
-                power_spectrum_db = 10 * np.log10(power_spectrum + 1e-12)
+            # Build WaterfallFile format with enhanced metadata
+            waterfall_file = {
+                "data": data_string,
+                "data_type": "float32",
+                "timestamp": timestamp,
+                "min_frequency": min_frequency,
+                "max_frequency": max_frequency,
+                "num_samples": slice_num_samples,
+                "sample_rate": sample_rate,
+                "center_frequency": center_freq,
+            }
 
-                # Store in dataset
-                waterfall_dataset[slice_idx, :] = power_spectrum_db.astype(np.float32)
+            # Build custom fields with all available metadata
+            custom_fields = {
+                "channel_name": channel,
+                "start_sample": slice_start_sample,
+                "num_samples": slice_num_samples,
+                "fft_size": fft_size,
+                "scan_time": slice_num_samples / sample_rate,
+                "slice_index": slice_idx,
+            }
 
-                # Log progress every 100 slices
-                if slice_idx % 100 == 0:
-                    logger.info(f"Processed {slice_idx}/{total_slices} slices")
+            waterfall_file["custom_fields"] = custom_fields
+            waterfall_data.append(waterfall_file)
+
+            # Log progress every 10 slices
+            if slice_idx % 10 == 0:
+                logger.info(f"Processed {slice_idx}/{slices_to_process} slices")
 
         metadata = {
             "center_frequency": center_freq,
@@ -1546,6 +1410,7 @@ def _convert_drf_to_waterfall(
             "min_frequency": min_frequency,
             "max_frequency": max_frequency,
             "total_slices": total_slices,
+            "slices_processed": len(waterfall_data),
             "fft_size": fft_size,
             "samples_per_slice": samples_per_slice,
             "channel": channel,
@@ -1553,13 +1418,13 @@ def _convert_drf_to_waterfall(
 
         return {
             "status": "success",
-            "message": "Waterfall data converted successfully",
-            "data_file_path": temp_file_path,
+            "message": "Waterfall data converted to JSON successfully",
+            "json_data": waterfall_data,
             "metadata": metadata,
         }
 
     except Exception as e:
-        logger.exception(f"Error converting DigitalRF to waterfall: {e}")
+        logger.exception(f"Error converting DigitalRF to waterfall JSON: {e}")
         return {
             "status": "error",
             "message": f"Error converting DigitalRF data: {e}",
