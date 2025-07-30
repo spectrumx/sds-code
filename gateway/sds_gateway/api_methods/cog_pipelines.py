@@ -7,106 +7,93 @@ from loguru import logger
 
 
 @cog
-def download_capture_files_cog(capture_uuid: str) -> dict[str, Any]:
-    """Download DigitalRF files from storage.
-
-    Args:
-        capture_uuid: UUID of the capture to process
-
-    Returns:
-        Dict with status and any relevant data
-    """
-    try:
-        logger.info(f"Starting download for capture {capture_uuid}")
-        # Import tasks here to avoid Django app registry issues
-        from .tasks import download_capture_files
-
-        result = download_capture_files(capture_uuid)
-        logger.info(f"Completed download for capture {capture_uuid}")
-        return {"status": "success", "capture_uuid": capture_uuid, "result": result}
-    except Exception as e:
-        logger.error(f"Download failed for capture {capture_uuid}: {e}")
-        raise
-
-
-@cog
-def process_waterfall_data_cog(capture_uuid: str) -> dict[str, Any]:
+def process_waterfall_data_cog(
+    capture_uuid: str, max_slices: int = 100
+) -> dict[str, Any]:
     """Process waterfall data for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
+        max_slices: Maximum number of slices to process (default: 100)
 
     Returns:
         Dict with status and processed data info
     """
+    logger.info(f"Processing waterfall JSON data for capture {capture_uuid}")
+
     try:
-        logger.info(f"Starting waterfall processing for capture {capture_uuid}")
-        # Import tasks here to avoid Django app registry issues
-        from .tasks import process_waterfall_data
-
-        result = process_waterfall_data(capture_uuid)
-        logger.info(f"Completed waterfall processing for capture {capture_uuid}")
-        return {"status": "success", "capture_uuid": capture_uuid, "result": result}
-    except Exception as e:
-        logger.error(f"Waterfall processing failed for capture {capture_uuid}: {e}")
-        raise
-
-
-@cog
-def store_processed_data_cog(capture_uuid: str, processing_type: str) -> dict[str, Any]:
-    """Store processed data for a capture.
-
-    Args:
-        capture_uuid: UUID of the capture
-        processing_type: Type of processing (waterfall, spectrogram, etc.)
-
-    Returns:
-        Dict with status and storage info
-    """
-    try:
-        logger.info(
-            f"Starting storage for {processing_type} data, capture {capture_uuid}"
-        )
-        # Import tasks here to avoid Django app registry issues
+        # Import models here to avoid Django app registry issues
+        from .models import Capture
+        from .models import ProcessingType
+        from .tasks import _convert_drf_to_waterfall_json
+        from .tasks import _reconstruct_drf_files
         from .tasks import store_processed_data
 
-        result = store_processed_data(capture_uuid, processing_type)
-        logger.info(
-            f"Completed storage for {processing_type} data, capture {capture_uuid}"
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+
+        # Create temporary directory for processing
+        import os
+        import tempfile
+        from pathlib import Path
+
+        temp_dir = tempfile.mkdtemp(prefix=f"waterfall_{capture_uuid}_")
+        temp_path = Path(temp_dir)
+
+        # Reconstruct the DigitalRF files for processing
+        capture_files = capture.files.filter(is_deleted=False)
+        reconstructed_path = _reconstruct_drf_files(capture, capture_files, temp_path)
+
+        if not reconstructed_path:
+            return {
+                "status": "error",
+                "message": "Failed to reconstruct DigitalRF directory structure",
+            }
+
+        # Process the waterfall data in JSON format
+        waterfall_result = _convert_drf_to_waterfall_json(
+            reconstructed_path,
+            capture.channel,
+            ProcessingType.Waterfall.value,
+            max_slices,
         )
+
+        if waterfall_result["status"] != "success":
+            return waterfall_result
+
+        # Create a temporary JSON file
+        import json
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as temp_file:
+            json.dump(waterfall_result["json_data"], temp_file, indent=2)
+            temp_file_path = temp_file.name
+
+        # Store the JSON file
+        filename = f"waterfall_{capture_uuid}.json"
+        store_result = store_processed_data(
+            capture_uuid,
+            ProcessingType.Waterfall.value,
+            temp_file_path,
+            filename,
+            waterfall_result["metadata"],
+        )
+
+        # Clean up temporary file
+        os.unlink(temp_file_path)
+
+        logger.info(f"Completed waterfall processing for capture {capture_uuid}")
         return {
             "status": "success",
             "capture_uuid": capture_uuid,
-            "processing_type": processing_type,
-            "result": result,
+            "message": "Waterfall JSON data processed and stored successfully",
+            "json_data": waterfall_result["json_data"],
+            "metadata": waterfall_result["metadata"],
+            "store_result": store_result,
         }
+
     except Exception as e:
-        logger.error(
-            f"Storage failed for {processing_type} data, capture {capture_uuid}: {e}"
-        )
-        raise
-
-
-@cog
-def cleanup_temp_files_cog(capture_uuid: str) -> dict[str, Any]:
-    """Clean up temporary files for a capture.
-
-    Args:
-        capture_uuid: UUID of the capture
-
-    Returns:
-        Dict with status and cleanup info
-    """
-    try:
-        logger.info(f"Starting cleanup for capture {capture_uuid}")
-        # Import tasks here to avoid Django app registry issues
-        from .tasks import cleanup_temp_files
-
-        result = cleanup_temp_files(capture_uuid)
-        logger.info(f"Completed cleanup for capture {capture_uuid}")
-        return {"status": "success", "capture_uuid": capture_uuid, "result": result}
-    except Exception as e:
-        logger.error(f"Cleanup failed for capture {capture_uuid}: {e}")
+        logger.error(f"Waterfall processing failed for capture {capture_uuid}: {e}")
         raise
 
 
@@ -157,6 +144,85 @@ def update_processing_status_cog(
         raise
 
 
+@cog
+def setup_post_processing_cog(
+    capture_uuid: str, processing_types: list[str] | None = None
+) -> dict[str, Any]:
+    """Setup post-processing for a capture.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+        processing_types: List of processing types to run
+
+    Returns:
+        Dict with status and setup info
+    """
+    try:
+        logger.info(f"Starting setup for capture {capture_uuid}")
+
+        # Import models here to avoid Django app registry issues
+        from .models import Capture
+        from .models import CaptureType
+        from .models import ProcessingType
+        from .tasks import _create_or_reset_processed_data
+
+        # Get the capture with retry mechanism for transaction timing issues
+        capture: Capture | None = None
+        max_retries = 3
+        retry_delay = 1  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+                break  # Found the capture, exit retry loop
+            except Capture.DoesNotExist:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Capture {capture_uuid} not found on attempt {attempt + 1}, "
+                        f"retrying in {retry_delay} seconds..."
+                    )
+                    import time
+
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    # Final attempt failed
+                    error_msg = (
+                        f"Capture {capture_uuid} not found after {max_retries} attempts"
+                    )
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+
+        # At this point, capture should not be None due to the retry logic above
+        assert capture is not None, (
+            f"Capture {capture_uuid} should have been found by now"
+        )
+
+        # Validate capture type
+        if capture.capture_type != CaptureType.DigitalRF:
+            raise ValueError(f"Capture {capture_uuid} is not a DigitalRF capture")
+
+        # Set default processing types if not specified
+        if not processing_types:
+            processing_types = [ProcessingType.Waterfall.value]
+
+        # Create PostProcessedData records for each processing type
+        for processing_type in processing_types:
+            _create_or_reset_processed_data(capture, processing_type)
+
+        logger.info(f"Completed setup for capture {capture_uuid}")
+        return {
+            "status": "success",
+            "capture_uuid": capture_uuid,
+            "processing_types": processing_types,
+            "capture_type": capture.capture_type.value,
+            "channel": capture.channel,
+        }
+    except Exception as e:
+        logger.error(f"Setup failed for capture {capture_uuid}: {e}")
+        raise
+
+
 # Pipeline configuration functions for Django admin setup
 def get_waterfall_pipeline_config() -> dict[str, Any]:
     """Get configuration for waterfall processing pipeline.
@@ -168,36 +234,32 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
     - Schedule: None (manual launch)
 
     Stages:
-    1. "download_stage" - download_capture_files_cog
-    2. "process_stage" - process_waterfall_data_cog (depends on download_stage)
-    3. "store_stage" - store_processed_data_cog (depends on process_stage)
-    4. "cleanup_stage" - cleanup_temp_files_cog (depends on store_stage)
+    1. "setup_stage" - setup_post_processing_cog (validates capture, creates records)
+    2. "process_stage" - process_waterfall_data_cog (does download, processing, and storage)
 
     Tasks in each stage:
-    - download_stage: download_capture_files_cog (capture_uuid passed as runtime arg)
-    - process_stage: process_waterfall_data_cog (capture_uuid passed as runtime arg)
-    - store_stage: store_processed_data_cog (capture_uuid and processing_type passed as runtime args)
-    - cleanup_stage: cleanup_temp_files_cog (capture_uuid passed as runtime arg)
+    - setup_stage: setup_post_processing_cog (capture_uuid and processing_types passed as runtime args)
+    - process_stage: process_waterfall_data_cog (capture_uuid passed as runtime arg, depends on setup_stage)
     """
     return {
         "pipeline_name": "Waterfall Processing",
         "stages": [
             {
-                "name": "download_stage",
-                "description": "Download DigitalRF files from storage",
+                "name": "setup_stage",
+                "description": "Setup post-processing (validate capture, create records)",
                 "tasks": [
                     {
-                        "name": "download_files",
-                        "cog": "download_capture_files_cog",
+                        "name": "setup_processing",
+                        "cog": "setup_post_processing_cog",
                         "args": {},
-                        "description": "Download capture files",
+                        "description": "Setup post-processing",
                     }
                 ],
             },
             {
                 "name": "process_stage",
-                "description": "Process waterfall data",
-                "depends_on": ["download_stage"],
+                "description": "Process waterfall data (downloads, processes, and stores)",
+                "depends_on": ["setup_stage"],
                 "tasks": [
                     {
                         "name": "process_waterfall",
@@ -207,41 +269,13 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
                     }
                 ],
             },
-            {
-                "name": "store_stage",
-                "description": "Store processed waterfall data",
-                "depends_on": ["process_stage"],
-                "tasks": [
-                    {
-                        "name": "store_waterfall",
-                        "cog": "store_processed_data_cog",
-                        "args": {
-                            "processing_type": "waterfall",  # Static arg for processing type
-                        },
-                        "description": "Store waterfall data",
-                    }
-                ],
-            },
-            {
-                "name": "cleanup_stage",
-                "description": "Clean up temporary files",
-                "depends_on": ["store_stage"],
-                "tasks": [
-                    {
-                        "name": "cleanup_files",
-                        "cog": "cleanup_temp_files_cog",
-                        "args": {},
-                        "description": "Clean up temporary files",
-                    }
-                ],
-            },
         ],
     }
 
 
 # Pipeline registry for easy access
 PIPELINE_CONFIGS = {
-    "waterfall": get_waterfall_pipeline_config,
+    "waterfall": get_waterfall_pipeline_config,  # Simplified single-step pipeline
 }
 
 
