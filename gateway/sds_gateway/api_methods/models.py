@@ -816,10 +816,12 @@ class PostProcessedData(BaseModel):
         help_text="Processing parameters (FFT size, window type, etc.)",
     )
 
-    # Data storage
+    # Data storage - file-based
     data_file = models.FileField(
         upload_to="post_processed_data/",
         help_text="File containing the processed data",
+        blank=True,
+        null=True,
     )
 
     # Metadata (stored as JSON for flexibility)
@@ -872,9 +874,8 @@ class PostProcessedData(BaseModel):
     @property
     def is_ready(self) -> bool:
         """Check if the processed data is ready for use."""
-        return (
-            self.processing_status == ProcessingStatus.Completed.value
-            and self.data_file.name
+        return self.processing_status == ProcessingStatus.Completed.value and bool(
+            self.data_file.name
         )
 
     def mark_processing_started(
@@ -913,6 +914,16 @@ class PostProcessedData(BaseModel):
         """Set a value in the metadata JSON field."""
         self.metadata[key] = value
         self.save(update_fields=["metadata"])
+
+    def get_processed_data(self) -> str | None:
+        """Get the processed data file path."""
+        return self.data_file.name if self.data_file.name else None
+
+    def set_processed_data_file(self, file_path: str, filename: str) -> None:
+        """Set the processed data file."""
+        with open(file_path, "rb") as f:
+            self.data_file.save(filename, f, save=False)
+        self.save(update_fields=["data_file"])
 
 
 def _extract_drf_capture_props(

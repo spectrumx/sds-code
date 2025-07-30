@@ -70,7 +70,10 @@ class PostProcessedDataAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissing
                 )
             },
         ),
-        ("Data & Metadata", {"fields": ("data_file", "metadata", "processing_error")}),
+        (
+            "Data & Metadata",
+            {"fields": ("data_file", "metadata", "processing_error")},
+        ),
         (
             "Timestamps",
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
