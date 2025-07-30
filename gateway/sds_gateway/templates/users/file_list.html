@@ -305,7 +305,7 @@
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                     <button type="submit" class="btn btn-primary" id="uploadSubmitBtn">
-                                        <span class="upload-text">Upload</span>
+                                        <span class="upload-text">Create Capture</span>
                                         <span class="upload-spinner d-none">
                                             <span class="spinner-border spinner-border-sm me-2"
                                                   role="status"
@@ -334,6 +334,30 @@
                                         aria-label="Close"></button>
                             </div>
                             <div class="modal-body" id="uploadResultModalBody">
+                                <!-- Content will be set by JS -->
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- File Status Result Modal -->
+                <div class="modal fade"
+                     id="fileStatusResultModal"
+                     tabindex="-1"
+                     aria-labelledby="fileStatusResultModalLabel"
+                     aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="fileStatusResultModalLabel">File Status Results</h5>
+                                <button type="button"
+                                        class="btn-close"
+                                        data-bs-dismiss="modal"
+                                        aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body" id="fileStatusResultModalBody">
                                 <!-- Content will be set by JS -->
                             </div>
                             <div class="modal-footer">
@@ -511,14 +535,167 @@
                     topLevelFolder = files[0].webkitRelativePath.split('/')[0];
                 }
                 formData.append('top_level_folder', topLevelFolder);
+                // Add capture type
+                const captureType = document.getElementById('captureTypeSelect').value;
+                formData.append('capture_type', captureType);
                 // Add channels field
                 const channels = document.getElementById('captureChannelsInput').value;
                 formData.append('channels', channels);
+                // Add scan group field
+                const scanGroup = document.getElementById('captureScanGroupInput').value;
+                formData.append('scan_group', scanGroup);
+
+                // Filter out files that should be skipped
+                const filesToUpload = [];
+                const relativePathsToUpload = [];
+
+                // Debug logging
+                console.log('Sending form data:', {
+                    capture_type: captureType,
+                    channels: channels,
+                    scan_group: scanGroup,
+                    files_count: filesToUpload.length
+                });
+
                 for (let i = 0; i < files.length; i++) {
-                    // Send file with its original name
-                    formData.append('files', files[i]);
-                    // Send the relative path as a separate field
-                    formData.append('relative_paths', files[i].webkitRelativePath || files[i].name);
+                    const file = files[i];
+                    const relativePath = file.webkitRelativePath || file.name;
+
+                    // Calculate directory for this file
+                    let directory = "/";
+                    if (file.webkitRelativePath) {
+                        const pathParts = file.webkitRelativePath.split('/');
+                        if (pathParts.length > 1) {
+                            pathParts.pop();
+                            directory = "/" + pathParts.join("/");
+                        }
+                    }
+
+                    const fileKey = `${directory}/${file.name}`;
+
+                    // Check if this file should be skipped
+                    if (window.filesToSkip.has(fileKey)) {
+                        //console.log(`Skipping file: ${file.name} (exists in tree)`);
+                        continue;
+                    }
+
+                    // Add file to upload list
+                    filesToUpload.push(file);
+                    relativePathsToUpload.push(relativePath);
+                }
+
+                // Check if we have any files to upload
+                if (filesToUpload.length === 0) {
+                    console.log('All files skipped, but will still create captures using original directory structure');
+
+                    // Create a special FormData for capture-only creation
+                    const captureOnlyFormData = new FormData();
+                    captureOnlyFormData.append('top_level_folder', topLevelFolder);
+                    captureOnlyFormData.append('capture_type', captureType);
+                    captureOnlyFormData.append('channels', channels);
+                    captureOnlyFormData.append('scan_group', scanGroup);
+
+                    // Debug logging for capture-only
+                    console.log('Sending capture-only form data:', {
+                        capture_type: captureType,
+                        channels: channels,
+                        scan_group: scanGroup,
+                        files_count: files.length
+                    });
+
+                    // Add empty files and original relative paths to maintain directory structure
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        const relativePath = file.webkitRelativePath || file.name;
+
+                        // Add empty file (will be ignored by backend but maintains structure)
+                        const emptyBlob = new Blob([], {
+                            type: 'application/octet-stream'
+                        });
+                        const emptyFile = new File([emptyBlob], file.name, {
+                            type: 'application/octet-stream'
+                        });
+                        captureOnlyFormData.append('files', emptyFile);
+                        captureOnlyFormData.append('relative_paths', relativePath);
+                    }
+
+                    // Send capture-only request
+                    fetch("{% url 'users:upload_files' %}", {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: captureOnlyFormData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            // Reset uploading state
+                            const uploadBtn = document.getElementById('uploadSubmitBtn');
+                            const uploadText = uploadBtn.querySelector('.upload-text');
+                            const uploadSpinner = uploadBtn.querySelector('.upload-spinner');
+                            uploadText.classList.remove('d-none');
+                            uploadSpinner.classList.add('d-none');
+                            uploadBtn.disabled = false;
+
+                            let modalBody = document.getElementById('uploadResultModalBody');
+                            let resultModalEl = document.getElementById('uploadResultModal');
+                            let modal = new bootstrap.Modal(resultModalEl);
+
+                            // Close the upload modal before showing result modal
+                            const uploadModal = bootstrap.Modal.getInstance(document.getElementById('uploadCaptureModal'));
+                            if (uploadModal) {
+                                uploadModal.hide();
+                            }
+
+                            // Add event listener for reload on close
+                            resultModalEl.addEventListener('hidden.bs.modal', function handler() {
+                                location.reload();
+                                resultModalEl.removeEventListener('hidden.bs.modal', handler);
+                            });
+
+                            if (data.status === 'success' || data.status === 'partial_success') {
+                                let msg = `<b>Capture creation complete!</b><br />All files already existed and were skipped.`;
+                                if (data.captures && data.captures.length > 0) {
+                                    let uuids = data.captures.map(c => `<li>${c.uuid}</li>`).join('');
+                                    msg += `<br />Created capture UUID(s):<ul>${uuids}</ul>`;
+                                }
+                                if (data.errors && data.errors.length > 0) {
+                                    let errs = data.errors.map(e => `<li>${e}</li>`).join('');
+                                    msg += `<br /><b>Errors:</b><ul>${errs}</ul>`;
+                                }
+                                modalBody.innerHTML = msg;
+                                modal.show();
+                            } else {
+                                let msg = 'Capture creation failed: ' + (data.error || 'Unknown error');
+                                if (data.errors && data.errors.length > 0) {
+                                    let errs = data.errors.map(e => `<li>${e}</li>`).join('');
+                                    msg += `<br /><b>Errors:</b><ul>${errs}</ul>`;
+                                }
+                                modalBody.innerHTML = msg;
+                                modal.show();
+                            }
+                        })
+                        .catch(error => {
+                            // Reset uploading state
+                            const uploadBtn = document.getElementById('uploadSubmitBtn');
+                            const uploadText = uploadBtn.querySelector('.upload-text');
+                            const uploadSpinner = uploadBtn.querySelector('.upload-spinner');
+                            uploadText.classList.remove('d-none');
+                            uploadSpinner.classList.add('d-none');
+                            uploadBtn.disabled = false;
+
+                            showUploadAlert('Upload failed: ' + error, 'danger');
+                        });
+
+                    return;
+                }
+
+                //console.log(`Uploading ${filesToUpload.length} files (${files.length - filesToUpload.length} skipped)`);
+
+                // Add files to FormData
+                for (let i = 0; i < filesToUpload.length; i++) {
+                    formData.append('files', filesToUpload[i]);
+                    formData.append('relative_paths', relativePathsToUpload[i]);
                 }
                 fetch("{% url 'users:upload_files' %}", {
                         method: 'POST',
@@ -539,10 +716,10 @@
                         uploadBtn.disabled = false;
 
                         // Debug logging
-                        console.log('Upload response data:', data);
-                        console.log('Status:', data.status);
-                        console.log('Captures:', data.captures);
-                        console.log('Errors:', data.errors);
+                        //console.log('Upload response data:', data);
+                        //console.log('Status:', data.status);
+                        //console.log('Captures:', data.captures);
+                        //console.log('Errors:', data.errors);
 
                         let modalBody = document.getElementById('uploadResultModalBody');
                         let resultModalEl = document.getElementById('uploadResultModal');
@@ -643,7 +820,7 @@
             if (captureTypeSelect) {
                 captureTypeSelect.addEventListener('change', function() {
                     const selectedType = this.value;
-                    console.log('Capture type selected:', selectedType);
+                    //console.log('Capture type selected:', selectedType);
 
                     // Hide both input groups initially
                     if (channelInputGroup) channelInputGroup.classList.add('hidden-input-group');
@@ -655,11 +832,11 @@
 
                     // Show appropriate input group based on selection
                     if (selectedType === 'drf') {
-                        console.log('Showing channel input for DigitalRF');
+                        //console.log('Showing channel input for DigitalRF');
                         if (channelInputGroup) channelInputGroup.classList.remove('hidden-input-group');
                         if (captureChannelsInput) captureChannelsInput.setAttribute('required', 'required');
                     } else if (selectedType === 'rh') {
-                        console.log('Showing scan group input for RadioHound');
+                        //console.log('Showing scan group input for RadioHound');
                         if (scanGroupInputGroup) scanGroupInputGroup.classList.remove('hidden-input-group');
                         if (captureScanGroupInput) captureScanGroupInput.setAttribute('required', 'required');
                     }
@@ -683,6 +860,31 @@
                     // Clear required attributes
                     if (captureChannelsInput) captureChannelsInput.removeAttribute('required');
                     if (captureScanGroupInput) captureScanGroupInput.removeAttribute('required');
+
+                    // Clear file check status
+                    const checkStatusDiv = document.getElementById('fileCheckStatus');
+                    if (checkStatusDiv) {
+                        checkStatusDiv.style.display = 'none';
+                    }
+
+                    // Clear status alerts and file details button
+                    const uploadModalBody = document.querySelector('#uploadCaptureModal .modal-body');
+                    const existingAlerts = uploadModalBody.querySelectorAll('.alert.alert-warning, .alert.alert-success');
+                    existingAlerts.forEach(alert => {
+                        if (alert.textContent.includes('will be skipped') || alert.textContent.includes('will be uploaded')) {
+                            alert.remove();
+                        }
+                    });
+
+                    // Remove file details button
+                    const detailsLink = uploadModalBody.querySelector('#viewFileDetailsLink');
+                    if (detailsLink) {
+                        detailsLink.parentNode.remove();
+                    }
+
+                    // Clear global variables
+                    window.filesToSkip.clear();
+                    window.fileCheckResults.clear();
                 });
             }
         });
@@ -691,6 +893,10 @@
     <!-- Load the WASM library first -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
     <script>
+        // Global variable to track files that should be skipped
+        window.filesToSkip = new Set();
+        window.fileCheckResults = new Map(); // Store detailed results for each file
+
         document.addEventListener('DOMContentLoaded', function() {
             var modal = document.getElementById('uploadCaptureModal');
             if (!modal) {
@@ -707,47 +913,254 @@
                 fileInput.removeEventListener('change', window._blake3CaptureHandler);
 
                 window._blake3CaptureHandler = async function(event) {
-                    console.log('File input changed!');
+                    //console.log('File input changed!');
                     const files = event.target.files;
                     if (!files || files.length === 0) {
-                        console.log("No files selected.");
+                        //console.log("No files selected.");
+                        // Clear previous results
+                        window.filesToSkip.clear();
+                        window.fileCheckResults.clear();
+                        updateFileStatusDisplay();
                         return;
                     }
-                    for (const file of files) {
+
+                    // Clear previous results and displays
+                    window.filesToSkip.clear();
+                    window.fileCheckResults.clear();
+
+                    // Clear previous status alerts and file details button
+                    const uploadModalBody = document.querySelector('#uploadCaptureModal .modal-body');
+                    const existingAlerts = uploadModalBody.querySelectorAll('.alert.alert-warning, .alert.alert-success');
+                    existingAlerts.forEach(alert => {
+                        if (alert.textContent.includes('will be skipped') || alert.textContent.includes('will be uploaded')) {
+                            alert.remove();
+                        }
+                    });
+
+                    // Remove previous file details button
+                    const detailsLink = uploadModalBody.querySelector('#viewFileDetailsLink');
+                    if (detailsLink) {
+                        detailsLink.parentNode.remove();
+                    }
+
+                    // Clear previous checking status
+                    const checkStatusDiv = document.getElementById('fileCheckStatus');
+                    if (checkStatusDiv) {
+                        checkStatusDiv.style.display = 'none';
+                    }
+
+                    // Show checking status
+                    showFileCheckingStatus(files.length);
+
+                    // Process each file
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        //console.log(`Processing file ${i + 1}/${files.length}: ${file.name}`);
+
                         const buffer = await file.arrayBuffer();
                         const hasher = await hashwasm.createBLAKE3(); // async!
                         hasher.init();
                         hasher.update(new Uint8Array(buffer));
                         const hashHex = hasher.digest('hex');
-                        console.log(`BLAKE3 hash for ${file.name}:`, hashHex);
+                        //console.log(`BLAKE3 hash for ${file.name}:`, hashHex);
 
-                        // Send checksum to Django endpoint
+                        // Calculate directory path from file's webkitRelativePath
+                        let directory = "/";
+                        if (file.webkitRelativePath) {
+                            // Extract directory from relative path
+                            const pathParts = file.webkitRelativePath.split('/');
+                            if (pathParts.length > 1) {
+                                // Remove the filename from the path
+                                pathParts.pop();
+                                directory = "/" + pathParts.join("/");
+                            }
+                        }
+                        //console.log(`Calculated directory for ${file.name}:`, directory);
+
+                        // Send checksum to Django endpoint with proper directory
                         const checkData = {
-                            directory: "/", // You can modify this based on your needs
+                            directory: directory,
                             filename: file.name,
                             checksum: hashHex
                         };
 
-                        fetch("{% url 'users:check_file_exists' %}", {
+                        try {
+                            const response = await fetch("{% url 'users:check_file_exists' %}", {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
                                     'X-CSRFToken': '{{ csrf_token }}'
                                 },
                                 body: JSON.stringify(checkData)
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                console.log(`File ${file.name} exists:`, data.exists);
-                                console.log(`Response data:`, data.data);
-                            })
-                            .catch(error => {
-                                console.error(`Error checking file ${file.name}:`, error);
                             });
+                            const data = await response.json();
+
+                            // Store the result
+                            const fileKey = `${directory}/${file.name}`;
+                            window.fileCheckResults.set(fileKey, {
+                                file: file,
+                                directory: directory,
+                                filename: file.name,
+                                checksum: hashHex,
+                                exists: data.exists,
+                                data: data.data
+                            });
+
+                            // Log the file_exists_in_tree result specifically
+                            if (data.data && typeof data.data === 'object') {
+                                //console.log(`File exists in tree:`, data.data.file_exists_in_tree);
+                                //console.log(`File contents exist for user:`, data.data.file_contents_exist_for_user);
+                                //console.log(`User mutable attributes differ:`, data.data.user_mutable_attributes_differ);
+                                //console.log(`Asset ID:`, data.data.asset_id);
+
+                                // If file exists in tree, mark it for skipping
+                                if (data.data.file_exists_in_tree === true) {
+                                    window.filesToSkip.add(fileKey);
+                                    //console.log(`File ${file.name} will be skipped (exists in tree)`);
+                                }
+                            }
+                        } catch (error) {
+                            console.error(`Error checking file ${file.name}:`, error);
+                            // If we can't check, we'll upload it anyway
+                        }
                     }
+
+                    // Update the display after all files are processed
+                    updateFileStatusDisplay();
+                    hideFileCheckingStatus();
                 };
                 fileInput.addEventListener('change', window._blake3CaptureHandler);
             });
         });
+
+        // Function to show file checking status
+        function showFileCheckingStatus(fileCount) {
+            const statusDiv = document.getElementById('fileCheckStatus') || createFileCheckStatusDiv();
+            statusDiv.innerHTML = `<div class="alert alert-info">
+                <i class="fas fa-spinner fa-spin"></i> Checking ${fileCount} file(s) for duplicates...
+            </div>`;
+            statusDiv.style.display = 'block';
+
+            // Move the status div to appear right after the file input field
+            const fileInput = document.getElementById('captureFileInput');
+            if (fileInput && statusDiv) {
+                fileInput.parentNode.insertBefore(statusDiv, fileInput.nextSibling);
+            }
+        }
+
+        // Function to hide file checking status
+        function hideFileCheckingStatus() {
+            const statusDiv = document.getElementById('fileCheckStatus');
+            if (statusDiv) {
+                statusDiv.style.display = 'none';
+            }
+        }
+
+        // Function to create file check status div if it doesn't exist
+        function createFileCheckStatusDiv() {
+            const modalBody = document.querySelector('#uploadCaptureModal .modal-body');
+            const statusDiv = document.createElement('div');
+            statusDiv.id = 'fileCheckStatus';
+            statusDiv.style.display = 'none';
+            modalBody.appendChild(statusDiv);
+            return statusDiv;
+        }
+
+        // Function to update file status display
+        function updateFileStatusDisplay() {
+            if (window.fileCheckResults.size === 0) {
+                return;
+            }
+
+            let skippedCount = 0;
+            let uploadCount = 0;
+
+            // Count files first
+            for (const [fileKey, result] of window.fileCheckResults) {
+                const isSkipped = window.filesToSkip.has(fileKey);
+                if (isSkipped) skippedCount++;
+                else uploadCount++;
+            }
+
+            // Add status alerts to the upload modal
+            const uploadModalBody = document.querySelector('#uploadCaptureModal .modal-body');
+
+            // Remove any existing status alerts
+            const existingAlerts = uploadModalBody.querySelectorAll('.alert.alert-warning, .alert.alert-success');
+            existingAlerts.forEach(alert => {
+                if (alert.textContent.includes('will be skipped') || alert.textContent.includes('will be uploaded')) {
+                    alert.remove();
+                }
+            });
+
+            // Create status alerts HTML
+            let statusHtml = '';
+            if (skippedCount > 0) {
+                statusHtml += `<div class="alert alert-warning mt-3">
+                    <i class="fas fa-info-circle"></i> ${skippedCount} file(s) will be skipped because they already exist.
+                    <br /><small class="text-muted">You can still create captures for these files if you don't have captures for them yet. Just proceed by clicking the "Create Captures" button.</small>
+                </div>`;
+            }
+            if (uploadCount > 0) {
+                statusHtml += `<div class="alert alert-success mt-3">
+                    <i class="fas fa-upload"></i> ${uploadCount} file(s) will be uploaded.
+                </div>`;
+            }
+
+            // Add new status alerts after the file input
+            const fileInput = document.getElementById('captureFileInput');
+            if (fileInput && statusHtml) {
+                const statusDiv = document.createElement('div');
+                statusDiv.innerHTML = statusHtml;
+                fileInput.parentNode.insertBefore(statusDiv, fileInput.nextSibling);
+
+                // Add "View Details" link if there are files to show details for
+                if (window.fileCheckResults.size > 0) {
+                    const detailsLink = document.createElement('div');
+                    detailsLink.className = 'mt-2';
+                    detailsLink.innerHTML = `<a href="#" class="btn btn-sm btn-outline-info" id="viewFileDetailsLink">
+                        <i class="fas fa-list"></i> View File Details
+                    </a>`;
+                    statusDiv.appendChild(detailsLink);
+
+                    // Add click handler for the details link
+                    const link = detailsLink.querySelector('#viewFileDetailsLink');
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        showFileDetailsModal();
+                    });
+                }
+            }
+        }
+
+        // Function to show file details modal
+        function showFileDetailsModal() {
+            if (window.fileCheckResults.size === 0) {
+                return;
+            }
+
+            let html = '<div class="mb-3"><h6>File Status Summary:</h6><ul class="list-unstyled">';
+
+            for (const [fileKey, result] of window.fileCheckResults) {
+                const isSkipped = window.filesToSkip.has(fileKey);
+                const statusClass = isSkipped ? 'text-warning' : 'text-success';
+                const statusIcon = isSkipped ? 'fas fa-times-circle' : 'fas fa-check-circle';
+                const statusText = isSkipped ? 'Will be skipped (already exists)' : 'Will be uploaded';
+
+                html += `<li class="${statusClass} mb-2">
+                    <i class="${statusIcon}"></i> ${result.filename} - ${statusText}
+                </li>`;
+            }
+
+            html += '</ul></div>';
+
+            // Show the modal
+            const modalBody = document.getElementById('fileStatusResultModalBody');
+            const modalEl = document.getElementById('fileStatusResultModal');
+            const modal = new bootstrap.Modal(modalEl);
+
+            modalBody.innerHTML = html;
+            modal.show();
+        }
     </script>
 {% endblock javascript %}

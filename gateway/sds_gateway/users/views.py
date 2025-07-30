@@ -1824,6 +1824,15 @@ class UploadFilesView(View):
             filename = path.name
             file_size = f.size
             content_type = getattr(f, "content_type", "application/octet-stream")
+
+            # Skip empty files (these are placeholders for skipped files)
+            if file_size == 0:
+                logger.info(
+                    "Skipping empty file: %s (likely a placeholder for skipped file)",
+                    filename,
+                )
+                continue
+
             file_data = {
                 "owner": request.user.pk,
                 "name": filename,
@@ -1832,7 +1841,7 @@ class UploadFilesView(View):
                 "size": file_size,
                 "media_type": content_type,
             }
-            responses, errors = upload_file_helper_simple(request, file_data)
+            responses, upload_errors = upload_file_helper_simple(request, file_data)
             for response in responses:
                 if response.status_code in (
                     status.HTTP_200_OK,
@@ -1861,24 +1870,39 @@ class UploadFilesView(View):
                     error_msg = f"Failed to upload {filename}: {response.data}"
                     errors.append(error_msg)
                     logger.error(error_msg)
+            errors.extend(upload_errors)
         errors.extend(skipped_files)
         return saved_files, errors
 
-    def _create_single_capture(self, request, channel, top_level_dir):
+    def _create_single_capture(
+        self, request, channel, top_level_dir, capture_type, scan_group
+    ):
         """Create a single capture for a channel.
 
         Returns (capture_data, error) where capture_data is the created capture
         data or None if creation failed, and error is the error message or None.
         """
         try:
+            # Determine capture type
+            if capture_type == "rh":
+                capture_type_enum = CaptureType.RadioHound
+            else:
+                capture_type_enum = CaptureType.DigitalRF
+
             # Prepare capture data for the helper function
             capture_data = {
-                "capture_type": CaptureType.DigitalRF,
-                "channel": channel,
+                "capture_type": capture_type_enum,
                 "top_level_dir": str(top_level_dir),
             }
 
+            # Add appropriate field based on capture type
+            if capture_type == "rh":
+                capture_data["scan_group"] = scan_group
+            else:
+                capture_data["channel"] = channel
+
             # Use the helper function to create the capture
+            logger.info("Creating capture with data: %s", capture_data)
             responses, capture_errors = create_capture_helper_simple(
                 request, capture_data
             )
@@ -1929,7 +1953,9 @@ class UploadFilesView(View):
             )
             return None, f"Unexpected error for channel {channel}: {exc}"
 
-    def _create_captures(self, request, channels, relative_paths):
+    def _create_captures(
+        self, request, channels, relative_paths, capture_type, scan_group
+    ):
         """Create captures using the capture helper function.
 
         Uses create_capture_helper_simple() to create captures for each channel.
@@ -1938,8 +1964,13 @@ class UploadFilesView(View):
         created_captures = []
         errors = []
 
-        if not channels:
-            return created_captures, errors
+        logger.info(
+            "_create_captures called with - channels: %s, capture_type: %s, "
+            "scan_group: %s",
+            channels,
+            capture_type,
+            scan_group,
+        )
 
         # Determine top level directory from relative paths
         if relative_paths:
@@ -1951,54 +1982,101 @@ class UploadFilesView(View):
         else:
             top_level_dir = "/"
 
-        for channel in channels:
+        logger.info(
+            "Starting capture creation - channels: %s, capture_type: %s, "
+            "scan_group: %s, top_level_dir: %s",
+            channels,
+            capture_type,
+            scan_group,
+            top_level_dir,
+        )
+
+        if capture_type == "rh":
+            # For RadioHound, create a single capture with scan_group
+            logger.info("Creating RadioHound capture with scan_group: %s", scan_group)
             capture_data, error = self._create_single_capture(
-                request, channel, top_level_dir
+                request, "", top_level_dir, capture_type, scan_group
             )
             if capture_data:
                 created_captures.append(capture_data)
+                logger.info(
+                    "Successfully created RadioHound capture: %s",
+                    capture_data.get("uuid", "unknown"),
+                )
             if error:
                 errors.append(error)
+                logger.error("Failed to create RadioHound capture: %s", error)
+        else:
+            # For DigitalRF, create captures for each channel
+            for channel in channels:
+                logger.info("Creating DigitalRF capture for channel: %s", channel)
+                capture_data, error = self._create_single_capture(
+                    request, channel, top_level_dir, capture_type, scan_group
+                )
+                if capture_data:
+                    created_captures.append(capture_data)
+                    logger.info(
+                        "Successfully created DigitalRF capture: %s",
+                        capture_data.get("uuid", "unknown"),
+                    )
+                if error:
+                    errors.append(error)
+                    logger.error(
+                        "Failed to create DigitalRF capture for channel %s: %s",
+                        channel,
+                        error,
+                    )
 
         if errors:
             logger.error("Capture creation errors: %s", errors)
 
         return created_captures, errors
 
-    def post(self, request, *args, **kwargs):
+    def _parse_upload_request(self, request):
+        """Parse upload request parameters."""
         files = request.FILES.getlist("files")
         relative_paths = request.POST.getlist("relative_paths")
         channels_str = request.POST.get("channels", "")
         channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
-        saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
-        created_captures = []
-        file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
-        # Only create captures if all uploads succeeded
-        capture_errors = []
-        if saved_files and len(saved_files) == len(files) and not errors:
-            created_captures, capture_errors = self._create_captures(
-                request, channels, relative_paths
-            )
-            # Link all uploaded files to all created captures
-            from sds_gateway.api_methods.models import Capture
-            from sds_gateway.api_methods.models import File
+        scan_group = request.POST.get("scan_group", "")
+        capture_type = request.POST.get("capture_type", "drf")  # Default to DigitalRF
 
-            if created_captures:
-                # Get File objects by uuid
-                file_objs = File.objects.filter(uuid__in=file_uuids)
-                capture_uuids = [c["uuid"] for c in created_captures if c.get("uuid")]
-                captures = Capture.objects.filter(uuid__in=capture_uuids)
-                for capture in captures:
-                    file_objs.update(capture=capture)
-        elif errors:
-            logger.error(
-                "File upload errors occurred, skipping capture creation. Errors: %s",
-                errors,
-            )
+        return files, relative_paths, channels, scan_group, capture_type
+
+    def _check_required_fields(self, capture_type, channels, scan_group):
+        """Check if required fields are provided for capture creation."""
+        if capture_type == "rh":
+            return bool(scan_group.strip())
+        return bool(channels)
+
+    def _determine_response_status(
+        self,
+        saved_files,
+        created_captures,
+        all_files_empty,
+        has_required_fields,
+        files,
+        errors,
+    ):
+        """Determine the response status based on upload and capture creation
+        results."""
+        if all_files_empty:
+            # If all files were empty (skipped) and we have required fields,
+            # this is a success even if no captures were created
+            # (they might already exist)
+            return "success" if has_required_fields else "error"
+        if saved_files and len(saved_files) == len(files) and not errors:
+            return "success"
+        if saved_files:
+            return "partial_success"
+        return "error"
+
+    def _build_response_data(
+        self, status, saved_files, created_captures, files, errors, capture_errors
+    ):
+        """Build the response data dictionary."""
         response_data = {
-            "status": "success"
-            if saved_files and len(saved_files) == len(files) and not errors
-            else ("partial_success" if saved_files else "error"),
+            "status": status,
             "files": saved_files,
             "total_uploaded": len(saved_files),
             "total_files": len(files),
@@ -2012,7 +2090,168 @@ class UploadFilesView(View):
             all_errors.extend(capture_errors)
         if all_errors:
             response_data["errors"] = all_errors
-        status_code = 200 if saved_files else 400
+        return response_data
+
+    def _determine_status_code(
+        self, saved_files, created_captures, all_files_empty, has_required_fields
+    ):
+        """Determine the HTTP status code for the response."""
+        return (
+            200
+            if (
+                saved_files
+                or created_captures
+                or (all_files_empty and has_required_fields)
+            )
+            else 400
+        )
+
+    def _handle_capture_creation(
+        self,
+        request,
+        channels,
+        relative_paths,
+        capture_type,
+        scan_group,
+        saved_files,
+        all_files_empty,
+        has_required_fields,
+    ):
+        """Handle capture creation logic."""
+        capture_errors = []
+        created_captures = []
+
+        if has_required_fields:
+            logger.info(
+                "Creating captures - saved_files: %s, all_files_empty: %s, "
+                "has_required_fields: %s, capture_type: %s, channels: %s, "
+                "scan_group: %s",
+                len(saved_files),
+                all_files_empty,
+                has_required_fields,
+                capture_type,
+                channels,
+                scan_group,
+            )
+            try:
+                logger.info("About to call _create_captures method")
+                created_captures, capture_errors = self._create_captures(
+                    request, channels, relative_paths, capture_type, scan_group
+                )
+                logger.info(
+                    "Capture creation completed - created_captures: %s, "
+                    "capture_errors: %s",
+                    len(created_captures),
+                    capture_errors,
+                )
+            except Exception as e:
+                logger.exception("Error during capture creation")
+                capture_errors = [f"Capture creation failed: {e!s}"]
+                created_captures = []
+        else:
+            logger.info("Skipping capture creation - no required fields provided")
+            created_captures = []
+            capture_errors = []
+
+        return created_captures, capture_errors
+
+    def post(self, request, *args, **kwargs):
+        files, relative_paths, channels, scan_group, capture_type = (
+            self._parse_upload_request(request)
+        )
+
+        # Debug logging to see what we're receiving
+        logger.info(
+            "Upload request received - capture_type: %s, channels: %s, scan_group: %s, "
+            "files_count: %s, relative_paths_count: %s",
+            capture_type,
+            channels,
+            scan_group,
+            len(files),
+            len(relative_paths),
+        )
+
+        saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
+        created_captures = []
+        file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
+
+        # Check if all files were empty (skipped)
+        all_files_empty = all(f.size == 0 for f in files) if files else False
+
+        # Create captures if:
+        # 1. All uploads succeeded, OR
+        # 2. We have required fields (regardless of file upload status)
+        capture_errors = []
+        # Check if we have the required fields for capture creation
+        has_required_fields = self._check_required_fields(
+            capture_type, channels, scan_group
+        )
+
+        if has_required_fields:
+            logger.info(
+                "Creating captures - saved_files: %s, all_files_empty: %s, "
+                "has_required_fields: %s, capture_type: %s, channels: %s, "
+                "scan_group: %s",
+                len(saved_files),
+                all_files_empty,
+                has_required_fields,
+                capture_type,
+                channels,
+                scan_group,
+            )
+            try:
+                logger.info("About to call _create_captures method")
+                created_captures, capture_errors = self._create_captures(
+                    request, channels, relative_paths, capture_type, scan_group
+                )
+                logger.info(
+                    "Capture creation completed - created_captures: %s, "
+                    "capture_errors: %s",
+                    len(created_captures),
+                    capture_errors,
+                )
+            except Exception as e:
+                logger.exception("Error during capture creation")
+                capture_errors = [f"Capture creation failed: {e!s}"]
+                created_captures = []
+        else:
+            logger.info("Skipping capture creation - no required fields provided")
+            created_captures = []
+            capture_errors = []
+
+        # Link all uploaded files to all created captures
+        # (only if files were actually uploaded)
+        if saved_files and created_captures:
+            # Get File objects by uuid
+            file_objs = File.objects.filter(uuid__in=file_uuids)
+            capture_uuids = [c["uuid"] for c in created_captures if c.get("uuid")]
+            captures = Capture.objects.filter(uuid__in=capture_uuids)
+            for capture in captures:
+                file_objs.update(capture=capture)
+        elif errors and not all_files_empty:
+            logger.error(
+                "File upload errors occurred, skipping capture creation. Errors: %s",
+                errors,
+            )
+
+        # Determine status
+        status = self._determine_response_status(
+            saved_files,
+            created_captures,
+            all_files_empty,
+            has_required_fields,
+            files,
+            errors,
+        )
+
+        response_data = self._build_response_data(
+            status, saved_files, created_captures, files, errors, capture_errors
+        )
+        # Return 200 if we have files saved, captures created, or if all files were
+        # skipped with required fields
+        status_code = self._determine_status_code(
+            saved_files, created_captures, all_files_empty, has_required_fields
+        )
         return JsonResponse(response_data, status=status_code)
 
 

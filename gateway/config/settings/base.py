@@ -498,3 +498,10 @@ SDS_NEW_USERS_APPROVED_ON_CREATION: bool = env.bool(
     "SDS_NEW_USERS_APPROVED_ON_CREATION",
     default=False,
 )
+
+# File upload limits
+# ------------------------------------------------------------------------------
+# Maximum number of files that can be uploaded at once
+DATA_UPLOAD_MAX_NUMBER_FILES: int = env.int(
+    "DATA_UPLOAD_MAX_NUMBER_FILES", default=1000
+)
