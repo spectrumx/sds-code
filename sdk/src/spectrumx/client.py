@@ -10,6 +10,7 @@ from loguru import logger as log
 from pydantic import UUID4
 
 from spectrumx.api.captures import CaptureAPI
+from spectrumx.api.datasets import DatasetAPI
 from spectrumx.errors import CaptureError
 from spectrumx.errors import Result
 from spectrumx.errors import SDSError
@@ -77,6 +78,10 @@ class Client:
             gateway=self._gateway,
             dry_run=self.dry_run,
         )
+        self.datasets = DatasetAPI(
+            gateway=self._gateway,
+            dry_run=self.dry_run,
+        )
 
         self._issue_user_alerts()
 
@@ -104,7 +109,7 @@ class Client:
         self._verbose = bool(value)
         self._gateway.verbose = self._verbose
         self.captures.verbose = self._verbose
-        self.captures.verbose = self._verbose
+        self.datasets.verbose = self._verbose
         # add future API instances here
 
     @property
@@ -118,6 +123,7 @@ class Client:
 
         self._config.dry_run = bool(value)
         self.captures.dry_run = self._config.dry_run
+        self.datasets.dry_run = self._config.dry_run
         # add future API instances here
 
         msg = (
@@ -589,6 +595,30 @@ class Client:
             else:
                 captures.append(capture)
         return captures
+
+    def download_dataset(
+        self,
+        *,
+        dataset_uuid: UUID4 | str,
+        to_local_path: Path | str,
+    ) -> Path:
+        """Downloads a dataset as a ZIP file from SDS.
+
+        Args:
+            dataset_uuid: The UUID of the dataset to download.
+            to_local_path: The local path to save the downloaded ZIP file to.
+        Returns:
+            The path to the downloaded ZIP file.
+        Raises:
+            DatasetError: If the dataset couldn't be downloaded.
+        """
+        if isinstance(dataset_uuid, str):
+            dataset_uuid = UUID(dataset_uuid)
+
+        return self.datasets.download(
+            dataset_uuid=dataset_uuid,
+            to_local_path=to_local_path,
+        )
 
 
 __all__ = ["Client"]

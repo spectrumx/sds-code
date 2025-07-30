@@ -25,6 +25,7 @@ from spectrumx.models.captures import CaptureType
 
 from .errors import AuthError
 from .errors import CaptureError
+from .errors import DatasetError
 from .errors import FileError
 from .models.files import File
 from .models.files import FileUpload
@@ -588,3 +589,27 @@ class GatewayClient:
         network.success_or_raise(response, ContextException=CaptureError)
         if self.verbose:
             log.debug(f"Capture with UUID {capture_uuid} deleted successfully")
+
+    def download_dataset(
+        self,
+        *,
+        dataset_uuid: uuid.UUID,
+        verbose: bool = False,
+    ) -> requests.Response:
+        """Downloads a dataset as a ZIP file from SDS.
+
+        Args:
+            dataset_uuid: The UUID of the dataset to download.
+        Returns:
+            The response object with streaming content.
+        """
+        response = self._request(
+            method=HTTPMethods.GET,
+            endpoint=Endpoints.DATASETS,
+            asset_id=dataset_uuid.hex,
+            endpoint_args={"download": ""},
+            stream=True,
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=DatasetError)
+        return response
