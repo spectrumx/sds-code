@@ -37,6 +37,13 @@ class DatasetEndpointsTestCase(TestCase):
         self.client.force_authenticate(user=self.user)
         self.dataset = DatasetFactory(owner=self.user)
 
+        # Track created objects for cleanup
+        self.created_files = []
+        self.created_captures = []
+        self.created_datasets = [self.dataset]
+        self.created_share_permissions = []
+        self.created_users = [self.user]
+
         # Mock OpenSearch to prevent errors in all tests
         self.opensearch_patcher = patch(
             "sds_gateway.api_methods.helpers.index_handling.retrieve_indexed_metadata"
@@ -49,16 +56,62 @@ class DatasetEndpointsTestCase(TestCase):
         """Clean up after tests."""
         self.opensearch_patcher.stop()
 
+        # Clean up created objects in reverse dependency order
+        # First, disassociate files from datasets and captures
+        # to avoid protection errors
+        self._disassociate_files()
+
+        # Then delete dataset connections
+        self._cleanup_dataset_connections()
+
+        # Then datasets (they can be deleted once files and captures are gone)
+        for dataset in self.created_datasets:
+            if dataset.pk:
+                dataset.delete()
+
+        # Finally users (they can be deleted once all dependent objects are gone)
+        for user in self.created_users:
+            if user.pk:
+                user.delete()
+
+    def _disassociate_files(self):
+        """Disassociate files from datasets and captures."""
+        for file_obj in self.created_files:
+            if file_obj.pk:  # Only process if it exists in database
+                # Disassociate from dataset and capture to allow deletion
+                file_obj.dataset = None
+                file_obj.capture = None
+                file_obj.save()
+
+    def _cleanup_dataset_connections(self):
+        """Delete dataset connections."""
+        # Delete files (after disassociation)
+        for file_obj in self.created_files:
+            if file_obj.pk:
+                file_obj.delete()
+
+        # Delete captures (they reference datasets)
+        for capture in self.created_captures:
+            if capture.pk:
+                capture.delete()
+
+        # Delete permissions (they reference datasets)
+        for permission in self.created_share_permissions:
+            if permission.pk:
+                permission.delete()
+
     def test_get_dataset_files_success(self):
         """Test successful dataset files manifest retrieval."""
         # Create test files associated with the dataset with MinIO mocking
         with MockMinIOContext(b"test_file_content"):
-            create_file_with_minio_mock(
+            file1 = create_file_with_minio_mock(
                 file_content=b"test_file_content", owner=self.user, dataset=self.dataset
             )
-            create_file_with_minio_mock(
+            file2 = create_file_with_minio_mock(
                 file_content=b"test_file_content", owner=self.user, dataset=self.dataset
             )
+            # Track created files for cleanup
+            self.created_files.extend([file1, file2])
 
         url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
@@ -100,20 +153,24 @@ class DatasetEndpointsTestCase(TestCase):
             index_name="test_index",  # Add required index_name
             name="test_capture",  # Add name for better identification
         )
+        # Track created capture for cleanup
+        self.created_captures.append(capture)
 
         # Create files associated with the capture using MinIO mocking
         with MockMinIOContext(b"test_content"):
-            create_file_with_minio_mock(
+            file1 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, capture=capture
             )
-            create_file_with_minio_mock(
+            file2 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, capture=capture
             )
 
             # Create files directly associated with the dataset
-            create_file_with_minio_mock(
+            file3 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, dataset=self.dataset
             )
+            # Track created files for cleanup
+            self.created_files.extend([file1, file2, file3])
 
         url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
@@ -147,6 +204,8 @@ class DatasetEndpointsTestCase(TestCase):
         """Test dataset files manifest including files from shared captures."""
         # Create another user who will own the capture
         other_user = UserFactory()
+        # Track created user for cleanup
+        self.created_users.append(other_user)
 
         # Create a capture owned by another user and associated with the dataset
         capture = Capture.objects.create(
@@ -157,29 +216,35 @@ class DatasetEndpointsTestCase(TestCase):
             index_name="test_index",  # Add required index_name
             name="test_capture",  # Add name for better identification
         )
+        # Track created capture for cleanup
+        self.created_captures.append(capture)
 
         # Create a share permission for the dataset with the current user
-        UserSharePermission.objects.create(
+        permission = UserSharePermission.objects.create(
             owner=other_user,
             shared_with=self.user,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
             is_enabled=True,
         )
+        # Track created permission for cleanup
+        self.created_share_permissions.append(permission)
 
         # Create files associated with the shared capture using MinIO mocking
         with MockMinIOContext(b"test_content"):
-            create_file_with_minio_mock(
+            file1 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=capture
             )
-            create_file_with_minio_mock(
+            file2 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=capture
             )
 
             # Create files directly associated with the dataset
-            create_file_with_minio_mock(
+            file3 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, dataset=self.dataset
             )
+            # Track created files for cleanup
+            self.created_files.extend([file1, file2, file3])
 
         url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
@@ -213,6 +278,8 @@ class DatasetEndpointsTestCase(TestCase):
         """Test dataset files manifest with both owned and shared captures."""
         # Create another user who will own a shared capture
         other_user = UserFactory()
+        # Track created user for cleanup
+        self.created_users.append(other_user)
 
         # Create an owned capture
         owned_capture = Capture.objects.create(
@@ -223,6 +290,8 @@ class DatasetEndpointsTestCase(TestCase):
             index_name="owned_index",  # Add required index_name
             name="owned_capture",  # Add name for better identification
         )
+        # Track created capture for cleanup
+        self.created_captures.append(owned_capture)
 
         # Create a shared capture owned by another user
         shared_capture = Capture.objects.create(
@@ -233,38 +302,44 @@ class DatasetEndpointsTestCase(TestCase):
             index_name="shared_index",  # Add required index_name
             name="shared_capture",  # Add name for better identification
         )
+        # Track created capture for cleanup
+        self.created_captures.append(shared_capture)
 
         # Create a share permission for the dataset with the current user
-        UserSharePermission.objects.create(
+        permission = UserSharePermission.objects.create(
             owner=other_user,
             shared_with=self.user,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
             is_enabled=True,
         )
+        # Track created permission for cleanup
+        self.created_share_permissions.append(permission)
 
         # Create files associated with both captures using MinIO mocking
         with MockMinIOContext(b"test_content"):
             # Files from owned capture
-            create_file_with_minio_mock(
+            file1 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, capture=owned_capture
             )
-            create_file_with_minio_mock(
+            file2 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, capture=owned_capture
             )
 
             # Files from shared capture
-            create_file_with_minio_mock(
+            file3 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=shared_capture
             )
-            create_file_with_minio_mock(
+            file4 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=shared_capture
             )
 
             # Files directly associated with the dataset
-            create_file_with_minio_mock(
+            file5 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, dataset=self.dataset
             )
+            # Track created files for cleanup
+            self.created_files.extend([file1, file2, file3, file4, file5])
 
         url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
@@ -326,6 +401,9 @@ class DatasetEndpointsTestCase(TestCase):
         """Test dataset files manifest by non-owner."""
         other_user = UserFactory()
         other_dataset = DatasetFactory(owner=other_user)
+        # Track created objects for cleanup
+        self.created_users.append(other_user)
+        self.created_datasets.append(other_dataset)
 
         url = reverse("api:datasets-files", kwargs={"pk": other_dataset.uuid})
         response = self.client.get(url)
@@ -364,9 +442,11 @@ class DatasetEndpointsTestCase(TestCase):
         """Test pagination response structure for SDK consumption."""
         # Create test files
         with MockMinIOContext(b"test_content"):
-            create_file_with_minio_mock(
+            file1 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, dataset=self.dataset
             )
+            # Track created file for cleanup
+            self.created_files.append(file1)
 
         url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
@@ -394,16 +474,20 @@ class DatasetEndpointsTestCase(TestCase):
     def test_get_dataset_files_pagination_parameters(self):
         """Test pagination parameters work correctly."""
         # Create multiple test files
+        created_files = []
         with MockMinIOContext(b"test_content"):
             for i in range(
                 self.EXPECTED_PAGINATION_COUNT
             ):  # More than default page size of 30
-                create_file_with_minio_mock(
+                file_obj = create_file_with_minio_mock(
                     file_content=b"test_content",
                     owner=self.user,
                     dataset=self.dataset,
                     name=f"file_{i}.h5",
                 )
+                created_files.append(file_obj)
+        # Track created files for cleanup
+        self.created_files.extend(created_files)
 
         url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
@@ -439,9 +523,13 @@ class DatasetEndpointsTestCase(TestCase):
         """Test that disabled share permissions don't grant access to capture files."""
         # Create another user who will own the dataset and capture
         other_user = UserFactory()
+        # Track created user for cleanup
+        self.created_users.append(other_user)
 
         # Create a dataset owned by another user
         other_dataset = DatasetFactory(owner=other_user)
+        # Track created dataset for cleanup
+        self.created_datasets.append(other_dataset)
 
         # Create a capture owned by another user and associated with the other dataset
         capture = Capture.objects.create(
@@ -452,26 +540,32 @@ class DatasetEndpointsTestCase(TestCase):
             index_name="test_index",  # Add required index_name
             name="test_capture",  # Add name for better identification
         )
+        # Track created capture for cleanup
+        self.created_captures.append(capture)
 
         # Create a disabled share permission for the dataset
-        UserSharePermission.objects.create(
+        permission = UserSharePermission.objects.create(
             owner=other_user,
             shared_with=self.user,
             item_type=ItemType.DATASET,
             item_uuid=other_dataset.uuid,
             is_enabled=False,  # Disabled permission
         )
+        # Track created permission for cleanup
+        self.created_share_permissions.append(permission)
 
         # Create files associated with the capture
         with MockMinIOContext(b"test_content"):
-            create_file_with_minio_mock(
+            file1 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=capture
             )
 
             # Create files directly associated with the dataset
-            create_file_with_minio_mock(
+            file2 = create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, dataset=other_dataset
             )
+            # Track created files for cleanup
+            self.created_files.extend([file1, file2])
 
         url = reverse("api:datasets-files", kwargs={"pk": other_dataset.uuid})
         response = self.client.get(url)
