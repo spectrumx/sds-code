@@ -5,6 +5,8 @@
 
 import uuid
 from collections.abc import Generator
+from datetime import datetime
+from pathlib import PurePosixPath
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -26,6 +28,10 @@ def gateway() -> GatewayClient:
 def test_paginator_respects_dry_run(gateway: GatewayClient) -> None:
     """Tests that the paginator respects the dry-run mode."""
     raw_first_page = b'{"count": 0, "results": []}'
+    
+    # Configure the mock to return the expected bytes
+    gateway.list_files.return_value = raw_first_page
+
     paginator_wet = Paginator[File](
         Entry=File,
         gateway=gateway,
@@ -35,12 +41,13 @@ def test_paginator_respects_dry_run(gateway: GatewayClient) -> None:
         dry_run=False,
     )
     assert paginator_wet.dry_run is False, "Dry-run mode should be off"
-    with patch.object(
-        gateway, attribute="list_files", return_value=raw_first_page
-    ) as mock_list_files:
-        for _file_obj in paginator_wet:
-            break
-        mock_list_files.assert_called_once()
+    
+    
+    # Force the paginator to fetch data by calling len()
+    len(paginator_wet)
+
+    # Check that the mock was called
+    gateway.list_files.assert_called_once()
     del paginator_wet
 
     paginator_dry = Paginator[File](
@@ -153,6 +160,9 @@ def test_paginator_bool_non_empty(
         dry_run=False,
     )
 
+    # Configure the mock to return the expected bytes
+    gateway.list_files.return_value = raw_first_page
+    
     with patch.object(gateway, attribute="list_files", return_value=raw_first_page):
         assert non_empty_paginator, "Paginator should evaluate to True when not empty"
 
@@ -181,6 +191,10 @@ def test_paginator_bool_empty(
         page_size=3,
         dry_run=False,
     )
+    
+    # Configure the mock to return the expected bytes
+    gateway.list_files.return_value = raw_empty_page
+    
     with patch.object(gateway, attribute="list_files", return_value=raw_empty_page):
         assert not empty_paginator, "Paginator should evaluate to False when empty"
 
@@ -236,6 +250,9 @@ def test_paginator_internal_state(
         "Total matches is unknown (default=1) before the first page is fetched"
     )
 
+    # Configure the mock to return the expected bytes
+    gateway.list_files.return_value = raw_first_page
+    
     # assertions after the first page is fetched
     with patch.object(gateway, attribute="list_files", return_value=raw_first_page):
         assert len(paginator) == target_count  # this will fetch the first page
@@ -260,6 +277,9 @@ def test_paginator_internal_state(
     )
     assert paginator._yielded_count == test_yield_count
 
+    # Configure the mock to return the second page
+    gateway.list_files.return_value = raw_second_page
+    
     # assertions after the second and final page is fetched
     with patch.object(gateway, attribute="list_files", return_value=raw_second_page):
         for _ in range(1):  # 2nd page should have only 1 file
