@@ -1,15 +1,15 @@
 """Tests for dataset endpoints."""
 
-import tempfile
-import zipfile
-from pathlib import Path
-from unittest.mock import patch
-
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from unittest.mock import patch
 
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.tests.factories import DatasetFactory
 from sds_gateway.api_methods.tests.factories import MockMinIOContext
 from sds_gateway.api_methods.tests.factories import UserFactory
@@ -25,10 +25,19 @@ class DatasetEndpointsTestCase(TestCase):
         self.user = UserFactory()
         self.client.force_authenticate(user=self.user)
         self.dataset = DatasetFactory(owner=self.user)
+        
+        # Mock OpenSearch to prevent errors in all tests
+        self.opensearch_patcher = patch('sds_gateway.api_methods.helpers.index_handling.retrieve_indexed_metadata')
+        self.mock_retrieve = self.opensearch_patcher.start()
+        # Return empty dict for any capture input
+        self.mock_retrieve.return_value = {}
 
-    @patch("sds_gateway.api_methods.views.dataset_endpoints.sanitize_path_rel_to_user")
-    def test_download_dataset_success(self, mock_sanitize_path):
-        """Test successful dataset download."""
+    def tearDown(self):
+        """Clean up after tests."""
+        self.opensearch_patcher.stop()
+
+    def test_get_dataset_files_success(self):
+        """Test successful dataset files manifest retrieval."""
         # Create test files associated with the dataset with MinIO mocking
         with MockMinIOContext(b"test_file_content"):
             file1 = create_file_with_minio_mock(
@@ -38,136 +47,45 @@ class DatasetEndpointsTestCase(TestCase):
                 file_content=b"test_file_content", owner=self.user, dataset=self.dataset
             )
 
-        # Mock the sanitize_path_rel_to_user function to return a simple path
-        mock_sanitize_path.return_value = "/files/test/"
-
-        url = reverse("api:datasets-download", kwargs={"pk": self.dataset.uuid})
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response["Content-Type"] == "application/zip"
-        assert "attachment" in response["Content-Disposition"]
-        assert self.dataset.name in response["Content-Disposition"]
+        
+        data = response.json()
+        
+        # Check pagination structure
+        assert "count" in data
+        assert "next" in data
+        assert "previous" in data
+        assert "results" in data
+        
+        # Check file count
+        assert data["count"] == 2
+        
+        # Check results structure
+        results = data["results"]
+        assert len(results) == 2
+        
+        # Verify file info structure
+        for file_info in results:
+            assert "uuid" in file_info
+            assert "name" in file_info
+            assert "directory" in file_info
+            assert "size" in file_info
+            assert "media_type" in file_info
+            assert file_info["capture"] is None
 
-        # Verify ZIP content
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_file:
-            temp_file.write(response.content)
-            temp_file_path = temp_file.name
-
-        try:
-            with zipfile.ZipFile(temp_file_path, "r") as zip_file:
-                file_list = zip_file.namelist()
-                assert len(file_list) > 0, f"Expected files in ZIP, got: {file_list}"
-
-                # Check that our test files are in the ZIP (just the filename)
-                for file_obj in [file1, file2]:
-                    expected_path = file_obj.name  # Just the filename, no directory
-                    assert expected_path in file_list, (
-                        f"Expected {expected_path} in ZIP files: {file_list}"
-                    )
-        finally:
-            Path(temp_file_path).unlink()
-
-    def test_download_dataset_not_found(self):
-        """Test dataset download with non-existent UUID."""
-        import uuid
-
-        fake_uuid = uuid.uuid4()
-        url = reverse("api:datasets-download", kwargs={"pk": fake_uuid})
-        response = self.client.get(url)
-
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-    def test_download_dataset_unauthorized(self):
-        """Test dataset download by non-owner."""
-        other_user = UserFactory()
-        other_dataset = DatasetFactory(owner=other_user)
-
-        url = reverse("api:datasets-download", kwargs={"pk": other_dataset.uuid})
-        response = self.client.get(url)
-
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-    def test_download_dataset_no_files(self):
-        """Test dataset download with no associated files."""
-        url = reverse("api:datasets-download", kwargs={"pk": self.dataset.uuid})
-        response = self.client.get(url)
-
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "No files found in dataset" in response.data["detail"]
-
-    def test_download_dataset_file_error(self):
-        """Test dataset download with file download error."""
-        # Create test file with MinIO mocking that will fail
-        with MockMinIOContext(b"test_content"):
-            create_file_with_minio_mock(
-                file_content=b"test_content", owner=self.user, dataset=self.dataset
-            )
-
-        # The MinIO mock will work, but we can test error handling by mocking
-        # the download_file function
-        with patch(
-            "sds_gateway.api_methods.views.dataset_endpoints.download_file"
-        ) as mock_download_file:
-            # Mock download_file to raise an exception
-            mock_download_file.side_effect = OSError("File not found")
-
-            url = reverse("api:datasets-download", kwargs={"pk": self.dataset.uuid})
-            response = self.client.get(url)
-
-            # Should still succeed but skip the problematic file
-            assert response.status_code == status.HTTP_200_OK
-
-    def test_download_dataset_zip_creation_error(self):
-        """Test dataset download with ZIP creation error."""
-        # Create test file with MinIO mocking
-        with MockMinIOContext(b"test_content"):
-            create_file_with_minio_mock(
-                file_content=b"test_content", owner=self.user, dataset=self.dataset
-            )
-
-        # Mock zipfile.ZipFile to raise an exception
-        with patch("zipfile.ZipFile") as mock_zip:
-            mock_zip.side_effect = zipfile.BadZipFile("Invalid ZIP")
-
-            url = reverse("api:datasets-download", kwargs={"pk": self.dataset.uuid})
-            response = self.client.get(url)
-
-            assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-            assert "ZIP format error" in response.data["detail"]
-
-    def test_download_dataset_missing_uuid(self):
-        """Test dataset download without UUID parameter."""
-        # Test with a valid UUID format that doesn't exist instead of invalid string
-        url = reverse(
-            "api:datasets-download",
-            kwargs={"pk": "00000000-0000-0000-0000-000000000000"},
-        )
-        response = self.client.get(url)
-
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-    def test_unauthenticated_access(self):
-        """Test access without authentication."""
-        self.client.force_authenticate(user=None)
-
-        url = reverse("api:datasets-download", kwargs={"pk": self.dataset.uuid})
-        response = self.client.get(url)
-
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    @patch("sds_gateway.api_methods.views.dataset_endpoints.sanitize_path_rel_to_user")
-    def test_download_dataset_with_capture_files(self, mock_sanitize_path):
-        """Test dataset download including files from associated captures."""
-        from sds_gateway.api_methods.models import Capture
-        from sds_gateway.api_methods.models import CaptureType
-
-        # Create a capture associated with the dataset
+    def test_get_dataset_files_with_owned_captures(self):
+        """Test dataset files manifest including files from owned captures."""
+        # Create a capture owned by the user and associated with the dataset
         capture = Capture.objects.create(
             owner=self.user,
             dataset=self.dataset,
             capture_type=CaptureType.DigitalRF,
             channel="test_channel",
+            index_name="test_index",  # Add required index_name
+            name="test_capture",  # Add name for better identification
         )
 
         # Create files associated with the capture using MinIO mocking
@@ -184,33 +102,354 @@ class DatasetEndpointsTestCase(TestCase):
                 file_content=b"test_content", owner=self.user, dataset=self.dataset
             )
 
-        # Mock the sanitize_path_rel_to_user function to return a simple path
-        mock_sanitize_path.return_value = "/files/test/"
-
-        url = reverse("api:datasets-download", kwargs={"pk": self.dataset.uuid})
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        
+        # Check pagination structure
+        assert "count" in data
+        assert "next" in data
+        assert "previous" in data
+        assert "results" in data
+        
+        # Check total file count (3 files: 2 from capture + 1 from dataset)
+        assert data["count"] == 3
+        
+        # Check results structure
+        results = data["results"]
+        assert len(results) == 3
+        
+        # Verify capture file info structure
+        capture_files = [f for f in results if f["capture"] is not None]
+        assert len(capture_files) == 2
+        
+        for file_info in capture_files:
+            assert file_info["capture"]["uuid"] == str(capture.uuid)
+            assert file_info["capture"]["name"] == capture.name
 
-        # Verify ZIP content includes both capture and dataset files
-        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_file:
-            temp_file.write(response.content)
-            temp_file_path = temp_file.name
+    def test_get_dataset_files_with_shared_captures(self):
+        """Test dataset files manifest including files from shared captures."""
+        # Create another user who will own the capture
+        other_user = UserFactory()
+        
+        # Create a capture owned by another user and associated with the dataset
+        capture = Capture.objects.create(
+            owner=other_user,
+            dataset=self.dataset,
+            capture_type=CaptureType.DigitalRF,
+            channel="test_channel",
+            index_name="test_index",  # Add required index_name
+            name="test_capture",  # Add name for better identification
+        )
 
-        try:
-            with zipfile.ZipFile(temp_file_path, "r") as zip_file:
-                file_list = zip_file.namelist()
+        # Create a share permission for the dataset with the current user
+        dataset_share_permission = UserSharePermission.objects.create(
+            owner=other_user,
+            shared_with=self.user,
+            item_type=ItemType.DATASET,
+            item_uuid=self.dataset.uuid,
+            is_enabled=True,
+        )
 
-                # Should include files from both capture and dataset (just filenames)
-                expected_files = [
-                    capture_file1.name,
-                    capture_file2.name,
-                    dataset_file.name,
-                ]
+        # Create files associated with the shared capture using MinIO mocking
+        with MockMinIOContext(b"test_content"):
+            capture_file1 = create_file_with_minio_mock(
+                file_content=b"test_content", owner=other_user, capture=capture
+            )
+            capture_file2 = create_file_with_minio_mock(
+                file_content=b"test_content", owner=other_user, capture=capture
+            )
 
-                for expected_file in expected_files:
-                    assert expected_file in file_list, (
-                        f"Expected {expected_file} in ZIP files: {file_list}"
-                    )
-        finally:
-            Path(temp_file_path).unlink()
+            # Create files directly associated with the dataset
+            dataset_file = create_file_with_minio_mock(
+                file_content=b"test_content", owner=self.user, dataset=self.dataset
+            )
+
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        
+        # Check pagination structure
+        assert "count" in data
+        assert "next" in data
+        assert "previous" in data
+        assert "results" in data
+        
+        # Check total file count (3 files: 2 from shared capture + 1 from dataset)
+        assert data["count"] == 3
+        
+        # Check results structure
+        results = data["results"]
+        assert len(results) == 3
+        
+        # Verify shared capture file info structure
+        capture_files = [f for f in results if f["capture"] is not None]
+        assert len(capture_files) == 2
+        
+        for file_info in capture_files:
+            assert file_info["capture"]["uuid"] == str(capture.uuid)
+            assert file_info["capture"]["name"] == capture.name
+
+    def test_get_dataset_files_with_both_owned_and_shared_captures(self):
+        """Test dataset files manifest including files from both owned and shared captures."""
+        # Create another user who will own a shared capture
+        other_user = UserFactory()
+        
+        # Create an owned capture
+        owned_capture = Capture.objects.create(
+            owner=self.user,
+            dataset=self.dataset,
+            capture_type=CaptureType.DigitalRF,
+            channel="owned_channel",
+            index_name="owned_index",  # Add required index_name
+            name="owned_capture",  # Add name for better identification
+        )
+
+        # Create a shared capture owned by another user
+        shared_capture = Capture.objects.create(
+            owner=other_user,
+            dataset=self.dataset,
+            capture_type=CaptureType.DigitalRF,
+            channel="shared_channel",
+            index_name="shared_index",  # Add required index_name
+            name="shared_capture",  # Add name for better identification
+        )
+
+        # Create a share permission for the dataset with the current user
+        dataset_share_permission = UserSharePermission.objects.create(
+            owner=other_user,
+            shared_with=self.user,
+            item_type=ItemType.DATASET,
+            item_uuid=self.dataset.uuid,
+            is_enabled=True,
+        )
+
+        # Create files associated with both captures using MinIO mocking
+        with MockMinIOContext(b"test_content"):
+            # Files from owned capture
+            owned_capture_file1 = create_file_with_minio_mock(
+                file_content=b"test_content", owner=self.user, capture=owned_capture
+            )
+            owned_capture_file2 = create_file_with_minio_mock(
+                file_content=b"test_content", owner=self.user, capture=owned_capture
+            )
+
+            # Files from shared capture
+            shared_capture_file1 = create_file_with_minio_mock(
+                file_content=b"test_content", owner=other_user, capture=shared_capture
+            )
+            shared_capture_file2 = create_file_with_minio_mock(
+                file_content=b"test_content", owner=other_user, capture=shared_capture
+            )
+
+            # Files directly associated with the dataset
+            dataset_file = create_file_with_minio_mock(
+                file_content=b"test_content", owner=self.user, dataset=self.dataset
+            )
+
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        
+        # Check pagination structure
+        assert "count" in data
+        assert "next" in data
+        assert "previous" in data
+        assert "results" in data
+        
+        # Check total file count (5 files: 2 from owned capture + 2 from shared capture + 1 from dataset)
+        assert data["count"] == 5
+        
+        # Check results structure
+        results = data["results"]
+        assert len(results) == 5
+        
+        # Verify owned capture file info structure
+        owned_capture_files = [f for f in results if f["capture"] is not None and f["capture"]["uuid"] == str(owned_capture.uuid)]
+        assert len(owned_capture_files) == 2
+        
+        for file_info in owned_capture_files:
+            assert file_info["capture"]["uuid"] == str(owned_capture.uuid)
+            assert file_info["capture"]["name"] == owned_capture.name
+
+        # Verify shared capture file info structure
+        shared_capture_files = [f for f in results if f["capture"] is not None and f["capture"]["uuid"] == str(shared_capture.uuid)]
+        assert len(shared_capture_files) == 2
+        
+        for file_info in shared_capture_files:
+            assert file_info["capture"]["uuid"] == str(shared_capture.uuid)
+            assert file_info["capture"]["name"] == shared_capture.name
+
+    def test_get_dataset_files_not_found(self):
+        """Test dataset files manifest with non-existent UUID."""
+        import uuid
+
+        fake_uuid = uuid.uuid4()
+        url = reverse("api:datasets-files", kwargs={"pk": fake_uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_dataset_files_unauthorized(self):
+        """Test dataset files manifest by non-owner."""
+        other_user = UserFactory()
+        other_dataset = DatasetFactory(owner=other_user)
+
+        url = reverse("api:datasets-files", kwargs={"pk": other_dataset.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_get_dataset_files_no_files(self):
+        """Test dataset files manifest with no associated files."""
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "No files found in dataset" in response.data["detail"]
+
+    def test_get_dataset_files_missing_uuid(self):
+        """Test dataset files manifest without UUID parameter."""
+        # Use a valid UUID format that doesn't exist to test the 404 case
+        import uuid
+        fake_uuid = uuid.uuid4()
+        url = reverse("api:datasets-files", kwargs={"pk": fake_uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_dataset_files_unauthenticated_access(self):
+        """Test access without authentication."""
+        self.client.force_authenticate(user=None)
+
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_get_dataset_files_pagination_structure(self):
+        """Test that the pagination response has the correct structure for SDK consumption."""
+        # Create test files
+        with MockMinIOContext(b"test_content"):
+            create_file_with_minio_mock(
+                file_content=b"test_content", owner=self.user, dataset=self.dataset
+            )
+
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        
+        # Verify pagination structure
+        required_pagination_keys = ["count", "next", "previous", "results"]
+        for key in required_pagination_keys:
+            assert key in data, f"Missing pagination key: {key}"
+        
+        # Verify results structure
+        assert isinstance(data["results"], list)
+        assert data["count"] == 1
+        
+        # Verify file info structure (if files exist)
+        if data["results"]:
+            file_info = data["results"][0]
+            required_file_keys = ["uuid", "name", "directory", "size", "media_type"]
+            for key in required_file_keys:
+                assert key in file_info, f"Missing file info key: {key}"
+
+    def test_get_dataset_files_pagination_parameters(self):
+        """Test pagination parameters work correctly."""
+        # Create multiple test files
+        with MockMinIOContext(b"test_content"):
+            for i in range(35):  # More than default page size of 30
+                create_file_with_minio_mock(
+                    file_content=b"test_content", 
+                    owner=self.user, 
+                    dataset=self.dataset,
+                    name=f"file_{i}.h5"
+                )
+
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        
+        # Check pagination structure
+        assert data["count"] == 35
+        assert len(data["results"]) == 30  # Default page size
+        assert data["next"] is not None  # Should have next page
+        assert data["previous"] is None  # First page
+
+        # Test second page
+        response = self.client.get(f"{url}?page=2")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert len(data["results"]) == 5  # Remaining files
+        assert data["next"] is None  # No more pages
+        assert data["previous"] is not None  # Has previous page
+
+        # Test custom page size
+        response = self.client.get(f"{url}?page_size=10")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert len(data["results"]) == 10
+        assert data["next"] is not None  # Should have next page
+
+    def test_get_dataset_files_shared_capture_disabled_permission(self):
+        """Test that disabled share permissions don't grant access to capture files."""
+        # Create another user who will own the dataset and capture
+        other_user = UserFactory()
+        
+        # Create a dataset owned by another user
+        other_dataset = DatasetFactory(owner=other_user)
+        
+        # Create a capture owned by another user and associated with the other dataset
+        capture = Capture.objects.create(
+            owner=other_user,
+            dataset=other_dataset,
+            capture_type=CaptureType.DigitalRF,
+            channel="test_channel",
+            index_name="test_index",  # Add required index_name
+            name="test_capture",  # Add name for better identification
+        )
+
+        # Create a disabled share permission for the dataset
+        dataset_share_permission = UserSharePermission.objects.create(
+            owner=other_user,
+            shared_with=self.user,
+            item_type=ItemType.DATASET,
+            item_uuid=other_dataset.uuid,
+            is_enabled=False,  # Disabled permission
+        )
+
+        # Create files associated with the capture
+        with MockMinIOContext(b"test_content"):
+            create_file_with_minio_mock(
+                file_content=b"test_content", owner=other_user, capture=capture
+            )
+
+            # Create files directly associated with the dataset
+            dataset_file = create_file_with_minio_mock(
+                file_content=b"test_content", owner=other_user, dataset=other_dataset
+            )
+
+        url = reverse("api:datasets-files", kwargs={"pk": other_dataset.uuid})
+        response = self.client.get(url)
+
+        # Should get 403 Forbidden because the share permission is disabled
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+

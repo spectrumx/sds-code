@@ -590,26 +590,27 @@ class GatewayClient:
         if self.verbose:
             log.debug(f"Capture with UUID {capture_uuid} deleted successfully")
 
-    def download_dataset(
+    def get_dataset_files(
         self,
         *,
         dataset_uuid: uuid.UUID,
+        page: int = 1,
+        page_size: int = 30,
         verbose: bool = False,
     ) -> requests.Response:
-        """Downloads a dataset as a ZIP file from SDS.
+        """Get a manifest of files in the dataset for efficient downloading.
 
         Args:
-            dataset_uuid: The UUID of the dataset to download.
+            dataset_uuid: The UUID of the dataset to get files for.
+            verbose: Show network requests and other info.
         Returns:
-            The response object with streaming content.
+            The HTTP response containing the dataset file manifest.
         """
-        response = self._request(
+        return self._request(
             method=HTTPMethods.GET,
             endpoint=Endpoints.DATASETS,
             asset_id=dataset_uuid.hex,
-            endpoint_args={"download": ""},
-            stream=True,
+            endpoint_args={"files": ""},
+            params={"page": page, "page_size": page_size},
             verbose=verbose,
         )
-        network.success_or_raise(response, ContextException=DatasetError)
-        return response
