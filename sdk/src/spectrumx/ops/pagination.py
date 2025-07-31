@@ -4,11 +4,9 @@ import json
 import sys
 import time
 import uuid
-from pathlib import Path
-from pathlib import PurePosixPath
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Callable
 from typing import Generic
 from typing import TypeVar
 
@@ -52,7 +50,7 @@ class Paginator(Generic[T]):
         dry_run=False,
         verbose=True,
     )
-    
+
     # For dataset files
     dataset_paginator = Paginator[File](
         Entry=File,
@@ -62,7 +60,7 @@ class Paginator(Generic[T]):
         dry_run=False,
         verbose=True,
     )
-    
+
     print(f"Total files matched: {len(file_paginator)}")
     # len() will fetch the first page
 
@@ -95,7 +93,8 @@ class Paginator(Generic[T]):
         Args:
             Entry:          The SDSModel subclass to use when parsing the entries.
             gateway:        The gateway client to use for fetching pages.
-            list_method:    The method to call for fetching pages (e.g., gateway.list_files).
+            list_method:    The method to call for fetching pages
+                (e.g., gateway.list_files).
             list_kwargs:    Keyword arguments to pass to the list_method.
             dry_run:        If True, will generate synthetic pages instead of fetching.
             page_size:      The number of entries to fetch per page.
@@ -133,7 +132,9 @@ class Paginator(Generic[T]):
         self._Entry = Entry
         self._gateway = gateway
         self._list_method = list_method
-        self._list_kwargs = list_kwargs.copy()  # Make a copy to avoid modifying the original
+        self._list_kwargs = (
+            list_kwargs.copy()
+        )  # Make a copy to avoid modifying the original
         self._next_page = start_page
         self._page_size = page_size
         self._total_matches = total_matches if total_matches else 1
@@ -220,12 +221,14 @@ class Paginator(Generic[T]):
                 try:
                     # Prepare kwargs for the listing method
                     call_kwargs = self._list_kwargs.copy()
-                    call_kwargs.update({
-                        "page": self._next_page,
-                        "page_size": self._page_size,
-                        "verbose": self._verbose,
-                    })
-                    
+                    call_kwargs.update(
+                        {
+                            "page": self._next_page,
+                            "page_size": self._page_size,
+                            "verbose": self._verbose,
+                        }
+                    )
+
                     raw_page = self._list_method(**call_kwargs)
                     self._ingest_new_page(raw_page)
                 except FileError as err:  # pragma: no cover
@@ -300,7 +303,7 @@ def main() -> None:  # pragma: no cover
             host="localhost",
             api_key="does-not-matter-in-dry-run",
         ),
-        list_method=lambda **kwargs: b'{"count": 25, "results": []}',  # Mock response for dry run
+        list_method=lambda **kwargs: b'{"count": 25, "results": []}',  # Mock response
         list_kwargs={"sds_path": "/path/to/files"},
         page_size=10,
         dry_run=True,  # in dry-run this should always generate 2.5 pages

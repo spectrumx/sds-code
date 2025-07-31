@@ -43,11 +43,13 @@ class DatasetDetailsModal {
 		});
 
 		// Reset modal when it's hidden
-		document.getElementById("datasetDetailsModal").addEventListener("hidden.bs.modal", (event) => {
-			if (event.target.id === "datasetDetailsModal") {
-				this.resetModal();
-			}
-		});
+		document
+			.getElementById("datasetDetailsModal")
+			.addEventListener("hidden.bs.modal", (event) => {
+				if (event.target.id === "datasetDetailsModal") {
+					this.resetModal();
+				}
+			});
 
 		// Copy UUID button functionality
 		document.addEventListener("click", (event) => {
@@ -112,7 +114,7 @@ class DatasetDetailsModal {
 	populateDatasetInfo(dataset) {
 		// Store dataset UUID for copy functionality
 		this.currentDatasetUuid = dataset.uuid;
-		
+
 		// Dataset basic info
 		document.querySelector(".dataset-details-name").textContent =
 			dataset.name || "N/A";
@@ -156,41 +158,40 @@ class DatasetDetailsModal {
 
 		try {
 			await navigator.clipboard.writeText(this.currentDatasetUuid);
-			
+
 			// Update button to show success state
 			const copyBtn = document.querySelector(".copy-uuid-btn");
 			const icon = copyBtn.querySelector("i");
 			const originalIcon = icon.className;
 			const originalTitle = copyBtn.getAttribute("title");
 			const originalClasses = copyBtn.className;
-			
+
 			// Change icon, title, and button styling to show success
 			icon.className = "bi bi-check-circle-fill";
 			copyBtn.className = "btn btn-sm btn-success copy-uuid-btn";
 			copyBtn.setAttribute("title", "UUID copied!");
-			
+
 			// Reset after 2 seconds
 			setTimeout(() => {
 				icon.className = originalIcon;
 				copyBtn.className = originalClasses;
 				copyBtn.setAttribute("title", originalTitle);
 			}, 2000);
-			
 		} catch (error) {
 			console.error("Failed to copy UUID:", error);
-			
+
 			// Show error state briefly
 			const copyBtn = document.querySelector(".copy-uuid-btn");
 			const icon = copyBtn.querySelector("i");
 			const originalIcon = icon.className;
 			const originalTitle = copyBtn.getAttribute("title");
 			const originalClasses = copyBtn.className;
-			
+
 			// Change to error state
 			icon.className = "bi bi-x-circle-fill";
 			copyBtn.className = "btn btn-sm btn-danger copy-uuid-btn";
 			copyBtn.setAttribute("title", "Failed to copy");
-			
+
 			// Reset after 2 seconds
 			setTimeout(() => {
 				icon.className = originalIcon;
