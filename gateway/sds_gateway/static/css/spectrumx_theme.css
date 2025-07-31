@@ -175,6 +175,21 @@ textarea:focus-visible {
 	margin: 0.125rem 0 0;
 }
 
+/* Fix dropdown visibility in responsive tables */
+.table-responsive {
+	overflow-y: visible !important;
+}
+
+/* Alternative approach for specific table containers */
+#dynamic-table-container {
+	overflow: visible !important;
+}
+
+/* Ensure dropdowns in tables can overflow */
+.table-responsive .dropdown-menu {
+	position: fixed !important;
+}
+
 .dropdown-menu.show {
 	display: block !important;
 }
