@@ -70,7 +70,10 @@ class Command(BaseCommand):
             # No existing pipeline found, create new one with timestamp
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             new_name = f"{config['pipeline_name']} (v{timestamp})"
-            pipeline = Pipeline.objects.create(name=new_name)
+            pipeline = Pipeline.objects.create(
+                name=new_name,
+                prevent_overlapping_runs=config.get("prevent_overlapping_runs", False),
+            )
 
         if existing_pipeline:
             if strategy == "skip-if-exists":
@@ -92,6 +95,9 @@ class Command(BaseCommand):
                 pipeline.delete()
                 pipeline = Pipeline.objects.create(
                     name=config["pipeline_name"],
+                    prevent_overlapping_runs=config.get(
+                        "prevent_overlapping_runs", False
+                    ),
                 )
                 self.stdout.write(
                     f"Recreated pipeline '{config['pipeline_name']}' (history lost)"
@@ -109,6 +115,9 @@ class Command(BaseCommand):
 
                     pipeline = Pipeline.objects.create(
                         name=new_name,
+                        prevent_overlapping_runs=config.get(
+                            "prevent_overlapping_runs", False
+                        ),
                     )
                     self.stdout.write(
                         f"Created new pipeline '{new_name}' (replaced unused pipeline '{old_name}')"
@@ -125,6 +134,9 @@ class Command(BaseCommand):
 
                     pipeline = Pipeline.objects.create(
                         name=new_name,
+                        prevent_overlapping_runs=config.get(
+                            "prevent_overlapping_runs", False
+                        ),
                     )
                     self.stdout.write(
                         f"Created new pipeline '{new_name}' and disabled old pipeline '{old_name}' (preserved with {runs_count} runs)"
@@ -141,8 +153,10 @@ class Command(BaseCommand):
 
             # Create tasks for this stage
             for task_config in stage_config["tasks"]:
-                # Get or create the Cog for this task
-                cog, _ = Cog.objects.get_or_create(name=task_config["cog"])
+                # Get or create the Cog for this task (handle duplicates)
+                cog = Cog.objects.filter(name=task_config["cog"]).first()
+                if not cog:
+                    cog = Cog.objects.create(name=task_config["cog"])
 
                 # Get or create default CeleryQueue
                 default_queue, _ = CeleryQueue.objects.get_or_create(
