@@ -589,7 +589,7 @@ def test_download_files_in_bulk_with_paginator(
     sds_path = PurePosixPath("/test-tree") / random_subdir_name
     results = integration_client.upload(
         local_path=temp_file_tree,
-        files_to_download=integration_client.list_files(sds_path=sds_path),
+        sds_path=sds_path,
         verbose=True,
     )
     log.info(f"Uploaded {len(results)} files.")
