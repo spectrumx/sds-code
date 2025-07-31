@@ -70,7 +70,7 @@ def test_paginator_dry_run_ingest_list_files(gateway: GatewayClient) -> None:
             gateway=gateway,
             list_method=gateway.list_files,
             list_kwargs={"sds_path": "/path/to/files"},
-            page_size=3,
+            page_size=page_size,
             dry_run=True,
         )
 
@@ -106,6 +106,7 @@ def test_paginator_dry_run_ingest_get_dataset_files(gateway: GatewayClient) -> N
             gateway=gateway,
             list_method=gateway.get_dataset_files,
             list_kwargs={"dataset_uuid": uuid.uuid4()},
+            page_size=page_size,
             dry_run=True,
         )
 
