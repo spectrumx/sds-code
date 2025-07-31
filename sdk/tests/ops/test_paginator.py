@@ -106,6 +106,7 @@ def test_paginator_dry_run_ingest_get_dataset_files(gateway: GatewayClient) -> N
             gateway=gateway,
             list_method=gateway.get_dataset_files,
             list_kwargs={"dataset_uuid": uuid.uuid4()},
+            dry_run=True,
         )
 
         # initial state assertions

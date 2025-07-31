@@ -25,6 +25,7 @@ from spectrumx.models.captures import CaptureType
 
 from .errors import AuthError
 from .errors import CaptureError
+from .errors import DatasetError
 from .errors import FileError
 from .models.files import File
 from .models.files import FileUpload
@@ -596,16 +597,16 @@ class GatewayClient:
         page: int = 1,
         page_size: int = 30,
         verbose: bool = False,
-    ) -> requests.Response:
+    ) -> bytes:
         """Get a manifest of files in the dataset for efficient downloading.
 
         Args:
             dataset_uuid: The UUID of the dataset to get files for.
             verbose: Show network requests and other info.
         Returns:
-            The HTTP response containing the dataset file manifest.
+            The response content containing the dataset file manifest.
         """
-        return self._request(
+        response = self._request(
             method=HTTPMethods.GET,
             endpoint=Endpoints.DATASETS,
             asset_id=dataset_uuid.hex,
@@ -613,3 +614,5 @@ class GatewayClient:
             params={"page": page, "page_size": page_size},
             verbose=verbose,
         )
+        network.success_or_raise(response, ContextException=DatasetError)
+        return response.content

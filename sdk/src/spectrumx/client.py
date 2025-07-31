@@ -215,12 +215,18 @@ class Client:
         # Prepare the download environment
         self._prepare_download_directory(to_local_path)
         files_to_download = self._get_files_to_download(
-            from_sds_path, files_to_download, verbose
+            from_sds_path=from_sds_path,
+            files_to_download=files_to_download,
+            verbose=verbose,
         )
 
         # Download files
         return self._download_files(
-            files_to_download, to_local_path, skip_contents, overwrite, verbose
+            files_to_download=files_to_download,
+            to_local_path=to_local_path,
+            skip_contents=skip_contents,
+            overwrite=overwrite,
+            verbose=verbose,
         )
 
     def _prepare_download_directory(self, to_local_path: Path) -> None:
@@ -279,7 +285,10 @@ class Client:
         for file_info in prog_bar:
             prog_bar.set_description(f"{prefix} '{file_info.name}'")
             result = self._download_single_file(
-                file_info, to_local_path, skip_contents, overwrite
+                file_info=file_info,
+                to_local_path=to_local_path,
+                skip_contents=skip_contents,
+                overwrite=overwrite,
             )
             results.append(result)
 
