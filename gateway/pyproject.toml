@@ -1,5 +1,5 @@
 [project]
-    authors = [{ name = "Center for Research Computing | UND", email = "crcsupport@nd.edu" }]
+    authors = [{ name = "Center for Research Computing | UND", email = "crc-sds-list@nd.edu" }]
     dependencies = [
         "argon2-cffi>=23.1.0",
         "blake3>=0.4.1",

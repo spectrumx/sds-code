@@ -124,9 +124,6 @@ ADMIN_URL: str = env("DJANGO_ADMIN_URL")
 # https://docs.djangoproject.com/en/dev/ref/settings/#logging
 # See https://docs.djangoproject.com/en/dev/topics/logging for
 # more details on how to customize your logging configuration.
-# A sample logging configuration. The only tangible logging
-# performed by this configuration is to send an email to
-# the site admins on every HTTP 500 error when DEBUG=False.
 LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -151,11 +148,11 @@ LOGGING: dict[str, Any] = {
     },
     "root": {"level": "DEBUG", "handlers": ["console"]},
     "loggers": {
-        "django.request": {
-            "handlers": ["mail_admins"],
-            "level": "ERROR",
-            "propagate": True,
-        },
+        # "django.request": {
+        #     "handlers": ["mail_admins"],  # will send emails to crc-sds-list@nd.edu
+        #     "level": "ERROR",
+        #     "propagate": True,
+        # },
         "django.security.DisallowedHost": {
             "level": "ERROR",
             "handlers": ["console", "mail_admins"],

@@ -311,7 +311,7 @@ ADMIN_URL: str = "admin/"
 ADMINS: list[tuple[str, ...]] = [
     (
         """Center for Research Computing | University of Notre Dame""",
-        "crcsupport@nd.edu",
+        "crc-sds-list@nd.edu",
     ),
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#managers

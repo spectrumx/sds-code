@@ -1,6 +1,6 @@
 # Translations for the SpectrumX Data System Gateway project
 # Copyright (C) Center for Research Computing | University of Notre Dame
-# Center for Research Computing | University of Notre Dame <crcsupport@nd.edu>, 2024.
+# Center for Research Computing | University of Notre Dame <crc-sds-list@nd.edu>, 2024.
 #
 #, fuzzy
 msgid ""
