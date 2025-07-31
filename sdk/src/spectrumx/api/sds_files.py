@@ -122,8 +122,9 @@ def list_files(
         log_user("Dry run enabled: files will be simulated")
     pagination: Paginator[File] = Paginator(
         gateway=client._gateway,
-        sds_path=sds_path,
         Entry=File,
+        list_method=client._gateway.list_files,
+        list_kwargs={"sds_path": sds_path},
         dry_run=client.dry_run,
         verbose=verbose,
     )

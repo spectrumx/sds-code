@@ -15,16 +15,14 @@
 /* Top Gradient Bar */
 .top-gradient-bar {
 	height: 4px;
-	background: linear-gradient(
-		to right,
-		#f9c97d,
-		#f2a2a4,
-		#e27bb1,
-		#bf5ce1,
-		#7f5ae1,
-		#5ab9e6,
-		#59d5e0
-	);
+	background: linear-gradient(to right,
+			#f9c97d,
+			#f2a2a4,
+			#e27bb1,
+			#bf5ce1,
+			#7f5ae1,
+			#5ab9e6,
+			#59d5e0);
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -39,7 +37,8 @@
 	color: var(--white);
 	padding: 2rem 0 4rem;
 	margin-bottom: 0;
-	margin-top: 4px; /* Add margin to account for gradient bar */
+	margin-top: 4px;
+	/* Add margin to account for gradient bar */
 }
 
 .hero-white-page .hero {
@@ -151,9 +150,11 @@
 }
 
 .custom-table thead th.sortable a {
-	display: inline-flex; /* Keep header text and arrow on one line */
+	display: inline-flex;
+	/* Keep header text and arrow on one line */
 	align-items: center;
-	gap: 0.25rem; /* Space between text and icon */
+	gap: 0.25rem;
+	/* Space between text and icon */
 	color: inherit;
 	text-decoration: none;
 }
@@ -163,8 +164,10 @@
 }
 
 .custom-table thead th.sortable .sort-icon {
-	font-size: 0.75rem; /* Adjust icon size */
-	color: #000; /* Black arrows */
+	font-size: 0.75rem;
+	/* Adjust icon size */
+	color: #000;
+	/* Black arrows */
 	transition: color 0.2s ease;
 	margin-left: 0.25rem;
 }
@@ -486,10 +489,7 @@
 	transition: transform 0.2s ease;
 }
 
-.filters-panel
-	.filters-section
-	.filter-header[aria-expanded="false"]
-	.bi-chevron-down {
+.filters-panel .filters-section .filter-header[aria-expanded="false"] .bi-chevron-down {
 	transform: rotate(-90deg);
 }
 
@@ -786,7 +786,8 @@ body {
 	width: 100%;
 	overflow-y: auto;
 	max-height: 100%;
-	padding: 0; /* Remove default padding */
+	padding: 0;
+	/* Remove default padding */
 }
 
 #group-captures-card .card-footer {
@@ -1147,14 +1148,15 @@ body {
 
 .notify-message-anim {
 	overflow: hidden;
-	transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s
-		cubic-bezier(0.4, 0, 0.2, 1);
+	transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	max-height: 0;
 	opacity: 0;
 	pointer-events: none;
 }
+
 .notify-message-anim.show {
-	max-height: 200px; /* adjust as needed */
+	max-height: 200px;
+	/* adjust as needed */
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -1261,4 +1263,52 @@ body {
 
 .token.boolean {
 	color: #e83e8c !important;
+}
+
+/* Copy UUID Button Styles */
+.copy-uuid-btn {
+	transition: all 0.2s ease !important;
+	background: none !important;
+	border: none !important;
+	border-radius: 0.25rem !important;
+	padding: 0 0.25rem !important;
+	color: #6c757d !important;
+	font-size: inherit !important;
+	cursor: pointer !important;
+}
+
+.copy-uuid-btn:hover {
+	background: none !important;
+	border: none !important;
+	color: #495057 !important;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.copy-uuid-btn:active {
+	transform: none !important;
+	box-shadow: none !important;
+}
+
+.copy-uuid-btn.btn-success {
+	background: none !important;
+	border: none !important;
+	color: #198754 !important;
+}
+
+.copy-uuid-btn.btn-success:hover {
+	background: none !important;
+	border: none !important;
+	color: #157347 !important;
+}
+
+.copy-uuid-btn.btn-danger {
+	background: none !important;
+	border: none !important;
+	color: #dc3545 !important;
+}
+
+.copy-uuid-btn.btn-danger:hover {
+	background: none !important;
+	border: none !important;
+	color: #bb2d3b !important;
 }

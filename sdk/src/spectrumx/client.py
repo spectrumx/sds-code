@@ -187,8 +187,9 @@ class Client:
     def download(
         self,
         *,
-        from_sds_path: PurePosixPath | Path | str,
+        from_sds_path: PurePosixPath | Path | str | None = None,
         to_local_path: Path | str,
+        files_to_download: list[File] | Paginator[File] | None = None,
         skip_contents: bool = False,
         overwrite: bool = False,
         verbose: bool = True,
@@ -198,13 +199,16 @@ class Client:
         Args:
             from_sds_path:  The virtual directory on SDS to download files from.
             to_local_path:  The local path to save the downloaded files to.
+            files_to_download:  A paginator or list (in dry run mode) of files to download.
+            If not provided, all files in the directory will be downloaded.
             skip_contents:  When True, only the metadata is downloaded.
             overwrite:      Whether to overwrite existing local files.
             verbose:        Show a progress bar.
         Returns:
             A list of results for each file discovered and downloaded.
         """
-        from_sds_path = PurePosixPath(from_sds_path)
+        if from_sds_path is not None:
+            from_sds_path = PurePosixPath(from_sds_path)
         to_local_path = Path(to_local_path)
 
         # local vars
@@ -224,7 +228,13 @@ class Client:
             files_to_download = files.generate_random_files(num_files=10)
             log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
         else:
-            files_to_download = self.list_files(sds_path=from_sds_path)
+            if from_sds_path is not None:
+                files_to_download = self.list_files(sds_path=from_sds_path)
+            elif files_to_download is None:
+                raise ValueError(
+                    "Either a path in the SDS or a paginator/list of files "
+                    "must be provided"
+                )
             if verbose:
                 log_user(f"Discovered {len(files_to_download)} files")
 
@@ -353,6 +363,55 @@ class Client:
             to_local_path=to_local_path,
             skip_contents=skip_contents,
             warn_missing_path=warn_missing_path,
+        )
+
+    def download_dataset(
+        self,
+        *,
+        dataset_uuid: UUID4 | str,
+        to_local_path: Path | str,
+        skip_contents: bool = False,
+        overwrite: bool = False,
+        verbose: bool = True,
+    ) -> list[Result[File]]:
+        """Downloads all files in a dataset using the existing download infrastructure.
+        
+        This approach uses the get_dataset_files endpoint to get a paginated list of File objects
+        and then uses the existing download() method with files_to_download parameter.
+        
+        Args:
+            dataset_uuid: The UUID of the dataset to download.
+            to_local_path: The local path to save the downloaded files to.
+            skip_contents: When True, only the metadata is downloaded.
+            overwrite: Whether to overwrite existing local files.
+            verbose: Show progress bars and detailed output.
+        Returns:
+            A list of results for each file downloaded.
+        """
+        if isinstance(dataset_uuid, str):
+            dataset_uuid = UUID(dataset_uuid)
+        
+        # Get all files in the dataset as a paginator
+        files_to_download = self.datasets.get_files(dataset_uuid=dataset_uuid)
+        
+        if verbose:
+            log_user(f"Downloading files from dataset (total: {len(files_to_download)} files)")
+        
+        # Create target directory
+        to_local_path = Path(to_local_path)
+        if not to_local_path.exists():
+            if self.dry_run:
+                log_user(f"Dry run: would create the directory '{to_local_path}'")
+            else:
+                to_local_path.mkdir(parents=True, exist_ok=True)
+        
+        # Use the existing download() method with the file list
+        return self.download(
+            to_local_path=to_local_path,
+            files_to_download=files_to_download,
+            skip_contents=skip_contents,
+            overwrite=overwrite,
+            verbose=verbose,
         )
 
     def upload(
@@ -595,30 +654,5 @@ class Client:
             else:
                 captures.append(capture)
         return captures
-
-    def download_dataset(
-        self,
-        *,
-        dataset_uuid: UUID4 | str,
-        to_local_path: Path | str,
-    ) -> Path:
-        """Downloads a dataset as a ZIP file from SDS.
-
-        Args:
-            dataset_uuid: The UUID of the dataset to download.
-            to_local_path: The local path to save the downloaded ZIP file to.
-        Returns:
-            The path to the downloaded ZIP file.
-        Raises:
-            DatasetError: If the dataset couldn't be downloaded.
-        """
-        if isinstance(dataset_uuid, str):
-            dataset_uuid = UUID(dataset_uuid)
-
-        return self.datasets.download(
-            dataset_uuid=dataset_uuid,
-            to_local_path=to_local_path,
-        )
-
 
 __all__ = ["Client"]
