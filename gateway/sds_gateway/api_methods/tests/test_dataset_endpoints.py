@@ -1,10 +1,11 @@
 """Tests for dataset endpoints."""
 
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
-from unittest.mock import patch
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
@@ -19,15 +20,27 @@ from sds_gateway.api_methods.tests.factories import create_file_with_minio_mock
 class DatasetEndpointsTestCase(TestCase):
     """Test cases for dataset endpoints."""
 
+    # Constants for test assertions
+    EXPECTED_DATASET_FILES = 2
+    EXPECTED_CAPTURE_FILES = 2
+    EXPECTED_TOTAL_FILES_3 = 3
+    EXPECTED_TOTAL_FILES_5 = 5
+    EXPECTED_PAGINATION_COUNT = 35
+    EXPECTED_PAGE_SIZE = 30
+    EXPECTED_REMAINING_FILES = 5
+    EXPECTED_CUSTOM_PAGE_SIZE = 10
+
     def setUp(self):
         """Set up test data."""
         self.client = APIClient()
         self.user = UserFactory()
         self.client.force_authenticate(user=self.user)
         self.dataset = DatasetFactory(owner=self.user)
-        
+
         # Mock OpenSearch to prevent errors in all tests
-        self.opensearch_patcher = patch('sds_gateway.api_methods.helpers.index_handling.retrieve_indexed_metadata')
+        self.opensearch_patcher = patch(
+            "sds_gateway.api_methods.helpers.index_handling.retrieve_indexed_metadata"
+        )
         self.mock_retrieve = self.opensearch_patcher.start()
         # Return empty dict for any capture input
         self.mock_retrieve.return_value = {}
@@ -40,10 +53,10 @@ class DatasetEndpointsTestCase(TestCase):
         """Test successful dataset files manifest retrieval."""
         # Create test files associated with the dataset with MinIO mocking
         with MockMinIOContext(b"test_file_content"):
-            file1 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_file_content", owner=self.user, dataset=self.dataset
             )
-            file2 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_file_content", owner=self.user, dataset=self.dataset
             )
 
@@ -51,22 +64,22 @@ class DatasetEndpointsTestCase(TestCase):
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
-        
+
         # Check pagination structure
         assert "count" in data
         assert "next" in data
         assert "previous" in data
         assert "results" in data
-        
+
         # Check file count
-        assert data["count"] == 2
-        
+        assert data["count"] == self.EXPECTED_DATASET_FILES
+
         # Check results structure
         results = data["results"]
-        assert len(results) == 2
-        
+        assert len(results) == self.EXPECTED_DATASET_FILES
+
         # Verify file info structure
         for file_info in results:
             assert "uuid" in file_info
@@ -90,15 +103,15 @@ class DatasetEndpointsTestCase(TestCase):
 
         # Create files associated with the capture using MinIO mocking
         with MockMinIOContext(b"test_content"):
-            capture_file1 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, capture=capture
             )
-            capture_file2 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, capture=capture
             )
 
             # Create files directly associated with the dataset
-            dataset_file = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, dataset=self.dataset
             )
 
@@ -106,26 +119,26 @@ class DatasetEndpointsTestCase(TestCase):
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
-        
+
         # Check pagination structure
         assert "count" in data
         assert "next" in data
         assert "previous" in data
         assert "results" in data
-        
+
         # Check total file count (3 files: 2 from capture + 1 from dataset)
-        assert data["count"] == 3
-        
+        assert data["count"] == self.EXPECTED_TOTAL_FILES_3
+
         # Check results structure
         results = data["results"]
-        assert len(results) == 3
-        
+        assert len(results) == self.EXPECTED_TOTAL_FILES_3
+
         # Verify capture file info structure
         capture_files = [f for f in results if f["capture"] is not None]
-        assert len(capture_files) == 2
-        
+        assert len(capture_files) == self.EXPECTED_CAPTURE_FILES
+
         for file_info in capture_files:
             assert file_info["capture"]["uuid"] == str(capture.uuid)
             assert file_info["capture"]["name"] == capture.name
@@ -134,7 +147,7 @@ class DatasetEndpointsTestCase(TestCase):
         """Test dataset files manifest including files from shared captures."""
         # Create another user who will own the capture
         other_user = UserFactory()
-        
+
         # Create a capture owned by another user and associated with the dataset
         capture = Capture.objects.create(
             owner=other_user,
@@ -146,7 +159,7 @@ class DatasetEndpointsTestCase(TestCase):
         )
 
         # Create a share permission for the dataset with the current user
-        dataset_share_permission = UserSharePermission.objects.create(
+        UserSharePermission.objects.create(
             owner=other_user,
             shared_with=self.user,
             item_type=ItemType.DATASET,
@@ -156,15 +169,15 @@ class DatasetEndpointsTestCase(TestCase):
 
         # Create files associated with the shared capture using MinIO mocking
         with MockMinIOContext(b"test_content"):
-            capture_file1 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=capture
             )
-            capture_file2 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=capture
             )
 
             # Create files directly associated with the dataset
-            dataset_file = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, dataset=self.dataset
             )
 
@@ -172,35 +185,35 @@ class DatasetEndpointsTestCase(TestCase):
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
-        
+
         # Check pagination structure
         assert "count" in data
         assert "next" in data
         assert "previous" in data
         assert "results" in data
-        
+
         # Check total file count (3 files: 2 from shared capture + 1 from dataset)
-        assert data["count"] == 3
-        
+        assert data["count"] == self.EXPECTED_TOTAL_FILES_3
+
         # Check results structure
         results = data["results"]
-        assert len(results) == 3
-        
+        assert len(results) == self.EXPECTED_TOTAL_FILES_3
+
         # Verify shared capture file info structure
         capture_files = [f for f in results if f["capture"] is not None]
-        assert len(capture_files) == 2
-        
+        assert len(capture_files) == self.EXPECTED_CAPTURE_FILES
+
         for file_info in capture_files:
             assert file_info["capture"]["uuid"] == str(capture.uuid)
             assert file_info["capture"]["name"] == capture.name
 
     def test_get_dataset_files_with_both_owned_and_shared_captures(self):
-        """Test dataset files manifest including files from both owned and shared captures."""
+        """Test dataset files manifest with both owned and shared captures."""
         # Create another user who will own a shared capture
         other_user = UserFactory()
-        
+
         # Create an owned capture
         owned_capture = Capture.objects.create(
             owner=self.user,
@@ -222,7 +235,7 @@ class DatasetEndpointsTestCase(TestCase):
         )
 
         # Create a share permission for the dataset with the current user
-        dataset_share_permission = UserSharePermission.objects.create(
+        UserSharePermission.objects.create(
             owner=other_user,
             shared_with=self.user,
             item_type=ItemType.DATASET,
@@ -233,23 +246,23 @@ class DatasetEndpointsTestCase(TestCase):
         # Create files associated with both captures using MinIO mocking
         with MockMinIOContext(b"test_content"):
             # Files from owned capture
-            owned_capture_file1 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, capture=owned_capture
             )
-            owned_capture_file2 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, capture=owned_capture
             )
 
             # Files from shared capture
-            shared_capture_file1 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=shared_capture
             )
-            shared_capture_file2 = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, capture=shared_capture
             )
 
             # Files directly associated with the dataset
-            dataset_file = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=self.user, dataset=self.dataset
             )
 
@@ -257,34 +270,44 @@ class DatasetEndpointsTestCase(TestCase):
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
-        
+
         # Check pagination structure
         assert "count" in data
         assert "next" in data
         assert "previous" in data
         assert "results" in data
-        
-        # Check total file count (5 files: 2 from owned capture + 2 from shared capture + 1 from dataset)
-        assert data["count"] == 5
-        
+
+        # Check total file count (5 files: 2 owned + 2 shared + 1 dataset)
+        assert data["count"] == self.EXPECTED_TOTAL_FILES_5
+
         # Check results structure
         results = data["results"]
-        assert len(results) == 5
-        
+        assert len(results) == self.EXPECTED_TOTAL_FILES_5
+
         # Verify owned capture file info structure
-        owned_capture_files = [f for f in results if f["capture"] is not None and f["capture"]["uuid"] == str(owned_capture.uuid)]
-        assert len(owned_capture_files) == 2
-        
+        owned_capture_files = [
+            f
+            for f in results
+            if f["capture"] is not None
+            and f["capture"]["uuid"] == str(owned_capture.uuid)
+        ]
+        assert len(owned_capture_files) == self.EXPECTED_CAPTURE_FILES
+
         for file_info in owned_capture_files:
             assert file_info["capture"]["uuid"] == str(owned_capture.uuid)
             assert file_info["capture"]["name"] == owned_capture.name
 
         # Verify shared capture file info structure
-        shared_capture_files = [f for f in results if f["capture"] is not None and f["capture"]["uuid"] == str(shared_capture.uuid)]
-        assert len(shared_capture_files) == 2
-        
+        shared_capture_files = [
+            f
+            for f in results
+            if f["capture"] is not None
+            and f["capture"]["uuid"] == str(shared_capture.uuid)
+        ]
+        assert len(shared_capture_files) == self.EXPECTED_CAPTURE_FILES
+
         for file_info in shared_capture_files:
             assert file_info["capture"]["uuid"] == str(shared_capture.uuid)
             assert file_info["capture"]["name"] == shared_capture.name
@@ -321,6 +344,7 @@ class DatasetEndpointsTestCase(TestCase):
         """Test dataset files manifest without UUID parameter."""
         # Use a valid UUID format that doesn't exist to test the 404 case
         import uuid
+
         fake_uuid = uuid.uuid4()
         url = reverse("api:datasets-files", kwargs={"pk": fake_uuid})
         response = self.client.get(url)
@@ -337,7 +361,7 @@ class DatasetEndpointsTestCase(TestCase):
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_get_dataset_files_pagination_structure(self):
-        """Test that the pagination response has the correct structure for SDK consumption."""
+        """Test pagination response structure for SDK consumption."""
         # Create test files
         with MockMinIOContext(b"test_content"):
             create_file_with_minio_mock(
@@ -348,18 +372,18 @@ class DatasetEndpointsTestCase(TestCase):
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
-        
+
         # Verify pagination structure
         required_pagination_keys = ["count", "next", "previous", "results"]
         for key in required_pagination_keys:
             assert key in data, f"Missing pagination key: {key}"
-        
+
         # Verify results structure
         assert isinstance(data["results"], list)
         assert data["count"] == 1
-        
+
         # Verify file info structure (if files exist)
         if data["results"]:
             file_info = data["results"][0]
@@ -371,52 +395,54 @@ class DatasetEndpointsTestCase(TestCase):
         """Test pagination parameters work correctly."""
         # Create multiple test files
         with MockMinIOContext(b"test_content"):
-            for i in range(35):  # More than default page size of 30
+            for i in range(
+                self.EXPECTED_PAGINATION_COUNT
+            ):  # More than default page size of 30
                 create_file_with_minio_mock(
-                    file_content=b"test_content", 
-                    owner=self.user, 
+                    file_content=b"test_content",
+                    owner=self.user,
                     dataset=self.dataset,
-                    name=f"file_{i}.h5"
+                    name=f"file_{i}.h5",
                 )
 
         url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
-        
+
         # Check pagination structure
-        assert data["count"] == 35
-        assert len(data["results"]) == 30  # Default page size
+        assert data["count"] == self.EXPECTED_PAGINATION_COUNT
+        assert len(data["results"]) == self.EXPECTED_PAGE_SIZE  # Default page size
         assert data["next"] is not None  # Should have next page
         assert data["previous"] is None  # First page
 
         # Test second page
         response = self.client.get(f"{url}?page=2")
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
-        assert len(data["results"]) == 5  # Remaining files
+        assert len(data["results"]) == self.EXPECTED_REMAINING_FILES  # Remaining files
         assert data["next"] is None  # No more pages
         assert data["previous"] is not None  # Has previous page
 
         # Test custom page size
-        response = self.client.get(f"{url}?page_size=10")
+        response = self.client.get(f"{url}?page_size={self.EXPECTED_CUSTOM_PAGE_SIZE}")
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
-        assert len(data["results"]) == 10
+        assert len(data["results"]) == self.EXPECTED_CUSTOM_PAGE_SIZE
         assert data["next"] is not None  # Should have next page
 
     def test_get_dataset_files_shared_capture_disabled_permission(self):
         """Test that disabled share permissions don't grant access to capture files."""
         # Create another user who will own the dataset and capture
         other_user = UserFactory()
-        
+
         # Create a dataset owned by another user
         other_dataset = DatasetFactory(owner=other_user)
-        
+
         # Create a capture owned by another user and associated with the other dataset
         capture = Capture.objects.create(
             owner=other_user,
@@ -428,7 +454,7 @@ class DatasetEndpointsTestCase(TestCase):
         )
 
         # Create a disabled share permission for the dataset
-        dataset_share_permission = UserSharePermission.objects.create(
+        UserSharePermission.objects.create(
             owner=other_user,
             shared_with=self.user,
             item_type=ItemType.DATASET,
@@ -443,7 +469,7 @@ class DatasetEndpointsTestCase(TestCase):
             )
 
             # Create files directly associated with the dataset
-            dataset_file = create_file_with_minio_mock(
+            create_file_with_minio_mock(
                 file_content=b"test_content", owner=other_user, dataset=other_dataset
             )
 
@@ -452,4 +478,3 @@ class DatasetEndpointsTestCase(TestCase):
 
         # Should get 403 Forbidden because the share permission is disabled
         assert response.status_code == status.HTTP_403_FORBIDDEN
-

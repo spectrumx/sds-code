@@ -25,7 +25,6 @@ from spectrumx.models.captures import CaptureType
 
 from .errors import AuthError
 from .errors import CaptureError
-from .errors import DatasetError
 from .errors import FileError
 from .models.files import File
 from .models.files import FileUpload

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import uuid
 
 from spectrumx.models.files import File
 from spectrumx.ops.pagination import Paginator
@@ -60,5 +62,5 @@ class DatasetAPI:
             dry_run=self.dry_run,
             verbose=self.verbose,
         )
-            
+
         return pagination

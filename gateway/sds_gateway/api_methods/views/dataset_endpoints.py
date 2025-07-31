@@ -1,6 +1,7 @@
 """Dataset operations endpoints for the SDS Gateway API."""
 
-from django.db.models import QuerySet, Q
+from django.db.models import QuerySet
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
@@ -11,11 +12,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
-from django.http import JsonResponse
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
-from sds_gateway.api_methods.models import Dataset, ItemType, UserSharePermission
+from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.views.file_endpoints import FilePagination
 
@@ -26,22 +28,19 @@ class DatasetViewSet(ViewSet):
 
     def _get_file_objects(self, dataset: Dataset) -> QuerySet[File]:
         """Get all files associated with a dataset."""
-        from django.db.models import Q
-        
+
         # Get the files directly connected to the dataset
         artifact_files = dataset.files.filter(is_deleted=False)
-        
+
         # Get the files connected to the captures associated with the dataset
         dataset_captures = dataset.captures.filter(is_deleted=False)
         capture_files = File.objects.filter(
             capture__in=dataset_captures,
             is_deleted=False,
         )
-        
+
         # Combine using union to avoid duplicates
-        all_files = artifact_files.union(capture_files)
-        
-        return all_files
+        return artifact_files.union(capture_files)
 
     @extend_schema(
         parameters=[
@@ -76,15 +75,19 @@ class DatasetViewSet(ViewSet):
             404: OpenApiResponse(description="Not Found"),
         },
         description=(
-            "Get a manifest of files in the dataset, separated by captures and artifacts. "
-            "This allows efficient downloading using the existing download infrastructure."
+            "Get a manifest of files in the dataset, separated by "
+            "captures and artifacts. "
+            "This allows efficient downloading using the existing download "
+            "infrastructure."
         ),
         summary="Get Dataset Files Manifest",
     )
     @action(detail=True, methods=["get"], url_path="files", url_name="files")
-    def get_dataset_files(self, request: Request, pk: str | None = None) -> JsonResponse:
+    def get_dataset_files(
+        self, request: Request, pk: str | None = None
+    ) -> JsonResponse:
         """Get a paginated list of files in the dataset to be downloaded."""
-        
+
         if pk is None:
             return Response(
                 {"detail": "Dataset UUID is required."},
@@ -106,7 +109,7 @@ class DatasetViewSet(ViewSet):
             is_enabled=True,
             is_deleted=False,
         ).exists()
-        
+
         if not user_is_owner and not user_has_share_permission:
             return Response(
                 {"detail": "You do not have permission to access this dataset."},
@@ -131,5 +134,3 @@ class DatasetViewSet(ViewSet):
         serializer = FileGetSerializer(paginated_files, many=True)
 
         return paginator.get_paginated_response(serializer.data)
-        
-
