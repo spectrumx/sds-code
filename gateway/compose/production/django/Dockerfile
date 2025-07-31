@@ -121,6 +121,7 @@ RUN chown -R django:django ${APP_HOME}
 # Create temp_zips directory and set permissions
 RUN mkdir -p /app/sds_gateway/media/temp_zips && \
     chown -R django:django /app/sds_gateway/media/temp_zips && \
+    find /app/sds_gateway/media/temp_zips -type d -exec chmod 755 {} \; && \
     chmod -R 755 /app/sds_gateway/media/temp_zips
 
 USER django
