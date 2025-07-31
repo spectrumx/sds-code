@@ -1,0 +1,139 @@
+<div class="sdk-download-instructions">
+    <h6 class="mb-3">Download Dataset Using the SDK</h6>
+    <p class="text-muted mb-4">
+        You can programmatically download datasets using the SpectrumX SDK. Here are examples for different use cases:
+    </p>
+    <!-- Python Example -->
+    <div class="code-example mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">
+                <i class="bi bi-filetype-py"></i> Python Example
+            </h6>
+            <button class="btn btn-sm btn-outline-primary copy-btn"
+                    data-clipboard-target="#python-code"
+                    title="Copy to clipboard">
+                <i class="bi bi-clipboard"></i> Copy
+            </button>
+        </div>
+        <pre id="python-code" class="bg-light p-3 rounded border"><code>from spectrumx import SpectrumX
+# Initialize the client
+client = SpectrumX(
+    api_key="your_api_key_here",
+    base_url="https://your-gateway-url.com"
+)
+
+# Download a dataset by ID
+try:
+    client.download_dataset(
+        dataset_uuid="your_dataset_uuid",
+    )
+
+except Exception as e:
+    print(f"Error requesting download: {e}")</code></pre>
+    </div>
+    <!-- Additional Information -->
+    <div class="alert alert-info">
+        <h6>
+            <i class="bi bi-info-circle"></i> Additional Information
+        </h6>
+        <ul class="mb-0">
+            <li>
+                <strong>Dataset ID:</strong> You can find the dataset ID in the URL when viewing a dataset
+            </li>
+            <li>
+                <strong>API Key:</strong> Generate your API key in your user profile settings
+            </li>
+            <li>
+                <strong>Email Notification:</strong> You'll receive an email with a download link when the file is ready
+            </li>
+            <li>
+                <strong>File Size:</strong> Large datasets may take several minutes to prepare
+            </li>
+        </ul>
+    </div>
+</div>
+<style>
+    .code-example pre {
+        font-size: 0.875rem;
+        line-height: 1.4;
+        margin: 0;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .copy-btn {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .copy-btn:hover {
+        background-color: #005a9c !important;
+        border-color: #005a9c !important;
+        color: white !important;
+    }
+
+    .copy-btn.copied {
+        background-color: #28a745 !important;
+        border-color: #28a745 !important;
+        color: white !important;
+    }
+</style>
+<script>
+    // Copy to clipboard functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const copyButtons = document.querySelectorAll('.copy-btn');
+
+        copyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-clipboard-target');
+                const codeElement = document.querySelector(targetId);
+
+                if (codeElement) {
+                    const textToCopy = codeElement.textContent;
+
+                    // Use modern clipboard API if available
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(textToCopy).then(() => {
+                            showCopySuccess(this);
+                        }).catch(() => {
+                            fallbackCopyTextToClipboard(textToCopy, this);
+                        });
+                    } else {
+                        fallbackCopyTextToClipboard(textToCopy, this);
+                    }
+                }
+            });
+        });
+
+        function showCopySuccess(button) {
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            button.classList.add('copied');
+
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('copied');
+            }, 2000);
+        }
+
+        function fallbackCopyTextToClipboard(text, button) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                document.execCommand('copy');
+                showCopySuccess(button);
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+            }
+
+            document.body.removeChild(textArea);
+        }
+    });
+</script>
