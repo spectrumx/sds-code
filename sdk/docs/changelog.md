@@ -6,8 +6,8 @@
 
 + Features:
     + [**Added `name` parameter to `upload_capture` method**](https://github.com/spectrumx/sds-code/pull/143): `upload_capture()` now accepts an optional `name` parameter to set custom capture names.
-    + **Added `download_dataset` method to client**: Users can now download datasets through the SDK by passing in a dataset UUID.
-    + **Added a `files_to_download` argument to the `download()` method**: Can now supply a pre-filtered list of files to download rather than downloading all files in a path.
+    + [**Added `download_dataset` method to client**](https://github.com/spectrumx/sds-code/pull/165): Users can now download datasets through the SDK by passing in a dataset UUID.
+    + [**Added a `files_to_download` argument to the `download()` method**](https://github.com/spectrumx/sds-code/pull/165): Can now supply a pre-filtered list of files to download rather than downloading all files in a path.
 
 ## `0.1.11` - 2025-07-03
 
