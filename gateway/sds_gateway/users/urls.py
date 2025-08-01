@@ -3,7 +3,6 @@ from django.urls import path
 from .api.views import GetAPIKeyView
 from .views import AllAPIKeysView
 from .views import ListCapturesView
-from .views import user_capture_download_view
 from .views import delete_api_key_view
 from .views import generate_api_key_form_view
 from .views import new_api_key_view
