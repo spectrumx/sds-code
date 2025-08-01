@@ -938,6 +938,97 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @action(detail=True, methods=["get"])
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="processing_type",
+                description="Type of post-processed data to download (e.g., 'waterfall')",
+                required=True,
+                type=str,
+                location=OpenApiParameter.QUERY,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Post-processed data file"),
+            400: OpenApiResponse(description="Bad Request"),
+            404: OpenApiResponse(
+                description="Capture or post-processed data not found"
+            ),
+        },
+        summary="Download post-processed data",
+        description="Download a post-processed data file for a capture",
+    )
+    def download_post_processed_data(self, request, pk=None):
+        """Download post-processed data file for a capture."""
+        try:
+            capture = self.get_object()
+            processing_type = request.query_params.get("processing_type")
+
+            if not processing_type:
+                return Response(
+                    {"error": "processing_type parameter is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the most recent post-processed data for this capture and processing type
+            processed_data = (
+                capture.post_processed_data.filter(
+                    processing_type=processing_type,
+                    processing_status="completed",
+                )
+                .order_by("-created_at")
+                .first()
+            )
+
+            if not processed_data:
+                return Response(
+                    {
+                        "error": f"No completed {processing_type} data found for this capture"
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if not processed_data.data_file:
+                return Response(
+                    {
+                        "error": f"Post-processed data file not found for {processing_type}"
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Return the file as a download response
+            import os
+
+            from django.http import FileResponse
+
+            file_path = processed_data.data_file.path
+            if not os.path.exists(file_path):
+                return Response(
+                    {"error": "Post-processed data file not found on disk"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            response = FileResponse(
+                open(file_path, "rb"), content_type="application/octet-stream"
+            )
+            response["Content-Disposition"] = (
+                f'attachment; filename="{os.path.basename(file_path)}"'
+            )
+            return response
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            log.exception(f"Error downloading post-processed data: {e}")
+            return Response(
+                {"error": f"Internal server error: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 def _check_capture_creation_constraints(
     capture_candidate: dict[str, Any],
