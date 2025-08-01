@@ -23,13 +23,6 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
     processing_status = serializers.CharField()
     is_ready = serializers.BooleanField(read_only=True)
 
-    # Metadata fields for backward compatibility
-    center_frequency = serializers.SerializerMethodField()
-    sample_rate = serializers.SerializerMethodField()
-    min_frequency = serializers.SerializerMethodField()
-    max_frequency = serializers.SerializerMethodField()
-    total_slices = serializers.SerializerMethodField()
-
     class Meta:
         model = PostProcessedData
         fields = [
@@ -46,12 +39,6 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
             "is_ready",
             "created_at",
             "updated_at",
-            # Backward compatibility fields
-            "center_frequency",
-            "sample_rate",
-            "min_frequency",
-            "max_frequency",
-            "total_slices",
         ]
         read_only_fields = [
             "uuid",
@@ -66,26 +53,6 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
             "created_at",
             "updated_at",
         ]
-
-    def get_center_frequency(self, obj: PostProcessedData) -> float:
-        """Get center frequency from metadata."""
-        return obj.get_metadata_value("center_frequency", 0.0)
-
-    def get_sample_rate(self, obj: PostProcessedData) -> float:
-        """Get sample rate from metadata."""
-        return obj.get_metadata_value("sample_rate", 0.0)
-
-    def get_min_frequency(self, obj: PostProcessedData) -> float:
-        """Get minimum frequency from metadata."""
-        return obj.get_metadata_value("min_frequency", 0.0)
-
-    def get_max_frequency(self, obj: PostProcessedData) -> float:
-        """Get maximum frequency from metadata."""
-        return obj.get_metadata_value("max_frequency", 0.0)
-
-    def get_total_slices(self, obj: PostProcessedData) -> int:
-        """Get total slices from metadata."""
-        return obj.get_metadata_value("total_slices", 0)
 
 
 class FileCaptureListSerializer(serializers.ModelSerializer[File]):
