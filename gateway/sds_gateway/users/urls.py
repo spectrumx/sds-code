@@ -1,9 +1,7 @@
 from django.urls import path
 
 from .api.views import GetAPIKeyView
-from .views import AllAPIKeysView
 from .views import ListCapturesView
-from .views import delete_api_key_view
 from .views import generate_api_key_form_view
 from .views import new_api_key_view
 from .views import revoke_api_key_view
@@ -50,9 +48,7 @@ urlpatterns = [
     ),
     # Used by SVI Server to get API key for a user
     path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),
-    path("delete-api-key/", delete_api_key_view, name="delete_api_key"),
     path("revoke-api-key/", revoke_api_key_view, name="revoke_api_key"),
-    path("all-api-keys/", AllAPIKeysView.as_view(), name="all_api_keys"),
     path(
         "generate-api-key-form/",
         generate_api_key_form_view,
