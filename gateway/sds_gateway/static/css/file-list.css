@@ -488,3 +488,18 @@ body {
 .hidden-input-group {
 	display: none;
 }
+
+/* ================================
+   Progress Bar Styles
+   ================================ */
+.progress-section-hidden {
+	display: none;
+}
+
+.progress-bar-custom {
+	height: 8px;
+}
+
+.progress-bar-width-0 {
+	width: 0%;
+}

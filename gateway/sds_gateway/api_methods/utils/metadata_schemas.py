@@ -411,9 +411,9 @@ def infer_index_name(capture_type: CaptureType) -> str:
     # Populate index_name based on capture type
     match capture_type:
         case CaptureType.DigitalRF:
-            return f"captures-{CaptureType.DigitalRF}"
+            return "captures-drf"
         case CaptureType.RadioHound:
-            return f"captures-{CaptureType.RadioHound}"
+            return "captures-rh"
         case _:
             msg = f"Invalid capture type: {capture_type}"
             log.error(msg)

@@ -256,6 +256,13 @@ class Capture(BaseModel):
         if not self.name and self.top_level_dir:
             # Extract the last part of the path as the default name
             self.name = Path(self.top_level_dir).name or self.top_level_dir.strip("/")
+
+        # Set the index_name if not provided
+        if not self.index_name and self.capture_type:
+            from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
+
+            self.index_name = infer_index_name(self.capture_type)
+
         super().save(*args, **kwargs)
 
     @property

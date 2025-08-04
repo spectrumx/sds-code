@@ -1819,6 +1819,11 @@ class UploadFilesView(View):
         skipped_files = []
 
         for f, rel_path in zip(files, relative_paths, strict=True):
+            # Check for upload cancellation during file uploads
+            if self._is_upload_cancelled(request):
+                logger.info("Upload cancelled during file uploads")
+                return saved_files, errors
+
             path = Path(rel_path)
             directory = "/" + str(path.parent) if path.parent != Path() else "/"
             filename = path.name
@@ -1875,7 +1880,13 @@ class UploadFilesView(View):
         return saved_files, errors
 
     def _create_single_capture(
-        self, request, channel, top_level_dir, capture_type, scan_group
+        self,
+        request,
+        channel,
+        top_level_dir,
+        capture_type,
+        scan_group,
+        all_relative_paths=None,
     ):
         """Create a single capture for a channel.
 
@@ -1900,6 +1911,11 @@ class UploadFilesView(View):
                 capture_data["scan_group"] = scan_group
             else:
                 capture_data["channel"] = channel
+
+            # Set the index name based on capture type
+            from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
+
+            capture_data["index_name"] = infer_index_name(capture_type_enum)
 
             # Use the helper function to create the capture
             logger.info("Creating capture with data: %s", capture_data)
@@ -1953,17 +1969,89 @@ class UploadFilesView(View):
             )
             return None, f"Unexpected error for channel {channel}: {exc}"
 
+    def _calculate_top_level_dir(self, relative_paths, all_relative_paths):
+        """Calculate the top level directory from relative paths."""
+        if all_relative_paths and len(all_relative_paths) > 0:
+            # Use all_relative_paths when files are skipped
+            first_rel_path = all_relative_paths[0]
+        elif relative_paths and len(relative_paths) > 0:
+            # Use uploaded relative_paths for normal uploads
+            first_rel_path = relative_paths[0]
+        else:
+            first_rel_path = ""
+
+        if first_rel_path and "/" in first_rel_path:
+            return "/" + first_rel_path.split("/")[0]
+        if first_rel_path:
+            return "/"
+        return "/"
+
+    def _create_radiohound_captures(
+        self, request, top_level_dir, scan_group, all_relative_paths
+    ):
+        """Create RadioHound captures."""
+        created_captures = []
+        errors = []
+
+        # Check for upload cancellation before RadioHound capture creation
+        if self._is_upload_cancelled(request):
+            logger.info("Upload cancelled before RadioHound capture creation")
+            return created_captures, errors
+
+        # For RadioHound, create a single capture with scan_group
+        created_capture, error = self._create_single_capture(
+            request, "", top_level_dir, "rh", scan_group, all_relative_paths
+        )
+        if created_capture:
+            created_captures.append(created_capture)
+        if error:
+            errors.append(error)
+
+        return created_captures, errors
+
+    def _create_digitalrf_captures(
+        self, request, channels, top_level_dir, scan_group, all_relative_paths
+    ):
+        """Create DigitalRF captures for each channel."""
+        created_captures = []
+        errors = []
+
+        # For DigitalRF, create captures for each channel
+        for channel in channels:
+            # Check for upload cancellation before each DigitalRF capture creation
+            if self._is_upload_cancelled(request):
+                logger.info("Upload cancelled during DigitalRF capture creation")
+                return created_captures, errors
+
+            created_capture, error = self._create_single_capture(
+                request,
+                channel,
+                top_level_dir,
+                "drf",
+                scan_group,
+                all_relative_paths,
+            )
+            if created_capture:
+                created_captures.append(created_capture)
+            if error:
+                errors.append(error)
+
+        return created_captures, errors
+
     def _create_captures(
-        self, request, channels, relative_paths, capture_type, scan_group
+        self,
+        request,
+        channels,
+        relative_paths,
+        capture_type,
+        scan_group,
+        all_relative_paths=None,
     ):
         """Create captures using the capture helper function.
 
         Uses create_capture_helper_simple() to create captures for each channel.
         Returns tuple of (created_captures, errors).
         """
-        created_captures = []
-        errors = []
-
         logger.info(
             "_create_captures called with - channels: %s, capture_type: %s, "
             "scan_group: %s",
@@ -1972,15 +2060,10 @@ class UploadFilesView(View):
             scan_group,
         )
 
-        # Determine top level directory from relative paths
-        if relative_paths:
-            first_rel_path = relative_paths[0]
-            if "/" in first_rel_path:
-                top_level_dir = "/" + first_rel_path.split("/")[0]
-            else:
-                top_level_dir = "/"
-        else:
-            top_level_dir = "/"
+        # Calculate top_level_dir from relative paths
+        top_level_dir = self._calculate_top_level_dir(
+            relative_paths, all_relative_paths
+        )
 
         logger.info(
             "Starting capture creation - channels: %s, capture_type: %s, "
@@ -1991,41 +2074,15 @@ class UploadFilesView(View):
             top_level_dir,
         )
 
+        # Create captures based on type
         if capture_type == "rh":
-            # For RadioHound, create a single capture with scan_group
-            logger.info("Creating RadioHound capture with scan_group: %s", scan_group)
-            capture_data, error = self._create_single_capture(
-                request, "", top_level_dir, capture_type, scan_group
+            created_captures, errors = self._create_radiohound_captures(
+                request, top_level_dir, scan_group, all_relative_paths
             )
-            if capture_data:
-                created_captures.append(capture_data)
-                logger.info(
-                    "Successfully created RadioHound capture: %s",
-                    capture_data.get("uuid", "unknown"),
-                )
-            if error:
-                errors.append(error)
-                logger.error("Failed to create RadioHound capture: %s", error)
         else:
-            # For DigitalRF, create captures for each channel
-            for channel in channels:
-                logger.info("Creating DigitalRF capture for channel: %s", channel)
-                capture_data, error = self._create_single_capture(
-                    request, channel, top_level_dir, capture_type, scan_group
-                )
-                if capture_data:
-                    created_captures.append(capture_data)
-                    logger.info(
-                        "Successfully created DigitalRF capture: %s",
-                        capture_data.get("uuid", "unknown"),
-                    )
-                if error:
-                    errors.append(error)
-                    logger.error(
-                        "Failed to create DigitalRF capture for channel %s: %s",
-                        channel,
-                        error,
-                    )
+            created_captures, errors = self._create_digitalrf_captures(
+                request, channels, top_level_dir, scan_group, all_relative_paths
+            )
 
         if errors:
             logger.error("Capture creation errors: %s", errors)
@@ -2036,18 +2093,39 @@ class UploadFilesView(View):
         """Parse upload request parameters."""
         files = request.FILES.getlist("files")
         relative_paths = request.POST.getlist("relative_paths")
+        all_relative_paths = request.POST.getlist("all_relative_paths")
         channels_str = request.POST.get("channels", "")
         channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
         scan_group = request.POST.get("scan_group", "")
         capture_type = request.POST.get("capture_type", "drf")  # Default to DigitalRF
 
-        return files, relative_paths, channels, scan_group, capture_type
+        return (
+            files,
+            relative_paths,
+            all_relative_paths,
+            channels,
+            scan_group,
+            capture_type,
+        )
 
     def _check_required_fields(self, capture_type, channels, scan_group):
         """Check if required fields are provided for capture creation."""
         if capture_type == "rh":
-            return bool(scan_group.strip())
-        return bool(channels)
+            result = bool(scan_group.strip())
+            logger.info(
+                "REQUIRED FIELDS DEBUG - capture_type=rh, scan_group='%s', result=%s",
+                scan_group,
+                result,
+            )
+            return result
+        result = bool(channels)
+        logger.info(
+            "REQUIRED FIELDS DEBUG - capture_type=%s, channels='%s', result=%s",
+            capture_type,
+            channels,
+            result,
+        )
+        return result
 
     def _determine_response_status(
         self,
@@ -2060,19 +2138,58 @@ class UploadFilesView(View):
     ):
         """Determine the response status based on upload and capture creation
         results."""
+        # Debug logging for status determination
+        logger.info(
+            "STATUS DETERMINATION DEBUG - saved_files: %s, created_captures: %s, "
+            "all_files_empty: %s, has_required_fields: %s, files: %s, errors: %s",
+            len(saved_files),
+            len(created_captures),
+            all_files_empty,
+            has_required_fields,
+            len(files),
+            errors,
+        )
+
         if all_files_empty:
             # If all files were empty (skipped) and we have required fields,
             # this is a success even if no captures were created
             # (they might already exist)
-            return "success" if has_required_fields else "error"
+            status = "success" if has_required_fields else "error"
+            logger.info(
+                "STATUS DETERMINATION DEBUG - all_files_empty=True, "
+                "has_required_fields=%s, returning status=%s",
+                has_required_fields,
+                status,
+            )
+            return status
         if saved_files and len(saved_files) == len(files) and not errors:
+            logger.info(
+                "STATUS DETERMINATION DEBUG - all files uploaded successfully, "
+                "returning status=success"
+            )
             return "success"
         if saved_files:
+            logger.info(
+                "STATUS DETERMINATION DEBUG - partial upload, "
+                "returning status=partial_success"
+            )
             return "partial_success"
+        logger.info(
+            "STATUS DETERMINATION DEBUG - no files saved, returning status=error"
+        )
         return "error"
 
     def _build_response_data(
-        self, status, saved_files, created_captures, files, errors, capture_errors
+        self,
+        status,
+        saved_files,
+        created_captures,
+        files,
+        errors,
+        capture_errors,
+        *,
+        all_files_empty: bool = False,
+        has_required_fields: bool = False,
     ):
         """Build the response data dictionary."""
         response_data = {
@@ -2082,6 +2199,16 @@ class UploadFilesView(View):
             "total_files": len(files),
             "captures": created_captures,
         }
+
+        # Add custom message when all files are skipped (regardless of capture creation)
+        if all_files_empty and has_required_fields and not errors:
+            response_data["message"] = "Upload skipped. All files exist on server"
+            # Add the UUID of the first created capture if available
+            if created_captures and len(created_captures) > 0:
+                first_capture = created_captures[0]
+                if isinstance(first_capture, dict) and "uuid" in first_capture:
+                    response_data["capture_uuid"] = first_capture["uuid"]
+
         # Combine file upload errors and capture creation errors
         all_errors = []
         if errors:
@@ -2106,6 +2233,78 @@ class UploadFilesView(View):
             else 400
         )
 
+    def _is_upload_cancelled(self, request):
+        """Check if the upload has been cancelled by the client."""
+        # Check for cancellation header
+        if request.headers.get("X-Upload-Cancelled") == "true":
+            logger.info("Upload cancelled via header")
+            return True
+
+        # Check for cancellation in session
+        if hasattr(request, "session"):
+            cancelled = request.session.get("upload_cancelled", False)
+            if cancelled:
+                logger.info("Upload cancelled via session")
+                return True
+
+        return False
+
+    def _set_upload_cancelled(self, request, *, cancelled: bool = True):
+        """Set the upload cancellation state in session."""
+        if hasattr(request, "session"):
+            request.session["upload_cancelled"] = cancelled
+            logger.info("Set upload cancelled state: %s", cancelled)
+
+    def _is_client_disconnected(self, request):
+        """Check if the client has disconnected from the request."""
+        try:
+            # Check if the request is still connected
+            if hasattr(request, "_closed") and getattr(request, "_closed", False):
+                logger.info("Client disconnected: request._closed is True")
+                return True
+            # Try to access request body to see if connection is still alive
+            if hasattr(request, "body"):
+                # This will raise an exception if the client disconnected
+                _ = request.body
+            logger.info("Client disconnection check passed")
+        except (ConnectionError, OSError) as e:
+            logger.info("Client disconnected: exception caught: %s", e)
+            return True
+        else:
+            return False
+
+    def _cleanup_uploaded_files(self, saved_files):
+        """Clean up uploaded files when cancellation occurs."""
+        if not saved_files:
+            return
+
+        try:
+            file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
+            if file_uuids:
+                File.objects.filter(uuid__in=file_uuids).delete()
+                logger.info(
+                    "Cleaned up %s uploaded files due to cancellation",
+                    len(file_uuids),
+                )
+        except Exception:
+            logger.exception("Error cleaning up uploaded files")
+
+    def _cleanup_created_captures(self, created_captures):
+        """Clean up created captures when cancellation occurs."""
+        if not created_captures:
+            return
+
+        try:
+            capture_uuids = [c.get("uuid") for c in created_captures if c.get("uuid")]
+            if capture_uuids:
+                Capture.objects.filter(uuid__in=capture_uuids).delete()
+                logger.info(
+                    "Cleaned up %s created captures due to cancellation",
+                    len(capture_uuids),
+                )
+        except Exception:
+            logger.exception("Error cleaning up created captures")
+
     def _handle_capture_creation(
         self,
         request,
@@ -2116,6 +2315,7 @@ class UploadFilesView(View):
         saved_files,
         all_files_empty,
         has_required_fields,
+        all_relative_paths,
     ):
         """Handle capture creation logic."""
         capture_errors = []
@@ -2135,8 +2335,16 @@ class UploadFilesView(View):
             )
             try:
                 logger.info("About to call _create_captures method")
+                # Use all_relative_paths if all files are skipped, otherwise use
+                # relative_paths
+                paths_to_use = all_relative_paths if all_files_empty else relative_paths
                 created_captures, capture_errors = self._create_captures(
-                    request, channels, relative_paths, capture_type, scan_group
+                    request,
+                    channels,
+                    paths_to_use,
+                    capture_type,
+                    scan_group,
+                    all_relative_paths,
                 )
                 logger.info(
                     "Capture creation completed - created_captures: %s, "
@@ -2156,27 +2364,66 @@ class UploadFilesView(View):
         return created_captures, capture_errors
 
     def post(self, request, *args, **kwargs):
-        files, relative_paths, channels, scan_group, capture_type = (
-            self._parse_upload_request(request)
-        )
+        (
+            files,
+            relative_paths,
+            all_relative_paths,
+            channels,
+            scan_group,
+            capture_type,
+        ) = self._parse_upload_request(request)
 
         # Debug logging to see what we're receiving
         logger.info(
             "Upload request received - capture_type: %s, channels: %s, scan_group: %s, "
-            "files_count: %s, relative_paths_count: %s",
+            "files_count: %s, relative_paths_count: %s, all_relative_paths_count: %s",
             capture_type,
             channels,
             scan_group,
             len(files),
             len(relative_paths),
+            len(all_relative_paths),
         )
 
+        # Reset cancellation state at the start of upload
+        self._set_upload_cancelled(request, cancelled=False)
+
+        # Check for upload cancellation before starting processing
+        if self._is_upload_cancelled(request):
+            logger.info("Upload cancelled before processing started")
+            return JsonResponse(
+                {"status": "cancelled", "message": "Upload cancelled by user"},
+                status=200,
+            )
+
         saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
+
+        # Check for upload cancellation after file uploads
+        if self._is_upload_cancelled(request):
+            logger.info("Upload cancelled after file uploads, keeping uploaded files")
+            # Don't clean up files - keep them as requested
+            return JsonResponse(
+                {
+                    "status": "cancelled",
+                    "message": "Upload cancelled by user. Files uploaded so far have "
+                    "been kept.",
+                    "files_uploaded": len(saved_files),
+                },
+                status=200,
+            )
+
         created_captures = []
         file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
 
         # Check if all files were empty (skipped)
-        all_files_empty = all(f.size == 0 for f in files) if files else False
+        # If no files were sent (all skipped on frontend), consider them all empty
+        all_files_empty = all(f.size == 0 for f in files) if files else True
+        logger.info(
+            "FILES DEBUG - files: %s, files_count: %s, all_files_empty: %s",
+            [f.name for f in files] if files else [],
+            len(files),
+            all_files_empty,
+        )
 
         # Create captures if:
         # 1. All uploads succeeded, OR
@@ -2187,37 +2434,36 @@ class UploadFilesView(View):
             capture_type, channels, scan_group
         )
 
-        if has_required_fields:
+        # Handle capture creation
+        created_captures, capture_errors = self._handle_capture_creation(
+            request,
+            channels,
+            relative_paths,
+            capture_type,
+            scan_group,
+            saved_files,
+            all_files_empty,
+            has_required_fields,
+            all_relative_paths,
+        )
+
+        # Check for upload cancellation after capture creation
+        if self._is_upload_cancelled(request):
             logger.info(
-                "Creating captures - saved_files: %s, all_files_empty: %s, "
-                "has_required_fields: %s, capture_type: %s, channels: %s, "
-                "scan_group: %s",
-                len(saved_files),
-                all_files_empty,
-                has_required_fields,
-                capture_type,
-                channels,
-                scan_group,
+                "Upload cancelled after capture creation, keeping uploaded files "
+                "and captures"
             )
-            try:
-                logger.info("About to call _create_captures method")
-                created_captures, capture_errors = self._create_captures(
-                    request, channels, relative_paths, capture_type, scan_group
-                )
-                logger.info(
-                    "Capture creation completed - created_captures: %s, "
-                    "capture_errors: %s",
-                    len(created_captures),
-                    capture_errors,
-                )
-            except Exception as e:
-                logger.exception("Error during capture creation")
-                capture_errors = [f"Capture creation failed: {e!s}"]
-                created_captures = []
-        else:
-            logger.info("Skipping capture creation - no required fields provided")
-            created_captures = []
-            capture_errors = []
+            # Don't clean up files or captures - keep them as requested
+            return JsonResponse(
+                {
+                    "status": "cancelled",
+                    "message": "Upload cancelled by user. Files and captures created "
+                    "so far have been kept.",
+                    "files_uploaded": len(saved_files),
+                    "captures_created": len(created_captures),
+                },
+                status=200,
+            )
 
         # Link all uploaded files to all created captures
         # (only if files were actually uploaded)
@@ -2245,17 +2491,63 @@ class UploadFilesView(View):
         )
 
         response_data = self._build_response_data(
-            status, saved_files, created_captures, files, errors, capture_errors
+            status,
+            saved_files,
+            created_captures,
+            files,
+            errors,
+            capture_errors,
+            all_files_empty=all_files_empty,
+            has_required_fields=has_required_fields,
         )
         # Return 200 if we have files saved, captures created, or if all files were
         # skipped with required fields
         status_code = self._determine_status_code(
             saved_files, created_captures, all_files_empty, has_required_fields
         )
+
+        # Debug logging for result.status
+        logger.info(
+            "RESULT STATUS DEBUG - status: %s, saved_files: %s, created_captures: %s, "
+            "all_files_empty: %s, has_required_fields: %s, errors: %s, "
+            "capture_errors: %s",
+            status,
+            len(saved_files),
+            len(created_captures),
+            all_files_empty,
+            has_required_fields,
+            errors,
+            capture_errors,
+        )
+        logger.info("RESULT STATUS DEBUG - Full response_data: %s", response_data)
+
         return JsonResponse(response_data, status=status_code)
 
 
 user_upload_files_view = UploadFilesView.as_view()
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class CancelUploadView(View):
+    """View to handle upload cancellation signals."""
+
+    def post(self, request, *args, **kwargs):
+        """Set the upload cancellation state."""
+        try:
+            # Set cancellation state in session
+            if hasattr(request, "session"):
+                request.session["upload_cancelled"] = True
+                logger.info("Upload cancellation signal received")
+                return JsonResponse(
+                    {"status": "success", "message": "Cancellation signal received"}
+                )
+            return JsonResponse({"status": "error", "message": "Session not available"})
+        except Exception as e:
+            logger.exception("Error setting cancellation state")
+            return JsonResponse({"status": "error", "message": str(e)})
+
+
+user_cancel_upload_view = CancelUploadView.as_view()
 
 
 # TODO: Use this view when implementing the file upload mode multiplexer.

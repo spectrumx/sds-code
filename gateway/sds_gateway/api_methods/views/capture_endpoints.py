@@ -209,11 +209,14 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
         summary="Create Capture",
     )
-    def create(self, request: Request) -> Response:  # noqa: PLR0911
-        """Create a capture object, connecting files and indexing the metadata."""
+    def _validate_create_request(
+        self, request: Request
+    ) -> tuple[Response | None, dict[str, Any] | None]:
+        """Validate the create request and return response or validated data."""
         drf_channel = request.data.get("channel", None)
         rh_scan_group = request.data.get("scan_group", None)
         capture_type = request.data.get("capture_type", None)
+
         log.debug("POST request to create capture:")
         log.debug(f"\tcapture_type: '{capture_type}' {type(capture_type)}")
         log.debug(f"\tchannel: '{drf_channel}' {type(drf_channel)}")
@@ -223,11 +226,9 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": "The `capture_type` field is required."},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
 
         unsafe_top_level_dir = request.data.get("top_level_dir", "")
-
-        # sanitize top_level_dir
         requested_top_level_dir = sanitize_path_rel_to_user(
             unsafe_path=unsafe_top_level_dir,
             request=request,
@@ -236,16 +237,15 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": "The provided `top_level_dir` is invalid."},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
+
         if capture_type == CaptureType.DigitalRF and not drf_channel:
             return Response(
                 {"detail": "The `channel` field is required for DigitalRF captures."},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
 
         requester = cast("User", request.user)
-
-        # Populate index_name based on capture type
         request_data = request.data.copy()
         request_data["index_name"] = infer_index_name(capture_type)
 
@@ -259,10 +259,10 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": errors},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
+
         capture_candidate: dict[str, Any] = post_serializer.validated_data
 
-        # check capture creation constraints and form error message to end-user
         try:
             _check_capture_creation_constraints(capture_candidate, owner=requester)
         except ValueError as err:
@@ -273,8 +273,154 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": msg},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
 
+        return None, {
+            "drf_channel": drf_channel,
+            "rh_scan_group": rh_scan_group,
+            "capture_type": capture_type,
+            "requested_top_level_dir": requested_top_level_dir,
+            "requester": requester,
+            "capture_candidate": capture_candidate,
+        }
+
+    def _validate_digitalrf_metadata(
+        self,
+        capture_type,
+        drf_channel,
+        requested_top_level_dir,
+        requester,
+        rh_scan_group,
+    ) -> Response | None:
+        """Validate DigitalRF metadata."""
+        if capture_type == CaptureType.DigitalRF and drf_channel:
+            log.info(f"Pre-validating DigitalRF channel name: '{drf_channel}'")
+            try:
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    tmp_dir_path, _ = reconstruct_tree(
+                        target_dir=Path(temp_dir),
+                        virtual_top_dir=requested_top_level_dir,
+                        owner=requester,
+                        capture_type=capture_type,
+                        drf_channel=drf_channel,
+                        rh_scan_group=rh_scan_group,
+                        verbose=False,
+                    )
+
+                    validate_metadata_by_channel(
+                        data_path=tmp_dir_path,
+                        channel_name=drf_channel,
+                    )
+                    log.info(
+                        f"DigitalRF channel validation successful for '{drf_channel}'"
+                    )
+            except ValueError as e:
+                log.warning(
+                    f"DigitalRF channel validation failed for '{drf_channel}': {e}"
+                )
+                return Response(
+                    {"detail": f"Invalid channel name '{drf_channel}': {e}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        return None
+
+    def _validate_radiohound_metadata(
+        self,
+        capture_type,
+        requested_top_level_dir,
+        requester,
+        drf_channel,
+        rh_scan_group,
+    ) -> Response | None:
+        """Validate RadioHound metadata."""
+        if capture_type == CaptureType.RadioHound:
+            log.info("Pre-validating RadioHound metadata")
+            try:
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    tmp_dir_path, _ = reconstruct_tree(
+                        target_dir=Path(temp_dir),
+                        virtual_top_dir=requested_top_level_dir,
+                        owner=requester,
+                        capture_type=capture_type,
+                        drf_channel=drf_channel,
+                        rh_scan_group=rh_scan_group,
+                        verbose=False,
+                    )
+
+                    rh_metadata_file = find_rh_metadata_file(tmp_dir_path)
+                    load_rh_file(rh_metadata_file)  # Validate the file
+                    log.info("RadioHound metadata validation successful")
+            except ValueError as e:
+                log.warning(f"RadioHound metadata validation failed: {e}")
+                return Response(
+                    {"detail": f"Invalid RadioHound metadata: {e}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            except FileNotFoundError as e:
+                log.warning(f"RadioHound metadata file not found: {e}")
+                return Response(
+                    {"detail": f"RadioHound metadata file not found: {e}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        return None
+
+    def _handle_capture_creation_errors(
+        self, capture: Capture, error: Exception
+    ) -> Response:
+        """Handle errors during capture creation and cleanup."""
+        if isinstance(error, UnknownIndexError):
+            user_msg = f"Unknown index: '{error}'. Try recreating this capture."
+            server_msg = (
+                f"Unknown index: '{error}'. Try running the init_indices "
+                "subcommand if this is index should exist."
+            )
+            log.error(server_msg)
+            capture.soft_delete()
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        if isinstance(error, ValueError):
+            user_msg = f"Error handling metadata for capture '{capture.uuid}': {error}"
+            capture.soft_delete()
+            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        if isinstance(error, os_exceptions.ConnectionError):
+            user_msg = f"Error connecting to OpenSearch: {error}"
+            log.error(user_msg)
+            capture.soft_delete()
+            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        # Re-raise unexpected errors
+        raise error
+
+    def create(self, request: Request) -> Response:
+        """Create a capture object, connecting files and indexing the metadata."""
+        # Validate request
+        response, validated_data = self._validate_create_request(request)
+        if response is not None:
+            return response
+
+        drf_channel = validated_data["drf_channel"]
+        rh_scan_group = validated_data["rh_scan_group"]
+        capture_type = validated_data["capture_type"]
+        requested_top_level_dir = validated_data["requested_top_level_dir"]
+        requester = validated_data["requester"]
+
+        # Validate metadata
+        response = self._validate_digitalrf_metadata(
+            capture_type, drf_channel, requested_top_level_dir, requester, rh_scan_group
+        )
+        if response is not None:
+            return response
+
+        response = self._validate_radiohound_metadata(
+            capture_type, requested_top_level_dir, requester, drf_channel, rh_scan_group
+        )
+        if response is not None:
+            return response
+
+        # Create the capture
+        post_serializer = CapturePostSerializer(
+            data=request.data.copy(),
+            context={"request_user": request.user},
+        )
+        post_serializer.is_valid()  # Already validated above
         capture = post_serializer.save()
 
         try:
@@ -285,24 +431,8 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=requester,
                 top_level_dir=requested_top_level_dir,
             )
-        except UnknownIndexError as e:
-            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
-            server_msg = (
-                f"Unknown index: '{e}'. Try running the init_indices "
-                "subcommand if this is index should exist."
-            )
-            log.error(server_msg)
-            capture.soft_delete()
-            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
-            user_msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
-            capture.soft_delete()
-            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError as e:
-            user_msg = f"Error connecting to OpenSearch: {e}"
-            log.error(user_msg)
-            capture.soft_delete()
-            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except (UnknownIndexError, ValueError, os_exceptions.ConnectionError) as e:
+            return self._handle_capture_creation_errors(capture, e)
 
         get_serializer = CaptureGetSerializer(capture)
         return Response(get_serializer.data, status=status.HTTP_201_CREATED)
