@@ -70,9 +70,9 @@ class UserAPIKey(AbstractAPIKey):
         default=KeySources.SDSWebUI,
         max_length=255,
     )
-    description = models.TextField(  # noqa: DJ001
+    description = models.TextField(
         blank=True,
-        null=True,
+        default="",
         help_text="Optional description for this API key.",
     )
     objects = APIKeyUserManager()

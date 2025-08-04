@@ -64,6 +64,9 @@ from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.utils import deduplicate_composite_captures
 
+# Constants
+MAX_API_KEY_COUNT = 10
+
 # Add logger for debugging
 logger = logging.getLogger(__name__)
 
@@ -109,9 +112,11 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
 
     def get(self, request, *args, **kwargs):
         # Get all API keys for the user (except SVIBackend)
-        api_keys = UserAPIKey.objects.filter(user=request.user).exclude(
-            source=KeySources.SVIBackend
-        )
+        api_keys = (
+            UserAPIKey.objects.filter(user=request.user)
+            .exclude(source=KeySources.SVIBackend)
+            .order_by("revoked", "-created")
+        )  # Active keys first, then by creation date (recent first)
         now = datetime.datetime.now(datetime.UTC)
         active_api_key_count = sum(
             1
@@ -136,13 +141,6 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
         context.update(
             {
                 "api_key": True,  # return True if API key exists
-                # For backward compatibility, show the first key's expiry
-                "expires_at": api_keys.first().expiry_date.strftime("%Y-%m-%d %H:%M:%S")
-                if api_keys.first().expiry_date
-                else "Does not expire",
-                "expired": api_keys.first().expiry_date < now
-                if api_keys.first().expiry_date
-                else False,
                 "current_api_keys": api_keys,
                 "now": now,
                 "active_api_key_count": active_api_key_count,
@@ -197,19 +195,6 @@ class NewAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
 new_api_key_view = NewAPIKeyView.as_view()
 
 
-class DeleteAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
-    def post(self, request, *args, **kwargs):
-        key_id = request.POST.get("key_id")
-        api_key = get_object_or_404(UserAPIKey, id=key_id, user=request.user)
-        api_key.delete()
-        messages.success(request, "API key deleted successfully.")
-        # Redirect based on where the request came from
-        return redirect("users:view_api_key")
-
-
-delete_api_key_view = DeleteAPIKeyView.as_view()
-
-
 def revoke_api_key_view(request):
     if request.method == "POST":
         key_id = request.POST.get("key_id")
@@ -221,20 +206,6 @@ def revoke_api_key_view(request):
         else:
             messages.info(request, "API key is already revoked.")
     return redirect("users:view_api_key")
-
-
-class AllAPIKeysView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
-    template_name = "users/all_api_keys.html"
-
-    def get(self, request, *args, **kwargs):
-        api_keys = UserAPIKey.objects.filter(user=request.user).exclude(
-            source=KeySources.SVIBackend
-        )
-        context = {
-            "current_api_keys": api_keys,
-            "now": datetime.datetime.now(datetime.UTC),
-        }
-        return render(request, self.template_name, context)
 
 
 class GenerateAPIKeyFormView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
@@ -250,10 +221,9 @@ class GenerateAPIKeyFormView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin,
             for key in api_keys
             if not key.revoked and (not key.expiry_date or key.expiry_date >= now)
         )
+        is_allowed_to_generate_key = active_api_key_count < MAX_API_KEY_COUNT
         context = {
-            "current_api_keys": api_keys,
-            "now": now,
-            "active_api_key_count": active_api_key_count,
+            "is_allowed_to_generate_key": is_allowed_to_generate_key,
         }
         return render(request, self.template_name, context)
 
