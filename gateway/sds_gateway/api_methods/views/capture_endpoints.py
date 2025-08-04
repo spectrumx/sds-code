@@ -820,7 +820,12 @@ class CaptureViewSet(viewsets.ViewSet):
     def trigger_post_processing(self, request, pk=None):
         """Trigger post-processing for a capture."""
         try:
-            capture = self.get_object()
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
 
             if capture.capture_type != CaptureType.DigitalRF:
                 return Response(
@@ -905,7 +910,12 @@ class CaptureViewSet(viewsets.ViewSet):
     def post_processing_status(self, request, pk=None):
         """Get post-processing status for a capture."""
         try:
-            capture = self.get_object()
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
 
             # Get all post-processed data for this capture
             processed_data = capture.post_processed_data.all().order_by(
@@ -962,7 +972,12 @@ class CaptureViewSet(viewsets.ViewSet):
     def download_post_processed_data(self, request, pk=None):
         """Download post-processed data file for a capture."""
         try:
-            capture = self.get_object()
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
             processing_type = request.query_params.get("processing_type")
 
             if not processing_type:
