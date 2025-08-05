@@ -1013,22 +1013,14 @@ class CaptureViewSet(viewsets.ViewSet):
                 )
 
             # Return the file as a download response
-            import os
-
             from django.http import FileResponse
 
-            file_path = processed_data.data_file.path
-            if not os.path.exists(file_path):
-                return Response(
-                    {"error": "Post-processed data file not found on disk"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
+            # Use the file object directly instead of trying to get absolute path
             response = FileResponse(
-                open(file_path, "rb"), content_type="application/octet-stream"
+                processed_data.data_file, content_type="application/octet-stream"
             )
             response["Content-Disposition"] = (
-                f'attachment; filename="{os.path.basename(file_path)}"'
+                f'attachment; filename="{processed_data.data_file.name.split("/")[-1]}"'
             )
             return response
 
