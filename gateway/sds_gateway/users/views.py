@@ -1819,11 +1819,6 @@ class UploadFilesView(View):
         skipped_files = []
 
         for f, rel_path in zip(files, relative_paths, strict=True):
-            # Check for upload cancellation during file uploads
-            if self._is_upload_cancelled(request):
-                logger.info("Upload cancelled during file uploads")
-                return saved_files, errors
-
             path = Path(rel_path)
             directory = "/" + str(path.parent) if path.parent != Path() else "/"
             filename = path.name
@@ -1847,6 +1842,7 @@ class UploadFilesView(View):
                 "media_type": content_type,
             }
             responses, upload_errors = upload_file_helper_simple(request, file_data)
+
             for response in responses:
                 if response.status_code in (
                     status.HTTP_200_OK,
@@ -1993,11 +1989,6 @@ class UploadFilesView(View):
         created_captures = []
         errors = []
 
-        # Check for upload cancellation before RadioHound capture creation
-        if self._is_upload_cancelled(request):
-            logger.info("Upload cancelled before RadioHound capture creation")
-            return created_captures, errors
-
         # For RadioHound, create a single capture with scan_group
         created_capture, error = self._create_single_capture(
             request, "", top_level_dir, "rh", scan_group, all_relative_paths
@@ -2018,11 +2009,6 @@ class UploadFilesView(View):
 
         # For DigitalRF, create captures for each channel
         for channel in channels:
-            # Check for upload cancellation before each DigitalRF capture creation
-            if self._is_upload_cancelled(request):
-                logger.info("Upload cancelled during DigitalRF capture creation")
-                return created_captures, errors
-
             created_capture, error = self._create_single_capture(
                 request,
                 channel,
@@ -2233,78 +2219,6 @@ class UploadFilesView(View):
             else 400
         )
 
-    def _is_upload_cancelled(self, request):
-        """Check if the upload has been cancelled by the client."""
-        # Check for cancellation header
-        if request.headers.get("X-Upload-Cancelled") == "true":
-            logger.info("Upload cancelled via header")
-            return True
-
-        # Check for cancellation in session
-        if hasattr(request, "session"):
-            cancelled = request.session.get("upload_cancelled", False)
-            if cancelled:
-                logger.info("Upload cancelled via session")
-                return True
-
-        return False
-
-    def _set_upload_cancelled(self, request, *, cancelled: bool = True):
-        """Set the upload cancellation state in session."""
-        if hasattr(request, "session"):
-            request.session["upload_cancelled"] = cancelled
-            logger.info("Set upload cancelled state: %s", cancelled)
-
-    def _is_client_disconnected(self, request):
-        """Check if the client has disconnected from the request."""
-        try:
-            # Check if the request is still connected
-            if hasattr(request, "_closed") and getattr(request, "_closed", False):
-                logger.info("Client disconnected: request._closed is True")
-                return True
-            # Try to access request body to see if connection is still alive
-            if hasattr(request, "body"):
-                # This will raise an exception if the client disconnected
-                _ = request.body
-            logger.info("Client disconnection check passed")
-        except (ConnectionError, OSError) as e:
-            logger.info("Client disconnected: exception caught: %s", e)
-            return True
-        else:
-            return False
-
-    def _cleanup_uploaded_files(self, saved_files):
-        """Clean up uploaded files when cancellation occurs."""
-        if not saved_files:
-            return
-
-        try:
-            file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
-            if file_uuids:
-                File.objects.filter(uuid__in=file_uuids).delete()
-                logger.info(
-                    "Cleaned up %s uploaded files due to cancellation",
-                    len(file_uuids),
-                )
-        except Exception:
-            logger.exception("Error cleaning up uploaded files")
-
-    def _cleanup_created_captures(self, created_captures):
-        """Clean up created captures when cancellation occurs."""
-        if not created_captures:
-            return
-
-        try:
-            capture_uuids = [c.get("uuid") for c in created_captures if c.get("uuid")]
-            if capture_uuids:
-                Capture.objects.filter(uuid__in=capture_uuids).delete()
-                logger.info(
-                    "Cleaned up %s created captures due to cancellation",
-                    len(capture_uuids),
-                )
-        except Exception:
-            logger.exception("Error cleaning up created captures")
-
     def _handle_capture_creation(
         self,
         request,
@@ -2385,32 +2299,7 @@ class UploadFilesView(View):
             len(all_relative_paths),
         )
 
-        # Reset cancellation state at the start of upload
-        self._set_upload_cancelled(request, cancelled=False)
-
-        # Check for upload cancellation before starting processing
-        if self._is_upload_cancelled(request):
-            logger.info("Upload cancelled before processing started")
-            return JsonResponse(
-                {"status": "cancelled", "message": "Upload cancelled by user"},
-                status=200,
-            )
-
         saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
-
-        # Check for upload cancellation after file uploads
-        if self._is_upload_cancelled(request):
-            logger.info("Upload cancelled after file uploads, keeping uploaded files")
-            # Don't clean up files - keep them as requested
-            return JsonResponse(
-                {
-                    "status": "cancelled",
-                    "message": "Upload cancelled by user. Files uploaded so far have "
-                    "been kept.",
-                    "files_uploaded": len(saved_files),
-                },
-                status=200,
-            )
 
         created_captures = []
         file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
@@ -2434,35 +2323,44 @@ class UploadFilesView(View):
             capture_type, channels, scan_group
         )
 
-        # Handle capture creation
-        created_captures, capture_errors = self._handle_capture_creation(
-            request,
-            channels,
-            relative_paths,
-            capture_type,
-            scan_group,
-            saved_files,
-            all_files_empty,
-            has_required_fields,
-            all_relative_paths,
+        # Check if this is a chunked upload (skip capture creation for chunks)
+        is_chunk = request.POST.get("is_chunk", "false").lower() == "true"
+        chunk_number = request.POST.get("chunk_number", None)
+        total_chunks = request.POST.get("total_chunks", None)
+
+        logger.info(
+            "Chunk info - is_chunk: %s, chunk_number: %s, total_chunks: %s",
+            is_chunk,
+            chunk_number,
+            total_chunks,
         )
 
-        # Check for upload cancellation after capture creation
-        if self._is_upload_cancelled(request):
-            logger.info(
-                "Upload cancelled after capture creation, keeping uploaded files "
-                "and captures"
+        # Only create captures if this is not a chunk OR if this is the final chunk
+        should_create_captures = not is_chunk or (
+            chunk_number and total_chunks and int(chunk_number) == int(total_chunks)
+        )
+
+        created_captures = []
+        capture_errors = []
+
+        if should_create_captures:
+            # Handle capture creation
+            created_captures, capture_errors = self._handle_capture_creation(
+                request,
+                channels,
+                relative_paths,
+                capture_type,
+                scan_group,
+                saved_files,
+                all_files_empty,
+                has_required_fields,
+                all_relative_paths,
             )
-            # Don't clean up files or captures - keep them as requested
-            return JsonResponse(
-                {
-                    "status": "cancelled",
-                    "message": "Upload cancelled by user. Files and captures created "
-                    "so far have been kept.",
-                    "files_uploaded": len(saved_files),
-                    "captures_created": len(created_captures),
-                },
-                status=200,
+        else:
+            logger.info(
+                "Skipping capture creation for chunk %s of %s",
+                chunk_number,
+                total_chunks,
             )
 
         # Link all uploaded files to all created captures
@@ -2525,29 +2423,6 @@ class UploadFilesView(View):
 
 
 user_upload_files_view = UploadFilesView.as_view()
-
-
-@method_decorator(csrf_exempt, name="dispatch")
-class CancelUploadView(View):
-    """View to handle upload cancellation signals."""
-
-    def post(self, request, *args, **kwargs):
-        """Set the upload cancellation state."""
-        try:
-            # Set cancellation state in session
-            if hasattr(request, "session"):
-                request.session["upload_cancelled"] = True
-                logger.info("Upload cancellation signal received")
-                return JsonResponse(
-                    {"status": "success", "message": "Cancellation signal received"}
-                )
-            return JsonResponse({"status": "error", "message": "Session not available"})
-        except Exception as e:
-            logger.exception("Error setting cancellation state")
-            return JsonResponse({"status": "error", "message": str(e)})
-
-
-user_cancel_upload_view = CancelUploadView.as_view()
 
 
 # TODO: Use this view when implementing the file upload mode multiplexer.

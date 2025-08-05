@@ -6,6 +6,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
+from sds_gateway.api_methods.views.file_endpoints import HTTP_499_CLIENT_CLOSED_REQUEST
 from sds_gateway.api_methods.views.file_endpoints import CheckFileContentsExistView
 from sds_gateway.api_methods.views.file_endpoints import FileViewSet
 
@@ -45,6 +46,11 @@ def upload_file_helper_simple(request, file_data):
 
             if http_status.is_success:
                 responses.append(response)
+            elif (
+                response.status_code == HTTP_499_CLIENT_CLOSED_REQUEST
+            ):  # Client closed request
+                errors.append("Client closed request")
+                return [], ["Client closed request"]
             elif response.status_code == status.HTTP_409_CONFLICT:
                 # Already exists, treat as warning
                 errors.append(response_data)
