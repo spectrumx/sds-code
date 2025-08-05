@@ -16,12 +16,21 @@ from sds_gateway.api_methods.models import PostProcessedData
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 
 
+class FileCaptureListSerializer(serializers.ModelSerializer[File]):
+    class Meta:
+        model = File
+        fields = [
+            "uuid",
+            "name",
+            "directory",
+        ]
+
+
 class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]):
     """Serializer for PostProcessedData model."""
 
     processing_type = serializers.CharField()
     processing_status = serializers.CharField()
-    is_ready = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = PostProcessedData
@@ -35,8 +44,6 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
             "processing_error",
             "processed_at",
             "pipeline_id",
-            "pipeline_step",
-            "is_ready",
             "created_at",
             "updated_at",
         ]
@@ -48,20 +55,8 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
             "processing_error",
             "processed_at",
             "pipeline_id",
-            "pipeline_step",
-            "is_ready",
             "created_at",
             "updated_at",
-        ]
-
-
-class FileCaptureListSerializer(serializers.ModelSerializer[File]):
-    class Meta:
-        model = File
-        fields = [
-            "uuid",
-            "name",
-            "directory",
         ]
 
 
@@ -75,8 +70,6 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
-
-    # Add post-processed data
     post_processed_data = serializers.SerializerMethodField()
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
@@ -144,12 +137,10 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         # return the cached metadata for this specific object
         return self.parent.capture_props_cache.get(str(capture.uuid), {})
 
-    @extend_schema_field(serializers.CharField)
     def get_formatted_created_at(self, capture: Capture) -> str:
-        """Get the formatted created_at timestamp."""
-        return capture.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        """Get the created_at date in the desired format."""
+        return capture.created_at.strftime("%m/%d/%Y %I:%M:%S %p")
 
-    @extend_schema_field(serializers.CharField)
     def get_capture_type_display(self, capture: Capture) -> str:
         """Get the display value for the capture type."""
         return capture.get_capture_type_display()
@@ -164,31 +155,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
 
     class Meta:
         model = Capture
-        fields = [
-            "uuid",
-            "channel",
-            "scan_group",
-            "capture_type",
-            "top_level_dir",
-            "index_name",
-            "name",
-            "owner",
-            "origin",
-            "dataset",
-            "shared_with",
-            "capture_props",
-            "files",
-            "center_frequency_ghz",
-            "sample_rate_mhz",
-            "files_count",
-            "total_file_size",
-            "formatted_created_at",
-            "capture_type_display",
-            "post_processed_data",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["uuid", "created_at", "updated_at"]
+        fields = "__all__"
 
 
 class CapturePostSerializer(serializers.ModelSerializer[Capture]):
@@ -436,7 +403,6 @@ def serialize_capture_or_composite(
         dict: Serialized capture data
     """
     capture_data = capture.get_capture()
-    context = context or {}
 
     if capture_data["is_composite"]:
         # Serialize as composite

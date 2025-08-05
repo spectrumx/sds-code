@@ -37,6 +37,21 @@ class CaptureOrigin(StrEnum):
     User = "user"
 
 
+class KeySources(StrEnum):
+    """The source of an SDS API key."""
+
+    SDSWebUI = "sds_web_ui"
+    SVIBackend = "svi_backend"
+    SVIWebUI = "svi_web_ui"
+
+
+class ItemType(StrEnum):
+    """The type of item that can be shared."""
+
+    DATASET = "dataset"
+    CAPTURE = "capture"
+
+
 class ProcessingType(StrEnum):
     """The type of post-processing."""
 
@@ -51,21 +66,6 @@ class ProcessingStatus(StrEnum):
     Processing = "processing"
     Completed = "completed"
     Failed = "failed"
-
-
-class KeySources(StrEnum):
-    """The source of an SDS API key."""
-
-    SDSWebUI = "sds_web_ui"
-    SVIBackend = "svi_backend"
-    SVIWebUI = "svi_web_ui"
-
-
-class ItemType(StrEnum):
-    """The type of item that can be shared."""
-
-    DATASET = "dataset"
-    CAPTURE = "capture"
 
 
 def default_expiration_date() -> datetime.datetime:
@@ -853,11 +853,6 @@ class PostProcessedData(BaseModel):
         blank=True,
         help_text="Cog pipeline ID for tracking",
     )
-    pipeline_step = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text="Current step in the processing pipeline",
-    )
 
     class Meta:
         unique_together = ["capture", "processing_type", "processing_parameters"]
@@ -871,23 +866,12 @@ class PostProcessedData(BaseModel):
     def __str__(self):
         return f"{self.processing_type} data for {self.capture.name} ({self.processing_status})"
 
-    @property
-    def is_ready(self) -> bool:
-        """Check if the processed data is ready for use."""
-        return self.processing_status == ProcessingStatus.Completed.value and bool(
-            self.data_file.name
-        )
-
-    def mark_processing_started(
-        self, pipeline_id: str | None = None, step: str | None = None
-    ) -> None:
+    def mark_processing_started(self, pipeline_id: str | None = None) -> None:
         """Mark processing as started."""
         self.processing_status = ProcessingStatus.Processing.value
         if pipeline_id:
             self.pipeline_id = pipeline_id
-        if step:
-            self.pipeline_step = step
-        self.save(update_fields=["processing_status", "pipeline_id", "pipeline_step"])
+        self.save(update_fields=["processing_status", "pipeline_id"])
 
     def mark_processing_completed(self) -> None:
         """Mark processing as completed."""
@@ -900,24 +884,6 @@ class PostProcessedData(BaseModel):
         self.processing_status = ProcessingStatus.Failed.value
         self.processing_error = error_message
         self.save(update_fields=["processing_status", "processing_error"])
-
-    def update_pipeline_step(self, step: str) -> None:
-        """Update the current pipeline step."""
-        self.pipeline_step = step
-        self.save(update_fields=["pipeline_step"])
-
-    def get_metadata_value(self, key: str, default: Any = None) -> Any:
-        """Get a value from the metadata JSON field."""
-        return self.metadata.get(key, default)
-
-    def set_metadata_value(self, key: str, value: Any) -> None:
-        """Set a value in the metadata JSON field."""
-        self.metadata[key] = value
-        self.save(update_fields=["metadata"])
-
-    def get_processed_data(self) -> str | None:
-        """Get the processed data file path."""
-        return self.data_file.name if self.data_file.name else None
 
     def set_processed_data_file(self, file_path: str, filename: str) -> None:
         """Set the processed data file."""
