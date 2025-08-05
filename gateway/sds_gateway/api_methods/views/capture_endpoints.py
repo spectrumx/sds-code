@@ -150,7 +150,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 capture_type=capture.capture_type,
                 drf_channel=drf_channel,
                 rh_scan_group=rh_scan_group,
-                verbose=True,
+                verbose=False,
             )
 
             # try to validate and index metadata before connecting files
@@ -216,11 +216,6 @@ class CaptureViewSet(viewsets.ViewSet):
         drf_channel = request.data.get("channel", None)
         rh_scan_group = request.data.get("scan_group", None)
         capture_type = request.data.get("capture_type", None)
-
-        log.debug("POST request to create capture:")
-        log.debug(f"\tcapture_type: '{capture_type}' {type(capture_type)}")
-        log.debug(f"\tchannel: '{drf_channel}' {type(drf_channel)}")
-        log.debug(f"\tscan_group: '{rh_scan_group}' {type(rh_scan_group)}")
 
         if capture_type is None:
             return Response(
@@ -933,11 +928,6 @@ def _check_capture_creation_constraints(
                     f"another capture: {conflicting_capture.pk}",
                 },
             )
-        else:
-            log.debug(
-                "No `channel` and `top_level_dir` conflicts for current user's "
-                "DigitalRF captures.",
-            )
 
     # CONSTRAINT: RadioHound captures must have unique scan group
     if capture_type == CaptureType.RadioHound:
@@ -949,9 +939,8 @@ def _check_capture_creation_constraints(
             owner=owner,
         )
         if scan_group is None:
-            log.debug(
-                "No scan group provided for RadioHound capture.",
-            )
+            # No scan group provided for RadioHound capture
+            pass
         elif cap_qs.exists():
             conflicting_capture = cap_qs.first()
             assert conflicting_capture is not None, "QuerySet should not be empty here."
@@ -960,10 +949,6 @@ def _check_capture_creation_constraints(
                     "rh_unique_scan_group": f"This scan group is already in use by "
                     f"another capture: {conflicting_capture.pk}",
                 },
-            )
-        else:
-            log.debug(
-                "No `scan_group` conflicts for current user's captures.",
             )
 
     if _errors:

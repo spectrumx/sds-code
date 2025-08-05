@@ -66,7 +66,6 @@ class FileViewSet(ViewSet):
             if hasattr(request, "body"):
                 # This will raise an exception if the client disconnected
                 _ = request.body
-            log.info("Client disconnection check passed")
         except (ConnectionError, OSError) as e:
             log.info("Client disconnected: exception caught: %s", e)
             return True
@@ -101,7 +100,6 @@ class FileViewSet(ViewSet):
 
         # Check for client disconnection
         if self._is_client_disconnected(request):
-            log.info("Client disconnected in FileViewSet.create")
             return Response(
                 {"detail": "Client disconnected"},
                 status=HTTP_499_CLIENT_CLOSED_REQUEST,
@@ -109,7 +107,6 @@ class FileViewSet(ViewSet):
 
         # when a sibling file is provided, use its file contents
         if sibling_uuid := request.data.get("sibling_uuid"):
-            log.info(f"Sibling file upload request: '{sibling_uuid}'")
             # .copy() only works for this mode
             request_data = request.data.copy()
             request_data["owner"] = request.user.pk
@@ -132,7 +129,6 @@ class FileViewSet(ViewSet):
                 context={"request_user": request.user},
             )
         else:
-            log.debug("Original file upload request")
             serializer = FilePostSerializer(
                 data=request.data,
                 context={"request_user": request.user},
@@ -164,7 +160,6 @@ class FileViewSet(ViewSet):
                 else:
                     returned_object[key] = value
             return Response(returned_object, status=status.HTTP_201_CREATED)
-        log.warning(f"File upload 400: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
@@ -265,7 +260,6 @@ class FileViewSet(ViewSet):
             unsafe_path=unsafe_path,
             request=request,
         )
-        log.debug(f"Listing for '{user_rel_path}'")
         if user_rel_path is None:
             return Response(
                 {"detail": "The provided path must be in the user's files directory."},
@@ -303,11 +297,6 @@ class FileViewSet(ViewSet):
                 # despite being a single result, we return it paginated for consistency
                 return paginator.get_paginated_response(serializer.data)
 
-            log.debug(
-                "No exact match found for "
-                f"{inferred_user_rel_path!s} and name {basename}",
-            )
-
         # try matching `directory`, ignoring `name`
         files_matching_dir = all_valid_user_owned_files.filter(
             directory__startswith=str(user_rel_path),
@@ -329,16 +318,6 @@ class FileViewSet(ViewSet):
 
         paginated_files = paginator.paginate_queryset(latest_files, request=request)
         serializer = FileGetSerializer(paginated_files, many=True)
-
-        first_file = all_valid_user_owned_files.first()
-        if first_file:
-            log.debug(f"First file directory: {first_file.directory}")
-            log.debug(f"First file name: {first_file.name}")
-
-        log.debug(
-            f"Matched {latest_files.count()} / {all_valid_user_owned_files.count()} "
-            f"user files for path {user_rel_path!s} - returning {len(serializer.data)}",
-        )
 
         return paginator.get_paginated_response(serializer.data)
 

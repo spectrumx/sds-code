@@ -510,7 +510,6 @@
             let isProcessing = false; // Flag to track if processing is active
 
             // Reset cancellation state on page load
-            console.log('Page loaded - initializing cancellation state');
 
             // Add page refresh/close confirmation
             let uploadInProgress = false;
@@ -541,7 +540,7 @@
             // Handle visibility change (tab close/minimize)
             document.addEventListener('visibilitychange', function() {
                 if (document.visibilityState === 'hidden' && uploadInProgress) {
-                    console.log('Page hidden during upload');
+                    // Page hidden during upload
                 }
             });
 
@@ -556,7 +555,6 @@
             document.getElementById('uploadCaptureModal').addEventListener('show.bs.modal', function() {
                 isProcessing = false;
                 currentAbortController = null;
-                console.log('Upload modal opened');
             });
 
             // Reset cancellation state when files are selected
@@ -564,33 +562,25 @@
 
                 isProcessing = false;
                 currentAbortController = null;
-                console.log('Files selected - resetting cancellation state');
             });
 
             // Reset cancellation state when modal is hidden
             document.getElementById('uploadCaptureModal').addEventListener('hidden.bs.modal', function() {
                 isProcessing = false;
                 currentAbortController = null;
-                console.log('Upload modal closed');
             });
 
             // Handle cancel button click
             let cancelRequested = false;
 
             cancelButton.addEventListener('click', function() {
-                console.log('Cancel button clicked, isProcessing:', isProcessing);
                 if (isProcessing) {
                     // Cancel processing
                     cancelRequested = true;
-                    console.log('Cancel requested by user');
 
                     // Abort current upload if controller exists
                     if (currentAbortController) {
-                        console.log('Aborting current controller');
                         currentAbortController.abort();
-                        console.log('Current upload aborted');
-                    } else {
-                        console.log('No currentAbortController found');
                     }
 
                     // Update UI immediately
@@ -606,13 +596,11 @@
                     // Force UI reset after a short delay to ensure it happens
                     setTimeout(() => {
                         if (cancelRequested) {
-                            console.log('Forcing UI reset after cancel');
                             resetUIState();
                         }
                     }, 500);
                 } else {
                     // Normal cancel (no processing active)
-                    console.log('Modal closed normally');
                 }
             });
 
@@ -625,7 +613,7 @@
                 cancelRequested = false; // Reset cancel flag for new upload
                 sessionStorage.setItem('uploadInProgress', 'true');
 
-                console.log('Form submitted');
+
 
                 // Check if files are selected
                 if (!window.selectedFiles || window.selectedFiles.length === 0) {
@@ -714,13 +702,11 @@
                             window.filesToSkip.add(fileKey);
                         }
                     } catch (error) {
-                        console.error(`Error checking file ${file.name}:`, error);
+                        // Error checking file
                     }
 
                     // Check for cancellation after each file check
                     if (cancelRequested) {
-                        console.log('Cancel requested during file checking, stopping process');
-                        console.log('Breaking out of file checking loop');
                         // Break out of the loop instead of throwing
                         break;
                     }
@@ -729,7 +715,6 @@
 
                 // Check if cancellation was requested during file checking
                 if (cancelRequested) {
-                    console.log('Upload cancelled during file checking phase');
                     // Small delay to ensure UI updates are visible
                     await new Promise(resolve => setTimeout(resolve, 100));
                     throw new Error('Upload cancelled by user');
@@ -840,7 +825,7 @@
 
                         // Use the result directly
                         allResults = result;
-                        console.log('Skipped files upload completed:', result);
+
                     } else {
                         // Upload files in chunks
                         for (let i = 0; i < filesToUpload.length; i += CHUNK_SIZE) {
@@ -893,8 +878,6 @@
 
                             // Check for cancellation before starting this chunk
                             if (cancelRequested) {
-                                console.log('Cancel requested before chunk upload, stopping process');
-                                console.log('Breaking out of chunk loop');
                                 break; // Break out of the chunk loop
                             }
 
@@ -947,7 +930,6 @@
                             if (chunkResult.status === 'error') {
                                 allResults.status = 'error';
                                 allResults.message = chunkResult.message || 'Upload failed';
-                                console.error(`Chunk ${currentChunk} failed:`, chunkResult.message);
                             } else if (chunkResult.status === 'partial_success') {
                                 allResults.status = 'partial_success';
                             }
@@ -957,15 +939,8 @@
                                 allResults.status = 'success';
                             }
 
-                            // Log successful chunk
-                            console.log(`Chunk ${currentChunk}/${totalChunks} completed successfully`);
-
-                            console.log(`Chunk ${Math.floor(i/CHUNK_SIZE) + 1} completed:`, chunkResult);
-
                             // Check if cancel was requested between chunks
                             if (cancelRequested) {
-                                console.log('Cancel requested between chunks, stopping upload');
-                                console.log('Breaking out of chunk loop');
                                 break; // Break out of the chunk loop
                             }
                         }
@@ -973,7 +948,6 @@
 
                     // Check if cancellation was requested during chunk upload
                     if (cancelRequested) {
-                        console.log('Upload cancelled during chunk upload phase');
                         // Small delay to ensure UI updates are visible
                         await new Promise(resolve => setTimeout(resolve, 100));
                         throw new Error('Upload cancelled by user');
@@ -982,43 +956,29 @@
                     // Clear the reference since upload completed
                     currentAbortController = null;
 
-                    // Debug logging for result.status
-                    console.log('RESULT STATUS DEBUG - Full result:', allResults);
-                    console.log('RESULT STATUS DEBUG - result.status:', allResults.status);
-                    console.log('RESULT STATUS DEBUG - result.message:', allResults.message);
-                    console.log('RESULT STATUS DEBUG - result.captures:', allResults.captures);
-                    console.log('RESULT STATUS DEBUG - result.errors:', allResults.errors);
-                    console.log('RESULT STATUS DEBUG - uploadedCount:', uploadedFiles);
-                    console.log('RESULT STATUS DEBUG - totalFiles:', totalFiles);
+
 
                     // Show results
                     showUploadResults(allResults, uploadedFiles, totalFiles);
 
                     // Don't auto-reload for successful uploads - let user close modal first
                 } catch (error) {
-                    console.error('Upload failed:', error);
-                    console.log('Error type:', error.name);
-                    console.log('Error message:', error.message);
-
                     if (cancelRequested) {
-                        console.log('Upload was cancelled by user');
                         alert('Upload cancelled. Any files uploaded before cancellation have been saved.');
                         // Reload page after cancellation
                         setTimeout(() => {
                             window.location.reload();
                         }, 1000);
                     } else if (error.name === 'AbortError') {
-                        console.log('Upload was aborted by user or connection lost');
                         alert('Upload was interrupted. Any files uploaded before the interruption have been saved.');
                         // Reload page after interruption
                         setTimeout(() => {
                             window.location.reload();
                         }, 1000);
                     } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                        console.log('Network error during upload');
                         // Don't show alert for network errors after page refresh
                         if (uploadInProgress || sessionStorage.getItem('uploadInProgress')) {
-                            console.log('Suppressing network error alert during active upload');
+                            // Suppressing network error alert during active upload
                         } else {
                             alert('Network error during upload. Please check your connection and try again.');
                         }
@@ -1037,7 +997,6 @@
 
             // Function to reset UI state
             function resetUIState() {
-                console.log('Resetting UI state');
 
                 // Reset submit button
                 submitButton.disabled = false;
@@ -1072,24 +1031,15 @@
 
                 // Clear abort controller
                 currentAbortController = null;
-
-                console.log('UI state reset completed');
             }
 
             // Function to show upload results
             function showUploadResults(result, uploadedCount, totalCount) {
                 // Check if page was refreshed during upload
                 if (!uploadInProgress && result.status === 'error') {
-                    console.log('Page was refreshed during upload, not showing result modal');
                     resetUIState(); // Ensure UI is reset even if modal is not shown
                     return;
                 }
-
-                // Debug logging for showUploadResults
-                console.log('SHOW UPLOAD RESULTS DEBUG - result:', result);
-                console.log('SHOW UPLOAD RESULTS DEBUG - result.status:', result.status);
-                console.log('SHOW UPLOAD RESULTS DEBUG - uploadedCount:', uploadedCount);
-                console.log('SHOW UPLOAD RESULTS DEBUG - totalCount:', totalCount);
 
                 let modalBody = document.getElementById('uploadResultModalBody');
                 let resultModalEl = document.getElementById('uploadResultModal');
@@ -1137,7 +1087,6 @@
                 // Add event listener to reload page when result modal is closed (only for successful uploads)
                 if (result.status === 'success' || result.status === 'partial_success') {
                     resultModalEl.addEventListener('hidden.bs.modal', function() {
-                        console.log('Upload result modal closed, reloading page');
                         window.location.reload();
                     }, {
                         once: true
@@ -1158,7 +1107,6 @@
             if (captureTypeSelect) {
                 captureTypeSelect.addEventListener('change', function() {
                     const selectedType = this.value;
-                    //console.log('Capture type selected:', selectedType);
 
                     // Hide both input groups initially
                     if (channelInputGroup) channelInputGroup.classList.add('hidden-input-group');
@@ -1170,11 +1118,9 @@
 
                     // Show appropriate input group based on selection
                     if (selectedType === 'drf') {
-                        //console.log('Showing channel input for DigitalRF');
                         if (channelInputGroup) channelInputGroup.classList.remove('hidden-input-group');
                         if (captureChannelsInput) captureChannelsInput.setAttribute('required', 'required');
                     } else if (selectedType === 'rh') {
-                        //console.log('Showing scan group input for RadioHound');
                         if (scanGroupInputGroup) scanGroupInputGroup.classList.remove('hidden-input-group');
                         if (captureScanGroupInput) captureScanGroupInput.setAttribute('required', 'required');
                     }
@@ -1259,7 +1205,6 @@
 
                     // Store the selected files for later processing
                     window.selectedFiles = Array.from(files);
-                    console.log(`Selected ${files.length} files for upload`);
                 };
                 fileInput.addEventListener('change', window._blake3CaptureHandler);
             });

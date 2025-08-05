@@ -1914,7 +1914,6 @@ class UploadFilesView(View):
             capture_data["index_name"] = infer_index_name(capture_type_enum)
 
             # Use the helper function to create the capture
-            logger.info("Creating capture with data: %s", capture_data)
             responses, capture_errors = create_capture_helper_simple(
                 request, capture_data
             )
@@ -1924,10 +1923,6 @@ class UploadFilesView(View):
                 response = responses[0]
                 if hasattr(response, "data") and isinstance(response.data, dict):
                     capture_data = response.data
-                    logger.info(
-                        "DEBUG: Created capture with uuid: %s",
-                        capture_data.get("uuid"),
-                    )
                     return capture_data, None
                 logger.warning(
                     "Unexpected response format for channel %s: %s",
@@ -2038,26 +2033,9 @@ class UploadFilesView(View):
         Uses create_capture_helper_simple() to create captures for each channel.
         Returns tuple of (created_captures, errors).
         """
-        logger.info(
-            "_create_captures called with - channels: %s, capture_type: %s, "
-            "scan_group: %s",
-            channels,
-            capture_type,
-            scan_group,
-        )
-
         # Calculate top_level_dir from relative paths
         top_level_dir = self._calculate_top_level_dir(
             relative_paths, all_relative_paths
-        )
-
-        logger.info(
-            "Starting capture creation - channels: %s, capture_type: %s, "
-            "scan_group: %s, top_level_dir: %s",
-            channels,
-            capture_type,
-            scan_group,
-            top_level_dir,
         )
 
         # Create captures based on type
@@ -2097,21 +2075,8 @@ class UploadFilesView(View):
     def _check_required_fields(self, capture_type, channels, scan_group):
         """Check if required fields are provided for capture creation."""
         if capture_type == "rh":
-            result = bool(scan_group.strip())
-            logger.info(
-                "REQUIRED FIELDS DEBUG - capture_type=rh, scan_group='%s', result=%s",
-                scan_group,
-                result,
-            )
-            return result
-        result = bool(channels)
-        logger.info(
-            "REQUIRED FIELDS DEBUG - capture_type=%s, channels='%s', result=%s",
-            capture_type,
-            channels,
-            result,
-        )
-        return result
+            return bool(scan_group.strip())
+        return bool(channels)
 
     def _determine_response_status(
         self,
@@ -2124,45 +2089,16 @@ class UploadFilesView(View):
     ):
         """Determine the response status based on upload and capture creation
         results."""
-        # Debug logging for status determination
-        logger.info(
-            "STATUS DETERMINATION DEBUG - saved_files: %s, created_captures: %s, "
-            "all_files_empty: %s, has_required_fields: %s, files: %s, errors: %s",
-            len(saved_files),
-            len(created_captures),
-            all_files_empty,
-            has_required_fields,
-            len(files),
-            errors,
-        )
 
         if all_files_empty:
             # If all files were empty (skipped) and we have required fields,
             # this is a success even if no captures were created
             # (they might already exist)
-            status = "success" if has_required_fields else "error"
-            logger.info(
-                "STATUS DETERMINATION DEBUG - all_files_empty=True, "
-                "has_required_fields=%s, returning status=%s",
-                has_required_fields,
-                status,
-            )
-            return status
+            return "success" if has_required_fields else "error"
         if saved_files and len(saved_files) == len(files) and not errors:
-            logger.info(
-                "STATUS DETERMINATION DEBUG - all files uploaded successfully, "
-                "returning status=success"
-            )
             return "success"
         if saved_files:
-            logger.info(
-                "STATUS DETERMINATION DEBUG - partial upload, "
-                "returning status=partial_success"
-            )
             return "partial_success"
-        logger.info(
-            "STATUS DETERMINATION DEBUG - no files saved, returning status=error"
-        )
         return "error"
 
     def _build_response_data(
@@ -2248,7 +2184,6 @@ class UploadFilesView(View):
                 scan_group,
             )
             try:
-                logger.info("About to call _create_captures method")
                 # Use all_relative_paths if all files are skipped, otherwise use
                 # relative_paths
                 paths_to_use = all_relative_paths if all_files_empty else relative_paths
@@ -2260,18 +2195,11 @@ class UploadFilesView(View):
                     scan_group,
                     all_relative_paths,
                 )
-                logger.info(
-                    "Capture creation completed - created_captures: %s, "
-                    "capture_errors: %s",
-                    len(created_captures),
-                    capture_errors,
-                )
             except Exception as e:
                 logger.exception("Error during capture creation")
                 capture_errors = [f"Capture creation failed: {e!s}"]
                 created_captures = []
         else:
-            logger.info("Skipping capture creation - no required fields provided")
             created_captures = []
             capture_errors = []
 
@@ -2287,18 +2215,6 @@ class UploadFilesView(View):
             capture_type,
         ) = self._parse_upload_request(request)
 
-        # Debug logging to see what we're receiving
-        logger.info(
-            "Upload request received - capture_type: %s, channels: %s, scan_group: %s, "
-            "files_count: %s, relative_paths_count: %s, all_relative_paths_count: %s",
-            capture_type,
-            channels,
-            scan_group,
-            len(files),
-            len(relative_paths),
-            len(all_relative_paths),
-        )
-
         saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
 
         created_captures = []
@@ -2307,12 +2223,6 @@ class UploadFilesView(View):
         # Check if all files were empty (skipped)
         # If no files were sent (all skipped on frontend), consider them all empty
         all_files_empty = all(f.size == 0 for f in files) if files else True
-        logger.info(
-            "FILES DEBUG - files: %s, files_count: %s, all_files_empty: %s",
-            [f.name for f in files] if files else [],
-            len(files),
-            all_files_empty,
-        )
 
         # Create captures if:
         # 1. All uploads succeeded, OR
@@ -2327,13 +2237,6 @@ class UploadFilesView(View):
         is_chunk = request.POST.get("is_chunk", "false").lower() == "true"
         chunk_number = request.POST.get("chunk_number", None)
         total_chunks = request.POST.get("total_chunks", None)
-
-        logger.info(
-            "Chunk info - is_chunk: %s, chunk_number: %s, total_chunks: %s",
-            is_chunk,
-            chunk_number,
-            total_chunks,
-        )
 
         # Only create captures if this is not a chunk OR if this is the final chunk
         should_create_captures = not is_chunk or (
@@ -2403,21 +2306,6 @@ class UploadFilesView(View):
         status_code = self._determine_status_code(
             saved_files, created_captures, all_files_empty, has_required_fields
         )
-
-        # Debug logging for result.status
-        logger.info(
-            "RESULT STATUS DEBUG - status: %s, saved_files: %s, created_captures: %s, "
-            "all_files_empty: %s, has_required_fields: %s, errors: %s, "
-            "capture_errors: %s",
-            status,
-            len(saved_files),
-            len(created_captures),
-            all_files_empty,
-            has_required_fields,
-            errors,
-            capture_errors,
-        )
-        logger.info("RESULT STATUS DEBUG - Full response_data: %s", response_data)
 
         return JsonResponse(response_data, status=status_code)
 
