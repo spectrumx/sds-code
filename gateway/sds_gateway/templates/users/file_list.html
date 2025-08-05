@@ -994,10 +994,7 @@
                     // Show results
                     showUploadResults(allResults, uploadedFiles, totalFiles);
 
-                    // Reload page after successful upload completion
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 2000); // Give user 2 seconds to see the results
+                    // Don't auto-reload for successful uploads - let user close modal first
                 } catch (error) {
                     console.error('Upload failed:', error);
                     console.log('Error type:', error.name);
@@ -1085,10 +1082,6 @@
                 if (!uploadInProgress && result.status === 'error') {
                     console.log('Page was refreshed during upload, not showing result modal');
                     resetUIState(); // Ensure UI is reset even if modal is not shown
-                    // Reload page even for error cases
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
                     return;
                 }
 
@@ -1141,13 +1134,15 @@
                 modalBody.innerHTML = msg;
                 modal.show();
 
-                // Add event listener to reload page when result modal is closed
-                resultModalEl.addEventListener('hidden.bs.modal', function() {
-                    console.log('Upload result modal closed, reloading page');
-                    window.location.reload();
-                }, {
-                    once: true
-                }); // Only trigger once per modal instance
+                // Add event listener to reload page when result modal is closed (only for successful uploads)
+                if (result.status === 'success' || result.status === 'partial_success') {
+                    resultModalEl.addEventListener('hidden.bs.modal', function() {
+                        console.log('Upload result modal closed, reloading page');
+                        window.location.reload();
+                    }, {
+                        once: true
+                    }); // Only trigger once per modal instance
+                }
             }
         });
     </script>
