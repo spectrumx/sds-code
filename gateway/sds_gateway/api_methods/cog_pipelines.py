@@ -92,16 +92,14 @@ def get_pipeline_config(pipeline_type: str) -> dict[str, Any]:
 # Cog functions (pipeline steps)
 @cog
 def setup_post_processing_cog(
-    capture_uuid: str, processing_types: list[str] | None = None
-) -> dict[str, Any]:
+    capture_uuid: str,
+) -> None:
     """Setup post-processing for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run
-
     Returns:
-        Dict with status and setup info
+        None
     """
     try:
         logger.info(f"Starting setup for capture {capture_uuid}")
@@ -109,7 +107,6 @@ def setup_post_processing_cog(
         # Import models here to avoid Django app registry issues
         from .models import Capture
         from .models import CaptureType
-        from .models import ProcessingType
 
         # Get the capture with retry mechanism for transaction timing issues
         capture: Capture | None = None
@@ -147,24 +144,7 @@ def setup_post_processing_cog(
         if capture.capture_type != CaptureType.DigitalRF:
             raise ValueError(f"Capture {capture_uuid} is not a DigitalRF capture")
 
-        # Set default processing types if not specified
-        if not processing_types:
-            processing_types = [ProcessingType.Waterfall.value]
-
-        # Create PostProcessedData records for each processing type
-        for processing_type in processing_types:
-            processed_data = _create_or_reset_processed_data(capture, processing_type)
-            # Mark as ready for processing (but not started yet)
-            processed_data.update_pipeline_step("setup_completed")
-
         logger.info(f"Completed setup for capture {capture_uuid}")
-        return {
-            "status": "success",
-            "capture_uuid": capture_uuid,
-            "processing_types": processing_types,
-            "capture_type": capture.capture_type,
-            "channel": capture.channel,
-        }
     except Exception as e:
         logger.error(f"Setup failed for capture {capture_uuid}: {e}")
         raise
@@ -206,18 +186,13 @@ def process_waterfall_data_cog(
             }
 
         # Mark processing as started
-        processed_data.mark_processing_started(
-            pipeline_id="django_cog_pipeline", step="waterfall_processing"
-        )
+        processed_data.mark_processing_started(pipeline_id="django_cog_pipeline")
 
         # Create temporary directory for processing
         temp_dir = tempfile.mkdtemp(prefix=f"waterfall_{capture_uuid}_")
         temp_path = Path(temp_dir)
 
         try:
-            # Update step to file reconstruction
-            processed_data.update_pipeline_step("reconstructing_files")
-
             # Reconstruct the DigitalRF files for processing
             capture_files = capture.files.filter(is_deleted=False)
             reconstructed_path = reconstruct_drf_files(
@@ -233,9 +208,6 @@ def process_waterfall_data_cog(
                     "message": "Failed to reconstruct DigitalRF directory structure",
                 }
 
-            # Update step to data conversion
-            processed_data.update_pipeline_step("converting_data")
-
             # Process the waterfall data in JSON format
             waterfall_result = convert_drf_to_waterfall_json(
                 reconstructed_path,
@@ -247,9 +219,6 @@ def process_waterfall_data_cog(
             if waterfall_result["status"] != "success":
                 processed_data.mark_processing_failed(waterfall_result["message"])
                 return waterfall_result
-
-            # Update step to file creation
-            processed_data.update_pipeline_step("storing_data")
 
             # Create a temporary JSON file
             import json
@@ -279,7 +248,6 @@ def process_waterfall_data_cog(
 
             # Mark processing as completed
             processed_data.mark_processing_completed()
-            processed_data.update_pipeline_step("completed")
 
             logger.info(f"Completed waterfall processing for capture {capture_uuid}")
             return {
@@ -333,7 +301,6 @@ def _create_or_reset_processed_data(capture, processing_type: str):
         processed_data.processing_error = ""
         processed_data.processed_at = None
         processed_data.pipeline_id = ""
-        processed_data.pipeline_step = ""
         processed_data.metadata = {}
         if processed_data.data_file:
             processed_data.data_file.delete(save=False)
