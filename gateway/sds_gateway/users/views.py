@@ -1925,11 +1925,6 @@ class UploadFilesView(View):
         except (ConnectionError, TimeoutError) as exc:
             logger.exception("Network error creating capture for channel %s", channel)
             return None, f"Network error for channel {channel}: {exc}"
-        except Exception as exc:
-            logger.exception(
-                "Unexpected error creating capture for channel %s", channel
-            )
-            return None, f"Unexpected error for channel {channel}: {exc}"
         else:
             if responses:
                 # Capture created successfully
@@ -2361,9 +2356,6 @@ class CheckFileExistsView(View):
 
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
-        except Exception as e:
-            logger.exception("Error checking file existence")
-            return JsonResponse({"error": f"Internal server error: {e!s}"}, status=500)
 
 
 user_check_file_exists_view = CheckFileExistsView.as_view()

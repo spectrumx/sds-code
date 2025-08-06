@@ -18,6 +18,7 @@ from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
+from .utils.metadata_schemas import infer_index_name
 from .utils.opensearch_client import get_opensearch_client
 
 log = logging.getLogger(__name__)
@@ -259,8 +260,6 @@ class Capture(BaseModel):
 
         # Set the index_name if not provided
         if not self.index_name and self.capture_type:
-            from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
-
             self.index_name = infer_index_name(self.capture_type)
 
         super().save(*args, **kwargs)
