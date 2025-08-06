@@ -36,7 +36,6 @@ from django.views.generic import TemplateView
 from django.views.generic import UpdateView
 from rest_framework import status
 
-# TODO: Use these helper method when implementing the file upload mode multiplexer.
 from sds_gateway.api_methods.helpers.file_helpers import (
     check_file_contents_exist_helper,
 )
@@ -2323,7 +2322,6 @@ class UploadFilesView(View):
 user_upload_files_view = UploadFilesView.as_view()
 
 
-# TODO: Use this view when implementing the file upload mode multiplexer.
 @method_decorator(csrf_exempt, name="dispatch")
 class CheckFileExistsView(View):
     """View to check if a file exists based on path, name, and checksum."""
