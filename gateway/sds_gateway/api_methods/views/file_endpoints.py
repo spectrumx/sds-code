@@ -100,6 +100,7 @@ class FileViewSet(ViewSet):
 
         # Check for client disconnection
         if self._is_client_disconnected(request):
+            log.info("Client disconnected in FileViewSet.create")
             return Response(
                 {"detail": "Client disconnected"},
                 status=HTTP_499_CLIENT_CLOSED_REQUEST,
@@ -107,6 +108,7 @@ class FileViewSet(ViewSet):
 
         # when a sibling file is provided, use its file contents
         if sibling_uuid := request.data.get("sibling_uuid"):
+            log.info(f"Sibling file upload request: '{sibling_uuid}'")
             # .copy() only works for this mode
             request_data = request.data.copy()
             request_data["owner"] = request.user.pk
@@ -129,6 +131,7 @@ class FileViewSet(ViewSet):
                 context={"request_user": request.user},
             )
         else:
+            log.debug("Original file upload request")
             serializer = FilePostSerializer(
                 data=request.data,
                 context={"request_user": request.user},
@@ -160,6 +163,7 @@ class FileViewSet(ViewSet):
                 else:
                     returned_object[key] = value
             return Response(returned_object, status=status.HTTP_201_CREATED)
+        log.warning(f"File upload 400: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
@@ -296,6 +300,10 @@ class FileViewSet(ViewSet):
 
                 # despite being a single result, we return it paginated for consistency
                 return paginator.get_paginated_response(serializer.data)
+            log.debug(
+                "No exact match found for "
+                f"{inferred_user_rel_path!s} and name {basename}",
+            )
 
         # try matching `directory`, ignoring `name`
         files_matching_dir = all_valid_user_owned_files.filter(
@@ -318,6 +326,11 @@ class FileViewSet(ViewSet):
 
         paginated_files = paginator.paginate_queryset(latest_files, request=request)
         serializer = FileGetSerializer(paginated_files, many=True)
+
+        log.debug(
+            f"Matched {latest_files.count()} / {all_valid_user_owned_files.count()} "
+            f"user files for path {user_rel_path!s} - returning {len(serializer.data)}",
+        )
 
         return paginator.get_paginated_response(serializer.data)
 

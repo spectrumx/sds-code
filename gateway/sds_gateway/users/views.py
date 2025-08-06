@@ -1917,7 +1917,20 @@ class UploadFilesView(View):
             responses, capture_errors = create_capture_helper_simple(
                 request, capture_data
             )
-
+        except (ValueError, TypeError, AttributeError) as exc:
+            logger.exception(
+                "Data validation error creating capture for channel %s", channel
+            )
+            return None, f"Data validation error for channel {channel}: {exc}"
+        except (ConnectionError, TimeoutError) as exc:
+            logger.exception("Network error creating capture for channel %s", channel)
+            return None, f"Network error for channel {channel}: {exc}"
+        except Exception as exc:
+            logger.exception(
+                "Unexpected error creating capture for channel %s", channel
+            )
+            return None, f"Unexpected error for channel {channel}: {exc}"
+        else:
             if responses:
                 # Capture created successfully
                 response = responses[0]
@@ -1941,24 +1954,10 @@ class UploadFilesView(View):
                 channel,
                 error_msg,
             )
-            return (  # noqa: TRY300
+            return (
                 None,
                 f"Failed to create capture for channel {channel}: {error_msg}",
             )
-
-        except (ValueError, TypeError, AttributeError) as exc:
-            logger.exception(
-                "Data validation error creating capture for channel %s", channel
-            )
-            return None, f"Data validation error for channel {channel}: {exc}"
-        except (ConnectionError, TimeoutError) as exc:
-            logger.exception("Network error creating capture for channel %s", channel)
-            return None, f"Network error for channel {channel}: {exc}"
-        except Exception as exc:
-            logger.exception(
-                "Unexpected error creating capture for channel %s", channel
-            )
-            return None, f"Unexpected error for channel {channel}: {exc}"
 
     def _calculate_top_level_dir(self, relative_paths, all_relative_paths):
         """Calculate the top level directory from relative paths."""
@@ -2183,22 +2182,17 @@ class UploadFilesView(View):
                 channels,
                 scan_group,
             )
-            try:
-                # Use all_relative_paths if all files are skipped, otherwise use
-                # relative_paths
-                paths_to_use = all_relative_paths if all_files_empty else relative_paths
-                created_captures, capture_errors = self._create_captures(
-                    request,
-                    channels,
-                    paths_to_use,
-                    capture_type,
-                    scan_group,
-                    all_relative_paths,
-                )
-            except Exception as e:
-                logger.exception("Error during capture creation")
-                capture_errors = [f"Capture creation failed: {e!s}"]
-                created_captures = []
+            # Use all_relative_paths if all files are skipped, otherwise use
+            # relative_paths
+            paths_to_use = all_relative_paths if all_files_empty else relative_paths
+            created_captures, capture_errors = self._create_captures(
+                request,
+                channels,
+                paths_to_use,
+                capture_type,
+                scan_group,
+                all_relative_paths,
+            )
         else:
             created_captures = []
             capture_errors = []

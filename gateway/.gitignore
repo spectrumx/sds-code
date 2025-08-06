@@ -276,15 +276,3 @@ sds_gateway/media/
 .ipython/
 sds_gateway/static/webpack_bundles/
 webpack-stats.json
-
-# Django migrations (ignore all migration files)
-sds_gateway/*/migrations/*.py
-!sds_gateway/*/migrations/__init__.py
-# Or ignore specific migration files:
-# sds_gateway/sds_gateway/users/migrations/0010_alter_user_is_approved.py
-
-# Pre-commit cache and logs
-.pre-commit-config.yaml
-.pre-commit-cache/
-.cache/pre-commit/
-pre-commit.log

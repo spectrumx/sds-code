@@ -217,6 +217,11 @@ class CaptureViewSet(viewsets.ViewSet):
         rh_scan_group = request.data.get("scan_group", None)
         capture_type = request.data.get("capture_type", None)
 
+        log.debug("POST request to create capture:")
+        log.debug(f"\tcapture_type: '{capture_type}' {type(capture_type)}")
+        log.debug(f"\tchannel: '{drf_channel}' {type(drf_channel)}")
+        log.debug(f"\tscan_group: '{rh_scan_group}' {type(rh_scan_group)}")
+
         if capture_type is None:
             return Response(
                 {"detail": "The `capture_type` field is required."},
@@ -390,6 +395,12 @@ class CaptureViewSet(viewsets.ViewSet):
         response, validated_data = self._validate_create_request(request)
         if response is not None:
             return response
+
+        if validated_data is None:
+            return Response(
+                {"detail": "Validation failed but no specific error was returned."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         drf_channel = validated_data["drf_channel"]
         rh_scan_group = validated_data["rh_scan_group"]
@@ -877,6 +888,10 @@ def _check_capture_creation_constraints(
         AssertionError:     If an internal assertion fails.
     """
 
+    log.debug(
+        "No channel and top_level_dir conflictsfor current user's DigitalRF captures."
+    )
+
     capture_type = capture_candidate.get("capture_type")
     top_level_dir = capture_candidate.get("top_level_dir")
     _errors: dict[str, str] = {}
@@ -949,6 +964,10 @@ def _check_capture_creation_constraints(
                     "rh_unique_scan_group": f"This scan group is already in use by "
                     f"another capture: {conflicting_capture.pk}",
                 },
+            )
+        else:
+            log.debug(
+                "No `scan_group` conflicts for current user's captures.",
             )
 
     if _errors:

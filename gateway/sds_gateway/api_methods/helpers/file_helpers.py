@@ -35,6 +35,9 @@ def upload_file_helper_simple(request, file_data):
     view.kwargs = {}
     try:
         response = view.create(drf_request)
+    except (ValueError, TypeError, AttributeError, KeyError) as e:
+        return [], [f"Data validation error: {e}"]
+    else:
         responses = []
         errors = []
 
@@ -64,11 +67,7 @@ def upload_file_helper_simple(request, file_data):
                 # Handle any other status codes
                 errors.append(response_data)
 
-        return responses, errors  # noqa: TRY300
-    except (ValueError, TypeError, AttributeError, KeyError) as e:
-        return [], [f"Data validation error: {e}"]
-    except Exception as e:  # noqa: BLE001
-        return [], [f"Unexpected error: {e}"]
+        return responses, errors
 
 
 # TODO: Use this helper method when implementing the file upload mode multiplexer.
@@ -123,6 +122,9 @@ def create_capture_helper_simple(request, capture_data):
     view.get_serializer_context = lambda: {"request_user": request.user}
     try:
         response = view.create(drf_request)
+    except (ValueError, TypeError, AttributeError, KeyError) as e:
+        return [], [f"Data validation error: {e}"]
+    else:
         responses = []
         errors = []
 
@@ -147,8 +149,4 @@ def create_capture_helper_simple(request, capture_data):
                 # Handle any other status codes
                 errors.append(response_data)
 
-        return responses, errors  # noqa: TRY300
-    except (ValueError, TypeError, AttributeError, KeyError) as e:
-        return [], [f"Data validation error: {e}"]
-    except Exception as e:  # noqa: BLE001
-        return [], [f"Unexpected error: {e}"]
+        return responses, errors
