@@ -92,12 +92,13 @@ def get_pipeline_config(pipeline_type: str) -> dict[str, Any]:
 # Cog functions (pipeline steps)
 @cog
 def setup_post_processing_cog(
-    capture_uuid: str,
+    capture_uuid: str, processing_types: list[str] | None = None
 ) -> None:
     """Setup post-processing for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
+        processing_types: List of processing types to run
     Returns:
         None
     """
@@ -107,6 +108,7 @@ def setup_post_processing_cog(
         # Import models here to avoid Django app registry issues
         from .models import Capture
         from .models import CaptureType
+        from .models import ProcessingType
 
         # Get the capture with retry mechanism for transaction timing issues
         capture: Capture | None = None
@@ -144,6 +146,14 @@ def setup_post_processing_cog(
         if capture.capture_type != CaptureType.DigitalRF:
             raise ValueError(f"Capture {capture_uuid} is not a DigitalRF capture")
 
+        # Set default processing types if not specified
+        if not processing_types:
+            processing_types = [ProcessingType.Waterfall.value]
+
+        # Create PostProcessedData records for each processing type
+        for processing_type in processing_types:
+            _create_or_reset_processed_data(capture, processing_type)
+
         logger.info(f"Completed setup for capture {capture_uuid}")
     except Exception as e:
         logger.error(f"Setup failed for capture {capture_uuid}: {e}")
@@ -152,13 +162,13 @@ def setup_post_processing_cog(
 
 @cog
 def process_waterfall_data_cog(
-    capture_uuid: str, max_slices: int = 100
+    capture_uuid: str, max_slices: int | None = None
 ) -> dict[str, Any]:
     """Process waterfall data for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
-        max_slices: Maximum number of slices to process (default: 100)
+        max_slices: Maximum number of slices to process (default: None)
 
     Returns:
         Dict with status and processed data info
@@ -180,10 +190,7 @@ def process_waterfall_data_cog(
         ).first()
 
         if not processed_data:
-            return {
-                "status": "error",
-                "message": "No processed data record found for waterfall processing",
-            }
+            raise ValueError("No processed data record found for waterfall processing")
 
         # Mark processing as started
         processed_data.mark_processing_started(pipeline_id="django_cog_pipeline")
@@ -203,22 +210,19 @@ def process_waterfall_data_cog(
                 processed_data.mark_processing_failed(
                     "Failed to reconstruct DigitalRF directory structure"
                 )
-                return {
-                    "status": "error",
-                    "message": "Failed to reconstruct DigitalRF directory structure",
-                }
+                raise ValueError("Failed to reconstruct DigitalRF directory structure")
 
             # Process the waterfall data in JSON format
             waterfall_result = convert_drf_to_waterfall_json(
                 reconstructed_path,
                 capture.channel,
                 ProcessingType.Waterfall.value,
-                max_slices,
+                max_slices=max_slices,
             )
 
             if waterfall_result["status"] != "success":
                 processed_data.mark_processing_failed(waterfall_result["message"])
-                return waterfall_result
+                raise ValueError(waterfall_result["message"])
 
             # Create a temporary JSON file
             import json
@@ -244,7 +248,7 @@ def process_waterfall_data_cog(
 
             if store_result["status"] != "success":
                 processed_data.mark_processing_failed(store_result["message"])
-                return store_result
+                raise ValueError(store_result["message"])
 
             # Mark processing as completed
             processed_data.mark_processing_completed()
@@ -353,7 +357,7 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
 
 
 def convert_drf_to_waterfall_json(
-    drf_path: Path, channel: str, processing_type: str, max_slices: int = 100
+    drf_path: Path, channel: str, processing_type: str, max_slices: int | None = None
 ) -> dict:
     """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
     logger.info(
@@ -366,31 +370,21 @@ def convert_drf_to_waterfall_json(
         channels = reader.get_channels()
 
         if not channels:
-            return {
-                "status": "error",
-                "message": "No channels found in DigitalRF data",
-            }
+            raise ValueError("No channels found in DigitalRF data")
 
         if channel not in channels:
-            return {
-                "status": "error",
-                "message": f"Channel {channel} not found in DigitalRF data. Available channels: {channels}",
-            }
+            raise ValueError(
+                f"Channel {channel} not found in DigitalRF data. Available channels: {channels}"
+            )
 
         # Get sample bounds
         bounds = reader.get_bounds(channel)
         if bounds is None:
-            return {
-                "status": "error",
-                "message": "Could not get sample bounds for channel",
-            }
+            raise ValueError("Could not get sample bounds for channel")
 
         start_sample, end_sample = bounds
         if start_sample is None or end_sample is None:
-            return {
-                "status": "error",
-                "message": "Invalid sample bounds for channel",
-            }
+            raise ValueError("Invalid sample bounds for channel")
         total_samples = end_sample - start_sample
 
         # Get metadata from DigitalRF properties
@@ -399,10 +393,9 @@ def convert_drf_to_waterfall_json(
             sample_rate_numerator = f.attrs.get("sample_rate_numerator")
             sample_rate_denominator = f.attrs.get("sample_rate_denominator")
             if sample_rate_numerator is None or sample_rate_denominator is None:
-                return {
-                    "status": "error",
-                    "message": "Sample rate information missing from DigitalRF properties",
-                }
+                raise ValueError(
+                    "Sample rate information missing from DigitalRF properties"
+                )
             sample_rate = float(sample_rate_numerator) / float(sample_rate_denominator)
 
         # Get center frequency from metadata
@@ -428,7 +421,9 @@ def convert_drf_to_waterfall_json(
 
         # Calculate total slices and limit to max_slices
         total_slices = total_samples // samples_per_slice
-        slices_to_process = min(total_slices, max_slices)
+        slices_to_process = (
+            min(total_slices, max_slices) if max_slices is not None else total_slices
+        )
 
         logger.info(
             f"Processing {slices_to_process} slices with {samples_per_slice} samples per slice"
@@ -516,10 +511,7 @@ def convert_drf_to_waterfall_json(
 
     except Exception as e:
         logger.exception(f"Error converting DigitalRF to waterfall JSON: {e}")
-        return {
-            "status": "error",
-            "message": f"Error converting DigitalRF data: {e}",
-        }
+        raise
 
 
 def store_processed_data(
@@ -558,10 +550,7 @@ def store_processed_data(
         ).first()
 
         if not processed_data:
-            return {
-                "status": "error",
-                "message": f"No processed data record found for {processing_type}",
-            }
+            raise ValueError(f"No processed data record found for {processing_type}")
 
         # Store the file
         processed_data.set_processed_data_file(file_path, filename)
@@ -590,7 +579,4 @@ def store_processed_data(
 
     except Exception as e:
         logger.exception(f"Error storing {processing_type} file: {e}")
-        return {
-            "status": "error",
-            "message": f"Error storing {processing_type} file: {e}",
-        }
+        raise
