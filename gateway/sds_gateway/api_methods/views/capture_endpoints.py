@@ -1036,6 +1036,86 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="processing_type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Type of post-processing (e.g., 'waterfall')",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Post-processed data metadata"),
+            400: OpenApiResponse(description="Bad Request"),
+            404: OpenApiResponse(
+                description="Capture or post-processed data not found"
+            ),
+        },
+        summary="Get post-processed data metadata",
+        description="Get metadata for post-processed data",
+    )
+    @action(detail=True, methods=["get"])
+    def get_post_processed_metadata(self, request, pk=None):
+        """Get metadata for post-processed data."""
+        try:
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
+            processing_type = request.query_params.get("processing_type")
+
+            if not processing_type:
+                return Response(
+                    {"error": "processing_type parameter is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the most recent post-processed data for this capture and processing type
+            processed_data = (
+                capture.post_processed_data.filter(
+                    processing_type=processing_type,
+                    processing_status="completed",
+                )
+                .order_by("-created_at")
+                .first()
+            )
+
+            if not processed_data:
+                return Response(
+                    {
+                        "error": (
+                            f"No completed {processing_type} data found for this capture"
+                        )
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Return the metadata
+            return Response(
+                {
+                    "metadata": processed_data.metadata,
+                    "processing_type": processed_data.processing_type,
+                    "created_at": processed_data.created_at,
+                    "processing_parameters": processed_data.processing_parameters,
+                }
+            )
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            log.exception(f"Error getting post-processed metadata: {e}")
+            return Response(
+                {"error": f"Internal server error: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 def _check_capture_creation_constraints(
     capture_candidate: dict[str, Any],
