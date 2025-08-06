@@ -318,7 +318,7 @@
                                                name="scan_group"
                                                class="form-control"
                                                placeholder="xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx" />
-                                        <div class="form-text">Required for RadioHound captures</div>
+                                        <div class="form-text">For RadioHound captures, optional UUID</div>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
@@ -1122,7 +1122,7 @@
                         if (captureChannelsInput) captureChannelsInput.setAttribute('required', 'required');
                     } else if (selectedType === 'rh') {
                         if (scanGroupInputGroup) scanGroupInputGroup.classList.remove('hidden-input-group');
-                        if (captureScanGroupInput) captureScanGroupInput.setAttribute('required', 'required');
+                        // scan_group is optional for RadioHound captures
                     }
                 });
             }

@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import uuid
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -73,6 +74,16 @@ from sds_gateway.users.utils import deduplicate_composite_captures
 
 # Add logger for debugging
 logger = logging.getLogger(__name__)
+
+
+def validate_uuid(uuid_string: str) -> bool:
+    """Validate if a string is a valid UUID."""
+    try:
+        uuid.UUID(uuid_string)
+    except (ValueError, TypeError):
+        return False
+    else:
+        return True
 
 
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -1904,7 +1915,16 @@ class UploadFilesView(View):
 
             # Add appropriate field based on capture type
             if capture_type == "rh":
-                capture_data["scan_group"] = scan_group
+                # Only add scan_group if it's provided (optional for RadioHound)
+                if scan_group and scan_group.strip():
+                    # Validate UUID format if scan_group is provided
+                    if not validate_uuid(scan_group.strip()):
+                        return (
+                            None,
+                            f"Invalid scan group format. Must be a valid UUID, "
+                            f"got: {scan_group}",
+                        )
+                    capture_data["scan_group"] = scan_group
             else:
                 capture_data["channel"] = channel
 
@@ -2069,7 +2089,8 @@ class UploadFilesView(View):
     def _check_required_fields(self, capture_type, channels, scan_group):
         """Check if required fields are provided for capture creation."""
         if capture_type == "rh":
-            return bool(scan_group.strip())
+            # scan_group is optional for RadioHound captures
+            return True
         return bool(channels)
 
     def _determine_response_status(
