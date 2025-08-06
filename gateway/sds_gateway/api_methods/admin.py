@@ -65,7 +65,6 @@ class PostProcessedDataAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissing
                 "fields": (
                     "processing_parameters",
                     "pipeline_id",
-                    "pipeline_step",
                     "processed_at",
                 )
             },
