@@ -55,23 +55,6 @@ class FileViewSet(ViewSet):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def _is_client_disconnected(self, request):
-        """Check if the client has disconnected from the request."""
-        try:
-            # Check if the request is still connected
-            if hasattr(request, "_closed") and getattr(request, "_closed", False):
-                log.info("Client disconnected: request._closed is True")
-                return True
-            # Try to access request body to see if connection is still alive
-            if hasattr(request, "body"):
-                # This will raise an exception if the client disconnected
-                _ = request.body
-        except (ConnectionError, OSError) as e:
-            log.info("Client disconnected: exception caught: %s", e)
-            return True
-        else:
-            return False
-
     @extend_schema(
         request=FilePostSerializer,
         responses={
@@ -97,14 +80,6 @@ class FileViewSet(ViewSet):
     )
     def create(self, request: Request) -> Response:
         """Uploads a file to the server."""
-
-        # Check for client disconnection
-        if self._is_client_disconnected(request):
-            log.info("Client disconnected in FileViewSet.create")
-            return Response(
-                {"detail": "Client disconnected"},
-                status=HTTP_499_CLIENT_CLOSED_REQUEST,
-            )
 
         # when a sibling file is provided, use its file contents
         if sibling_uuid := request.data.get("sibling_uuid"):
