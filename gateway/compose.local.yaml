@@ -233,7 +233,7 @@ services:
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
-        command: /start
+        command: /flower-start
         ports:
             - "5555:5555"  # Flower web interface
         networks:
