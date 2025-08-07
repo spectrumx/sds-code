@@ -135,12 +135,17 @@
                                                                 </li>
                                                             {% endif %}
                                                             <li>
-                                                                <button class="dropdown-item download-dataset-btn"
+                                                                <button class="dropdown-item"
                                                                         type="button"
-                                                                        data-dataset-uuid="{{ dataset.uuid }}"
-                                                                        data-dataset-name="{{ dataset.name }}"
-                                                                        onclick="showDownloadHelp('{{ dataset.uuid }}', '{{ dataset.name }}')">
-                                                                    <i class="bi bi-download me-2"></i>Download
+                                                                        onclick="showWebDownloadModal('{{ dataset.uuid }}', '{{ dataset.name }}')">
+                                                                    <i class="bi bi-download me-2"></i>Web Download
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button class="dropdown-item"
+                                                                        type="button"
+                                                                        onclick="showSDKDownloadModal('{{ dataset.uuid }}', '{{ dataset.name }}')">
+                                                                    <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
                                                                 </button>
                                                             </li>
                                                         </ul>
@@ -209,7 +214,8 @@
         </div>
     </div>
     <!-- Modals to reveal on click -->
-    {% include "users/partials/download_help_modal.html" %}
+    {% include "users/partials/web_download_modal.html" %}
+    {% include "users/partials/sdk_download_modal.html" %}
     {% include "users/partials/dataset_details_modal.html" %}
     {% for dataset in page_obj %}
         {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
@@ -227,18 +233,6 @@
     <script src="{% static 'js/userSearchComponent.js' %}"></script>
     <script src="{% static 'js/datasetDetailsModal.js' %}"></script>
     <script>
-        // Function to show download help modal
-        function showDownloadHelp(datasetUuid, datasetName) {
-            // Show the help modal
-            const helpModal = new bootstrap.Modal(document.getElementById('downloadHelpModal'));
-            helpModal.show();
-            
-            // Show confirmation tab and set up download
-            if (window.showDownloadConfirmation) {
-                window.showDownloadConfirmation(datasetName, datasetUuid);
-            }
-        }
-
         document.addEventListener('DOMContentLoaded', function() {
             // Create a UserSearchHandler for each share modal
             document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
