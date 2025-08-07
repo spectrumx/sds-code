@@ -36,6 +36,7 @@ class ApprovedUserRequiredMixin(AccessMixin):
                     "Your account is not approved to use API features. "
                     "Please contact the administrator.",
                 ),
+                extra_tags="danger",
             )
             return redirect(reverse("home"))
         return super().dispatch(request, *args, **kwargs)
