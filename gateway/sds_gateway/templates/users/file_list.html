@@ -6,7 +6,7 @@
 {% block bodyclass %}
     hero-white-page
 {% endblock bodyclass %}
-{% block body %}
+{% block content %}
     <!-- Add Font Awesome for sort arrows -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
@@ -22,27 +22,6 @@
     </style>
     <!-- CSRF Token for JavaScript -->
     {% csrf_token %}
-    <!-- System-wide notifications -->
-    {% if system_notifications %}
-        <div class="container">
-            {% for notification in system_notifications %}
-                <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
-            {% endfor %}
-        </div>
-    {% endif %}
-    {% if messages %}
-        <div class="container">
-            {% for message in messages %}
-                <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
-                    {{ message }}
-                    <button type="button"
-                            class="btn-close"
-                            data-bs-dismiss="alert"
-                            aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
     <div class="container-fluid px-5 pt-4">
         <!-- Headers Row -->
         <div class="row mb-1">
@@ -242,7 +221,7 @@
     </div>
     <!-- Capture Details Modal -->
     {% include "users/partials/capture_modal.html" %}
-{% endblock body %}
+{% endblock content %}
 {% block javascript %}
     {{ block.super }}
     <script src="{% static 'js/components.js' %}"></script>
