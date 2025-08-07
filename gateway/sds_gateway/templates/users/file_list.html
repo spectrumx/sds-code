@@ -12,7 +12,7 @@
           href="{% static 'css/visualizations/visualization_modal.css' %}" />
     <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
 {% endblock css %}
-{% block body %}
+{% block content %}
     <!-- Add Font Awesome for sort arrows -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
@@ -391,9 +391,7 @@
     {% if VISUALIZATIONS_ENABLED %}
         {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
     {% endif %}
-    <!-- Web Download Modal -->
-    {% include "users/partials/web_download_modal.html" %}
-{% endblock body %}
+{% endblock content %}
 {% block javascript %}
     {{ block.super }}
     <!-- Action components -->
