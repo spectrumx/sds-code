@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{% static 'css/visualization_modal.css' %}" />
     <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
 {% endblock css %}
-{% block body %}
+{% block content %}
     <!-- Add Font Awesome for sort arrows -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
@@ -384,7 +384,7 @@
     {% include "users/partials/capture_modal.html" %}
     <!-- Visualization Selection Modal -->
     {% include "users/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
-{% endblock body %}
+{% endblock content %}
 {% block javascript %}
     {{ block.super }}
     <script src="{% static 'js/components.js' %}"></script>
