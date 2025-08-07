@@ -4,6 +4,7 @@ import base64
 import datetime
 import os
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,11 +16,29 @@ from django_cog import cog
 from loguru import logger
 
 
+@dataclass
+class WaterfallSliceParams:
+    """Parameters for processing a waterfall slice."""
+
+    reader: Any
+    channel: str
+    slice_idx: int
+    start_sample: int
+    samples_per_slice: int
+    end_sample: int
+    fft_size: int
+    min_frequency: float
+    max_frequency: float
+    sample_rate: float
+    center_freq: float
+
+
 # Pipeline configuration functions for Django admin setup
 def get_waterfall_pipeline_config() -> dict[str, Any]:
     """Get configuration for waterfall processing pipeline.
 
-    This should be used to set up the pipeline in Django admin with the following structure:
+    This should be used to set up the pipeline in Django admin with the following
+    structure:
 
     Pipeline:
     - Name: "Waterfall Processing"
@@ -28,11 +47,14 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
 
     Stages:
     1. "setup_stage" - setup_post_processing_cog (validates capture, creates records)
-    2. "process_stage" - process_waterfall_data_cog (does download, processing, and storage)
+    2. "process_stage" - process_waterfall_data_cog (does download, processing, and
+       storage)
 
     Tasks in each stage:
-    - setup_stage: setup_post_processing_cog (capture_uuid and processing_types passed as runtime args)
-    - process_stage: process_waterfall_data_cog (capture_uuid passed as runtime arg, depends on setup_stage)
+    - setup_stage: setup_post_processing_cog (capture_uuid and processing_types passed
+      as runtime args)
+    - process_stage: process_waterfall_data_cog (capture_uuid passed as runtime arg,
+      depends on setup_stage)
     """
     return {
         "pipeline_name": "Waterfall Processing",
@@ -40,7 +62,8 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
         "stages": [
             {
                 "name": "setup_stage",
-                "description": "Setup post-processing (validate capture, create records)",
+                "description": "Setup post-processing (validate capture, create "
+                "records)",
                 "tasks": [
                     {
                         "name": "setup_processing",
@@ -52,7 +75,8 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
             },
             {
                 "name": "process_stage",
-                "description": "Process waterfall data (downloads, processes, and stores)",
+                "description": "Process waterfall data (downloads, processes, and "
+                "stores)",
                 "depends_on": ["setup_stage"],
                 "tasks": [
                     {
@@ -84,7 +108,8 @@ def get_pipeline_config(pipeline_type: str) -> dict[str, Any]:
     """
     config_func = PIPELINE_CONFIGS.get(pipeline_type)
     if not config_func:
-        raise ValueError(f"Unknown pipeline type: {pipeline_type}")
+        error_msg = f"Unknown pipeline type: {pipeline_type}"
+        raise ValueError(error_msg)
 
     return config_func()
 
@@ -107,7 +132,6 @@ def setup_post_processing_cog(
 
         # Import models here to avoid Django app registry issues
         from .models import Capture
-        from .models import CaptureType
         from .models import ProcessingType
 
         # Get the capture with retry mechanism for transaction timing issues
@@ -135,7 +159,7 @@ def setup_post_processing_cog(
                         f"Capture {capture_uuid} not found after {max_retries} attempts"
                     )
                     logger.error(error_msg)
-                    raise ValueError(error_msg)
+                    raise ValueError(error_msg) from None
 
         # At this point, capture should not be None due to the retry logic above
         assert capture is not None, (
@@ -143,8 +167,12 @@ def setup_post_processing_cog(
         )
 
         # Validate capture type
+        # Import here to avoid Django app registry issues
+        from .models import CaptureType
+
         if capture.capture_type != CaptureType.DigitalRF:
-            raise ValueError(f"Capture {capture_uuid} is not a DigitalRF capture")
+            error_msg = f"Capture {capture_uuid} is not a DigitalRF capture"
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Set default processing types if not specified
         if not processing_types:
@@ -189,8 +217,9 @@ def process_waterfall_data_cog(
             processing_type=ProcessingType.Waterfall.value,
         ).first()
 
-        if not processed_data:
-            raise ValueError("No processed data record found for waterfall processing")
+        processed_data = _validate_processed_data(
+            processed_data, "waterfall processing"
+        )
 
         # Mark processing as started
         processed_data.mark_processing_started(pipeline_id="django_cog_pipeline")
@@ -207,10 +236,9 @@ def process_waterfall_data_cog(
             )
 
             if not reconstructed_path:
-                processed_data.mark_processing_failed(
-                    "Failed to reconstruct DigitalRF directory structure"
-                )
-                raise ValueError("Failed to reconstruct DigitalRF directory structure")
+                error_msg = "Failed to reconstruct DigitalRF directory structure"
+                processed_data.mark_processing_failed(error_msg)
+                raise ValueError(error_msg)  # noqa: TRY301
 
             # Process the waterfall data in JSON format
             waterfall_result = convert_drf_to_waterfall_json(
@@ -220,9 +248,9 @@ def process_waterfall_data_cog(
                 max_slices=max_slices,
             )
 
-            if waterfall_result["status"] != "success":
-                processed_data.mark_processing_failed(waterfall_result["message"])
-                raise ValueError(waterfall_result["message"])
+            _validate_processing_result(
+                waterfall_result, processed_data, "waterfall processing"
+            )
 
             # Create a temporary JSON file
             import json
@@ -244,11 +272,9 @@ def process_waterfall_data_cog(
             )
 
             # Clean up temporary file
-            os.unlink(temp_file_path)
+            Path(temp_file_path).unlink()
 
-            if store_result["status"] != "success":
-                processed_data.mark_processing_failed(store_result["message"])
-                raise ValueError(store_result["message"])
+            _validate_processing_result(store_result, processed_data, "file storage")
 
             # Mark processing as completed
             processed_data.mark_processing_completed()
@@ -313,6 +339,82 @@ def _create_or_reset_processed_data(capture, processing_type: str):
     return processed_data
 
 
+def _validate_processed_data(processed_data, processing_type: str):
+    """Validate that processed data record exists and return it."""
+    if not processed_data:
+        error_msg = f"No processed data record found for {processing_type}"
+        raise ValueError(error_msg)
+    assert processed_data is not None  # Type assertion for type checker
+    return processed_data
+
+
+def _validate_processing_result(result, processed_data, operation: str) -> None:
+    """Validate that processing operation was successful."""
+    if result["status"] != "success":
+        processed_data.mark_processing_failed(result["message"])
+        raise ValueError(result["message"])
+
+
+def _process_waterfall_slice(params: WaterfallSliceParams) -> dict | None:
+    """Process a single waterfall slice."""
+    # Calculate sample range for this slice
+    slice_start_sample = (
+        params.start_sample + params.slice_idx * params.samples_per_slice
+    )
+    slice_num_samples = min(
+        params.samples_per_slice, params.end_sample - slice_start_sample
+    )
+
+    if slice_num_samples <= 0:
+        return None
+
+    # Read the data
+    data_array = params.reader.read_vector(
+        slice_start_sample, slice_num_samples, params.channel, 0
+    )
+
+    # Perform FFT processing
+    fft_data = np.fft.fft(data_array, n=params.fft_size)
+    power_spectrum = np.abs(fft_data) ** 2
+
+    # Convert to dB
+    power_spectrum_db = 10 * np.log10(power_spectrum + 1e-12)
+
+    # Convert power spectrum to binary string for transmission
+    data_bytes = power_spectrum_db.astype(np.float32).tobytes()
+    data_string = base64.b64encode(data_bytes).decode("utf-8")
+
+    # Create timestamp from sample index
+    timestamp = datetime.datetime.fromtimestamp(
+        slice_start_sample / params.sample_rate, tz=datetime.UTC
+    ).isoformat()
+
+    # Build WaterfallFile format with enhanced metadata
+    waterfall_file = {
+        "data": data_string,
+        "data_type": "float32",
+        "timestamp": timestamp,
+        "min_frequency": params.min_frequency,
+        "max_frequency": params.max_frequency,
+        "num_samples": slice_num_samples,
+        "sample_rate": params.sample_rate,
+        "center_frequency": params.center_freq,
+    }
+
+    # Build custom fields with all available metadata
+    custom_fields = {
+        "channel_name": params.channel,
+        "start_sample": slice_start_sample,
+        "num_samples": slice_num_samples,
+        "fft_size": params.fft_size,
+        "scan_time": slice_num_samples / params.sample_rate,
+        "slice_index": params.slice_idx,
+    }
+
+    waterfall_file["custom_fields"] = custom_fields
+    return waterfall_file
+
+
 def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | None:
     """Reconstruct DigitalRF directory structure from SDS files."""
     # Import utilities here to avoid Django app registry issues
@@ -341,22 +443,21 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
             )
 
         # Find the DigitalRF root directory (parent of the channel directory)
-        for root, dirs, files in os.walk(capture_dir):
+        for root, _dirs, files in os.walk(capture_dir):
             if "drf_properties.h5" in files:
                 # The DigitalRF root is the parent of the channel directory
                 drf_root = Path(root).parent
                 logger.info(f"Found DigitalRF root at: {drf_root}")
                 return drf_root
-
         logger.error("Could not find DigitalRF properties file")
-        return None
+        return None  # noqa: TRY300
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.exception(f"Error reconstructing DigitalRF files: {e}")
         return None
 
 
-def convert_drf_to_waterfall_json(
+def convert_drf_to_waterfall_json(  # noqa: C901, PLR0915
     drf_path: Path, channel: str, processing_type: str, max_slices: int | None = None
 ) -> dict:
     """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
@@ -370,21 +471,26 @@ def convert_drf_to_waterfall_json(
         channels = reader.get_channels()
 
         if not channels:
-            raise ValueError("No channels found in DigitalRF data")
+            error_msg = "No channels found in DigitalRF data"
+            raise ValueError(error_msg)  # noqa: TRY301
 
         if channel not in channels:
-            raise ValueError(
-                f"Channel {channel} not found in DigitalRF data. Available channels: {channels}"
+            error_msg = (
+                f"Channel {channel} not found in DigitalRF data. "
+                f"Available channels: {channels}"
             )
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Get sample bounds
         bounds = reader.get_bounds(channel)
         if bounds is None:
-            raise ValueError("Could not get sample bounds for channel")
+            error_msg = "Could not get sample bounds for channel"
+            raise ValueError(error_msg)  # noqa: TRY301
 
         start_sample, end_sample = bounds
         if start_sample is None or end_sample is None:
-            raise ValueError("Invalid sample bounds for channel")
+            error_msg = "Invalid sample bounds for channel"
+            raise ValueError(error_msg)  # noqa: TRY301
         total_samples = end_sample - start_sample
 
         # Get metadata from DigitalRF properties
@@ -393,9 +499,8 @@ def convert_drf_to_waterfall_json(
             sample_rate_numerator = f.attrs.get("sample_rate_numerator")
             sample_rate_denominator = f.attrs.get("sample_rate_denominator")
             if sample_rate_numerator is None or sample_rate_denominator is None:
-                raise ValueError(
-                    "Sample rate information missing from DigitalRF properties"
-                )
+                error_msg = "Sample rate information missing from DigitalRF properties"
+                raise ValueError(error_msg)  # noqa: TRY301
             sample_rate = float(sample_rate_numerator) / float(sample_rate_denominator)
 
         # Get center frequency from metadata
@@ -407,7 +512,7 @@ def convert_drf_to_waterfall_json(
             )
             if metadata_dict and "center_freq" in metadata_dict:
                 center_freq = float(metadata_dict["center_freq"])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Could not read center frequency from metadata: {e}")
 
         # Calculate frequency range
@@ -426,65 +531,30 @@ def convert_drf_to_waterfall_json(
         )
 
         logger.info(
-            f"Processing {slices_to_process} slices with {samples_per_slice} samples per slice"
+            f"Processing {slices_to_process} slices with "
+            f"{samples_per_slice} samples per slice"
         )
 
         # Process slices and create JSON data
         waterfall_data = []
 
         for slice_idx in range(slices_to_process):
-            # Calculate sample range for this slice
-            slice_start_sample = start_sample + slice_idx * samples_per_slice
-            slice_num_samples = min(samples_per_slice, end_sample - slice_start_sample)
-
-            if slice_num_samples <= 0:
-                break
-
-            # Read the data
-            data_array = reader.read_vector(
-                slice_start_sample, slice_num_samples, channel, 0
+            params = WaterfallSliceParams(
+                reader=reader,
+                channel=channel,
+                slice_idx=slice_idx,
+                start_sample=start_sample,
+                samples_per_slice=samples_per_slice,
+                end_sample=end_sample,
+                fft_size=fft_size,
+                min_frequency=min_frequency,
+                max_frequency=max_frequency,
+                sample_rate=sample_rate,
+                center_freq=center_freq,
             )
-
-            # Perform FFT processing
-            fft_data = np.fft.fft(data_array, n=fft_size)
-            power_spectrum = np.abs(fft_data) ** 2
-
-            # Convert to dB
-            power_spectrum_db = 10 * np.log10(power_spectrum + 1e-12)
-
-            # Convert power spectrum to binary string for transmission
-            data_bytes = power_spectrum_db.astype(np.float32).tobytes()
-            data_string = base64.b64encode(data_bytes).decode("utf-8")
-
-            # Create timestamp from sample index
-            timestamp = datetime.datetime.fromtimestamp(
-                slice_start_sample / sample_rate, tz=datetime.UTC
-            ).isoformat()
-
-            # Build WaterfallFile format with enhanced metadata
-            waterfall_file = {
-                "data": data_string,
-                "data_type": "float32",
-                "timestamp": timestamp,
-                "min_frequency": min_frequency,
-                "max_frequency": max_frequency,
-                "num_samples": slice_num_samples,
-                "sample_rate": sample_rate,
-                "center_frequency": center_freq,
-            }
-
-            # Build custom fields with all available metadata
-            custom_fields = {
-                "channel_name": channel,
-                "start_sample": slice_start_sample,
-                "num_samples": slice_num_samples,
-                "fft_size": fft_size,
-                "scan_time": slice_num_samples / sample_rate,
-                "slice_index": slice_idx,
-            }
-
-            waterfall_file["custom_fields"] = custom_fields
-            waterfall_data.append(waterfall_file)
+            waterfall_file = _process_waterfall_slice(params)
+            if waterfall_file:
+                waterfall_data.append(waterfall_file)
 
             # Log progress every 10 slices
             if slice_idx % 10 == 0:
@@ -502,7 +572,7 @@ def convert_drf_to_waterfall_json(
             "channel": channel,
         }
 
-        return {
+        return {  # noqa: TRY300
             "status": "success",
             "message": "Waterfall data converted to JSON successfully",
             "json_data": waterfall_data,
@@ -549,8 +619,7 @@ def store_processed_data(
             processing_type=processing_type,
         ).first()
 
-        if not processed_data:
-            raise ValueError(f"No processed data record found for {processing_type}")
+        processed_data = _validate_processed_data(processed_data, processing_type)
 
         # Store the file
         processed_data.set_processed_data_file(file_path, filename)
@@ -571,7 +640,7 @@ def store_processed_data(
 
         logger.info(f"Stored file {filename} for {processing_type} data")
 
-        return {
+        return {  # noqa: TRY300
             "status": "success",
             "message": f"{processing_type} file stored successfully",
             "file_name": filename,

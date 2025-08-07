@@ -184,7 +184,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 )
 
     def _trigger_post_processing(self, capture: Capture) -> None:
-        """Trigger post-processing for a DigitalRF capture after OpenSearch indexing is complete.
+        """Trigger post-processing for a DigitalRF capture after OpenSearch indexing.
 
         Args:
             capture: The capture to trigger post-processing for
@@ -203,10 +203,11 @@ class CaptureViewSet(viewsets.ViewSet):
                 str(capture.uuid), ["waterfall"]
             )
             log.info(
-                f"Launched post-processing task for capture {capture.uuid}, task_id: {result.id}"
+                f"Launched post-processing task for capture {capture.uuid}, "
+                f"task_id: {result.id}"
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.error(
                 f"Failed to launch post-processing task for capture {capture.uuid}: {e}"
             )
@@ -315,12 +316,11 @@ class CaptureViewSet(viewsets.ViewSet):
                 top_level_dir=requested_top_level_dir,
             )
 
-            # Trigger post-processing for DigitalRF captures after OpenSearch indexing is complete
-            if capture.capture_type == CaptureType.DigitalRF:
-                # Use transaction.on_commit to ensure the task is queued after the transaction is committed
-                from django.db import transaction
+            # Use transaction.on_commit to ensure the task is queued after the
+            # transaction is committed
+            from django.db import transaction
 
-                transaction.on_commit(lambda: self._trigger_post_processing(capture))
+            transaction.on_commit(lambda: self._trigger_post_processing(capture))
 
         except UnknownIndexError as e:
             user_msg = f"Unknown index: '{e}'. Try recreating this capture."
@@ -625,9 +625,11 @@ class CaptureViewSet(viewsets.ViewSet):
                 top_level_dir=requested_top_level_dir,
             )
 
-            # Trigger post-processing for DigitalRF captures after OpenSearch indexing is complete
+            # Trigger post-processing for DigitalRF captures after OpenSearch indexing
+            # is complete
             if target_capture.capture_type == CaptureType.DigitalRF:
-                # Use transaction.on_commit to ensure the task is queued after the transaction is committed
+                # Use transaction.on_commit to ensure the task is queued after the
+                # transaction is committed
                 from django.db import transaction
 
                 transaction.on_commit(
@@ -842,7 +844,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 {"error": "Capture not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.exception(f"Error getting post-processing status: {e}")
             return Response(
                 {"error": f"Internal server error: {e}"},
@@ -854,7 +856,9 @@ class CaptureViewSet(viewsets.ViewSet):
         parameters=[
             OpenApiParameter(
                 name="processing_type",
-                description="Type of post-processed data to download (e.g., 'waterfall')",
+                description=(
+                    "Type of post-processed data to download (e.g., 'waterfall')"
+                ),
                 required=True,
                 type=str,
                 location=OpenApiParameter.QUERY,
@@ -887,7 +891,8 @@ class CaptureViewSet(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Get the most recent post-processed data for this capture and processing type
+            # Get the most recent post-processed data for this capture and
+            # processing type
             processed_data = (
                 capture.post_processed_data.filter(
                     processing_type=processing_type,
@@ -900,7 +905,10 @@ class CaptureViewSet(viewsets.ViewSet):
             if not processed_data:
                 return Response(
                     {
-                        "error": f"No completed {processing_type} data found for this capture"
+                        "error": (
+                            f"No completed {processing_type} data found for this "
+                            "capture"
+                        )
                     },
                     status=status.HTTP_404_NOT_FOUND,
                 )
@@ -908,7 +916,9 @@ class CaptureViewSet(viewsets.ViewSet):
             if not processed_data.data_file:
                 return Response(
                     {
-                        "error": f"Post-processed data file not found for {processing_type}"
+                        "error": (
+                            f"Post-processed data file not found for {processing_type}"
+                        )
                     },
                     status=status.HTTP_404_NOT_FOUND,
                 )
@@ -923,14 +933,14 @@ class CaptureViewSet(viewsets.ViewSet):
             response["Content-Disposition"] = (
                 f'attachment; filename="{processed_data.data_file.name.split("/")[-1]}"'
             )
-            return response
+            return response  # noqa: TRY300
 
         except Capture.DoesNotExist:
             return Response(
                 {"error": "Capture not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.exception(f"Error downloading post-processed data: {e}")
             return Response(
                 {"error": f"Internal server error: {e}"},
@@ -975,7 +985,8 @@ class CaptureViewSet(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Get the most recent post-processed data for this capture and processing type
+            # Get the most recent post-processed data for this capture and
+            # processing type
             processed_data = (
                 capture.post_processed_data.filter(
                     processing_type=processing_type,
@@ -989,7 +1000,8 @@ class CaptureViewSet(viewsets.ViewSet):
                 return Response(
                     {
                         "error": (
-                            f"No completed {processing_type} data found for this capture"
+                            f"No completed {processing_type} data found for this "
+                            f"capture"
                         )
                     },
                     status=status.HTTP_404_NOT_FOUND,
@@ -1010,7 +1022,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 {"error": "Capture not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.exception(f"Error getting post-processed metadata: {e}")
             return Response(
                 {"error": f"Internal server error: {e}"},

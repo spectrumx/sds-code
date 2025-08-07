@@ -323,7 +323,7 @@ class CaptureTestCases(APITestCase):
             )
 
     def test_create_drf_capture_triggers_post_processing(self) -> None:
-        """Test that creating a DigitalRF capture triggers post-processing after OpenSearch indexing."""
+        """Test that creating a DigitalRF capture triggers post-processing."""
         unique_channel = f"{self.channel_v0}_post_process"
         unique_top_level_dir = f"{self.top_level_dir_v0}-post-process"
 
