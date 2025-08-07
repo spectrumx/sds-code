@@ -208,7 +208,14 @@ class Client:
         Returns:
             A list of results for each file discovered and downloaded.
         """
+
         if from_sds_path is not None:
+            if files_to_download is not None:
+                error_msg = (
+                    "Both a path in the SDS and a list of files "
+                    "were provided: please provide only one."
+                )
+                raise ValueError(error_msg)
             from_sds_path = PurePosixPath(from_sds_path)
         to_local_path = Path(to_local_path)
 

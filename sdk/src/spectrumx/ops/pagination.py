@@ -1,5 +1,6 @@
 """Pagination for SDS constructs."""
 
+import copy
 import json
 import sys
 import time
@@ -132,8 +133,8 @@ class Paginator(Generic[T]):
         self._Entry = Entry
         self._gateway = gateway
         self._list_method = list_method
-        self._list_kwargs = (
-            list_kwargs.copy()
+        self._list_kwargs = copy.deepcopy(
+            list_kwargs
         )  # Make a copy to avoid modifying the original
         self._next_page = start_page
         self._page_size = page_size
