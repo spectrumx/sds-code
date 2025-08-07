@@ -5,6 +5,8 @@
 import logging
 from typing import Any
 
+from sds_gateway.api_methods.models import CaptureType
+
 log = logging.getLogger(__name__)
 
 drf_capture_metadata_schema = {
@@ -356,8 +358,8 @@ base_index_fields = [
 ]
 
 capture_index_mapping_by_type = {
-    "drf": drf_capture_index_mapping,
-    "rh": rh_capture_index_mapping,
+    CaptureType.DigitalRF: drf_capture_index_mapping,
+    CaptureType.RadioHound: rh_capture_index_mapping,
 }
 
 base_properties = {
@@ -385,7 +387,7 @@ search_properties = {
 
 
 def get_mapping_by_capture_type(
-    capture_type: str,
+    capture_type: CaptureType,
 ) -> dict[str, str | dict[str, Any]]:
     """Get the mapping for a given capture type."""
 
@@ -404,14 +406,14 @@ def get_mapping_by_capture_type(
     }
 
 
-def infer_index_name(capture_type: str) -> str:
+def infer_index_name(capture_type: CaptureType) -> str:
     """Infer the index name for a given capture."""
     # Populate index_name based on capture type
     match capture_type:
-        case "drf":
-            return "captures-drf"
-        case "rh":
-            return "captures-rh"
+        case CaptureType.DigitalRF:
+            return f"captures-{capture_type.value}"
+        case CaptureType.RadioHound:
+            return f"captures-{capture_type.value}"
         case _:
             msg = f"Invalid capture type: {capture_type}"
             log.error(msg)
