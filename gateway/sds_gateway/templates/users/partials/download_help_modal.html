@@ -19,6 +19,18 @@
                 <!-- Tab Navigation -->
                 <ul class="nav nav-tabs" id="downloadHelpTabs" role="tablist">
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link"
+                                id="confirmation-tab"
+                                data-bs-toggle="tab"
+                                data-bs-target="#confirmation-content"
+                                type="button"
+                                role="tab"
+                                aria-controls="confirmation-content"
+                                aria-selected="false">
+                            <i class="bi bi-download"></i> Web Download
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link active"
                                 id="sdk-tab"
                                 data-bs-toggle="tab"
@@ -28,18 +40,6 @@
                                 aria-controls="sdk-content"
                                 aria-selected="true">
                             <i class="bi bi-code-slash"></i> SDK Instructions
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link"
-                                id="confirmation-tab"
-                                data-bs-toggle="tab"
-                                data-bs-target="#confirmation-content"
-                                type="button"
-                                role="tab"
-                                aria-controls="confirmation-content"
-                                aria-selected="false">
-                            <i class="bi bi-download"></i> Download Confirmation
                         </button>
                     </li>
                 </ul>
@@ -68,7 +68,6 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const helpModal = document.getElementById('downloadHelpModal');
-        const confirmBtn = document.getElementById('confirmDownloadBtn');
         const sdkTab = document.getElementById('sdk-tab');
         const confirmationTab = document.getElementById('confirmation-tab');
 
@@ -84,19 +83,25 @@
             const confirmationTabInstance = new bootstrap.Tab(confirmationTab);
             confirmationTabInstance.show();
 
-            // Store dataset info for download
-            confirmBtn.dataset.datasetUuid = datasetUuid;
-            confirmBtn.dataset.datasetName = datasetName;
+            // Find the download button in the confirmation tab
+            const confirmBtn = document.querySelector('#confirmation-content .btn-success');
+            if (confirmBtn) {
+                // Store dataset info for download
+                confirmBtn.dataset.datasetUuid = datasetUuid;
+                confirmBtn.dataset.datasetName = datasetName;
+            }
         }
 
-        // Handle download confirmation
-        confirmBtn.addEventListener('click', function() {
-            const datasetUuid = this.dataset.datasetUuid;
-            const datasetName = this.dataset.datasetName;
+        // Handle download confirmation - use event delegation
+        document.addEventListener('click', function(event) {
+            if (event.target.closest('#confirmation-content .btn-success')) {
+                const confirmBtn = event.target.closest('#confirmation-content .btn-success');
+                const datasetUuid = confirmBtn.dataset.datasetUuid;
+                const datasetName = confirmBtn.dataset.datasetName;
 
-            if (datasetUuid) {
-                // Make the download request
-                fetch(`/api/datasets/${datasetUuid}/download/`, {
+                if (datasetUuid) {
+                    // Make the download request
+                    fetch(`/api/datasets/${datasetUuid}/download/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -139,8 +144,13 @@
         helpModal.addEventListener('hidden.bs.modal', function() {
             const sdkTabInstance = new bootstrap.Tab(sdkTab);
             sdkTabInstance.show();
-            confirmBtn.dataset.datasetUuid = '';
-            confirmBtn.dataset.datasetName = '';
+            
+            // Clear dataset info from download button
+            const confirmBtn = document.querySelector('#confirmation-content .btn-success');
+            if (confirmBtn) {
+                confirmBtn.dataset.datasetUuid = '';
+                confirmBtn.dataset.datasetName = '';
+            }
         });
 
         // Make the showConfirmation function globally available
