@@ -142,6 +142,7 @@ class DatasetDetailsModal {
 	 */
 	async copyDatasetUuid() {
 		if (!this.currentDatasetUuid) {
+			this.showAlert("No dataset UUID available to copy", "warning");
 			return;
 		}
 
@@ -159,6 +160,12 @@ class DatasetDetailsModal {
 			icon.className = "bi bi-check-circle-fill";
 			copyBtn.className = "btn btn-sm btn-success copy-uuid-btn";
 			copyBtn.setAttribute("title", "UUID copied!");
+
+			// Show success message to user
+			this.showAlert(
+				"Dataset UUID copied to clipboard successfully",
+				"success",
+			);
 
 			// Reset after 2 seconds
 			setTimeout(() => {
@@ -180,6 +187,20 @@ class DatasetDetailsModal {
 			icon.className = "bi bi-x-circle-fill";
 			copyBtn.className = "btn btn-sm btn-danger copy-uuid-btn";
 			copyBtn.setAttribute("title", "Failed to copy");
+
+			// Show user-visible error message
+			let errorMessage = "Failed to copy UUID to clipboard";
+			if (error.name === "NotAllowedError") {
+				errorMessage =
+					"Clipboard access denied. Please copy the UUID manually.";
+			} else if (error.name === "NotSupportedError") {
+				errorMessage =
+					"Clipboard API not supported. Please copy the UUID manually.";
+			} else if (error.name === "SecurityError") {
+				errorMessage =
+					"Clipboard access blocked by security policy. Please copy the UUID manually.";
+			}
+			this.showAlert(errorMessage, "error");
 
 			// Reset after 2 seconds
 			setTimeout(() => {
