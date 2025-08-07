@@ -5,8 +5,6 @@
 import logging
 from typing import Any
 
-from sds_gateway.api_methods.models import CaptureType
-
 log = logging.getLogger(__name__)
 
 drf_capture_metadata_schema = {
@@ -357,10 +355,8 @@ base_index_fields = [
     "capture_props",
 ]
 
-capture_index_mapping_by_type = {
-    CaptureType.DigitalRF: drf_capture_index_mapping,
-    CaptureType.RadioHound: rh_capture_index_mapping,
-}
+# This will be populated at runtime to avoid circular imports
+capture_index_mapping_by_type = {}
 
 base_properties = {
     "channel": {"type": "keyword"},
@@ -387,9 +383,31 @@ search_properties = {
 
 
 def get_mapping_by_capture_type(
-    capture_type: CaptureType,
+    capture_type: Any,
 ) -> dict[str, str | dict[str, Any]]:
     """Get the mapping for a given capture type."""
+    # Local import to avoid circular dependency
+    from sds_gateway.api_methods.models import CaptureType
+
+    # Initialize mapping if not already done
+    if not capture_index_mapping_by_type:
+        capture_index_mapping_by_type.update(
+            {
+                CaptureType.DigitalRF: drf_capture_index_mapping,
+                CaptureType.RadioHound: rh_capture_index_mapping,
+            }
+        )
+
+    # Handle string inputs by converting to enum
+    if isinstance(capture_type, str):
+        if capture_type == "drf":
+            capture_type = CaptureType.DigitalRF
+        elif capture_type == "rh":
+            capture_type = CaptureType.RadioHound
+        else:
+            msg = f"Invalid capture type string: {capture_type}"
+            log.error(msg)
+            raise ValueError(msg)
 
     return {
         "properties": {
@@ -406,9 +424,23 @@ def get_mapping_by_capture_type(
     }
 
 
-def infer_index_name(capture_type: CaptureType) -> str:
+def infer_index_name(capture_type: Any) -> str:
     """Infer the index name for a given capture."""
-    # Populate index_name based on capture type
+    # Local import to avoid circular dependency
+    from sds_gateway.api_methods.models import CaptureType
+
+    # Handle both string and enum inputs
+    if isinstance(capture_type, str):
+        # Convert string to enum for comparison
+        if capture_type == "drf":
+            return "captures-drf"
+        if capture_type == "rh":
+            return "captures-rh"
+        msg = f"Invalid capture type string: {capture_type}"
+        log.error(msg)
+        raise ValueError(msg)
+
+    # Handle enum inputs
     match capture_type:
         case CaptureType.DigitalRF:
             return f"captures-{capture_type.value}"

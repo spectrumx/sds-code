@@ -36,9 +36,6 @@ from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializ
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 
-# Custom status code for client closed request
-HTTP_499_CLIENT_CLOSED_REQUEST = 499
-
 if TYPE_CHECKING:
     from django.http.request import QueryDict
 

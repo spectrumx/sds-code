@@ -260,6 +260,7 @@ class Capture(BaseModel):
 
         # Set the index_name if not provided
         if not self.index_name and self.capture_type:
+            # self.capture_type is a string from the database, not an enum
             self.index_name = infer_index_name(self.capture_type)
 
         super().save(*args, **kwargs)

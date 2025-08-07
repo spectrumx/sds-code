@@ -2364,10 +2364,8 @@ class CheckFileExistsView(View):
                 response_data = str(response)
 
             # Return the result
-            http_ok = 200
             return JsonResponse(
                 {
-                    "exists": response.status_code == http_ok,
                     "status_code": response.status_code,
                     "data": response_data,
                 }
