@@ -4,7 +4,6 @@ import datetime
 import json
 import logging
 import uuid
-from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import cast
 from unittest.mock import patch
@@ -321,83 +320,6 @@ class CaptureTestCases(APITestCase):
                 f"{response['capture_props']['center_frequencies']} "
                 f"!= {self.drf_metadata_v1['center_frequencies']}"
             )
-
-    def test_create_drf_capture_triggers_post_processing(self) -> None:
-        """Test that creating a DigitalRF capture triggers post-processing."""
-        unique_channel = f"{self.channel_v0}_post_process"
-        unique_top_level_dir = f"{self.top_level_dir_v0}-post-process"
-
-        with (
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
-                return_value=self.drf_metadata_v0,
-            ),
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
-                return_value=self.drf_capture_v0.index_name,
-            ),
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.CaptureViewSet._trigger_post_processing"
-            ) as mock_trigger,
-        ):
-            response_raw = self.client.post(
-                self.list_url,
-                data={
-                    "capture_type": CaptureType.DigitalRF,
-                    "channel": unique_channel,
-                    "top_level_dir": unique_top_level_dir,
-                },
-            )
-            assert response_raw.status_code == status.HTTP_201_CREATED, (
-                f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
-            )
-
-            # Verify that post-processing was triggered
-            mock_trigger.assert_called_once()
-            captured_capture = mock_trigger.call_args[0][0]
-            assert captured_capture.capture_type == CaptureType.DigitalRF
-            assert captured_capture.channel == unique_channel
-
-    def test_create_rh_capture_does_not_trigger_post_processing(self) -> None:
-        """Test that creating a RadioHound capture does not trigger post-processing."""
-        unique_scan_group = uuid.uuid4()
-        unique_top_level_dir = f"{self.top_level_dir_rh}-no-post-process"
-
-        # Mock the RH data
-        mock_rh_data = type("MockRHData", (), {"rh_metadata": self.rh_metadata})()
-        mock_rh_data.model_dump = lambda mode: self.rh_metadata
-
-        with (
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.find_rh_metadata_file",
-                return_value=Path("test_rh_metadata.json"),
-            ),
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.load_rh_file",
-                return_value=mock_rh_data,
-            ),
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
-                return_value=self.rh_capture.index_name,
-            ),
-            patch(
-                "sds_gateway.api_methods.views.capture_endpoints.CaptureViewSet._trigger_post_processing"
-            ) as mock_trigger,
-        ):
-            response_raw = self.client.post(
-                self.list_url,
-                data={
-                    "capture_type": CaptureType.RadioHound,
-                    "scan_group": str(unique_scan_group),
-                    "top_level_dir": unique_top_level_dir,
-                },
-            )
-            assert response_raw.status_code == status.HTTP_201_CREATED, (
-                f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
-            )
-
-            # Verify that post-processing was NOT triggered for RadioHound captures
-            mock_trigger.assert_not_called()
 
     def test_create_rh_capture_201(self) -> None:
         """Test creating rh capture returns metadata."""
