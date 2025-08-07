@@ -1015,9 +1015,11 @@ def start_capture_post_processing(
         if "waterfall" in processing_types:
             pipeline = get_latest_pipeline_by_base_name("Waterfall Processing")
             if not pipeline:
-                raise ValueError(
-                    "No Waterfall Processing pipeline found. Please run setup_pipelines."
+                error_msg = (
+                    "No Waterfall Processing pipeline found. Please run "
+                    "setup_pipelines."
                 )
+                raise ValueError(error_msg)  # noqa: TRY301
 
             # Launch the pipeline with runtime arguments
             # Setup and validation will be handled by the setup stage in the pipeline
@@ -1025,11 +1027,14 @@ def start_capture_post_processing(
                 capture_uuid=capture_uuid, processing_types=processing_types
             )
         else:
-            raise ValueError(f"Unsupported processing types: {processing_types}")
+            error_msg = f"Unsupported processing types: {processing_types}"
+            raise ValueError(error_msg)  # noqa: TRY301
 
         return {
             "status": "success",
-            "message": f"Post-processing pipeline started for {len(processing_types)} types",
+            "message": (
+                f"Post-processing pipeline started for {len(processing_types)} types"
+            ),
             "capture_uuid": capture_uuid,
             "processing_types": processing_types,
         }
@@ -1037,7 +1042,7 @@ def start_capture_post_processing(
     except Capture.DoesNotExist:
         error_msg = f"Capture {capture_uuid} not found"
         logger.error(error_msg)
-        raise ValueError(error_msg)
+        raise
     except Exception as e:
         error_msg = f"Unexpected error in post-processing pipeline: {e}"
         logger.exception(error_msg)

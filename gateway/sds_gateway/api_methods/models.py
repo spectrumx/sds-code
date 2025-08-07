@@ -864,7 +864,10 @@ class PostProcessedData(BaseModel):
         ]
 
     def __str__(self):
-        return f"{self.processing_type} data for {self.capture.name} ({self.processing_status})"
+        return (
+            f"{self.processing_type} data for {self.capture.name} "
+            f"({self.processing_status})"
+        )
 
     def mark_processing_started(self, pipeline_id: str | None = None) -> None:
         """Mark processing as started."""
@@ -887,7 +890,9 @@ class PostProcessedData(BaseModel):
 
     def set_processed_data_file(self, file_path: str, filename: str) -> None:
         """Set the processed data file."""
-        with open(file_path, "rb") as f:
+        from pathlib import Path
+
+        with Path(file_path).open("rb") as f:
             self.data_file.save(filename, f, save=False)
         self.save(update_fields=["data_file"])
 
@@ -1140,7 +1145,8 @@ def get_shared_items_for_user(user, item_type=None):
 
 def get_latest_pipeline_by_base_name(base_name: str):
     """
-    Get the latest pipeline by base name, handling timestamped pipelines from smart recreation.
+    Get the latest pipeline by base name, handling timestamped pipelines from smart
+    recreation.
 
     Args:
         base_name: The base name of the pipeline (e.g., "Waterfall Processing")
@@ -1169,8 +1175,7 @@ def get_latest_pipeline_by_base_name(base_name: str):
 
     # Fallback: try exact match (for backward compatibility)
     try:
-        pipeline = Pipeline.objects.get(name=base_name, enabled=True)
-        return pipeline
+        return Pipeline.objects.get(name=base_name, enabled=True)
     except Pipeline.DoesNotExist:
         pass
 
