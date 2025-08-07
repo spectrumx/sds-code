@@ -31,9 +31,6 @@
 		{
 			"name": "network",
 			"path": "./network"
-		},
-		{
-			"path": "../svi-code"
 		}
 	],
 	"settings": {
@@ -76,11 +73,7 @@
 		"python.analysis.indexing": true,
 		"python.analysis.typeCheckingMode": "standard",
 		"python.languageServer": "Pylance",
-		"ruff.fixAll": true,
-		"cSpell.words": [
-			"letsencrypt",
-			"Traefik"
-		]
+		"ruff.fixAll": true
 	},
 	"tasks": {
 		"tasks": [
