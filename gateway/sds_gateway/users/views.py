@@ -2227,7 +2227,6 @@ class UploadFilesView(View):
         saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
 
         created_captures = []
-        file_uuids = [f.get("uuid") for f in saved_files if f.get("uuid")]
 
         # Check if all files were empty (skipped)
         # If no files were sent (all skipped on frontend), consider them all empty
@@ -2275,18 +2274,10 @@ class UploadFilesView(View):
                 total_chunks,
             )
 
-        # Link all uploaded files to all created captures
-        # (only if files were actually uploaded)
-        if saved_files and created_captures:
-            # Get File objects by uuid
-            file_objs = File.objects.filter(uuid__in=file_uuids)
-            capture_uuids = [c["uuid"] for c in created_captures if c.get("uuid")]
-            captures = Capture.objects.filter(uuid__in=capture_uuids)
-            for capture in captures:
-                file_objs.update(capture=capture)
-        elif errors and not all_files_empty:
+        # Log file upload errors if they occurred
+        if errors and not all_files_empty:
             logger.error(
-                "File upload errors occurred, skipping capture creation. Errors: %s",
+                "File upload errors occurred. Errors: %s",
                 errors,
             )
 
