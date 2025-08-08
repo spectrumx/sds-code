@@ -729,7 +729,17 @@ class UserSharePermission(BaseModel):
     shared_with = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        blank=True,
+        null=True,
         related_name="received_share_permissions",
+    )
+
+    share_group = models.ForeignKey(
+        "ShareGroup",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        related_name="group_share_permissions",
     )
 
     # The type of item being shared
@@ -901,6 +911,23 @@ class PostProcessedData(BaseModel):
         with Path(file_path).open("rb") as f:
             self.data_file.save(filename, f, save=False)
         self.save(update_fields=["data_file"])
+
+
+class ShareGroup(BaseModel):
+    """
+    Model to handle share groups for datasets and captures.
+    """
+
+    name = models.CharField(max_length=255)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="owned_share_groups",
+    )
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="member_share_groups",
+    )
 
 
 def _extract_drf_capture_props(

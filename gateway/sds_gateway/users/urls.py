@@ -14,6 +14,7 @@ from .views import user_download_item_view
 from .views import user_file_detail_view
 from .views import user_group_captures_view
 from .views import user_redirect_view
+from .views import user_share_group_list_view
 from .views import user_share_item_view
 from .views import user_temporary_zip_download_view
 from .views import user_update_view
@@ -46,6 +47,7 @@ urlpatterns = [
         user_download_item_view,
         name="download_item",
     ),
+    path("share-groups/", user_share_group_list_view, name="share_group_list"),
     # Used by SVI Server to get API key for a user
     path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),
     path("revoke-api-key/", revoke_api_key_view, name="revoke_api_key"),
