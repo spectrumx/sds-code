@@ -378,15 +378,15 @@ function loadCurrentMembers() {
 					}
 
 					membersList.innerHTML = `
-                    <tr>
-                        <td class="p-2 shadow-sm">
-                            <div class="text-center text-muted mb-1 mt-1">
-                                <i class="bi bi-people"></i>
-                                <p>No members in this group</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                        <tr>
+                            <td class="p-2 shadow-sm">
+                                <div class="text-center text-muted mb-1 mt-1">
+                                    <i class="bi bi-people"></i>
+                                    <p>No members in this group</p>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
 				} else {
 					// Update the display list with table structure like share modal
 					const memberHtml = data.members
