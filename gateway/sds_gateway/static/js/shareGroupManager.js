@@ -41,7 +41,8 @@ function initializeCreateGroupForm() {
             })
             .then(data => {
                 if (data.success) {
-                    showAlert(data.message, 'success');
+                    // Store success message for after page reload
+                    localStorage.setItem('shareGroupSuccessMessage', data.message);
                     // Close modal and reload page
                     const modal = bootstrap.Modal.getInstance(document.getElementById('createGroupModal'));
                     modal.hide();
@@ -280,7 +281,8 @@ function initializeDeleteGroupConfirmation() {
                 deleteModal.hide();
                 
                 if (data.success) {
-                    showAlert(data.message, 'success');
+                    // Store success message for after page reload
+                    localStorage.setItem('shareGroupSuccessMessage', data.message);
                     setTimeout(() => window.location.reload(), 1000);
                 } else {
                     showAlert(data.error, 'error');
@@ -451,42 +453,105 @@ function displaySharedAssetsInfo(sharedAssets) {
     
     if (sharedAssetsSection) {
         if (sharedAssets && sharedAssets.length > 0) {
-            const totalAssets = sharedAssets.length;
-            const displayAssets = sharedAssets.slice(0, 5); // Show only first 5
-            const hasMoreAssets = totalAssets > 5;
+            // Separate assets by type
+            const datasets = sharedAssets.filter(asset => asset.type === 'dataset').sort((a, b) => a.name.localeCompare(b.name));
+            const captures = sharedAssets.filter(asset => asset.type === 'capture').sort((a, b) => a.name.localeCompare(b.name));
             
-            const assetsList = displayAssets.map(asset => `
-                <div class="d-flex align-items-center mb-2">
-                    <i class="bi ${asset.type === 'dataset' ? 'bi-folder' : 'bi-file-earmark'} me-2 text-primary"></i>
-                    <div class="flex-grow-1">
-                        <div class="fw-bold">${asset.name}</div>
-                        <div class="text-muted small">${asset.type} • Shared by ${asset.owner_name}</div>
+            const totalDatasets = datasets.length;
+            const totalCaptures = captures.length;
+            
+            // Show first 3 of each type
+            const displayDatasets = datasets.slice(0, 3);
+            const displayCaptures = captures.slice(0, 3);
+            
+            const hasMoreDatasets = totalDatasets > 3;
+            const hasMoreCaptures = totalCaptures > 3;
+            
+            // Build datasets column
+            let datasetsHtml = '';
+            if (displayDatasets.length > 0) {
+                const datasetsList = displayDatasets.map(asset => `
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-collection me-2"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">${asset.name}</div>
+                            <div class="text-muted small">Dataset • Shared by ${asset.owner_name}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `).join('');
+                
+                let moreDatasetsText = '';
+                if (hasMoreDatasets) {
+                    const remainingDatasets = totalDatasets - 3;
+                    moreDatasetsText = `
+                        <div class="text-muted small mt-2">
+                            <i class="bi bi-three-dots me-1"></i>
+                            and ${remainingDatasets} more dataset${remainingDatasets !== 1 ? 's' : ''}
+                        </div>
+                    `;
+                }
+                
+                datasetsHtml = `
+                    <div class="col-md-6">
+                        <h6>
+                            <i class="bi bi-collection me-2"></i>Datasets (${totalDatasets})
+                        </h6>
+                        <div class="shared-datasets-list">
+                            ${datasetsList}
+                            ${moreDatasetsText}
+                        </div>
+                    </div>
+                `;
+            }
             
-            let moreAssetsText = '';
-            if (hasMoreAssets) {
-                const remainingCount = totalAssets - 5;
-                moreAssetsText = `
-                    <div class="text-muted small mt-2">
-                        <i class="bi bi-three-dots me-1"></i>
-                        and ${remainingCount} more shared asset${remainingCount !== 1 ? 's' : ''}
+            // Build captures column
+            let capturesHtml = '';
+            if (displayCaptures.length > 0) {
+                const capturesList = displayCaptures.map(asset => `
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-folder me-2"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">${asset.name}</div>
+                            <div class="text-muted small">Capture • Shared by ${asset.owner_name}</div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                let moreCapturesText = '';
+                if (hasMoreCaptures) {
+                    const remainingCaptures = totalCaptures - 3;
+                    moreCapturesText = `
+                        <div class="text-muted small mt-2">
+                            <i class="bi bi-three-dots me-1"></i>
+                            and ${remainingCaptures} more capture${remainingCaptures !== 1 ? 's' : ''}
+                        </div>
+                    `;
+                }
+                
+                capturesHtml = `
+                    <div class="col-md-6">
+                        <h6>
+                            <i class="bi bi-folder me-2"></i>Captures (${totalCaptures})
+                        </h6>
+                        <div class="shared-captures-list">
+                            ${capturesList}
+                            ${moreCapturesText}
+                        </div>
                     </div>
                 `;
             }
             
             sharedAssetsSection.innerHTML = `
-                <h6 class="text-info">
-                    <i class="bi bi-share me-2"></i>Shared Assets (${totalAssets})
+                <h6>
+                    <i class="bi bi-share me-2"></i>Shared Assets (${totalDatasets + totalCaptures})
                 </h6>
                 <div class="alert alert-info">
                     <div class="mb-2">
                         <strong>New members will automatically have access to these shared assets:</strong>
                     </div>
-                    <div class="shared-assets-list">
-                        ${assetsList}
-                        ${moreAssetsText}
+                    <div class="row">
+                        ${datasetsHtml}
+                        ${capturesHtml}
                     </div>
                 </div>
             `;
@@ -888,6 +953,13 @@ function initializeShareGroupManager() {
     
     // Initialize user search handler once
     initializeShareGroupUserSearch();
+    
+    // Check for stored success message from page reload
+    const storedMessage = localStorage.getItem('shareGroupSuccessMessage');
+    if (storedMessage) {
+        showAlert(storedMessage, 'success');
+        localStorage.removeItem('shareGroupSuccessMessage');
+    }
 }
 
 // Export functions for global access

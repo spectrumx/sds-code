@@ -15,6 +15,7 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.api.views import UserViewSet
 from sds_gateway.users.models import User
+from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 
 # Test constants
 TEST_PASSWORD = "testpass123"  # noqa: S105
@@ -360,3 +361,279 @@ class TestShareItemView:
         result = response.json()
         assert result["success"] is False
         assert "invalid item type" in result["message"].lower()
+
+    def test_share_with_group_individual_members_already_shared(
+        self, client: Client, owner: User, user_to_share_with: User, dataset: Dataset
+    ) -> None:
+        """Test sharing with a group when some members are already shared individually."""
+        # Create another user for the group
+        user2 = User.objects.create_user(
+            email="user2@example.com",
+            password=TEST_PASSWORD,
+            name="User 2",
+            is_approved=True,
+        )
+        
+        # Create a share group
+        from sds_gateway.api_methods.models import ShareGroup
+        share_group = ShareGroup.objects.create(
+            name="Test Group",
+            owner=owner
+        )
+        share_group.members.add(user_to_share_with, user2)
+        
+        # First, share the dataset with one of the group members individually
+        UserSharePermission.objects.create(
+            owner=owner,
+            shared_with=user_to_share_with,
+            item_type=ItemType.DATASET,
+            item_uuid=dataset.uuid,
+            is_enabled=True,
+            message="Individual share",
+        )
+
+        client.force_login(owner)
+        url = reverse(
+            "users:share_item",
+            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+        )
+
+        # Share with the group (should not throw an error)
+        data = {
+            "user-search": f"group:{share_group.uuid}",
+            "notify_message": "Check out this dataset!",
+        }
+
+        response = client.post(url, data)
+
+        # Should succeed without error
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+        
+        # Verify both users now have permissions associated with the group
+        permissions = UserSharePermission.objects.filter(
+            item_uuid=dataset.uuid,
+            item_type=ItemType.DATASET,
+            owner=owner,
+        )
+        
+        # Should have 2 permissions (one for each group member)
+        assert permissions.count() == 2
+        
+        # Check that both users have permissions with the group association
+        user1_permission = permissions.filter(shared_with=user_to_share_with).first()
+        user2_permission = permissions.filter(shared_with=user2).first()
+        
+        assert user1_permission is not None
+        assert user2_permission is not None
+        assert share_group in user1_permission.share_groups.all()
+        assert share_group in user2_permission.share_groups.all()
+        assert user1_permission.is_enabled is True
+        assert user2_permission.is_enabled is True
+        
+        # The originally individual permission should now be associated with the group
+        assert user1_permission.message == "Check out this dataset!"
+
+    def test_capture_share_modal_displays_groups_properly(
+        self, client: Client, owner: User, user_to_share_with: User, dataset: Dataset
+    ) -> None:
+        """Test that capture share modal displays groups properly instead of individual members."""
+        # Create another user for the group
+        user2 = User.objects.create_user(
+            email="user2@example.com",
+            password=TEST_PASSWORD,
+            name="User 2",
+            is_approved=True,
+        )
+        
+        # Create a capture
+        from sds_gateway.api_methods.models import Capture
+        capture = Capture.objects.create(
+            uuid=uuid.uuid4(),
+            name="Test Capture",
+            owner=owner,
+            capture_type="test",
+            top_level_dir="/test",
+        )
+        
+        # Create a share group
+        from sds_gateway.api_methods.models import ShareGroup
+        share_group = ShareGroup.objects.create(
+            name="Test Group",
+            owner=owner
+        )
+        share_group.members.add(user_to_share_with, user2)
+        
+        # Share the capture with the group
+        from sds_gateway.api_methods.models import UserSharePermission, ItemType
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=user_to_share_with,
+            item_uuid=str(capture.uuid),
+            item_type=ItemType.CAPTURE,
+            message="Group share",
+        )
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=user2,
+            item_uuid=str(capture.uuid),
+            item_type=ItemType.CAPTURE,
+            message="Group share",
+        )
+
+        client.force_login(owner)
+        url = reverse("users:file_list")
+        
+        response = client.get(url)
+        
+        # Should succeed
+        assert response.status_code == status.HTTP_200_OK
+        
+        # The template should contain the group information
+        # We can't easily test the JavaScript rendering, but we can verify the data is prepared correctly
+        # by checking that the capture has the right shared_users structure
+        
+        # Get the capture data using the same function the view uses
+        from sds_gateway.users.views import _get_captures_for_template
+        captures_data = _get_captures_for_template([capture], client.request)
+        
+        assert len(captures_data) == 1
+        capture_data = captures_data[0]
+        
+        # Should have shared_users
+        assert "shared_users" in capture_data
+        shared_users = capture_data["shared_users"]
+        
+        # Should have exactly one group entry (not individual users)
+        assert len(shared_users) == 1
+        
+        group_entry = shared_users[0]
+        assert group_entry["type"] == "group"
+        assert group_entry["name"] == "Test Group"
+        assert group_entry["email"] == f"group:{share_group.uuid}"
+        assert group_entry["member_count"] == 2
+        assert len(group_entry["members"]) == 2
+        
+        # Verify the members are correct
+        member_emails = [member["email"] for member in group_entry["members"]]
+        assert user_to_share_with.email in member_emails
+        assert user2.email in member_emails
+
+    def test_shared_assets_sorting_in_group_modal(
+        self, client: Client, owner: User, user_to_share_with: User, dataset: Dataset
+    ) -> None:
+        """Test that shared assets in group modal are sorted with datasets first, then captures."""
+        # Create another user for the group
+        user2 = User.objects.create_user(
+            email="user2@example.com",
+            password=TEST_PASSWORD,
+            name="User 2",
+            is_approved=True,
+        )
+        
+        # Create a share group
+        from sds_gateway.api_methods.models import ShareGroup
+        share_group = ShareGroup.objects.create(
+            name="Test Group",
+            owner=owner
+        )
+        share_group.members.add(user_to_share_with, user2)
+        
+        # Create multiple captures and datasets with different names
+        from sds_gateway.api_methods.models import Capture
+        capture_a = Capture.objects.create(
+            uuid=uuid.uuid4(),
+            name="Alpha Capture",
+            owner=owner,
+            capture_type="test",
+            top_level_dir="/test",
+        )
+        capture_b = Capture.objects.create(
+            uuid=uuid.uuid4(),
+            name="Beta Capture",
+            owner=owner,
+            capture_type="test",
+            top_level_dir="/test",
+        )
+        
+        dataset_a = Dataset.objects.create(
+            uuid=uuid.uuid4(),
+            name="Alpha Dataset",
+            owner=owner,
+            description="A test dataset",
+        )
+        dataset_b = Dataset.objects.create(
+            uuid=uuid.uuid4(),
+            name="Beta Dataset",
+            owner=owner,
+            description="A test dataset",
+        )
+        
+        # Share all items with the group
+        from sds_gateway.api_methods.models import UserSharePermission, ItemType
+        from sds_gateway.users.utils import update_or_create_user_group_share_permissions
+        
+        # Share captures
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=user_to_share_with,
+            item_uuid=str(capture_a.uuid),
+            item_type=ItemType.CAPTURE,
+            message="Group share",
+        )
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=user_to_share_with,
+            item_uuid=str(capture_b.uuid),
+            item_type=ItemType.CAPTURE,
+            message="Group share",
+        )
+        
+        # Share datasets
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=user_to_share_with,
+            item_uuid=str(dataset_a.uuid),
+            item_type=ItemType.DATASET,
+            message="Group share",
+        )
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=user_to_share_with,
+            item_uuid=str(dataset_b.uuid),
+            item_type=ItemType.DATASET,
+            message="Group share",
+        )
+
+        client.force_login(owner)
+        
+        # Get shared assets for the group
+        from sds_gateway.users.views import ShareGroupListView
+        view = ShareGroupListView()
+        view.request = client.request
+        view.request.user = owner
+        
+        shared_assets = view._get_shared_assets_for_group(share_group)
+        
+        # Should have 4 assets total
+        assert len(shared_assets) == 4
+        
+        # Check that they are sorted correctly: datasets first (alphabetically), then captures (alphabetically)
+        # Note: Types are capitalized in the backend
+        expected_order = [
+            ("Alpha Dataset", "Dataset"),
+            ("Beta Dataset", "Dataset"),
+            ("Alpha Capture", "Capture"),
+            ("Beta Capture", "Capture"),
+        ]
+        
+        for i, (expected_name, expected_type) in enumerate(expected_order):
+            assert shared_assets[i]["name"] == expected_name
+            assert shared_assets[i]["type"] == expected_type
