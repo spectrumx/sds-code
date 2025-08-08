@@ -725,6 +725,12 @@ class UserSharePermission(BaseModel):
         related_name="owned_share_permissions",
     )
 
+    permission_level = models.CharField(
+        max_length=20,
+        choices=PermissionType.choices,
+        default=PermissionType.VIEW,
+    )
+
     # The user who is being granted access
     shared_with = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -734,11 +740,9 @@ class UserSharePermission(BaseModel):
         related_name="received_share_permissions",
     )
 
-    share_group = models.ForeignKey(
+    share_groups = models.ManyToManyField(
         "ShareGroup",
-        on_delete=models.CASCADE,
         blank=True,
-        null=True,
         related_name="group_share_permissions",
     )
 
@@ -794,6 +798,20 @@ class UserSharePermission(BaseModel):
         if item_type:
             queryset = queryset.filter(item_type=item_type)
         return queryset
+    
+    def has_access_through_groups(self) -> bool:
+        """Check if user still has access through any group."""
+        return self.share_groups.filter(is_deleted=False).exists()
+    
+    def update_enabled_status(self) -> None:
+        """Update enabled status based on group access."""
+        if self.share_groups.exists():
+            # User has access through groups, keep enabled
+            self.is_enabled = True
+        else:
+            # No group access, disable
+            self.is_enabled = False
+        self.save()
 
     @classmethod
     def get_shared_users_for_item(cls, item_uuid, item_type):
