@@ -104,6 +104,9 @@
                                         <ul class="dropdown-menu dropdown-menu-end"
                                             aria-labelledby="navbarUserDropdown">
                                             <li>
+                                                <a class="dropdown-item" href="{% url 'users:share_group_list' %}">{% translate "Manage Groups" %}</a>
+                                            </li>
+                                            <li>
                                                 <a class="dropdown-item" href="{% url 'account_logout' %}">{% translate "Logout" %}</a>
                                             </li>
                                         </ul>

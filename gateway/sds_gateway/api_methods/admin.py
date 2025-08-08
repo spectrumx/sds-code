@@ -78,3 +78,10 @@ class PostProcessedDataAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissing
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
+
+
+@admin.register(models.ShareGroup)
+class ShareGroupAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
+    list_display = ("name", "owner")
+    search_fields = ("name", "owner")
+    ordering = ("-updated_at",)
