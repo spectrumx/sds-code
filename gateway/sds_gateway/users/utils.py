@@ -9,7 +9,8 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
-
+from django.http import HttpRequest
+from django.contrib.auth.models import User
 
 def deduplicate_composite_captures(captures: list[Capture]) -> list[Capture]:
     """
