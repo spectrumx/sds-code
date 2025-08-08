@@ -52,6 +52,73 @@ class UserSearchHandler {
 		this.itemType = type;
 	}
 
+	getDropdownForInput(input) {
+		// First try the original pattern: user-search-dropdown-{uuid}
+		let dropdown = document.getElementById(
+			`user-search-dropdown-${input.id.replace("user-search-", "")}`,
+		);
+		
+		if (dropdown) {
+			return dropdown;
+		}
+		
+		// Try alternative patterns
+		const alternativeIds = [
+			`user-search-dropdown-${this.itemUuid}`,
+			'user-search-dropdown',
+			`${input.id.replace("user-search-", "user-search-dropdown-")}`,
+			`${input.id}-dropdown`
+		];
+		
+		for (const id of alternativeIds) {
+			dropdown = document.getElementById(id);
+			if (dropdown) {
+				return dropdown;
+			}
+		}
+		
+		// If still not found, look for any dropdown in the same container
+		const container = input.closest('.user-search-input-container');
+		if (container) {
+			dropdown = container.querySelector('.user-search-dropdown');
+			if (dropdown) {
+				return dropdown;
+			}
+		}
+		
+		console.error(`Could not find dropdown for input: ${input.id}`);
+		return null;
+	}
+
+	getInputForDropdown(dropdown) {
+		// First try to find input in the same container
+		const container = dropdown.closest('.user-search-input-container');
+		if (container) {
+			const input = container.querySelector('.user-search-input');
+			if (input) {
+				return input;
+			}
+		}
+		
+		// Try to find input by ID patterns
+		const alternativeInputIds = [
+			`user-search-${this.itemUuid}`,
+			'user-search-input',
+			`user-search-${dropdown.id.replace('user-search-dropdown-', '')}`,
+			`user-search-${dropdown.id.replace('user-search-dropdown', '')}`
+		];
+		
+		for (const id of alternativeInputIds) {
+			const input = document.getElementById(id);
+			if (input) {
+				return input;
+			}
+		}
+		
+		console.error(`Could not find input for dropdown: ${dropdown.id}`);
+		return null;
+	}
+
 	init() {
 		if (!this.itemUuid || !this.itemType) {
 			console.error(
@@ -70,8 +137,22 @@ class UserSearchHandler {
 	}
 
 	setupModalEventHandlers() {
-		// Find the specific modal for this item
-		const modal = document.getElementById(`share-modal-${this.itemUuid}`);
+		// Find the specific modal for this item - try multiple patterns
+		let modal = document.getElementById(`share-modal-${this.itemUuid}`);
+		if (!modal) {
+			// Try alternative modal IDs
+			const alternativeModalIds = [
+				`manageMembersModal`,
+				`modal-${this.itemUuid}`,
+				`${this.itemType}-modal`
+			];
+			
+			for (const id of alternativeModalIds) {
+				modal = document.getElementById(id);
+				if (modal) break;
+			}
+		}
+		
 		if (!modal) {
 			console.error(`Modal not found for ${this.itemType}: ${this.itemUuid}`);
 			return;
@@ -83,7 +164,7 @@ class UserSearchHandler {
 			this.setupSearchInput(searchInput);
 		}
 
-		// Setup share button for this specific modal
+		// Setup share button for this specific modal (if it exists)
 		const shareButton = document.getElementById(
 			`share-item-btn-${this.itemUuid}`,
 		);
@@ -91,8 +172,16 @@ class UserSearchHandler {
 			this.setupShareItem(shareButton);
 		}
 
-		// Setup notify checkbox functionality
-		setupNotifyCheckbox(this.itemUuid);
+		// Setup notify checkbox functionality (if it exists and elements are present)
+		if (typeof setupNotifyCheckbox === 'function') {
+			const notifyCheckbox = document.getElementById(`notify-users-checkbox-${this.itemUuid}`);
+			const textareaContainer = document.getElementById(`notify-message-textarea-container-${this.itemUuid}`);
+			
+			// Only setup notify checkbox if the required elements exist
+			if (notifyCheckbox && textareaContainer) {
+				setupNotifyCheckbox(this.itemUuid);
+			}
+		}
 	}
 
 	clearSearchResults() {
@@ -118,9 +207,8 @@ class UserSearchHandler {
 		}
 		input.dataset.searchSetup = "true";
 
-		const dropdown = document.getElementById(
-			`user-search-dropdown-${input.id.replace("user-search-", "")}`,
-		);
+		// Get dropdown using flexible ID resolution
+		const dropdown = this.getDropdownForInput(input);
 		const form = input.closest("form");
 		const inputId = input.id;
 		if (!this.selectedUsersMap[inputId]) this.selectedUsersMap[inputId] = [];
@@ -342,27 +430,41 @@ class UserSearchHandler {
 
 		if (users.length === 0) {
 			listGroup.innerHTML =
-				'<div class="list-group-item no-results">No users found</div>';
+				'<div class="list-group-item no-results">No users or groups found</div>';
 		} else {
 			listGroup.innerHTML = users
 				.map(
-					(user) => `
-                <div class="list-group-item" data-user-id="${user.url}" data-user-name="${user.name}" data-user-email="${user.email}">
+					(user) => {
+						const isGroup = user.type === 'group';
+						const icon = isGroup ? 'bi-people-fill text-info' : 'bi-person-fill text-primary';
+						const subtitle = isGroup ? 
+							`<div class="user-email">Group • ${user.member_count} members</div>` :
+							`<div class="user-email">${this.highlightMatch(user.email, query)}</div>`;
+						
+						return `
+                <div class="list-group-item" data-user-id="${user.url || ''}" data-user-name="${user.name}" data-user-email="${user.email}" data-user-type="${user.type || 'user'}">
                     <div class="user-search-item">
-                        <div class="user-name">${this.highlightMatch(user.name, query)}</div>
-                        <div class="user-email">${this.highlightMatch(user.email, query)}</div>
+                        <div class="user-name">
+                            <i class="bi ${icon} me-2"></i>
+                            ${this.highlightMatch(user.name, query)}
+                        </div>
+                        ${subtitle}
                     </div>
                 </div>
-            `,
+            `;
+					}
 				)
 				.join("");
 
 			// Add click event listeners to the dropdown items
-			const input = document.getElementById(`user-search-${this.itemUuid}`);
-			for (const item of listGroup.querySelectorAll(".list-group-item")) {
-				item.addEventListener("click", () => {
-					this.selectUser(item, input);
-				});
+			// Find the input associated with this dropdown
+			const input = this.getInputForDropdown(dropdown);
+			if (input) {
+				for (const item of listGroup.querySelectorAll(".list-group-item")) {
+					item.addEventListener("click", () => {
+						this.selectUser(item, input);
+					});
+				}
 			}
 		}
 
@@ -416,14 +518,29 @@ class UserSearchHandler {
 	selectUser(item, input) {
 		const userName = item.dataset.userName;
 		const userEmail = item.dataset.userEmail;
+		const userType = item.dataset.userType || 'user';
 		const inputId = input.id;
 
 		if (!this.selectedUsersMap[inputId]) {
 			this.selectedUsersMap[inputId] = [];
 		}
 
+		// Check if this user is already part of a selected group
+		if (userType === 'user') {
+			const selectedGroups = this.selectedUsersMap[inputId].filter(u => u.type === 'group');
+			for (const group of selectedGroups) {
+				// Check if this user is in the group by making an API call
+				this.checkUserInGroup(userEmail, group, input, userName);
+				return; // Exit early, we'll handle the result in the callback
+			}
+		}
+
 		if (!this.selectedUsersMap[inputId].some((u) => u.email === userEmail)) {
-			this.selectedUsersMap[inputId].push({ name: userName, email: userEmail });
+			this.selectedUsersMap[inputId].push({ 
+				name: userName, 
+				email: userEmail,
+				type: userType
+			});
 			this.renderChips(input);
 		}
 
@@ -432,30 +549,107 @@ class UserSearchHandler {
 		input.focus();
 	}
 
+	async checkUserInGroup(userEmail, group, input, userName) {
+		try {
+			// Extract group UUID from group.email (format: "group:uuid")
+			const groupUuid = group.email.replace('group:', '');
+			
+			// Make API call to check if user is in the group
+			const response = await fetch(`/users/share-groups/?group_uuid=${groupUuid}`, {
+				headers: {
+					'X-Requested-With': 'XMLHttpRequest'
+				}
+			});
+			
+			if (response.ok) {
+				const data = await response.json();
+				if (data.success && data.members) {
+					const isUserInGroup = data.members.some(member => member.email === userEmail);
+					
+					if (isUserInGroup) {
+						// User is already in the group, show notification and don't add
+						showToast(`${userName} is already part of the group "${group.name}"`, 'warning');
+						input.value = "";
+						this.hideDropdown(input.closest(".user-search-dropdown"));
+						input.focus();
+						return;
+					}
+				}
+			}
+			
+			// If we get here, user is not in the group, so add them normally
+			if (!this.selectedUsersMap[input.id].some((u) => u.email === userEmail)) {
+				this.selectedUsersMap[input.id].push({ 
+					name: userName, 
+					email: userEmail,
+					type: 'user'
+				});
+				this.renderChips(input);
+			}
+			
+			input.value = "";
+			this.hideDropdown(input.closest(".user-search-dropdown"));
+			input.focus();
+			
+		} catch (error) {
+			console.error('Error checking if user is in group:', error);
+			// If there's an error, just add the user normally
+			if (!this.selectedUsersMap[input.id].some((u) => u.email === userEmail)) {
+				this.selectedUsersMap[input.id].push({ 
+					name: userName, 
+					email: userEmail,
+					type: 'user'
+				});
+				this.renderChips(input);
+			}
+			
+			input.value = "";
+			this.hideDropdown(input.closest(".user-search-dropdown"));
+			input.focus();
+		}
+	}
+
 	renderChips(input) {
 		const inputId = input.id;
 		const chipContainer = input
 			.closest(".user-search-input-container")
 			.querySelector(".selected-users-chips");
+		
+		if (!chipContainer) {
+			console.warn("Chip container not found for input:", inputId);
+			return;
+		}
+		
 		chipContainer.innerHTML = "";
 		for (const user of this.selectedUsersMap[inputId]) {
 			const chip = document.createElement("span");
 			chip.className = "user-chip";
-			chip.textContent = user.email;
-			const remove = document.createElement("span");
-			remove.className = "remove-chip";
-			remove.innerHTML = "&times;";
-			remove.onclick = () => {
+			
+			// Check if this is a group
+			const isGroup = user.email && user.email.startsWith('group:');
+			const displayText = isGroup ? user.name : user.email;
+			
+			// Create chip content with icon
+			const icon = isGroup ? 'bi-people-fill' : 'bi-person-fill';
+			chip.innerHTML = `
+				<i class="bi ${icon} me-1"></i>
+				${displayText}
+				<span class="remove-chip">&times;</span>
+			`;
+			
+			// Add click handler for removal
+			const removeBtn = chip.querySelector('.remove-chip');
+			removeBtn.onclick = () => {
 				this.selectedUsersMap[inputId] = this.selectedUsersMap[inputId].filter(
 					(u) => u.email !== user.email,
 				);
 				this.renderChips(input);
 			};
-			chip.appendChild(remove);
+			
 			chipContainer.appendChild(chip);
 		}
 
-		// Toggle notify/message and users-with-access sections
+		// Toggle notify/message and users-with-access sections (only if they exist)
 		const itemUuid = inputId.replace("user-search-", "");
 		const notifySection = document.getElementById(
 			`notify-message-section-${itemUuid}`,
@@ -472,8 +666,13 @@ class UserSearchHandler {
 			this.selectedUsersMap[inputId] &&
 			this.selectedUsersMap[inputId].length > 0
 		) {
-			notifySection.classList.remove("d-none");
-			usersWithAccessSection.classList.add("d-none");
+			// Only toggle sections if they exist
+			if (notifySection) {
+				notifySection.classList.remove("d-none");
+			}
+			if (usersWithAccessSection) {
+				usersWithAccessSection.classList.add("d-none");
+			}
 
 			// Hide the modal divider when chips are present
 			if (modalDivider) {
@@ -483,38 +682,53 @@ class UserSearchHandler {
 			// Clear pending removals when adding new users
 			this.pendingRemovals.clear();
 
-			// Reset all dropdown buttons to their original state
+			// Reset all dropdown buttons to their original state (only if modal exists)
 			const modal = document.getElementById(`share-modal-${itemUuid}`);
-			for (const button of modal.querySelectorAll(".btn-icon-dropdown")) {
-				button.innerHTML =
-					'<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
-				button.classList.remove("btn-outline-danger");
-				button.classList.add("btn-light");
-				button.disabled = false;
+			if (modal) {
+				for (const button of modal.querySelectorAll(".btn-icon-dropdown")) {
+					button.innerHTML =
+						'<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
+					button.classList.remove("btn-outline-danger");
+					button.classList.add("btn-light");
+					button.disabled = false;
+				}
 			}
 
-			// Change button text to "Share"
-			saveBtn.textContent = "Share";
+			// Change button text to "Share" (only if button exists)
+			if (saveBtn) {
+				saveBtn.textContent = "Share";
+			}
 
 			// Setup notify checkbox functionality with a small delay to ensure DOM is updated
-			setTimeout(() => {
-				setupNotifyCheckbox(itemUuid);
-			}, 10);
+			if (typeof setupNotifyCheckbox === 'function') {
+				setTimeout(() => {
+					setupNotifyCheckbox(itemUuid);
+				}, 10);
+			}
 		} else {
-			notifySection.classList.add("d-none");
-			usersWithAccessSection.classList.remove("d-none");
+			// Only toggle sections if they exist
+			if (notifySection) {
+				notifySection.classList.add("d-none");
+			}
+			if (usersWithAccessSection) {
+				usersWithAccessSection.classList.remove("d-none");
+			}
 
 			// Show the modal divider when no chips are present
 			if (modalDivider) {
 				modalDivider.classList.remove("d-none");
 			}
 
-			// Change button text back to "Save"
-			saveBtn.textContent = "Save";
+			// Change button text back to "Save" (only if button exists)
+			if (saveBtn) {
+				saveBtn.textContent = "Save";
+			}
 		}
 
-		// Update save button state
-		this.updateSaveButtonState(itemUuid);
+		// Update save button state (only if function exists)
+		if (typeof this.updateSaveButtonState === 'function') {
+			this.updateSaveButtonState(itemUuid);
+		}
 	}
 
 	updateSaveButtonState(itemUuid) {
@@ -528,16 +742,22 @@ class UserSearchHandler {
 			`pending-changes-message-${itemUuid}`,
 		);
 
-		if (hasSelectedUsers || hasPendingRemovals) {
-			saveBtn.disabled = false;
+		// Only update save button if it exists
+		if (saveBtn) {
+			if (hasSelectedUsers || hasPendingRemovals) {
+				saveBtn.disabled = false;
+			} else {
+				saveBtn.disabled = true;
+			}
+		}
+
+		// Only update pending message if it exists
+		if (pendingMessage) {
 			if (hasPendingRemovals) {
 				pendingMessage.classList.remove("d-none");
 			} else {
 				pendingMessage.classList.add("d-none");
 			}
-		} else {
-			saveBtn.disabled = true;
-			pendingMessage.classList.add("d-none");
 		}
 	}
 
@@ -936,11 +1156,7 @@ function setupNotifyCheckbox(itemUuid) {
 	);
 
 	if (!notifyCheckbox || !textareaContainer) {
-		console.error("Missing elements for setupNotifyCheckbox:", {
-			itemUuid,
-			notifyCheckbox: !!notifyCheckbox,
-			textareaContainer: !!textareaContainer,
-		});
+		// Don't log error - this is expected for modals without notify functionality
 		return;
 	}
 

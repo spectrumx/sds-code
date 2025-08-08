@@ -958,6 +958,131 @@ body {
 	color: #000;
 }
 
+/* Share Group Manager Specific Styles */
+.selected-users-chips {
+	gap: 0.5rem;
+	margin-bottom: 0.25rem;
+}
+
+.user-chip {
+	display: inline-flex;
+	align-items: center;
+	background: #e9ecef;
+	border-radius: 16px;
+	padding: 0.25em 0.75em;
+	margin-right: 0.25em;
+	font-size: 0.95em;
+}
+
+.user-chip .remove-chip {
+	margin-left: 0.5em;
+	cursor: pointer;
+	color: #888;
+	font-weight: bold;
+	font-size: 1.1em;
+	line-height: 1;
+}
+
+.user-chip .remove-chip:hover {
+	color: #c00;
+}
+
+/* Remove member button sizing for share groups */
+.remove-member-btn.btn-danger,
+.remove-member-btn.btn-outline-danger {
+	padding: 0.375rem 0.75rem !important;
+	font-size: 0.875rem !important;
+	line-height: 1.5 !important;
+	border-radius: 0.375rem !important;
+	border-width: 1px !important;
+	min-width: 80px !important;
+	height: auto !important;
+}
+
+/* Delete modal z-index for share groups */
+#deleteGroupModal {
+	z-index: 1055 !important;
+}
+
+#deleteGroupModal .modal-dialog {
+	z-index: 1056 !important;
+}
+
+/* Group member popup styles */
+.group-members-popup {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	background: white;
+	border: 1px solid #dee2e6;
+	border-radius: 0.375rem;
+	padding: 0;
+	box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+	z-index: 1000;
+	min-width: 250px;
+	max-width: 350px;
+}
+
+/* Popover arrow/pointer */
+.group-members-popup::before {
+	content: '';
+	position: absolute;
+	top: -8px;
+	left: 20px;
+	width: 0;
+	height: 0;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+	border-bottom: 8px solid white;
+}
+
+.group-members-popup::after {
+	content: '';
+	position: absolute;
+	top: -9px;
+	left: 20px;
+	width: 0;
+	height: 0;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+	border-bottom: 8px solid #dee2e6;
+}
+
+/* Popover content */
+.group-members-popup .popover-header {
+	padding: 0.5rem 0.75rem;
+	margin-bottom: 0;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: #495057;
+	background-color: #f8f9fa;
+	border-bottom: 1px solid #dee2e6;
+	border-top-left-radius: 0.375rem;
+	border-top-right-radius: 0.375rem;
+}
+
+.group-members-popup .popover-body {
+	padding: 0.75rem;
+}
+
+.group-members-popup small {
+	line-height: 1.4;
+}
+
+/* Ensure table rows have relative positioning for popup positioning */
+.table tbody tr {
+	position: relative;
+}
+
+/* Group chip styles */
+.user-chip .bi-people-fill {
+	color: #0dcaf0;
+}
+
+.user-chip .bi-person-fill {
+	color: #0d6efd;
+}
+
 .table-container {
 	min-height: 400px;
 }

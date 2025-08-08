@@ -91,7 +91,7 @@
                                     </div>
                                 </td>
                             </tr>
-                            <!-- Shared users (excluding owner) -->
+                            <!-- Shared users and groups (excluding owner) -->
                             {% for user in item.shared_users %}
                                 {% if user.email != item.owner_email %}
                                     <tr>
@@ -99,10 +99,43 @@
                                             <div class="row">
                                                 <div class="col-md-10">
                                                     <div>
-                                                        <h5 class="mb-1">{{ user.name }}</h5>
+                                                        <h5 class="mb-1">
+                                                            {% if user.type == "group" %}
+                                                                <i class="bi bi-people-fill text-info me-1" 
+                                                                   data-bs-toggle="tooltip" 
+                                                                   title="Group"></i>
+                                                                {{ user.name }}
+                                                                <span class="badge bg-secondary ms-1">{{ user.member_count }} members</span>
+                                                            {% else %}
+                                                                <i class="bi bi-person-fill text-primary me-1" 
+                                                                   data-bs-toggle="tooltip" 
+                                                                   title="User"></i>
+                                                                {{ user.name }}
+                                                            {% endif %}
+                                                        </h5>
                                                         <p class="mb-0">
-                                                            <small class="text-muted">{{ user.email }}</small>
+                                                            <small class="text-muted">
+                                                                {% if user.type == "group" %}
+                                                                    Group • Hover to see members
+                                                                {% else %}
+                                                                    {{ user.email }}
+                                                                {% endif %}
+                                                            </small>
                                                         </p>
+                                                        {% if user.type == "group" %}
+                                                            <div class="group-members-popup" style="display: none;">
+                                                                <div class="popover-header">
+                                                                    Group Members
+                                                                </div>
+                                                                <div class="popover-body">
+                                                                    <small class="text-muted">
+                                                                        {% for member in user.members %}
+                                                                            {{ member.name }} &lt;{{ member.email }}&gt;<br>
+                                                                        {% endfor %}
+                                                                    </small>
+                                                                </div>
+                                                            </div>
+                                                        {% endif %}
                                                     </div>
                                                 </div>
                                                 <div class="col-md-2 d-flex justify-content-end align-items-center">
@@ -162,3 +195,23 @@
         </div>
     </div>
 </div>
+
+<script>
+// Group member popup functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const groupRows = document.querySelectorAll('tr:has(.bi-people-fill)');
+    
+    groupRows.forEach(row => {
+        const popup = row.querySelector('.group-members-popup');
+        if (popup) {
+            row.addEventListener('mouseenter', function() {
+                popup.style.display = 'block';
+            });
+            
+            row.addEventListener('mouseleave', function() {
+                popup.style.display = 'none';
+            });
+        }
+    });
+});
+</script>
