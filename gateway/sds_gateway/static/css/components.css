@@ -1001,11 +1001,11 @@ body {
 
 /* Delete modal z-index for share groups */
 #deleteGroupModal {
-	z-index: 1055 !important;
+	z-index: 2055 !important;
 }
 
 #deleteGroupModal .modal-dialog {
-	z-index: 1056 !important;
+	z-index: 2056 !important;
 }
 
 /* Group member popup styles */
@@ -1092,7 +1092,7 @@ body {
 }
 
 .modal-backdrop {
-	z-index: 2000;
+	z-index: 2040;
 }
 
 .modal-divider {

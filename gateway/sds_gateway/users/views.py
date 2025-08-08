@@ -289,6 +289,12 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return JsonResponse(
                 {"error": "Invalid item type"}, status=status.HTTP_400_BAD_REQUEST
             )
+        
+        # Validate item UUID
+        if not item_uuid:
+            return JsonResponse(
+                {"error": "Item UUID is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Get the item to check existing shared users
         try:
@@ -298,7 +304,9 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
             # Get exclusion lists for search
             excluded_user_ids, excluded_group_ids = self._get_exclusion_lists(
-                request.user, item_uuid, item_type
+                user=request.user,
+                item_uuid=item_uuid,
+                item_type=item_type
             )
 
         except model_class.DoesNotExist:
@@ -325,8 +333,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 owner=user,
                 is_deleted=False,
                 is_enabled=True,
-                share_group__isnull=True,  # Only individual users, not groups
-            ).values_list("shared_with__id", flat=True)
+            ).exclude(share_groups__isnull=False).values_list("shared_with__id", flat=True)
         )
         
         # Get groups already shared with this item
@@ -337,8 +344,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 owner=user,
                 is_deleted=False,
                 is_enabled=True,
-                share_group__isnull=False,  # Only groups, not individual users
-            ).values_list("share_group__uuid", flat=True).distinct()
+            ).filter(share_groups__isnull=False).values_list("share_groups__uuid", flat=True).distinct()
         )
         
         # Get users who are members of already shared groups (to exclude them from individual search)
@@ -446,18 +452,9 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             if not group_members.exists():
                 errors.append(f"Group '{group.name}' has no members")
                 return shared_users, errors
-            
-            # Check for existing members
-            existing_members = self._get_existing_group_members(
-                group_members, item_uuid, item_type, request_user
-            )
-            if existing_members:
-                errors.append(
-                    f"Some group members are already shared: {', '.join(existing_members)}"
-                )
-                return shared_users, errors
 
             # Create individual permissions for each group member
+            # Users who are already shared individually will have their permissions updated
             for member in group_members:
                 update_or_create_user_group_share_permissions(
                     request_user=request_user,
@@ -474,24 +471,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             
         return shared_users, errors
 
-    def _get_existing_group_members(
-        self, 
-        group_members: QuerySet, 
-        item_uuid: str, 
-        item_type: ItemType, 
-        request_user: User
-    ) -> list[str]:
-        """Get list of group members who are already shared with the item."""
-        existing_group_members = UserSharePermission.objects.filter(
-            item_uuid=item_uuid,
-            item_type=item_type,
-            owner=request_user,
-            shared_with__in=group_members,
-            is_deleted=False,
-            is_enabled=True,
-        ).values_list('shared_with__email', flat=True)
-        
-        return list(existing_group_members)
+
 
     def _add_individual_user_to_item(
         self, 
@@ -604,8 +584,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     ) -> tuple[list[str], list[str]]:
         """Remove a group from item sharing."""
         group_uuid = group_identifier.split(":")[1]  # Remove "group:" prefix
-        removed_users = []
-        errors = []
+        removed_users: list[str] = []
+        errors: list[str] = []
         
         try:
             group = ShareGroup.objects.get(
@@ -621,7 +601,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 item_uuid=item_uuid,
                 item_type=item_type,
                 owner=request_user,
-                share_group=group,
+                share_groups=group,
                 is_deleted=False,
                 is_enabled=True,
             )
@@ -633,7 +613,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 return removed_users, errors
 
             # Disable all individual permissions for group members
-            group_member_permissions.update(is_enabled=False)
+            for permission in group_member_permissions:
+                permission.share_groups.remove(group)
+                permission.update_enabled_status()
+                permission.message = "Unshared from group"
+                permission.save()
             
             for member in group_member_permissions:
                 removed_users.append(member.shared_with.email)
@@ -994,18 +978,48 @@ def _get_captures_for_template(
 
         # Add shared users data for share modal
         if capture.owner == request.user:
-            # Get shared users using the new model
+            # Get shared users and groups using the new model
             shared_permissions = UserSharePermission.objects.filter(
                 item_uuid=capture.uuid,
                 item_type=ItemType.CAPTURE,
                 owner=request.user,
                 is_deleted=False,
                 is_enabled=True,
-            ).select_related("shared_with")
-            shared_users = [
-                {"name": perm.shared_with.name, "email": perm.shared_with.email}
-                for perm in shared_permissions
-            ]
+            ).select_related("shared_with").prefetch_related("share_groups__members")
+            
+            shared_users = []
+            group_permissions = {}
+            
+            for perm in shared_permissions:
+                if perm.share_groups.exists():
+                    # Group member - collect by group
+                    for group in perm.share_groups.all():
+                        group_uuid = str(group.uuid)
+                        if group_uuid not in group_permissions:
+                            group_permissions[group_uuid] = {
+                                "name": group.name,
+                                "email": f"group:{group_uuid}",
+                                "type": "group",
+                                "members": [],
+                                "permission_level": perm.permission_level
+                            }
+                        group_permissions[group_uuid]["members"].append({
+                            "name": perm.shared_with.name,
+                            "email": perm.shared_with.email
+                        })
+                else:
+                    # Individual user
+                    shared_users.append({
+                        "name": perm.shared_with.name, 
+                        "email": perm.shared_with.email,
+                        "type": "user",
+                        "permission_level": perm.permission_level
+                    })
+            
+            # Add groups with member counts
+            for group_data in group_permissions.values():
+                group_data["member_count"] = len(group_data["members"])
+                shared_users.append(group_data)
             capture_data["shared_users"] = shared_users
         else:
             capture_data["shared_users"] = []
@@ -1591,26 +1605,28 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 owner=request.user,
                 is_deleted=False,
                 is_enabled=True,
-            ).select_related("shared_with", "share_group").prefetch_related("share_group__members")
+            ).select_related("shared_with").prefetch_related("share_groups__members")
             
             shared_users = []
             group_permissions = {}
             
             for perm in shared_permissions:
-                if perm.share_group:
+                if perm.share_groups.exists():
                     # Group member - collect by group
-                    group_uuid = str(perm.share_group.uuid)
-                    if group_uuid not in group_permissions:
-                        group_permissions[group_uuid] = {
-                            "name": perm.share_group.name,
-                            "email": f"group:{group_uuid}",
-                            "type": "group",
-                            "members": []
-                        }
-                    group_permissions[group_uuid]["members"].append({
-                        "name": perm.shared_with.name,
-                        "email": perm.shared_with.email
-                    })
+                    for group in perm.share_groups.all():
+                        group_uuid = str(group.uuid)
+                        if group_uuid not in group_permissions:
+                            group_permissions[group_uuid] = {
+                                "name": group.name,
+                                "email": f"group:{group_uuid}",
+                                "type": "group",
+                                "members": [],
+                                "permission_level": perm.permission_level
+                            }
+                        group_permissions[group_uuid]["members"].append({
+                            "name": perm.shared_with.name,
+                            "email": perm.shared_with.email
+                        })
                 else:
                     # Individual user
                     shared_users.append({
@@ -1643,32 +1659,35 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 owner=dataset.owner,
                 is_deleted=False,
                 is_enabled=True,
-            ).select_related("shared_with", "share_group").prefetch_related("share_group__members")
+            ).select_related("shared_with").prefetch_related("share_groups__members")
             
             shared_users = []
             group_permissions = {}
             
             for perm in shared_permissions:
-                if perm.share_group:
+                if perm.share_groups.exists():
                     # Group member - collect by group
-                    group_uuid = str(perm.share_group.uuid)
-                    if group_uuid not in group_permissions:
-                        group_permissions[group_uuid] = {
-                            "name": perm.share_group.name,
-                            "email": f"group:{group_uuid}",
-                            "type": "group",
-                            "members": []
-                        }
-                    group_permissions[group_uuid]["members"].append({
-                        "name": perm.shared_with.name,
-                        "email": perm.shared_with.email
-                    })
+                    for group in perm.share_groups.all():
+                        group_uuid = str(group.uuid)
+                        if group_uuid not in group_permissions:
+                            group_permissions[group_uuid] = {
+                                "name": group.name,
+                                "email": f"group:{group_uuid}",
+                                "type": "group",
+                                "members": [],
+                                "permission_level": perm.permission_level
+                            }
+                        group_permissions[group_uuid]["members"].append({
+                            "name": perm.shared_with.name,
+                            "email": perm.shared_with.email
+                        })
                 else:
                     # Individual user
                     shared_users.append({
                         "name": perm.shared_with.name, 
                         "email": perm.shared_with.email,
-                        "type": "user"
+                        "type": "user",
+                        "permission_level": perm.permission_level
                     })
             
             # Add groups with member counts
@@ -2395,7 +2414,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         
         # find share permissions for group members
         shared_items = UserSharePermission.objects.filter(
-            share_group=group,
+            share_groups=group,
             is_deleted=False,
             is_enabled=True,
         ).values_list('item_uuid', 'item_type').distinct()
@@ -2471,7 +2490,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         """Get list of shared assets that are accessible to group members."""
         # Find all share permissions where this group is associated
         share_permissions = UserSharePermission.objects.filter(
-            share_group=share_group,
+            share_groups=share_group,
             is_deleted=False,
             is_enabled=True,
         ).select_related('owner').distinct('item_uuid', 'item_type')
@@ -2498,6 +2517,9 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 # Skip if item no longer exists
                 continue
         
+        # Sort assets: datasets first (alphabetically), then captures (alphabetically)
+        shared_assets.sort(key=lambda asset: (asset['type'] != 'dataset', asset['name'].lower()))
+        
         return shared_assets
 
     def _update_user_share_permissions_on_removal(self, user: User, share_group: ShareGroup) -> None:
@@ -2505,18 +2527,14 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         # Find all share permissions where this user was shared via this group
         share_permissions = UserSharePermission.objects.filter(
             shared_with=user,
-            share_group=share_group,
+            share_groups=share_group,
             is_deleted=False,
-            is_enabled=True,
         )
         
-        # For each permission, remove the group association
-        # Since there should only be ONE permission per user per item per owner,
-        # we simply remove the group association and disable the permission
+        # For each permission, remove the group association and update enabled status
         for permission in share_permissions:
-            permission.share_group = None
-            permission.is_enabled = False
-            permission.save()
+            permission.share_groups.remove(share_group)
+            permission.update_enabled_status()
     
     def _get_shared_assets_for_group_request(self, request: HttpRequest) -> JsonResponse:
         """Get shared assets for a group (for display in modal)."""
@@ -2556,6 +2574,20 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return JsonResponse({'error': 'ShareGroup not found'}, status=404)
         
         try:
+            # remove all members from the group
+            share_group.members.clear()
+
+            # remove all share permissions for the group
+            share_permissions = UserSharePermission.objects.filter(
+                share_groups=share_group,
+                is_deleted=False,
+                is_enabled=True,
+            )
+            for permission in share_permissions:
+                permission.share_groups.remove(share_group)
+                permission.update_enabled_status()
+
+            # soft delete the group
             share_group.soft_delete()
             return JsonResponse({
                 'success': True,

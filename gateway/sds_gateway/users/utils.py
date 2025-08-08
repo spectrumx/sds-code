@@ -121,17 +121,17 @@ def update_or_create_user_group_share_permissions(
     ).first()
                 
     if not existing_individual:
-        UserSharePermission.objects.create(
+        permission = UserSharePermission.objects.create(
             owner=request_user,
             shared_with=share_user,
-            share_group=group,
             item_type=item_type,
             item_uuid=item_uuid,
             message=message,
             is_enabled=True,
         )
+        permission.share_groups.add(group)
     else:
         existing_individual.is_enabled = True
         existing_individual.message = message
-        existing_individual.share_group = group
+        existing_individual.share_groups.add(group)
         existing_individual.save()

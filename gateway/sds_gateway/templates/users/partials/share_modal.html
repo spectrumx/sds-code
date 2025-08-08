@@ -139,21 +139,29 @@
                                                     </div>
                                                 </div>
                                                 <div class="col-md-2 d-flex justify-content-end align-items-center">
-                                                    <div class="dropdown">
-                                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
-                                                                type="button"
-                                                                data-bs-toggle="dropdown"
-                                                                data-bs-popper="static"
-                                                                aria-expanded="false"
-                                                                aria-label="Actions for {{ user.name }}">
-                                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                                        </button>
-                                                        <ul class="dropdown-menu">
-                                                            <li>
-                                                                <span class="dropdown-item-text text-muted">
-                                                                    <i class="bi bi-eye me-2"></i>View
-                                                                </span>
-                                                            </li>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="badge bg-info">
+                                                            {% if user.permission_level %}
+                                                                {{ user.permission_level|title }}
+                                                            {% else %}
+                                                                View
+                                                            {% endif %}
+                                                        </span>
+                                                        <div class="dropdown">
+                                                            <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                                    type="button"
+                                                                    data-bs-toggle="dropdown"
+                                                                    data-bs-popper="static"
+                                                                    aria-expanded="false"
+                                                                    aria-label="Actions for {{ user.name }}">
+                                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                            </button>
+                                                            <ul class="dropdown-menu">
+                                                                <li>
+                                                                    <span class="dropdown-item-text text-muted">
+                                                                        <i class="bi bi-eye me-2"></i>View
+                                                                    </span>
+                                                                </li>
                                                             <li>
                                                                 <hr class="dropdown-divider" />
                                                             </li>
