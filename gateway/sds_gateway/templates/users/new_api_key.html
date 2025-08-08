@@ -4,10 +4,8 @@
 {% load static i18n %}
 {% load custom_filters %}
 
-{# djlint:off H021 #}
 <body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %}"
       id="body">
-    {# djlint:on #}
     {% block title %}
         New API Key Generated
     {% endblock title %}
@@ -18,11 +16,9 @@
                     {% if api_key %}
                         <h2>Your New API Key</h2>
                         <p>Please copy your new API Key. For security reasons, it will not be shown again.</p>
-                        {# djlint:off H021 #}
                         <div class="d-inline-block p-3 rounded border">
                             <pre class="api-key-text"><strong>{{ api_key }}</strong></pre>
                         </div>
-                        {# djlint:on #}
                         <p class="text-danger mt-3">Keep this key safe and secure. You will not be able to view it again.</p>
                         <p>
                             <button type="button"
