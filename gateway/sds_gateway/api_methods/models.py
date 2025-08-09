@@ -3,6 +3,7 @@
 import datetime
 import json
 import logging
+import re
 import uuid
 from enum import StrEnum
 from pathlib import Path
@@ -16,6 +17,7 @@ from django.db.models import ProtectedError
 from django.db.models import QuerySet
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
+from django_cog.models import Pipeline
 
 from .utils.opensearch_client import get_opensearch_client
 
@@ -57,6 +59,10 @@ class ProcessingType(StrEnum):
 
     Waterfall = "waterfall"
     Spectrogram = "spectrogram"
+
+    def get_pipeline_name(self) -> str:
+        """Get the pipeline name for this processing type."""
+        return f"{self.value}_processing"
 
 
 class ProcessingStatus(StrEnum):
@@ -857,6 +863,7 @@ class PostProcessedData(BaseModel):
     class Meta:
         unique_together = ["capture", "processing_type", "processing_parameters"]
         ordering = ["-created_at"]
+        verbose_name_plural = "Post processed data"
         indexes = [
             models.Index(fields=["capture", "processing_type"]),
             models.Index(fields=["processing_status"]),
@@ -890,8 +897,6 @@ class PostProcessedData(BaseModel):
 
     def set_processed_data_file(self, file_path: str, filename: str) -> None:
         """Set the processed data file."""
-        from pathlib import Path
-
         with Path(file_path).open("rb") as f:
             self.data_file.save(filename, f, save=False)
         self.save(update_fields=["data_file"])
@@ -1149,22 +1154,19 @@ def get_latest_pipeline_by_base_name(base_name: str):
     recreation.
 
     Args:
-        base_name: The base name of the pipeline (e.g., "Waterfall Processing")
+        base_name: The base name of the pipeline (e.g.,
+        ProcessingType.Waterfall.get_pipeline_name())
 
     Returns:
         Pipeline: The most recent pipeline with this base name, or None if not found
 
     Example:
-        - If "Waterfall Processing (v20241220_143052)" exists: returns that pipeline
+        - If "waterfall_processing_20241220_143052" exists: returns that pipeline
         - If multiple versioned pipelines exist: returns the most recent one
     """
     # Look for timestamped pipelines with this base name (primary method)
-    import re
-
-    from django_cog.models import Pipeline
-
     # Use string pattern for Django regex filter, not compiled pattern
-    pattern_string = f"^{re.escape(base_name)} \\(v\\d{{8}}_\\d{{6}}\\)$"
+    pattern_string = f"^{re.escape(base_name)}_\\d{{8}}_\\d{{6}}$"
 
     versioned_pipelines = Pipeline.objects.filter(
         name__regex=pattern_string, enabled=True

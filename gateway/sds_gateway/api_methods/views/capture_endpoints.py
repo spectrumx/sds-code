@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
+from django.db import transaction
 from django.db.models import QuerySet
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample
@@ -41,8 +43,12 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
 from sds_gateway.api_methods.serializers.capture_serializers import (
+    PostProcessedDataSerializer,
+)
+from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
+from sds_gateway.api_methods.tasks import start_capture_post_processing
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
@@ -196,8 +202,6 @@ class CaptureViewSet(viewsets.ViewSet):
 
         try:
             # Use the Celery task for post-processing to ensure proper async execution
-            from sds_gateway.api_methods.tasks import start_capture_post_processing
-
             # Launch the post-processing task asynchronously
             result = start_capture_post_processing.delay(
                 str(capture.uuid), ["waterfall"]
@@ -318,8 +322,6 @@ class CaptureViewSet(viewsets.ViewSet):
 
             # Use transaction.on_commit to ensure the task is queued after the
             # transaction is committed
-            from django.db import transaction
-
             transaction.on_commit(lambda: self._trigger_post_processing(capture))
 
         except UnknownIndexError as e:
@@ -630,8 +632,6 @@ class CaptureViewSet(viewsets.ViewSet):
             if target_capture.capture_type == CaptureType.DigitalRF:
                 # Use transaction.on_commit to ensure the task is queued after the
                 # transaction is committed
-                from django.db import transaction
-
                 transaction.on_commit(
                     lambda: self._trigger_post_processing(target_capture)
                 )
@@ -825,10 +825,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 "processing_type", "-created_at"
             )
 
-            from sds_gateway.api_methods.serializers.capture_serializers import (
-                PostProcessedDataSerializer,
-            )
-
             return Response(
                 {
                     "capture_uuid": str(capture.uuid),
@@ -843,12 +839,6 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"error": "Capture not found"},
                 status=status.HTTP_404_NOT_FOUND,
-            )
-        except Exception as e:  # noqa: BLE001
-            log.exception(f"Error getting post-processing status: {e}")
-            return Response(
-                {"error": f"Internal server error: {e}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @action(detail=True, methods=["get"])
@@ -924,9 +914,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 )
 
             # Return the file as a download response
-            from django.http import FileResponse
-
-            # Use the file object directly instead of trying to get absolute path
             response = FileResponse(
                 processed_data.data_file, content_type="application/octet-stream"
             )
@@ -939,12 +926,6 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"error": "Capture not found"},
                 status=status.HTTP_404_NOT_FOUND,
-            )
-        except Exception as e:  # noqa: BLE001
-            log.exception(f"Error downloading post-processed data: {e}")
-            return Response(
-                {"error": f"Internal server error: {e}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -1021,12 +1002,6 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"error": "Capture not found"},
                 status=status.HTTP_404_NOT_FOUND,
-            )
-        except Exception as e:  # noqa: BLE001
-            log.exception(f"Error getting post-processed metadata: {e}")
-            return Response(
-                {"error": f"Internal server error: {e}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

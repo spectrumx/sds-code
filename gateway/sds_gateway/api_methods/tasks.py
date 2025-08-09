@@ -508,6 +508,68 @@ def notify_shared_users(
     return f"Notified {len(user_emails)} users about shared {item_type} {item_uuid}."
 
 
+@shared_task
+def start_capture_post_processing(
+    capture_uuid: str, processing_types: list[str] | None = None
+) -> dict:
+    """
+    Start post-processing pipeline for a DigitalRF capture.
+
+    This is the main entry point that launches the django-cog pipeline.
+    Setup and validation are now handled within the pipeline itself.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+        processing_types: List of processing types to run (waterfall, spectrogram, etc.)
+    """
+    logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
+
+    try:
+        # Set default processing types if not specified
+        if not processing_types:
+            processing_types = [ProcessingType.Waterfall.value]
+
+        # Get the appropriate pipeline from the database
+        from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
+
+        # For now, we only support waterfall processing
+        if "waterfall" in processing_types:
+            pipeline_name = ProcessingType.Waterfall.get_pipeline_name()
+            pipeline = get_latest_pipeline_by_base_name(pipeline_name)
+            if not pipeline:
+                error_msg = (
+                    f"No {pipeline_name} pipeline found. Please run setup_pipelines."
+                )
+                raise ValueError(error_msg)  # noqa: TRY301
+
+            # Launch the pipeline with runtime arguments
+            # Setup and validation will be handled by the setup stage in the pipeline
+            pipeline.launch(
+                capture_uuid=capture_uuid, processing_types=processing_types
+            )
+        else:
+            error_msg = f"Unsupported processing types: {processing_types}"
+            raise ValueError(error_msg)  # noqa: TRY301
+
+        return {
+            "status": "success",
+            "message": (
+                f"Post-processing pipeline started for {len(processing_types)} types"
+            ),
+            "capture_uuid": capture_uuid,
+            "processing_types": processing_types,
+        }
+
+    except Capture.DoesNotExist:
+        error_msg = f"Capture {capture_uuid} not found"
+        logger.error(error_msg)
+        raise
+    except Exception as e:
+        error_msg = f"Unexpected error in post-processing pipeline: {e}"
+        logger.exception(error_msg)
+        raise
+
+
 def _create_error_response(
     status: str,
     message: str,
@@ -985,65 +1047,3 @@ def _send_item_download_error_email(
             f"Failed to send error email for {item_type} {item.uuid} "
             f"to user {user.id}: {e}"
         )
-
-
-@shared_task
-def start_capture_post_processing(
-    capture_uuid: str, processing_types: list[str] | None = None
-) -> dict:
-    """
-    Start post-processing pipeline for a DigitalRF capture.
-
-    This is the main entry point that launches the django-cog pipeline.
-    Setup and validation are now handled within the pipeline itself.
-
-    Args:
-        capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run (waterfall, spectrogram, etc.)
-    """
-    logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
-
-    try:
-        # Set default processing types if not specified
-        if not processing_types:
-            processing_types = [ProcessingType.Waterfall.value]
-
-        # Get the appropriate pipeline from the database
-        from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
-
-        # For now, we only support waterfall processing
-        if "waterfall" in processing_types:
-            pipeline = get_latest_pipeline_by_base_name("Waterfall Processing")
-            if not pipeline:
-                error_msg = (
-                    "No Waterfall Processing pipeline found. Please run "
-                    "setup_pipelines."
-                )
-                raise ValueError(error_msg)  # noqa: TRY301
-
-            # Launch the pipeline with runtime arguments
-            # Setup and validation will be handled by the setup stage in the pipeline
-            pipeline.launch(
-                capture_uuid=capture_uuid, processing_types=processing_types
-            )
-        else:
-            error_msg = f"Unsupported processing types: {processing_types}"
-            raise ValueError(error_msg)  # noqa: TRY301
-
-        return {
-            "status": "success",
-            "message": (
-                f"Post-processing pipeline started for {len(processing_types)} types"
-            ),
-            "capture_uuid": capture_uuid,
-            "processing_types": processing_types,
-        }
-
-    except Capture.DoesNotExist:
-        error_msg = f"Capture {capture_uuid} not found"
-        logger.error(error_msg)
-        raise
-    except Exception as e:
-        error_msg = f"Unexpected error in post-processing pipeline: {e}"
-        logger.exception(error_msg)
-        raise
