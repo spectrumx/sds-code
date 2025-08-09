@@ -41,7 +41,7 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
     structure:
 
     Pipeline:
-    - Name: "Waterfall Processing"
+    - Name: ProcessingType.Waterfall.get_pipeline_name()
     - Schedule: None (manual launch)
     - Prevent overlapping runs: False (allow concurrent processing)
 
@@ -56,8 +56,10 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
     - process_stage: process_waterfall_data_cog (capture_uuid passed as runtime arg,
       depends on setup_stage)
     """
+    from .models import ProcessingType
+
     return {
-        "pipeline_name": "Waterfall Processing",
+        "pipeline_name": ProcessingType.Waterfall.get_pipeline_name(),
         "prevent_overlapping_runs": False,
         "stages": [
             {
@@ -218,7 +220,7 @@ def process_waterfall_data_cog(
         ).first()
 
         processed_data = _validate_processed_data(
-            processed_data, "waterfall processing"
+            processed_data, ProcessingType.Waterfall.value
         )
 
         # Mark processing as started
@@ -249,7 +251,7 @@ def process_waterfall_data_cog(
             )
 
             _validate_processing_result(
-                waterfall_result, processed_data, "waterfall processing"
+                waterfall_result, processed_data, ProcessingType.Waterfall.value
             )
 
             # Create a temporary JSON file
