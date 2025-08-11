@@ -29,13 +29,11 @@ class FileCaptureListSerializer(serializers.ModelSerializer[File]):
 class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]):
     """Serializer for PostProcessedData model."""
 
-    processing_type = serializers.CharField()
-    processing_status = serializers.CharField()
-
     class Meta:
         model = PostProcessedData
         fields = [
             "uuid",
+            "capture",
             "processing_type",
             "processing_parameters",
             "data_file",
@@ -49,6 +47,9 @@ class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]
         ]
         read_only_fields = [
             "uuid",
+            "capture",
+            "processing_type",
+            "processing_parameters",
             "data_file",
             "metadata",
             "processing_status",
