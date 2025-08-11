@@ -91,6 +91,17 @@ class DatasetInfoForm(forms.Form):
         disabled=True,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
+    status = forms.ChoiceField(
+        label="Status",
+        required=True,
+        choices=[
+            ("draft", "Draft"),
+            ("published", "Published"),
+        ],
+        initial="draft",
+        widget=forms.Select(attrs={"class": "form-control"}),
+        help_text="Draft: Work in progress, Published: Visible to everyone",
+    )
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop("user", None)

@@ -55,6 +55,7 @@ class ItemType(StrEnum):
     CAPTURE = "capture"
 
 
+<<<<<<< HEAD
 class ProcessingType(StrEnum):
     """The type of post-processing."""
 
@@ -73,6 +74,13 @@ class ProcessingStatus(StrEnum):
     Processing = "processing"
     Completed = "completed"
     Failed = "failed"
+=======
+class DatasetStatus(StrEnum):
+    """The status of a dataset."""
+
+    DRAFT = "draft"
+    PUBLISHED = "published"
+>>>>>>> 93b6f3e (Add dataset status feature with Draft/Published options and squash user migrations)
 
 
 def default_expiration_date() -> datetime.datetime:
@@ -551,7 +559,18 @@ class Dataset(BaseModel):
 
     list_fields = ["authors", "keywords", "institutions"]
 
+    STATUS_CHOICES = [
+        (DatasetStatus.DRAFT, "Draft"),
+        (DatasetStatus.PUBLISHED, "Published"),
+    ]
+
     name = models.CharField(max_length=255, blank=False, default=None)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=DatasetStatus.DRAFT,
+        help_text="The current status of the dataset",
+    )
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         blank=True,

@@ -1281,6 +1281,7 @@ class GroupCapturesView(
                     "name": existing_dataset.name,
                     "description": existing_dataset.description,
                     "author": existing_dataset.authors[0],
+                    "status": existing_dataset.status,
                 }
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
@@ -1441,6 +1442,7 @@ class GroupCapturesView(
             dataset.name = dataset_form.cleaned_data["name"]
             dataset.description = dataset_form.cleaned_data["description"]
             dataset.authors = [dataset_form.cleaned_data["author"]]
+            dataset.status = dataset_form.cleaned_data["status"]
             dataset.save()
 
             # Clear existing relationships
@@ -1452,6 +1454,7 @@ class GroupCapturesView(
                 name=dataset_form.cleaned_data["name"],
                 description=dataset_form.cleaned_data["description"],
                 authors=[dataset_form.cleaned_data["author"]],
+                status=dataset_form.cleaned_data["status"],
                 owner=request.user,
             )
 
