@@ -219,82 +219,97 @@ def process_waterfall_data_cog(
             processing_type=ProcessingType.Waterfall.value,
         ).first()
 
-        processed_data = _validate_processed_data(
-            processed_data, ProcessingType.Waterfall.value
-        )
+        if not processed_data:
+            error_msg = (
+                f"No processed data record found for {ProcessingType.Waterfall.value}"
+            )
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Mark processing as started
         processed_data.mark_processing_started(pipeline_id="django_cog_pipeline")
 
-        # Create temporary directory for processing
-        temp_dir = tempfile.mkdtemp(prefix=f"waterfall_{capture_uuid}_")
-        temp_path = Path(temp_dir)
+        # Use built-in temporary directory context manager
+        with tempfile.TemporaryDirectory(
+            prefix=f"waterfall_{capture_uuid}_"
+        ) as temp_dir:
+            temp_path = Path(temp_dir)
 
-        try:
-            # Reconstruct the DigitalRF files for processing
-            capture_files = capture.files.filter(is_deleted=False)
-            reconstructed_path = reconstruct_drf_files(
-                capture, capture_files, temp_path
-            )
+            try:
+                # Reconstruct the DigitalRF files for processing
+                capture_files = capture.files.filter(is_deleted=False)
+                reconstructed_path = reconstruct_drf_files(
+                    capture, capture_files, temp_path
+                )
 
-            if not reconstructed_path:
-                error_msg = "Failed to reconstruct DigitalRF directory structure"
-                processed_data.mark_processing_failed(error_msg)
-                raise ValueError(error_msg)  # noqa: TRY301
+                if not reconstructed_path:
+                    error_msg = "Failed to reconstruct DigitalRF directory structure"
+                    processed_data.mark_processing_failed(error_msg)
+                    raise ValueError(error_msg)  # noqa: TRY301
 
-            # Process the waterfall data in JSON format
-            waterfall_result = convert_drf_to_waterfall_json(
-                reconstructed_path,
-                capture.channel,
-                ProcessingType.Waterfall.value,
-                max_slices=max_slices,
-            )
+                # Process the waterfall data in JSON format
+                waterfall_result = convert_drf_to_waterfall_json(
+                    reconstructed_path,
+                    capture.channel,
+                    ProcessingType.Waterfall.value,
+                    max_slices=max_slices,
+                )
 
-            _validate_processing_result(
-                waterfall_result, processed_data, ProcessingType.Waterfall.value
-            )
+                if waterfall_result["status"] != "success":
+                    processed_data.mark_processing_failed(waterfall_result["message"])
+                    raise ValueError(waterfall_result["message"])  # noqa: TRY301
 
-            # Create a temporary JSON file
-            import json
+                # Create a temporary JSON file
+                import json
 
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".json", delete=False
-            ) as temp_file:
-                json.dump(waterfall_result["json_data"], temp_file, indent=2)
-                temp_file_path = temp_file.name
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".json", delete=False
+                ) as temp_file:
+                    json.dump(waterfall_result["json_data"], temp_file, indent=2)
+                    temp_file_path = temp_file.name
+                    logger.info(f"Created temporary JSON file at {temp_file_path}")
 
-            # Store the JSON file
-            filename = f"waterfall_{capture_uuid}.json"
-            store_result = store_processed_data(
-                capture_uuid,
-                ProcessingType.Waterfall.value,
-                temp_file_path,
-                filename,
-                waterfall_result["metadata"],
-            )
+                try:
+                    # Store the JSON file
+                    new_filename = f"waterfall_{capture_uuid}.json"
+                    store_result = store_processed_data(
+                        capture_uuid,
+                        ProcessingType.Waterfall.value,
+                        temp_file_path,
+                        new_filename,
+                        waterfall_result["metadata"],
+                    )
 
-            # Clean up temporary file
-            Path(temp_file_path).unlink()
+                    if store_result["status"] != "success":
+                        processed_data.mark_processing_failed(store_result["message"])
+                        raise ValueError(store_result["message"])
 
-            _validate_processing_result(store_result, processed_data, "file storage")
+                    # Mark processing as completed
+                    processed_data.mark_processing_completed()
 
-            # Mark processing as completed
-            processed_data.mark_processing_completed()
+                    logger.info(
+                        f"Completed waterfall processing for capture {capture_uuid}"
+                    )
+                    return {
+                        "status": "success",
+                        "capture_uuid": capture_uuid,
+                        "message": (
+                            "Waterfall JSON data processed and stored successfully"
+                        ),
+                        "json_data": waterfall_result["json_data"],
+                        "metadata": waterfall_result["metadata"],
+                        "store_result": store_result,
+                    }
 
-            logger.info(f"Completed waterfall processing for capture {capture_uuid}")
-            return {
-                "status": "success",
-                "capture_uuid": capture_uuid,
-                "message": "Waterfall JSON data processed and stored successfully",
-                "json_data": waterfall_result["json_data"],
-                "metadata": waterfall_result["metadata"],
-                "store_result": store_result,
-            }
+                finally:
+                    # Clean up temporary file
+                    if "temp_file_path" in locals():
+                        Path(temp_file_path).unlink()
+                        logger.info(f"Cleaned up temporary file {temp_file_path}")
 
-        except Exception as e:
-            # Mark processing as failed
-            processed_data.mark_processing_failed(f"Processing failed: {e!s}")
-            raise
+            except Exception as e:
+                # Mark processing as failed
+                processed_data.mark_processing_failed(f"Processing failed: {e!s}")
+                raise
 
     except Exception as e:
         logger.error(f"Waterfall processing failed for capture {capture_uuid}: {e}")
@@ -339,22 +354,6 @@ def _create_or_reset_processed_data(capture, processing_type: str):
         processed_data.save()
 
     return processed_data
-
-
-def _validate_processed_data(processed_data, processing_type: str):
-    """Validate that processed data record exists and return it."""
-    if not processed_data:
-        error_msg = f"No processed data record found for {processing_type}"
-        raise ValueError(error_msg)
-    assert processed_data is not None  # Type assertion for type checker
-    return processed_data
-
-
-def _validate_processing_result(result, processed_data, operation: str) -> None:
-    """Validate that processing operation was successful."""
-    if result["status"] != "success":
-        processed_data.mark_processing_failed(result["message"])
-        raise ValueError(result["message"])
 
 
 def _process_waterfall_slice(params: WaterfallSliceParams) -> dict | None:
@@ -589,8 +588,8 @@ def convert_drf_to_waterfall_json(  # noqa: C901, PLR0915
 def store_processed_data(
     capture_uuid: str,
     processing_type: str,
-    file_path: str,
-    filename: str,
+    curr_file_path: str,
+    new_filename: str,
     metadata: dict | None = None,
 ) -> dict:
     """
@@ -600,7 +599,7 @@ def store_processed_data(
         capture_uuid: UUID of the capture
         processing_type: Type of processed data (waterfall, spectrogram, etc.)
         file_path: Path to the file to store
-        filename: Name for the stored file
+        filename: New name for the stored file
         metadata: Metadata to store
 
     Returns:
@@ -621,10 +620,12 @@ def store_processed_data(
             processing_type=processing_type,
         ).first()
 
-        processed_data = _validate_processed_data(processed_data, processing_type)
+        if not processed_data:
+            error_msg = f"No processed data record found for {processing_type}"
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Store the file
-        processed_data.set_processed_data_file(file_path, filename)
+        processed_data.set_processed_data_file(curr_file_path, new_filename)
 
         # Update metadata if provided
         if metadata:
@@ -640,12 +641,12 @@ def store_processed_data(
         )
         processed_data.save()
 
-        logger.info(f"Stored file {filename} for {processing_type} data")
+        logger.info(f"Stored file {new_filename} for {processing_type} data")
 
         return {  # noqa: TRY300
             "status": "success",
             "message": f"{processing_type} file stored successfully",
-            "file_name": filename,
+            "file_name": new_filename,
         }
 
     except Exception as e:
