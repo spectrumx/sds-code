@@ -7,7 +7,7 @@ import sds_gateway.api_methods.models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0006_auto_20250121_1012'),
+        ('users', '0006_auto_20250121_1012_fixed'),
     ]
 
     operations = [
