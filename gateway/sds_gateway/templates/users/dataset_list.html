@@ -45,6 +45,9 @@
                                             <th scope="col" class="sortable w-25" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
+                                            <th scope="col" class="sortable w-15" data-sort="status">
+                                                Status <i class="bi bi-caret-down-fill sort-icon"></i>
+                                            </th>
                                             <th scope="col" class="sortable w-25" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
@@ -69,6 +72,9 @@
                                             <th scope="col" class="w-auto">Description</th>
                                             <th scope="col" class="sortable w-25" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
+                                            </th>
+                                            <th scope="col" class="sortable w-15" data-sort="status">
+                                                Status <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="sortable w-25" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
@@ -105,6 +111,15 @@
                                                 </td>
                                                 <td class="text-break">{{ dataset.description|truncatechars:80 }}</td>
                                                 <td class="text-break">{{ dataset.authors }}</td>
+                                                <td class="text-nowrap">
+                                                    {% if dataset.status == 'draft' %}
+                                                        <span class="badge bg-secondary">Draft</span>
+                                                    {% elif dataset.status == 'published' %}
+                                                        <span class="badge bg-success">Published</span>
+                                                    {% else %}
+                                                        <span class="badge bg-light text-dark">{{ dataset.get_status_display }}</span>
+                                                    {% endif %}
+                                                </td>
                                                 <td class="text-nowrap">{{ dataset.created_at }}</td>
                                                 <td class="text-end">
                                                     <div class="dropdown">

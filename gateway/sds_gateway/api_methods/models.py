@@ -53,6 +53,13 @@ class ItemType(StrEnum):
     CAPTURE = "capture"
 
 
+class DatasetStatus(StrEnum):
+    """The status of a dataset."""
+
+    DRAFT = "draft"
+    PUBLISHED = "published"
+
+
 def default_expiration_date() -> datetime.datetime:
     """Returns the default expiration date for a file."""
     # 2 years from now
@@ -529,7 +536,18 @@ class Dataset(BaseModel):
 
     list_fields = ["authors", "keywords", "institutions"]
 
+    STATUS_CHOICES = [
+        (DatasetStatus.DRAFT, "Draft"),
+        (DatasetStatus.PUBLISHED, "Published"),
+    ]
+
     name = models.CharField(max_length=255, blank=False, default=None)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=DatasetStatus.DRAFT,
+        help_text="The current status of the dataset",
+    )
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         blank=True,
