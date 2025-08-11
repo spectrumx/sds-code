@@ -303,7 +303,7 @@ def process_waterfall_data_cog(
                 finally:
                     # Clean up temporary file
                     if "temp_file_path" in locals():
-                        Path(temp_file_path).unlink()
+                        Path(temp_file_path).unlink(missing_ok=True)
                         logger.info(f"Cleaned up temporary file {temp_file_path}")
 
             except Exception as e:
@@ -433,7 +433,12 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
         # Download and place files in the correct structure
         for file_obj in capture_files:
             # Create the directory structure
-            file_path = capture_dir / file_obj.directory.lstrip("/") / file_obj.name
+            file_path = Path(
+                f"{capture_dir}/{file_obj.directory}/{file_obj.name}"
+            ).resolve()
+            assert file_path.is_relative_to(temp_path), (
+                f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
+            )
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Download the file from MinIO

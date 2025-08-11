@@ -292,7 +292,7 @@ services:
     #         - ./.envs/production/minio.env
     #         - ./.envs/production/postgres.env
     #         - ./.envs/production/opensearch.env
-    #     command: /start
+    #     command: /flower-start
     #     ports:
     #         - "15555:5555"  # Flower web interface
     #     networks:
