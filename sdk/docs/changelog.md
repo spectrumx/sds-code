@@ -1,6 +1,8 @@
 # SpectrumX SDK Changelog
 
-## `0.1.12` - 2025-07-xx
+## `0.1.13` - 2025-08-xx
+
+## `0.1.12` - 2025-08-12
 
 + Features:
     + **Added `name` parameter to `upload_capture` method**: `upload_capture()` now accepts an optional `name` parameter to set custom capture names.
