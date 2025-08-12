@@ -236,7 +236,6 @@ class FileViewSet(ViewSet):
             unsafe_path=unsafe_path,
             request=request,
         )
-        log.debug(f"Listing for '{user_rel_path}'")
         if user_rel_path is None:
             return Response(
                 {"detail": "The provided path must be in the user's files directory."},
@@ -273,7 +272,6 @@ class FileViewSet(ViewSet):
 
                 # despite being a single result, we return it paginated for consistency
                 return paginator.get_paginated_response(serializer.data)
-
             log.debug(
                 "No exact match found for "
                 f"{inferred_user_rel_path!s} and name {basename}",
@@ -300,11 +298,6 @@ class FileViewSet(ViewSet):
 
         paginated_files = paginator.paginate_queryset(latest_files, request=request)
         serializer = FileGetSerializer(paginated_files, many=True)
-
-        first_file = all_valid_user_owned_files.first()
-        if first_file:
-            log.debug(f"First file directory: {first_file.directory}")
-            log.debug(f"First file name: {first_file.name}")
 
         log.debug(
             f"Matched {latest_files.count()} / {all_valid_user_owned_files.count()} "
