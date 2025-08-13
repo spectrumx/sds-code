@@ -155,18 +155,12 @@ function initializeManageMembersModal() {
 	if (manageMembersModal) {
 		manageMembersModal.addEventListener("show.bs.modal", (event) => {
 			const button = event.relatedTarget;
-
-			// If there's a button with data attributes, use those values
-			if (button?.hasAttribute("data-group-uuid")) {
-				currentGroupUuid = button.getAttribute("data-group-uuid");
-				currentGroupName = button.getAttribute("data-group-name");
-			}
-
-			// If currentGroupUuid is not set, the modal was opened programmatically
-			// and the group info should already be set by openManageModalForGroup
-			if (!currentGroupUuid) {
+			// Only proceed if the button exists and has the required data attributes
+			if (!button || !button.hasAttribute("data-group-uuid")) {
 				return;
 			}
+			currentGroupUuid = button.getAttribute("data-group-uuid");
+			currentGroupName = button.getAttribute("data-group-name");
 
 			document.getElementById("addGroupUuid").value = currentGroupUuid;
 
@@ -378,15 +372,15 @@ function loadCurrentMembers() {
 					}
 
 					membersList.innerHTML = `
-                        <tr>
-                            <td class="p-2 shadow-sm">
-                                <div class="text-center text-muted mb-1 mt-1">
-                                    <i class="bi bi-people"></i>
-                                    <p>No members in this group</p>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
+                    <tr>
+                        <td class="p-2 shadow-sm">
+                            <div class="text-center text-muted mb-1 mt-1">
+                                <i class="bi bi-people"></i>
+                                <p>No members in this group</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
 				} else {
 					// Update the display list with table structure like share modal
 					const memberHtml = data.members
@@ -1026,42 +1020,10 @@ function initializeShareGroupManager() {
 
 // Add new group to the table dynamically
 function addNewGroupToTable(groupData) {
-	const cardBody = document.querySelector(".card-body");
-	if (!cardBody) {
-		console.error("Card body not found");
-		return;
-	}
-
-	// Check if table structure exists, if not create it
-	let tableBody = document.querySelector(".table-responsive .table tbody");
+	const tableBody = document.querySelector(".table-responsive .table tbody");
 	if (!tableBody) {
-		// Remove the "no groups" message
-		const noGroupsMessage = document.querySelector(".text-center.py-5");
-		if (noGroupsMessage) {
-			noGroupsMessage.remove();
-		}
-
-		// Create the table structure
-		const tableHtml = `
-			<div class="table-responsive">
-				<table class="table table-hover">
-					<thead>
-						<tr>
-							<th>Group Name</th>
-							<th>Members</th>
-							<th>Created</th>
-							<th>Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-					</tbody>
-				</table>
-			</div>
-		`;
-		cardBody.insertAdjacentHTML("beforeend", tableHtml);
-
-		// Get the newly created table body
-		tableBody = document.querySelector(".table-responsive .table tbody");
+		console.error("Table body not found");
+		return;
 	}
 
 	// Create the new row HTML
@@ -1121,6 +1083,12 @@ function addNewGroupToTable(groupData) {
 
 	// Add the new row to the table
 	tableBody.appendChild(newRow);
+
+	// Hide the "no groups" message if it exists
+	const noGroupsMessage = document.querySelector(".text-center.py-5");
+	if (noGroupsMessage) {
+		noGroupsMessage.style.display = "none";
+	}
 }
 
 // Open manage modal for a specific group
