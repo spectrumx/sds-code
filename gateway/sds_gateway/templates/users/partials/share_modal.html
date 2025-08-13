@@ -101,14 +101,14 @@
                                                     <div>
                                                         <h5 class="mb-1">
                                                             {% if user.type == "group" %}
-                                                                <i class="bi bi-people-fill text-info me-1" 
-                                                                   data-bs-toggle="tooltip" 
+                                                                <i class="bi bi-people-fill text-info me-1"
+                                                                   data-bs-toggle="tooltip"
                                                                    title="Group"></i>
                                                                 {{ user.name }}
                                                                 <span class="badge bg-secondary ms-1">{{ user.member_count }} members</span>
                                                             {% else %}
-                                                                <i class="bi bi-person-fill text-primary me-1" 
-                                                                   data-bs-toggle="tooltip" 
+                                                                <i class="bi bi-person-fill text-primary me-1"
+                                                                   data-bs-toggle="tooltip"
                                                                    title="User"></i>
                                                                 {{ user.name }}
                                                             {% endif %}
@@ -123,14 +123,13 @@
                                                             </small>
                                                         </p>
                                                         {% if user.type == "group" %}
-                                                            <div class="group-members-popup" style="display: none;">
-                                                                <div class="popover-header">
-                                                                    Group Members
-                                                                </div>
+                                                            <div class="group-members-popup d-none">
+                                                                <div class="popover-header">Group Members</div>
                                                                 <div class="popover-body">
                                                                     <small class="text-muted">
                                                                         {% for member in user.members %}
-                                                                            {{ member.name }} &lt;{{ member.email }}&gt;<br>
+                                                                            {{ member.name }} &lt;{{ member.email }}&gt;
+                                                                            <br />
                                                                         {% endfor %}
                                                                     </small>
                                                                 </div>
@@ -162,64 +161,64 @@
                                                                         <i class="bi bi-eye me-2"></i>View
                                                                     </span>
                                                                 </li>
-                                                            <li>
-                                                                <hr class="dropdown-divider" />
-                                                            </li>
-                                                            <li>
-                                                                <button class="dropdown-item text-danger remove-access-btn"
-                                                                        type="button"
-                                                                        data-user-email="{{ user.email }}"
-                                                                        data-user-name="{{ user.name }}"
-                                                                        data-item-uuid="{{ item.uuid }}"
-                                                                        data-item-type="{{ item_type }}">
-                                                                    <i class="bi bi-person-slash me-2"></i>Remove Access
-                                                                </button>
-                                                            </li>
-                                                        </ul>
+                                                                <li>
+                                                                    <hr class="dropdown-divider" />
+                                                                </li>
+                                                                <li>
+                                                                    <button class="dropdown-item text-danger remove-access-btn"
+                                                                            type="button"
+                                                                            data-user-email="{{ user.email }}"
+                                                                            data-user-name="{{ user.name }}"
+                                                                            data-item-uuid="{{ item.uuid }}"
+                                                                            data-item-type="{{ item_type }}">
+                                                                        <i class="bi bi-person-slash me-2"></i>Remove Access
+                                                                    </button>
+                                                                </li>
+                                                            </ul>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <div class="d-flex align-items-center gap-2">
-                    <span id="pending-changes-message-{{ item.uuid }}"
-                          class="text-muted d-none">
-                        <i class="bi bi-exclamation-triangle me-1"></i>Pending changes
-                    </span>
-                    <button type="button"
-                            class="btn btn-primary"
-                            id="share-item-btn-{{ item.uuid }}"
-                            disabled>Save</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div class="modal-footer">
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="pending-changes-message-{{ item.uuid }}"
+                              class="text-muted d-none">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Pending changes
+                        </span>
+                        <button type="button"
+                                class="btn btn-primary"
+                                id="share-item-btn-{{ item.uuid }}"
+                                disabled>Save</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
 <script>
-// Group member popup functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const groupRows = document.querySelectorAll('tr:has(.bi-people-fill)');
-    
-    groupRows.forEach(row => {
-        const popup = row.querySelector('.group-members-popup');
-        if (popup) {
-            row.addEventListener('mouseenter', function() {
-                popup.style.display = 'block';
-            });
-            
-            row.addEventListener('mouseleave', function() {
-                popup.style.display = 'none';
-            });
-        }
+    // Group member popup functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const groupRows = document.querySelectorAll('tr:has(.bi-people-fill)');
+
+        groupRows.forEach(row => {
+            const popup = row.querySelector('.group-members-popup');
+            if (popup) {
+                row.addEventListener('mouseenter', function() {
+                    popup.style.display = 'block';
+                });
+
+                row.addEventListener('mouseleave', function() {
+                    popup.style.display = 'none';
+                });
+            }
+        });
     });
-});
 </script>

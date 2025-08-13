@@ -1,15 +1,15 @@
 /* Button hover states - ensure proper contrast */
 .btn-outline-secondary:hover {
-    color: #fff !important;
-    background-color: #6c757d !important;
-    border-color: #6c757d !important;
+	color: #fff !important;
+	background-color: #6c757d !important;
+	border-color: #6c757d !important;
 }
 
 .btn-outline-secondary:focus {
-    color: #fff !important;
-    background-color: #6c757d !important;
-    border-color: #6c757d !important;
-    box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25) !important;
+	color: #fff !important;
+	background-color: #6c757d !important;
+	border-color: #6c757d !important;
+	box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25) !important;
 }
 
 /* Top Gradient Bar */
@@ -1039,7 +1039,7 @@ body {
 
 /* Popover arrow/pointer */
 .group-members-popup::before {
-	content: '';
+	content: "";
 	position: absolute;
 	top: -8px;
 	left: 20px;
@@ -1051,7 +1051,7 @@ body {
 }
 
 .group-members-popup::after {
-	content: '';
+	content: "";
 	position: absolute;
 	top: -9px;
 	left: 20px;

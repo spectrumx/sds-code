@@ -798,11 +798,11 @@ class UserSharePermission(BaseModel):
         if item_type:
             queryset = queryset.filter(item_type=item_type)
         return queryset
-    
+
     def has_access_through_groups(self) -> bool:
         """Check if user still has access through any group."""
         return self.share_groups.filter(is_deleted=False).exists()
-    
+
     def update_enabled_status(self) -> None:
         """Update enabled status based on group access."""
         if self.share_groups.exists():
@@ -946,6 +946,9 @@ class ShareGroup(BaseModel):
         settings.AUTH_USER_MODEL,
         related_name="member_share_groups",
     )
+
+    def __str__(self) -> str:
+        return f"ShareGroup: {self.name} (Owner: {self.owner.email})"
 
 
 def _extract_drf_capture_props(
