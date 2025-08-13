@@ -782,7 +782,7 @@
                     const totalFiles = filesToUpload.length;
                     let uploadedFiles = 0;
                     let allResults = {
-                        status: 'success',
+                        file_upload_status: 'success',
                         files: [],
                         captures: [],
                         errors: [],
@@ -926,16 +926,16 @@
                             uploadedFiles += chunk.length;
 
                             // Check if any chunk failed
-                            if (chunkResult.status === 'error') {
-                                allResults.status = 'error';
+                            if (chunkResult.file_upload_status === 'error') {
+                                allResults.file_upload_status = 'error';
                                 allResults.message = chunkResult.message || 'Upload failed';
-                            } else if (chunkResult.status === 'partial_success') {
-                                allResults.status = 'partial_success';
+                            } else if (chunkResult.file_upload_status === 'partial_success') {
+                                allResults.file_upload_status = 'partial_success';
                             }
 
                             // Update status based on final chunk
-                            if (isFinalChunk && chunkResult.status === 'success') {
-                                allResults.status = 'success';
+                            if (isFinalChunk && chunkResult.file_upload_status === 'success') {
+                                allResults.file_upload_status = 'success';
                             }
 
                             // Check if cancel was requested between chunks
@@ -1035,7 +1035,7 @@
             // Function to show upload results
             function showUploadResults(result, uploadedCount, totalCount) {
                 // Check if page was refreshed during upload
-                if (!uploadInProgress && result.status === 'error') {
+                if (!uploadInProgress && result.file_upload_status === 'error') {
                     resetUIState(); // Ensure UI is reset even if modal is not shown
                     return;
                 }
@@ -1053,7 +1053,7 @@
 
 
                 let msg = '';
-                if (result.status === 'success' || result.status === 'partial_success') {
+                if (result.file_upload_status === 'success' || result.file_upload_status === 'partial_success') {
                     // Use backend message if available, otherwise fall back to frontend logic
                     if (result.message) {
                         msg = `<b>${result.message}</b>`;
@@ -1084,7 +1084,7 @@
                 modal.show();
 
                 // Add event listener to reload page when result modal is closed (only for successful uploads)
-                if (result.status === 'success' || result.status === 'partial_success') {
+                if (result.file_upload_status === 'success' || result.file_upload_status === 'partial_success') {
                     resultModalEl.addEventListener('hidden.bs.modal', function() {
                         window.location.reload();
                     }, {

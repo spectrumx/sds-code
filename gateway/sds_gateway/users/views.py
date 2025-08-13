@@ -1870,11 +1870,6 @@ class UploadFilesView(View):
                                 else None
                             ),
                             "status": response.status_code,
-                            "note": (
-                                "File uploaded successfully."
-                                if response.status_code == status.HTTP_201_CREATED
-                                else "File upload processed."
-                            ),
                         }
                     )
                 else:
@@ -1885,65 +1880,33 @@ class UploadFilesView(View):
         errors.extend(skipped_files)
         return saved_files, errors
 
-    def _create_single_capture(
+    def _create_capture_with_endpoint_helper(
         self,
         request,
-        channel,
-        top_level_dir,
-        capture_type,
-        scan_group,
+        capture_data,
         all_relative_paths=None,
     ):
-        """Create a single capture for a channel.
+        """Create a single capture using prepared capture data.
 
         Returns (capture_data, error) where capture_data is the created capture
         data or None if creation failed, and error is the error message or None.
         """
         try:
-            # Determine capture type
-            if capture_type == "rh":
-                capture_type_enum = CaptureType.RadioHound
-            else:
-                capture_type_enum = CaptureType.DigitalRF
-
-            # Prepare capture data for the helper function
-            capture_data = {
-                "capture_type": capture_type_enum,
-                "top_level_dir": str(top_level_dir),
-            }
-
-            # Add appropriate field based on capture type
-            if capture_type == "rh":
-                # Only add scan_group if it's provided (optional for RadioHound)
-                if scan_group and scan_group.strip():
-                    # Validate UUID format if scan_group is provided
-                    if not validate_uuid(scan_group.strip()):
-                        return (
-                            None,
-                            f"Invalid scan group format. Must be a valid UUID, "
-                            f"got: {scan_group}",
-                        )
-                    capture_data["scan_group"] = scan_group
-            else:
-                capture_data["channel"] = channel
-
             # Set the index name based on capture type
             from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 
-            capture_data["index_name"] = infer_index_name(capture_type_enum)
+            capture_data["index_name"] = infer_index_name(capture_data["capture_type"])
 
             # Use the helper function to create the capture
             responses, capture_errors = create_capture_helper_simple(
                 request, capture_data
             )
         except (ValueError, TypeError, AttributeError) as exc:
-            logger.exception(
-                "Data validation error creating capture for channel %s", channel
-            )
-            return None, f"Data validation error for channel {channel}: {exc}"
+            logger.exception("Data validation error creating capture")
+            return None, f"Data validation error: {exc}"
         except (ConnectionError, TimeoutError) as exc:
-            logger.exception("Network error creating capture for channel %s", channel)
-            return None, f"Network error for channel {channel}: {exc}"
+            logger.exception("Network error creating capture")
+            return None, f"Network error: {exc}"
         else:
             if responses:
                 # Capture created successfully
@@ -1952,25 +1915,22 @@ class UploadFilesView(View):
                     capture_data = response.data
                     return capture_data, None
                 logger.warning(
-                    "Unexpected response format for channel %s: %s",
-                    channel,
+                    "Unexpected response format: %s",
                     response.data,
                 )
                 return (
                     None,
-                    f"Unexpected response format for channel {channel}: "
-                    f"{response.data}",
+                    f"Unexpected response format: {response.data}",
                 )
             # Capture creation failed
             error_msg = capture_errors[0] if capture_errors else "Unknown error"
             logger.error(
-                "Failed to create capture for channel %s: %s",
-                channel,
+                "Failed to create capture: %s",
                 error_msg,
             )
             return (
                 None,
-                f"Failed to create capture for channel {channel}: {error_msg}",
+                f"Failed to create capture: {error_msg}",
             )
 
     def _calculate_top_level_dir(self, relative_paths, all_relative_paths):
@@ -1990,79 +1950,64 @@ class UploadFilesView(View):
             return "/"
         return "/"
 
-    def _create_radiohound_captures(
-        self, request, top_level_dir, scan_group, all_relative_paths
+    def check_rh_scan_group(self, scan_group):
+        """Check and validate RadioHound scan group.
+
+        Args:
+            scan_group: The scan group string to validate
+
+        Returns:
+            str: Error message if validation fails, None if valid
+        """
+        if scan_group and scan_group.strip():
+            # Validate UUID format if scan_group is provided
+            if not validate_uuid(scan_group.strip()):
+                return (
+                    f"Invalid scan group format. Must be a valid UUID, "
+                    f"got: {scan_group}"
+                )
+        return None
+
+    def _create_captures_by_type(
+        self, request, channels, capture_data, scan_group, all_relative_paths
     ):
-        """Create RadioHound captures."""
+        """Create captures based on capture type.
+        For RadioHound: Creates a single capture with scan_group
+        For DigitalRF: Creates multiple captures, one for each channel
+        """
         created_captures = []
         errors = []
 
-        # For RadioHound, create a single capture with scan_group
-        created_capture, error = self._create_single_capture(
-            request, "", top_level_dir, "rh", scan_group, all_relative_paths
-        )
-        if created_capture:
-            created_captures.append(created_capture)
-        if error:
-            errors.append(error)
+        if capture_data["capture_type"] == CaptureType.RadioHound:
+            # For RadioHound, create a single capture with scan_group
+            scan_group_error = self.check_rh_scan_group(scan_group)
+            if scan_group_error:
+                return [], [scan_group_error]
+            if scan_group and scan_group.strip():
+                capture_data["scan_group"] = scan_group
 
-        return created_captures, errors
-
-    def _create_digitalrf_captures(
-        self, request, channels, top_level_dir, scan_group, all_relative_paths
-    ):
-        """Create DigitalRF captures for each channel."""
-        created_captures = []
-        errors = []
-
-        # For DigitalRF, create captures for each channel
-        for channel in channels:
-            created_capture, error = self._create_single_capture(
-                request,
-                channel,
-                top_level_dir,
-                "drf",
-                scan_group,
-                all_relative_paths,
+            created_capture, error = self._create_capture_with_endpoint_helper(
+                request, capture_data, all_relative_paths
             )
             if created_capture:
                 created_captures.append(created_capture)
             if error:
                 errors.append(error)
-
-        return created_captures, errors
-
-    def _create_captures(
-        self,
-        request,
-        channels,
-        relative_paths,
-        capture_type,
-        scan_group,
-        all_relative_paths=None,
-    ):
-        """Create captures using the capture helper function.
-
-        Uses create_capture_helper_simple() to create captures for each channel.
-        Returns tuple of (created_captures, errors).
-        """
-        # Calculate top_level_dir from relative paths
-        top_level_dir = self._calculate_top_level_dir(
-            relative_paths, all_relative_paths
-        )
-
-        # Create captures based on type
-        if capture_type == "rh":
-            created_captures, errors = self._create_radiohound_captures(
-                request, top_level_dir, scan_group, all_relative_paths
-            )
         else:
-            created_captures, errors = self._create_digitalrf_captures(
-                request, channels, top_level_dir, scan_group, all_relative_paths
-            )
-
-        if errors:
-            logger.error("Capture creation errors: %s", errors)
+            # For DigitalRF, create captures for each channel
+            for channel in channels:
+                # Add channel to capture data for this iteration
+                channel_capture_data = capture_data.copy()
+                channel_capture_data["channel"] = channel
+                created_capture, error = self._create_capture_with_endpoint_helper(
+                    request,
+                    channel_capture_data,
+                    all_relative_paths,
+                )
+                if created_capture:
+                    created_captures.append(created_capture)
+                if error:
+                    errors.append(error)
 
         return created_captures, errors
 
@@ -2092,7 +2037,7 @@ class UploadFilesView(View):
             return True
         return bool(channels)
 
-    def _determine_response_status(
+    def file_upload_status_mux(
         self,
         saved_files,
         created_captures,
@@ -2115,9 +2060,9 @@ class UploadFilesView(View):
             return "partial_success"
         return "error"
 
-    def _build_response_data(
+    def _build_file_capture_response_data(
         self,
-        status,
+        file_upload_status,
         saved_files,
         created_captures,
         files,
@@ -2129,10 +2074,8 @@ class UploadFilesView(View):
     ):
         """Build the response data dictionary."""
         response_data = {
-            "status": status,
+            "file_upload_status": file_upload_status,
             "files": saved_files,
-            "total_uploaded": len(saved_files),
-            "total_files": len(files),
             "captures": created_captures,
         }
 
@@ -2144,6 +2087,18 @@ class UploadFilesView(View):
                 first_capture = created_captures[0]
                 if isinstance(first_capture, dict) and "uuid" in first_capture:
                     response_data["capture_uuid"] = first_capture["uuid"]
+        elif all_files_empty and not has_required_fields:
+            # All files were skipped but missing required fields
+            response_data["message"] = (
+                "Upload skipped. All files exist on server, but missing required "
+                "fields for capture creation"
+            )
+        elif all_files_empty and errors:
+            # All files were skipped but there were errors
+            response_data["message"] = (
+                "Upload skipped. All files exist on server, but there were errors "
+                "during processing"
+            )
 
         # Combine file upload errors and capture creation errors
         all_errors = []
@@ -2155,7 +2110,7 @@ class UploadFilesView(View):
             response_data["errors"] = all_errors
         return response_data
 
-    def _determine_status_code(
+    def _determine_file_capture_status_code(
         self, saved_files, created_captures, all_files_empty, has_required_fields
     ):
         """Determine the HTTP status code for the response."""
@@ -2173,11 +2128,8 @@ class UploadFilesView(View):
         self,
         request,
         channels,
-        relative_paths,
         capture_type,
         scan_group,
-        saved_files,
-        all_files_empty,
         has_required_fields,
         all_relative_paths,
     ):
@@ -2187,27 +2139,38 @@ class UploadFilesView(View):
 
         if has_required_fields:
             logger.info(
-                "Creating captures - saved_files: %s, all_files_empty: %s, "
-                "has_required_fields: %s, capture_type: %s, channels: %s, "
-                "scan_group: %s",
-                len(saved_files),
-                all_files_empty,
+                "Creating captures - has_required_fields: %s, capture_type: %s, "
+                "channels: %s, scan_group: %s",
                 has_required_fields,
                 capture_type,
                 channels,
                 scan_group,
             )
-            # Use all_relative_paths if all files are skipped, otherwise use
-            # relative_paths
-            paths_to_use = all_relative_paths if all_files_empty else relative_paths
-            created_captures, capture_errors = self._create_captures(
-                request,
-                channels,
-                paths_to_use,
-                capture_type,
-                scan_group,
-                all_relative_paths,
+
+            # Calculate top_level_dir from relative paths
+            top_level_dir = self._calculate_top_level_dir(
+                all_relative_paths, all_relative_paths
             )
+
+            # Determine capture type enum
+            if capture_type == "rh":
+                capture_type_enum = CaptureType.RadioHound
+            else:
+                capture_type_enum = CaptureType.DigitalRF
+
+            # Prepare base capture data
+            capture_data = {
+                "capture_type": capture_type_enum,
+                "top_level_dir": str(top_level_dir),
+            }
+
+            # Create captures based on type
+            created_captures, capture_errors = self._create_captures_by_type(
+                request, channels, capture_data, scan_group, all_relative_paths
+            )
+
+            if capture_errors:
+                logger.error("Capture creation errors: %s", capture_errors)
         else:
             created_captures = []
             capture_errors = []
@@ -2231,6 +2194,23 @@ class UploadFilesView(View):
         # Check if all files were empty (skipped)
         # If no files were sent (all skipped on frontend), consider them all empty
         all_files_empty = all(f.size == 0 for f in files) if files else True
+
+        # Additional check: if no files were sent but we have all_relative_paths,
+        # this indicates all files were skipped on the frontend
+        if not files and all_relative_paths:
+            all_files_empty = True
+
+        # Debug logging for request data
+        logger.info(
+            "Upload request - files count: %s, all_relative_paths count: %s, "
+            "all_files_empty: %s, capture_type: %s, channels: %s, scan_group: %s",
+            len(files) if files else 0,
+            len(all_relative_paths) if all_relative_paths else 0,
+            all_files_empty,
+            capture_type,
+            channels,
+            scan_group,
+        )
 
         # Create captures if:
         # 1. All uploads succeeded, OR
@@ -2259,11 +2239,8 @@ class UploadFilesView(View):
             created_captures, capture_errors = self._handle_capture_creation(
                 request,
                 channels,
-                relative_paths,
                 capture_type,
                 scan_group,
-                saved_files,
-                all_files_empty,
                 has_required_fields,
                 all_relative_paths,
             )
@@ -2282,7 +2259,7 @@ class UploadFilesView(View):
             )
 
         # Determine status
-        status = self._determine_response_status(
+        file_upload_status = self.file_upload_status_mux(
             saved_files,
             created_captures,
             all_files_empty,
@@ -2291,8 +2268,20 @@ class UploadFilesView(View):
             errors,
         )
 
-        response_data = self._build_response_data(
-            status,
+        # Debug logging for skipped files case
+        if all_files_empty:
+            logger.info(
+                "Skipped files case - all_files_empty: %s, has_required_fields: %s, "
+                "file_upload_status: %s, errors: %s, capture_errors: %s",
+                all_files_empty,
+                has_required_fields,
+                file_upload_status,
+                errors,
+                capture_errors,
+            )
+
+        file_capture_response_data = self._build_file_capture_response_data(
+            file_upload_status,
             saved_files,
             created_captures,
             files,
@@ -2303,11 +2292,11 @@ class UploadFilesView(View):
         )
         # Return 200 if we have files saved, captures created, or if all files were
         # skipped with required fields
-        status_code = self._determine_status_code(
+        file_capture_status_code = self._determine_file_capture_status_code(
             saved_files, created_captures, all_files_empty, has_required_fields
         )
 
-        return JsonResponse(response_data, status=status_code)
+        return JsonResponse(file_capture_response_data, status=file_capture_status_code)
 
 
 user_upload_files_view = UploadFilesView.as_view()
