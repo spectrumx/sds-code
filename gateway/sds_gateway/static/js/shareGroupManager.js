@@ -41,12 +41,23 @@ function initializeCreateGroupForm() {
             })
             .then(data => {
                 if (data.success) {
-                    // Store success message for after page reload
-                    localStorage.setItem('shareGroupSuccessMessage', data.message);
-                    // Close modal and reload page
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('createGroupModal'));
-                    modal.hide();
-                    setTimeout(() => window.location.reload(), 1000);
+                    // Show success message
+                    showAlert(data.message, 'success');
+                    
+                    // Close the create modal
+                    const createModal = bootstrap.Modal.getInstance(document.getElementById('createGroupModal'));
+                    createModal.hide();
+                    
+                    // Clear the form
+                    document.getElementById('groupName').value = '';
+                    
+                    // Add the new group to the table dynamically
+                    addNewGroupToTable(data.group);
+                    
+                    // Automatically open the manage modal for the new group
+                    setTimeout(() => {
+                        openManageModalForGroup(data.group.uuid, data.group.name);
+                    }, 500);
                 } else {
                     showAlert(data.error, 'error');
                 }
@@ -953,13 +964,108 @@ function initializeShareGroupManager() {
     
     // Initialize user search handler once
     initializeShareGroupUserSearch();
-    
-    // Check for stored success message from page reload
-    const storedMessage = localStorage.getItem('shareGroupSuccessMessage');
-    if (storedMessage) {
-        showAlert(storedMessage, 'success');
-        localStorage.removeItem('shareGroupSuccessMessage');
+}
+
+// Add new group to the table dynamically
+function addNewGroupToTable(groupData) {
+    const tableBody = document.querySelector('.table-responsive .table tbody');
+    if (!tableBody) {
+        console.error('Table body not found');
+        return;
     }
+    
+    // Create the new row HTML
+    const newRow = document.createElement('tr');
+    newRow.setAttribute('data-group-uuid', groupData.uuid);
+    
+    const createdDate = new Date(groupData.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+    
+    newRow.innerHTML = `
+        <td>
+            <strong>${groupData.name}</strong>
+        </td>
+        <td>
+            <span class="badge bg-secondary member-count" data-group-uuid="${groupData.uuid}">0 members</span>
+            <div class="small text-muted mt-1 member-emails" data-group-uuid="${groupData.uuid}" style="display: none;"></div>
+        </td>
+        <td>${createdDate}</td>
+        <td>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        data-bs-popper="static"
+                        aria-expanded="false"
+                        aria-label="Actions for ${groupData.name}">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <button type="button" 
+                                class="dropdown-item"
+                                data-bs-toggle="modal" 
+                                data-bs-target="#share-modal-sharegroup"
+                                data-group-uuid="${groupData.uuid}"
+                                data-group-name="${groupData.name}">
+                            <i class="bi bi-person-plus me-1"></i>Manage
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" 
+                                class="dropdown-item"
+                                onclick="deleteGroup('${groupData.uuid}', '${groupData.name}')">
+                            <i class="bi bi-trash me-1"></i>Delete
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </td>
+    `;
+    
+    // Add the new row to the table
+    tableBody.appendChild(newRow);
+    
+    // Hide the "no groups" message if it exists
+    const noGroupsMessage = document.querySelector('.text-center.py-5');
+    if (noGroupsMessage) {
+        noGroupsMessage.style.display = 'none';
+    }
+}
+
+// Open manage modal for a specific group
+function openManageModalForGroup(groupUuid, groupName) {
+    // Set the current group info
+    currentGroupUuid = groupUuid;
+    currentGroupName = groupName;
+    
+    // Set the hidden input value
+    document.getElementById('addGroupUuid').value = groupUuid;
+    
+    // Update modal title
+    document.getElementById('manageMembersModalLabel').innerHTML = 
+        '<i class="bi bi-person-plus me-2"></i>Manage Members: ' + groupName;
+    
+    // Clear pending removals
+    pendingRemovals.clear();
+    
+    // Reset user search handler state
+    if (shareGroupUserSearchHandler) {
+        shareGroupUserSearchHandler.resetShareGroup();
+    }
+    
+    // Load current members
+    loadCurrentMembers();
+    
+    // Load and display shared assets information
+    loadSharedAssetsInfo();
+    
+    // Show the modal
+    const manageModal = new bootstrap.Modal(document.getElementById('share-modal-sharegroup'));
+    manageModal.show();
 }
 
 // Export functions for global access
