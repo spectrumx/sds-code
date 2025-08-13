@@ -322,7 +322,9 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             include_groups=True,
         )
 
-    def _get_exclusion_lists(self, user: User, item_uuid: str, item_type: str) -> tuple[list[int], list[str]]:
+    def _get_exclusion_lists(
+        self, user: User, item_uuid: str, item_type: str
+    ) -> tuple[list[int], list[str]]:
         """Get lists of user IDs and group UUIDs to exclude from search results."""
         # Get individual users already shared with this item
         shared_user_ids = list(
@@ -1594,113 +1596,14 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         shared_datasets = self._get_shared_datasets(request.user, order_by)
 
         datasets_with_shared_users = []
-        for dataset in owned_datasets:
-            dataset_data = DatasetGetSerializer(dataset).data
-            # Get shared users and groups using the new model
-            shared_permissions = UserSharePermission.objects.filter(
-                item_uuid=dataset.uuid,
-                item_type=ItemType.DATASET,
-                owner=request.user,
-                is_deleted=False,
-                is_enabled=True,
-            ).select_related("shared_with", "share_group").prefetch_related("share_group__members")
-            
-            shared_users = []
-            group_permissions = {}
-            
-            for perm in shared_permissions:
-                if perm.share_group:
-                    # Group member - collect by group
-                    group_uuid = str(perm.share_group.uuid)
-                    if group_uuid not in group_permissions:
-                        group_permissions[group_uuid] = {
-                            "name": perm.share_group.name,
-                            "email": f"group:{group_uuid}",
-                            "type": "group",
-                            "members": []
-                        }
-                    group_permissions[group_uuid]["members"].append({
-                        "name": perm.shared_with.name,
-                        "email": perm.shared_with.email
-                    })
-                else:
-                    # Individual user
-                    shared_users.append({
-                        "name": perm.shared_with.name, 
-                        "email": perm.shared_with.email,
-                        "type": "user"
-                    })
-            
-            # Add groups with member counts
-            for group_data in group_permissions.values():
-                group_data["member_count"] = len(group_data["members"])
-                shared_users.append(group_data)
-            dataset_data["shared_users"] = shared_users
-            dataset_data["is_owner"] = True
-            dataset_data["is_shared_with_me"] = False
-            dataset_data["owner_name"] = (
-                dataset.owner.name if dataset.owner.name else "Owner"
-            )
-            dataset_data["owner_email"] = (
-                dataset.owner.email if dataset.owner.email else ""
-            )
-            datasets_with_shared_users.append(dataset_data)
+        datasets_with_shared_users.extend(
+            self._prepare_owned_datasets(owned_datasets, request.user)
+        )
+        datasets_with_shared_users.extend(
+            self._prepare_shared_datasets(shared_datasets)
+        )
 
-        for dataset in shared_datasets:
-            dataset_data = DatasetGetSerializer(dataset).data
-            # Get shared users and groups using the new model
-            shared_permissions = UserSharePermission.objects.filter(
-                item_uuid=dataset.uuid,
-                item_type=ItemType.DATASET,
-                owner=dataset.owner,
-                is_deleted=False,
-                is_enabled=True,
-            ).select_related("shared_with", "share_group").prefetch_related("share_group__members")
-            
-            shared_users = []
-            group_permissions = {}
-            
-            for perm in shared_permissions:
-                if perm.share_group:
-                    # Group member - collect by group
-                    group_uuid = str(perm.share_group.uuid)
-                    if group_uuid not in group_permissions:
-                        group_permissions[group_uuid] = {
-                            "name": perm.share_group.name,
-                            "email": f"group:{group_uuid}",
-                            "type": "group",
-                            "members": []
-                        }
-                    group_permissions[group_uuid]["members"].append({
-                        "name": perm.shared_with.name,
-                        "email": perm.shared_with.email
-                    })
-                else:
-                    # Individual user
-                    shared_users.append({
-                        "name": perm.shared_with.name, 
-                        "email": perm.shared_with.email,
-                        "type": "user"
-                    })
-            
-            # Add groups with member counts
-            for group_data in group_permissions.values():
-                group_data["member_count"] = len(group_data["members"])
-                shared_users.append(group_data)
-            dataset_data["shared_users"] = shared_users
-            dataset_data["is_owner"] = False
-            dataset_data["is_shared_with_me"] = True
-            dataset_data["owner_name"] = (
-                dataset.owner.name if dataset.owner.name else "Owner"
-            )
-            dataset_data["owner_email"] = (
-                dataset.owner.email if dataset.owner.email else ""
-            )
-            datasets_with_shared_users.append(dataset_data)
-
-        paginator = Paginator(datasets_with_shared_users, per_page=15)
-        page_number = request.GET.get("page")
-        page_obj = paginator.get_page(page_number)
+        page_obj = self._paginate_datasets(datasets_with_shared_users, request)
 
         return render(
             request,
@@ -2347,6 +2250,7 @@ user_dataset_details_view = DatasetDetailsView.as_view()
 class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     """
     View to handle ShareGroup management functionality.
+
     This view allows users to:
     - View their owned ShareGroups
     - Create new ShareGroups
@@ -2354,51 +2258,54 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     - Delete ShareGroups
     """
     template_name = "users/share_group_list.html"
-    
+
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Display the ShareGroup management page."""
         # Check if this is an AJAX request for group members
-        group_uuid = request.GET.get('group_uuid')
-        search_query = request.GET.get('q')
+        group_uuid = request.GET.get("group_uuid")
+        search_query = request.GET.get("q")
 
-        
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             if not group_uuid:
-                return JsonResponse({'error': 'Group not found.'}, status=400)
+                return JsonResponse({"error": "Group not found."}, status=400)
 
             if search_query:
                 return self._search_users_for_group(request, group_uuid, search_query)
-            else:
-                return self._get_group_members(request, group_uuid)
-        
+            return self._get_group_members(request, group_uuid)
+
         return self._display_share_groups_page(request)
-    
-    def _search_users_for_group(self, request: HttpRequest, group_uuid: str, search_query: str) -> HttpResponse:
+
+    def _search_users_for_group(
+        self, request: HttpRequest, group_uuid: str, search_query: str
+    ) -> HttpResponse:
         """Search users for a specific group."""
         try:
-            group = request.user.owned_share_groups.get(uuid=group_uuid, is_deleted=False)
-            users_in_group = group.members.values_list('id', flat=True)
-            
+            group = request.user.owned_share_groups.get(
+                uuid=group_uuid, is_deleted=False
+            )
+            users_in_group = group.members.values_list("id", flat=True)
+
             return self.search_users(
-                request=request, 
+                request=request,
                 exclude_user_ids=users_in_group,
                 include_groups=False,
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
-    
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
     def _display_share_groups_page(self, request: HttpRequest) -> HttpResponse:
         """Display the main share groups page."""
-        share_groups = request.user.owned_share_groups.filter(
-            is_deleted=False
-        ).prefetch_related('members').order_by('-created_at')
-        
+        share_groups = (
+            request.user.owned_share_groups.filter(is_deleted=False)
+            .prefetch_related("members")
+            .order_by("-created_at")
+        )
+
         context = {
-            'share_groups': share_groups,
+            "share_groups": share_groups,
         }
-        
+
         return render(request, self.template_name, context)
-    
+
     def _get_group_members(self, request: HttpRequest, group_uuid: str) -> JsonResponse:
         """Get current members of a ShareGroup."""
         try:
@@ -2415,115 +2322,121 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 {"success": True, "members": member_list, "count": len(member_list)}
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
-    
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Handle ShareGroup operations (create, update, delete)."""
-        action = request.POST.get('action')
-        
+        action = request.POST.get("action")
+
         action_handlers = {
-            'create': self._create_share_group,
-            'add_members': self._add_members_to_group,
-            'remove_members': self._remove_members_from_group,
-            'delete_group': self._delete_share_group,
-            'get_shared_assets': self._get_shared_assets_for_group_request,
+            "create": self._create_share_group,
+            "add_members": self._add_members_to_group,
+            "remove_members": self._remove_members_from_group,
+            "delete_group": self._delete_share_group,
+            "get_shared_assets": self._get_shared_assets_for_group_request,
         }
-        
+
         handler = action_handlers.get(action)
         if handler:
             return handler(request)
-        else:
-            return JsonResponse({'error': 'Invalid action'}, status=400)
-    
+        return JsonResponse({"error": "Invalid action"}, status=400)
+
     def _create_share_group(self, request: HttpRequest) -> JsonResponse:
         """Create a new ShareGroup."""
-        name = request.POST.get('name', '').strip()
-        
+        name = request.POST.get("name", "").strip()
+
         if not name:
-            return JsonResponse({'error': 'Group name is required'}, status=400)
-        
+            return JsonResponse({"error": "Group name is required"}, status=400)
+
         # Check if group name already exists for this user
         if request.user.owned_share_groups.filter(name=name, is_deleted=False).exists():
-            return JsonResponse({'error': 'A group with this name already exists'}, status=400)
-        
-        try:
-            share_group = ShareGroup.objects.create(
-                name=name,
-                owner=request.user
+            return JsonResponse(
+                {"error": "A group with this name already exists"}, status=400
             )
-            
-            return JsonResponse({
-                'success': True,
-                'message': f'ShareGroup "{name}" created successfully',
-                'group': {
-                    'uuid': str(share_group.uuid),
-                    'name': share_group.name,
-                    'created_at': share_group.created_at.isoformat(),
-                    'member_count': 0
+
+        try:
+            share_group = ShareGroup.objects.create(name=name, owner=request.user)
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": f'ShareGroup "{name}" created successfully',
+                    "group": {
+                        "uuid": str(share_group.uuid),
+                        "name": share_group.name,
+                        "created_at": share_group.created_at.isoformat(),
+                        "member_count": 0,
+                    },
                 }
-            })
-        except Exception as e:
-            return JsonResponse({'error': f'Failed to create group: {str(e)}'}, status=500)
-    
+            )
+        except (ValueError, IntegrityError) as e:
+            return JsonResponse({"error": f"Failed to create group: {e!s}"}, status=500)
+
     def _add_members_to_group(self, request: HttpRequest) -> JsonResponse:
         """Add members to a ShareGroup."""
-        group_uuid = request.POST.get('group_uuid')
-        user_emails_str = request.POST.get('user_emails', '').strip()
-        
+        group_uuid = request.POST.get("group_uuid")
+        user_emails_str = request.POST.get("user_emails", "").strip()
+
         if not group_uuid or not user_emails_str:
-            return JsonResponse({'error': 'Group UUID and user emails are required'}, status=400)
-        
+            return JsonResponse(
+                {"error": "Group UUID and user emails are required"}, status=400
+            )
+
         try:
             share_group = request.user.owned_share_groups.get(
-                uuid=group_uuid,
-                is_deleted=False
+                uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({'error': 'ShareGroup not found'}, status=404)
-        
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+
         # Get shared assets that will be accessible to new group members
-        shared_assets = self._get_shared_assets_for_group(share_group)
-        
+        # (commented out as not currently used)
+
         # Parse and validate user emails
-        user_emails = [email.strip() for email in user_emails_str.split(',') if email.strip()]
+        user_emails = [
+            email.strip() for email in user_emails_str.split(",") if email.strip()
+        ]
         added_users, errors = self._process_user_addition(
             request=request,
             share_group=share_group,
             user_emails=user_emails,
             request_user=request.user,
         )
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Added {len(added_users)} members to group "{share_group.name}"',
-            'added_users': added_users,
-            'errors': errors,
-            'member_count': share_group.members.count()
-        })
-    
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": (
+                    f'Added {len(added_users)} members to group "{share_group.name}"'
+                ),
+                "added_users": added_users,
+                "errors": errors,
+                "member_count": share_group.members.count(),
+            }
+        )
+
     def _process_user_addition(
         self,
         request: HttpRequest,
         share_group: ShareGroup,
         user_emails: list[str],
-        request_user: User
+        request_user: User,
     ) -> tuple[list[str], list[str]]:
         """Process adding users to a group. Returns (added_users, errors)."""
         added_users = []
         errors = []
-        
+
         for email in user_emails:
             try:
                 user = User.objects.get(email=email, is_approved=True)
-                
+
                 if user == request_user:
-                    errors.append(f'You cannot add yourself to a group ({email})')
+                    errors.append(f"You cannot add yourself to a group ({email})")
                     continue
-                
+
                 if share_group.members.filter(id=user.id).exists():
-                    errors.append(f'User {email} is already a member of this group')
+                    errors.append(f"User {email} is already a member of this group")
                     continue
-                
+
                 share_group.members.add(user)
                 added_users.append(email)
                 
@@ -2533,7 +2446,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     f"You have been added to the group {share_group.name} "
                     f"by {request.user.name}"
                 )
-                
+
                 self._share_items_with_users_in_group_on_add(
                     request=request,
                     group=share_group,
@@ -2541,26 +2454,29 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     message=message,
                 )
             except User.DoesNotExist:
-                errors.append(f'User with email {email} not found or not approved')
-        
+                errors.append(f"User with email {email} not found or not approved")
+
         return added_users, errors
-    
+
     def _share_items_with_users_in_group_on_add(
-            self,
-            request: HttpRequest,
-            group: ShareGroup,
-            user: User,
-            message: str,
+        self,
+        request: HttpRequest,
+        group: ShareGroup,
+        user: User,
+        message: str,
     ) -> None:
         """Share items to new members of group on add"""
-        
+
         # find share permissions for group members
-        shared_items = UserSharePermission.objects.filter(
-            share_group=group,
-            is_deleted=False,
-            is_enabled=True,
-        ).values_list('item_uuid', 'item_type').distinct()
-        
+        shared_items = (
+            UserSharePermission.objects.filter(
+                share_groups=group,
+                is_deleted=False,
+                is_enabled=True,
+            )
+            .values_list("item_uuid", "item_type")
+            .distinct()
+        )
         # create share permissions for new member
         for item_uuid, item_type in shared_items:
             update_or_create_user_group_share_permissions(
@@ -2574,156 +2490,171 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     
     def _remove_members_from_group(self, request: HttpRequest) -> JsonResponse:
         """Remove members from a ShareGroup."""
-        group_uuid = request.POST.get('group_uuid')
-        user_emails_str = request.POST.get('user_emails', '').strip()
-        
+        group_uuid = request.POST.get("group_uuid")
+        user_emails_str = request.POST.get("user_emails", "").strip()
+
         if not group_uuid or not user_emails_str:
-            return JsonResponse({'error': 'Group UUID and user emails are required'}, status=400)
-        
+            return JsonResponse(
+                {"error": "Group UUID and user emails are required"}, status=400
+            )
+
         try:
             share_group = request.user.owned_share_groups.get(
-                uuid=group_uuid,
-                is_deleted=False
+                uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({'error': 'ShareGroup not found'}, status=404)
-        
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+
         # Parse user emails
-        user_emails = [email.strip() for email in user_emails_str.split(',') if email.strip()]
+        user_emails = [
+            email.strip() for email in user_emails_str.split(",") if email.strip()
+        ]
         removed_users, errors = self._process_user_removal(share_group, user_emails)
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Removed {len(removed_users)} members from group "{share_group.name}"',
-            'removed_users': removed_users,
-            'errors': errors,
-            'member_count': share_group.members.count()
-        })
-    
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": (
+                    f"Removed {len(removed_users)} members from group "
+                    f'"{share_group.name}"'
+                ),
+                "removed_users": removed_users,
+                "errors": errors,
+                "member_count": share_group.members.count(),
+            }
+        )
+
     def _process_user_removal(
-        self, 
-        share_group: ShareGroup, 
-        user_emails: list[str]
+        self, share_group: ShareGroup, user_emails: list[str]
     ) -> tuple[list[str], list[str]]:
         """Process removing users from a group. Returns (removed_users, errors)."""
         removed_users = []
         errors = []
-        
+
         for email in user_emails:
             try:
                 user = User.objects.get(email=email)
-                
+
                 if share_group.members.filter(id=user.id).exists():
                     share_group.members.remove(user)
-                    
+
                     # Update share permissions for this user
                     self._update_user_share_permissions_on_removal(user, share_group)
-                    
+
                     removed_users.append(email)
                 else:
-                    errors.append(f'User {email} is not a member of this group')
-                    
+                    errors.append(f"User {email} is not a member of this group")
+
             except User.DoesNotExist:
-                errors.append(f'User with email {email} not found')
-        
+                errors.append(f"User with email {email} not found")
+
         return removed_users, errors
-    
-    def _get_shared_assets_for_group(self, share_group: ShareGroup) -> list[dict[str, Any]]:
+
+    def _get_shared_assets_for_group(
+        self, share_group: ShareGroup
+    ) -> list[dict[str, Any]]:
         """Get list of shared assets that are accessible to group members."""
         # Find all share permissions where this group is associated
-        share_permissions = UserSharePermission.objects.filter(
-            share_group=share_group,
-            is_deleted=False,
-            is_enabled=True,
-        ).select_related('owner').distinct('item_uuid', 'item_type')
-        
+        share_permissions = (
+            UserSharePermission.objects.filter(
+                share_groups=share_group,
+                is_deleted=False,
+                is_enabled=True,
+            )
+            .select_related("owner")
+            .distinct("item_uuid", "item_type")
+        )
         shared_assets = []
         for permission in share_permissions:
             try:
                 # Get the actual item based on type
-                if permission.item_type == 'dataset':
+                if permission.item_type == "dataset":
                     item = Dataset.objects.get(uuid=permission.item_uuid)
-                elif permission.item_type == 'capture':
+                elif permission.item_type == "capture":
                     item = Capture.objects.get(uuid=permission.item_uuid)
                 else:
                     continue  # Skip unknown item types
-                
-                shared_assets.append({
-                    'uuid': str(item.uuid),
-                    'name': getattr(item, 'name', str(item)),
-                    'type': permission.item_type,
-                    'owner_name': permission.owner.name,
-                    'owner_email': permission.owner.email
-                })
+
+                shared_assets.append(
+                    {
+                        "uuid": str(item.uuid),
+                        "name": getattr(item, "name", str(item)),
+                        "type": permission.item_type,
+                        "owner_name": permission.owner.name,
+                        "owner_email": permission.owner.email,
+                    }
+                )
             except (Dataset.DoesNotExist, Capture.DoesNotExist):
                 # Skip if item no longer exists
                 continue
-        
+
+        # Sort assets: datasets first (alphabetically), then captures (alphabetically)
+        shared_assets.sort(
+            key=lambda asset: (asset["type"] != "dataset", asset["name"].lower())
+        )
+
         return shared_assets
-    
-    def _update_user_share_permissions_on_removal(self, user: User, share_group: ShareGroup) -> None:
+
+    def _update_user_share_permissions_on_removal(
+        self, user: User, share_group: ShareGroup
+    ) -> None:
         """Update share permissions when a user is removed from a group."""
         # Find all share permissions where this user was shared via this group
         share_permissions = UserSharePermission.objects.filter(
             shared_with=user,
-            share_group=share_group,
+            share_groups=share_group,
             is_deleted=False,
             is_enabled=True,
         )
-        
-        # For each permission, remove the group association
-        # Since there should only be ONE permission per user per item per owner,
-        # we simply remove the group association and disable the permission
+
+        # For each permission, remove the group association and update enabled status
         for permission in share_permissions:
-            permission.share_group = None
-            permission.is_enabled = False
-            permission.save()
-    
-    def _get_shared_assets_for_group_request(self, request: HttpRequest) -> JsonResponse:
+            permission.share_groups.remove(share_group)
+            permission.update_enabled_status()
+
+    def _get_shared_assets_for_group_request(
+        self, request: HttpRequest
+    ) -> JsonResponse:
         """Get shared assets for a group (for display in modal)."""
-        group_uuid = request.POST.get('group_uuid')
-        
+        group_uuid = request.POST.get("group_uuid")
+
         if not group_uuid:
-            return JsonResponse({'error': 'Group UUID is required'}, status=400)
-        
+            return JsonResponse({"error": "Group UUID is required"}, status=400)
+
         try:
             share_group = request.user.owned_share_groups.get(
-                uuid=group_uuid,
-                is_deleted=False
+                uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({'error': 'ShareGroup not found'}, status=404)
-        
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+
         shared_assets = self._get_shared_assets_for_group(share_group)
-        
-        return JsonResponse({
-            'success': True,
-            'shared_assets': shared_assets
-        })
-    
+
+        return JsonResponse({"success": True, "shared_assets": shared_assets})
     def _delete_share_group(self, request: HttpRequest) -> JsonResponse:
         """Delete a ShareGroup (soft delete)."""
-        group_uuid = request.POST.get('group_uuid')
-        
+        group_uuid = request.POST.get("group_uuid")
+
         if not group_uuid:
-            return JsonResponse({'error': 'Group UUID is required'}, status=400)
-        
+            return JsonResponse({"error": "Group UUID is required"}, status=400)
+
         try:
             share_group = request.user.owned_share_groups.get(
-                uuid=group_uuid,
-                is_deleted=False
+                uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({'error': 'ShareGroup not found'}, status=404)
-        
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+
         try:
             share_group.soft_delete()
-            return JsonResponse({
-                'success': True,
-                'message': f'ShareGroup "{share_group.name}" deleted successfully'
-            })
-        except Exception as e:
-            return JsonResponse({'error': f'Failed to delete group: {str(e)}'}, status=500)
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": f'ShareGroup "{share_group.name}" deleted successfully',
+                }
+            )
+        except (ValueError, IntegrityError) as e:
+            return JsonResponse({"error": f"Failed to delete group: {e!s}"}, status=500)
 
 
 user_share_group_list_view = ShareGroupListView.as_view()
