@@ -1,14 +1,15 @@
 from typing import Any
 
+from django.contrib.auth.models import User
+
 from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
-from django.http import HttpRequest
-from django.contrib.auth.models import User
+
 
 def deduplicate_composite_captures(captures: list[Capture]) -> list[Capture]:
     """
@@ -90,13 +91,14 @@ def serialize_composite_capture_for_display(capture: Capture) -> dict[str, Any]:
         "is_multi_channel": False,
     }
 
+
 def update_or_create_user_group_share_permissions(
-        request_user: User,
-        group: ShareGroup,
-        share_user: User,
-        item_uuid: str,
-        item_type: ItemType,
-        message: str,
+    request_user: User,
+    group: ShareGroup,
+    share_user: User,
+    item_uuid: str,
+    item_type: ItemType,
+    message: str,
 ) -> None:
     """
     Update or add share permissions for a user in a group.
@@ -119,7 +121,7 @@ def update_or_create_user_group_share_permissions(
         item_type=item_type,
         is_deleted=False,
     ).first()
-                
+
     if not existing_individual:
         permission = UserSharePermission.objects.create(
             owner=request_user,
