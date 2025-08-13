@@ -6,7 +6,7 @@ import secrets
 import string
 from django.contrib.auth.hashers import make_password
 
-def create_svi_api_key_fixed(apps, schema_editor):
+def create_svi_api_key(apps, schema_editor):
     User = apps.get_model('users', 'User')
     Token = apps.get_model('authtoken', 'Token')
     
@@ -32,5 +32,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(create_svi_api_key_fixed),
+        migrations.RunPython(create_svi_api_key),
     ]
