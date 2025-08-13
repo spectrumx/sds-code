@@ -716,7 +716,7 @@ class UserSharePermission(BaseModel):
     class PermissionType(models.TextChoices):
         """Enumeration of permission types."""
 
-        VIEW = "view", "View"
+        VIEW = "viewer", "Viewer"
 
     # The user who owns the item being shared
     owner = models.ForeignKey(
