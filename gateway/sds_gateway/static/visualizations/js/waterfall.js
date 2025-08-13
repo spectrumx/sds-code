@@ -16,6 +16,8 @@ class WaterfallVisualization {
 		this.canvas = null;
 		this.ctx = null;
 		this.periodogramChart = null;
+		this.scaleMin = null;
+		this.scaleMax = null;
 
 		// Bind methods to preserve context
 		this.handlePlayPause = this.handlePlayPause.bind(this);
@@ -31,11 +33,6 @@ class WaterfallVisualization {
 	 */
 	async initialize() {
 		try {
-			console.log(
-				"Initializing waterfall visualization for capture:",
-				this.captureUuid,
-			);
-
 			this.setupEventListeners();
 			this.initializeCanvas();
 			this.initializePeriodogramChart();
@@ -45,8 +42,6 @@ class WaterfallVisualization {
 
 			// Render initial visualization
 			this.render();
-
-			console.log("Waterfall visualization initialized successfully");
 		} catch (error) {
 			console.error("Failed to initialize waterfall visualization:", error);
 			this.showError("Failed to initialize visualization");
@@ -91,6 +86,20 @@ class WaterfallVisualization {
 		const colorSelect = document.getElementById("colorMap");
 		if (colorSelect) {
 			colorSelect.addEventListener("change", this.handleColorMapChange);
+		}
+
+		// Canvas click for slice selection
+		const canvas = document.getElementById("waterfallCanvas");
+		if (canvas) {
+			canvas.addEventListener("click", this.handleCanvasClick.bind(this));
+			canvas.addEventListener(
+				"mousemove",
+				this.handleCanvasMouseMove.bind(this),
+			);
+			canvas.addEventListener(
+				"mouseleave",
+				this.handleCanvasMouseLeave.bind(this),
+			);
 		}
 	}
 
@@ -209,6 +218,9 @@ class WaterfallVisualization {
 			this.waterfallData = waterfallJson;
 			this.totalSlices = waterfallJson.length;
 
+			// Calculate color scale bounds from all data
+			this.calculateColorScaleBounds();
+
 			// Update UI elements
 			this.updateSliceSlider();
 			this.updateSliceCounter();
@@ -261,6 +273,50 @@ class WaterfallVisualization {
 	}
 
 	/**
+	 * Calculate color scale bounds from all waterfall data
+	 */
+	calculateColorScaleBounds() {
+		if (this.waterfallData.length === 0) {
+			// Fallback to default bounds if no data
+			this.scaleMin = -130;
+			this.scaleMax = 0;
+			return;
+		}
+
+		let globalMin = Number.POSITIVE_INFINITY;
+		let globalMax = Number.NEGATIVE_INFINITY;
+
+		// Iterate through all slices to find global min/max
+		for (const slice of this.waterfallData) {
+			if (slice.data) {
+				const sliceData = this.parseWaterfallData(slice.data);
+				if (sliceData && sliceData.length > 0) {
+					const sliceMin = Math.min(...sliceData);
+					const sliceMax = Math.max(...sliceData);
+
+					globalMin = Math.min(globalMin, sliceMin);
+					globalMax = Math.max(globalMax, sliceMax);
+				}
+			}
+		}
+
+		// If we found valid data, use it; otherwise fall back to defaults
+		if (
+			globalMin !== Number.POSITIVE_INFINITY &&
+			globalMax !== Number.NEGATIVE_INFINITY
+		) {
+			// Add a small margin (5%) to the bounds for better visualization
+			const margin = (globalMax - globalMin) * 0.05;
+			this.scaleMin = globalMin - margin;
+			this.scaleMax = globalMax + margin;
+		} else {
+			// Fallback to default bounds
+			this.scaleMin = -130;
+			this.scaleMax = 0;
+		}
+	}
+
+	/**
 	 * Render the waterfall visualization
 	 */
 	render() {
@@ -284,35 +340,46 @@ class WaterfallVisualization {
 		// Clear canvas
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-		// Get current slice data
-		const currentSlice = this.waterfallData[this.currentSliceIndex];
-		if (!currentSlice) return;
-
-		// Parse the base64 data
-		const dataArray = this.parseWaterfallData(currentSlice.data);
-		if (!dataArray) return;
-
 		// Calculate dimensions
-		const fftPoints = dataArray.length;
-		const sliceHeight = canvas.height / Math.min(this.totalSlices, 100); // Show max 100 slices
+		const maxVisibleSlices = Math.min(this.totalSlices, 100);
+		const sliceHeight = canvas.height / maxVisibleSlices;
 
-		// Draw waterfall
-		for (let i = 0; i < Math.min(this.totalSlices, 100); i++) {
-			const sliceIndex = Math.max(0, this.currentSliceIndex - 99 + i);
+		// Calculate which slices to display
+		// We want to show slices from bottom (oldest) to top (newest)
+		// The current slice should be visible, and we show up to 100 slices
+		const startSliceIndex = Math.max(
+			0,
+			this.currentSliceIndex - maxVisibleSlices + 1,
+		);
+		const endSliceIndex = this.currentSliceIndex + 1;
+
+		// Draw waterfall slices from bottom to top
+		for (let i = 0; i < maxVisibleSlices; i++) {
+			const sliceIndex = startSliceIndex + i;
+			if (sliceIndex >= this.totalSlices) break;
+
 			const slice = this.waterfallData[sliceIndex];
-
 			if (slice) {
 				const sliceData = this.parseWaterfallData(slice.data);
 				if (sliceData) {
-					this.drawWaterfallSlice(
-						sliceData,
-						i * sliceHeight,
-						sliceHeight,
-						canvas.width,
-					);
+					// Calculate Y position: bottom slice is at bottom of canvas
+					const y = canvas.height - (i + 1) * sliceHeight;
+
+					this.drawWaterfallSlice(sliceData, y, sliceHeight, canvas.width);
 				}
 			}
 		}
+
+		// Draw highlight box around current slice
+		this.drawCurrentSliceHighlight(
+			canvas,
+			sliceHeight,
+			startSliceIndex,
+			endSliceIndex,
+		);
+
+		// Draw color legend
+		this.drawColorLegend(canvas);
 
 		// Draw axes and labels
 		this.drawWaterfallAxes();
@@ -347,14 +414,18 @@ class WaterfallVisualization {
 		const fftPoints = data.length;
 		const pointWidth = width / fftPoints;
 
-		// Find min/max for normalization
-		const minPower = Math.min(...data);
-		const maxPower = Math.max(...data);
-		const powerRange = maxPower - minPower;
+		// Use calculated bounds for optimal visualization
+		const scaleMin = this.scaleMin || -130;
+		const scaleMax = this.scaleMax || 0;
+		const powerRange = scaleMax - scaleMin;
 
 		for (let i = 0; i < fftPoints; i++) {
 			const power = data[i];
-			const normalizedPower = (power - minPower) / powerRange;
+
+			// Clamp power to the scale range and normalize
+			const clampedPower = Math.max(scaleMin, Math.min(scaleMax, power));
+			const normalizedPower = (clampedPower - scaleMin) / powerRange;
+
 			const color = this.getColorForPower(normalizedPower);
 
 			ctx.fillStyle = color;
@@ -366,20 +437,199 @@ class WaterfallVisualization {
 	 * Get color for power value using selected color map
 	 */
 	getColorForPower(normalizedPower) {
-		// Simple color mapping - can be enhanced with proper color maps
+		// Enhanced color mapping similar to SVI implementation
 		const intensity = Math.floor(normalizedPower * 255);
 
 		switch (this.colorMap) {
-			case "viridis":
-				return `rgb(${intensity}, ${intensity}, ${255 - intensity})`;
-			case "plasma":
-				return `rgb(${255 - intensity}, ${intensity}, ${intensity})`;
-			case "hot":
-				return `rgb(${255}, ${intensity}, 0)`;
+			case "viridis": {
+				// Blue to green to yellow to red
+				if (normalizedPower < 0.25) {
+					return `rgb(0, ${Math.floor(intensity * 4)}, ${255 - intensity})`;
+				}
+				if (normalizedPower < 0.5) {
+					const t = (normalizedPower - 0.25) * 4;
+					return `rgb(0, 255, ${Math.floor(255 * (1 - t))})`;
+				}
+				if (normalizedPower < 0.75) {
+					const t = (normalizedPower - 0.5) * 4;
+					return `rgb(${Math.floor(255 * t)}, 255, 0)`;
+				}
+				const t = (normalizedPower - 0.75) * 4;
+				return `rgb(255, ${Math.floor(255 * (1 - t))}, 0)`;
+			}
+			case "plasma": {
+				// Purple to blue to green to yellow to red
+				if (normalizedPower < 0.25) {
+					return `rgb(${Math.floor(intensity * 4)}, 0, ${255 - intensity})`;
+				}
+				if (normalizedPower < 0.5) {
+					const t = (normalizedPower - 0.25) * 4;
+					return `rgb(255, 0, ${Math.floor(255 * (1 - t))})`;
+				}
+				if (normalizedPower < 0.75) {
+					const t = (normalizedPower - 0.5) * 4;
+					return `rgb(255, ${Math.floor(255 * t)}, 0)`;
+				}
+				const t = (normalizedPower - 0.75) * 4;
+				return `rgb(255, 255, ${Math.floor(255 * t)})`;
+			}
+			case "hot": {
+				// Black to red to yellow to white
+				if (normalizedPower < 0.33) {
+					const t = normalizedPower * 3;
+					return `rgb(${Math.floor(255 * t)}, 0, 0)`;
+				}
+				if (normalizedPower < 0.67) {
+					const t = (normalizedPower - 0.33) * 3;
+					return `rgb(255, ${Math.floor(255 * t)}, 0)`;
+				}
+				const t = (normalizedPower - 0.67) * 3;
+				return `rgb(255, 255, ${Math.floor(255 * t)})`;
+			}
 			case "gray":
 				return `rgb(${intensity}, ${intensity}, ${intensity})`;
-			default:
-				return `rgb(${intensity}, ${intensity}, ${255 - intensity})`;
+			case "inferno": {
+				// Black to purple to red to yellow
+				if (normalizedPower < 0.33) {
+					const t = normalizedPower * 3;
+					return `rgb(${Math.floor(128 * t)}, 0, ${Math.floor(255 * t)})`;
+				}
+				if (normalizedPower < 0.67) {
+					const t = (normalizedPower - 0.33) * 3;
+					return `rgb(${Math.floor(128 + 127 * t)}, 0, ${Math.floor(
+						255 - 255 * t,
+					)})`;
+				}
+				const t = (normalizedPower - 0.67) * 3;
+				return `rgb(255, ${Math.floor(255 * t)}, 0)`;
+			}
+			case "magma": {
+				// Black to purple to pink to white
+				if (normalizedPower < 0.33) {
+					const t = normalizedPower * 3;
+					return `rgb(${Math.floor(128 * t)}, 0, ${Math.floor(255 * t)})`;
+				}
+				if (normalizedPower < 0.67) {
+					const t = (normalizedPower - 0.33) * 3;
+					return `rgb(${Math.floor(128 + 127 * t)}, 0, ${Math.floor(
+						255 - 127 * t,
+					)})`;
+				}
+				const t = (normalizedPower - 0.67) * 3;
+				return `rgb(255, ${Math.floor(255 * t)}, ${Math.floor(128 + 127 * t)})`;
+			}
+			default: {
+				// Default to viridis-like blue to green to yellow to red
+				if (normalizedPower < 0.25) {
+					return `rgb(0, ${Math.floor(intensity * 4)}, ${255 - intensity})`;
+				}
+				if (normalizedPower < 0.5) {
+					const t = (normalizedPower - 0.25) * 4;
+					return `rgb(0, 255, ${Math.floor(255 * (1 - t))})`;
+				}
+				if (normalizedPower < 0.75) {
+					const t = (normalizedPower - 0.5) * 4;
+					return `rgb(${Math.floor(255 * t)}, 255, 0)`;
+				}
+				const t = (normalizedPower - 0.75) * 4;
+				return `rgb(255, ${Math.floor(255 * (1 - t))}, 0)`;
+			}
+		}
+	}
+
+	/**
+	 * Draw highlight box around the current slice
+	 */
+	drawCurrentSliceHighlight(
+		canvas,
+		sliceHeight,
+		startSliceIndex,
+		endSliceIndex,
+	) {
+		if (!this.ctx) return;
+
+		const ctx = this.ctx;
+
+		// Find the position of the current slice in the visible range
+		const currentSliceInRange = this.currentSliceIndex - startSliceIndex;
+		if (
+			currentSliceInRange < 0 ||
+			currentSliceInRange >= endSliceIndex - startSliceIndex
+		)
+			return;
+
+		// Calculate Y position: bottom slice is at bottom of canvas
+		const y = canvas.height - (currentSliceInRange + 1) * sliceHeight;
+
+		// Draw highlight box
+		ctx.strokeStyle = "#ff0000";
+		ctx.lineWidth = 2;
+		ctx.strokeRect(0, y, canvas.width, sliceHeight);
+
+		// Reset stroke style for other drawing operations
+		ctx.strokeStyle = "#6c757d";
+		ctx.lineWidth = 1;
+	}
+
+	/**
+	 * Draw color legend showing dB scale
+	 */
+	drawColorLegend(canvas) {
+		if (!this.ctx) return;
+
+		const ctx = this.ctx;
+		const legendWidth = 60;
+		const legendHeight = canvas.height;
+		const legendX = canvas.width - legendWidth - 10;
+		const legendY = 0;
+
+		// Create white background for legend
+		ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+		ctx.fillRect(legendX, legendY, legendWidth, legendHeight);
+
+		// Draw color gradient
+		const gradientHeight = legendHeight - 40; // Leave space for labels
+		const gradientY = legendY + 20;
+
+		// Create gradient
+		const gradient = ctx.createLinearGradient(
+			legendX,
+			gradientY,
+			legendX,
+			gradientY + gradientHeight,
+		);
+
+		// Add color stops for the selected color map
+		const scaleMin = this.scaleMin || -130; // dBm
+		const scaleMax = this.scaleMax || 0; // dBm
+
+		// Add color stops at regular intervals
+		const numStops = 20;
+		for (let i = 0; i <= numStops; i++) {
+			const fraction = i / numStops;
+			const dbVal = scaleMax - fraction * (scaleMax - scaleMin);
+			const normalizedPower = (dbVal - scaleMin) / (scaleMax - scaleMin);
+			const color = this.getColorForPower(normalizedPower);
+
+			gradient.addColorStop(fraction, color);
+		}
+
+		// Draw the gradient
+		ctx.fillStyle = gradient;
+		ctx.fillRect(legendX + 5, gradientY, 20, gradientHeight);
+
+		// Draw dB labels
+		ctx.font = "10px Arial";
+		ctx.textAlign = "left";
+		ctx.fillStyle = "#000";
+
+		// Draw labels at regular dB intervals
+		const dbStep = 20; // Draw label every 20 dB
+		for (let dbVal = scaleMax; dbVal >= scaleMin; dbVal -= dbStep) {
+			const fraction = (scaleMax - dbVal) / (scaleMax - scaleMin);
+			const y = gradientY + fraction * gradientHeight;
+
+			ctx.fillText(`${dbVal}`, legendX + 30, y + 3);
 		}
 	}
 
@@ -499,7 +749,14 @@ class WaterfallVisualization {
 
 		const interval = 1000 / this.playbackSpeed; // Convert fps to milliseconds
 		this.playbackInterval = setInterval(() => {
-			this.currentSliceIndex = (this.currentSliceIndex + 1) % this.totalSlices;
+			// Move to next slice, but don't loop around
+			if (this.currentSliceIndex < this.totalSlices - 1) {
+				this.currentSliceIndex++;
+			} else {
+				// Stop playback when we reach the end
+				this.stopPlayback();
+				return;
+			}
 
 			// Update UI
 			const slider = document.getElementById("currentSlice");
@@ -601,6 +858,85 @@ class WaterfallVisualization {
 		const content = document.querySelector(".container-fluid");
 		if (content) {
 			content.insertBefore(alertDiv, content.firstChild);
+		}
+	}
+
+	/**
+	 * Handle canvas click for slice selection
+	 */
+	handleCanvasClick(event) {
+		if (!this.canvas) return;
+
+		const rect = this.canvas.getBoundingClientRect();
+		const y = event.clientY - rect.top;
+
+		// Calculate which slice was clicked
+		const maxVisibleSlices = Math.min(this.totalSlices, 100);
+		const sliceHeight = this.canvas.height / maxVisibleSlices;
+
+		// Calculate which slices are currently visible
+		const startSliceIndex = Math.max(
+			0,
+			this.currentSliceIndex - maxVisibleSlices + 1,
+		);
+
+		// Calculate clicked slice index (from bottom to top)
+		const clickedRow = Math.floor((this.canvas.height - y) / sliceHeight);
+		const clickedSliceIndex = startSliceIndex + clickedRow;
+
+		// Validate the index is within bounds
+		if (clickedSliceIndex >= 0 && clickedSliceIndex < this.totalSlices) {
+			this.currentSliceIndex = clickedSliceIndex;
+
+			// Update UI
+			const slider = document.getElementById("currentSlice");
+			if (slider) {
+				slider.value = this.currentSliceIndex;
+			}
+			this.updateSliceCounter();
+
+			// Re-render
+			this.render();
+		}
+	}
+
+	/**
+	 * Handle canvas mouse move for hover effects
+	 */
+	handleCanvasMouseMove(event) {
+		if (!this.canvas) return;
+
+		const rect = this.canvas.getBoundingClientRect();
+		const y = event.clientY - rect.top;
+
+		// Calculate which slice is being hovered
+		const maxVisibleSlices = Math.min(this.totalSlices, 100);
+		const sliceHeight = this.canvas.height / maxVisibleSlices;
+
+		// Calculate which slices are currently visible
+		const startSliceIndex = Math.max(
+			0,
+			this.currentSliceIndex - maxVisibleSlices + 1,
+		);
+
+		// Calculate hovered slice index (from bottom to top)
+		const hoveredRow = Math.floor((this.canvas.height - y) / sliceHeight);
+		const hoveredSliceIndex = startSliceIndex + hoveredRow;
+
+		// Update cursor style based on whether we're hovering over a valid slice
+		if (hoveredSliceIndex >= 0 && hoveredSliceIndex < this.totalSlices) {
+			this.canvas.style.cursor = "pointer";
+		} else {
+			this.canvas.style.cursor = "crosshair";
+		}
+	}
+
+	/**
+	 * Handle canvas mouse leave
+	 */
+	handleCanvasMouseLeave() {
+		if (this.canvas) {
+			this.canvas.style.cursor = "crosshair";
 		}
 	}
 
