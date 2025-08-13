@@ -57,11 +57,11 @@ class UserSearchHandler {
 		let dropdown = document.getElementById(
 			`user-search-dropdown-${input.id.replace("user-search-", "")}`,
 		);
-		
+
 		if (dropdown) {
 			return dropdown;
 		}
-		
+
 		// Try alternative patterns
 		const alternativeIds = [
 			`user-search-dropdown-${this.itemUuid}`,
@@ -69,14 +69,14 @@ class UserSearchHandler {
 			`${input.id.replace("user-search-", "user-search-dropdown-")}`,
 			`${input.id}-dropdown`,
 		];
-		
+
 		for (const id of alternativeIds) {
 			dropdown = document.getElementById(id);
 			if (dropdown) {
 				return dropdown;
 			}
 		}
-		
+
 		// If still not found, look for any dropdown in the same container
 		const container = input.closest(".user-search-input-container");
 		if (container) {
@@ -85,7 +85,7 @@ class UserSearchHandler {
 				return dropdown;
 			}
 		}
-		
+
 		console.error(`Could not find dropdown for input: ${input.id}`);
 		return null;
 	}
@@ -99,7 +99,7 @@ class UserSearchHandler {
 				return input;
 			}
 		}
-		
+
 		// Try to find input by ID patterns
 		const alternativeInputIds = [
 			`user-search-${this.itemUuid}`,
@@ -107,14 +107,14 @@ class UserSearchHandler {
 			`user-search-${dropdown.id.replace("user-search-dropdown-", "")}`,
 			`user-search-${dropdown.id.replace("user-search-dropdown", "")}`,
 		];
-		
+
 		for (const id of alternativeInputIds) {
 			const input = document.getElementById(id);
 			if (input) {
 				return input;
 			}
 		}
-		
+
 		console.error(`Could not find input for dropdown: ${dropdown.id}`);
 		return null;
 	}
@@ -152,7 +152,7 @@ class UserSearchHandler {
 				if (modal) break;
 			}
 		}
-		
+
 		if (!modal) {
 			console.error(`Modal not found for ${this.itemType}: ${this.itemUuid}`);
 			return;
@@ -530,8 +530,10 @@ class UserSearchHandler {
 		}
 
 		// Check if this user is already part of a selected group
-		if (userType === 'user') {
-			const selectedGroups = this.selectedUsersMap[inputId].filter(u => u.type === 'group');
+		if (userType === "user") {
+			const selectedGroups = this.selectedUsersMap[inputId].filter(
+				(u) => u.type === "group",
+			);
 			for (const group of selectedGroups) {
 				// Check if this user is in the group by making an API call
 				this.checkUserInGroup(userEmail, group, input, userName);
@@ -540,10 +542,10 @@ class UserSearchHandler {
 		}
 
 		if (!this.selectedUsersMap[inputId].some((u) => u.email === userEmail)) {
-			this.selectedUsersMap[inputId].push({ 
-				name: userName, 
+			this.selectedUsersMap[inputId].push({
+				name: userName,
 				email: userEmail,
-				type: userType
+				type: userType,
 			});
 			this.renderChips(input);
 		}
@@ -556,23 +558,31 @@ class UserSearchHandler {
 	async checkUserInGroup(userEmail, group, input, userName) {
 		try {
 			// Extract group UUID from group.email (format: "group:uuid")
-			const groupUuid = group.email.replace('group:', '');
-			
+			const groupUuid = group.email.replace("group:", "");
+
 			// Make API call to check if user is in the group
-			const response = await fetch(`/users/share-groups/?group_uuid=${groupUuid}`, {
-				headers: {
-					'X-Requested-With': 'XMLHttpRequest'
-				}
-			});
-			
+			const response = await fetch(
+				`/users/share-groups/?group_uuid=${groupUuid}`,
+				{
+					headers: {
+						"X-Requested-With": "XMLHttpRequest",
+					},
+				},
+			);
+
 			if (response.ok) {
 				const data = await response.json();
 				if (data.success && data.members) {
-					const isUserInGroup = data.members.some(member => member.email === userEmail);
-					
+					const isUserInGroup = data.members.some(
+						(member) => member.email === userEmail,
+					);
+
 					if (isUserInGroup) {
 						// User is already in the group, show notification and don't add
-						showToast(`${userName} is already part of the group "${group.name}"`, 'warning');
+						showToast(
+							`${userName} is already part of the group "${group.name}"`,
+							"warning",
+						);
 						input.value = "";
 						this.hideDropdown(input.closest(".user-search-dropdown"));
 						input.focus();
@@ -580,33 +590,32 @@ class UserSearchHandler {
 					}
 				}
 			}
-			
+
 			// If we get here, user is not in the group, so add them normally
 			if (!this.selectedUsersMap[input.id].some((u) => u.email === userEmail)) {
-				this.selectedUsersMap[input.id].push({ 
-					name: userName, 
+				this.selectedUsersMap[input.id].push({
+					name: userName,
 					email: userEmail,
-					type: 'user'
+					type: "user",
 				});
 				this.renderChips(input);
 			}
-			
+
 			input.value = "";
 			this.hideDropdown(input.closest(".user-search-dropdown"));
 			input.focus();
-			
 		} catch (error) {
-			console.error('Error checking if user is in group:', error);
+			console.error("Error checking if user is in group:", error);
 			// If there's an error, just add the user normally
 			if (!this.selectedUsersMap[input.id].some((u) => u.email === userEmail)) {
-				this.selectedUsersMap[input.id].push({ 
-					name: userName, 
+				this.selectedUsersMap[input.id].push({
+					name: userName,
 					email: userEmail,
-					type: 'user'
+					type: "user",
 				});
 				this.renderChips(input);
 			}
-			
+
 			input.value = "";
 			this.hideDropdown(input.closest(".user-search-dropdown"));
 			input.focus();
@@ -618,38 +627,38 @@ class UserSearchHandler {
 		const chipContainer = input
 			.closest(".user-search-input-container")
 			.querySelector(".selected-users-chips");
-		
+
 		if (!chipContainer) {
 			console.warn("Chip container not found for input:", inputId);
 			return;
 		}
-		
+
 		chipContainer.innerHTML = "";
 		for (const user of this.selectedUsersMap[inputId]) {
 			const chip = document.createElement("span");
 			chip.className = "user-chip";
-			
+
 			// Check if this is a group
-			const isGroup = user.email && user.email.startsWith('group:');
+			const isGroup = user.email?.startsWith("group:");
 			const displayText = isGroup ? user.name : user.email;
-			
+
 			// Create chip content with icon
-			const icon = isGroup ? 'bi-people-fill' : 'bi-person-fill';
+			const icon = isGroup ? "bi-people-fill" : "bi-person-fill";
 			chip.innerHTML = `
 				<i class="bi ${icon} me-1"></i>
 				${displayText}
 				<span class="remove-chip">&times;</span>
 			`;
-			
+
 			// Add click handler for removal
-			const removeBtn = chip.querySelector('.remove-chip');
+			const removeBtn = chip.querySelector(".remove-chip");
 			removeBtn.onclick = () => {
 				this.selectedUsersMap[inputId] = this.selectedUsersMap[inputId].filter(
 					(u) => u.email !== user.email,
 				);
 				this.renderChips(input);
 			};
-			
+
 			chipContainer.appendChild(chip);
 		}
 
@@ -704,7 +713,7 @@ class UserSearchHandler {
 			}
 
 			// Setup notify checkbox functionality with a small delay to ensure DOM is updated
-			if (typeof setupNotifyCheckbox === 'function') {
+			if (typeof setupNotifyCheckbox === "function") {
 				setTimeout(() => {
 					setupNotifyCheckbox(itemUuid);
 				}, 10);
@@ -730,7 +739,7 @@ class UserSearchHandler {
 		}
 
 		// Update save button state (only if function exists)
-		if (typeof this.updateSaveButtonState === 'function') {
+		if (typeof this.updateSaveButtonState === "function") {
 			this.updateSaveButtonState(itemUuid);
 		}
 	}
