@@ -1823,12 +1823,17 @@ user_dataset_details_view = DatasetDetailsView.as_view()
 
 @method_decorator(csrf_exempt, name="dispatch")
 class UploadFilesView(View):
-    def _handle_file_uploads(self, request, files, relative_paths):
+    def _process_file_uploads(
+        self,
+        request: HttpRequest,
+        upload_chunk_files: list[Any],
+        relative_paths: list[str],
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         saved_files = []
-        errors = []
+        file_errors = []
         skipped_files = []
 
-        for f, rel_path in zip(files, relative_paths, strict=True):
+        for f, rel_path in zip(upload_chunk_files, relative_paths, strict=True):
             path = Path(rel_path)
             directory = "/" + str(path.parent) if path.parent != Path() else "/"
             filename = path.name
@@ -1858,34 +1863,21 @@ class UploadFilesView(View):
                     status.HTTP_200_OK,
                     status.HTTP_201_CREATED,
                 ):
-                    resp_data = response.data
-                    saved_files.append(
-                        {
-                            "name": filename,
-                            "directory": directory,
-                            "size": file_size,
-                            "uuid": (
-                                resp_data.get("uuid")
-                                if isinstance(resp_data, dict)
-                                else None
-                            ),
-                            "status": response.status_code,
-                        }
-                    )
+                    saved_files.append({"uploaded": True})
                 else:
                     error_msg = f"Failed to upload {filename}: {response.data}"
-                    errors.append(error_msg)
+                    file_errors.append(error_msg)
                     logger.error(error_msg)
-            errors.extend(upload_errors)
-        errors.extend(skipped_files)
-        return saved_files, errors
+            file_errors.extend(upload_errors)
+        file_errors.extend(skipped_files)
+        return saved_files, file_errors
 
     def _create_capture_with_endpoint_helper(
         self,
-        request,
-        capture_data,
-        all_relative_paths=None,
-    ):
+        request: HttpRequest,
+        capture_data: dict[str, Any],
+        all_relative_paths: list[str] | None = None,
+    ) -> tuple[dict[str, Any] | None, str | None]:
         """Create a single capture using prepared capture data.
 
         Returns (capture_data, error) where capture_data is the created capture
@@ -1913,7 +1905,9 @@ class UploadFilesView(View):
                 response = responses[0]
                 if hasattr(response, "data") and isinstance(response.data, dict):
                     capture_data = response.data
-                    return capture_data, None
+                    # Extract only the UUID since that's all we use
+                    capture_uuid = capture_data.get("uuid")
+                    return {"uuid": capture_uuid}, None
                 logger.warning(
                     "Unexpected response format: %s",
                     response.data,
@@ -1933,7 +1927,9 @@ class UploadFilesView(View):
                 f"Failed to create capture: {error_msg}",
             )
 
-    def _calculate_top_level_dir(self, relative_paths, all_relative_paths):
+    def _calculate_top_level_dir(
+        self, relative_paths: list[str], all_relative_paths: list[str]
+    ) -> str:
         """Calculate the top level directory from relative paths."""
         if all_relative_paths and len(all_relative_paths) > 0:
             # Use all_relative_paths when files are skipped
@@ -1950,7 +1946,7 @@ class UploadFilesView(View):
             return "/"
         return "/"
 
-    def check_rh_scan_group(self, scan_group):
+    def check_rh_scan_group(self, scan_group: str) -> str | None:
         """Check and validate RadioHound scan group.
 
         Args:
@@ -1969,8 +1965,13 @@ class UploadFilesView(View):
         return None
 
     def _create_captures_by_type(
-        self, request, channels, capture_data, scan_group, all_relative_paths
-    ):
+        self,
+        request: HttpRequest,
+        channels: list[str],
+        capture_data: dict[str, Any],
+        scan_group: str,
+        all_relative_paths: list[str],
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         """Create captures based on capture type.
         For RadioHound: Creates a single capture with scan_group
         For DigitalRF: Creates multiple captures, one for each channel
@@ -2011,9 +2012,11 @@ class UploadFilesView(View):
 
         return created_captures, errors
 
-    def _parse_upload_request(self, request):
+    def _parse_upload_request(
+        self, request: HttpRequest
+    ) -> tuple[list[Any], list[str], list[str], list[str], str, str]:
         """Parse upload request parameters."""
-        files = request.FILES.getlist("files")
+        upload_chunk_files = request.FILES.getlist("files")
         relative_paths = request.POST.getlist("relative_paths")
         all_relative_paths = request.POST.getlist("all_relative_paths")
         channels_str = request.POST.get("channels", "")
@@ -2022,7 +2025,7 @@ class UploadFilesView(View):
         capture_type = request.POST.get("capture_type", "drf")  # Default to DigitalRF
 
         return (
-            files,
+            upload_chunk_files,
             relative_paths,
             all_relative_paths,
             channels,
@@ -2030,7 +2033,9 @@ class UploadFilesView(View):
             capture_type,
         )
 
-    def _check_required_fields(self, capture_type, channels, scan_group):
+    def _check_required_fields(
+        self, capture_type: str, channels: list[str], scan_group: str
+    ) -> bool:
         """Check if required fields are provided for capture creation."""
         if capture_type == "rh":
             # scan_group is optional for RadioHound captures
@@ -2039,13 +2044,13 @@ class UploadFilesView(View):
 
     def file_upload_status_mux(
         self,
-        saved_files,
-        created_captures,
-        all_files_empty,
-        has_required_fields,
-        files,
-        errors,
-    ):
+        saved_files: list[dict[str, Any]],
+        upload_chunk_files: list[Any],
+        file_errors: list[str],
+        *,
+        all_files_empty: bool,
+        has_required_fields: bool,
+    ) -> str:
         """Determine the response status based on upload and capture creation
         results."""
 
@@ -2054,7 +2059,11 @@ class UploadFilesView(View):
             # this is a success even if no captures were created
             # (they might already exist)
             return "success" if has_required_fields else "error"
-        if saved_files and len(saved_files) == len(files) and not errors:
+        if (
+            saved_files
+            and len(saved_files) == len(upload_chunk_files)
+            and not file_errors
+        ):
             return "success"
         if saved_files:
             return "partial_success"
@@ -2062,16 +2071,15 @@ class UploadFilesView(View):
 
     def _build_file_capture_response_data(
         self,
-        file_upload_status,
-        saved_files,
-        created_captures,
-        files,
-        errors,
-        capture_errors,
+        file_upload_status: str,
+        saved_files: list[dict[str, Any]],
+        created_captures: list[dict[str, Any]],
+        file_errors: list[str],
+        capture_errors: list[str],
         *,
         all_files_empty: bool = False,
         has_required_fields: bool = False,
-    ):
+    ) -> dict[str, Any]:
         """Build the response data dictionary."""
         response_data = {
             "file_upload_status": file_upload_status,
@@ -2080,20 +2088,15 @@ class UploadFilesView(View):
         }
 
         # Add custom message when all files are skipped (regardless of capture creation)
-        if all_files_empty and has_required_fields and not errors:
+        if all_files_empty and has_required_fields and not file_errors:
             response_data["message"] = "Upload skipped. All files exist on server"
-            # Add the UUID of the first created capture if available
-            if created_captures and len(created_captures) > 0:
-                first_capture = created_captures[0]
-                if isinstance(first_capture, dict) and "uuid" in first_capture:
-                    response_data["capture_uuid"] = first_capture["uuid"]
         elif all_files_empty and not has_required_fields:
             # All files were skipped but missing required fields
             response_data["message"] = (
                 "Upload skipped. All files exist on server, but missing required "
                 "fields for capture creation"
             )
-        elif all_files_empty and errors:
+        elif all_files_empty and file_errors:
             # All files were skipped but there were errors
             response_data["message"] = (
                 "Upload skipped. All files exist on server, but there were errors "
@@ -2102,8 +2105,8 @@ class UploadFilesView(View):
 
         # Combine file upload errors and capture creation errors
         all_errors = []
-        if errors:
-            all_errors.extend(errors)
+        if file_errors:
+            all_errors.extend(file_errors)
         if capture_errors:
             all_errors.extend(capture_errors)
         if all_errors:
@@ -2111,8 +2114,13 @@ class UploadFilesView(View):
         return response_data
 
     def _determine_file_capture_status_code(
-        self, saved_files, created_captures, all_files_empty, has_required_fields
-    ):
+        self,
+        saved_files: list[dict[str, Any]],
+        created_captures: list[dict[str, Any]],
+        *,
+        all_files_empty: bool,
+        has_required_fields: bool,
+    ) -> int:
         """Determine the HTTP status code for the response."""
         return (
             200
@@ -2124,15 +2132,16 @@ class UploadFilesView(View):
             else 400
         )
 
-    def _handle_capture_creation(
+    def _process_capture_creation(
         self,
-        request,
-        channels,
-        capture_type,
-        scan_group,
-        has_required_fields,
-        all_relative_paths,
-    ):
+        request: HttpRequest,
+        channels: list[str],
+        capture_type: str,
+        scan_group: str,
+        all_relative_paths: list[str],
+        *,
+        has_required_fields: bool,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         """Handle capture creation logic."""
         capture_errors = []
         created_captures = []
@@ -2177,9 +2186,9 @@ class UploadFilesView(View):
 
         return created_captures, capture_errors
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
         (
-            files,
+            upload_chunk_files,
             relative_paths,
             all_relative_paths,
             channels,
@@ -2187,24 +2196,28 @@ class UploadFilesView(View):
             capture_type,
         ) = self._parse_upload_request(request)
 
-        saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
+        saved_files, file_errors = self._process_file_uploads(
+            request, upload_chunk_files, relative_paths
+        )
 
         created_captures = []
 
         # Check if all files were empty (skipped)
         # If no files were sent (all skipped on frontend), consider them all empty
-        all_files_empty = all(f.size == 0 for f in files) if files else True
+        all_files_empty = (
+            all(f.size == 0 for f in upload_chunk_files) if upload_chunk_files else True
+        )
 
         # Additional check: if no files were sent but we have all_relative_paths,
         # this indicates all files were skipped on the frontend
-        if not files and all_relative_paths:
+        if not upload_chunk_files and all_relative_paths:
             all_files_empty = True
 
         # Debug logging for request data
         logger.info(
             "Upload request - files count: %s, all_relative_paths count: %s, "
             "all_files_empty: %s, capture_type: %s, channels: %s, scan_group: %s",
-            len(files) if files else 0,
+            len(upload_chunk_files) if upload_chunk_files else 0,
             len(all_relative_paths) if all_relative_paths else 0,
             all_files_empty,
             capture_type,
@@ -2226,23 +2239,27 @@ class UploadFilesView(View):
         chunk_number = request.POST.get("chunk_number", None)
         total_chunks = request.POST.get("total_chunks", None)
 
-        # Only create captures if this is not a chunk OR if this is the final chunk
-        should_create_captures = not is_chunk or (
-            chunk_number and total_chunks and int(chunk_number) == int(total_chunks)
+        # Determine if this is the last chunk or not a chunked upload
+        is_last_chunk = (
+            not is_chunk
+            or chunk_number is None
+            or total_chunks is None
+            or (int(chunk_number) == int(total_chunks))
         )
+        should_create_captures = is_last_chunk
 
         created_captures = []
         capture_errors = []
 
         if should_create_captures:
             # Handle capture creation
-            created_captures, capture_errors = self._handle_capture_creation(
+            created_captures, capture_errors = self._process_capture_creation(
                 request,
                 channels,
                 capture_type,
                 scan_group,
-                has_required_fields,
                 all_relative_paths,
+                has_required_fields=has_required_fields,
             )
         else:
             logger.info(
@@ -2252,40 +2269,26 @@ class UploadFilesView(View):
             )
 
         # Log file upload errors if they occurred
-        if errors and not all_files_empty:
+        if file_errors and not all_files_empty:
             logger.error(
                 "File upload errors occurred. Errors: %s",
-                errors,
+                file_errors,
             )
 
-        # Determine status
+        # Determine file upload status for frontend display
         file_upload_status = self.file_upload_status_mux(
             saved_files,
-            created_captures,
-            all_files_empty,
-            has_required_fields,
-            files,
-            errors,
+            upload_chunk_files,
+            file_errors,
+            all_files_empty=all_files_empty,
+            has_required_fields=has_required_fields,
         )
-
-        # Debug logging for skipped files case
-        if all_files_empty:
-            logger.info(
-                "Skipped files case - all_files_empty: %s, has_required_fields: %s, "
-                "file_upload_status: %s, errors: %s, capture_errors: %s",
-                all_files_empty,
-                has_required_fields,
-                file_upload_status,
-                errors,
-                capture_errors,
-            )
 
         file_capture_response_data = self._build_file_capture_response_data(
             file_upload_status,
             saved_files,
             created_captures,
-            files,
-            errors,
+            file_errors,
             capture_errors,
             all_files_empty=all_files_empty,
             has_required_fields=has_required_fields,
@@ -2293,7 +2296,10 @@ class UploadFilesView(View):
         # Return 200 if we have files saved, captures created, or if all files were
         # skipped with required fields
         file_capture_status_code = self._determine_file_capture_status_code(
-            saved_files, created_captures, all_files_empty, has_required_fields
+            saved_files,
+            created_captures,
+            all_files_empty=all_files_empty,
+            has_required_fields=has_required_fields,
         )
 
         return JsonResponse(file_capture_response_data, status=file_capture_status_code)
