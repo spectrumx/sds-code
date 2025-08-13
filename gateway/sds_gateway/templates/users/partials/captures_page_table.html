@@ -131,6 +131,12 @@
                                             </li>
                                         {% endif %}
                                         <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'visualizations:waterfall' cap.uuid %}">
+                                                <i class="bi bi-graph-up me-2"></i>Waterfall
+                                            </a>
+                                        </li>
+                                        <li>
                                             <button class="dropdown-item download-capture-btn"
                                                     type="button"
                                                     data-capture-uuid="{{ cap.uuid }}"

@@ -157,6 +157,7 @@ THIRD_PARTY_APPS: list[str] = [
 LOCAL_APPS: list[str] = [
     "sds_gateway.users",
     "sds_gateway.api_methods",
+    "sds_gateway.visualizations",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

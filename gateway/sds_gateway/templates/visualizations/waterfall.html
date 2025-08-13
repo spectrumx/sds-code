@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}
+    Waterfall Visualization - {{ capture.name }}
+{% endblock title %}
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet"
+          href="{% static 'visualizations/css/waterfall.css' %}" />
+{% endblock css %}
+{% block content %}
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'home' %}">Home</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'users:file_list' %}">Captures</a>
+                        </li>
+                        <li class="breadcrumb-item active" aria-current="page">{{ capture.name }}</li>
+                    </ol>
+                </nav>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h1 class="h3 mb-0">Waterfall Visualization</h1>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary" id="playPauseBtn">
+                            <i class="bi bi-play-fill"></i> Play
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="saveBtn">
+                            <i class="bi bi-download"></i> Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <!-- Controls Panel -->
+            <div class="col-md-3 col-lg-2">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="playbackSpeed" class="form-label">Playback Speed</label>
+                            <select class="form-select" id="playbackSpeed">
+                                <option value="0.5">0.5 fps</option>
+                                <option value="1" selected>1 fps</option>
+                                <option value="2">2 fps</option>
+                                <option value="5">5 fps</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="currentSlice" class="form-label">Current Slice</label>
+                            <div class="d-flex align-items-center">
+                                <input type="range"
+                                       class="form-range flex-grow-1 me-2"
+                                       id="currentSlice"
+                                       min="0"
+                                       max="0"
+                                       value="0" />
+                                <span id="sliceCounter" class="text-muted small">0 / 0</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="fftSize" class="form-label">FFT Size</label>
+                            <select class="form-select" id="fftSize">
+                                <option value="512">512</option>
+                                <option value="1024" selected>1024</option>
+                                <option value="2048">2048</option>
+                                <option value="4096">4096</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="colorMap" class="form-label">Color Map</label>
+                            <select class="form-select" id="colorMap">
+                                <option value="viridis" selected>Viridis</option>
+                                <option value="plasma">Plasma</option>
+                                <option value="inferno">Inferno</option>
+                                <option value="magma">Magma</option>
+                                <option value="hot">Hot</option>
+                                <option value="gray">Gray</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <!-- Capture Info -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Capture Info</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-6">Name:</dt>
+                            <dd class="col-6">
+                                {{ capture.name }}
+                            </dd>
+                            <dt class="col-6">Type:</dt>
+                            <dd class="col-6">
+                                {{ capture.capture_type }}
+                            </dd>
+                            <dt class="col-6">Channel:</dt>
+                            <dd class="col-6">
+                                {{ capture.channel|default:"N/A" }}
+                            </dd>
+                            <dt class="col-6">Created:</dt>
+                            <dd class="col-6">
+                                {{ capture.created_at|date:"M d, Y" }}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <!-- Visualization Area -->
+            <div class="col-md-9 col-lg-10">
+                <div class="card">
+                    <div class="card-body p-0">
+                        <!-- Periodogram Chart -->
+                        <div class="mb-3 p-3 border-bottom">
+                            <h6 class="mb-2">Periodogram</h6>
+                            <div id="periodogramChart"></div>
+                        </div>
+                        <!-- Waterfall Plot -->
+                        <div class="p-3">
+                            <h6 class="mb-2">Waterfall Plot</h6>
+                            <div id="waterfallPlot">
+                                <canvas id="waterfallCanvas" width="800" height="400"></canvas>
+                                <div id="loadingOverlay" class="loading-overlay">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Loading Modal -->
+    <div class="modal fade"
+         id="loadingModal"
+         tabindex="-1"
+         aria-labelledby="loadingModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mb-0">Loading waterfall data...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+{% block javascript %}
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- CanvasJS -->
+    <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+    <!-- Waterfall Visualization JavaScript -->
+    <script src="{% static 'visualizations/js/waterfall.js' %}"></script>
+    <script>
+        // Initialize waterfall visualization when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const captureUuid = '{{ capture.uuid }}';
+            const waterfallViz = new WaterfallVisualization(captureUuid);
+            waterfallViz.initialize();
+        });
+    </script>
+{% endblock javascript %}
