@@ -19,13 +19,25 @@ class WaterfallVisualization {
 		this.scaleMin = null;
 		this.scaleMax = null;
 
+		// Constants
+		this.WATERFALL_WINDOW_SIZE = 100; // Number of slices visible in the waterfall plot at once
+
 		// Bind methods to preserve context
 		this.handlePlayPause = this.handlePlayPause.bind(this);
 		this.handleSave = this.handleSave.bind(this);
 		this.handleSliceChange = this.handleSliceChange.bind(this);
+		this.handleSliceIndexInputChange =
+			this.handleSliceIndexInputChange.bind(this);
+		this.handleSliceIndexInputKeyDown =
+			this.handleSliceIndexInputKeyDown.bind(this);
+		this.handleDecrementSlice = this.handleDecrementSlice.bind(this);
+		this.handleIncrementSlice = this.handleIncrementSlice.bind(this);
+		this.handleScrollUp = this.handleScrollUp.bind(this);
+		this.handleScrollDown = this.handleScrollDown.bind(this);
 		this.handlePlaybackSpeedChange = this.handlePlaybackSpeedChange.bind(this);
 		this.handleFFTSizeChange = this.handleFFTSizeChange.bind(this);
 		this.handleColorMapChange = this.handleColorMapChange.bind(this);
+		this.handleKeyDown = this.handleKeyDown.bind(this);
 	}
 
 	/**
@@ -70,6 +82,30 @@ class WaterfallVisualization {
 			sliceSlider.addEventListener("input", this.handleSliceChange);
 		}
 
+		// Increment/Decrement slice buttons
+		const decrementBtn = document.getElementById("decrementSlice");
+		if (decrementBtn) {
+			decrementBtn.addEventListener("click", this.handleDecrementSlice);
+		}
+
+		const incrementBtn = document.getElementById("incrementSlice");
+		if (incrementBtn) {
+			incrementBtn.addEventListener("click", this.handleIncrementSlice);
+		}
+
+		// Slice index input field
+		const sliceIndexInput = document.getElementById("sliceIndexInput");
+		if (sliceIndexInput) {
+			sliceIndexInput.addEventListener(
+				"change",
+				this.handleSliceIndexInputChange,
+			);
+			sliceIndexInput.addEventListener(
+				"keydown",
+				this.handleSliceIndexInputKeyDown,
+			);
+		}
+
 		// Playback speed
 		const speedSelect = document.getElementById("playbackSpeed");
 		if (speedSelect) {
@@ -101,6 +137,20 @@ class WaterfallVisualization {
 				this.handleCanvasMouseLeave.bind(this),
 			);
 		}
+
+		// Scroll indicator buttons
+		const scrollUpBtn = document.getElementById("scrollUpBtn");
+		if (scrollUpBtn) {
+			scrollUpBtn.addEventListener("click", this.handleScrollUp);
+		}
+
+		const scrollDownBtn = document.getElementById("scrollDownBtn");
+		if (scrollDownBtn) {
+			scrollDownBtn.addEventListener("click", this.handleScrollDown);
+		}
+
+		// Keyboard navigation
+		document.addEventListener("keydown", this.handleKeyDown);
 	}
 
 	/**
@@ -251,6 +301,8 @@ class WaterfallVisualization {
 	updateSliceSlider() {
 		const slider = document.getElementById("currentSlice");
 		const counter = document.getElementById("sliceCounter");
+		const minLabel = document.getElementById("sliceMinLabel");
+		const maxLabel = document.getElementById("sliceMaxLabel");
 
 		if (slider) {
 			slider.max = Math.max(0, this.totalSlices - 1);
@@ -260,6 +312,20 @@ class WaterfallVisualization {
 		if (counter) {
 			counter.textContent = `0 / ${this.totalSlices}`;
 		}
+
+		// Update min/max labels (convert from 0-based to 1-based for display)
+		if (minLabel) {
+			minLabel.textContent = "1";
+		}
+
+		if (maxLabel) {
+			maxLabel.textContent = this.totalSlices.toString();
+		}
+
+		// Update button states
+		this.updateSliceButtons();
+		this.updateSliceIndexInput();
+		this.updateScrollIndicators();
 	}
 
 	/**
@@ -269,6 +335,95 @@ class WaterfallVisualization {
 		const counter = document.getElementById("sliceCounter");
 		if (counter) {
 			counter.textContent = `${this.currentSliceIndex} / ${this.totalSlices}`;
+		}
+	}
+
+	/**
+	 * Update all slice-related UI elements
+	 */
+	updateSliceUI() {
+		this.updateSliceCounter();
+		this.updateSliceButtons();
+		this.updateSliceIndexInput();
+		this.updateScrollIndicators();
+
+		// Update slider value
+		const slider = document.getElementById("currentSlice");
+		if (slider) {
+			slider.value = this.currentSliceIndex;
+		}
+	}
+
+	/**
+	 * Update the state of increment/decrement buttons
+	 */
+	updateSliceButtons() {
+		const decrementBtn = document.getElementById("decrementSlice");
+		const incrementBtn = document.getElementById("incrementSlice");
+
+		if (decrementBtn) {
+			decrementBtn.disabled = this.currentSliceIndex <= 0;
+		}
+
+		if (incrementBtn) {
+			incrementBtn.disabled = this.currentSliceIndex >= this.totalSlices - 1;
+		}
+	}
+
+	/**
+	 * Update the slice index input field
+	 */
+	updateSliceIndexInput() {
+		const sliceIndexInput = document.getElementById("sliceIndexInput");
+		if (sliceIndexInput) {
+			// Update min/max values
+			sliceIndexInput.min = 1;
+			sliceIndexInput.max = this.totalSlices;
+			// Update current value (convert from 0-based to 1-based for display)
+			sliceIndexInput.value = this.currentSliceIndex + 1;
+		}
+	}
+
+	/**
+	 * Update scroll indicator buttons
+	 */
+	updateScrollIndicators() {
+		const scrollUpBtn = document.getElementById("scrollUpBtn");
+		const scrollDownBtn = document.getElementById("scrollDownBtn");
+		const scrollIndicatorAbove = document.getElementById(
+			"scrollIndicatorAbove",
+		);
+		const scrollIndicatorBelow = document.getElementById(
+			"scrollIndicatorBelow",
+		);
+
+		// Show/hide indicators based on whether scrolling is possible
+		if (scrollIndicatorAbove) {
+			scrollIndicatorAbove.classList.toggle(
+				"visible",
+				this.currentSliceIndex < this.totalSlices - 1,
+			);
+		}
+
+		if (scrollIndicatorBelow) {
+			scrollIndicatorBelow.classList.toggle(
+				"visible",
+				this.currentSliceIndex > 0,
+			);
+		}
+
+		// Update button states
+		if (scrollUpBtn) {
+			scrollUpBtn.disabled = this.currentSliceIndex >= this.totalSlices - 1;
+			scrollUpBtn.classList.toggle(
+				"disabled",
+				this.currentSliceIndex >= this.totalSlices - 1,
+			);
+		}
+
+		if (scrollDownBtn) {
+			scrollDownBtn.disabled = this.currentSliceIndex <= 0;
+			scrollDownBtn.classList.toggle("disabled", this.currentSliceIndex <= 0);
 		}
 	}
 
@@ -341,20 +496,23 @@ class WaterfallVisualization {
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 		// Calculate dimensions
-		const maxVisibleSlices = Math.min(this.totalSlices, 100);
+		const maxVisibleSlices = Math.min(
+			this.totalSlices,
+			this.WATERFALL_WINDOW_SIZE,
+		);
 		const sliceHeight = canvas.height / maxVisibleSlices;
 
 		// Calculate which slices to display
 		// We want to show slices from bottom (oldest) to top (newest)
-		// The current slice should be visible, and we show up to 100 slices
+		// The current slice should be visible, and we show up to WATERFALL_WINDOW_SIZE slices
 		const startSliceIndex = Math.max(
 			0,
-			this.currentSliceIndex - maxVisibleSlices + 1,
+			this.currentSliceIndex - this.WATERFALL_WINDOW_SIZE + 1,
 		);
 		const endSliceIndex = this.currentSliceIndex + 1;
 
 		// Draw waterfall slices from bottom to top
-		for (let i = 0; i < maxVisibleSlices; i++) {
+		for (let i = 0; i < this.WATERFALL_WINDOW_SIZE; i++) {
 			const sliceIndex = startSliceIndex + i;
 			if (sliceIndex >= this.totalSlices) break;
 
@@ -711,8 +869,85 @@ class WaterfallVisualization {
 
 	handleSliceChange(event) {
 		this.currentSliceIndex = Number.parseInt(event.target.value);
-		this.updateSliceCounter();
+		this.updateSliceUI();
 		this.render();
+	}
+
+	handleSliceIndexInputChange(event) {
+		const newIndex = Number.parseInt(event.target.value) - 1; // Convert from 1-based to 0-based
+		if (
+			!Number.isNaN(newIndex) &&
+			newIndex >= 0 &&
+			newIndex < this.totalSlices
+		) {
+			this.currentSliceIndex = newIndex;
+			this.updateSliceUI();
+			this.render();
+		} else {
+			// Reset to current value if invalid
+			this.updateSliceIndexInput();
+		}
+	}
+
+	handleSliceIndexInputKeyDown(event) {
+		switch (event.key) {
+			case "ArrowUp":
+			case "ArrowLeft":
+				event.preventDefault();
+				this.handleDecrementSlice();
+				break;
+			case "ArrowDown":
+			case "ArrowRight":
+				event.preventDefault();
+				this.handleIncrementSlice();
+				break;
+			case "Enter":
+				event.preventDefault();
+				event.target.blur(); // Commit the change
+				break;
+		}
+	}
+
+	handleDecrementSlice() {
+		if (this.currentSliceIndex > 0) {
+			this.currentSliceIndex--;
+			this.updateSliceUI();
+			this.render();
+		}
+	}
+
+	handleIncrementSlice() {
+		if (this.currentSliceIndex < this.totalSlices - 1) {
+			this.currentSliceIndex++;
+			this.updateSliceUI();
+			this.render();
+		}
+	}
+
+	handleScrollUp() {
+		// Move to a more recent slice (higher index) by window size
+		const newIndex = Math.min(
+			this.totalSlices - 1,
+			this.currentSliceIndex + this.WATERFALL_WINDOW_SIZE,
+		);
+		if (newIndex !== this.currentSliceIndex) {
+			this.currentSliceIndex = newIndex;
+			this.updateSliceUI();
+			this.render();
+		}
+	}
+
+	handleScrollDown() {
+		// Move to an older slice (lower index) by window size
+		const newIndex = Math.max(
+			0,
+			this.currentSliceIndex - this.WATERFALL_WINDOW_SIZE,
+		);
+		if (newIndex !== this.currentSliceIndex) {
+			this.currentSliceIndex = newIndex;
+			this.updateSliceUI();
+			this.render();
+		}
 	}
 
 	handlePlaybackSpeedChange(event) {
@@ -763,7 +998,7 @@ class WaterfallVisualization {
 			if (slider) {
 				slider.value = this.currentSliceIndex;
 			}
-			this.updateSliceCounter();
+			this.updateSliceUI();
 
 			// Re-render
 			this.render();
@@ -871,7 +1106,10 @@ class WaterfallVisualization {
 		const y = event.clientY - rect.top;
 
 		// Calculate which slice was clicked
-		const maxVisibleSlices = Math.min(this.totalSlices, 100);
+		const maxVisibleSlices = Math.min(
+			this.totalSlices,
+			this.WATERFALL_WINDOW_SIZE,
+		);
 		const sliceHeight = this.canvas.height / maxVisibleSlices;
 
 		// Calculate which slices are currently visible
@@ -893,7 +1131,7 @@ class WaterfallVisualization {
 			if (slider) {
 				slider.value = this.currentSliceIndex;
 			}
-			this.updateSliceCounter();
+			this.updateSliceUI();
 
 			// Re-render
 			this.render();
@@ -910,7 +1148,10 @@ class WaterfallVisualization {
 		const y = event.clientY - rect.top;
 
 		// Calculate which slice is being hovered
-		const maxVisibleSlices = Math.min(this.totalSlices, 100);
+		const maxVisibleSlices = Math.min(
+			this.totalSlices,
+			this.WATERFALL_WINDOW_SIZE,
+		);
 		const sliceHeight = this.canvas.height / maxVisibleSlices;
 
 		// Calculate which slices are currently visible
@@ -941,10 +1182,42 @@ class WaterfallVisualization {
 	}
 
 	/**
+	 * Handle keyboard navigation
+	 */
+	handleKeyDown(event) {
+		// Only handle arrow keys when not in an input field
+		if (event.target.tagName === "INPUT" || event.target.tagName === "SELECT") {
+			return;
+		}
+
+		switch (event.key) {
+			case "ArrowUp":
+			case "ArrowLeft":
+				event.preventDefault();
+				this.handleDecrementSlice();
+				break;
+			case "ArrowDown":
+			case "ArrowRight":
+				event.preventDefault();
+				this.handleIncrementSlice();
+				break;
+			case "PageUp":
+				event.preventDefault();
+				this.handleScrollUp();
+				break;
+			case "PageDown":
+				event.preventDefault();
+				this.handleScrollDown();
+				break;
+		}
+	}
+
+	/**
 	 * Cleanup resources
 	 */
 	destroy() {
 		this.stopPlayback();
 		window.removeEventListener("resize", () => this.resizeCanvas());
+		document.removeEventListener("keydown", this.handleKeyDown);
 	}
 }

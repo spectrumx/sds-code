@@ -57,14 +57,38 @@
                         </div>
                         <div class="mb-3">
                             <label for="currentSlice" class="form-label">Current Slice</label>
+                            <div class="d-flex align-items-center justify-content-center mb-2 slice-controls">
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm px-2"
+                                        id="decrementSlice"
+                                        aria-label="Previous slice">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <div class="mx-2 flex-shrink-0">
+                                    <input type="number"
+                                           class="form-control form-control-sm text-center"
+                                           id="sliceIndexInput"
+                                           min="1"
+                                           max="1"
+                                           value="1"
+                                           aria-label="Slice index input" />
+                                </div>
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm px-2"
+                                        id="incrementSlice"
+                                        aria-label="Next slice">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
                             <div class="d-flex align-items-center">
+                                <span class="text-muted small me-2" id="sliceMinLabel">1</span>
                                 <input type="range"
-                                       class="form-range flex-grow-1 me-2"
+                                       class="form-range flex-grow-1"
                                        id="currentSlice"
                                        min="0"
                                        max="0"
                                        value="0" />
-                                <span id="sliceCounter" class="text-muted small">0 / 0</span>
+                                <span class="text-muted small ms-2" id="sliceMaxLabel">1</span>
                             </div>
                         </div>
                         <div class="mb-3">
@@ -128,12 +152,30 @@
                         <!-- Waterfall Plot -->
                         <div class="p-3">
                             <h6 class="mb-2">Waterfall Plot</h6>
+                            <!-- Scroll indicator above -->
+                            <div class="text-center mb-2 scroll-indicator-container"
+                                 id="scrollIndicatorAbove">
+                                <div class="scroll-indicator up"
+                                     title="More recent scans above"
+                                     id="scrollUpBtn">
+                                    <div class="scroll-arrow up"></div>
+                                </div>
+                            </div>
                             <div id="waterfallPlot">
                                 <canvas id="waterfallCanvas" width="800" height="400"></canvas>
                                 <div id="loadingOverlay" class="loading-overlay">
                                     <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
+                                </div>
+                            </div>
+                            <!-- Scroll indicator below -->
+                            <div class="text-center mt-2 scroll-indicator-container"
+                                 id="scrollIndicatorBelow">
+                                <div class="scroll-indicator down"
+                                     title="Older scans below"
+                                     id="scrollDownBtn">
+                                    <div class="scroll-arrow down"></div>
                                 </div>
                             </div>
                         </div>
