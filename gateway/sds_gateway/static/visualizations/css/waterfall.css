@@ -163,6 +163,121 @@
 	border: 1px solid #dee2e6;
 }
 
+/* Scroll indicators for waterfall plot */
+.scroll-indicator {
+	width: 0;
+	height: 0;
+	cursor: pointer;
+	margin: 0 auto;
+	display: block;
+	transition: all 0.2s ease;
+	border-radius: 2px;
+}
+
+.scroll-indicator:hover {
+	opacity: 0.8;
+	transform: scale(1.1);
+}
+
+.scroll-indicator.up {
+	border-left: 15px solid transparent;
+	border-right: 15px solid transparent;
+	border-bottom: 15px solid #808080;
+}
+
+.scroll-indicator.down {
+	border-left: 15px solid transparent;
+	border-right: 15px solid transparent;
+	border-top: 15px solid #808080;
+}
+
+.scroll-indicator.disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
+
+.scroll-indicator.disabled:hover {
+	opacity: 0.3;
+	transform: none;
+}
+
+/* Responsive scroll indicators */
+@media (max-width: 768px) {
+	.scroll-indicator.up,
+	.scroll-indicator.down {
+		border-left-width: 12px;
+		border-right-width: 12px;
+		border-bottom-width: 12px;
+		border-top-width: 12px;
+	}
+}
+
+/* Scroll indicator container states */
+.scroll-indicator-container {
+	visibility: hidden;
+	height: 20px;
+	margin: 0.5rem 0;
+}
+
+.scroll-indicator-container.visible {
+	visibility: visible;
+}
+
+/* Slice index input styling */
+#sliceIndexInput {
+	text-align: center;
+	font-weight: 500;
+	border: 1px solid #dee2e6;
+	border-radius: 0.375rem;
+}
+
+#sliceIndexInput:focus {
+	border-color: #0d6efd;
+	box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Hide the default increment/decrement arrows */
+#sliceIndexInput::-webkit-inner-spin-button,
+#sliceIndexInput::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+#sliceIndexInput[type="number"] {
+	-moz-appearance: textfield;
+}
+
+/* Center the slice controls */
+.slice-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.25rem;
+	flex-wrap: nowrap;
+	width: 100%;
+}
+
+.slice-controls .btn {
+	flex-shrink: 0;
+	min-width: auto;
+	padding-left: 0.5rem;
+	padding-right: 0.5rem;
+}
+
+.slice-controls .btn i {
+	font-size: 0.875rem;
+}
+
+.slice-controls .mx-2 {
+	flex-shrink: 0;
+}
+
+/* Ensure the input field doesn't take up too much space */
+.slice-controls #sliceIndexInput {
+	width: 70px;
+	min-width: 70px;
+}
+
 /* Responsive canvas sizing */
 @media (max-width: 1200px) {
 	#waterfallCanvas {
