@@ -1,5 +1,6 @@
 import datetime
 import re
+import shutil
 import uuid
 import zipfile
 from pathlib import Path
@@ -26,6 +27,121 @@ from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
 # ruff: noqa: PLC0415
+
+# Constants for file size limits
+MAX_WEB_DOWNLOAD_SIZE = 5 * 1024 * 1024 * 1024  # 5 GB in bytes
+DISK_SPACE_BUFFER = 5 * 1024 * 1024 * 1024  # 5 GB buffer for safety
+
+
+def check_disk_space_available(
+    required_bytes: int, directory: Path | None = None
+) -> bool:
+    """
+    Check if there's enough disk space available for the required bytes.
+
+    Args:
+        required_bytes: Number of bytes needed
+        directory: Directory to check space for (defaults to MEDIA_ROOT)
+
+    Returns:
+        bool: True if enough space is available, False otherwise
+    """
+    if directory is None:
+        directory = Path(settings.MEDIA_ROOT)
+
+    try:
+        total, used, free = shutil.disk_usage(directory)
+        available_space = free - DISK_SPACE_BUFFER
+    except (OSError, ValueError) as e:
+        logger.error(f"Error checking disk space for {directory}: {e}")
+        return False
+    else:
+        return available_space >= required_bytes
+
+
+def estimate_zip_size(files: list[File]) -> int:
+    """
+    Estimate the size of a zip file containing the given files.
+
+    Args:
+        files: List of File model instances
+
+    Returns:
+        int: Estimated size in bytes (includes compression overhead)
+    """
+    total_file_size = sum(file_obj.size for file_obj in files)
+
+    # Estimate zip overhead (headers, compression metadata, etc.)
+    # Rough estimate: 10% overhead for small files, 5% for large files
+    overhead_factor = 1.1 if total_file_size < 100 * 1024 * 1024 else 1.05
+
+    return int(total_file_size * overhead_factor)
+
+
+def cleanup_orphaned_zips() -> int:
+    """
+    Clean up orphaned/partial zip files that don't have corresponding database records.
+
+    Returns:
+        int: Number of files cleaned up
+    """
+    media_root = Path(settings.MEDIA_ROOT)
+    temp_zips_dir = media_root / "temp_zips"
+
+    if not temp_zips_dir.exists():
+        return 0
+
+    cleaned_count = 0
+
+    try:
+        # Get all zip files in the temp_zips directory
+        for zip_file in temp_zips_dir.glob("*.zip"):
+            # Check if there's a corresponding database record
+            try:
+                # Extract UUID from filename (format: uuid_filename.zip)
+                filename = zip_file.name
+                if "_" in filename:
+                    uuid_part = filename.split("_")[0]
+                    # Check if this UUID exists in the database
+                    exists = TemporaryZipFile.objects.filter(uuid=uuid_part).exists()
+                    if not exists:
+                        # No database record, this is an orphaned file
+                        zip_file.unlink()
+                        cleaned_count += 1
+                        logger.info(f"Cleaned up orphaned zip file: {zip_file}")
+            except (OSError, ValueError) as e:
+                logger.error(f"Error processing zip file {zip_file}: {e}")
+                # Try to delete the problematic file anyway
+                try:
+                    zip_file.unlink()
+                    cleaned_count += 1
+                    logger.info(f"Cleaned up problematic zip file: {zip_file}")
+                except OSError:
+                    logger.error(f"Failed to delete problematic zip file: {zip_file}")
+
+    except OSError as e:
+        logger.error(f"Error during orphaned zip cleanup: {e}")
+
+    return cleaned_count
+
+
+def format_file_size(size_bytes: int) -> str:
+    """
+    Format file size in human-readable format.
+
+    Args:
+        size_bytes: Size in bytes
+
+    Returns:
+        str: Formatted size string
+    """
+    bytes_per_unit = 1024.0
+    size_float = float(size_bytes)
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size_float < bytes_per_unit:
+            return f"{size_float:.1f} {unit}"
+        size_float /= bytes_per_unit
+    return f"{size_float:.1f} PB"
 
 
 def get_redis_client() -> Redis:
@@ -365,6 +481,44 @@ def cleanup_expired_temp_zips() -> dict[str, str | int]:
         }
 
 
+@shared_task
+def cleanup_orphaned_zip_files() -> dict:
+    """
+    Celery task to clean up orphaned zip files that don't have corresponding database
+    records.
+
+    This task can be scheduled to run periodically to prevent disk space issues.
+
+    Returns:
+        dict: Task result with cleanup statistics
+    """
+    try:
+        cleaned_count = cleanup_orphaned_zips()
+
+        if cleaned_count == 0:
+            logger.info("No orphaned zip files found to clean up")
+            return {
+                "status": "success",
+                "message": "No orphaned files found",
+                "cleaned_count": 0,
+            }
+
+        logger.info(f"Cleaned up {cleaned_count} orphaned zip files")
+    except (OSError, ValueError) as e:
+        logger.exception("Error in cleanup_orphaned_zip_files")
+        return {
+            "status": "error",
+            "message": f"Cleanup failed: {e}",
+            "cleaned_count": 0,
+        }
+    else:
+        return {
+            "status": "success",
+            "message": f"Cleaned up {cleaned_count} orphaned zip files",
+            "cleaned_count": cleaned_count,
+        }
+
+
 def get_user_task_status(
     user_id: str, task_name: str
 ) -> dict[str, str | int | bool | None]:
@@ -617,12 +771,87 @@ def _process_item_files(
             None,
         )
 
+    # Estimate zip size before creating it
+    estimated_zip_size = estimate_zip_size(files)
+    total_file_size = sum(file_obj.size for file_obj in files)
+
+    # Check if download size exceeds web download limit
+    if total_file_size > MAX_WEB_DOWNLOAD_SIZE:
+        logger.warning(
+            f"{item_type} {item_uuid} size ({format_file_size(total_file_size)}) "
+            f"exceeds web download limit ({format_file_size(MAX_WEB_DOWNLOAD_SIZE)})"
+        )
+        error_message = (
+            f"Your {item_type} is too large ({format_file_size(total_file_size)}) "
+            f"for web download. Please use the SpectrumX SDK instead. "
+            f"Visit https://pypi.org/project/spectrumx/ for installation instructions."
+        )
+        _send_item_download_error_email(
+            user, item, item_type, error_message, use_sdk=True
+        )
+        return (
+            _create_error_response(
+                "error", error_message, item_uuid, total_size=total_file_size
+            ),
+            None,
+            None,
+            None,
+        )
+
+    # Check available disk space
+    if not check_disk_space_available(estimated_zip_size):
+        # Get available space for logging
+        media_root = Path(settings.MEDIA_ROOT)
+        try:
+            total, used, free = shutil.disk_usage(media_root)
+            available_space = free - DISK_SPACE_BUFFER
+        except (OSError, ValueError):
+            available_space = 0
+
+        logger.warning(
+            f"Insufficient disk space for {item_type} {item_uuid}. "
+            f"Required: {format_file_size(estimated_zip_size)}, "
+            f"Available: {format_file_size(available_space)}"
+        )
+        error_message = (
+            f"Insufficient disk space to create your {item_type} download. "
+            f"Please try again later or contact support if the problem persists."
+        )
+        _send_item_download_error_email(user, item, item_type, error_message)
+        return (
+            _create_error_response(
+                "error", error_message, item_uuid, total_size=total_file_size
+            ),
+            None,
+            None,
+            None,
+        )
+
+    # Clean up any orphaned zip files before creating new ones
+    cleaned_count = cleanup_orphaned_zips()
+    if cleaned_count > 0:
+        logger.info(f"Cleaned up {cleaned_count} orphaned zip files before processing")
+
     unsafe_item_name = getattr(item, "name", str(item)) or item_type
     safe_item_name = re.sub(r"[^a-zA-Z0-9._-]", "", unsafe_item_name.replace(" ", "_"))
     zip_filename = f"{item_type}_{safe_item_name}_{item_uuid}.zip"
-    zip_file_path, total_size, files_processed = create_zip_from_files(
-        files, zip_filename
-    )
+
+    try:
+        zip_file_path, total_size, files_processed = create_zip_from_files(
+            files, zip_filename
+        )
+    except (OSError, ValueError) as e:
+        logger.exception(f"Failed to create zip file for {item_type} {item_uuid}: {e}")
+        error_message = f"Failed to create download file: {e}"
+        _send_item_download_error_email(user, item, item_type, error_message)
+        return (
+            _create_error_response(
+                "error", error_message, item_uuid, total_size=total_file_size
+            ),
+            None,
+            None,
+            None,
+        )
 
     if files_processed == 0:
         logger.warning(f"No files were processed for {item_type} {item_uuid}")
@@ -756,7 +985,7 @@ def _handle_timeout_exception(
 @shared_task(
     time_limit=30 * 60, soft_time_limit=25 * 60
 )  # 30 min hard limit, 25 min soft limit
-def send_item_files_email(  # noqa: C901
+def send_item_files_email(  # noqa: C901, PLR0912
     item_uuid: str, user_id: str, item_type: str | ItemType
 ) -> dict[str, str | int]:
     """
@@ -777,6 +1006,7 @@ def send_item_files_email(  # noqa: C901
     item = None
     item_type_enum: ItemType | None = None
     result = None
+    zip_file_path = None
     user = None
 
     try:
@@ -874,6 +1104,22 @@ def send_item_files_email(  # noqa: C901
         if user_id is not None:
             release_user_lock(user_id, task_name)
             logger.info(f"Released lock for user {user_id}")
+
+        # Clean up partial zip file if task failed and file exists
+        if (
+            zip_file_path is not None
+            and result is not None
+            and result.get("status") == "error"
+        ):
+            try:
+                zip_path = Path(zip_file_path)
+                if zip_path.exists():
+                    zip_path.unlink()
+                    logger.info(f"Cleaned up partial zip file: {zip_file_path}")
+            except (OSError, ValueError) as e:
+                logger.error(
+                    f"Failed to clean up partial zip file {zip_file_path}: {e}"
+                )
 
     return result
 
@@ -1013,7 +1259,12 @@ def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
 
 
 def _send_item_download_error_email(
-    user: User, item: Any, item_type: ItemType, error_message: str
+    user: User,
+    item: Any,
+    item_type: ItemType,
+    error_message: str,
+    *,
+    use_sdk: bool = False,
 ) -> None:
     """
     Send error email for item download failures.
@@ -1023,6 +1274,7 @@ def _send_item_download_error_email(
         item: The item that failed to download
         item_type: Type of item (dataset or capture)
         error_message: The error message to include
+        use_sdk: Whether to suggest using the SDK instead of web download
     """
     try:
         item_name = getattr(item, "name", str(item))
@@ -1037,13 +1289,22 @@ def _send_item_download_error_email(
             ),
             "site_url": settings.SITE_URL,
             "debug": settings.DEBUG,
+            "use_sdk": use_sdk,
         }
+
+        # Choose template based on whether SDK should be suggested
+        if use_sdk:
+            html_template = "emails/item_download_error_sdk.html"
+            plain_template = "emails/item_download_error_sdk.txt"
+        else:
+            html_template = "emails/item_download_error.html"
+            plain_template = "emails/item_download_error.txt"
 
         send_email(
             subject=subject,
             recipient_list=[user.email],
-            plain_template="emails/item_download_error.txt",
-            html_template="emails/item_download_error.html",
+            plain_template=plain_template,
+            html_template=html_template,
             context=context,
         )
 
