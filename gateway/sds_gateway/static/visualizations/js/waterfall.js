@@ -22,6 +22,8 @@ class WaterfallVisualization {
 
 		// Constants
 		this.WATERFALL_WINDOW_SIZE = 100; // Number of slices visible in the waterfall plot at once
+		this.LEFT_INDEX_WIDTH = 60; // Width of the left index legend area
+		this.RIGHT_LEGEND_WIDTH = 80; // Width of the right color legend area
 
 		// Bind methods to preserve context
 		this.handlePlayPause = this.handlePlayPause.bind(this);
@@ -275,6 +277,7 @@ class WaterfallVisualization {
 			// Update UI elements
 			this.updateSliceSlider();
 			this.updateSliceCounter();
+			this.updateColorLegend();
 
 			this.showLoading(false);
 		} catch (error) {
@@ -559,11 +562,11 @@ class WaterfallVisualization {
 			endSliceIndex,
 		);
 
-		// Draw color legend
-		this.drawColorLegend(canvas);
+		// Update color legend
+		this.updateColorLegend();
 
-		// Draw axes and labels
-		this.drawWaterfallAxes();
+		// Update slice index legend
+		this.updateSliceIndexLegend();
 	}
 
 	/**
@@ -593,7 +596,9 @@ class WaterfallVisualization {
 
 		const ctx = this.ctx;
 		const fftPoints = data.length;
-		const pointWidth = width / fftPoints;
+		// Account for left index area and right legend area
+		const plotWidth = width - this.LEFT_INDEX_WIDTH - this.RIGHT_LEGEND_WIDTH;
+		const pointWidth = plotWidth / fftPoints;
 
 		// Use calculated bounds for optimal visualization
 		const scaleMin = this.scaleMin || -130;
@@ -610,7 +615,12 @@ class WaterfallVisualization {
 			const color = this.getColorForPower(normalizedPower);
 
 			ctx.fillStyle = color;
-			ctx.fillRect(i * pointWidth, y, pointWidth, height);
+			ctx.fillRect(
+				this.LEFT_INDEX_WIDTH + i * pointWidth,
+				y,
+				pointWidth,
+				height,
+			);
 		}
 	}
 
@@ -742,10 +752,12 @@ class WaterfallVisualization {
 		// Calculate Y position: bottom slice is at bottom of canvas
 		const y = canvas.height - (currentSliceInRange + 1) * sliceHeight;
 
-		// Draw highlight box
-		ctx.strokeStyle = "#ff0000";
-		ctx.lineWidth = 2;
-		ctx.strokeRect(0, y, canvas.width, sliceHeight);
+		// Draw highlight box (between left index area and right legend area)
+		ctx.strokeStyle = "#000000";
+		ctx.lineWidth = 1;
+		const plotWidth =
+			canvas.width - this.LEFT_INDEX_WIDTH - this.RIGHT_LEGEND_WIDTH;
+		ctx.strokeRect(this.LEFT_INDEX_WIDTH, y, plotWidth, sliceHeight);
 
 		// Reset stroke style for other drawing operations
 		ctx.strokeStyle = "#6c757d";
@@ -755,99 +767,56 @@ class WaterfallVisualization {
 	/**
 	 * Draw color legend showing dB scale
 	 */
-	drawColorLegend(canvas) {
-		if (!this.ctx) return;
+	updateColorLegend() {
+		const legendElement = document.getElementById("colorLegend");
+		if (!legendElement) return;
 
-		const ctx = this.ctx;
-		const legendWidth = 60;
-		const legendHeight = canvas.height;
-		const legendX = canvas.width - legendWidth - 10;
-		const legendY = 0;
+		const legendGradient = legendElement.querySelector(".legend-gradient");
+		const legendLabels = legendElement.querySelector(".legend-labels");
 
-		// Create white background for legend
-		ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-		ctx.fillRect(legendX, legendY, legendWidth, legendHeight);
+		if (!legendGradient || !legendLabels) return;
 
-		// Draw color gradient
-		const gradientHeight = legendHeight - 40; // Leave space for labels
-		const gradientY = legendY + 20;
+		// Create CSS gradient based on selected color map
+		const scaleMin = this.scaleMin || -130;
+		const scaleMax = this.scaleMax || 0;
 
-		// Create gradient
-		const gradient = ctx.createLinearGradient(
-			legendX,
-			gradientY,
-			legendX,
-			gradientY + gradientHeight,
-		);
+		// Generate gradient stops for the selected color map
+		const gradientStops = this.generateColorMapGradient();
+		legendGradient.style.background = gradientStops;
 
-		// Add color stops for the selected color map
-		const scaleMin = this.scaleMin || -130; // dBm
-		const scaleMax = this.scaleMax || 0; // dBm
+		// Clear existing labels
+		legendLabels.innerHTML = "";
 
-		// Add color stops at regular intervals
-		const numStops = 20;
-		for (let i = 0; i <= numStops; i++) {
-			const fraction = i / numStops;
-			const dbVal = scaleMax - fraction * (scaleMax - scaleMin);
-			const normalizedPower = (dbVal - scaleMin) / (scaleMax - scaleMin);
-			const color = this.getColorForPower(normalizedPower);
-
-			gradient.addColorStop(fraction, color);
-		}
-
-		// Draw the gradient
-		ctx.fillStyle = gradient;
-		ctx.fillRect(legendX + 5, gradientY, 20, gradientHeight);
-
-		// Draw dB labels
-		ctx.font = "10px Arial";
-		ctx.textAlign = "left";
-		ctx.fillStyle = "#000";
-
-		// Draw labels at regular dB intervals
+		// Add dB labels
 		const dbStep = 20; // Draw label every 20 dB
 		for (let dbVal = scaleMax; dbVal >= scaleMin; dbVal -= dbStep) {
-			const fraction = (scaleMax - dbVal) / (scaleMax - scaleMin);
-			const y = gradientY + fraction * gradientHeight;
-
-			ctx.fillText(`${dbVal}`, legendX + 30, y + 3);
+			const label = document.createElement("div");
+			// Round to nearest integer
+			const roundedDb = Math.round(dbVal);
+			label.textContent = `${roundedDb}`;
+			label.style.fontSize = "0.7rem";
+			label.style.color = "#000";
+			label.style.textAlign = "right";
+			label.style.margin = "2px 0";
+			legendLabels.appendChild(label);
 		}
 	}
 
 	/**
-	 * Draw waterfall axes and labels
+	 * Generate CSS gradient string for the selected color map
 	 */
-	drawWaterfallAxes() {
-		if (!this.ctx || !this.canvas) return;
+	generateColorMapGradient() {
+		const stops = [];
+		const numStops = 20;
 
-		const ctx = this.ctx;
-		const canvas = this.canvas;
+		for (let i = 0; i <= numStops; i++) {
+			const fraction = i / numStops;
+			const normalizedPower = fraction;
+			const color = this.getColorForPower(normalizedPower);
+			stops.push(`${color} ${fraction * 100}%`);
+		}
 
-		ctx.strokeStyle = "#6c757d";
-		ctx.lineWidth = 1;
-		ctx.font = "12px Arial";
-		ctx.fillStyle = "#6c757d";
-
-		// Y-axis (time)
-		ctx.beginPath();
-		ctx.moveTo(0, 0);
-		ctx.lineTo(0, canvas.height);
-		ctx.stroke();
-
-		// X-axis (frequency)
-		ctx.beginPath();
-		ctx.moveTo(0, canvas.height);
-		ctx.lineTo(canvas.width, canvas.height);
-		ctx.stroke();
-
-		// Labels
-		ctx.save();
-		ctx.translate(10, canvas.height / 2);
-		ctx.rotate(-Math.PI / 2);
-		ctx.fillText("Time", 0, 0);
-		ctx.restore();
-
-		ctx.fillText("Frequency (Hz)", canvas.width / 2, canvas.height - 5);
+		return `linear-gradient(to bottom, ${stops.join(", ")})`;
 	}
 
 	/**
@@ -1008,6 +977,7 @@ class WaterfallVisualization {
 
 	handleColorMapChange(event) {
 		this.colorMap = event.target.value;
+		this.updateColorLegend();
 		this.render();
 	}
 
@@ -1241,6 +1211,56 @@ class WaterfallVisualization {
 				event.preventDefault();
 				this.handleScrollDown();
 				break;
+		}
+	}
+
+	/**
+	 * Update the slice index legend
+	 */
+	updateSliceIndexLegend() {
+		if (!this.ctx || !this.canvas) return;
+
+		const ctx = this.ctx;
+		const canvas = this.canvas;
+
+		// Calculate dimensions
+		const maxVisibleSlices = Math.min(
+			this.totalSlices,
+			this.WATERFALL_WINDOW_SIZE,
+		);
+		const sliceHeight = canvas.height / maxVisibleSlices;
+
+		// Clear the left side area for labels
+		const labelWidth = this.LEFT_INDEX_WIDTH;
+		ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+		ctx.fillRect(0, 0, labelWidth, canvas.height);
+
+		// Only draw indices if we have 5 or more rows
+		if (maxVisibleSlices >= 5) {
+			ctx.font = "10px Arial";
+			ctx.textAlign = "right";
+			ctx.fillStyle = "#000";
+
+			// Show every 5th index
+			for (let i = 0; i < maxVisibleSlices; i++) {
+				const sliceIndex = this.waterfallWindowStart + i;
+				if (sliceIndex >= this.totalSlices) break;
+
+				const displayedIndex = sliceIndex + 1; // Convert to 1-based for display
+				const y = canvas.height - (i + 1) * sliceHeight + sliceHeight / 2;
+
+				// Only draw if this index should be highlighted (every 5th or current slice)
+				if (displayedIndex % 5 === 0 || sliceIndex === this.currentSliceIndex) {
+					// Highlight current slice
+					if (sliceIndex === this.currentSliceIndex) {
+						ctx.fillStyle = "#000";
+					} else {
+						ctx.fillStyle = "#999";
+					}
+
+					ctx.fillText(String(displayedIndex), labelWidth - 5, y + 3);
+				}
+			}
 		}
 	}
 
