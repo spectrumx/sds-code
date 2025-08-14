@@ -7,6 +7,7 @@ class WaterfallVisualization {
 		this.captureUuid = captureUuid;
 		this.waterfallData = [];
 		this.currentSliceIndex = 0;
+		this.waterfallWindowStart = 0; // Track the start of the visible waterfall window
 		this.isPlaying = false;
 		this.playbackInterval = null;
 		this.playbackSpeed = 1; // fps
@@ -325,6 +326,7 @@ class WaterfallVisualization {
 		// Update button states
 		this.updateSliceButtons();
 		this.updateSliceIndexInput();
+		this.ensureSliceVisible();
 		this.updateScrollIndicators();
 	}
 
@@ -339,12 +341,38 @@ class WaterfallVisualization {
 	}
 
 	/**
+	 * Ensure the selected slice is visible in the current window
+	 */
+	ensureSliceVisible() {
+		if (this.currentSliceIndex < this.waterfallWindowStart) {
+			// Selected slice is below the current window, shift window down
+			this.waterfallWindowStart = this.currentSliceIndex;
+		} else if (
+			this.currentSliceIndex >=
+			this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE
+		) {
+			// Selected slice is above the current window, shift window up
+			this.waterfallWindowStart =
+				this.currentSliceIndex - this.WATERFALL_WINDOW_SIZE + 1;
+		}
+		// Ensure window bounds are respected
+		this.waterfallWindowStart = Math.max(
+			0,
+			Math.min(
+				this.waterfallWindowStart,
+				this.totalSlices - this.WATERFALL_WINDOW_SIZE,
+			),
+		);
+	}
+
+	/**
 	 * Update all slice-related UI elements
 	 */
 	updateSliceUI() {
 		this.updateSliceCounter();
 		this.updateSliceButtons();
 		this.updateSliceIndexInput();
+		this.ensureSliceVisible();
 		this.updateScrollIndicators();
 
 		// Update slider value
@@ -397,33 +425,28 @@ class WaterfallVisualization {
 			"scrollIndicatorBelow",
 		);
 
+		const canScrollUp =
+			this.waterfallWindowStart < this.totalSlices - this.WATERFALL_WINDOW_SIZE;
+		const canScrollDown = this.waterfallWindowStart > 0;
+
 		// Show/hide indicators based on whether scrolling is possible
 		if (scrollIndicatorAbove) {
-			scrollIndicatorAbove.classList.toggle(
-				"visible",
-				this.currentSliceIndex < this.totalSlices - 1,
-			);
+			scrollIndicatorAbove.classList.toggle("visible", canScrollUp);
 		}
 
 		if (scrollIndicatorBelow) {
-			scrollIndicatorBelow.classList.toggle(
-				"visible",
-				this.currentSliceIndex > 0,
-			);
+			scrollIndicatorBelow.classList.toggle("visible", canScrollDown);
 		}
 
 		// Update button states
 		if (scrollUpBtn) {
-			scrollUpBtn.disabled = this.currentSliceIndex >= this.totalSlices - 1;
-			scrollUpBtn.classList.toggle(
-				"disabled",
-				this.currentSliceIndex >= this.totalSlices - 1,
-			);
+			scrollUpBtn.disabled = !canScrollUp;
+			scrollUpBtn.classList.toggle("disabled", !canScrollUp);
 		}
 
 		if (scrollDownBtn) {
-			scrollDownBtn.disabled = this.currentSliceIndex <= 0;
-			scrollDownBtn.classList.toggle("disabled", this.currentSliceIndex <= 0);
+			scrollDownBtn.disabled = !canScrollDown;
+			scrollDownBtn.classList.toggle("disabled", !canScrollDown);
 		}
 	}
 
@@ -504,12 +527,12 @@ class WaterfallVisualization {
 
 		// Calculate which slices to display
 		// We want to show slices from bottom (oldest) to top (newest)
-		// The current slice should be visible, and we show up to WATERFALL_WINDOW_SIZE slices
-		const startSliceIndex = Math.max(
-			0,
-			this.currentSliceIndex - this.WATERFALL_WINDOW_SIZE + 1,
+		// The window position is controlled independently from the selected slice
+		const startSliceIndex = this.waterfallWindowStart;
+		const endSliceIndex = Math.min(
+			this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE,
+			this.totalSlices,
 		);
-		const endSliceIndex = this.currentSliceIndex + 1;
 
 		// Draw waterfall slices from bottom to top
 		for (let i = 0; i < this.WATERFALL_WINDOW_SIZE; i++) {
@@ -925,26 +948,46 @@ class WaterfallVisualization {
 	}
 
 	handleScrollUp() {
-		// Move to a more recent slice (higher index) by window size
-		const newIndex = Math.min(
-			this.totalSlices - 1,
-			this.currentSliceIndex + this.WATERFALL_WINDOW_SIZE,
+		// Move the window up to show more recent slices
+		const newWindowStart = Math.min(
+			this.totalSlices - this.WATERFALL_WINDOW_SIZE,
+			this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE,
 		);
-		if (newIndex !== this.currentSliceIndex) {
-			this.currentSliceIndex = newIndex;
+		if (newWindowStart !== this.waterfallWindowStart) {
+			this.waterfallWindowStart = newWindowStart;
+			// Keep the selected slice in the same relative position if possible
+			if (this.currentSliceIndex < this.waterfallWindowStart) {
+				this.currentSliceIndex = this.waterfallWindowStart;
+			} else if (
+				this.currentSliceIndex >=
+				this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE
+			) {
+				this.currentSliceIndex =
+					this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE - 1;
+			}
 			this.updateSliceUI();
 			this.render();
 		}
 	}
 
 	handleScrollDown() {
-		// Move to an older slice (lower index) by window size
-		const newIndex = Math.max(
+		// Move the window down to show older slices
+		const newWindowStart = Math.max(
 			0,
-			this.currentSliceIndex - this.WATERFALL_WINDOW_SIZE,
+			this.waterfallWindowStart - this.WATERFALL_WINDOW_SIZE,
 		);
-		if (newIndex !== this.currentSliceIndex) {
-			this.currentSliceIndex = newIndex;
+		if (newWindowStart !== this.waterfallWindowStart) {
+			this.waterfallWindowStart = newWindowStart;
+			// Keep the selected slice in the same relative position if possible
+			if (this.currentSliceIndex < this.waterfallWindowStart) {
+				this.currentSliceIndex = this.waterfallWindowStart;
+			} else if (
+				this.currentSliceIndex >=
+				this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE
+			) {
+				this.currentSliceIndex =
+					this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE - 1;
+			}
 			this.updateSliceUI();
 			this.render();
 		}
@@ -1112,18 +1155,13 @@ class WaterfallVisualization {
 		);
 		const sliceHeight = this.canvas.height / maxVisibleSlices;
 
-		// Calculate which slices are currently visible
-		const startSliceIndex = Math.max(
-			0,
-			this.currentSliceIndex - maxVisibleSlices + 1,
-		);
-
 		// Calculate clicked slice index (from bottom to top)
 		const clickedRow = Math.floor((this.canvas.height - y) / sliceHeight);
-		const clickedSliceIndex = startSliceIndex + clickedRow;
+		const clickedSliceIndex = this.waterfallWindowStart + clickedRow;
 
 		// Validate the index is within bounds
 		if (clickedSliceIndex >= 0 && clickedSliceIndex < this.totalSlices) {
+			// Only change the selected slice, don't shift the window
 			this.currentSliceIndex = clickedSliceIndex;
 
 			// Update UI
@@ -1133,7 +1171,7 @@ class WaterfallVisualization {
 			}
 			this.updateSliceUI();
 
-			// Re-render
+			// Re-render (window stays in place, only highlight changes)
 			this.render();
 		}
 	}
@@ -1154,15 +1192,9 @@ class WaterfallVisualization {
 		);
 		const sliceHeight = this.canvas.height / maxVisibleSlices;
 
-		// Calculate which slices are currently visible
-		const startSliceIndex = Math.max(
-			0,
-			this.currentSliceIndex - maxVisibleSlices + 1,
-		);
-
 		// Calculate hovered slice index (from bottom to top)
 		const hoveredRow = Math.floor((this.canvas.height - y) / sliceHeight);
-		const hoveredSliceIndex = startSliceIndex + hoveredRow;
+		const hoveredSliceIndex = this.waterfallWindowStart + hoveredRow;
 
 		// Update cursor style based on whether we're hovering over a valid slice
 		if (hoveredSliceIndex >= 0 && hoveredSliceIndex < this.totalSlices) {
