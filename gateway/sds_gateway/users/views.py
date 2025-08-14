@@ -2257,7 +2257,9 @@ class UploadFilesView(View):
         created_captures = []
         capture_errors = []
 
-        if should_create_captures:
+        # Only create captures if this is the last chunk AND there are no file
+        # upload errors
+        if should_create_captures and not file_errors:
             # Handle capture creation
             created_captures, capture_errors = self._process_capture_creation(
                 request,
@@ -2266,6 +2268,11 @@ class UploadFilesView(View):
                 scan_group,
                 all_relative_paths,
                 has_required_fields=has_required_fields,
+            )
+        elif should_create_captures and file_errors:
+            logger.info(
+                "Skipping capture creation due to file upload errors: %s",
+                file_errors,
             )
         else:
             logger.info(

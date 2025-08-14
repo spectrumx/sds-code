@@ -929,6 +929,13 @@
                             if (chunkResult.file_upload_status === 'error') {
                                 allResults.file_upload_status = 'error';
                                 allResults.message = chunkResult.message || 'Upload failed';
+                                // Update progress message to show upload was aborted
+                                const progressMessage = document.getElementById('progressMessage');
+                                if (progressMessage) {
+                                    progressMessage.textContent = 'Upload aborted due to errors. Please check the results.';
+                                }
+                                // Abort uploading on error
+                                break; // Break out of the chunk loop
                             } else if (chunkResult.file_upload_status === 'success') {
                                 // Only update to success if this is the final chunk
                                 if (isFinalChunk) {
@@ -950,10 +957,17 @@
                         throw new Error('Upload cancelled by user');
                     }
 
+                    // Check if upload was aborted due to errors
+                    if (allResults.file_upload_status === 'error') {
+                        // Clear the reference since upload was aborted
+                        currentAbortController = null;
+                        // Show error results
+                        showUploadResults(allResults, uploadedFiles, totalFiles);
+                        return; // Exit early, don't continue with normal flow
+                    }
+
                     // Clear the reference since upload completed
                     currentAbortController = null;
-
-
 
                     // Show results
                     showUploadResults(allResults, uploadedFiles, totalFiles);
@@ -1072,10 +1086,16 @@
                         msg += `<br /><b>Errors:</b><ul>${errs}</ul>`;
                     }
                 } else {
-                    msg = 'Upload failed: ' + (result.error || 'Unknown error');
+                    // Upload failed - show error message and prompt to remove error files
+                    msg = '<b>Upload Failed</b><br />';
+                    if (result.message) {
+                        msg += `${result.message}<br /><br />`;
+                    }
+                    msg += '<b>Please remove the problematic files and try again.</b>';
+
                     if (result.errors && result.errors.length > 0) {
                         let errs = result.errors.map(e => `<li>${e}</li>`).join('');
-                        msg += `<br /><b>Errors:</b><ul>${errs}</ul>`;
+                        msg += `<br /><br /><b>Error Details:</b><ul>${errs}</ul>`;
                     }
                 }
                 modalBody.innerHTML = msg;
