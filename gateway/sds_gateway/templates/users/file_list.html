@@ -929,13 +929,11 @@
                             if (chunkResult.file_upload_status === 'error') {
                                 allResults.file_upload_status = 'error';
                                 allResults.message = chunkResult.message || 'Upload failed';
-                            } else if (chunkResult.file_upload_status === 'partial_success') {
-                                allResults.file_upload_status = 'partial_success';
-                            }
-
-                            // Update status based on final chunk
-                            if (isFinalChunk && chunkResult.file_upload_status === 'success') {
-                                allResults.file_upload_status = 'success';
+                            } else if (chunkResult.file_upload_status === 'success') {
+                                // Only update to success if this is the final chunk
+                                if (isFinalChunk) {
+                                    allResults.file_upload_status = 'success';
+                                }
                             }
 
                             // Check if cancel was requested between chunks
@@ -1053,12 +1051,12 @@
 
 
                 let msg = '';
-                if (result.file_upload_status === 'success' || result.file_upload_status === 'partial_success') {
+                if (result.file_upload_status === 'success') {
                     // Use backend message if available, otherwise fall back to frontend logic
                     if (result.message) {
                         msg = `<b>${result.message}</b>`;
                     } else if (uploadedCount === 0 && totalCount > 0) {
-                        // All files were skipped but captures were created
+                        // All files were skipped
                         msg = `<b>Upload complete!</b><br />All ${totalCount} files already existed and were skipped.`;
                     } else {
                         // Some or all files were uploaded
@@ -1084,7 +1082,7 @@
                 modal.show();
 
                 // Add event listener to reload page when result modal is closed (only for successful uploads)
-                if (result.file_upload_status === 'success' || result.file_upload_status === 'partial_success') {
+                if (result.file_upload_status === 'success') {
                     resultModalEl.addEventListener('hidden.bs.modal', function() {
                         window.location.reload();
                     }, {

@@ -2052,21 +2052,27 @@ class UploadFilesView(View):
         has_required_fields: bool,
     ) -> str:
         """Determine the response status based on upload and capture creation
-        results."""
+        results.
+
+        Returns:
+            "success": All files successful OR All skipped + has required fields
+            "error": Some files successful OR All files failed OR All skipped +
+                missing fields
+        """
 
         if all_files_empty:
-            # If all files were empty (skipped) and we have required fields,
-            # this is a success even if no captures were created
-            # (they might already exist)
+            # All files were skipped (empty)
             return "success" if has_required_fields else "error"
+
         if (
             saved_files
             and len(saved_files) == len(upload_chunk_files)
             and not file_errors
         ):
+            # All files successful
             return "success"
-        if saved_files:
-            return "partial_success"
+
+        # Some files successful OR All files failed
         return "error"
 
     def _build_file_capture_response_data(
