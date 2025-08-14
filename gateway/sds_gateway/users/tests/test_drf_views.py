@@ -360,5 +360,3 @@ class TestShareItemView:
         result = response.json()
         assert result["success"] is False
         assert "invalid item type" in result["message"].lower()
-
-
