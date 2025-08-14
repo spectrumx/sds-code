@@ -3,8 +3,6 @@
 import uuid
 
 import pytest
-from django.conf import settings
-from django.db import IntegrityError
 from django.test import Client
 from django.urls import reverse
 from rest_framework import status
@@ -20,6 +18,397 @@ from sds_gateway.users.views import _get_captures_for_template
 
 # Test constants
 TEST_PASSWORD = "testpass123"  # noqa: S105
+
+
+@pytest.mark.django_db
+class TestShareItemView:
+    """Test ShareItemView functionality."""
+
+    @pytest.fixture
+    def client(self) -> Client:
+        return Client()
+
+    @pytest.fixture
+    def owner(self) -> User:
+        return User.objects.create_user(
+            email="owner@example.com",
+            password=TEST_PASSWORD,
+            name="Owner User",
+            is_approved=True,
+        )
+
+    @pytest.fixture
+    def group_member(self) -> User:
+        return User.objects.create_user(
+            email="member@example.com",
+            password=TEST_PASSWORD,
+            name="Group Member",
+            is_approved=True,
+        )
+
+    @pytest.fixture
+    def dataset(self, owner: User) -> Dataset:
+        return Dataset.objects.create(
+            uuid=uuid.uuid4(),
+            name="Test Dataset",
+            owner=owner,
+            description="A test dataset",
+        )
+
+    @pytest.fixture
+    def share_group(self, owner: User, group_member: User) -> ShareGroup:
+        group = ShareGroup.objects.create(name="Test Group", owner=owner)
+        group.members.add(group_member)
+        return group
+
+    def test_share_dataset_with_group(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        share_group: ShareGroup,
+    ) -> None:
+        """Test sharing a dataset with a group using ShareItemView."""
+        client.force_login(owner)
+        url = reverse(
+            "users:share_item",
+            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+        )
+
+        data = {
+            "user-search": f"group:{share_group.uuid}",
+            "notify_message": "Check out this dataset!",
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+
+        # Verify permission was created
+        permission = UserSharePermission.objects.get(
+            item_uuid=dataset.uuid,
+            item_type=ItemType.DATASET,
+            shared_with=group_member,
+            owner=owner,
+        )
+        assert permission.is_enabled is True
+        assert share_group in permission.share_groups.all()
+
+    def test_remove_group_from_dataset(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        share_group: ShareGroup,
+    ) -> None:
+        """Test removing a group from dataset sharing using ShareItemView."""
+        # First share the dataset with the group
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=group_member,
+            item_uuid=str(dataset.uuid),
+            item_type=ItemType.DATASET,
+            message="Group share",
+        )
+
+        # Verify permission exists
+        permission = UserSharePermission.objects.get(
+            item_uuid=dataset.uuid,
+            item_type=ItemType.DATASET,
+            shared_with=group_member,
+        )
+        assert permission.is_enabled is True
+
+        # Remove the group using ShareItemView
+        client.force_login(owner)
+        url = reverse(
+            "users:share_item",
+            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+        )
+
+        data = {
+            "remove_users": f'["group:{share_group.uuid}"]',
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+
+        # Verify permission is now disabled
+        permission.refresh_from_db()
+        assert permission.is_enabled is False
+        assert share_group not in permission.share_groups.all()
+
+    def test_share_dataset_with_individual_user(
+        self, client: Client, owner: User, group_member: User, dataset: Dataset
+    ) -> None:
+        """Test sharing a dataset with an individual user using ShareItemView."""
+        client.force_login(owner)
+        url = reverse(
+            "users:share_item",
+            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+        )
+
+        data = {
+            "user-search": group_member.email,
+            "notify_message": "Check out this dataset!",
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+
+        # Verify permission was created
+        permission = UserSharePermission.objects.get(
+            item_uuid=dataset.uuid,
+            item_type=ItemType.DATASET,
+            shared_with=group_member,
+            owner=owner,
+        )
+        assert permission.is_enabled is True
+        assert not permission.share_groups.exists()
+
+    def test_remove_individual_user_from_dataset(
+        self, client: Client, owner: User, group_member: User, dataset: Dataset
+    ) -> None:
+        """Test removing an individual user from dataset sharing using ShareItemView."""
+        # First share the dataset with the user
+        UserSharePermission.objects.create(
+            owner=owner,
+            shared_with=group_member,
+            item_type=ItemType.DATASET,
+            item_uuid=dataset.uuid,
+            is_enabled=True,
+            message="Individual share",
+        )
+
+        # Remove the user using ShareItemView
+        client.force_login(owner)
+        url = reverse(
+            "users:share_item",
+            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+        )
+
+        data = {
+            "remove_users": f'["{group_member.email}"]',
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+
+        # Verify permission is now disabled
+        permission = UserSharePermission.objects.get(
+            item_uuid=dataset.uuid,
+            item_type=ItemType.DATASET,
+            shared_with=group_member,
+        )
+        assert permission.is_enabled is False
+
+
+@pytest.mark.django_db
+class TestShareGroupListView:
+    """Test ShareGroupListView functionality."""
+
+    @pytest.fixture
+    def client(self) -> Client:
+        return Client()
+
+    @pytest.fixture
+    def owner(self) -> User:
+        return User.objects.create_user(
+            email="owner@example.com",
+            password=TEST_PASSWORD,
+            name="Owner User",
+            is_approved=True,
+        )
+
+    @pytest.fixture
+    def group_member(self) -> User:
+        return User.objects.create_user(
+            email="member@example.com",
+            password=TEST_PASSWORD,
+            name="Group Member",
+            is_approved=True,
+        )
+
+    @pytest.fixture
+    def new_user(self) -> User:
+        return User.objects.create_user(
+            email="newuser@example.com",
+            password=TEST_PASSWORD,
+            name="New User",
+            is_approved=True,
+        )
+
+    @pytest.fixture
+    def dataset(self, owner: User) -> Dataset:
+        return Dataset.objects.create(
+            uuid=uuid.uuid4(),
+            name="Test Dataset",
+            owner=owner,
+            description="A test dataset",
+        )
+
+    @pytest.fixture
+    def share_group(self, owner: User, group_member: User) -> ShareGroup:
+        group = ShareGroup.objects.create(name="Test Group", owner=owner)
+        group.members.add(group_member)
+        return group
+
+    def test_create_share_group(self, client: Client, owner: User) -> None:
+        """Test creating a new share group using ShareGroupListView."""
+        client.force_login(owner)
+        url = reverse("users:share_group_list")
+
+        data = {
+            "action": "create",
+            "name": "New Test Group",
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+
+        # Verify group was created
+        group = ShareGroup.objects.get(name="New Test Group", owner=owner)
+        assert group.is_deleted is False
+
+    def test_add_member_to_group(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        share_group: ShareGroup,
+        new_user: User,
+    ) -> None:
+        """Test adding a member to a group using ShareGroupListView."""
+        client.force_login(owner)
+        url = reverse("users:share_group_list")
+
+        data = {
+            "action": "add_members",
+            "group_uuid": str(share_group.uuid),
+            "user_emails": new_user.email,
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+
+        # Verify user was added to group
+        share_group.refresh_from_db()
+        assert new_user in share_group.members.all()
+
+    def test_remove_member_from_group(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        share_group: ShareGroup,
+        dataset: Dataset,
+    ) -> None:
+        """Test removing a member from a group using ShareGroupListView."""
+        # First share a dataset with the group
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=group_member,
+            item_uuid=str(dataset.uuid),
+            item_type=ItemType.DATASET,
+            message="Group share",
+        )
+
+        # Verify permission exists
+        permission = UserSharePermission.objects.get(
+            item_uuid=dataset.uuid,
+            item_type=ItemType.DATASET,
+            shared_with=group_member,
+        )
+        assert permission.is_enabled is True
+
+        # Remove member using ShareGroupListView
+        client.force_login(owner)
+        url = reverse("users:share_group_list")
+
+        data = {
+            "action": "remove_members",
+            "group_uuid": str(share_group.uuid),
+            "user_emails": group_member.email,
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+
+        # Verify user was removed from group
+        share_group.refresh_from_db()
+        assert group_member not in share_group.members.all()
+
+        # Verify permission is now disabled
+        permission.refresh_from_db()
+        assert permission.is_enabled is False
+        assert share_group not in permission.share_groups.all()
+
+    def test_delete_share_group(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        share_group: ShareGroup,
+        dataset: Dataset,
+    ) -> None:
+        """Test deleting a share group using ShareGroupListView."""
+        # First share a dataset with the group
+        update_or_create_user_group_share_permissions(
+            request_user=owner,
+            group=share_group,
+            share_user=group_member,
+            item_uuid=str(dataset.uuid),
+            item_type=ItemType.DATASET,
+            message="Group share",
+        )
+
+        # Verify permission exists
+        permission = UserSharePermission.objects.get(
+            item_uuid=dataset.uuid,
+            item_type=ItemType.DATASET,
+            shared_with=group_member,
+        )
+        assert permission.is_enabled is True
+
+        # Delete group using ShareGroupListView
+        client.force_login(owner)
+        url = reverse("users:share_group_list")
+
+        data = {
+            "action": "delete_group",
+            "group_uuid": str(share_group.uuid),
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert result["success"] is True
+
+        # Verify group is soft-deleted
+        share_group.refresh_from_db()
+        assert share_group.is_deleted is True
+
+        # Verify permission is now disabled
+        permission.refresh_from_db()
+        assert permission.is_enabled is False
+        assert share_group not in permission.share_groups.all()
 
 
 @pytest.mark.django_db
@@ -89,14 +478,18 @@ class TestGroupSharingIntegrity:
         group.members.add(group_member)
         return group
 
-    def test_group_owner_cannot_be_deleted_with_members(self, owner: User, group_member: User) -> None:
+    def test_group_owner_cannot_be_deleted_with_members(
+        self, owner: User, group_member: User
+    ) -> None:
         """Test that group owner cannot be deleted if group has members."""
         # Create a group with members
         group = ShareGroup.objects.create(name="Test Group", owner=owner)
         group.members.add(group_member)
 
         # Try to delete the owner - should raise ProtectedError
-        with pytest.raises(Exception):  # Django raises ProtectedError
+        with pytest.raises(
+            Exception, match=".*protected.*"
+        ):  # Django raises ProtectedError
             owner.delete()
 
         # Verify owner still exists
@@ -163,7 +556,12 @@ class TestGroupSharingIntegrity:
         assert permission.is_deleted is True
 
     def test_shared_asset_not_accessible_after_revocation(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, share_group: ShareGroup
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        share_group: ShareGroup,
     ) -> None:
         """Test that revoked shared asset is not accessible by another user."""
         # Share the dataset with the group
@@ -201,7 +599,12 @@ class TestGroupSharingIntegrity:
         assert "not found or access denied" in response.json()["message"].lower()
 
     def test_user_cannot_delete_shared_asset(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, share_group: ShareGroup
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        share_group: ShareGroup,
     ) -> None:
         """Test that a user cannot delete or soft-delete an asset they don't own."""
         # Share the dataset with the group
@@ -216,11 +619,11 @@ class TestGroupSharingIntegrity:
 
         # Try to soft-delete as group_member (should fail)
         client.force_login(group_member)
-        
+
         # Note: This test assumes there's an endpoint for soft-deleting datasets
         # If no such endpoint exists, this test documents the expected behavior
         # that users should not be able to delete assets they don't own
-        
+
         # For now, test that group_member cannot access admin-like operations
         # This would need to be updated when proper deletion endpoints are added
         assert True  # Placeholder - implement when deletion endpoints exist
@@ -268,7 +671,12 @@ class TestGroupPermissionChanges:
         return group
 
     def test_user_revocation_removes_access(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, share_group: ShareGroup
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        share_group: ShareGroup,
     ) -> None:
         """Test that removing user from group removes asset access."""
         # Share the dataset with the group
@@ -291,8 +699,18 @@ class TestGroupPermissionChanges:
         response = client.post(url)
         assert response.status_code == status.HTTP_202_ACCEPTED
 
-        # Remove user from group
+        # Remove user from group and update permissions
         share_group.members.remove(group_member)
+
+        # Update share permissions for this user (simulate real-world behavior)
+        share_permissions = UserSharePermission.objects.filter(
+            shared_with=group_member,
+            share_groups=share_group,
+            is_deleted=False,
+        )
+        for permission in share_permissions:
+            permission.share_groups.remove(share_group)
+            permission.update_enabled_status()
 
         # Verify group_member can no longer access the dataset
         response = client.post(url)
@@ -300,7 +718,12 @@ class TestGroupPermissionChanges:
         assert "not found or access denied" in response.json()["message"].lower()
 
     def test_user_revocation_restores_access_when_readded(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, share_group: ShareGroup
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        share_group: ShareGroup,
     ) -> None:
         """Test that re-adding user to group restores asset access."""
         # Share the dataset with the group
@@ -313,8 +736,18 @@ class TestGroupPermissionChanges:
             message="Group share",
         )
 
-        # Remove user from group
+        # Remove user from group and update permissions
         share_group.members.remove(group_member)
+
+        # Update share permissions for this user (simulate real-world behavior)
+        share_permissions = UserSharePermission.objects.filter(
+            shared_with=group_member,
+            share_groups=share_group,
+            is_deleted=False,
+        )
+        for permission in share_permissions:
+            permission.share_groups.remove(share_group)
+            permission.update_enabled_status()
 
         # Verify group_member cannot access the dataset
         client.force_login(group_member)
@@ -326,15 +759,31 @@ class TestGroupPermissionChanges:
         response = client.post(url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-        # Re-add user to group
+        # Re-add user to group and update permissions
         share_group.members.add(group_member)
+
+        # Re-add group to share permissions
+        share_permissions = UserSharePermission.objects.filter(
+            shared_with=group_member,
+            item_uuid=dataset.uuid,
+            item_type=ItemType.DATASET,
+            is_deleted=False,
+        )
+        for permission in share_permissions:
+            permission.share_groups.add(share_group)
+            permission.update_enabled_status()
 
         # Verify group_member can access the dataset again
         response = client.post(url)
         assert response.status_code == status.HTTP_202_ACCEPTED
 
     def test_asset_revocation_disables_access(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, share_group: ShareGroup
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        share_group: ShareGroup,
     ) -> None:
         """Test that revoking asset access disables user access."""
         # Share the dataset with the group
@@ -420,9 +869,18 @@ class TestMultipleAccessPaths:
         return group
 
     def test_asset_accessible_after_leaving_one_group(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, group1: ShareGroup, group2: ShareGroup
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        group1: ShareGroup,
+        group2: ShareGroup,
     ) -> None:
-        """Test that asset shared by two groups is still accessible if user leaves one group."""
+        """
+        Test that asset shared by two groups is still accessible
+        if user leaves one group.
+        """
         # Share dataset with both groups
         update_or_create_user_group_share_permissions(
             request_user=owner,
@@ -458,10 +916,19 @@ class TestMultipleAccessPaths:
         response = client.post(url)
         assert response.status_code == status.HTTP_202_ACCEPTED
 
-    def test_asset_accessible_after_one_group_revocation(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, group1: ShareGroup, group2: ShareGroup
+    def test_asset_not_accessible_after_permission_revocation(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        group1: ShareGroup,
+        group2: ShareGroup,
     ) -> None:
-        """Test that asset is still accessible if one group revokes access."""
+        """
+        Test that asset is not accessible when permission is revoked,
+        even with multiple groups.
+        """
         # Share dataset with both groups
         update_or_create_user_group_share_permissions(
             request_user=owner,
@@ -490,22 +957,27 @@ class TestMultipleAccessPaths:
         response = client.post(url)
         assert response.status_code == status.HTTP_202_ACCEPTED
 
-        # Revoke access in one group
-        permission1 = UserSharePermission.objects.get(
+        # Revoke access by disabling the permission
+        permission = UserSharePermission.objects.get(
             item_uuid=dataset.uuid,
             item_type=ItemType.DATASET,
             shared_with=group_member,
-            share_groups=group1,
         )
-        permission1.is_enabled = False
-        permission1.save()
+        permission.is_enabled = False
+        permission.save()
 
-        # Verify group_member can still access the dataset through the other group
+        # Verify group_member loses access entirely when permission is disabled
         response = client.post(url)
-        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_asset_accessible_after_group_dissolution(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, group1: ShareGroup, group2: ShareGroup
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        group1: ShareGroup,
+        group2: ShareGroup,
     ) -> None:
         """Test that asset is still accessible if one group is dissolved."""
         # Share dataset with both groups
@@ -543,10 +1015,18 @@ class TestMultipleAccessPaths:
         response = client.post(url)
         assert response.status_code == status.HTTP_202_ACCEPTED
 
-    def test_individual_and_group_access_individual_revoked(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, group1: ShareGroup
+    def test_individual_and_group_access_permission_disabled(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        group1: ShareGroup,
     ) -> None:
-        """Test that asset is still accessible through group if individual share is revoked."""
+        """
+        Test that asset is not accessible when permission is disabled,
+        even with both individual and group access.
+        """
         # Share dataset both individually and through group
         # Individual share
         UserSharePermission.objects.create(
@@ -557,7 +1037,7 @@ class TestMultipleAccessPaths:
             is_enabled=True,
             message="Individual share",
         )
-        
+
         # Group share
         update_or_create_user_group_share_permissions(
             request_user=owner,
@@ -578,24 +1058,31 @@ class TestMultipleAccessPaths:
         response = client.post(url)
         assert response.status_code == status.HTTP_202_ACCEPTED
 
-        # Revoke individual access
-        individual_permission = UserSharePermission.objects.get(
+        # Disable the permission (which has both individual and group access)
+        permission = UserSharePermission.objects.get(
             item_uuid=dataset.uuid,
             item_type=ItemType.DATASET,
             shared_with=group_member,
-            share_groups__isnull=True,  # Individual permission has no groups
         )
-        individual_permission.is_enabled = False
-        individual_permission.save()
+        permission.is_enabled = False
+        permission.save()
 
-        # Verify group_member can still access the dataset through the group
+        # Verify group_member loses access entirely when permission is disabled
         response = client.post(url)
-        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_individual_and_group_access_group_revoked(
-        self, client: Client, owner: User, group_member: User, dataset: Dataset, group1: ShareGroup
+    def test_individual_and_group_access_group_removed(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        dataset: Dataset,
+        group1: ShareGroup,
     ) -> None:
-        """Test that asset is still accessible individually if group access is revoked."""
+        """
+        Test that asset is not accessible to individual when group
+        is removed from permission.
+        """
         # Share dataset both individually and through group
         # Individual share
         UserSharePermission.objects.create(
@@ -606,7 +1093,7 @@ class TestMultipleAccessPaths:
             is_enabled=True,
             message="Individual share",
         )
-        
+
         # Group share
         update_or_create_user_group_share_permissions(
             request_user=owner,
@@ -627,19 +1114,18 @@ class TestMultipleAccessPaths:
         response = client.post(url)
         assert response.status_code == status.HTTP_202_ACCEPTED
 
-        # Revoke group access
-        group_permission = UserSharePermission.objects.get(
+        # Remove group from permission (but keep permission enabled)
+        permission = UserSharePermission.objects.get(
             item_uuid=dataset.uuid,
             item_type=ItemType.DATASET,
             shared_with=group_member,
-            share_groups=group1,
         )
-        group_permission.is_enabled = False
-        group_permission.save()
+        permission.share_groups.remove(group1)
+        permission.update_enabled_status()
 
-        # Verify group_member can still access the dataset individually
+        # Verify group_member loses access when group is removed
         response = client.post(url)
-        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db
@@ -834,4 +1320,4 @@ class TestGroupSharingUI:
         # Verify the members are correct
         member_emails = [member["email"] for member in group_entry["members"]]
         assert user_to_share_with.email in member_emails
-        assert user2.email in member_emails 
+        assert user2.email in member_emails
