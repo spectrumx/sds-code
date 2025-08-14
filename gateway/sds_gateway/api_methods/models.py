@@ -939,7 +939,7 @@ class ShareGroup(BaseModel):
     name = models.CharField(max_length=255)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,  # prevents users from being deleted if they own groups (delete the groups first). # noqa: E501
         related_name="owned_share_groups",
     )
     members = models.ManyToManyField(
