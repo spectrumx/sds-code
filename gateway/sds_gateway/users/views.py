@@ -2560,6 +2560,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 elif permission.item_type == "capture":
                     item = Capture.objects.get(uuid=permission.item_uuid)
                 else:
+                    logger.warning(f"Unknown item type: {permission.item_type}")
                     continue  # Skip unknown item types
 
                 shared_assets.append(
