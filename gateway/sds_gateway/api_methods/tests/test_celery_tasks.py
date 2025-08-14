@@ -28,12 +28,12 @@ from sds_gateway.api_methods.tasks import check_disk_space_available
 from sds_gateway.api_methods.tasks import check_email_task
 from sds_gateway.api_methods.tasks import cleanup_expired_temp_zips
 from sds_gateway.api_methods.tasks import cleanup_orphaned_zip_files
-from sds_gateway.api_methods.tasks import estimate_zip_size
 from sds_gateway.api_methods.tasks import format_file_size
 from sds_gateway.api_methods.tasks import get_user_task_status
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import release_user_lock
 from sds_gateway.api_methods.tasks import send_item_files_email
+from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
 
 # pyright: reportFunctionMemberAccess=false, reportCallIssue=false
 
@@ -735,8 +735,8 @@ class TestCeleryTasks(TestCase):
         # Test TB
         assert format_file_size(1024 * 1024 * 1024 * 1024) == "1.0 TB"
 
-    def test_estimate_zip_size(self):
-        """Test estimate_zip_size function."""
+    def test_estimate_disk_size(self):
+        """Test estimate_disk_size function."""
         # Create test files with known sizes
         files = [
             MagicMock(size=1024 * 1024),  # 1MB
@@ -744,7 +744,7 @@ class TestCeleryTasks(TestCase):
         ]
 
         # Test small files (should have 10% overhead)
-        estimated_size = estimate_zip_size(files)
+        estimated_size = estimate_disk_size(files)
         expected_size = int((3 * 1024 * 1024) * 1.1)  # 3MB + 10% overhead
         assert estimated_size == expected_size
 
@@ -753,7 +753,7 @@ class TestCeleryTasks(TestCase):
             MagicMock(size=100 * 1024 * 1024),  # 100MB
             MagicMock(size=200 * 1024 * 1024),  # 200MB
         ]
-        estimated_large_size = estimate_zip_size(large_files)
+        estimated_large_size = estimate_disk_size(large_files)
         expected_large_size = int((300 * 1024 * 1024) * 1.05)  # 300MB + 5% overhead
         assert estimated_large_size == expected_large_size
 
@@ -764,15 +764,15 @@ class TestCeleryTasks(TestCase):
         mock_disk_usage.return_value = (
             1000 * 1024 * 1024 * 1024,  # total: 1000GB
             500 * 1024 * 1024 * 1024,  # used: 500GB
-            600 * 1024 * 1024 * 1024,  # free: 600GB
+            500 * 1024 * 1024 * 1024,  # free: 500GB
         )
 
         # Test with sufficient space (1GB required, 595GB available after buffer)
         result = check_disk_space_available(1024 * 1024 * 1024)  # 1GB required
         assert result is True
 
-        # Test with insufficient space (600GB required, but only 595GB available)
-        result = check_disk_space_available(600 * 1024 * 1024 * 1024)  # 600GB required
+        # Test with insufficient space (500GB required, but only 495GB available)
+        result = check_disk_space_available(500 * 1024 * 1024 * 1024)  # 500GB required
         assert result is False
 
         # Test with error handling
@@ -813,7 +813,7 @@ class TestCeleryTasks(TestCase):
         # Use a size that's within database limits but still triggers the 5GB check
         File.objects.create(
             name="large_file.h5",
-            size=2147483647,  # Max int32 value (about 2GB)
+            size=2147483647,
             directory=self.top_level_dir,
             owner=self.user,
             capture=self.capture,

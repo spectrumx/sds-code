@@ -15,6 +15,9 @@ from django.conf import settings
 from django_cog import cog
 from loguru import logger
 
+from sds_gateway.api_methods.utils.disk_utils import check_disk_space_available
+from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
+
 # PLC0415: models are imported in functions to run after the Django app is ready
 # ruff: noqa: PLC0415
 
@@ -193,6 +196,58 @@ def setup_post_processing_cog(
         raise
 
 
+def _process_waterfall_files(
+    capture, processed_data, temp_path: Path, max_slices: int | None = None
+) -> dict[str, Any]:
+    """Process waterfall files for a capture.
+
+    Args:
+        capture: The capture to process
+        processed_data: The processed data record
+        temp_path: Temporary directory path
+        max_slices: Maximum number of slices to process
+
+    Returns:
+        Dict with processing results
+    """
+    from .models import ProcessingType
+
+    # Reconstruct the DigitalRF files for processing
+    capture_files = capture.files.filter(is_deleted=False)
+
+    # Check disk space before reconstructing files
+    estimated_size = estimate_disk_size(capture_files)
+    if not check_disk_space_available(estimated_size, temp_path):
+        error_msg = (
+            f"Insufficient disk space for processing. "
+            f"Required: {estimated_size} bytes, "
+            f"available in temp directory: {temp_path}"
+        )
+        processed_data.mark_processing_failed(error_msg)
+        raise ValueError(error_msg)
+
+    reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
+
+    if not reconstructed_path:
+        error_msg = "Failed to reconstruct DigitalRF directory structure"
+        processed_data.mark_processing_failed(error_msg)
+        raise ValueError(error_msg)
+
+    # Process the waterfall data in JSON format
+    waterfall_result = convert_drf_to_waterfall_json(
+        reconstructed_path,
+        capture.channel,
+        ProcessingType.Waterfall.value,
+        max_slices=max_slices,
+    )
+
+    if waterfall_result["status"] != "success":
+        processed_data.mark_processing_failed(waterfall_result["message"])
+        raise ValueError(waterfall_result["message"])
+
+    return waterfall_result
+
+
 @cog
 def process_waterfall_data_cog(
     capture_uuid: str, max_slices: int | None = None
@@ -238,28 +293,10 @@ def process_waterfall_data_cog(
             temp_path = Path(temp_dir)
 
             try:
-                # Reconstruct the DigitalRF files for processing
-                capture_files = capture.files.filter(is_deleted=False)
-                reconstructed_path = reconstruct_drf_files(
-                    capture, capture_files, temp_path
+                # Process the waterfall files
+                waterfall_result = _process_waterfall_files(
+                    capture, processed_data, temp_path, max_slices
                 )
-
-                if not reconstructed_path:
-                    error_msg = "Failed to reconstruct DigitalRF directory structure"
-                    processed_data.mark_processing_failed(error_msg)
-                    raise ValueError(error_msg)  # noqa: TRY301
-
-                # Process the waterfall data in JSON format
-                waterfall_result = convert_drf_to_waterfall_json(
-                    reconstructed_path,
-                    capture.channel,
-                    ProcessingType.Waterfall.value,
-                    max_slices=max_slices,
-                )
-
-                if waterfall_result["status"] != "success":
-                    processed_data.mark_processing_failed(waterfall_result["message"])
-                    raise ValueError(waterfall_result["message"])  # noqa: TRY301
 
                 # Create a temporary JSON file
                 import json

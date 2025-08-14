@@ -23,6 +23,10 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.utils.disk_utils import DISK_SPACE_BUFFER
+from sds_gateway.api_methods.utils.disk_utils import check_disk_space_available
+from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
+from sds_gateway.api_methods.utils.disk_utils import format_file_size
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
@@ -30,52 +34,6 @@ from sds_gateway.users.models import User
 
 # Constants for file size limits
 MAX_WEB_DOWNLOAD_SIZE = 5 * 1024 * 1024 * 1024  # 5 GB in bytes
-DISK_SPACE_BUFFER = 5 * 1024 * 1024 * 1024  # 5 GB buffer for safety
-
-
-def check_disk_space_available(
-    required_bytes: int, directory: Path | None = None
-) -> bool:
-    """
-    Check if there's enough disk space available for the required bytes.
-
-    Args:
-        required_bytes: Number of bytes needed
-        directory: Directory to check space for (defaults to MEDIA_ROOT)
-
-    Returns:
-        bool: True if enough space is available, False otherwise
-    """
-    if directory is None:
-        directory = Path(settings.MEDIA_ROOT)
-
-    try:
-        total, used, free = shutil.disk_usage(directory)
-        available_space = free - DISK_SPACE_BUFFER
-    except (OSError, ValueError) as e:
-        logger.error(f"Error checking disk space for {directory}: {e}")
-        return False
-    else:
-        return available_space >= required_bytes
-
-
-def estimate_zip_size(files: list[File]) -> int:
-    """
-    Estimate the size of a zip file containing the given files.
-
-    Args:
-        files: List of File model instances
-
-    Returns:
-        int: Estimated size in bytes (includes compression overhead)
-    """
-    total_file_size = sum(file_obj.size for file_obj in files)
-
-    # Estimate zip overhead (headers, compression metadata, etc.)
-    # Rough estimate: 10% overhead for small files, 5% for large files
-    overhead_factor = 1.1 if total_file_size < 100 * 1024 * 1024 else 1.05
-
-    return int(total_file_size * overhead_factor)
 
 
 def cleanup_orphaned_zips() -> int:
@@ -93,55 +51,32 @@ def cleanup_orphaned_zips() -> int:
 
     cleaned_count = 0
 
-    try:
-        # Get all zip files in the temp_zips directory
-        for zip_file in temp_zips_dir.glob("*.zip"):
-            # Check if there's a corresponding database record
-            try:
-                # Extract UUID from filename (format: uuid_filename.zip)
-                filename = zip_file.name
-                if "_" in filename:
-                    uuid_part = filename.split("_")[0]
-                    # Check if this UUID exists in the database
-                    exists = TemporaryZipFile.objects.filter(uuid=uuid_part).exists()
-                    if not exists:
-                        # No database record, this is an orphaned file
-                        zip_file.unlink()
-                        cleaned_count += 1
-                        logger.info(f"Cleaned up orphaned zip file: {zip_file}")
-            except (OSError, ValueError) as e:
-                logger.error(f"Error processing zip file {zip_file}: {e}")
-                # Try to delete the problematic file anyway
-                try:
+    # Get all zip files in the temp_zips directory
+    for zip_file in temp_zips_dir.glob("*.zip"):
+        # Check if there's a corresponding database record
+        try:
+            # Extract UUID from filename (format: uuid_filename.zip)
+            filename = zip_file.name
+            if "_" in filename:
+                uuid_part = filename.split("_")[0]
+                # Check if this UUID exists in the database
+                exists = TemporaryZipFile.objects.filter(uuid=uuid_part).exists()
+                if not exists:
+                    # No database record, this is an orphaned file
                     zip_file.unlink()
                     cleaned_count += 1
-                    logger.info(f"Cleaned up problematic zip file: {zip_file}")
-                except OSError:
-                    logger.error(f"Failed to delete problematic zip file: {zip_file}")
-
-    except OSError as e:
-        logger.error(f"Error during orphaned zip cleanup: {e}")
+                    logger.info(f"Cleaned up orphaned zip file: {zip_file}")
+        except (OSError, ValueError) as e:
+            logger.error(f"Error processing zip file {zip_file}: {e}")
+            # Try to delete the problematic file anyway
+            try:
+                zip_file.unlink()
+                cleaned_count += 1
+                logger.info(f"Cleaned up problematic zip file: {zip_file}")
+            except OSError:
+                logger.error(f"Failed to delete problematic zip file: {zip_file}")
 
     return cleaned_count
-
-
-def format_file_size(size_bytes: int) -> str:
-    """
-    Format file size in human-readable format.
-
-    Args:
-        size_bytes: Size in bytes
-
-    Returns:
-        str: Formatted size string
-    """
-    bytes_per_unit = 1024.0
-    size_float = float(size_bytes)
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if size_float < bytes_per_unit:
-            return f"{size_float:.1f} {unit}"
-        size_float /= bytes_per_unit
-    return f"{size_float:.1f} PB"
 
 
 def get_redis_client() -> Redis:
@@ -772,7 +707,7 @@ def _process_item_files(
         )
 
     # Estimate zip size before creating it
-    estimated_zip_size = estimate_zip_size(files)
+    estimated_zip_size = estimate_disk_size(files)
     total_file_size = sum(file_obj.size for file_obj in files)
 
     # Check if download size exceeds web download limit
@@ -797,6 +732,11 @@ def _process_item_files(
             None,
             None,
         )
+
+    # Clean up any orphaned zip files before checking disk space
+    cleaned_count = cleanup_orphaned_zips()
+    if cleaned_count > 0:
+        logger.info(f"Cleaned up {cleaned_count} orphaned zip files before processing")
 
     # Check available disk space
     if not check_disk_space_available(estimated_zip_size):
@@ -826,11 +766,6 @@ def _process_item_files(
             None,
             None,
         )
-
-    # Clean up any orphaned zip files before creating new ones
-    cleaned_count = cleanup_orphaned_zips()
-    if cleaned_count > 0:
-        logger.info(f"Cleaned up {cleaned_count} orphaned zip files before processing")
 
     unsafe_item_name = getattr(item, "name", str(item)) or item_type
     safe_item_name = re.sub(r"[^a-zA-Z0-9._-]", "", unsafe_item_name.replace(" ", "_"))
