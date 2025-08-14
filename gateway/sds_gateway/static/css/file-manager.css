@@ -1,0 +1,616 @@
+:root {
+	--color-text-primary: #3c4043;
+	--color-text-secondary: #5f6368;
+	--color-border: #dadce0;
+	--color-background: #fff;
+	--color-background-hover: #f8f9fa;
+	--color-primary: #1a73e8;
+	--color-primary-hover: #1557b0;
+	--font-family: "Google Sans", sans-serif;
+	--shadow-small: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px
+		rgba(60, 64, 67, 0.15);
+	--shadow-medium: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 2px 6px 2px
+		rgba(60, 64, 67, 0.15);
+	--transition-default: all 0.2s;
+}
+
+/* Base Styles */
+body {
+	font-family: var(--font-family);
+	background-color: var(--color-background-hover);
+	margin: 0;
+	padding: 0;
+}
+
+/* Layout */
+/* Main container */
+.files-container {
+	display: flex;
+	flex-direction: column;
+	height: auto;
+	min-height: 200px; /* Minimum height to prevent empty state from looking too small */
+	max-height: calc(100vh - 250px); /* Maximum height based on viewport */
+	overflow: auto;
+}
+
+/* Files grid */
+.files-grid {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	background-color: var(--color-background);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	margin: 0 16px;
+	height: auto; /* Let it grow based on content */
+	min-height: 100px; /* Minimum height for empty state */
+}
+
+/* File cards container (removed - unused) */
+
+/* Individual file card */
+.file-card {
+	border: none;
+	padding: 8px 16px;
+	cursor: pointer;
+	transition: var(--transition-default);
+	display: flex;
+	align-items: center;
+	text-align: left;
+	position: relative;
+	background-color: var(--color-background);
+	min-height: 40px;
+	gap: 12px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.file-card:last-child {
+	border-bottom: none;
+}
+
+.file-card:hover {
+	background-color: var(--color-background-hover);
+}
+
+/* Clickable directory styling */
+.clickable-directory {
+	cursor: pointer;
+}
+
+.clickable-directory:hover {
+	background-color: var(--color-background-hover);
+	box-shadow: var(--shadow-small);
+}
+
+/* Removed non-clickable-file styles (unused) */
+
+.file-card-content {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	gap: 16px;
+}
+
+/* File/Folder Names */
+.file-name {
+	font-size: 14px;
+	color: var(--color-text-primary);
+	margin: 0;
+	font-weight: 400;
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding-right: 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Icons */
+.file-icon,
+.folder-icon,
+.dataset-icon.bi {
+	font-size: 20px;
+	color: var(--color-text-secondary);
+	margin-right: 12px;
+	flex-shrink: 0;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+/* Dataset icon styles are consolidated with other icons and hover rules */
+
+/* Hover effects for all items */
+.file-card:hover .file-name,
+.file-card:hover .folder-icon,
+.file-card:hover .file-icon,
+.file-card:hover .dataset-icon.bi {
+	color: #005a9c; /* SpectrumX blue */
+}
+
+/* Removed expanded state styles (unused) */
+
+/* Directory hover should also use the same blue */
+.file-card[data-type="directory"]:hover .file-name {
+	color: #005a9c;
+}
+
+/* Consolidated dataset icon rules above; hover handled with other icons */
+
+.file-meta {
+	font-size: 13px;
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+	flex-shrink: 0;
+	min-width: 150px; /* Increased width for modified date */
+	text-align: center; /* Center align the modified date */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	padding-right: 24px; /* reserve space for right-aligned shared icon */
+}
+
+/* Keep the shared-with icon from shifting the centered date */
+/* Removed tooltip positioning in .file-meta (icon moved to .file-shared) */
+
+.file-shared {
+	font-size: 13px;
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+	flex-shrink: 0;
+	min-width: 120px; /* Fixed width for shared by column */
+	text-align: center; /* Center align shared by */
+	margin-left: 0; /* Remove offset that pushes content */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Directory Specific */
+.file-card[data-type="directory"] {
+	font-weight: 500;
+}
+
+/* Header row */
+.file-card.header {
+	padding: 12px 16px;
+	height: 40px;
+	border-bottom: 1px solid var(--color-border);
+	font-weight: 500;
+	color: var(--color-text-secondary);
+	cursor: default;
+	position: sticky;
+	top: 0;
+	z-index: 99;
+	background-color: #f8f9fa;
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
+}
+
+.file-card.header:hover {
+	background-color: #f8f9fa;
+}
+
+.file-card.header .file-name {
+	font-weight: 500;
+	color: var(--color-text-secondary);
+	font-size: 13px;
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.file-card.header .file-meta,
+.file-card.header .file-shared {
+	font-size: 13px;
+	text-transform: none;
+	letter-spacing: normal;
+	color: var(--color-text-secondary);
+}
+
+/* Removed icon-spacer (unused) */
+
+/* Breadcrumb Navigation */
+.breadcrumb {
+	display: flex;
+	align-items: center;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: 14px;
+	height: 32px;
+	font-family: var(--font-family);
+	font-weight: 400; /* Add normal font weight */
+}
+
+.breadcrumb-item {
+	color: var(--color-text-secondary);
+	text-decoration: none;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	height: 32px;
+	padding: 0 4px;
+	border-radius: 4px;
+	font-family: var(--font-family);
+	font-weight: 400; /* Add normal font weight */
+}
+
+.breadcrumb-item:hover {
+	background-color: var(--color-background-hover);
+}
+
+.breadcrumb-item a {
+	color: var(--color-text-secondary);
+	text-decoration: none;
+	padding: 0 4px;
+	font-family: var(--font-family);
+	font-weight: 400; /* Add normal font weight */
+}
+
+.breadcrumb-item:hover a {
+	color: var(--color-text-primary);
+	text-decoration: none;
+}
+
+/* Removed breadcrumb-separator (unused) */
+
+/* Empty State */
+.no-files {
+	text-align: center;
+	padding: 120px 20px;
+	color: var(--color-text-secondary);
+	background-color: var(--color-background);
+	margin: 0;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.empty-folder-icon {
+	font-size: 96px;
+	margin-bottom: 24px;
+	color: var(--color-border);
+}
+
+/* Upload Zone */
+.upload-zone {
+	border: 2px dashed #ccc;
+	border-radius: 8px;
+	padding: 2rem;
+	text-align: center;
+	cursor: pointer;
+	transition: all 0.3s ease;
+    user-select: none;
+}
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+	border-color: #0d6efd;
+	background-color: rgba(13, 110, 253, 0.05);
+}
+
+.upload-zone-icon {
+	font-size: 3rem;
+	color: #6c757d;
+	margin-bottom: 1rem;
+}
+
+.upload-zone-text {
+	font-size: 1.1rem;
+	margin-bottom: 0.5rem;
+}
+
+.upload-zone-subtext {
+	color: #6c757d;
+	font-size: 0.9rem;
+}
+
+.browse-button {
+	color: #0d6efd;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.browse-button:hover {
+	text-decoration: none;
+}
+
+/* Selected Files */
+.selected-files {
+	margin-top: 1rem;
+	display: none;
+}
+
+.selected-files.has-files {
+	display: block;
+}
+
+.selected-files-header {
+	font-weight: 500;
+	margin-bottom: 0.5rem;
+}
+
+.selected-files-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	max-height: 320px; /* taller list for large folder previews */
+	overflow-y: auto;
+	border: 1px solid #dee2e6;
+	border-radius: 4px;
+	padding: 0.5rem;
+}
+
+.selected-files-list li {
+	display: flex;
+	align-items: center;
+	padding: 0.25rem 0;
+}
+
+.selected-files-list li i {
+	margin-right: 0.5rem;
+	color: #6c757d;
+}
+
+.selected-files-list li ul {
+	list-style: none;
+	padding-left: 1.5rem;
+	margin: 0;
+}
+
+.upload-spinner {
+	display: inline-flex;
+	align-items: center;
+}
+
+/* Modal Styles */
+.modal-content {
+	border-radius: 8px;
+	border: none;
+}
+
+.modal-header {
+	border-bottom: 1px solid var(--color-border);
+	padding: 16px 24px;
+}
+
+.modal-title {
+	font-family: var(--font-family);
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--color-text-primary);
+}
+
+.modal-body {
+	padding: 24px;
+}
+
+.modal-footer {
+	border-top: 1px solid var(--color-border);
+	padding: 16px 24px;
+}
+
+/* Button Styles (scoped to files page content only to avoid modal conflicts) */
+/* Scope button tweaks to the files page action bar only to avoid bleed into modals */
+.files-actions-bar .btn-primary,
+.files-actions-bar .btn-secondary {
+    font-family: var(--font-family);
+    font-weight: 500;
+}
+
+.files-actions-bar .btn-primary {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.files-actions-bar .btn-primary:hover {
+    background-color: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+}
+
+.files-actions-bar .btn-secondary {
+    color: var(--color-primary);
+    background-color: transparent;
+    border-color: transparent;
+}
+
+.files-actions-bar .btn-secondary:hover {
+    color: var(--color-primary-hover);
+    background-color: var(--color-background-hover);
+    border-color: transparent;
+}
+
+/* Form Styles */
+.form-control {
+	border-radius: 4px;
+	border-color: var(--color-border);
+	padding: 8px 12px;
+}
+
+.form-control:focus {
+	border-color: var(--color-primary);
+	box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.form-label {
+	font-size: 14px;
+	color: var(--color-text-secondary);
+	margin-bottom: 8px;
+}
+
+.form-text {
+	font-size: 12px;
+	color: var(--color-text-secondary);
+}
+
+/* Removed nested-files block (unused) */
+
+.file-card[data-type="directory"] .folder-icon {
+	margin-left: 0; /* Remove extra margin */
+}
+
+/* Removed nested section styles (unused) */
+
+/* Removed nested indentation/hover/dividers (unused) */
+
+/* Adjust size of Bootstrap Icons */
+.bi {
+	font-size: 20px;
+	line-height: 1;
+	vertical-align: middle;
+}
+
+/* Removed duplicate dataset-icon.bi block (already covered under Icons) */
+
+.preview-content {
+	max-height: 500px;
+	overflow: auto;
+	border: 1px solid #e9ecef;
+	border-radius: 4px;
+	background: #f8f9fa;
+}
+
+.preview-text {
+	margin: 0;
+	padding: 1rem;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	font-family: monospace;
+	font-size: 14px;
+	line-height: 1.5;
+	color: #212529;
+}
+
+/* Removed imagePreview styles (unused) */
+
+/* Removed file-info (unused) */
+
+/* Make modal larger for previews */
+#filePreviewModal .modal-dialog {
+	max-width: 800px;
+}
+
+/* Remove the navigation style overrides */
+/* Main Navigation styles are now handled by base.html */
+
+/* Actions Bar (scoped) */
+.files-actions-bar {
+	margin: 24px 16px; /* Keep the margin */
+	display: flex;
+	justify-content: flex-start; /* Align to the left */
+	align-items: center;
+}
+
+/* New Button & Menu */
+.new-button {
+	background-color: var(--color-background);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font-family: var(--font-family);
+	font-size: 14px;
+	font-weight: 500;
+	height: 36px;
+	padding: 0 16px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	transition: var(--transition-default);
+	min-width: 100px; /* Give the button a minimum width */
+	justify-content: center; /* Center the button content */
+}
+
+.new-button:hover {
+	background-color: var(--color-background-hover);
+	box-shadow: var(--shadow-small);
+}
+
+.new-button i {
+	font-size: 20px;
+	color: var(--color-text-primary);
+}
+
+.new-menu {
+	border-radius: 8px;
+	box-shadow: var(--shadow-medium);
+	padding: 8px 0;
+	min-width: 200px;
+	border: 1px solid var(--color-border);
+	margin-top: 4px;
+	background-color: var(--color-background);
+}
+
+.new-menu .dropdown-item {
+	color: var(--color-text-primary);
+	font-size: 14px;
+	padding: 8px 16px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-family: var(--font-family);
+}
+
+.new-menu .dropdown-item:hover {
+	background-color: var(--color-background-hover);
+}
+
+.new-menu .dropdown-item i {
+	font-size: 20px;
+	color: var(--color-text-secondary);
+	width: 20px;
+	text-align: center;
+	margin-right: 12px;
+	flex-shrink: 0;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.new-menu .dropdown-item:hover i {
+	color: var(--color-text-primary);
+}
+
+/* Ensure Material Icons align properly in dropdown */
+.new-menu .dropdown-item .material-icons {
+	font-size: 20px;
+	line-height: 1;
+	vertical-align: middle;
+	color: var(--color-text-secondary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 767.98px) {
+	/* Containers and spacing */
+	.files-actions-bar { margin: 16px 8px; }
+	.files-grid { margin: 0 8px; }
+
+	/* Compact file rows */
+	.file-card { padding: 8px 12px; gap: 8px; }
+	.file-name { padding-right: 0; }
+
+	/* Hide secondary columns to prevent overflow */
+	.file-meta,
+	.file-shared { display: none; }
+	.file-card.header .file-meta,
+	.file-card.header .file-shared { display: none; }
+
+	/* Upload area sizing */
+	.upload-zone { padding: 1rem; }
+	.upload-zone-icon { font-size: 2.4rem; }
+	.selected-files-list { max-height: 220px; }
+
+	/* Breadcrumbs wrap nicely */
+	.breadcrumb { flex-wrap: wrap; height: auto; row-gap: 4px; }
+	.breadcrumb-item { height: auto; }
+}
+
+@media (max-width: 575.98px) {
+	/* Modal paddings on very small screens */
+	.modal-header, .modal-footer { padding: 12px 16px; }
+	.modal-body { padding: 16px; }
+	.modal-dialog { margin: 0.5rem; }
+}

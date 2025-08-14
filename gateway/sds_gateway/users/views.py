@@ -21,6 +21,7 @@ from django.db.utils import IntegrityError
 from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
+from django.http import HttpResponseRedirect
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
@@ -55,6 +56,9 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 )
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.api_methods.helpers.download_file import (
+    download_file as download_file_helper,
+)
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
@@ -670,6 +674,42 @@ class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[re
 user_file_detail_view = FileDetailView.as_view()
 
 
+class FileDownloadView(Auth0LoginRequiredMixin, View):
+    """Session-authenticated file download for the Users UI."""
+
+    def get(self, request: HttpRequest, uuid: str, *args, **kwargs) -> HttpResponse:
+        file_obj = get_object_or_404(File, uuid=uuid, is_deleted=False)
+
+        # Access control: owner or shared via capture/dataset
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        try:
+            content = download_file_helper(file_obj)
+        except Exception:
+            logger.exception("Error downloading file %s", file_obj.name)
+            return JsonResponse({"error": "Failed to download file"}, status=500)
+
+        response = HttpResponse(
+            content,
+            content_type=file_obj.media_type or "application/octet-stream",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{file_obj.name}"'
+        return response
+
+
 def _get_captures_for_template(
     captures: QuerySet[Capture],
     request: HttpRequest,
@@ -709,6 +749,380 @@ def _get_captures_for_template(
         enhanced_captures.append(capture_data)
 
     return enhanced_captures
+
+
+class FilesView(Auth0LoginRequiredMixin, View):
+    """Handle HTML requests for the files page."""
+
+    template_name = "users/files.html"
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+        """Handle HTML page requests for files page."""
+        # Get the current directory from query params
+        current_dir = request.GET.get("dir", "/")
+        
+        # Debug logging
+        logger.debug("FilesView: current_dir=%s", current_dir)
+        
+        # Initialize items list
+        items = []
+        
+        if current_dir == "/":
+            # Root directory - show captures and datasets as folders
+            self._add_root_items(request, items)
+        elif current_dir.startswith("/captures/"):
+            # Inside a capture - show nested directories/files within the capture
+            parts = current_dir.strip("/").split("/")
+            capture_uuid = parts[1] if len(parts) > 1 else ""
+            # Subpath inside the capture (may be empty for the capture root)
+            subpath = "/".join(parts[2:]) if len(parts) > 2 else ""
+            self._add_capture_files(request, items, capture_uuid, subpath=subpath)
+        elif current_dir.startswith("/datasets/"):
+            # Inside a dataset - show captures within the dataset
+            parts = current_dir.strip("/").split("/")
+            dataset_uuid = parts[1] if len(parts) > 1 else ""
+            self._add_dataset_captures(request, items, dataset_uuid)
+        else:
+            # Unknown directory - go back to root
+            return HttpResponseRedirect("/users/files/")
+        
+        # Build breadcrumb parts
+        breadcrumb_parts = self._build_breadcrumbs(current_dir, request.user.email)
+        
+        # Get datasets for the upload modal
+        datasets = request.user.datasets.filter(is_deleted=False)
+        
+        # Debug logging
+        logger.debug(
+            "FilesView: context summary items=%d datasets=%d",
+            len(items),
+            len(datasets),
+        )
+        logger.debug("FilesView: first items preview=%s", items[:3] if items else "No items")
+        
+        # Additional debugging for directory items
+        for i, item in enumerate(items):
+            if item.get("type") == "directory":
+                logger.debug("FilesView: directory item %d => %s", i, item)
+        
+        return render(
+            request,
+            self.template_name,
+            {
+                "items": items,
+                "current_dir": current_dir,
+                "breadcrumb_parts": breadcrumb_parts,
+                "user_email": request.user.email,
+                "datasets": datasets,
+            },
+        )
+    
+    def _add_root_items(self, request, items):
+        """Add captures and datasets to the root directory."""
+        # Get user's captures and datasets
+        user_captures = request.user.captures.filter(is_deleted=False)
+        user_datasets = request.user.datasets.filter(is_deleted=False)
+        
+        logger.debug(
+            "FilesView: user=%s has captures=%d datasets=%d",
+            request.user.email,
+            user_captures.count(),
+            user_datasets.count(),
+        )
+        
+        # Add captures as folders
+        for capture in user_captures:
+            items.append({
+                "type": "directory",
+                "name": capture.name or f"Capture {capture.uuid}",
+                "path": f"/captures/{capture.uuid}",
+                "uuid": str(capture.uuid),
+                "is_capture": True,
+                "is_dataset": False,
+                "is_shared": False,
+                "capture_uuid": str(capture.uuid),
+                "modified_at": capture.updated_at.strftime("%Y-%m-%d %H:%M") if capture.updated_at else "N/A",
+                "shared_by": "",
+            })
+        
+        # Add datasets as folders
+        for dataset in user_datasets:
+            items.append({
+                "type": "directory",
+                "name": dataset.name,
+                "path": f"/datasets/{dataset.uuid}",
+                "uuid": str(dataset.uuid),
+                "is_capture": False,
+                "is_dataset": True,
+                "is_shared": False,
+                "capture_uuid": "",
+            
+                "modified_at": dataset.updated_at.strftime("%Y-%m-%d %H:%M") if dataset.updated_at else "N/A",
+                "shared_by": "",
+            })
+        
+        # Add shared items
+        self._add_shared_items(request, items)
+    
+    def _add_capture_files(self, request, items, capture_uuid, subpath: str = ""):
+        """Add nested directories/files within a specific capture.
+
+        Displays only the immediate children (directories and files) of the
+        provided subpath within the capture, preserving the nested structure.
+        """
+        try:
+            capture = request.user.captures.get(uuid=capture_uuid, is_deleted=False)
+        except Capture.DoesNotExist:
+            # Check if it's shared
+            shared_permission = UserSharePermission.objects.filter(
+                item_uuid=capture_uuid,
+                item_type=ItemType.CAPTURE,
+                shared_with=request.user,
+                is_deleted=False,
+                is_enabled=True,
+            ).first()
+            if shared_permission:
+                capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+            else:
+                return
+        
+        # Get files associated with this capture
+        capture_files = File.objects.filter(
+            capture=capture,
+            is_deleted=False
+        )
+        
+        logger.debug("FilesView: capture=%s files=%d", capture.name, capture_files.count())
+
+        # Normalize helper
+        def _norm(path: str) -> str:
+            """Normalize a path (no leading/trailing slashes)."""
+            return path.strip("/")
+
+        capture_root = _norm(capture.top_level_dir or "")
+        current_subpath = _norm(subpath)
+        user_root = _norm(f"files/{request.user.email}")
+
+        # Collect immediate child directories and files under current_subpath
+        child_dirs: set[str] = set()
+        child_files: list[File] = []
+
+        for file_obj in capture_files:
+            # Build the directory relative to the capture's top level dir
+            file_dir = _norm(file_obj.directory)
+
+            # Start with the most specific root (capture_root), else fall back to user root
+            rel_dir = file_dir
+            if capture_root and file_dir.startswith(capture_root):
+                rel_dir = file_dir[len(capture_root):].lstrip("/")
+            else:
+                # Strip '/files/<email>/' if present
+                if user_root and file_dir.startswith(user_root):
+                    rel_dir = file_dir[len(user_root):].lstrip("/")
+                # If rel_dir begins with the capture folder name, drop it to get inside-capture path
+                if "/" in rel_dir:
+                    first_seg, rest = rel_dir.split("/", 1)
+                    rel_dir = rest  # drop capture folder name
+                else:
+                    rel_dir = ""
+
+            # If we're inside a subpath, filter to entries within that subpath
+            if current_subpath:
+                if rel_dir == current_subpath:
+                    # File directly in current subpath
+                    child_files.append(file_obj)
+                    continue
+                if rel_dir.startswith(current_subpath + "/"):
+                    remainder = rel_dir[len(current_subpath) + 1 :]
+                else:
+                    # This file is not under the current subpath
+                    continue
+            else:
+                remainder = rel_dir
+
+            # Determine if this file belongs to an immediate child directory
+            if not remainder:
+                # File lives directly at this level (capture root or current subpath)
+                child_files.append(file_obj)
+            elif remainder:
+                first_component = remainder.split("/", 1)[0]
+                # If remainder still has nested components, it's a child dir
+                if "/" in remainder:
+                    child_dirs.add(first_component)
+                else:
+                    # File directly within this level
+                    child_files.append(file_obj)
+        
+        # Add immediate child directories first
+        for dirname in sorted(child_dirs):
+            # Build the next-level path
+            next_path_parts = ["captures", str(capture_uuid)]
+            if current_subpath:
+                next_path_parts.append(current_subpath)
+            next_path_parts.append(dirname)
+            next_path = "/" + "/".join(next_path_parts)
+
+            items.append({
+                "type": "directory",
+                "name": dirname,
+                "path": next_path,
+                "uuid": "",
+                "is_capture": False,
+                "is_dataset": False,
+                "is_shared": False,
+                "capture_uuid": str(capture_uuid),
+                "modified_at": capture.updated_at.strftime("%Y-%m-%d %H:%M") if capture.updated_at else "N/A",
+                "shared_by": "",
+            })
+
+        # Then add files that live directly in this level
+        for file_obj in sorted(child_files, key=lambda f: f.name.lower()):
+            items.append({
+                "type": "file",
+                "name": file_obj.name,
+                "path": str(file_obj.uuid),
+                "uuid": str(file_obj.uuid),
+                "is_capture": False,
+                "is_dataset": False,
+                "is_shared": False,
+                "capture_uuid": str(capture_uuid),
+                "modified_at": file_obj.updated_at.strftime("%Y-%m-%d %H:%M") if file_obj.updated_at else "N/A",
+                "shared_by": "",
+            })
+    
+    def _add_dataset_captures(self, request, items, dataset_uuid):
+        """Add captures within a specific dataset."""
+        try:
+            dataset = request.user.datasets.get(uuid=dataset_uuid, is_deleted=False)
+        except Dataset.DoesNotExist:
+            # Check if it's shared
+            shared_permission = UserSharePermission.objects.filter(
+                item_uuid=dataset_uuid,
+                item_type=ItemType.DATASET,
+                shared_with=request.user,
+                is_deleted=False,
+                is_enabled=True,
+            ).first()
+            if shared_permission:
+                dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
+            else:
+                return
+        
+        # Get captures within this dataset
+        dataset_captures = dataset.captures.filter(is_deleted=False)
+        
+        logger.debug("FilesView: dataset=%s captures=%d", dataset.name, dataset_captures.count())
+        
+        # Add captures as folders
+        for capture in dataset_captures:
+            items.append({
+                "type": "directory",
+                "name": capture.name or f"Capture {capture.uuid}",
+                "path": f"/captures/{capture.uuid}",
+                "uuid": str(capture.uuid),
+                "is_capture": True,
+                "is_dataset": False,
+                "is_shared": False,
+                "capture_uuid": str(capture.uuid),
+                "modified_at": capture.updated_at.strftime("%Y-%m-%d %H:%M") if capture.updated_at else "N/A",
+                "shared_by": "",
+            })
+
+        # Also add dataset files that are not part of any capture (artifacts)
+        dataset_artifacts = dataset.files.filter(is_deleted=False, capture__isnull=True)
+        for file_obj in dataset_artifacts:
+            items.append({
+                "type": "file",
+                "name": file_obj.name,
+                "path": str(file_obj.uuid),
+                "uuid": str(file_obj.uuid),
+                "is_capture": False,
+                "is_dataset": False,
+                "is_shared": False,
+                "capture_uuid": "",
+                "modified_at": file_obj.updated_at.strftime("%Y-%m-%d %H:%M") if file_obj.updated_at else "N/A",
+                "shared_by": "",
+            })
+    
+    def _add_shared_items(self, request, items):
+        """Add shared captures and datasets."""
+        shared_permissions = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            is_deleted=False,
+            is_enabled=True,
+        )
+        
+        # Add shared captures
+        shared_captures = Capture.objects.filter(
+            uuid__in=shared_permissions.filter(item_type=ItemType.CAPTURE).values_list("item_uuid", flat=True),
+            is_deleted=False
+        ).exclude(owner=request.user)
+        
+        for capture in shared_captures:
+            shared_by_user = UserSharePermission.objects.filter(
+                item_uuid=capture.uuid,
+                item_type=ItemType.CAPTURE,
+                shared_with=request.user
+            ).first()
+            
+            items.append({
+                "type": "directory",
+                "name": capture.name or f"Capture {capture.uuid}",
+                "path": f"/captures/{capture.uuid}",
+                "uuid": str(capture.uuid),
+                "is_capture": True,
+                "is_dataset": False,
+                "is_shared": True,
+                "capture_uuid": str(capture.uuid),
+
+                "modified_at": capture.updated_at.strftime("%Y-%m-%d %H:%M") if capture.updated_at else "N/A",
+                    "shared_by": shared_by_user.owner.email if shared_by_user else "Unknown",
+            })
+        
+        # Add shared datasets
+        shared_datasets = Dataset.objects.filter(
+            uuid__in=shared_permissions.filter(item_type=ItemType.DATASET).values_list("item_uuid", flat=True),
+            is_deleted=False
+        ).exclude(owner=request.user)
+        
+        for dataset in shared_datasets:
+            shared_by_user = UserSharePermission.objects.filter(
+                item_uuid=dataset.uuid,
+                item_type=ItemType.DATASET,
+                shared_with=request.user
+            ).first()
+            
+            items.append({
+                "type": "directory",
+                "name": dataset.name,
+                "path": f"/datasets/{dataset.uuid}",
+                "uuid": str(dataset.uuid),
+                "is_capture": False,
+                "is_dataset": True,
+                "is_shared": True,
+                "capture_uuid": "",
+                "modified_at": dataset.updated_at.strftime("%Y-%m-%d %H:%M") if dataset.updated_at else "N/A",
+                    "shared_by": shared_by_user.owner.email if shared_by_user else "Unknown",
+            })
+    
+    def _build_breadcrumbs(self, current_dir, user_email: str):
+        """Build breadcrumb navigation, omitting technical segments.
+
+        Hides storage root segments like "files" and the current user's
+        email directory to keep breadcrumbs clean and user-friendly.
+        """
+        breadcrumb_parts = []
+        if current_dir != "/":
+            path_parts = current_dir.strip("/").split("/")
+            for i, part in enumerate(path_parts):
+                # Skip noisy storage segments
+                if part == "files" or part == user_email:
+                    continue
+                breadcrumb_parts.append({
+                    "name": part,
+                    "path": "/" + "/".join(path_parts[:i+1])
+                })
+        return breadcrumb_parts
 
 
 class ListCapturesView(Auth0LoginRequiredMixin, View):
@@ -1821,6 +2235,246 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 user_dataset_details_view = DatasetDetailsView.as_view()
 
 
+class FileContentView(Auth0LoginRequiredMixin, View):
+    """Serve small text content of a file for modal previews.
+
+    Supports rendering JSON as pretty-printed text. Enforces basic access
+    control: owners or users with access to the parent capture/dataset.
+    """
+
+    MAX_BYTES = 1024 * 1024  # 1 MiB safety limit for previews
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        file_uuid = kwargs.get("uuid")
+        if not file_uuid:
+            return JsonResponse({"error": "File UUID required"}, status=400)
+
+        file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
+
+        # Access control: owner or shared via capture/dataset
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        try:
+            # Size guard
+            if file_obj.size and int(file_obj.size) > self.MAX_BYTES:
+                return JsonResponse(
+                    {"error": "File too large to preview"}, status=413
+                )
+
+            # Read content
+            file_obj.file.open("rb")
+            raw = file_obj.file.read(self.MAX_BYTES + 1)
+            file_obj.file.close()
+
+            if len(raw) > self.MAX_BYTES:
+                return JsonResponse(
+                    {"error": "File too large to preview"}, status=413
+                )
+
+            # Detect JSON by extension
+            name_lower = (file_obj.name or "").lower()
+            if name_lower.endswith(".json"):
+                try:
+                    parsed = json.loads(raw.decode("utf-8"))
+                    pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
+                    return HttpResponse(pretty, content_type="text/plain; charset=utf-8")
+                except Exception:
+                    # Fallback to UTF-8 text if not valid JSON
+                    pass
+
+            # Default: return UTF-8 text
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                # Replace undecodable bytes
+                text = raw.decode("utf-8", errors="replace")
+
+            return HttpResponse(text, content_type="text/plain; charset=utf-8")
+        except OSError:
+            logger.exception("Error reading file content for preview")
+            return JsonResponse({"error": "Error reading file"}, status=500)
+
+
+class FileH5InfoView(Auth0LoginRequiredMixin, View):
+    """Return a summarized structure for an HDF5 file as JSON for modal preview."""
+
+    H5_MAX_BYTES = 200 * 1024 * 1024  # 200 MiB cap for preview temp copy
+    MAX_PREVIEW_ELEMENTS = 10
+    MAX_CHILDREN_PER_GROUP = 200
+    MAX_RECURSION_DEPTH = 4
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:
+        file_uuid = kwargs.get("uuid")
+        if not file_uuid:
+            return JsonResponse({"error": "File UUID required"}, status=400)
+
+        file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
+
+        # Access control like content view
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        # Guard extension
+        name_lower = (file_obj.name or "").lower()
+        if not (name_lower.endswith(".h5") or name_lower.endswith(".hdf5")):
+            return JsonResponse({"error": "Not an HDF5 file"}, status=400)
+
+        # Size guard
+        try:
+            if file_obj.size and int(file_obj.size) > self.H5_MAX_BYTES:
+                return JsonResponse({"error": "File too large to preview"}, status=413)
+        except (TypeError, ValueError):
+            pass
+
+        import tempfile
+        import os
+        import h5py  # type: ignore
+
+        # Copy to temp file (h5py requires a filename)
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".h5")
+        temp_path = temp_file.name
+        try:
+            bytes_written = 0
+            file_obj.file.open("rb")
+            for chunk in file_obj.file.chunks():
+                bytes_written += len(chunk)
+                if bytes_written > self.H5_MAX_BYTES:
+                    file_obj.file.close()
+                    temp_file.close()
+                    os.unlink(temp_path)
+                    return JsonResponse(
+                        {"error": "File too large to preview"}, status=413
+                    )
+                temp_file.write(chunk)
+            file_obj.file.close()
+            temp_file.flush()
+            temp_file.close()
+
+            # Open and summarize
+            def summarize(name, obj, depth=0):
+                if depth > self.MAX_RECURSION_DEPTH:
+                    return {"type": "group", "attributes": {}, "children": {}}
+                if isinstance(obj, h5py.Group):
+                    children = {}
+                    count = 0
+                    for child_name, child in obj.items():
+                        key = str(child_name)
+                        children[key] = summarize(key, child, depth + 1)
+                        count += 1
+                        if count >= self.MAX_CHILDREN_PER_GROUP:
+                            break
+                    return {
+                        "type": "group",
+                        "attributes": {k: str(v) for k, v in obj.attrs.items()},
+                        "children": children,
+                    }
+                if isinstance(obj, h5py.Dataset):
+                    info = {
+                        "type": "dataset",
+                        "shape": [int(x) for x in obj.shape] if hasattr(obj, "shape") else [],
+                        "dtype": str(obj.dtype) if hasattr(obj, "dtype") else "",
+                        "attributes": {k: str(v) for k, v in obj.attrs.items()},
+                    }
+                    # Add a tiny preview for small datasets
+                    try:
+                        size = int(obj.size) if hasattr(obj, "size") else 0
+                        if size and size <= self.MAX_PREVIEW_ELEMENTS:
+                            data = obj[()]
+                            # Conversion helpers for JSON serializable output
+                            def to_native(value):
+                                try:
+                                    import numpy as np  # type: ignore
+                                    if isinstance(value, np.generic):
+                                        value = value.item()
+                                except Exception:
+                                    pass
+                                # Bytes -> utf-8 string (replace errors)
+                                if isinstance(value, (bytes, bytearray)):
+                                    try:
+                                        return value.decode("utf-8", errors="replace")
+                                    except Exception:
+                                        return str(value)
+                                return value
+
+                            def convert_structure(value):
+                                if isinstance(value, list):
+                                    return [convert_structure(v) for v in value]
+                                return to_native(value)
+
+                            if hasattr(data, "tolist"):
+                                data = data.tolist()
+                            data = convert_structure(data)
+                            info["preview"] = data
+                    except Exception:
+                        # ignore preview errors
+                        pass
+                    return info
+                # Fallback
+                return {"type": "unknown"}
+
+            with h5py.File(temp_path, "r") as h5:
+                structure = {}
+                for key, obj in h5.items():
+                    structure[str(key)] = summarize(str(key), obj, depth=0)
+
+            # Final pass: sanitize any lingering numpy or bytes types
+            def sanitize(value):
+                try:
+                    import numpy as np  # type: ignore
+                except Exception:  # pragma: no cover - numpy always present in project
+                    np = None  # type: ignore
+
+                if isinstance(value, (bytes, bytearray)):
+                    try:
+                        return value.decode("utf-8", errors="replace")
+                    except Exception:
+                        return str(value)
+                if np is not None and isinstance(value, np.generic):
+                    return value.item()
+                if np is not None and hasattr(value, "tolist"):
+                    value = value.tolist()
+                if isinstance(value, dict):
+                    return {str(k): sanitize(v) for k, v in value.items()}
+                if isinstance(value, list):
+                    return [sanitize(v) for v in value]
+                return value
+
+            sanitized = sanitize(structure)
+            return JsonResponse(sanitized)
+        except OSError:
+            logger.exception("Error creating H5 preview")
+            return JsonResponse({"error": "Error reading HDF5 file"}, status=500)
+        finally:
+            try:
+                os.unlink(temp_path)
+            except Exception:
+                pass
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class UploadFilesView(View):
     def _handle_file_uploads(self, request, files, relative_paths):
@@ -1828,8 +2482,14 @@ class UploadFilesView(View):
         errors = []
         skipped_files = []
 
-        for f, rel_path in zip(files, relative_paths, strict=True):
-            path = Path(rel_path)
+        # Iterate over files and align relative_paths by index; default to the file name
+        for index, f in enumerate(files):
+            rel_path = (
+                relative_paths[index]
+                if index < len(relative_paths)
+                else getattr(f, "name", "")
+            )
+            path = Path(rel_path) if rel_path else Path(getattr(f, "name", ""))
             directory = "/" + str(path.parent) if path.parent != Path() else "/"
             filename = path.name
             file_size = f.size
@@ -1884,6 +2544,34 @@ class UploadFilesView(View):
             errors.extend(upload_errors)
         errors.extend(skipped_files)
         return saved_files, errors
+
+    def _attach_uploaded_files_to_dataset(self, request, dataset_uuid, saved_files):
+        """Attach uploaded file records to a dataset if requested."""
+        if not dataset_uuid or not saved_files:
+            return None
+
+        # Ensure the user can access the dataset (owner or shared)
+        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
+            return (
+                "Dataset not found or access denied. File(s) uploaded but could not be"
+                " linked to the selected dataset."
+            )
+
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
+
+        # Collect file UUIDs from responses and link them
+        file_uuids = [item.get("uuid") for item in saved_files if item.get("uuid")]
+        if not file_uuids:
+            return None
+
+        files_qs = File.objects.filter(
+            uuid__in=file_uuids,
+            is_deleted=False,
+            owner=request.user,
+        )
+        if files_qs.exists():
+            dataset.files.add(*files_qs)
+        return None
 
     def _create_single_capture(
         self,
@@ -2075,6 +2763,7 @@ class UploadFilesView(View):
         channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
         scan_group = request.POST.get("scan_group", "")
         capture_type = request.POST.get("capture_type", "drf")  # Default to DigitalRF
+        dataset_uuid = request.POST.get("dataset_uuid", "")
 
         return (
             files,
@@ -2083,6 +2772,7 @@ class UploadFilesView(View):
             channels,
             scan_group,
             capture_type,
+            dataset_uuid,
         )
 
     def _check_required_fields(self, capture_type, channels, scan_group):
@@ -2222,6 +2912,7 @@ class UploadFilesView(View):
             channels,
             scan_group,
             capture_type,
+            dataset_uuid,
         ) = self._parse_upload_request(request)
 
         saved_files, errors = self._handle_file_uploads(request, files, relative_paths)
@@ -2273,6 +2964,13 @@ class UploadFilesView(View):
                 chunk_number,
                 total_chunks,
             )
+
+        # If dataset_uuid provided, attach uploaded files to the dataset
+        dataset_attach_error = self._attach_uploaded_files_to_dataset(
+            request, dataset_uuid, saved_files
+        )
+        if dataset_attach_error:
+            errors.append(dataset_attach_error)
 
         # Log file upload errors if they occurred
         if errors and not all_files_empty:
