@@ -34,6 +34,7 @@
                             </button>
                         </div>
                         <pre id="python-code" class="bg-light p-3 rounded border"><code class="language-python">from spectrumx import Client
+from spectrumx.errors import SDSError
 from pathlib import Path
 
 # Initialize the client with your SDS host
@@ -79,7 +80,7 @@ try:
         for result in failed_downloads:
             print(f"  - {result.error_info.get('file', {}).get('name', 'Unknown')}: {result.exception}")
 
-except Exception as e:
+except SDSError as e:
     print(f"Error downloading dataset: {e}")</code></pre>
                     </div>
                     <!-- Additional Information -->
@@ -115,7 +116,7 @@ except Exception as e:
                                 <strong>Authentication:</strong> Ensure your API key is valid and has proper permissions
                             </li>
                             <li>
-                                <strong>Network Issues:</strong> The SDK will retry failed downloads automatically
+                                <strong>Network Issues:</strong> The SDK gives the user the option to retry failed downloads
                             </li>
                             <li>
                                 <strong>Disk Space:</strong> Check available disk space before downloading large datasets
@@ -136,83 +137,6 @@ except Exception as e:
 <!-- Prism.js CSS for syntax highlighting -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css"
       rel="stylesheet" />
-<style>
-    .code-example pre {
-        font-size: 0.875rem;
-        line-height: 1.4;
-        margin: 0;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        background: #f8f9fa !important;
-        border: 1px solid #dee2e6 !important;
-    }
-
-    .code-example pre code {
-        background: transparent !important;
-        color: #212529 !important;
-        text-shadow: none !important;
-        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
-    }
-
-    .copy-btn {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-    }
-
-    .copy-btn:hover {
-        background-color: #005a9c !important;
-        border-color: #005a9c !important;
-        color: white !important;
-    }
-
-    .copy-btn.copied {
-        background-color: #28a745 !important;
-        border-color: #28a745 !important;
-        color: white !important;
-    }
-
-    /* Prism.js light theme custom styles */
-    .token.comment {
-        color: #6c757d !important;
-        font-style: italic !important;
-    }
-
-    .token.string {
-        color: #28a745 !important;
-    }
-
-    .token.keyword {
-        color: #005a9c !important;
-    }
-
-    .token.function {
-        color: #17a2b8 !important;
-    }
-
-    .token.number {
-        color: #e83e8c !important;
-    }
-
-    .token.operator {
-        color: #6c757d !important;
-    }
-
-    .token.punctuation {
-        color: #6c757d !important;
-    }
-
-    .token.class-name {
-        color: #005a9c !important;
-    }
-
-    .token.builtin {
-        color: #fd7e14 !important;
-    }
-
-    .token.boolean {
-        color: #e83e8c !important;
-    }
-</style>
 <!-- Prism.js JavaScript for syntax highlighting -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
