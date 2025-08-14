@@ -7,6 +7,7 @@ class WaterfallVisualization {
 		this.captureUuid = captureUuid;
 		this.waterfallData = [];
 		this.currentSliceIndex = 0;
+		this.hoveredSliceIndex = null; // Track which slice is being hovered
 		this.waterfallWindowStart = 0; // Track the start of the visible waterfall window
 		this.isPlaying = false;
 		this.playbackInterval = null;
@@ -16,6 +17,8 @@ class WaterfallVisualization {
 		this.totalSlices = 0;
 		this.canvas = null;
 		this.ctx = null;
+		this.overlayCanvas = null;
+		this.overlayCtx = null;
 		this.periodogramChart = null;
 		this.scaleMin = null;
 		this.scaleMax = null;
@@ -24,6 +27,8 @@ class WaterfallVisualization {
 		this.WATERFALL_WINDOW_SIZE = 100; // Number of slices visible in the waterfall plot at once
 		this.LEFT_INDEX_WIDTH = 60; // Width of the left index legend area
 		this.RIGHT_LEGEND_WIDTH = 80; // Width of the right color legend area
+		this.TOP_MARGIN = 5; // Top margin for the waterfall plot
+		this.BOTTOM_MARGIN = 5; // Bottom margin for the waterfall plot
 
 		// Bind methods to preserve context
 		this.handlePlayPause = this.handlePlayPause.bind(this);
@@ -57,6 +62,9 @@ class WaterfallVisualization {
 
 			// Render initial visualization
 			this.render();
+
+			// Set initial color legend positioning
+			this.updateColorLegendPosition();
 		} catch (error) {
 			console.error("Failed to initialize waterfall visualization:", error);
 			this.showError("Failed to initialize visualization");
@@ -167,6 +175,12 @@ class WaterfallVisualization {
 
 		this.ctx = this.canvas.getContext("2d");
 
+		// Get the overlay canvas for highlight boxes
+		this.overlayCanvas = document.getElementById("waterfallOverlayCanvas");
+		this.overlayCtx = this.overlayCanvas
+			? this.overlayCanvas.getContext("2d")
+			: null;
+
 		// Set canvas size based on container
 		this.resizeCanvas();
 
@@ -184,9 +198,22 @@ class WaterfallVisualization {
 		this.canvas.width = rect.width;
 		this.canvas.height = rect.height;
 
+		// Resize overlay canvas to match
+		if (this.overlayCanvas) {
+			this.overlayCanvas.width = rect.width;
+			this.overlayCanvas.height = rect.height;
+			this.overlayCanvas.style.width = `${rect.width}px`;
+			this.overlayCanvas.style.height = `${rect.height}px`;
+			// Clear overlay when resizing
+			this.clearOverlay();
+		}
+
 		// Re-render if we have data
 		if (this.waterfallData.length > 0) {
 			this.render();
+		} else {
+			// Still update color legend positioning even without data
+			this.updateColorLegendPosition();
 		}
 	}
 
@@ -273,6 +300,11 @@ class WaterfallVisualization {
 
 			// Calculate color scale bounds from all data
 			this.calculateColorScaleBounds();
+
+			// Clear hover state when loading new data
+			this.hoveredSliceIndex = null;
+			// Clear overlay when loading new data
+			this.clearOverlay();
 
 			// Update UI elements
 			this.updateSliceSlider();
@@ -521,12 +553,13 @@ class WaterfallVisualization {
 		// Clear canvas
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-		// Calculate dimensions
+		// Calculate dimensions with margins
+		const plotHeight = canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN;
 		const maxVisibleSlices = Math.min(
 			this.totalSlices,
 			this.WATERFALL_WINDOW_SIZE,
 		);
-		const sliceHeight = canvas.height / maxVisibleSlices;
+		const sliceHeight = plotHeight / maxVisibleSlices;
 
 		// Calculate which slices to display
 		// We want to show slices from bottom (oldest) to top (newest)
@@ -546,27 +579,26 @@ class WaterfallVisualization {
 			if (slice) {
 				const sliceData = this.parseWaterfallData(slice.data);
 				if (sliceData) {
-					// Calculate Y position: bottom slice is at bottom of canvas
-					const y = canvas.height - (i + 1) * sliceHeight;
+					// Calculate Y position: bottom slice is at bottom margin, top slice is at top margin
+					const y =
+						this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
 
 					this.drawWaterfallSlice(sliceData, y, sliceHeight, canvas.width);
 				}
 			}
 		}
 
-		// Draw highlight box around current slice
-		this.drawCurrentSliceHighlight(
-			canvas,
-			sliceHeight,
-			startSliceIndex,
-			endSliceIndex,
-		);
+		// Draw all highlights on the overlay canvas
+		this.redrawHighlights(canvas, sliceHeight, startSliceIndex, endSliceIndex);
 
 		// Update color legend
 		this.updateColorLegend();
 
 		// Update slice index legend
 		this.updateSliceIndexLegend();
+
+		// Update color legend positioning
+		this.updateColorLegendPosition();
 	}
 
 	/**
@@ -729,6 +761,46 @@ class WaterfallVisualization {
 	}
 
 	/**
+	 * Draw a highlight box around a slice
+	 */
+	drawHighlightBox(
+		sliceIndex,
+		startSliceIndex,
+		endSliceIndex,
+		sliceHeight,
+		canvasWidth,
+		strokeStyle,
+		lineWidth = 1,
+	) {
+		if (!this.overlayCtx || !this.overlayCanvas) return;
+
+		// Find the position of the slice in the visible range
+		const sliceInRange = sliceIndex - startSliceIndex;
+		if (sliceInRange < 0 || sliceInRange >= endSliceIndex - startSliceIndex)
+			return;
+
+		// Calculate Y position with margins: bottom slice is at bottom margin
+		const maxVisibleSlices = Math.min(
+			this.totalSlices,
+			this.WATERFALL_WINDOW_SIZE,
+		);
+		const y =
+			this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - sliceInRange) * sliceHeight;
+
+		// Draw highlight box (between left index area and right legend area)
+		this.overlayCtx.strokeStyle = strokeStyle;
+		this.overlayCtx.lineWidth = lineWidth;
+		const plotWidth =
+			canvasWidth - this.LEFT_INDEX_WIDTH - this.RIGHT_LEGEND_WIDTH;
+		this.overlayCtx.strokeRect(
+			this.LEFT_INDEX_WIDTH,
+			y,
+			plotWidth,
+			sliceHeight,
+		);
+	}
+
+	/**
 	 * Draw highlight box around the current slice
 	 */
 	drawCurrentSliceHighlight(
@@ -737,31 +809,96 @@ class WaterfallVisualization {
 		startSliceIndex,
 		endSliceIndex,
 	) {
-		if (!this.ctx) return;
+		this.drawHighlightBox(
+			this.currentSliceIndex,
+			startSliceIndex,
+			endSliceIndex,
+			sliceHeight,
+			canvas.width,
+			"#000000", // Black color for current slice
+			1,
+		);
+	}
 
-		const ctx = this.ctx;
+	/**
+	 * Draw hover highlight box around the slice being hovered
+	 */
+	drawHoverHighlight(canvas, sliceHeight, startSliceIndex, endSliceIndex) {
+		if (this.hoveredSliceIndex === null) return;
 
-		// Find the position of the current slice in the visible range
-		const currentSliceInRange = this.currentSliceIndex - startSliceIndex;
-		if (
-			currentSliceInRange < 0 ||
-			currentSliceInRange >= endSliceIndex - startSliceIndex
-		)
-			return;
+		this.drawHighlightBox(
+			this.hoveredSliceIndex,
+			startSliceIndex,
+			endSliceIndex,
+			sliceHeight,
+			canvas.width,
+			"#808080", // Light grey color for hover
+			1,
+		);
+	}
 
-		// Calculate Y position: bottom slice is at bottom of canvas
-		const y = canvas.height - (currentSliceInRange + 1) * sliceHeight;
+	/**
+	 * Clear the overlay canvas
+	 */
+	clearOverlay() {
+		if (!this.overlayCtx || !this.overlayCanvas) return;
+		this.overlayCtx.clearRect(
+			0,
+			0,
+			this.overlayCanvas.width,
+			this.overlayCanvas.height,
+		);
+	}
 
-		// Draw highlight box (between left index area and right legend area)
-		ctx.strokeStyle = "#000000";
-		ctx.lineWidth = 1;
-		const plotWidth =
-			canvas.width - this.LEFT_INDEX_WIDTH - this.RIGHT_LEGEND_WIDTH;
-		ctx.strokeRect(this.LEFT_INDEX_WIDTH, y, plotWidth, sliceHeight);
+	/**
+	 * Redraw all highlight boxes on the overlay
+	 */
+	redrawHighlights(canvas, sliceHeight, startSliceIndex, endSliceIndex) {
+		if (this.overlayCanvas && this.overlayCtx) {
+			// Clear the overlay first
+			this.clearOverlay();
 
-		// Reset stroke style for other drawing operations
-		ctx.strokeStyle = "#6c757d";
-		ctx.lineWidth = 1;
+			// Draw current slice highlight
+			this.drawCurrentSliceHighlight(
+				canvas,
+				sliceHeight,
+				startSliceIndex,
+				endSliceIndex,
+			);
+
+			// Draw hover highlight if there is one
+			this.drawHoverHighlight(
+				canvas,
+				sliceHeight,
+				startSliceIndex,
+				endSliceIndex,
+			);
+		}
+		// If no overlay, just skip drawing highlights
+
+		// Always update the slice index legend to show hover state
+		this.updateSliceIndexLegend();
+	}
+
+	/**
+	 * Update highlights after slice changes (helper method)
+	 */
+	updateHighlightsAfterSliceChange() {
+		if (this.canvas && this.waterfallData.length > 0) {
+			const plotHeight =
+				this.canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN;
+			const sliceHeight =
+				plotHeight / Math.min(this.totalSlices, this.WATERFALL_WINDOW_SIZE);
+			this.redrawHighlights(
+				this.canvas,
+				sliceHeight,
+				this.waterfallWindowStart,
+				Math.min(
+					this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE,
+					this.totalSlices,
+				),
+			);
+		}
 	}
 
 	/**
@@ -861,8 +998,11 @@ class WaterfallVisualization {
 
 	handleSliceChange(event) {
 		this.currentSliceIndex = Number.parseInt(event.target.value);
+		this.hoveredSliceIndex = null;
 		this.updateSliceUI();
 		this.render();
+		// Redraw highlights on overlay after render
+		this.updateHighlightsAfterSliceChange();
 	}
 
 	handleSliceIndexInputChange(event) {
@@ -873,8 +1013,11 @@ class WaterfallVisualization {
 			newIndex < this.totalSlices
 		) {
 			this.currentSliceIndex = newIndex;
+			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 			this.render();
+			// Redraw highlights on overlay after render
+			this.updateHighlightsAfterSliceChange();
 		} else {
 			// Reset to current value if invalid
 			this.updateSliceIndexInput();
@@ -903,16 +1046,24 @@ class WaterfallVisualization {
 	handleDecrementSlice() {
 		if (this.currentSliceIndex > 0) {
 			this.currentSliceIndex--;
+			// Clear hover state when changing slice
+			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 			this.render();
+			// Redraw highlights on overlay after render
+			this.updateHighlightsAfterSliceChange();
 		}
 	}
 
 	handleIncrementSlice() {
 		if (this.currentSliceIndex < this.totalSlices - 1) {
 			this.currentSliceIndex++;
+			// Clear hover state when changing slice
+			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 			this.render();
+			// Redraw highlights on overlay after render
+			this.updateHighlightsAfterSliceChange();
 		}
 	}
 
@@ -934,8 +1085,12 @@ class WaterfallVisualization {
 				this.currentSliceIndex =
 					this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE - 1;
 			}
+			// Clear hover state when scrolling
+			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 			this.render();
+			// Redraw highlights on overlay after render
+			this.updateHighlightsAfterSliceChange();
 		}
 	}
 
@@ -957,28 +1112,44 @@ class WaterfallVisualization {
 				this.currentSliceIndex =
 					this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE - 1;
 			}
+			// Clear hover state when scrolling
+			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 			this.render();
+			// Redraw highlights on overlay after render
+			this.updateHighlightsAfterSliceChange();
 		}
 	}
 
 	handlePlaybackSpeedChange(event) {
 		this.playbackSpeed = Number.parseFloat(event.target.value);
+		// Clear hover state when changing playback speed
+		this.hoveredSliceIndex = null;
 		if (this.isPlaying) {
 			this.stopPlayback();
 			this.startPlayback();
 		}
+		// Redraw highlights on overlay after render
+		this.updateHighlightsAfterSliceChange();
 	}
 
 	handleFFTSizeChange(event) {
 		this.fftSize = Number.parseInt(event.target.value);
+		// Clear hover state when changing FFT size
+		this.hoveredSliceIndex = null;
 		this.render();
+		// Redraw highlights on overlay after render
+		this.updateHighlightsAfterSliceChange();
 	}
 
 	handleColorMapChange(event) {
 		this.colorMap = event.target.value;
+		// Clear hover state when changing color map
+		this.hoveredSliceIndex = null;
 		this.updateColorLegend();
 		this.render();
+		// Redraw highlights on overlay after render
+		this.updateHighlightsAfterSliceChange();
 	}
 
 	/**
@@ -1011,10 +1182,16 @@ class WaterfallVisualization {
 			if (slider) {
 				slider.value = this.currentSliceIndex;
 			}
+
+			// Clear hover state when changing slice during playback
+			this.hoveredSliceIndex = null;
+
 			this.updateSliceUI();
 
 			// Re-render
 			this.render();
+			// Redraw highlights on overlay after render
+			this.updateHighlightsAfterSliceChange();
 		}, interval);
 	}
 
@@ -1123,16 +1300,25 @@ class WaterfallVisualization {
 			this.totalSlices,
 			this.WATERFALL_WINDOW_SIZE,
 		);
-		const sliceHeight = this.canvas.height / maxVisibleSlices;
+		const plotHeight =
+			this.canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN;
+		const sliceHeight = plotHeight / maxVisibleSlices;
 
-		// Calculate clicked slice index (from bottom to top)
-		const clickedRow = Math.floor((this.canvas.height - y) / sliceHeight);
-		const clickedSliceIndex = this.waterfallWindowStart + clickedRow;
+		// Calculate clicked slice index
+		const adjustedY = y - this.TOP_MARGIN;
+		if (adjustedY < 0 || adjustedY > plotHeight) return; // Click outside plot area
+
+		const clickedRow = Math.floor(adjustedY / sliceHeight);
+		const clickedSliceIndex =
+			this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE - clickedRow - 1;
 
 		// Validate the index is within bounds
 		if (clickedSliceIndex >= 0 && clickedSliceIndex < this.totalSlices) {
 			// Only change the selected slice, don't shift the window
 			this.currentSliceIndex = clickedSliceIndex;
+
+			// Clear hover state when selecting a slice
+			this.hoveredSliceIndex = null;
 
 			// Update UI
 			const slider = document.getElementById("currentSlice");
@@ -1141,8 +1327,8 @@ class WaterfallVisualization {
 			}
 			this.updateSliceUI();
 
-			// Re-render (window stays in place, only highlight changes)
-			this.render();
+			// Redraw highlights on overlay (window stays in place, only highlight changes)
+			this.updateHighlightsAfterSliceChange();
 		}
 	}
 
@@ -1160,17 +1346,36 @@ class WaterfallVisualization {
 			this.totalSlices,
 			this.WATERFALL_WINDOW_SIZE,
 		);
-		const sliceHeight = this.canvas.height / maxVisibleSlices;
+		const plotHeight =
+			this.canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN;
+		const sliceHeight = plotHeight / maxVisibleSlices;
 
-		// Calculate hovered slice index (from bottom to top)
-		const hoveredRow = Math.floor((this.canvas.height - y) / sliceHeight);
-		const hoveredSliceIndex = this.waterfallWindowStart + hoveredRow;
+		// Calculate hovered slice index
+		const adjustedY = y - this.TOP_MARGIN;
+		if (adjustedY < 0 || adjustedY > plotHeight) {
+			this.canvas.style.cursor = "default";
+			this.hoveredSliceIndex = null;
+			this.render(); // Re-render to remove hover highlight
+			return;
+		}
+
+		const hoveredRow = Math.floor(adjustedY / sliceHeight);
+		const hoveredSliceIndex =
+			this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE - hoveredRow - 1;
 
 		// Update cursor style based on whether we're hovering over a valid slice
 		if (hoveredSliceIndex >= 0 && hoveredSliceIndex < this.totalSlices) {
 			this.canvas.style.cursor = "pointer";
+			// Update hovered slice index and redraw highlights on overlay
+			if (this.hoveredSliceIndex !== hoveredSliceIndex) {
+				this.hoveredSliceIndex = hoveredSliceIndex;
+				this.updateHighlightsAfterSliceChange();
+			}
 		} else {
-			this.canvas.style.cursor = "crosshair";
+			this.canvas.style.cursor = "default";
+			this.hoveredSliceIndex = null;
+			// Clear hover highlight from overlay
+			this.updateHighlightsAfterSliceChange();
 		}
 	}
 
@@ -1179,7 +1384,12 @@ class WaterfallVisualization {
 	 */
 	handleCanvasMouseLeave() {
 		if (this.canvas) {
-			this.canvas.style.cursor = "crosshair";
+			this.canvas.style.cursor = "default";
+		}
+		// Clear hover state and redraw highlights on overlay
+		if (this.hoveredSliceIndex !== null) {
+			this.hoveredSliceIndex = null;
+			this.updateHighlightsAfterSliceChange();
 		}
 	}
 
@@ -1193,12 +1403,12 @@ class WaterfallVisualization {
 		}
 
 		switch (event.key) {
-			case "ArrowUp":
+			case "ArrowDown":
 			case "ArrowLeft":
 				event.preventDefault();
 				this.handleDecrementSlice();
 				break;
-			case "ArrowDown":
+			case "ArrowUp":
 			case "ArrowRight":
 				event.preventDefault();
 				this.handleIncrementSlice();
@@ -1215,6 +1425,18 @@ class WaterfallVisualization {
 	}
 
 	/**
+	 * Update the color legend positioning to account for margins
+	 */
+	updateColorLegendPosition() {
+		const legendElement = document.getElementById("colorLegend");
+		if (!legendElement) return;
+
+		// Position the legend to account for top and bottom margins
+		legendElement.style.top = `${this.TOP_MARGIN}px`;
+		legendElement.style.bottom = `${this.BOTTOM_MARGIN}px`;
+	}
+
+	/**
 	 * Update the slice index legend
 	 */
 	updateSliceIndexLegend() {
@@ -1223,12 +1445,13 @@ class WaterfallVisualization {
 		const ctx = this.ctx;
 		const canvas = this.canvas;
 
-		// Calculate dimensions
+		// Calculate dimensions with margins
+		const plotHeight = canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN;
 		const maxVisibleSlices = Math.min(
 			this.totalSlices,
 			this.WATERFALL_WINDOW_SIZE,
 		);
-		const sliceHeight = canvas.height / maxVisibleSlices;
+		const sliceHeight = plotHeight / maxVisibleSlices;
 
 		// Clear the left side area for labels
 		const labelWidth = this.LEFT_INDEX_WIDTH;
@@ -1247,15 +1470,25 @@ class WaterfallVisualization {
 				if (sliceIndex >= this.totalSlices) break;
 
 				const displayedIndex = sliceIndex + 1; // Convert to 1-based for display
-				const y = canvas.height - (i + 1) * sliceHeight + sliceHeight / 2;
+				// Calculate Y position with margins: bottom slice is at bottom margin
+				const y =
+					this.BOTTOM_MARGIN +
+					(maxVisibleSlices - 1 - i) * sliceHeight +
+					sliceHeight / 2;
 
-				// Only draw if this index should be highlighted (every 5th or current slice)
-				if (displayedIndex % 5 === 0 || sliceIndex === this.currentSliceIndex) {
-					// Highlight current slice
+				// Only draw if this index should be highlighted (every 5th, current slice, or hovered slice)
+				if (
+					displayedIndex % 5 === 0 ||
+					sliceIndex === this.currentSliceIndex ||
+					sliceIndex === this.hoveredSliceIndex
+				) {
+					// Determine highlight color based on slice type
 					if (sliceIndex === this.currentSliceIndex) {
-						ctx.fillStyle = "#000";
+						ctx.fillStyle = "#000"; // Black for current slice
+					} else if (sliceIndex === this.hoveredSliceIndex) {
+						ctx.fillStyle = "#333"; // Dark grey for hovered slice
 					} else {
-						ctx.fillStyle = "#999";
+						ctx.fillStyle = "#999"; // Light grey for other indices
 					}
 
 					ctx.fillText(String(displayedIndex), labelWidth - 5, y + 3);
