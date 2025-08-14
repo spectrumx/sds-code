@@ -4,7 +4,9 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import cast
+from unittest.mock import patch
 
+import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files import File as DjangoFile
@@ -169,8 +171,18 @@ class ReconstructRHFileTreeTest(APITestCase):
             test_file_instance.file.delete()  # delete from MinIO
             test_file_instance.delete()  # delete from database
 
-    def test_reconstruct_tree_with_scan_group(self) -> None:
+    @patch(
+        "sds_gateway.api_methods.helpers.reconstruct_file_tree.check_disk_space_available"
+    )
+    @patch("sds_gateway.api_methods.helpers.reconstruct_file_tree.estimate_disk_size")
+    def test_reconstruct_tree_with_scan_group(
+        self, mock_estimate_size, mock_check_space
+    ) -> None:
         """Test reconstructing tree filters by scan group."""
+        # Mock disk space checking to always return True
+        mock_check_space.return_value = True
+        mock_estimate_size.return_value = 1024  # 1KB estimated size
+
         with tempfile.TemporaryDirectory() as temp_dir:
             reconstructed_root, files = reconstruct_tree(
                 target_dir=Path(temp_dir),
@@ -198,6 +210,37 @@ class ReconstructRHFileTreeTest(APITestCase):
                 with reconstructed_path.open() as f:
                     content = json.load(f)
                     assert content["scan_group"] == str(self.scan_group)
+
+    @patch(
+        "sds_gateway.api_methods.helpers.reconstruct_file_tree.check_disk_space_available"
+    )
+    @patch("sds_gateway.api_methods.helpers.reconstruct_file_tree.estimate_disk_size")
+    def test_reconstruct_tree_insufficient_disk_space(
+        self, mock_estimate_size, mock_check_space
+    ) -> None:
+        """
+        Test that reconstruct_tree raises ValueError
+        when disk space is insufficient.
+        """
+        # Mock disk space checking to return False (insufficient space)
+        mock_check_space.return_value = False
+        mock_estimate_size.return_value = 1024 * 1024 * 1024  # 1GB estimated size
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(ValueError, match="Insufficient disk space") as context:
+                reconstruct_tree(
+                    target_dir=Path(temp_dir),
+                    virtual_top_dir=self.top_level_dir,
+                    owner=self.user,
+                    capture_type=CaptureType.RadioHound,
+                    rh_scan_group=self.scan_group,
+                    verbose=True,
+                )
+
+            # Verify the error message contains the expected text
+            error_message = str(context.exception)
+            assert "Insufficient disk space" in error_message
+            assert "Required: 1073741824 bytes" in error_message
 
 
 class ReconstructDRFFileTreeTest(APITestCase):
