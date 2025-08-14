@@ -2,7 +2,9 @@
 
 {% load static %}
 
-{% block title %}Files{% endblock %}
+{% block title %}
+    Files
+{% endblock title %}
 {% block css %}
     {{ block.super }}
     <!-- Material Icons -->
@@ -19,7 +21,7 @@
     <link href="{% static 'css/file-manager.css' %}" rel="stylesheet" />
     <!-- Reuse captures modal styling from file_list -->
     <link rel="stylesheet" href="{% static 'css/file-list.css' %}" />
-{% endblock %}
+{% endblock css %}
 {% block content %}
     <!-- Main Container -->
     <div class="container-fluid">
@@ -159,7 +161,8 @@
                                             </li>
                                         {% elif item.type == 'file' %}
                                             <li>
-                                                <a class="dropdown-item" href="/users/files/{{ item.uuid }}/download/">Download file</a>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'users:file_download' uuid=item.uuid %}">Download file</a>
                                             </li>
                                         {% endif %}
                                     </ul>
@@ -241,7 +244,7 @@
                 <form id="uploadCaptureForm"
                       method="post"
                       enctype="multipart/form-data"
-                      action="/users/upload-files/">
+                      action="{% url 'users:upload_files' %}">
                     {% csrf_token %}
                     <div class="modal-header">
                         <h5 class="modal-title" id="uploadCaptureModalLabel">Upload Files & Create Capture</h5>
@@ -262,18 +265,27 @@
                                directory
                                class="form-control"
                                tabindex="0" />
-                        <div class="upload-zone mt-2" id="uploadZone" aria-label="Drag and drop folder here">
+                        <div class="upload-zone mt-2"
+                             id="uploadZone"
+                             aria-label="Drag and drop folder here">
                             <i class="material-icons upload-zone-icon">cloud_upload</i>
                             <div class="upload-zone-text">Drag and drop your folder here</div>
                             <div class="upload-zone-subtext">Or use the file picker above</div>
                         </div>
                         <div class="selected-files" id="selectedFiles">
                             <div class="selected-files-header">Selected Files:</div>
-                            <ul class="selected-files-list" id="selectedFilesList"></ul>
+                            <ul class="selected-files-list" id="selectedFilesList">
+                            </ul>
                         </div>
                         <div class="mb-3 d-none" id="captureUploadProgressWrap">
                             <div class="progress">
-                                <div class="progress-bar" id="captureUploadProgressBar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                <div class="progress-bar"
+                                     id="captureUploadProgressBar"
+                                     role="progressbar"
+                                     aria-label="0%"
+                                     aria-valuenow="0"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100">0%</div>
                             </div>
                             <div class="form-text mt-1" id="captureUploadProgressText"></div>
                         </div>
@@ -296,7 +308,7 @@
                             </div>
                         </div>
                         <!-- Channel input (DigitalRF) -->
-                        <div id="channelInputGroup" class="mb-3" style="display:none;">
+                        <div id="channelInputGroup" class="mb-3 d-none">
                             <label for="captureChannelsInput" class="form-label">Capture Channel Names (comma-separated)</label>
                             <input type="text"
                                    id="captureChannelsInput"
@@ -307,7 +319,7 @@
                             <div class="form-text">Required for DigitalRF captures</div>
                         </div>
                         <!-- Scan Group input (RadioHound) -->
-                        <div id="scanGroupInputGroup" class="mb-3" style="display:none;">
+                        <div id="scanGroupInputGroup" class="mb-3 d-none">
                             <label for="captureScanGroupInput" class="form-label">Scan Group (optional)</label>
                             <input type="text"
                                    id="captureScanGroupInput"
@@ -450,9 +462,9 @@
             </div>
         </div>
     </div>
-{% endblock %}
+{% endblock content %}
 {% block javascript %}
     <script src="{% static 'js/components.js' %}"></script>
     {# Fallback modal helpers provided by components.js; inline duplicates removed #}
     <script src="{% static 'js/file-manager.js' %}?v=7"></script>
-{% endblock %}
+{% endblock javascript %}

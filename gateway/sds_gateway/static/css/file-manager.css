@@ -102,9 +102,9 @@ body {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	padding-right: 24px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
 }
 
 /* Icons */
@@ -284,7 +284,7 @@ body {
 	text-align: center;
 	cursor: pointer;
 	transition: all 0.3s ease;
-    user-select: none;
+	user-select: none;
 }
 
 .upload-zone:hover,
@@ -398,30 +398,30 @@ body {
 /* Scope button tweaks to the files page action bar only to avoid bleed into modals */
 .files-actions-bar .btn-primary,
 .files-actions-bar .btn-secondary {
-    font-family: var(--font-family);
-    font-weight: 500;
+	font-family: var(--font-family);
+	font-weight: 500;
 }
 
 .files-actions-bar .btn-primary {
-    background-color: var(--color-primary);
-    border-color: var(--color-primary);
+	background-color: var(--color-primary);
+	border-color: var(--color-primary);
 }
 
 .files-actions-bar .btn-primary:hover {
-    background-color: var(--color-primary-hover);
-    border-color: var(--color-primary-hover);
+	background-color: var(--color-primary-hover);
+	border-color: var(--color-primary-hover);
 }
 
 .files-actions-bar .btn-secondary {
-    color: var(--color-primary);
-    background-color: transparent;
-    border-color: transparent;
+	color: var(--color-primary);
+	background-color: transparent;
+	border-color: transparent;
 }
 
 .files-actions-bar .btn-secondary:hover {
-    color: var(--color-primary-hover);
-    background-color: var(--color-background-hover);
-    border-color: transparent;
+	color: var(--color-primary-hover);
+	background-color: var(--color-background-hover);
+	border-color: transparent;
 }
 
 /* Form Styles */
@@ -585,32 +585,64 @@ body {
 /* Responsive adjustments */
 @media (max-width: 767.98px) {
 	/* Containers and spacing */
-	.files-actions-bar { margin: 16px 8px; }
-	.files-grid { margin: 0 8px; }
+	.files-actions-bar {
+		margin: 16px 8px;
+	}
+	.files-grid {
+		margin: 0 8px;
+	}
 
 	/* Compact file rows */
-	.file-card { padding: 8px 12px; gap: 8px; }
-	.file-name { padding-right: 0; }
+	.file-card {
+		padding: 8px 12px;
+		gap: 8px;
+	}
+	.file-name {
+		padding-right: 0;
+	}
 
 	/* Hide secondary columns to prevent overflow */
 	.file-meta,
-	.file-shared { display: none; }
+	.file-shared {
+		display: none;
+	}
 	.file-card.header .file-meta,
-	.file-card.header .file-shared { display: none; }
+	.file-card.header .file-shared {
+		display: none;
+	}
 
 	/* Upload area sizing */
-	.upload-zone { padding: 1rem; }
-	.upload-zone-icon { font-size: 2.4rem; }
-	.selected-files-list { max-height: 220px; }
+	.upload-zone {
+		padding: 1rem;
+	}
+	.upload-zone-icon {
+		font-size: 2.4rem;
+	}
+	.selected-files-list {
+		max-height: 220px;
+	}
 
 	/* Breadcrumbs wrap nicely */
-	.breadcrumb { flex-wrap: wrap; height: auto; row-gap: 4px; }
-	.breadcrumb-item { height: auto; }
+	.breadcrumb {
+		flex-wrap: wrap;
+		height: auto;
+		row-gap: 4px;
+	}
+	.breadcrumb-item {
+		height: auto;
+	}
 }
 
 @media (max-width: 575.98px) {
 	/* Modal paddings on very small screens */
-	.modal-header, .modal-footer { padding: 12px 16px; }
-	.modal-body { padding: 16px; }
-	.modal-dialog { margin: 0.5rem; }
+	.modal-header,
+	.modal-footer {
+		padding: 12px 16px;
+	}
+	.modal-body {
+		padding: 16px;
+	}
+	.modal-dialog {
+		margin: 0.5rem;
+	}
 }

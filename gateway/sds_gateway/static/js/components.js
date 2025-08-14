@@ -1863,68 +1863,69 @@ window.PaginationManager = PaginationManager;
 
 // Lightweight global helpers for inline alerts and basic modals used by other scripts
 (function initGlobalComponentsHelpers() {
-  if (window.components) return;
+	if (window.components) return;
 
-  function ensureAlertContainer() {
-    let alertContainer = document.querySelector('.alert-container');
-    if (!alertContainer) {
-      alertContainer = document.createElement('div');
-      alertContainer.className = 'alert-container';
-      const mainContent = document.querySelector('.container-fluid') || document.body;
-      mainContent.insertBefore(alertContainer, mainContent.firstChild);
-    }
-    return alertContainer;
-  }
+	function ensureAlertContainer() {
+		let alertContainer = document.querySelector(".alert-container");
+		if (!alertContainer) {
+			alertContainer = document.createElement("div");
+			alertContainer.className = "alert-container";
+			const mainContent =
+				document.querySelector(".container-fluid") || document.body;
+			mainContent.insertBefore(alertContainer, mainContent.firstChild);
+		}
+		return alertContainer;
+	}
 
-  function writeAriaLive(message) {
-    const live = document.getElementById('aria-live-region');
-    if (live) live.textContent = message;
-  }
+	function writeAriaLive(message) {
+		const live = document.getElementById("aria-live-region");
+		if (live) live.textContent = message;
+	}
 
-  window.components = {
-    showSuccess(message) {
-      writeAriaLive(message);
-      const container = ensureAlertContainer();
-      container.innerHTML = `
+	window.components = {
+		showSuccess(message) {
+			writeAriaLive(message);
+			const container = ensureAlertContainer();
+			container.innerHTML = `
         <div class="alert alert-success alert-dismissible fade show" role="alert">
           <i class="bi bi-check-circle-fill me-2"></i>
           ${ComponentUtils.escapeHtml(message)}
           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>`;
-      setTimeout(() => {
-        const alert = container.querySelector('.alert');
-        if (alert) alert.remove();
-      }, 5000);
-    },
-    showError(message) {
-      writeAriaLive(message);
-      const container = ensureAlertContainer();
-      container.innerHTML = `
+			setTimeout(() => {
+				const alert = container.querySelector(".alert");
+				if (alert) alert.remove();
+			}, 5000);
+		},
+		showError(message) {
+			writeAriaLive(message);
+			const container = ensureAlertContainer();
+			container.innerHTML = `
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
           <i class="bi bi-exclamation-triangle-fill me-2"></i>
           ${ComponentUtils.escapeHtml(message)}
           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>`;
-      setTimeout(() => {
-        const alert = container.querySelector('.alert');
-        if (alert) alert.remove();
-      }, 8000);
-    },
-    openCustomModal(modalId) {
-      const modal = document.getElementById(modalId);
-      if (modal) {
-        modal.style.display = 'block';
-        document.body.style.overflow = 'hidden';
-      }
-    },
-    closeCustomModal(modalId) {
-      const modal = document.getElementById(modalId);
-      if (modal) {
-        modal.style.display = 'none';
-        document.body.style.overflow = 'auto';
-      }
-    },
-  };
+			setTimeout(() => {
+				const alert = container.querySelector(".alert");
+				if (alert) alert.remove();
+			}, 8000);
+		},
+		openCustomModal(modalId) {
+			const modal = document.getElementById(modalId);
+			if (modal) {
+				modal.style.display = "block";
+				document.body.style.overflow = "hidden";
+			}
+		},
+		closeCustomModal(modalId) {
+			const modal = document.getElementById(modalId);
+			if (modal) {
+				modal.style.display = "none";
+				document.body.style.overflow = "auto";
+			}
+		},
+	};
 })();
 
 // Export classes for module use

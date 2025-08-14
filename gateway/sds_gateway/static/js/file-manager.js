@@ -8,7 +8,7 @@ class FileManager {
 		if (!itemsOrFiles) return [];
 		// DataTransferItemList detection: items have getAsFile()
 		const first = itemsOrFiles[0];
-		if (first && typeof first.getAsFile === 'function') {
+		if (first && typeof first.getAsFile === "function") {
 			return Array.from(itemsOrFiles)
 				.map((item) => item.getAsFile())
 				.filter((f) => !!f);
@@ -19,14 +19,17 @@ class FileManager {
 	// Collect files from a directory or mixed drop using the File System API (Chrome/WebKit)
 	async collectFilesFromDataTransfer(dataTransfer) {
 		const items = Array.from(dataTransfer.items || []);
-		const supportsEntries = items.length > 0 && typeof items[0].webkitGetAsEntry === 'function';
+		const supportsEntries =
+			items.length > 0 && typeof items[0].webkitGetAsEntry === "function";
 		if (!supportsEntries) {
-			return this.convertToFiles(dataTransfer.files && dataTransfer.files.length ? dataTransfer.files : dataTransfer.items);
+			return this.convertToFiles(
+				dataTransfer.files?.length ? dataTransfer.files : dataTransfer.items,
+			);
 		}
 
 		const allFiles = [];
 		for (const item of items) {
-			if (item.kind !== 'file') continue;
+			if (item.kind !== "file") continue;
 			const entry = item.webkitGetAsEntry();
 			if (!entry) continue;
 			const files = await this.traverseEntry(entry);
@@ -41,8 +44,11 @@ class FileManager {
 				entry.file((file) => {
 					// Preserve folder structure on drop by injecting webkitRelativePath
 					try {
-						const relative = (entry.fullPath || file.name).replace(/^\//, '');
-						Object.defineProperty(file, 'webkitRelativePath', { value: relative, configurable: true });
+						const relative = (entry.fullPath || file.name).replace(/^\//, "");
+						Object.defineProperty(file, "webkitRelativePath", {
+							value: relative,
+							configurable: true,
+						});
 					} catch (_) {}
 					resolve([file]);
 				});
@@ -82,9 +88,9 @@ class FileManager {
 
 	stripHtml(html) {
 		if (!html) return "";
-		const div = document.createElement('div');
+		const div = document.createElement("div");
 		div.innerHTML = html;
-		return (div.textContent || div.innerText || '').trim();
+		return (div.textContent || div.innerText || "").trim();
 	}
 
 	init() {
@@ -133,28 +139,30 @@ class FileManager {
 	}
 
 	initializeEventListeners() {
-		const fileCards = document.querySelectorAll('.file-card');
+		const fileCards = document.querySelectorAll(".file-card");
 
 		for (const card of fileCards) {
-			if (!card.classList.contains('header')) {
+			if (!card.classList.contains("header")) {
 				const type = card.dataset.type;
 				// Add click handlers to directories and files
-				card.addEventListener('click', (e) => this.handleFileCardClick(e, card));
+				card.addEventListener("click", (e) =>
+					this.handleFileCardClick(e, card),
+				);
 				// Basic keyboard accessibility
-				card.setAttribute('tabindex', '0');
-				card.addEventListener('keydown', (e) => {
-					if (e.key === 'Enter' || e.key === ' ') {
+				card.setAttribute("tabindex", "0");
+				card.addEventListener("keydown", (e) => {
+					if (e.key === "Enter" || e.key === " ") {
 						e.preventDefault();
 						this.handleFileCardClick(e, card);
 					}
 				});
 
-				if (type === 'directory') {
-					card.style.cursor = 'pointer';
-					card.classList.add('clickable-directory');
-				} else if (type === 'file') {
-					card.style.cursor = 'pointer';
-					card.classList.add('clickable-file');
+				if (type === "directory") {
+					card.style.cursor = "pointer";
+					card.classList.add("clickable-directory");
+				} else if (type === "file") {
+					card.style.cursor = "pointer";
+					card.classList.add("clickable-file");
 				}
 			}
 		}
@@ -162,20 +170,27 @@ class FileManager {
 
 	initializeUploadHandlers() {
 		// Initialize capture upload
-        const captureElements = {
-            uploadZone: document.getElementById("uploadZone"),
-            fileInput: document.getElementById("captureFileInput"),
-            // browseButton is optional in Files modal styling
-            browseButton: document.querySelector("#uploadCaptureModal .browse-button"),
-            selectedFilesList: document.getElementById("selectedFilesList"),
-            uploadForm: document.getElementById("uploadCaptureForm"),
-        };
+		const captureElements = {
+			uploadZone: document.getElementById("uploadZone"),
+			fileInput: document.getElementById("captureFileInput"),
+			// browseButton is optional in Files modal styling
+			browseButton: document.querySelector(
+				"#uploadCaptureModal .browse-button",
+			),
+			selectedFilesList: document.getElementById("selectedFilesList"),
+			uploadForm: document.getElementById("uploadCaptureForm"),
+		};
 
-        // Only require the essentials; browseButton may be missing
-        const essentials = [captureElements.uploadZone, captureElements.fileInput, captureElements.selectedFilesList, captureElements.uploadForm];
-        if (essentials.every((el) => el)) {
-            this.initializeCaptureUpload(captureElements);
-        }
+		// Only require the essentials; browseButton may be missing
+		const essentials = [
+			captureElements.uploadZone,
+			captureElements.fileInput,
+			captureElements.selectedFilesList,
+			captureElements.uploadForm,
+		];
+		if (essentials.every((el) => el)) {
+			this.initializeCaptureUpload(captureElements);
+		}
 
 		// Initialize text file upload
 		const textUploadForm = document.getElementById("uploadFileForm");
@@ -185,21 +200,27 @@ class FileManager {
 	}
 
 	initializeCaptureUpload(elements) {
-        const { uploadZone, fileInput, browseButton, selectedFilesList, uploadForm } = elements;
+		const {
+			uploadZone,
+			fileInput,
+			browseButton,
+			selectedFilesList,
+			uploadForm,
+		} = elements;
 
-        if (!uploadZone || !fileInput || !selectedFilesList || !uploadForm) {
+		if (!uploadZone || !fileInput || !selectedFilesList || !uploadForm) {
 			this.showError("Upload elements not found");
 			return;
 		}
 
-        // Handle browse button click (if present)
-        if (browseButton) {
-            browseButton.addEventListener("click", (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                fileInput.click();
-            });
-        }
+		// Handle browse button click (if present)
+		if (browseButton) {
+			browseButton.addEventListener("click", (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				fileInput.click();
+			});
+		}
 
 		// Handle drag and drop
 		uploadZone.addEventListener("dragover", (e) => {
@@ -219,7 +240,9 @@ class FileManager {
 				const files = await this.collectFilesFromDataTransfer(dt);
 				this.droppedFiles = files;
 				// Clear any existing input selection so we rely on dropped files on submit
-				try { fileInput.value = ""; } catch (_) {}
+				try {
+					fileInput.value = "";
+				} catch (_) {}
 				this.handleFileSelection(files);
 			}
 		});
@@ -231,18 +254,19 @@ class FileManager {
 		});
 
 		// Toggle DRF/RH input groups
-		const typeSelect = document.getElementById('captureTypeSelect');
-		const channelGroup = document.getElementById('channelInputGroup');
-		const scanGroup = document.getElementById('scanGroupInputGroup');
-		const channelInput = document.getElementById('captureChannelsInput');
+		const typeSelect = document.getElementById("captureTypeSelect");
+		const channelGroup = document.getElementById("channelInputGroup");
+		const scanGroup = document.getElementById("scanGroupInputGroup");
+		const channelInput = document.getElementById("captureChannelsInput");
 		if (typeSelect) {
-			typeSelect.addEventListener('change', () => {
+			typeSelect.addEventListener("change", () => {
 				const v = typeSelect.value;
-				if (channelGroup) channelGroup.style.display = v === 'drf' ? '' : 'none';
-				if (scanGroup) scanGroup.style.display = v === 'rh' ? '' : 'none';
+				if (channelGroup)
+					channelGroup.style.display = v === "drf" ? "" : "none";
+				if (scanGroup) scanGroup.style.display = v === "rh" ? "" : "none";
 				if (channelInput) {
-					if (v === 'drf') channelInput.setAttribute('required', 'required');
-					else channelInput.removeAttribute('required');
+					if (v === "drf") channelInput.setAttribute("required", "required");
+					else channelInput.removeAttribute("required");
 				}
 			});
 		}
@@ -262,23 +286,27 @@ class FileManager {
 				uploadSpinner.classList.remove("d-none");
 
 				// Get CSRF token from DOM and add it when present
-				const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+				const csrfEl = document.querySelector("[name=csrfmiddlewaretoken]");
 				if (csrfEl?.value) {
-					formData.append('csrfmiddlewaretoken', csrfEl.value);
+					formData.append("csrfmiddlewaretoken", csrfEl.value);
 				}
 
 				// Add capture type and channels from the form
-                const captureType = document.getElementById("captureTypeSelect").value;
-                const channels = document.getElementById("captureChannelsInput")?.value || '';
-                const scanGroupVal = document.getElementById('captureScanGroupInput')?.value || '';
+				const captureType = document.getElementById("captureTypeSelect").value;
+				const channels =
+					document.getElementById("captureChannelsInput")?.value || "";
+				const scanGroupVal =
+					document.getElementById("captureScanGroupInput")?.value || "";
 				formData.append("capture_type", captureType);
 				formData.append("channels", channels);
-                if (captureType === 'rh' && scanGroupVal) {
-                    formData.append('scan_group', scanGroupVal);
-                }
+				if (captureType === "rh" && scanGroupVal) {
+					formData.append("scan_group", scanGroupVal);
+				}
 
 				// Add files and their relative paths
-				const files = this.droppedFiles?.length ? Array.from(this.droppedFiles) : Array.from(fileInput.files);
+				const files = this.droppedFiles?.length
+					? Array.from(this.droppedFiles)
+					: Array.from(fileInput.files);
 
 				// Create an array of relative paths in the same order as files
 				const relativePaths = files.map(
@@ -291,7 +319,9 @@ class FileManager {
 					formData.append("relative_paths", relativePaths[index]);
 				}
 
-				await this.handleUpload(formData, submitBtn, "uploadCaptureModal", { files });
+				await this.handleUpload(formData, submitBtn, "uploadCaptureModal", {
+					files,
+				});
 			} catch (error) {
 				this.showError(`Upload failed: ${error.message}`);
 			} finally {
@@ -332,122 +362,179 @@ class FileManager {
 
 	initializeFileClicks() {
 		// Wire up download confirmation for dataset and capture buttons
-		document.addEventListener('click', (e) => {
-			if (e.target.matches('.download-capture-btn') || e.target.closest('.download-capture-btn')) {
+		document.addEventListener("click", (e) => {
+			if (
+				e.target.matches(".download-capture-btn") ||
+				e.target.closest(".download-capture-btn")
+			) {
 				e.preventDefault();
 				e.stopPropagation();
-				const btn = e.target.matches('.download-capture-btn') ? e.target : e.target.closest('.download-capture-btn');
+				const btn = e.target.matches(".download-capture-btn")
+					? e.target
+					: e.target.closest(".download-capture-btn");
 				const captureUuid = btn.dataset.captureUuid;
 				const captureName = btn.dataset.captureName || captureUuid;
 				// Update modal text
-				const nameEl = document.getElementById('downloadCaptureName');
+				const nameEl = document.getElementById("downloadCaptureName");
 				if (nameEl) nameEl.textContent = captureName;
-                // Silently ignore if element is missing in DOM variant
+				// Silently ignore if element is missing in DOM variant
 				// Show modal using components.js helper or fallback
-				if (window.components && typeof window.components.openCustomModal === 'function') {
-					window.components.openCustomModal('downloadModal');
-				} else if (typeof openCustomModal === 'function') {
-					openCustomModal('downloadModal');
+				if (
+					window.components &&
+					typeof window.components.openCustomModal === "function"
+				) {
+					window.components.openCustomModal("downloadModal");
+				} else if (typeof openCustomModal === "function") {
+					openCustomModal("downloadModal");
 				} else if (window.openCustomModal) {
-					window.openCustomModal('downloadModal');
+					window.openCustomModal("downloadModal");
 				} else {
-					const m = document.getElementById('downloadModal');
-					if (m) m.style.display = 'block';
+					const m = document.getElementById("downloadModal");
+					if (m) m.style.display = "block";
 				}
 				// Confirm handler
-				const confirmBtn = document.getElementById('confirmDownloadBtn');
+				const confirmBtn = document.getElementById("confirmDownloadBtn");
 				if (confirmBtn) {
 					const onConfirm = () => {
-						if (window.components && typeof window.components.closeCustomModal === 'function') {
-							window.components.closeCustomModal('downloadModal');
-						} else if (typeof closeCustomModal === 'function') {
-							closeCustomModal('downloadModal');
+						if (
+							window.components &&
+							typeof window.components.closeCustomModal === "function"
+						) {
+							window.components.closeCustomModal("downloadModal");
+						} else if (typeof closeCustomModal === "function") {
+							closeCustomModal("downloadModal");
 						} else if (window.closeCustomModal) {
-							window.closeCustomModal('downloadModal');
+							window.closeCustomModal("downloadModal");
 						} else {
-							const m = document.getElementById('downloadModal');
-							if (m) m.style.display = 'none';
+							const m = document.getElementById("downloadModal");
+							if (m) m.style.display = "none";
 						}
-                        fetch(`/users/download-item/capture/${encodeURIComponent(captureUuid)}/`, {
-							method: 'POST',
-							headers: {
-								'Content-Type': 'application/json',
-								'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+						fetch(
+							`/users/download-item/capture/${encodeURIComponent(captureUuid)}/`,
+							{
+								method: "POST",
+								headers: {
+									"Content-Type": "application/json",
+									"X-CSRFToken":
+										document.querySelector("[name=csrfmiddlewaretoken]")
+											?.value || "",
+								},
 							},
-                        }).then(async (r) => {
-                            try { return await r.json(); } catch (_) { return {}; }
-                        }).catch(() => {});
+						)
+							.then(async (r) => {
+								try {
+									return await r.json();
+								} catch (_) {
+									return {};
+								}
+							})
+							.catch(() => {});
 					};
-					confirmBtn.addEventListener('click', onConfirm, { once: true });
+					confirmBtn.addEventListener("click", onConfirm, { once: true });
 				}
 			}
 
-			if (e.target.matches('.download-dataset-btn') || e.target.closest('.download-dataset-btn')) {
+			if (
+				e.target.matches(".download-dataset-btn") ||
+				e.target.closest(".download-dataset-btn")
+			) {
 				e.preventDefault();
 				e.stopPropagation();
-				const btn = e.target.matches('.download-dataset-btn') ? e.target : e.target.closest('.download-dataset-btn');
+				const btn = e.target.matches(".download-dataset-btn")
+					? e.target
+					: e.target.closest(".download-dataset-btn");
 				const datasetUuid = btn.dataset.datasetUuid;
-				if (window.components && typeof window.components.openCustomModal === 'function') {
-					window.components.openCustomModal('downloadModal');
-				} else if (typeof openCustomModal === 'function') {
-					openCustomModal('downloadModal');
+				if (
+					window.components &&
+					typeof window.components.openCustomModal === "function"
+				) {
+					window.components.openCustomModal("downloadModal");
+				} else if (typeof openCustomModal === "function") {
+					openCustomModal("downloadModal");
 				} else if (window.openCustomModal) {
-					window.openCustomModal('downloadModal');
+					window.openCustomModal("downloadModal");
 				} else {
-					const m = document.getElementById('downloadModal');
-					if (m) m.style.display = 'block';
+					const m = document.getElementById("downloadModal");
+					if (m) m.style.display = "block";
 				}
-				const confirmBtn = document.getElementById('confirmDownloadBtn');
+				const confirmBtn = document.getElementById("confirmDownloadBtn");
 				if (confirmBtn) {
 					const onConfirm = () => {
-						if (window.components && typeof window.components.closeCustomModal === 'function') {
-							window.components.closeCustomModal('downloadModal');
-						} else if (typeof closeCustomModal === 'function') {
-							closeCustomModal('downloadModal');
+						if (
+							window.components &&
+							typeof window.components.closeCustomModal === "function"
+						) {
+							window.components.closeCustomModal("downloadModal");
+						} else if (typeof closeCustomModal === "function") {
+							closeCustomModal("downloadModal");
 						} else if (window.closeCustomModal) {
-							window.closeCustomModal('downloadModal');
+							window.closeCustomModal("downloadModal");
 						} else {
-							const m = document.getElementById('downloadModal');
-							if (m) m.style.display = 'none';
+							const m = document.getElementById("downloadModal");
+							if (m) m.style.display = "none";
 						}
-                        fetch(`/users/download-item/dataset/${encodeURIComponent(datasetUuid)}/`, {
-							method: 'POST',
-							headers: {
-								'Content-Type': 'application/json',
-								'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+						fetch(
+							`/users/download-item/dataset/${encodeURIComponent(datasetUuid)}/`,
+							{
+								method: "POST",
+								headers: {
+									"Content-Type": "application/json",
+									"X-CSRFToken":
+										document.querySelector("[name=csrfmiddlewaretoken]")
+											?.value || "",
+								},
 							},
-                        }).then(async (r) => {
-                            try { return await r.json(); } catch (_) { return {}; }
-                        }).catch(() => {});
+						)
+							.then(async (r) => {
+								try {
+									return await r.json();
+								} catch (_) {
+									return {};
+								}
+							})
+							.catch(() => {});
 					};
-					confirmBtn.addEventListener('click', onConfirm, { once: true });
+					confirmBtn.addEventListener("click", onConfirm, { once: true });
 				}
 			}
 
 			// Single file direct download link (GET)
-			const fileDownloadLink = e.target.closest('a.dropdown-item[href^="/users/files/"][href$="/download/"]')
-				|| e.target.closest('.dropdown-menu a[href^="/users/files/"][href$="/download/"]')
-				|| e.target.closest('a[href^="/users/files/"][href$="/download/"]');
+			const fileDownloadLink =
+				e.target.closest(
+					'a.dropdown-item[href^="/users/files/"][href$="/download/"]',
+				) ||
+				e.target.closest(
+					'.dropdown-menu a[href^="/users/files/"][href$="/download/"]',
+				) ||
+				e.target.closest('a[href^="/users/files/"][href$="/download/"]');
 			if (fileDownloadLink) {
 				e.preventDefault();
 				e.stopPropagation();
-				const card = fileDownloadLink.closest('.file-card');
-				const fileName = card?.querySelector('.file-name')?.textContent?.trim() || 'File';
+				const card = fileDownloadLink.closest(".file-card");
+				const fileName =
+					card?.querySelector(".file-name")?.textContent?.trim() || "File";
 				// Use inline banner if available; otherwise, aria-live region
-				if (window.components && typeof window.components.showSuccess === 'function') {
+				if (
+					window.components &&
+					typeof window.components.showSuccess === "function"
+				) {
 					window.components.showSuccess(`Download starting: ${fileName}`);
 				} else {
-					const live = document.getElementById('aria-live-region');
+					const live = document.getElementById("aria-live-region");
 					if (live) live.textContent = `Download starting: ${fileName}`;
 				}
-				const href = fileDownloadLink.getAttribute('href');
-				try { window.open(href, '_blank'); } catch (_) { window.location.href = href; }
+				const href = fileDownloadLink.getAttribute("href");
+				try {
+					window.open(href, "_blank");
+				} catch (_) {
+					window.location.href = href;
+				}
 				return;
 			}
 		});
 	}
 
-    async handleUpload(formData, submitBtn, modalId, options = {}) {
+	async handleUpload(formData, submitBtn, modalId, options = {}) {
 		const uploadText = submitBtn.querySelector(".upload-text");
 		const uploadSpinner = submitBtn.querySelector(".upload-spinner");
 
@@ -457,68 +544,79 @@ class FileManager {
 			uploadText.classList.add("d-none");
 			uploadSpinner.classList.remove("d-none");
 
-				// Make request with progress (XHR for upload progress events)
-				const response = await new Promise((resolve, reject) => {
-					const xhr = new XMLHttpRequest();
-					xhr.open('POST', '/users/upload-files/');
-					xhr.withCredentials = true;
-					xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]')?.value || '');
-					xhr.setRequestHeader('Accept', 'application/json');
+			// Make request with progress (XHR for upload progress events)
+			const response = await new Promise((resolve, reject) => {
+				const xhr = new XMLHttpRequest();
+				xhr.open("POST", "/users/upload-files/");
+				xhr.withCredentials = true;
+				xhr.setRequestHeader(
+					"X-CSRFToken",
+					document.querySelector("[name=csrfmiddlewaretoken]")?.value || "",
+				);
+				xhr.setRequestHeader("Accept", "application/json");
 
-					// Progress UI elements + smoothing state
-                    const wrap = document.getElementById('captureUploadProgressWrap');
-                    const bar = document.getElementById('captureUploadProgressBar');
-                    const text = document.getElementById('captureUploadProgressText');
-                    if (wrap) wrap.classList.remove('d-none');
-                    if (bar) {
-                        bar.classList.add('progress-bar-striped','progress-bar-animated');
-                        bar.style.width = '100%';
-                        bar.setAttribute('aria-valuenow', '100');
-                        bar.textContent = '';
-                    }
-                    if (text) text.textContent = 'Uploading…';
+				// Progress UI elements + smoothing state
+				const wrap = document.getElementById("captureUploadProgressWrap");
+				const bar = document.getElementById("captureUploadProgressBar");
+				const text = document.getElementById("captureUploadProgressText");
+				if (wrap) wrap.classList.remove("d-none");
+				if (bar) {
+					bar.classList.add("progress-bar-striped", "progress-bar-animated");
+					bar.style.width = "100%";
+					bar.setAttribute("aria-valuenow", "100");
+					bar.textContent = "";
+				}
+				if (text) text.textContent = "Uploading…";
 
-                    xhr.upload.onprogress = () => {
-                        // Keep indeterminate to match button spinner timing (no file count)
-                        if (text) text.textContent = 'Uploading…';
-                    };
+				xhr.upload.onprogress = () => {
+					// Keep indeterminate to match button spinner timing (no file count)
+					if (text) text.textContent = "Uploading…";
+				};
 
-					xhr.onerror = () => reject(new Error('Network error during upload'));
-					xhr.upload.onloadstart = () => {
-						if (text) text.textContent = 'Starting upload…';
+				xhr.onerror = () => reject(new Error("Network error during upload"));
+				xhr.upload.onloadstart = () => {
+					if (text) text.textContent = "Starting upload…";
+				};
+				xhr.upload.onloadend = () => {
+					if (bar) {
+						bar.classList.add("progress-bar-striped", "progress-bar-animated");
+						bar.style.width = "100%";
+						bar.setAttribute("aria-valuenow", "100");
+						bar.textContent = "";
+					}
+					if (text) text.textContent = "Processing on server…";
+				};
+				xhr.onload = () => {
+					// Build a Response-like object compatible with existing code
+					const status = xhr.status;
+					const headers = new Headers({
+						"content-type": xhr.getResponseHeader("content-type") || "",
+					});
+					const bodyText = xhr.responseText || "";
+					const responseLike = {
+						ok: status >= 200 && status < 300,
+						status,
+						headers,
+						json: async () => {
+							try {
+								return JSON.parse(bodyText);
+							} catch {
+								return {};
+							}
+						},
+						text: async () => bodyText,
 					};
-                    xhr.upload.onloadend = () => {
-                        if (bar) {
-                            bar.classList.add('progress-bar-striped','progress-bar-animated');
-                            bar.style.width = '100%';
-                            bar.setAttribute('aria-valuenow', '100');
-                            bar.textContent = '';
-                        }
-                        if (text) text.textContent = 'Processing on server…';
-                    };
-					xhr.onload = () => {
-						// Build a Response-like object compatible with existing code
-						const status = xhr.status;
-						const headers = new Headers({ 'content-type': xhr.getResponseHeader('content-type') || '' });
-						const bodyText = xhr.responseText || '';
-						const responseLike = {
-							ok: status >= 200 && status < 300,
-							status,
-							headers,
-							json: async () => { try { return JSON.parse(bodyText); } catch { return {}; } },
-							text: async () => bodyText,
-						};
-						resolve(responseLike);
-					};
+					resolve(responseLike);
+				};
 
-					xhr.send(formData);
-				});
+				xhr.send(formData);
+			});
 
 			let result = null;
 			let fallbackText = "";
 			try {
-				const contentType = response.headers.get('content-type') || '';
-				if (contentType.includes('application/json')) {
+				const contentType = response.headers.get("content-type") || "";
+				if (contentType.includes("application/json")) {
 					result = await response.json();
 				} else {
 					fallbackText = await response.text();
@@ -527,43 +625,53 @@ class FileManager {
 
 			if (response.ok) {
 				// Build a concise success message for inline banner
-				let successMessage = 'Upload complete.';
+				let successMessage = "Upload complete.";
 				if (result && (result.files_uploaded || result.total_files)) {
 					const uploaded = result.files_uploaded ?? result.total_uploaded ?? 0;
 					const total = result.total_files ?? result.total_uploaded ?? 0;
-					successMessage = `Upload complete: ${uploaded} / ${total} file${total === 1 ? '' : 's'} uploaded.`;
+					successMessage = `Upload complete: ${uploaded} / ${total} file${total === 1 ? "" : "s"} uploaded.`;
 					if (Array.isArray(result.errors) && result.errors.length) {
-						successMessage += ' Some items were skipped or failed.';
+						successMessage += " Some items were skipped or failed.";
 					}
 				}
 				try {
-					sessionStorage.setItem('filesAlert', JSON.stringify({
-						message: successMessage,
-						type: 'success'
-					}));
+					sessionStorage.setItem(
+						"filesAlert",
+						JSON.stringify({
+							message: successMessage,
+							type: "success",
+						}),
+					);
 				} catch (_) {}
 				// Reload to show inline banner on main page
 				window.location.reload();
 			} else {
-				let message = '';
+				let message = "";
 				if (result && (result.detail || result.error || result.message)) {
 					message = result.detail || result.error || result.message;
 				} else if (fallbackText) {
-					message = this.stripHtml(fallbackText).split('\n').slice(0, 3).join(' ');
+					message = this.stripHtml(fallbackText)
+						.split("\n")
+						.slice(0, 3)
+						.join(" ");
 				}
 				if (!message) message = `Upload failed (${response.status})`;
 				// Friendly mapping for common statuses
 				if (response.status === 409) {
-					message = 'Upload skipped: a file with the same checksum already exists. Use PATCH to replace, or change the file.';
+					message =
+						"Upload skipped: a file with the same checksum already exists. Use PATCH to replace, or change the file.";
 				}
 				throw new Error(message);
 			}
 		} catch (error) {
 			try {
-				sessionStorage.setItem('filesAlert', JSON.stringify({
-					message: `Upload failed: ${error.message}`,
-					type: 'error'
-				}));
+				sessionStorage.setItem(
+					"filesAlert",
+					JSON.stringify({
+						message: `Upload failed: ${error.message}`,
+						type: "error",
+					}),
+				);
 				// Reload to display the banner via template startup script
 				window.location.reload();
 			} catch (_) {
@@ -597,7 +705,9 @@ class FileManager {
 
 		// Close upload modal and show result (guard instance)
 		const uploadModalEl = document.getElementById(modalId);
-		const uploadModalInstance = uploadModalEl ? bootstrap.Modal.getInstance(uploadModalEl) : null;
+		const uploadModalInstance = uploadModalEl
+			? bootstrap.Modal.getInstance(uploadModalEl)
+			: null;
 		if (uploadModalInstance) {
 			uploadModalInstance.hide();
 		}
@@ -720,25 +830,29 @@ class FileManager {
 
 			// Show the modal
 			new bootstrap.Modal(modal).show();
-        } catch (error) {
-            this.showError(error.message || "Failed to load H5 file information");
-        }
+		} catch (error) {
+			this.showError(error.message || "Failed to load H5 file information");
+		}
 	}
 
 	showError(message) {
-		if (window.components && typeof window.components.showError === 'function') {
+		if (
+			window.components &&
+			typeof window.components.showError === "function"
+		) {
 			window.components.showError(message);
 			return;
 		}
-		const live = document.getElementById('aria-live-region');
+		const live = document.getElementById("aria-live-region");
 		if (live) {
 			live.textContent = message;
 			return;
 		}
 		// Final fallback: inline banner near top
-		const container = document.querySelector('.container-fluid') || document.body;
-		const div = document.createElement('div');
-		div.className = 'alert alert-danger alert-dismissible fade show';
+		const container =
+			document.querySelector(".container-fluid") || document.body;
+		const div = document.createElement("div");
+		div.className = "alert alert-danger alert-dismissible fade show";
 		div.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
 		container.insertBefore(div, container.firstChild);
 	}
@@ -768,14 +882,14 @@ class FileManager {
 
 		// If selection came from the file input (webkitdirectory browse), show all files.
 		// If it came from drag-and-drop, we may have limited UI space; still show all for clarity.
-		realFiles.forEach((file) => {
+		for (const file of realFiles) {
 			const li = document.createElement("li");
 			li.innerHTML = `
 				<i class="bi bi-file-text"></i>
 				<span>${file.webkitRelativePath || file.name}</span>
 			`;
 			selectedFilesList.appendChild(li);
-		});
+		}
 
 		if (realFiles.length > 0) {
 			selectedFiles.classList.add("has-files");
@@ -801,18 +915,18 @@ class FileManager {
           <span>${name}</span>
           <ul></ul>
         `;
-				this.renderFileTree(value, li.querySelector("ul"), path + name + "/");
+				this.renderFileTree(value, li.querySelector("ul"), `${path + name}/`);
 			}
 
 			container.appendChild(li);
 		}
 	}
 
-		handleFileCardClick(e, card) {
-			// Ignore clicks originating from the actions area (dropdown/buttons)
-			if (e.target.closest('.file-actions')) {
-				return;
-			}
+	handleFileCardClick(e, card) {
+		// Ignore clicks originating from the actions area (dropdown/buttons)
+		if (e.target.closest(".file-actions")) {
+			return;
+		}
 		const type = card.dataset.type;
 		const path = card.dataset.path;
 		const uuid = card.dataset.uuid;
@@ -839,19 +953,24 @@ class FileManager {
 		} else if (type === "file") {
 			// Preview text-like files in modal, use H5 structure modal for .h5/.hdf5
 			if (uuid) {
-				const name = card.querySelector('.file-name')?.textContent || '';
+				// Prefer the exact text node for the filename and trim whitespace
+				const rawName =
+					card.querySelector(".file-name-text")?.textContent ||
+					card.querySelector(".file-name")?.textContent ||
+					"";
+				const name = rawName.trim();
 				const lower = name.toLowerCase();
 				if (
-					lower.endsWith('.json') ||
-					lower.endsWith('.txt') ||
-					lower.endsWith('.log') ||
-					lower.endsWith('.py') ||
-					lower.endsWith('.js') ||
-					lower.endsWith('.md') ||
-					lower.endsWith('.csv')
+					lower.endsWith(".json") ||
+					lower.endsWith(".txt") ||
+					lower.endsWith(".log") ||
+					lower.endsWith(".py") ||
+					lower.endsWith(".js") ||
+					lower.endsWith(".md") ||
+					lower.endsWith(".csv")
 				) {
 					this.showTextFilePreview(uuid, name);
-				} else if (lower.endsWith('.h5') || lower.endsWith('.hdf5')) {
+				} else if (lower.endsWith(".h5") || lower.endsWith(".hdf5")) {
 					this.showH5FileInfo(uuid, name);
 				} else {
 					const detailUrl = `/users/file-detail/${uuid}/`;
@@ -864,5 +983,5 @@ class FileManager {
 
 // Initialize file manager when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
-    new FileManager();
+	new FileManager();
 });

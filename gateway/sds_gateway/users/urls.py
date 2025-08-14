@@ -2,6 +2,9 @@ from django.urls import path
 
 from .api.views import GetAPIKeyView
 from .views import CheckFileExistsView
+from .views import FileContentView
+from .views import FileDownloadView
+from .views import FileH5InfoView
 from .views import FilesView
 from .views import ListCapturesView
 from .views import UploadFilesView
@@ -10,10 +13,7 @@ from .views import user_dataset_details_view
 from .views import user_dataset_list_view
 from .views import user_detail_view
 from .views import user_download_item_view
-from .views import FileContentView
-from .views import FileH5InfoView
 from .views import user_file_detail_view
-from .views import FileDownloadView
 from .views import user_generate_api_key_view
 from .views import user_group_captures_view
 from .views import user_redirect_view
@@ -31,7 +31,11 @@ urlpatterns = [
     path("file-list/", ListCapturesView.as_view(), name="file_list"),
     path("file-list/api/", user_captures_api_view, name="captures_api"),
     path("file-detail/<uuid:uuid>/", user_file_detail_view, name="file_detail"),
-    path("files/<uuid:uuid>/download/", FileDownloadView.as_view(), name="file_download"),
+    path(
+        "files/<uuid:uuid>/download/",
+        FileDownloadView.as_view(),
+        name="file_download",
+    ),
     path("files/<uuid:uuid>/content/", FileContentView.as_view(), name="file_content"),
     path("files/<uuid:uuid>/h5info/", FileH5InfoView.as_view(), name="file_h5info"),
     path("dataset-list/", user_dataset_list_view, name="dataset_list"),
