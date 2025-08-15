@@ -90,17 +90,26 @@ def _get_list_of_capture_files(
     verbose: bool = False,
 ) -> QuerySet[File]:
     """Returns the queryset of files to fetch from MinIO."""
+    # Normalize the virtual_top_dir to ensure consistent matching
+    normalized_virtual_top_dir = str(virtual_top_dir).rstrip("/")
+
     owned_files_filter_by_capture_type = {
         # matches .h5, .hdf, .hdf5, .he5 (case-insensitive)
         CaptureType.DigitalRF: Q(
             owner=owner,
             name__iregex=r"\.(hdf5?|he?5)$",
-            directory__startswith=str(virtual_top_dir).rstrip("/"),
+        )
+        & (
+            Q(directory=normalized_virtual_top_dir)
+            | Q(directory__startswith=f"{normalized_virtual_top_dir}/")
         ),
         CaptureType.RadioHound: Q(
             owner=owner,
             name__endswith=RH_DEFAULT_EXTENSION,
-            directory__startswith=str(virtual_top_dir).rstrip("/"),
+        )
+        & (
+            Q(directory=normalized_virtual_top_dir)
+            | Q(directory__startswith=f"{normalized_virtual_top_dir}/")
         ),
     }
 
