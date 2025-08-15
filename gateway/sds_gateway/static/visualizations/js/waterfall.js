@@ -252,7 +252,7 @@ class WaterfallVisualization {
 				theme: "light2",
 				title: {}, // Remove title for cleaner look
 				axisX: {
-					// Hide axisX and remove margin for alignment
+					// Hide axisX and remove margin to reduce space between periodogram and waterfall
 					tickLength: 0,
 					labelFontSize: 0,
 					labelPlacement: "inside",
@@ -275,6 +275,7 @@ class WaterfallVisualization {
 					gridColor: "#e9ecef",
 				},
 				axisY: {
+					interval: 20,
 					gridThickness: 1,
 					gridColor: "#e9ecef",
 					minimum: -130, // Use fixed bounds initially
@@ -282,8 +283,15 @@ class WaterfallVisualization {
 					viewportMinimum: -130,
 					viewportMaximum: 0,
 					includeZero: false,
+					tickLength: 0,
 					labelPlacement: "inside",
-					labelAutoFit: false, // Disable auto-fit to prevent infinite loops
+					labelBackgroundColor: "white",
+					labelFormatter: (e) => {
+						// Replace minus sign with longer dash symbol for better readability
+						return e.value.toString().replace("-", "\u{2012}");
+					},
+					labelFontWeight: "bold",
+					labelPadding: 1,
 					stripLines: [],
 					// Apply left margin for alignment with waterfall plot
 					margin: 0,
