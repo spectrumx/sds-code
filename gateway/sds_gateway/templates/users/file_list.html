@@ -1075,7 +1075,7 @@
                     }
 
                     if (result.captures && result.captures.length > 0) {
-                        let uuids = result.captures.map(c => `<li>${c.uuid}</li>`).join('');
+                        let uuids = result.captures.map(uuid => `<li>${uuid}</li>`).join('');
                         msg += `<br />Created capture UUID(s):<ul>${uuids}</ul>`;
                     }
                     if (result.errors && result.errors.length > 0) {

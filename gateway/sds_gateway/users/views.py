@@ -1877,11 +1877,11 @@ class UploadFilesView(View):
         request: HttpRequest,
         capture_data: dict[str, Any],
         all_relative_paths: list[str] | None = None,
-    ) -> tuple[dict[str, Any] | None, str | None]:
+    ) -> tuple[str | None, str | None]:
         """Create a single capture using prepared capture data.
 
-        Returns (capture_data, error) where capture_data is the created capture
-        data or None if creation failed, and error is the error message or None.
+        Returns (capture_uuid, error) where capture_uuid is the created capture
+        UUID or None if creation failed, and error is the error message or None.
         """
         try:
             # Set the index name based on capture type
@@ -1907,7 +1907,7 @@ class UploadFilesView(View):
                     capture_data = response.data
                     # Extract only the UUID since that's all we use
                     capture_uuid = capture_data.get("uuid")
-                    return {"uuid": capture_uuid}, None
+                    return capture_uuid, None
                 logger.warning(
                     "Unexpected response format: %s",
                     response.data,
@@ -1971,7 +1971,7 @@ class UploadFilesView(View):
         capture_data: dict[str, Any],
         scan_group: str,
         all_relative_paths: list[str],
-    ) -> tuple[list[dict[str, Any]], list[str]]:
+    ) -> tuple[list[str], list[str]]:
         """Create captures based on capture type.
         For RadioHound: Creates a single capture with scan_group
         For DigitalRF: Creates multiple captures, one for each channel
@@ -2079,7 +2079,7 @@ class UploadFilesView(View):
         self,
         file_upload_status: str,
         saved_files_count: int,
-        created_captures: list[dict[str, Any]],
+        created_captures: list[str],
         file_errors: list[str],
         capture_errors: list[str],
         *,
@@ -2128,7 +2128,7 @@ class UploadFilesView(View):
         all_relative_paths: list[str],
         *,
         has_required_fields: bool,
-    ) -> tuple[list[dict[str, Any]], list[str]]:
+    ) -> tuple[list[str], list[str]]:
         """Handle capture creation logic."""
         capture_errors = []
         created_captures = []
