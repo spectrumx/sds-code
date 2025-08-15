@@ -2,6 +2,8 @@
  * Waterfall Visualization Class
  * Handles the waterfall visualization using vanilla JavaScript, D3, and CanvasJS
  */
+
+// biome-ignore lint/correctness/noUnusedVariables: class used in other files
 class WaterfallVisualization {
 	constructor(captureUuid) {
 		this.captureUuid = captureUuid;
@@ -25,10 +27,14 @@ class WaterfallVisualization {
 
 		// Constants
 		this.WATERFALL_WINDOW_SIZE = 100; // Number of slices visible in the waterfall plot at once
-		this.LEFT_INDEX_WIDTH = 60; // Width of the left index legend area
-		this.RIGHT_LEGEND_WIDTH = 80; // Width of the right color legend area
 		this.TOP_MARGIN = 5; // Top margin for the waterfall plot
 		this.BOTTOM_MARGIN = 5; // Bottom margin for the waterfall plot
+
+		// Plot alignment constants (matching SVI implementation)
+		this.PLOTS_LEFT_MARGIN = 85; // Left margin for both periodogram and waterfall
+		this.PLOTS_RIGHT_MARGIN = 80; // Right margin for both periodogram and waterfall (match color legend width)
+		this.CANVASJS_LEFT_MARGIN = 10; // CanvasJS built-in left margin
+		this.CANVASJS_RIGHT_MARGIN = 10; // CanvasJS built-in right margin
 
 		// Bind methods to preserve context
 		this.handlePlayPause = this.handlePlayPause.bind(this);
@@ -57,11 +63,16 @@ class WaterfallVisualization {
 			this.initializeCanvas();
 			this.initializePeriodogramChart();
 
+			// Set CSS custom properties for margins to eliminate duplication
+			this.setCSSMarginProperties();
+
 			// Load initial data
 			await this.loadWaterfallData();
 
-			// Render initial visualization
-			this.render();
+			// Only render if we have data and the chart was initialized
+			if (this.waterfallData.length > 0) {
+				this.render();
+			}
 
 			// Set initial color legend positioning
 			this.updateColorLegendPosition();
@@ -223,41 +234,74 @@ class WaterfallVisualization {
 	initializePeriodogramChart() {
 		const container = document.getElementById("periodogramChart");
 		if (!container) {
-			throw new Error("Periodogram chart container not found");
+			console.warn(
+				"Periodogram chart container not found, skipping chart initialization",
+			);
+			return;
 		}
 
-		this.periodogramChart = new CanvasJS.Chart(container, {
-			animationEnabled: false,
-			theme: "light2",
-			title: {
-				text: "Frequency Domain",
-			},
-			axisX: {
-				title: "Frequency (Hz)",
-				gridThickness: 1,
-				gridColor: "#e9ecef",
-			},
-			axisY: {
-				title: "Power (dB)",
-				gridThickness: 1,
-				gridColor: "#e9ecef",
-				minimum: this.scaleMin || -130,
-				maximum: this.scaleMax || 0,
-				viewportMinimum: this.scaleMin || -130,
-				viewportMaximum: this.scaleMax || 0,
-				includeZero: false,
-				labelAutoFit: true,
-				stripLines: [],
-			},
-			data: [
-				{
-					type: "line",
-					dataPoints: [],
-					color: "#0d6efd",
-					lineThickness: 2,
+		// Check if CanvasJS is available
+		if (typeof CanvasJS === "undefined") {
+			console.warn("CanvasJS not available, skipping chart initialization");
+			return;
+		}
+
+		try {
+			this.periodogramChart = new CanvasJS.Chart(container, {
+				animationEnabled: false,
+				theme: "light2",
+				title: {}, // Remove title for cleaner look
+				axisX: {
+					// Hide axisX and remove margin for alignment
+					tickLength: 0,
+					labelFontSize: 0,
+					labelPlacement: "inside",
+					lineThickness: 0,
+					margin: 0,
 				},
-			],
-		});
+				axisX2: {
+					interval: 0.1, // Smaller interval for MHz display
+					title: "Frequency (MHz)",
+					titlePadding: 15,
+					titleFontSize: 16,
+					titleFontWeight: "bold",
+					labelFontWeight: "bold",
+					labelAngle: 90,
+					// Set reasonable default bounds
+					minimum: -1,
+					maximum: 1,
+					// Add grid lines for better readability
+					gridThickness: 1,
+					gridColor: "#e9ecef",
+				},
+				axisY: {
+					gridThickness: 1,
+					gridColor: "#e9ecef",
+					minimum: -130, // Use fixed bounds initially
+					maximum: 0,
+					viewportMinimum: -130,
+					viewportMaximum: 0,
+					includeZero: false,
+					labelPlacement: "inside",
+					labelAutoFit: false, // Disable auto-fit to prevent infinite loops
+					stripLines: [],
+					// Apply left margin for alignment with waterfall plot
+					margin: 0,
+				},
+				data: [
+					{
+						type: "line",
+						dataPoints: [],
+						color: "#0d6efd",
+						lineThickness: 2,
+						axisXType: "secondary", // Use secondary X axis for proper alignment
+					},
+				],
+			});
+		} catch (error) {
+			console.error("Failed to initialize periodogram chart:", error);
+			this.periodogramChart = null;
+		}
 	}
 
 	/**
@@ -508,40 +552,21 @@ class WaterfallVisualization {
 
 		let globalMin = Number.POSITIVE_INFINITY;
 		let globalMax = Number.NEGATIVE_INFINITY;
-		let globalMinSlice = -1;
-		let globalMaxSlice = -1;
 
 		// Iterate through all slices to find global min/max
-		for (
-			let sliceIndex = 0;
-			sliceIndex < this.waterfallData.length;
-			sliceIndex++
-		) {
-			const slice = this.waterfallData[sliceIndex];
-
+		for (const slice of this.waterfallData) {
 			if (slice.data) {
 				const sliceData = this.parseWaterfallData(slice.data);
+
 				if (sliceData && sliceData.length > 0) {
 					const sliceMin = Math.min(...sliceData);
 					const sliceMax = Math.max(...sliceData);
-
-					if (sliceMin < globalMin) {
-						globalMinSlice = sliceIndex;
-					}
-					if (sliceMax > globalMax) {
-						globalMaxSlice = sliceIndex;
-					}
 
 					globalMin = Math.min(globalMin, sliceMin);
 					globalMax = Math.max(globalMax, sliceMax);
 				}
 			}
 		}
-
-		console.log(`Global min: ${globalMin}, Global max: ${globalMax}`);
-		console.log(
-			`Global min slice: ${globalMinSlice}, Global max slice: ${globalMaxSlice}`,
-		);
 
 		// If we found valid data, use it; otherwise fall back to defaults
 		if (
@@ -573,9 +598,6 @@ class WaterfallVisualization {
 			this.periodogramChart.options.axisY.maximum = this.scaleMax;
 			this.periodogramChart.options.axisY.viewportMinimum = this.scaleMin;
 			this.periodogramChart.options.axisY.viewportMaximum = this.scaleMax;
-
-			// Force a full chart update to ensure bounds are applied
-			this.periodogramChart.render();
 		}
 	}
 
@@ -678,8 +700,8 @@ class WaterfallVisualization {
 
 		const ctx = this.ctx;
 		const fftPoints = data.length;
-		// Account for left index area and right legend area
-		const plotWidth = width - this.LEFT_INDEX_WIDTH - this.RIGHT_LEGEND_WIDTH;
+		// Use consistent margins for alignment with periodogram
+		const plotWidth = width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
 		const pointWidth = plotWidth / fftPoints;
 
 		// Use calculated bounds for optimal visualization
@@ -698,7 +720,7 @@ class WaterfallVisualization {
 
 			ctx.fillStyle = color;
 			ctx.fillRect(
-				this.LEFT_INDEX_WIDTH + i * pointWidth,
+				this.PLOTS_LEFT_MARGIN + i * pointWidth,
 				y,
 				pointWidth,
 				height,
@@ -837,13 +859,13 @@ class WaterfallVisualization {
 		const y =
 			this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - sliceInRange) * sliceHeight;
 
-		// Draw highlight box (between left index area and right legend area)
+		// Draw highlight box using consistent margins for alignment with periodogram
 		this.overlayCtx.strokeStyle = strokeStyle;
 		this.overlayCtx.lineWidth = lineWidth;
 		const plotWidth =
-			canvasWidth - this.LEFT_INDEX_WIDTH - this.RIGHT_LEGEND_WIDTH;
+			canvasWidth - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
 		this.overlayCtx.strokeRect(
-			this.LEFT_INDEX_WIDTH,
+			this.PLOTS_LEFT_MARGIN,
 			y,
 			plotWidth,
 			sliceHeight,
@@ -1012,23 +1034,102 @@ class WaterfallVisualization {
 	renderPeriodogram() {
 		if (!this.periodogramChart || this.waterfallData.length === 0) return;
 
-		const currentSlice = this.waterfallData[this.currentSliceIndex];
-		if (!currentSlice) return;
+		try {
+			const currentSlice = this.waterfallData[this.currentSliceIndex];
+			if (!currentSlice) return;
 
-		const dataArray = this.parseWaterfallData(currentSlice.data);
-		if (!dataArray) return;
+			const dataArray = this.parseWaterfallData(currentSlice.data);
+			if (!dataArray || dataArray.length === 0) return;
 
-		// Create data points for the chart
-		const dataPoints = dataArray.map((power, index) => {
-			const frequency =
-				(index - dataArray.length / 2) *
-				(currentSlice.sample_rate / dataArray.length);
-			return { x: frequency, y: power };
-		});
+			// Additional safety check for valid data
+			if (!dataArray.every((val) => Number.isFinite(val))) {
+				console.warn(
+					"Invalid data values detected, skipping periodogram render",
+				);
+				return;
+			}
 
-		// Update the chart
-		this.periodogramChart.options.data[0].dataPoints = dataPoints;
-		this.periodogramChart.render();
+			// Create data points for the chart - convert frequencies to MHz for better display
+			const dataPoints = dataArray
+				.map((power, index) => {
+					const frequency =
+						(index - dataArray.length / 2) *
+						(currentSlice.sample_rate / dataArray.length);
+					// Convert to MHz to avoid extremely large numbers that could crash CanvasJS
+					const freqMHz = frequency / 1000000;
+
+					// Validate frequency value to prevent CanvasJS crashes
+					if (!Number.isFinite(freqMHz) || Math.abs(freqMHz) > 10000) {
+						console.warn(
+							`Invalid frequency value: ${freqMHz}, skipping data point`,
+						);
+						return null;
+					}
+
+					// Validate power value to prevent CanvasJS crashes
+					if (!Number.isFinite(power) || Math.abs(power) > 1000) {
+						console.warn(`Invalid power value: ${power}, skipping data point`);
+						return null;
+					}
+
+					return { x: freqMHz, y: power };
+				})
+				.filter((point) => point !== null); // Remove invalid points
+
+			// Check if we have any valid data points
+			if (dataPoints.length === 0) {
+				console.warn(
+					"No valid data points after filtering, skipping periodogram render",
+				);
+				return;
+			}
+
+			// Update the chart with proper frequency bounds for alignment
+			this.periodogramChart.options.data[0].dataPoints = dataPoints;
+
+			// Set frequency bounds to match waterfall plot alignment
+			// Add validation to prevent invalid bounds that could cause infinite loops
+			if (
+				dataPoints.length > 0 &&
+				currentSlice.sample_rate &&
+				Number.isFinite(currentSlice.sample_rate)
+			) {
+				const freqStep = currentSlice.sample_rate / dataArray.length;
+				const centerFreq = currentSlice.center_frequency || 0;
+				const minFreq = centerFreq - (dataArray.length / 2) * freqStep;
+				const maxFreq = centerFreq + (dataArray.length / 2) * freqStep;
+
+				// Validate frequency bounds to prevent CanvasJS issues
+				// Convert to MHz and add reasonable bounds checking
+				const minFreqMHz = minFreq / 1000000;
+				const maxFreqMHz = maxFreq / 1000000;
+
+				if (
+					Number.isFinite(minFreqMHz) &&
+					Number.isFinite(maxFreqMHz) &&
+					minFreqMHz < maxFreqMHz &&
+					Math.abs(minFreqMHz) < 10000 && // Reasonable bounds: ±10 GHz
+					Math.abs(maxFreqMHz) < 10000
+				) {
+					this.periodogramChart.options.axisX2.minimum = minFreqMHz;
+					this.periodogramChart.options.axisX2.maximum = maxFreqMHz;
+				} else {
+					console.warn(
+						"Frequency bounds out of reasonable range, using defaults",
+					);
+					// Use reasonable default bounds
+					this.periodogramChart.options.axisX2.minimum = -1;
+					this.periodogramChart.options.axisX2.maximum = 1;
+				}
+			}
+
+			// Only render if the chart is properly initialized and has valid data
+			if (dataPoints.length > 0) {
+				this.periodogramChart.render();
+			}
+		} catch (error) {
+			console.warn("Failed to render periodogram chart:", error);
+		}
 	}
 
 	/**
@@ -1481,7 +1582,8 @@ class WaterfallVisualization {
 		const legendElement = document.getElementById("colorLegend");
 		if (!legendElement) return;
 
-		// Position the legend to account for top and bottom margins
+		// Position the legend to sit in the right margin area outside the waterfall plot
+		// The legend is positioned relative to the waterfall plot container
 		legendElement.style.top = `${this.TOP_MARGIN}px`;
 		legendElement.style.bottom = `${this.BOTTOM_MARGIN}px`;
 	}
@@ -1503,8 +1605,8 @@ class WaterfallVisualization {
 		);
 		const sliceHeight = plotHeight / maxVisibleSlices;
 
-		// Clear the left side area for labels
-		const labelWidth = this.LEFT_INDEX_WIDTH;
+		// Clear the left side area for labels using consistent margins
+		const labelWidth = this.PLOTS_LEFT_MARGIN;
 		ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
 		ctx.fillRect(0, 0, labelWidth, canvas.height);
 
@@ -1545,6 +1647,29 @@ class WaterfallVisualization {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Set CSS custom properties for margins
+	 */
+	setCSSMarginProperties() {
+		// Set CSS custom properties on the document root to eliminate margin value duplication
+		document.documentElement.style.setProperty(
+			"--plots-left-margin",
+			`${this.PLOTS_LEFT_MARGIN - this.CANVASJS_LEFT_MARGIN}px`,
+		);
+		document.documentElement.style.setProperty(
+			"--plots-right-margin",
+			`${this.PLOTS_RIGHT_MARGIN - this.CANVASJS_RIGHT_MARGIN}px`,
+		);
+		document.documentElement.style.setProperty(
+			"--waterfall-top-margin",
+			`${this.TOP_MARGIN}px`,
+		);
+		document.documentElement.style.setProperty(
+			"--waterfall-bottom-margin",
+			`${this.BOTTOM_MARGIN}px`,
+		);
 	}
 
 	/**
