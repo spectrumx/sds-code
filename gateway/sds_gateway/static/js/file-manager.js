@@ -343,6 +343,11 @@ class FileManager {
 					formData.append("relative_paths", relativePaths[index]);
 				}
 
+				// Add all relative paths for capture creation (needed for directory structure)
+				relativePaths.forEach(path => {
+					formData.append("all_relative_paths", path);
+				});
+
 				await this.handleUpload(formData, submitBtn, "uploadCaptureModal", {
 					files,
 				});
