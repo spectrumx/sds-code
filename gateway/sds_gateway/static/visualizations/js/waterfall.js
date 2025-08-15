@@ -38,7 +38,7 @@ class WaterfallVisualization {
 
 		// Bind methods to preserve context
 		this.handlePlayPause = this.handlePlayPause.bind(this);
-		this.handleSave = this.handleSave.bind(this);
+		this.handleDownload = this.handleDownload.bind(this);
 		this.handleSliceChange = this.handleSliceChange.bind(this);
 		this.handleSliceIndexInputChange =
 			this.handleSliceIndexInputChange.bind(this);
@@ -92,10 +92,10 @@ class WaterfallVisualization {
 			playPauseBtn.addEventListener("click", this.handlePlayPause);
 		}
 
-		// Save button
-		const saveBtn = document.getElementById("saveBtn");
-		if (saveBtn) {
-			saveBtn.addEventListener("click", this.handleSave);
+		// Download button
+		const downloadBtn = document.getElementById("downloadBtn");
+		if (downloadBtn) {
+			downloadBtn.addEventListener("click", this.handleDownload);
 		}
 
 		// Slice slider
@@ -1151,8 +1151,8 @@ class WaterfallVisualization {
 		}
 	}
 
-	handleSave() {
-		this.saveVisualization();
+	handleDownload() {
+		this.downloadVisualization();
 	}
 
 	handleSliceChange(event) {
@@ -1375,9 +1375,9 @@ class WaterfallVisualization {
 	}
 
 	/**
-	 * Save the visualization as an image
+	 * Download the visualization as an image
 	 */
-	saveVisualization() {
+	downloadVisualization() {
 		try {
 			// Create a combined canvas with both periodogram and waterfall
 			const combinedCanvas = document.createElement("canvas");
@@ -1411,8 +1411,8 @@ class WaterfallVisualization {
 				URL.revokeObjectURL(url);
 			}, "image/png");
 		} catch (error) {
-			console.error("Failed to save visualization:", error);
-			this.showError("Failed to save visualization");
+			console.error("Failed to download visualization:", error);
+			this.showError("Failed to download visualization");
 		}
 	}
 

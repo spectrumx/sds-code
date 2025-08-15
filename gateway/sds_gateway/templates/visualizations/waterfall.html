@@ -28,11 +28,8 @@
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h1 class="h3 mb-0">Waterfall Visualization</h1>
                     <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-outline-primary" id="playPauseBtn">
-                            <i class="bi bi-play-fill"></i> Play
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" id="saveBtn">
-                            <i class="bi bi-download"></i> Save
+                        <button type="button" class="btn btn-outline-secondary" id="downloadBtn">
+                            <i class="bi bi-download"></i> Download
                         </button>
                     </div>
                 </div>
@@ -46,15 +43,6 @@
                         <h5 class="card-title mb-0">Controls</h5>
                     </div>
                     <div class="card-body">
-                        <div class="mb-3">
-                            <label for="playbackSpeed" class="form-label">Playback Speed</label>
-                            <select class="form-select" id="playbackSpeed">
-                                <option value="0.5">0.5 fps</option>
-                                <option value="1" selected>1 fps</option>
-                                <option value="2">2 fps</option>
-                                <option value="5">5 fps</option>
-                            </select>
-                        </div>
                         <div class="mb-3">
                             <label for="currentSlice" class="form-label">Current Slice</label>
                             <div class="d-flex align-items-center justify-content-center mb-2 slice-controls">
@@ -92,12 +80,17 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label for="fftSize" class="form-label">FFT Size</label>
-                            <select class="form-select" id="fftSize">
-                                <option value="512">512</option>
-                                <option value="1024" selected>1024</option>
-                                <option value="2048">2048</option>
-                                <option value="4096">4096</option>
+                            <label for="playbackSpeed" class="form-label">Playback</label>
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary w-100" id="playPauseBtn">
+                                    <i class="bi bi-play-fill"></i> Play
+                                </button>
+                            </div>
+                            <select class="form-select" id="playbackSpeed">
+                                <option value="0.5">0.5 fps</option>
+                                <option value="1" selected>1 fps</option>
+                                <option value="2">2 fps</option>
+                                <option value="5">5 fps</option>
                             </select>
                         </div>
                         <div class="mb-3">
@@ -113,32 +106,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- Capture Info -->
-                <div class="card mt-3">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Capture Info</h5>
-                    </div>
-                    <div class="card-body">
-                        <dl class="row mb-0">
-                            <dt class="col-6">Name:</dt>
-                            <dd class="col-6">
-                                {{ capture.name }}
-                            </dd>
-                            <dt class="col-6">Type:</dt>
-                            <dd class="col-6">
-                                {{ capture.capture_type }}
-                            </dd>
-                            <dt class="col-6">Channel:</dt>
-                            <dd class="col-6">
-                                {{ capture.channel|default:"N/A" }}
-                            </dd>
-                            <dt class="col-6">Created:</dt>
-                            <dd class="col-6">
-                                {{ capture.created_at|date:"M d, Y" }}
-                            </dd>
-                        </dl>
-                    </div>
-                </div>
             </div>
             <!-- Visualization Area -->
             <div class="col-md-9 col-lg-10">
@@ -149,7 +116,7 @@
                             <div id="periodogramChart"></div>
                         </div>
                         <!-- Waterfall Plot -->
-                        <div class="p-2">
+                        <div>
                             <!-- Scroll indicator above -->
                             <div class="text-center mb-0 scroll-indicator-container"
                                  id="scrollIndicatorAbove">
@@ -183,6 +150,32 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+                <!-- Capture Info -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Capture Info</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-3">Name:</dt>
+                            <dd class="col-9">
+                                {{ capture.name }}
+                            </dd>
+                            <dt class="col-3">Type:</dt>
+                            <dd class="col-9">
+                                {{ capture.capture_type }}
+                            </dd>
+                            <dt class="col-3">Channel:</dt>
+                            <dd class="col-9">
+                                {{ capture.channel|default:"N/A" }}
+                            </dd>
+                            <dt class="col-3">Created:</dt>
+                            <dd class="col-9">
+                                {{ capture.created_at|date:"M d, Y" }}
+                            </dd>
+                        </dl>
                     </div>
                 </div>
             </div>
