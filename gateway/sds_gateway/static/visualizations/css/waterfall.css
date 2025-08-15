@@ -42,11 +42,17 @@
 #periodogramChart {
 	min-height: 200px;
 	height: 200px;
+	/* Add padding to align with waterfall plot margins */
+	padding-right: var(--plots-right-margin, 80px); /* Use CSS custom property */
+	padding-left: var(--plots-left-margin, 85px); /* Use CSS custom property */
 }
 
 #waterfallPlot {
 	position: relative;
 	height: 400px;
+	/* Ensure proper alignment with periodogram */
+	margin-left: 0;
+	margin-right: 0;
 }
 
 #waterfallOverlayCanvas {
@@ -147,13 +153,15 @@
 /* Waterfall color scale legend */
 .color-legend {
 	position: absolute;
+	top: 0;
+	bottom: 0;
 	right: 0;
 	background: rgba(255, 255, 255, 0.95);
 	border: 1px solid #dee2e6;
 	border-radius: 0.25rem;
 	padding: 0.5rem;
 	font-size: 0.75rem;
-	width: 60px;
+	max-width: var(--plots-right-margin, 80px); /* Use CSS custom property */
 	z-index: 10;
 	display: flex;
 	flex-direction: row;
@@ -262,6 +270,7 @@
 }
 
 #sliceIndexInput[type="number"] {
+	appearance: textfield;
 	-moz-appearance: textfield;
 }
 
