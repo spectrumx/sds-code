@@ -2632,11 +2632,10 @@ class UploadFilesView(View):
         request: HttpRequest,
         upload_chunk_files: list[Any],
         relative_paths: list[str],
-    ) -> tuple[int, list[str], list[dict]]:
+    ) -> tuple[int, list[str]]:
         saved_files_count = 0
         file_errors = []
         skipped_files = []
-        saved_files = []
 
         for f, rel_path in zip(upload_chunk_files, relative_paths, strict=True):
             path = Path(rel_path)
@@ -2669,14 +2668,14 @@ class UploadFilesView(View):
                     status.HTTP_201_CREATED,
                 ):
                     saved_files_count += 1
-                    saved_files.append(response.data)
+
                 else:
                     error_msg = f"Failed to upload {filename}: {response.data}"
                     file_errors.append(error_msg)
                     logger.error(error_msg)
             file_errors.extend(upload_errors)
         file_errors.extend(skipped_files)
-        return saved_files_count, file_errors, saved_files
+        return saved_files_count, file_errors
 
     def _attach_uploaded_files_to_dataset(self, request, dataset_uuid, saved_files):
         """Attach uploaded file records to a dataset if requested."""
@@ -3019,7 +3018,7 @@ class UploadFilesView(View):
             dataset_uuid,
         ) = self._parse_upload_request(request)
 
-        saved_files_count, file_errors, saved_files = self._process_file_uploads(
+        saved_files_count, file_errors = self._process_file_uploads(
             request, upload_chunk_files, relative_paths
         )
 
@@ -3105,12 +3104,7 @@ class UploadFilesView(View):
                 total_chunks,
             )
 
-        # If dataset_uuid provided, attach uploaded files to the dataset
-        dataset_attach_error = self._attach_uploaded_files_to_dataset(
-            request, dataset_uuid, saved_files
-        )
-        if dataset_attach_error:
-            file_errors.append(dataset_attach_error)
+        # Dataset attachment functionality removed in revert to upload-captures version
 
         # Log file upload errors if they occurred
         if file_errors and not all_files_empty:
