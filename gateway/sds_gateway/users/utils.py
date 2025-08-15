@@ -1,6 +1,11 @@
 from typing import Any
 
+from django.contrib.auth.models import User
+
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import ShareGroup
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -85,3 +90,50 @@ def serialize_composite_capture_for_display(capture: Capture) -> dict[str, Any]:
         "created_at": serialized_data["created_at"],
         "is_multi_channel": False,
     }
+
+
+def update_or_create_user_group_share_permissions(
+    request_user: User,
+    group: ShareGroup,
+    share_user: User,
+    item_uuid: str,
+    item_type: ItemType,
+    message: str,
+) -> None:
+    """
+    Update or add share permissions for a user in a group.
+
+    Args:
+        request_user: The User object that is sharing the item
+        group: The ShareGroup object
+        share_user: The User object that is being shared with
+        item_uuid: The UUID of the item to share
+        item_type: The type of the item to share
+        message: The message to share with the user
+
+    Returns:
+        None
+    """
+    existing_individual = UserSharePermission.objects.filter(
+        owner=request_user,
+        shared_with=share_user,
+        item_uuid=item_uuid,
+        item_type=item_type,
+        is_deleted=False,
+    ).first()
+
+    if not existing_individual:
+        permission = UserSharePermission.objects.create(
+            owner=request_user,
+            shared_with=share_user,
+            item_type=item_type,
+            item_uuid=item_uuid,
+            message=message,
+            is_enabled=True,
+        )
+        permission.share_groups.add(group)
+    else:
+        existing_individual.is_enabled = True
+        existing_individual.message = message
+        existing_individual.share_groups.add(group)
+        existing_individual.save()
