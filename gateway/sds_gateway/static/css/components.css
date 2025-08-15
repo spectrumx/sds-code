@@ -1047,3 +1047,79 @@ body {
 .clickable-row:hover {
 	background-color: rgba(0, 0, 0, 0.05);
 }
+
+.code-example pre {
+	font-size: 0.875rem;
+	line-height: 1.4;
+	margin: 0;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	background: #f8f9fa !important;
+	border: 1px solid #dee2e6 !important;
+}
+
+.code-example pre code {
+	background: transparent !important;
+	color: #212529 !important;
+	text-shadow: none !important;
+	font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace !important;
+}
+
+.copy-btn {
+	font-size: 0.75rem;
+	padding: 0.25rem 0.5rem;
+}
+
+.copy-btn:hover {
+	background-color: #005a9c !important;
+	border-color: #005a9c !important;
+	color: white !important;
+}
+
+.copy-btn.copied {
+	background-color: #28a745 !important;
+	border-color: #28a745 !important;
+	color: white !important;
+}
+
+/* Prism.js light theme custom styles */
+.token.comment {
+	color: #6c757d !important;
+	font-style: italic !important;
+}
+
+.token.string {
+	color: #28a745 !important;
+}
+
+.token.keyword {
+	color: #005a9c !important;
+}
+
+.token.function {
+	color: #17a2b8 !important;
+}
+
+.token.number {
+	color: #e83e8c !important;
+}
+
+.token.operator {
+	color: #6c757d !important;
+}
+
+.token.punctuation {
+	color: #6c757d !important;
+}
+
+.token.class-name {
+	color: #005a9c !important;
+}
+
+.token.builtin {
+	color: #fd7e14 !important;
+}
+
+.token.boolean {
+	color: #e83e8c !important;
+}
