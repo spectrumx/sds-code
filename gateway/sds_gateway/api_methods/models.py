@@ -126,7 +126,7 @@ class File(BaseModel):
     media_type = models.CharField(max_length=255, blank=True)
     name = models.CharField(max_length=255, blank=True)
     permissions = models.CharField(max_length=9, default="rw-r--r--")
-    size = models.IntegerField(blank=True)
+    size = models.BigIntegerField(blank=True)
     sum_blake3 = models.CharField(max_length=64, blank=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
