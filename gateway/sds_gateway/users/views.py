@@ -830,7 +830,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
         """Return a consistent display string for modified timestamps."""
         return dt.strftime("%Y-%m-%d %H:%M") if dt else "N/A"
 
-    def _make_dir_item(
+    def _make_dir_item(  # noqa: PLR0913
         self,
         *,
         name: str,
@@ -839,6 +839,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
         is_capture: bool = False,
         is_dataset: bool = False,
         is_shared: bool = False,
+        is_owner: bool = False,
         capture_uuid: str = "",
         modified_at_display: str = "N/A",
         shared_by: str = "",
@@ -852,6 +853,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
             "is_capture": is_capture,
             "is_dataset": is_dataset,
             "is_shared": is_shared,
+            "is_owner": is_owner,
             "capture_uuid": capture_uuid,
             "modified_at": modified_at_display,
             "shared_by": shared_by,
@@ -902,6 +904,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     is_capture=True,
                     is_dataset=False,
                     is_shared=False,
+                    is_owner=True,  # User owns their own captures
                     capture_uuid=str(capture.uuid),
                     modified_at_display=self._format_modified(
                         getattr(capture, "updated_at", None)
@@ -920,6 +923,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     is_capture=False,
                     is_dataset=True,
                     is_shared=False,
+                    is_owner=True,  # User owns their own datasets
                     capture_uuid="",
                     modified_at_display=self._format_modified(
                         getattr(dataset, "updated_at", None)
@@ -1039,6 +1043,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     is_capture=False,
                     is_dataset=False,
                     is_shared=False,
+                    is_owner=True,  # Directories within user's own captures
                     capture_uuid=str(capture_uuid),
                     modified_at_display=self._format_modified(
                         getattr(capture, "updated_at", None)
@@ -1093,6 +1098,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     is_capture=True,
                     is_dataset=False,
                     is_shared=False,
+                    is_owner=True,  # Captures within user's own datasets
                     capture_uuid=str(capture.uuid),
                     modified_at_display=self._format_modified(
                         getattr(capture, "updated_at", None)
@@ -1159,6 +1165,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     is_capture=True,
                     is_dataset=False,
                     is_shared=True,
+                    is_owner=False,  # Shared items are not owned by current user
                     capture_uuid=str(capture.uuid),
                     modified_at_display=self._format_modified(
                         getattr(capture, "updated_at", None)
@@ -1176,6 +1183,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     is_capture=False,
                     is_dataset=True,
                     is_shared=True,
+                    is_owner=False,  # Shared items are not owned by current user
                     capture_uuid="",
                     modified_at_display=self._format_modified(
                         getattr(dataset, "updated_at", None)

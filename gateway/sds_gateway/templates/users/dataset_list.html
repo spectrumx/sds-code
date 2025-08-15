@@ -254,33 +254,20 @@
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
+    <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/dataset-list.js' %}"></script>
     <script src="{% static 'js/userSearchComponent.js' %}"></script>
     <script src="{% static 'js/datasetDetailsModal.js' %}"></script>
     <script>
-        // Custom modal functions
-        function openCustomModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.style.display = 'block';
-                document.body.style.overflow = 'hidden';
-            }
-        }
-
-        function closeCustomModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.style.display = 'none';
-                document.body.style.overflow = 'auto';
-            }
-        }
-
         // Close modal when clicking backdrop
         document.addEventListener('click', function(event) {
             if (event.target.classList.contains('custom-modal-backdrop')) {
                 const modal = event.target.closest('.custom-modal');
                 if (modal) {
-                    closeCustomModal(modal.id);
+                    // Use the modal function from components.js
+                    if (window.components?.closeCustomModal) {
+                        window.components.closeCustomModal(modal.id);
+                    }
                 }
             }
         });

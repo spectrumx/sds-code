@@ -358,50 +358,10 @@ class CapturesTableManager extends TableManager {
 			// Close modal first
 			this.closeCustomModal("downloadModal");
 
-			// Show loading state
-			const originalContent = button.innerHTML;
-			button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
-			button.disabled = true;
-
-			// Make API request using the unified download endpoint
-			fetch(`/users/download-item/capture/${captureUuid}/`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"X-CSRFToken": this.getCSRFToken(),
-				},
-			})
-				.then((response) => response.json())
-				.then((data) => {
-					if (data.success === true) {
-						button.innerHTML =
-							'<i class="bi bi-check-circle text-success"></i> Download Requested';
-						this.showDownloadSuccessMessage(data.message);
-					} else {
-						button.innerHTML =
-							'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-						this.showDownloadErrorMessage(
-							data.detail ||
-								data.message ||
-								"Download request failed. Please try again.",
-						);
-					}
-				})
-				.catch((error) => {
-					console.error("Download error:", error);
-					button.innerHTML =
-						'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-					this.showDownloadErrorMessage(
-						"An error occurred while processing your request.",
-					);
-				})
-				.finally(() => {
-					// Reset button after 3 seconds
-					setTimeout(() => {
-						button.innerHTML = originalContent;
-						button.disabled = false;
-					}, 3000);
-				});
+			// Use unified download handler
+			window.components.handleDownload("capture", captureUuid, button, {
+				alertHandler: this, // Use this class's showDownloadSuccessMessage/showDownloadErrorMessage methods
+			});
 		};
 	}
 
@@ -409,68 +369,20 @@ class CapturesTableManager extends TableManager {
 	 * Show download success message
 	 */
 	showDownloadSuccessMessage(message) {
-		// Try to find an existing alert container or create one
-		let alertContainer = document.querySelector(".alert-container");
-		if (!alertContainer) {
-			alertContainer = document.createElement("div");
-			alertContainer.className = "alert-container";
-			// Insert at the top of the main content area
-			const mainContent =
-				document.querySelector(".container-fluid") || document.body;
-			mainContent.insertBefore(alertContainer, mainContent.firstChild);
+		// Use the global components helper for consistency
+		if (window.components?.showSuccess) {
+			window.components.showSuccess(message);
 		}
-
-		const alertHtml = `
-			<div class="alert alert-success alert-dismissible fade show" role="alert">
-				<i class="bi bi-check-circle-fill me-2"></i>
-				${ComponentUtils.escapeHtml(message)}
-				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-			</div>
-		`;
-
-		alertContainer.innerHTML = alertHtml;
-
-		// Auto-dismiss after 5 seconds
-		setTimeout(() => {
-			const alert = alertContainer.querySelector(".alert");
-			if (alert) {
-				alert.remove();
-			}
-		}, 5000);
 	}
 
 	/**
 	 * Show download error message
 	 */
 	showDownloadErrorMessage(message) {
-		// Try to find an existing alert container or create one
-		let alertContainer = document.querySelector(".alert-container");
-		if (!alertContainer) {
-			alertContainer = document.createElement("div");
-			alertContainer.className = "alert-container";
-			// Insert at the top of the main content area
-			const mainContent =
-				document.querySelector(".container-fluid") || document.body;
-			mainContent.insertBefore(alertContainer, mainContent.firstChild);
+		// Use the global components helper for consistency
+		if (window.components?.showError) {
+			window.components.showError(message);
 		}
-
-		const alertHtml = `
-			<div class="alert alert-danger alert-dismissible fade show" role="alert">
-				<i class="bi bi-exclamation-triangle-fill me-2"></i>
-				${ComponentUtils.escapeHtml(message)}
-				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-			</div>
-		`;
-
-		alertContainer.innerHTML = alertHtml;
-
-		// Auto-dismiss after 8 seconds (longer for error messages)
-		setTimeout(() => {
-			const alert = alertContainer.querySelector(".alert");
-			if (alert) {
-				alert.remove();
-			}
-		}, 8000);
 	}
 
 	renderRow(capture, index) {
@@ -1882,6 +1794,97 @@ window.PaginationManager = PaginationManager;
 		if (live) live.textContent = message;
 	}
 
+	function getCSRFToken() {
+		return document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+	}
+
+	// Unified download handler to eliminate duplication
+	function handleDownload(itemType, itemUuid, button, options = {}) {
+		const {
+			successIcon = '<i class="bi bi-check-circle text-success"></i> Download Requested',
+			errorIcon = '<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed',
+			loadingIcon = '<i class="bi bi-hourglass-split"></i> Processing...',
+			resetText = "Download",
+			resetDelay = 3000,
+			alertHandler = null, // Custom alert handler, defaults to window.components
+		} = options;
+
+		const originalContent = button.innerHTML;
+
+		// Show loading state
+		button.innerHTML = loadingIcon;
+		button.disabled = true;
+
+		// Make API request
+		fetch(`/users/download-item/${itemType}/${itemUuid}/`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-CSRFToken": getCSRFToken(),
+			},
+		})
+			.then(async (response) => {
+				// Handle both JSON and non-JSON responses
+				const contentType = response.headers.get("content-type");
+				if (contentType?.includes("application/json")) {
+					return response.json();
+				}
+				const text = await response.text();
+				throw new Error(`Server returned non-JSON response: ${text}`);
+			})
+			.then((data) => {
+				if (data.success === true) {
+					button.innerHTML = successIcon;
+					const message =
+						data.message ||
+						"Download request submitted successfully! You will receive an email when ready.";
+
+					if (alertHandler?.showSuccess) {
+						alertHandler.showSuccess(message);
+					} else if (window.components?.showSuccess) {
+						window.components.showSuccess(message);
+					} else if (window.showAlert) {
+						window.showAlert(message, "success");
+					}
+				} else {
+					button.innerHTML = errorIcon;
+					const message =
+						data.detail ||
+						data.message ||
+						"Download request failed. Please try again.";
+
+					if (alertHandler?.showError) {
+						alertHandler.showError(message);
+					} else if (window.components?.showError) {
+						window.components.showError(message);
+					} else if (window.showAlert) {
+						window.showAlert(message, "error");
+					}
+				}
+			})
+			.catch((error) => {
+				console.error("Download error:", error);
+				button.innerHTML = errorIcon;
+				const message =
+					error.message || "An error occurred while processing your request.";
+
+				if (alertHandler?.showError) {
+					alertHandler.showError(message);
+				} else if (window.components?.showError) {
+					window.components.showError(message);
+				} else if (window.showAlert) {
+					window.showAlert(message, "error");
+				}
+			})
+			.finally(() => {
+				// Reset button after delay
+				setTimeout(() => {
+					button.innerHTML = resetText || originalContent;
+					button.disabled = false;
+				}, resetDelay);
+			});
+	}
+
 	window.components = {
 		showSuccess(message) {
 			writeAriaLive(message);
@@ -1925,6 +1928,8 @@ window.PaginationManager = PaginationManager;
 				document.body.style.overflow = "auto";
 			}
 		},
+		// Expose unified download handler
+		handleDownload,
 	};
 })();
 

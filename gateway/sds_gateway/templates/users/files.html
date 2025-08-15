@@ -146,23 +146,77 @@
                                     </button>
                                     <ul class="dropdown-menu">
                                         {% if item.is_dataset %}
+                                            {% if item.is_owner %}
+                                                <li>
+                                                    <button class="dropdown-item"
+                                                            type="button"
+                                                            onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ item.uuid }}'">
+                                                        <i class="bi bi-pencil me-2"></i>Edit
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item"
+                                                            type="button"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#share-modal-{{ item.uuid }}">
+                                                        <i class="bi bi-share me-2"></i>Share
+                                                    </button>
+                                                </li>
+                                            {% endif %}
                                             <li>
                                                 <button class="dropdown-item download-dataset-btn"
                                                         type="button"
                                                         data-dataset-uuid="{{ item.uuid }}"
-                                                        data-dataset-name="{{ item.name }}">Download dataset</button>
+                                                        data-dataset-name="{{ item.name }}">
+                                                    <i class="bi bi-download me-2"></i>Download
+                                                </button>
                                             </li>
                                         {% elif item.is_capture %}
+                                            {% if item.is_owner %}
+                                                <li>
+                                                    <button class="dropdown-item capture-details-btn"
+                                                            type="button"
+                                                            data-uuid="{{ item.uuid }}"
+                                                            data-name="{{ item.name|default:'' }}"
+                                                            data-channel="{{ item.capture_uuid }}"
+                                                            data-scan-group=""
+                                                            data-capture-type=""
+                                                            data-top-level-dir=""
+                                                            data-owner="{{ request.user.email }}"
+                                                            data-origin=""
+                                                            data-dataset=""
+                                                            data-created-at=""
+                                                            data-updated-at=""
+                                                            data-is-public="false"
+                                                            data-center-frequency-ghz=""
+                                                            data-is-multi-channel="false"
+                                                            data-channels="">
+                                                        <i class="bi bi-pencil me-2"></i>Edit
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item"
+                                                            type="button"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#share-modal-{{ item.uuid }}">
+                                                        <i class="bi bi-share me-2"></i>Share
+                                                    </button>
+                                                </li>
+                                            {% endif %}
                                             <li>
                                                 <button class="dropdown-item download-capture-btn"
                                                         type="button"
                                                         data-capture-uuid="{{ item.uuid }}"
-                                                        data-capture-name="{{ item.name }}">Download capture</button>
+                                                        data-capture-name="{{ item.name }}">
+                                                    <i class="bi bi-download me-2"></i>Download
+                                                </button>
                                             </li>
                                         {% elif item.type == 'file' %}
                                             <li>
                                                 <a class="dropdown-item"
-                                                   href="{% url 'users:file_download' uuid=item.uuid %}">Download file</a>
+                                                   href="{% url 'users:file_download' uuid=item.uuid %}">
+                                                    <i class="bi bi-download me-2"></i>Download
+                                                </a>
                                             </li>
                                         {% endif %}
                                     </ul>
@@ -462,9 +516,67 @@
             </div>
         </div>
     </div>
+    <!-- Include capture modal for editing -->
+    {% include "users/partials/capture_modal.html" %}
+    <!-- Include share modals for datasets and captures -->
+    {% for item in items %}
+        {% if item.is_dataset %}
+            {% include "users/partials/share_modal.html" with item=item item_type="dataset" %}
+        {% elif item.is_capture %}
+            {% include "users/partials/share_modal.html" with item=item item_type="capture" %}
+        {% endif %}
+    {% endfor %}
 {% endblock content %}
 {% block javascript %}
     <script src="{% static 'js/components.js' %}"></script>
+    <script src="{% static 'js/userSearchComponent.js' %}"></script>
     {# Fallback modal helpers provided by components.js; inline duplicates removed #}
     <script src="{% static 'js/file-manager.js' %}?v=7"></script>
+    <script>
+        // Initialize capture table manager for capture edit functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize ModalManager for capture modal
+            let modalManager = null;
+            if (window.ModalManager) {
+                modalManager = new window.ModalManager({
+                    modalId: "capture-modal",
+                    modalBodyId: "capture-modal-body",
+                    modalTitleId: "capture-modal-label",
+                });
+            }
+
+            // Initialize CapturesTableManager for capture edit/download functionality
+            if (window.CapturesTableManager) {
+                window.capturesTableManager = new window.CapturesTableManager({
+                    modalHandler: modalManager,
+                });
+            }
+
+            // Create a UserSearchHandler for each share modal
+            document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
+                const itemUuid = modal.getAttribute('data-item-uuid');
+                const itemType = modal.getAttribute('data-item-type');
+                if (window.UserSearchHandler) {
+                    const handler = new window.UserSearchHandler();
+                    // Store the handler on the modal element
+                    modal.userSearchHandler = handler;
+                }
+
+                // On modal show, set the item info and call init()
+                modal.addEventListener('show.bs.modal', function() {
+                    if (modal.userSearchHandler) {
+                        modal.userSearchHandler.setItemInfo(itemUuid, itemType);
+                        modal.userSearchHandler.init();
+                    }
+                });
+
+                // On modal hide, reset all selections and entered data
+                modal.addEventListener('hidden.bs.modal', function() {
+                    if (modal.userSearchHandler) {
+                        modal.userSearchHandler.resetAll();
+                    }
+                });
+            });
+        });
+    </script>
 {% endblock javascript %}

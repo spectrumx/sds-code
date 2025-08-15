@@ -409,26 +409,17 @@ class FileManager {
 							const m = document.getElementById("downloadModal");
 							if (m) m.style.display = "none";
 						}
-						fetch(
-							`/users/download-item/capture/${encodeURIComponent(captureUuid)}/`,
-							{
-								method: "POST",
-								headers: {
-									"Content-Type": "application/json",
-									"X-CSRFToken":
-										document.querySelector("[name=csrfmiddlewaretoken]")
-											?.value || "",
-								},
-							},
-						)
-							.then(async (r) => {
-								try {
-									return await r.json();
-								} catch (_) {
-									return {};
-								}
-							})
-							.catch(() => {});
+						// Use unified download handler - much simpler!
+						if (window.components?.handleDownload) {
+							// Create a dummy button element for the unified handler
+							const dummyButton = document.createElement("button");
+							dummyButton.style.display = "none";
+							window.components.handleDownload(
+								"capture",
+								captureUuid,
+								dummyButton,
+							);
+						}
 					};
 					confirmBtn.addEventListener("click", onConfirm, { once: true });
 				}
