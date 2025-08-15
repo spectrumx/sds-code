@@ -11,22 +11,16 @@
           href="{% static 'visualizations/css/waterfall.css' %}" />
 {% endblock css %}
 {% block content %}
-    <div class="container-fluid">
+    <div class="container-fluid px-5 pt-4">
         <div class="row">
             <div class="col-12">
-                <nav aria-label="breadcrumb">
-                    <ol class="breadcrumb">
-                        <li class="breadcrumb-item">
-                            <a href="{% url 'home' %}">Home</a>
-                        </li>
-                        <li class="breadcrumb-item">
-                            <a href="{% url 'users:file_list' %}">Captures</a>
-                        </li>
-                        <li class="breadcrumb-item active" aria-current="page">{{ capture.name }}</li>
-                    </ol>
-                </nav>
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h1 class="h3 mb-0">Waterfall Visualization</h1>
+                    <div>
+                        <h1 class="mb-1 text-start">Waterfall Visualization</h1>
+                        <p class="text-muted mb-0">
+                            Capture: {{ capture.name }} ({{ capture.get_capture_type_display |default:"Unknown Type" }})
+                        </p>
+                    </div>
                     <div class="btn-group" role="group">
                         <button type="button" class="btn btn-outline-secondary" id="downloadBtn">
                             <i class="bi bi-download"></i> Download
@@ -47,12 +41,12 @@
                             <label for="currentSlice" class="form-label">Current Slice</label>
                             <div class="d-flex align-items-center justify-content-center mb-2 slice-controls">
                                 <button type="button"
-                                        class="btn btn-outline-secondary btn-sm px-2"
+                                        class="btn btn-outline-secondary btn-sm"
                                         id="decrementSlice"
                                         aria-label="Previous slice">
                                     <i class="bi bi-chevron-left"></i>
                                 </button>
-                                <div class="mx-2 flex-shrink-0">
+                                <div class="flex-shrink-0">
                                     <input type="number"
                                            class="form-control form-control-sm text-center"
                                            id="sliceIndexInput"
@@ -62,7 +56,7 @@
                                            aria-label="Slice index input" />
                                 </div>
                                 <button type="button"
-                                        class="btn btn-outline-secondary btn-sm px-2"
+                                        class="btn btn-outline-secondary btn-sm"
                                         id="incrementSlice"
                                         aria-label="Next slice">
                                     <i class="bi bi-chevron-right"></i>
