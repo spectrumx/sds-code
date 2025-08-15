@@ -780,10 +780,9 @@
                     // Chunk size for file uploads
                     const CHUNK_SIZE = 5;
                     const totalFiles = filesToUpload.length;
-                    let uploadedFiles = 0;
                     let allResults = {
                         file_upload_status: 'success',
-                        files: [],
+                        saved_files_count: 0,
                         captures: [],
                         errors: [],
                         message: ''
@@ -912,8 +911,8 @@
                             }
 
                             // Merge results
-                            if (chunkResult.files) {
-                                allResults.files = allResults.files.concat(chunkResult.files);
+                            if (chunkResult.saved_files_count !== undefined) {
+                                allResults.saved_files_count += chunkResult.saved_files_count;
                             }
                             // Only collect captures from the final chunk
                             if (chunkResult.captures && isFinalChunk) {
@@ -922,8 +921,6 @@
                             if (chunkResult.errors) {
                                 allResults.errors = allResults.errors.concat(chunkResult.errors);
                             }
-
-                            uploadedFiles += chunk.length;
 
                             // Check if any chunk failed
                             if (chunkResult.file_upload_status === 'error') {
@@ -962,7 +959,7 @@
                         // Clear the reference since upload was aborted
                         currentAbortController = null;
                         // Show error results
-                        showUploadResults(allResults, uploadedFiles, totalFiles);
+                        showUploadResults(allResults, allResults.saved_files_count, totalFiles);
                         return; // Exit early, don't continue with normal flow
                     }
 
@@ -970,7 +967,7 @@
                     currentAbortController = null;
 
                     // Show results
-                    showUploadResults(allResults, uploadedFiles, totalFiles);
+                    showUploadResults(allResults, allResults.saved_files_count, totalFiles);
 
                     // Don't auto-reload for successful uploads - let user close modal first
                 } catch (error) {

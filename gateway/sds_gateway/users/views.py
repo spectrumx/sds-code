@@ -1828,8 +1828,8 @@ class UploadFilesView(View):
         request: HttpRequest,
         upload_chunk_files: list[Any],
         relative_paths: list[str],
-    ) -> tuple[list[dict[str, Any]], list[str]]:
-        saved_files = []
+    ) -> tuple[int, list[str]]:
+        saved_files_count = 0
         file_errors = []
         skipped_files = []
 
@@ -1863,14 +1863,14 @@ class UploadFilesView(View):
                     status.HTTP_200_OK,
                     status.HTTP_201_CREATED,
                 ):
-                    saved_files.append({"uploaded": True})
+                    saved_files_count += 1
                 else:
                     error_msg = f"Failed to upload {filename}: {response.data}"
                     file_errors.append(error_msg)
                     logger.error(error_msg)
             file_errors.extend(upload_errors)
         file_errors.extend(skipped_files)
-        return saved_files, file_errors
+        return saved_files_count, file_errors
 
     def _create_capture_with_endpoint_helper(
         self,
@@ -2044,7 +2044,7 @@ class UploadFilesView(View):
 
     def file_upload_status_mux(
         self,
-        saved_files: list[dict[str, Any]],
+        saved_files_count: int,
         upload_chunk_files: list[Any],
         file_errors: list[str],
         *,
@@ -2065,8 +2065,8 @@ class UploadFilesView(View):
             return "success" if has_required_fields else "error"
 
         if (
-            saved_files
-            and len(saved_files) == len(upload_chunk_files)
+            saved_files_count > 0
+            and saved_files_count == len(upload_chunk_files)
             and not file_errors
         ):
             # All files successful
@@ -2078,7 +2078,7 @@ class UploadFilesView(View):
     def _build_file_capture_response_data(
         self,
         file_upload_status: str,
-        saved_files: list[dict[str, Any]],
+        saved_files_count: int,
         created_captures: list[dict[str, Any]],
         file_errors: list[str],
         capture_errors: list[str],
@@ -2089,7 +2089,7 @@ class UploadFilesView(View):
         """Build the response data dictionary."""
         response_data = {
             "file_upload_status": file_upload_status,
-            "files": saved_files,
+            "saved_files_count": saved_files_count,
             "captures": created_captures,
         }
 
@@ -2183,7 +2183,7 @@ class UploadFilesView(View):
             capture_type,
         ) = self._parse_upload_request(request)
 
-        saved_files, file_errors = self._process_file_uploads(
+        saved_files_count, file_errors = self._process_file_uploads(
             request, upload_chunk_files, relative_paths
         )
 
@@ -2271,7 +2271,7 @@ class UploadFilesView(View):
 
         # Determine file upload status for frontend display
         file_upload_status = self.file_upload_status_mux(
-            saved_files,
+            saved_files_count,
             upload_chunk_files,
             file_errors,
             all_files_empty=all_files_empty,
@@ -2280,7 +2280,7 @@ class UploadFilesView(View):
 
         file_capture_response_data = self._build_file_capture_response_data(
             file_upload_status,
-            saved_files,
+            saved_files_count,
             created_captures,
             file_errors,
             capture_errors,
