@@ -258,17 +258,41 @@ class FileManager {
 		const channelGroup = document.getElementById("channelInputGroup");
 		const scanGroup = document.getElementById("scanGroupInputGroup");
 		const channelInput = document.getElementById("captureChannelsInput");
+
 		if (typeSelect) {
 			typeSelect.addEventListener("change", () => {
 				const v = typeSelect.value;
-				if (channelGroup)
-					channelGroup.style.display = v === "drf" ? "" : "none";
-				if (scanGroup) scanGroup.style.display = v === "rh" ? "" : "none";
+
+				// Use Bootstrap classes instead of inline styles
+				if (channelGroup) {
+					if (v === "drf") {
+						channelGroup.classList.remove("d-none");
+						channelGroup.style.display = "";
+					} else {
+						channelGroup.classList.add("d-none");
+					}
+				}
+
+				if (scanGroup) {
+					if (v === "rh") {
+						scanGroup.classList.remove("d-none");
+						scanGroup.style.display = "";
+					} else {
+						scanGroup.classList.add("d-none");
+					}
+				}
+
 				if (channelInput) {
-					if (v === "drf") channelInput.setAttribute("required", "required");
-					else channelInput.removeAttribute("required");
+					if (v === "drf") {
+						channelInput.setAttribute("required", "required");
+					} else {
+						channelInput.removeAttribute("required");
+					}
 				}
 			});
+
+			// Trigger change event to set initial state
+			typeSelect.dispatchEvent(new Event("change"));
 		}
 
 		// Handle form submission
