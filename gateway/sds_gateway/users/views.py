@@ -2677,33 +2677,7 @@ class UploadFilesView(View):
         file_errors.extend(skipped_files)
         return saved_files_count, file_errors
 
-    def _attach_uploaded_files_to_dataset(self, request, dataset_uuid, saved_files):
-        """Attach uploaded file records to a dataset if requested."""
-        if not dataset_uuid or not saved_files:
-            return None
 
-        # Ensure the user can access the dataset (owner or shared)
-        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
-            return (
-                "Dataset not found or access denied. File(s) uploaded but could not be"
-                " linked to the selected dataset."
-            )
-
-        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
-
-        # Collect file UUIDs from responses and link them
-        file_uuids = [item.get("uuid") for item in saved_files if item.get("uuid")]
-        if not file_uuids:
-            return None
-
-        files_qs = File.objects.filter(
-            uuid__in=file_uuids,
-            is_deleted=False,
-            owner=request.user,
-        )
-        if files_qs.exists():
-            dataset.files.add(*files_qs)
-        return None
 
     def _create_capture_with_endpoint_helper(
         self,
@@ -2811,7 +2785,7 @@ class UploadFilesView(View):
         created_captures = []
         errors = []
 
-        if capture_data["capture_type"] == "rh":
+        if capture_data["capture_type"] == CaptureType.RadioHound:
             # For RadioHound, create a single capture with scan_group
             scan_group_error = self.check_rh_scan_group(scan_group)
             if scan_group_error:
@@ -2846,7 +2820,7 @@ class UploadFilesView(View):
 
     def _parse_upload_request(
         self, request: HttpRequest
-    ) -> tuple[list[Any], list[str], list[str], list[str], str, "CaptureType", str]:
+    ) -> tuple[list[Any], list[str], list[str], list[str], str, "CaptureType"]:
         """Parse upload request parameters."""
         upload_chunk_files = request.FILES.getlist("files")
         relative_paths = request.POST.getlist("relative_paths")
@@ -2863,7 +2837,7 @@ class UploadFilesView(View):
             if capture_type_str == "rh"
             else CaptureType.DigitalRF
         )
-        dataset_uuid = request.POST.get("dataset_uuid", "")
+
 
 
 
@@ -2874,7 +2848,6 @@ class UploadFilesView(View):
             channels,
             scan_group,
             capture_type,
-            dataset_uuid,
         )
 
     def _check_required_fields(
@@ -2985,10 +2958,9 @@ class UploadFilesView(View):
                 all_relative_paths, all_relative_paths
             )
 
-            # Prepare base capture data - ensure capture_type is a string
-            capture_type_str = capture_type.value if hasattr(capture_type, 'value') else capture_type
+            # Prepare base capture data
             capture_data = {
-                "capture_type": capture_type_str,
+                "capture_type": capture_type,
                 "top_level_dir": str(top_level_dir),
             }
             
@@ -3015,7 +2987,6 @@ class UploadFilesView(View):
             channels,
             scan_group,
             capture_type,
-            dataset_uuid,
         ) = self._parse_upload_request(request)
 
         saved_files_count, file_errors = self._process_file_uploads(
