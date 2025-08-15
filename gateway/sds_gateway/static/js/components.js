@@ -1286,11 +1286,35 @@ class ModalManager {
 			// Setup name editing handlers after modal content is loaded
 			this.setupNameEditingHandlers();
 
+			// Setup visualize button for Digital RF captures
+			this.setupVisualizeButton(data);
+
 			// Load and display files for this capture
 			this.loadCaptureFiles(data.uuid);
 		} catch (error) {
 			console.error("Error opening capture modal:", error);
 			this.show("Error", "Error displaying capture details");
+		}
+	}
+
+	/**
+	 * Setup visualize button for Digital RF captures
+	 */
+	setupVisualizeButton(captureData) {
+		const visualizeBtn = document.getElementById("visualize-btn");
+		if (!visualizeBtn) return;
+
+		// Show button only for Digital RF captures
+		if (captureData.captureType === "drf") {
+			visualizeBtn.style.display = "block";
+
+			// Set up click handler
+			visualizeBtn.onclick = () => {
+				// Navigate to visualization page
+				window.location.href = `/visualizations/waterfall/${captureData.uuid}/`;
+			};
+		} else {
+			visualizeBtn.style.display = "none";
 		}
 	}
 
