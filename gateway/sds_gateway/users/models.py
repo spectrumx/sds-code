@@ -64,9 +64,15 @@ class UserAPIKey(AbstractAPIKey):
         "User",
         models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE),
     )
+    name = models.CharField(max_length=255, unique=False, default="", blank=True)
     source = models.CharField(
         choices=SOURCE_CHOICES,
         default=KeySources.SDSWebUI,
         max_length=255,
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Optional description for this API key.",
     )
     objects = APIKeyUserManager()
