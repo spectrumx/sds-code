@@ -27,7 +27,7 @@ class TestDatasetStatus(TestCase):
         choices = Dataset.STATUS_CHOICES
         expected_choices = [
             (DatasetStatus.DRAFT, "Draft"),
-            (DatasetStatus.PUBLISHED, "Published"),
+            (DatasetStatus.FINAL, "Final"),
         ]
         assert choices == expected_choices
 
@@ -51,7 +51,7 @@ class TestDatasetStatus(TestCase):
         # Check that it has the correct choices
         expected_choices = [
             ("draft", "Draft"),
-            ("published", "Published"),
+            ("final", "Final"),
         ]
         assert form.fields["status"].choices == expected_choices
 
@@ -64,11 +64,11 @@ class TestDatasetStatus(TestCase):
             "name": "Test Dataset",
             "description": "A test dataset",
             "author": "Test Author",
-            "status": "published",
+            "status": "final",
         }
         form = DatasetInfoForm(data=form_data, user=self.user)
         assert form.is_valid()
-        assert form.cleaned_data["status"] == "published"
+        assert form.cleaned_data["status"] == "final"
 
     def test_dataset_status_display(self):
         """Test that dataset status display works correctly."""
@@ -76,10 +76,10 @@ class TestDatasetStatus(TestCase):
             name="Test Dataset",
             description="A test dataset",
             authors=["Test Author"],
-            status=DatasetStatus.PUBLISHED,
+            status=DatasetStatus.FINAL,
             owner=self.user,
         )
-        assert dataset.get_status_display() == "Published"
+        assert dataset.get_status_display() == "Final"
 
     def test_dataset_status_update(self):
         """Test that dataset status can be updated."""
@@ -92,9 +92,9 @@ class TestDatasetStatus(TestCase):
         )
 
         # Update status
-        dataset.status = DatasetStatus.PUBLISHED
+        dataset.status = DatasetStatus.FINAL
         dataset.save()
 
         # Refresh from database
         dataset.refresh_from_db()
-        assert dataset.status == DatasetStatus.PUBLISHED
+        assert dataset.status == DatasetStatus.FINAL

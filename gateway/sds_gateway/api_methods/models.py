@@ -57,7 +57,7 @@ class DatasetStatus(StrEnum):
     """The status of a dataset."""
 
     DRAFT = "draft"
-    PUBLISHED = "published"
+    FINAL = "final"
 
 
 def default_expiration_date() -> datetime.datetime:
@@ -538,7 +538,7 @@ class Dataset(BaseModel):
 
     STATUS_CHOICES = [
         (DatasetStatus.DRAFT, "Draft"),
-        (DatasetStatus.PUBLISHED, "Published"),
+        (DatasetStatus.FINAL, "Final"),
     ]
 
     name = models.CharField(max_length=255, blank=False, default=None)

@@ -111,6 +111,17 @@ class DatasetDetailsModal {
 		document.querySelector(".dataset-details-description").textContent =
 			dataset.description || "No description available";
 
+		// Format status with badge using database values
+		const statusElement = document.querySelector(".dataset-details-status");
+		if (dataset.status === "draft") {
+			statusElement.innerHTML = `<span class="badge bg-secondary">${dataset.status_display || "Draft"}</span>`;
+		} else if (dataset.status === "final") {
+			statusElement.innerHTML = `<span class="badge bg-success">${dataset.status_display || "Final"}</span>`;
+		} else {
+			statusElement.textContent =
+				dataset.status_display || dataset.status || "N/A";
+		}
+
 		// Format dates
 		const createdDate = dataset.created_at
 			? new Date(dataset.created_at).toLocaleString()
