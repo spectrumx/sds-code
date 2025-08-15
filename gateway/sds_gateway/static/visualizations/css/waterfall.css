@@ -254,7 +254,6 @@
 	text-align: center;
 	font-weight: 500;
 	border: 1px solid #dee2e6;
-	border-radius: 0.375rem;
 }
 
 #sliceIndexInput:focus {
@@ -279,7 +278,6 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 0.25rem;
 	flex-wrap: nowrap;
 	width: 100%;
 }
@@ -289,6 +287,22 @@
 	min-width: auto;
 	padding-left: 0.5rem;
 	padding-right: 0.5rem;
+}
+
+.slice-controls .btn:hover {
+	background-color: #0d6efd;
+	border-color: #0d6efd !important;
+	color: #fff !important;
+}
+
+.slice-controls .btn:first-child {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.slice-controls .btn:last-child {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
 }
 
 .slice-controls .btn i {
@@ -303,6 +317,7 @@
 .slice-controls #sliceIndexInput {
 	width: 70px;
 	min-width: 70px;
+	border-radius: 0;
 }
 
 /* Responsive canvas sizing */
