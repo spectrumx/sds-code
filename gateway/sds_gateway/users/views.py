@@ -847,20 +847,31 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                 uuid__in=shared_permissions, is_deleted=False
             ).exclude(owner=request.user)
 
-            # Combine owned and shared captures
-            qs = owned_captures.union(shared_captures)
-
-            # Apply filters
-            qs = _apply_basic_filters(
-                qs=qs,
+            # Apply basic filters to both querysets before union
+            # (Django doesn't support filter() after union())
+            owned_captures = _apply_basic_filters(
+                qs=owned_captures,
                 search=params["search"],
                 date_start=params["date_start"],
                 date_end=params["date_end"],
                 cap_type=params["cap_type"],
             )
-            qs = _apply_frequency_filters(
-                qs=qs, min_freq=params["min_freq"], max_freq=params["max_freq"]
+
+            shared_captures = _apply_basic_filters(
+                qs=shared_captures,
+                search=params["search"],
+                date_start=params["date_start"],
+                date_end=params["date_end"],
+                cap_type=params["cap_type"],
             )
+
+            # Combine owned and shared captures after filtering
+            qs = owned_captures.union(shared_captures)
+
+            # Apply frequency filters by converting to list and back to queryset
+            # This is necessary because frequency filtering requires complex logic
+            if params["min_freq"] or params["max_freq"]:
+                qs = self._apply_frequency_filters_to_union(qs, params, logger)
 
             qs = _apply_sorting(
                 qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
@@ -887,6 +898,59 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
         except DatabaseError:
             logger.exception("Database error in captures API request")
             return JsonResponse({"error": "Database error occurred"}, status=500)
+
+    def _apply_frequency_filters_to_union(self, qs, params, logger):
+        """Apply frequency filters to a union queryset by converting to list."""
+        try:
+            # Convert union queryset to list and apply frequency filtering
+            all_captures = list(qs)
+            frequency_data = Capture.bulk_load_frequency_metadata(all_captures)
+
+            # Apply frequency filtering manually
+            filtered_uuids = []
+            min_freq_str = str(params["min_freq"]).strip() if params["min_freq"] else ""
+            max_freq_str = str(params["max_freq"]).strip() if params["max_freq"] else ""
+
+            if min_freq_str or max_freq_str:
+                try:
+                    min_freq_val = float(min_freq_str) if min_freq_str else None
+                except ValueError:
+                    min_freq_val = None
+
+                try:
+                    max_freq_val = float(max_freq_str) if max_freq_str else None
+                except ValueError:
+                    max_freq_val = None
+
+                if min_freq_val is not None or max_freq_val is not None:
+                    for capture in all_captures:
+                        capture_uuid = str(capture.uuid)
+                        freq_info = frequency_data.get(capture_uuid, {})
+                        center_freq_hz = freq_info.get("center_frequency")
+
+                        if center_freq_hz is None:
+                            continue  # Skip captures without frequency data
+
+                        center_freq_ghz = center_freq_hz / 1e9
+
+                        # Apply frequency range filter
+                        if min_freq_val is not None and center_freq_ghz < min_freq_val:
+                            continue  # Skip this capture
+                        if max_freq_val is not None and center_freq_ghz > max_freq_val:
+                            continue  # Skip this capture
+
+                        # Capture passed all filters
+                        filtered_uuids.append(capture.uuid)
+
+                    # Recreate queryset with filtered UUIDs
+                    qs = Capture.objects.filter(uuid__in=filtered_uuids)
+
+            return qs  # noqa: TRY300
+
+        except Exception:
+            logger.exception("Error applying frequency filters")
+            # Continue with unfiltered queryset on error
+            return qs
 
 
 user_capture_list_view = ListCapturesView.as_view()
@@ -1358,6 +1422,7 @@ def _apply_basic_filters(
             | Q(index_name__icontains=search)
             | Q(capture_type__icontains=search)
             | Q(uuid__icontains=search)
+            | Q(name__icontains=search)
         )
 
         # Then add any captures where the display value matches
