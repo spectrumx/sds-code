@@ -8,10 +8,19 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="capture-modal-label">Capture Details</h5>
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal"
-                        aria-label="Close"></button>
+                <div class="d-flex align-items-center">
+                    <!-- Visualize button -->
+                    <button type="button"
+                            class="btn btn-primary me-2"
+                            id="visualize-btn"
+                            title="Visualize this capture">
+                        <i class="bi bi-graph-up me-1"></i>Visualize
+                    </button>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
             </div>
             <div class="modal-body" id="capture-modal-body">
                 <!-- Capture details will be dynamically inserted here by JavaScript -->
