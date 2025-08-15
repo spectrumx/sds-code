@@ -71,6 +71,24 @@ MAX_API_KEY_COUNT = 10
 logger = logging.getLogger(__name__)
 
 
+def get_active_api_key_count(api_keys) -> int:
+    """
+    Calculate the number of active (non-revoked and non-expired) API keys.
+
+    Args:
+        api_keys: QuerySet of UserAPIKey objects
+
+    Returns:
+        int: Number of active API keys
+    """
+    now = datetime.datetime.now(datetime.UTC)
+    return sum(
+        1
+        for key in api_keys
+        if not key.revoked and (not key.expiry_date or key.expiry_date >= now)
+    )
+
+
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
     model = User
     slug_field = "id"
@@ -118,11 +136,7 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
             .order_by("revoked", "-created")
         )  # Active keys first, then by creation date (recent first)
         now = datetime.datetime.now(datetime.UTC)
-        active_api_key_count = sum(
-            1
-            for key in api_keys
-            if not key.revoked and (not key.expiry_date or key.expiry_date >= now)
-        )
+        active_api_key_count = get_active_api_key_count(api_keys)
         context = {
             "api_key": False,
             "expires_at": None,
@@ -195,8 +209,8 @@ class NewAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
 new_api_key_view = NewAPIKeyView.as_view()
 
 
-def revoke_api_key_view(request):
-    if request.method == "POST":
+class RevokeAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
         key_id = request.POST.get("key_id")
         api_key = get_object_or_404(UserAPIKey, id=key_id, user=request.user)
         if not api_key.revoked:
@@ -205,7 +219,10 @@ def revoke_api_key_view(request):
             messages.success(request, "API key revoked successfully.")
         else:
             messages.info(request, "API key is already revoked.")
-    return redirect("users:view_api_key")
+        return redirect("users:view_api_key")
+
+
+revoke_api_key_view = RevokeAPIKeyView.as_view()
 
 
 class GenerateAPIKeyFormView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, View):
@@ -215,12 +232,7 @@ class GenerateAPIKeyFormView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin,
         api_keys = UserAPIKey.objects.filter(user=request.user).exclude(
             source=KeySources.SVIBackend
         )
-        now = datetime.datetime.now(datetime.UTC)
-        active_api_key_count = sum(
-            1
-            for key in api_keys
-            if not key.revoked and (not key.expiry_date or key.expiry_date >= now)
-        )
+        active_api_key_count = get_active_api_key_count(api_keys)
         is_allowed_to_generate_key = active_api_key_count < MAX_API_KEY_COUNT
         context = {
             "is_allowed_to_generate_key": is_allowed_to_generate_key,
