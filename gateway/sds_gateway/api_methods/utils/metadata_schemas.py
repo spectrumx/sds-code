@@ -417,25 +417,14 @@ def get_mapping_by_capture_type(
     }
 
 
-def infer_index_name(capture_type: "CaptureType") -> str:
+def infer_index_name(capture_type: str) -> str:
     """Infer the index name for a given capture."""
-    # Local import to avoid circular dependency
-    from sds_gateway.api_methods.models import CaptureType
-
-    # Handle both enum and string inputs
-    if hasattr(capture_type, 'value'):
-        # It's an enum, use the value
-        capture_type_str = capture_type.value
-    else:
-        # It's already a string
-        capture_type_str = capture_type
-
-    # Handle enum inputs (strings match fine against StrEnum)
+    # Handle string inputs
     match capture_type:
-        case CaptureType.DigitalRF | "drf":
-            return f"captures-{capture_type_str}"
-        case CaptureType.RadioHound | "rh":
-            return f"captures-{capture_type_str}"
+        case "drf":
+            return f"captures-{capture_type}"
+        case "rh":
+            return f"captures-{capture_type}"
         case _:
             msg = f"Invalid capture type: {capture_type}"
             log.error(msg)
