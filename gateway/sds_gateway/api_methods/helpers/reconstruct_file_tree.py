@@ -9,6 +9,8 @@ from loguru import logger as log
 
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.utils.disk_utils import check_disk_space_available
+from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.users.models import User
 
@@ -228,6 +230,50 @@ def _check_fetch_conditions(
             return False
 
 
+def _check_disk_space_available_for_reconstruction(
+    capture_files: list[File],
+    capture_type: CaptureType,
+    filenames_of_interest: set[str],
+    target_dir: Path,
+) -> bool:
+    """
+    Check if there is enough disk space available
+    to reconstruct the files to be fetched.
+
+    Args:
+        capture_files: The files to be fetched
+        capture_type: The type of capture
+        filenames_of_interest: The set of file names that are of interest
+        target_dir: The directory to check disk space in
+    Returns:
+        True if there is enough disk space, False otherwise
+    """
+
+    files_to_fetch = [
+        file_obj
+        for file_obj in capture_files
+        if _check_fetch_conditions(
+            file_name=file_obj.name,
+            capture_type=capture_type,
+            filenames_of_interest=filenames_of_interest,
+        )
+    ]
+
+    # Check disk space only for files that will be fetched
+    if files_to_fetch:
+        estimated_size = estimate_disk_size(files_to_fetch)
+        if not check_disk_space_available(estimated_size, target_dir):
+            msg = (
+                f"Insufficient disk space for reconstructing file tree. "
+                f"Required: {estimated_size} bytes, "
+                f"available in target directory: {target_dir}"
+            )
+            log.error(msg)
+            raise ValueError(msg)
+
+    return True
+
+
 def reconstruct_tree(
     target_dir: Path,
     virtual_top_dir: Path,
@@ -281,14 +327,21 @@ def reconstruct_tree(
         log.warning(msg)
         return reconstructed_root, []
 
-    if verbose:
-        log.debug(f"Reconstructing tree with {len(capture_files)} files")
-
     filenames_of_interest = _get_filenames_of_interest_for_capture(
         capture_type=capture_type,
         file_queryset=capture_files,
         verbose=verbose,
     )
+
+    _check_disk_space_available_for_reconstruction(
+        capture_files=capture_files,
+        capture_type=capture_type,
+        filenames_of_interest=filenames_of_interest,
+        target_dir=target_dir,
+    )
+
+    if verbose:
+        log.debug(f"Reconstructing tree with {len(capture_files)} files")
 
     # reconstruct the tree
     for file_obj in capture_files:
