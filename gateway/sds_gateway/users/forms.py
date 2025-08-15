@@ -96,11 +96,11 @@ class DatasetInfoForm(forms.Form):
         required=True,
         choices=[
             ("draft", "Draft"),
-            ("published", "Published"),
+            ("final", "Final"),
         ],
         initial="draft",
         widget=forms.Select(attrs={"class": "form-control"}),
-        help_text="Draft: Work in progress, Published: Visible to everyone",
+        help_text="Draft: Work in progress, Final: Complete and ready for use",
     )
 
     def __init__(self, *args, **kwargs):

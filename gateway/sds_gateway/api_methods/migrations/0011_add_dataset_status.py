@@ -14,6 +14,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='dataset',
             name='status',
-            field=models.CharField(choices=[(sds_gateway.api_methods.models.DatasetStatus['DRAFT'], 'Draft'), (sds_gateway.api_methods.models.DatasetStatus['PUBLISHED'], 'Published')], default=sds_gateway.api_methods.models.DatasetStatus['DRAFT'], help_text='The current status of the dataset', max_length=20),
+            field=models.CharField(choices=[(sds_gateway.api_methods.models.DatasetStatus['DRAFT'], 'Draft'), (sds_gateway.api_methods.models.DatasetStatus['FINAL'], 'Final')], default=sds_gateway.api_methods.models.DatasetStatus['DRAFT'], help_text='The current status of the dataset', max_length=20),
         ),
     ]

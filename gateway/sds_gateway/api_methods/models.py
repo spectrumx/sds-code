@@ -79,8 +79,12 @@ class DatasetStatus(StrEnum):
     """The status of a dataset."""
 
     DRAFT = "draft"
+<<<<<<< HEAD
     PUBLISHED = "published"
 >>>>>>> 93b6f3e (Add dataset status feature with Draft/Published options and squash user migrations)
+=======
+    FINAL = "final"
+>>>>>>> 6a7affc (implemented dataset status tagging)
 
 
 def default_expiration_date() -> datetime.datetime:
@@ -561,7 +565,7 @@ class Dataset(BaseModel):
 
     STATUS_CHOICES = [
         (DatasetStatus.DRAFT, "Draft"),
-        (DatasetStatus.PUBLISHED, "Published"),
+        (DatasetStatus.FINAL, "Final"),
     ]
 
     name = models.CharField(max_length=255, blank=False, default=None)
