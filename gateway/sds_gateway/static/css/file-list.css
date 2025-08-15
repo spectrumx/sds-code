@@ -481,3 +481,8 @@ body {
 .items-per-page-select {
 	width: auto;
 }
+
+/* Capture Modal Visualize Button */
+#visualize-btn {
+	display: none;
+}
