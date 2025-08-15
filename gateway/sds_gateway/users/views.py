@@ -2119,25 +2119,6 @@ class UploadFilesView(View):
             response_data["errors"] = all_errors
         return response_data
 
-    def _determine_file_capture_status_code(
-        self,
-        saved_files: list[dict[str, Any]],
-        created_captures: list[dict[str, Any]],
-        *,
-        all_files_empty: bool,
-        has_required_fields: bool,
-    ) -> int:
-        """Determine the HTTP status code for the response."""
-        return (
-            200
-            if (
-                saved_files
-                or created_captures
-                or (all_files_empty and has_required_fields)
-            )
-            else 400
-        )
-
     def _process_capture_creation(
         self,
         request: HttpRequest,
@@ -2306,16 +2287,8 @@ class UploadFilesView(View):
             all_files_empty=all_files_empty,
             has_required_fields=has_required_fields,
         )
-        # Return 200 if we have files saved, captures created, or if all files were
-        # skipped with required fields
-        file_capture_status_code = self._determine_file_capture_status_code(
-            saved_files,
-            created_captures,
-            all_files_empty=all_files_empty,
-            has_required_fields=has_required_fields,
-        )
 
-        return JsonResponse(file_capture_response_data, status=file_capture_status_code)
+        return JsonResponse(file_capture_response_data)
 
 
 user_upload_files_view = UploadFilesView.as_view()
