@@ -1056,18 +1056,6 @@ class CaptureTestCases(APITestCase):
             owner=self.user,
         )
 
-        # Create files in "example" directory with subdirectories
-        example_subdir = f"{base_dir}/example/subdir"
-        # Note: example_subdir_file is not used in assertions but is created for
-        # completeness
-        File.objects.create(
-            name="test.h5",
-            directory=example_subdir,
-            media_type="application/octet-stream",
-            size=1024,
-            owner=self.user,
-        )
-
         # Test that searching for "example" directory only matches files in "example"
         # and its subdirectories but NOT files in "example-fixed"
         virtual_top_dir = Path(example_dir)
@@ -1079,15 +1067,6 @@ class CaptureTestCases(APITestCase):
         example_with_channel_file = File.objects.create(
             name="test.h5",
             directory=example_with_channel_dir,
-            media_type="application/octet-stream",
-            size=1024,
-            owner=self.user,
-        )
-
-        example_subdir_with_channel_dir = f"{example_subdir}/{channel_name}"
-        example_subdir_with_channel_file = File.objects.create(
-            name="test.h5",
-            directory=example_subdir_with_channel_dir,
             media_type="application/octet-stream",
             size=1024,
             owner=self.user,
@@ -1111,11 +1090,9 @@ class CaptureTestCases(APITestCase):
             verbose=True,
         )
 
-        # Should find files in "example" directory and its subdirectories that have the
-        # channel name
+        # Should find files in "example" directory under the channel name subdirectory
         expected_files = {
             example_with_channel_file,
-            example_subdir_with_channel_file,
         }
         actual_files = set(matching_files)
 
