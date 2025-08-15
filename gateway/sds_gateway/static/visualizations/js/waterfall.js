@@ -241,6 +241,13 @@ class WaterfallVisualization {
 				title: "Power (dB)",
 				gridThickness: 1,
 				gridColor: "#e9ecef",
+				minimum: this.scaleMin || -130,
+				maximum: this.scaleMax || 0,
+				viewportMinimum: this.scaleMin || -130,
+				viewportMaximum: this.scaleMax || 0,
+				includeZero: false,
+				labelAutoFit: true,
+				stripLines: [],
 			},
 			data: [
 				{
@@ -298,8 +305,11 @@ class WaterfallVisualization {
 			this.waterfallData = waterfallJson;
 			this.totalSlices = waterfallJson.length;
 
-			// Calculate color scale bounds from all data
-			this.calculateColorScaleBounds();
+			// Calculate power bounds from all data
+			this.calculatePowerBounds();
+
+			// Update periodogram y-axis bounds after data is loaded
+			this.updatePeriodogramYAxisBounds();
 
 			// Clear hover state when loading new data
 			this.hoveredSliceIndex = null;
@@ -486,9 +496,9 @@ class WaterfallVisualization {
 	}
 
 	/**
-	 * Calculate color scale bounds from all waterfall data
+	 * Calculate power bounds from all waterfall data
 	 */
-	calculateColorScaleBounds() {
+	calculatePowerBounds() {
 		if (this.waterfallData.length === 0) {
 			// Fallback to default bounds if no data
 			this.scaleMin = -130;
@@ -498,20 +508,40 @@ class WaterfallVisualization {
 
 		let globalMin = Number.POSITIVE_INFINITY;
 		let globalMax = Number.NEGATIVE_INFINITY;
+		let globalMinSlice = -1;
+		let globalMaxSlice = -1;
 
 		// Iterate through all slices to find global min/max
-		for (const slice of this.waterfallData) {
+		for (
+			let sliceIndex = 0;
+			sliceIndex < this.waterfallData.length;
+			sliceIndex++
+		) {
+			const slice = this.waterfallData[sliceIndex];
+
 			if (slice.data) {
 				const sliceData = this.parseWaterfallData(slice.data);
 				if (sliceData && sliceData.length > 0) {
 					const sliceMin = Math.min(...sliceData);
 					const sliceMax = Math.max(...sliceData);
 
+					if (sliceMin < globalMin) {
+						globalMinSlice = sliceIndex;
+					}
+					if (sliceMax > globalMax) {
+						globalMaxSlice = sliceIndex;
+					}
+
 					globalMin = Math.min(globalMin, sliceMin);
 					globalMax = Math.max(globalMax, sliceMax);
 				}
 			}
 		}
+
+		console.log(`Global min: ${globalMin}, Global max: ${globalMax}`);
+		console.log(
+			`Global min slice: ${globalMinSlice}, Global max slice: ${globalMaxSlice}`,
+		);
 
 		// If we found valid data, use it; otherwise fall back to defaults
 		if (
@@ -526,6 +556,26 @@ class WaterfallVisualization {
 			// Fallback to default bounds
 			this.scaleMin = -130;
 			this.scaleMax = 0;
+		}
+	}
+
+	/**
+	 * Update the periodogram y-axis bounds to use global scale
+	 */
+	updatePeriodogramYAxisBounds() {
+		if (
+			this.periodogramChart &&
+			this.scaleMin !== null &&
+			this.scaleMax !== null
+		) {
+			// Update the y-axis bounds
+			this.periodogramChart.options.axisY.minimum = this.scaleMin;
+			this.periodogramChart.options.axisY.maximum = this.scaleMax;
+			this.periodogramChart.options.axisY.viewportMinimum = this.scaleMin;
+			this.periodogramChart.options.axisY.viewportMaximum = this.scaleMax;
+
+			// Force a full chart update to ensure bounds are applied
+			this.periodogramChart.render();
 		}
 	}
 
