@@ -240,7 +240,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             ), None
 
-        if capture_type == CaptureType.DigitalRF and not drf_channel:
+        if capture_type == "drf" and not drf_channel:
             return Response(
                 {"detail": "The `channel` field is required for DigitalRF captures."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -248,7 +248,9 @@ class CaptureViewSet(viewsets.ViewSet):
 
         requester = cast("User", request.user)
         request_data = request.data.copy()
-        request_data["index_name"] = infer_index_name(capture_type)
+        # Convert string to CaptureType enum
+        capture_type_enum = CaptureType(capture_type)
+        request_data["index_name"] = infer_index_name(capture_type_enum)
 
         post_serializer = CapturePostSerializer(
             data=request_data,
@@ -334,7 +336,7 @@ class CaptureViewSet(viewsets.ViewSet):
                     data=request.data.copy(),
                     context={"request_user": request.user},
                 )
-                post_serializer.is_valid()  # Already validated above
+                post_serializer.is_valid()
                 capture = post_serializer.save()
 
                 self.ingest_capture(

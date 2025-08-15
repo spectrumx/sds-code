@@ -2014,7 +2014,7 @@ class UploadFilesView(View):
 
     def _parse_upload_request(
         self, request: HttpRequest
-    ) -> tuple[list[Any], list[str], list[str], list[str], str, str]:
+    ) -> tuple[list[Any], list[str], list[str], list[str], str, "CaptureType"]:
         """Parse upload request parameters."""
         upload_chunk_files = request.FILES.getlist("files")
         relative_paths = request.POST.getlist("relative_paths")
@@ -2022,7 +2022,15 @@ class UploadFilesView(View):
         channels_str = request.POST.get("channels", "")
         channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
         scan_group = request.POST.get("scan_group", "")
-        capture_type = request.POST.get("capture_type", "drf")  # Default to DigitalRF
+        capture_type_str = request.POST.get(
+            "capture_type", "drf"
+        )  # Default to DigitalRF
+        # Convert string to CaptureType enum
+        capture_type = (
+            CaptureType.RadioHound
+            if capture_type_str == "rh"
+            else CaptureType.DigitalRF
+        )
 
         return (
             upload_chunk_files,
@@ -2034,10 +2042,10 @@ class UploadFilesView(View):
         )
 
     def _check_required_fields(
-        self, capture_type: str, channels: list[str], scan_group: str
+        self, capture_type: "CaptureType", channels: list[str], scan_group: str
     ) -> bool:
         """Check if required fields are provided for capture creation."""
-        if capture_type == "rh":
+        if capture_type == CaptureType.RadioHound:
             # scan_group is optional for RadioHound captures
             return True
         return bool(channels)
@@ -2123,7 +2131,7 @@ class UploadFilesView(View):
         self,
         request: HttpRequest,
         channels: list[str],
-        capture_type: str,
+        capture_type: "CaptureType",
         scan_group: str,
         all_relative_paths: list[str],
         *,
@@ -2148,15 +2156,9 @@ class UploadFilesView(View):
                 all_relative_paths, all_relative_paths
             )
 
-            # Determine capture type enum
-            if capture_type == "rh":
-                capture_type_enum = CaptureType.RadioHound
-            else:
-                capture_type_enum = CaptureType.DigitalRF
-
             # Prepare base capture data
             capture_data = {
-                "capture_type": capture_type_enum,
+                "capture_type": capture_type,
                 "top_level_dir": str(top_level_dir),
             }
 

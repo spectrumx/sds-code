@@ -3,7 +3,11 @@
 # the mapping below is used for drf capture metadata parsing in extract_drf_metadata.py
 
 import logging
+from typing import TYPE_CHECKING
 from typing import Any
+
+if TYPE_CHECKING:
+    from sds_gateway.api_methods.models import CaptureType
 
 log = logging.getLogger(__name__)
 
@@ -398,17 +402,6 @@ def get_mapping_by_capture_type(
             }
         )
 
-    # Handle string inputs by converting to enum
-    if isinstance(capture_type, str):
-        if capture_type == "drf":
-            capture_type = CaptureType.DigitalRF
-        elif capture_type == "rh":
-            capture_type = CaptureType.RadioHound
-        else:
-            msg = f"Invalid capture type string: {capture_type}"
-            log.error(msg)
-            raise ValueError(msg)
-
     return {
         "properties": {
             **base_properties,
@@ -424,23 +417,12 @@ def get_mapping_by_capture_type(
     }
 
 
-def infer_index_name(capture_type: Any) -> str:
+def infer_index_name(capture_type: "CaptureType") -> str:
     """Infer the index name for a given capture."""
     # Local import to avoid circular dependency
     from sds_gateway.api_methods.models import CaptureType
 
-    # Handle both string and enum inputs
-    if isinstance(capture_type, str):
-        # Convert string to enum for comparison
-        if capture_type == "drf":
-            return "captures-drf"
-        if capture_type == "rh":
-            return "captures-rh"
-        msg = f"Invalid capture type string: {capture_type}"
-        log.error(msg)
-        raise ValueError(msg)
-
-    # Handle enum inputs
+    # Handle enum inputs (strings match fine against StrEnum)
     match capture_type:
         case CaptureType.DigitalRF:
             return f"captures-{capture_type.value}"
