@@ -167,7 +167,24 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
         )
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-        """Creates a new API key for the authenticated user without deleting existing keys."""  # noqa: E501
+        """
+        Creates a new API key for the authenticated user without deleting existing keys.
+        Enforces the maximum API key count (MAX_API_KEY_COUNT) per user.
+        """
+        # Check if user has reached the maximum number of active API keys
+        api_keys = UserAPIKey.objects.filter(user=request.user).exclude(
+            source=KeySources.SVIBackend
+        )
+        active_api_key_count = get_active_api_key_count(api_keys)
+        if active_api_key_count >= MAX_API_KEY_COUNT:
+            messages.error(
+                request,
+                f"You have reached the maximum number of API keys "
+                f"({MAX_API_KEY_COUNT}). Please revoke an existing key "
+                "before creating a new one.",
+            )
+            return redirect("users:view_api_key")
+
         # Get the name and description from the form
         api_key_name = request.POST.get("api_key_name", "")
         api_key_description = request.POST.get("api_key_description", "")

@@ -5,6 +5,32 @@
 	width: 100%;
 	table-layout: fixed;
 }
+
+/* Fix dropdown positioning for API key table - override the problematic fixed positioning */
+#dynamic-table-container .user-api-key-table .dropdown-menu {
+	position: absolute !important;
+	top: 100% !important;
+	right: 0 !important;
+	z-index: 1050 !important;
+}
+
+/* Ensure dropdown container has proper positioning context */
+#dynamic-table-container .user-api-key-table .dropdown {
+	position: relative !important;
+}
+
+/* Ensure table cells allow dropdowns to overflow */
+#dynamic-table-container .user-api-key-table td {
+	overflow: visible !important;
+	position: relative !important;
+}
+
+/* Specific fix for the action column */
+#dynamic-table-container .user-api-key-table td.col-action {
+	overflow: visible !important;
+	position: relative !important;
+}
+
 #dynamic-table-container .user-api-key-table th.col-prefix,
 #dynamic-table-container .user-api-key-table td.col-prefix {
 	width: 15% !important;

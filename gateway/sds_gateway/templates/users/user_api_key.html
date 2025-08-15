@@ -92,17 +92,25 @@
                                                     {% endif %}
                                                 </td>
                                                 <td>
-                                                    <div class="dropdown">
-                                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                    {% if key.revoked %}
+                                                        <button class="btn btn-sm btn-light btn-icon-dropdown disabled"
                                                                 type="button"
-                                                                id="actionDropdown{{ key.id }}"
-                                                                data-bs-toggle="dropdown"
-                                                                data-bs-popper="static"
-                                                                aria-expanded="false">
-                                                            <i class="bi bi-three-dots-vertical"></i>
+                                                                disabled
+                                                                aria-label="No actions available for revoked key"
+                                                                title="No actions available for revoked key">
+                                                            <i class="bi bi-three-dots-vertical text-muted"></i>
                                                         </button>
-                                                        <ul class="dropdown-menu" aria-labelledby="actionDropdown{{ key.id }}">
-                                                            {% if not key.revoked %}
+                                                    {% else %}
+                                                        <div class="dropdown">
+                                                            <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                                    type="button"
+                                                                    id="actionDropdown{{ key.id }}"
+                                                                    data-bs-toggle="dropdown"
+                                                                    data-bs-popper="static"
+                                                                    aria-expanded="false">
+                                                                <i class="bi bi-three-dots-vertical"></i>
+                                                            </button>
+                                                            <ul class="dropdown-menu" aria-labelledby="actionDropdown{{ key.id }}">
                                                                 <li>
                                                                     <button type="button"
                                                                             class="dropdown-item text-danger"
@@ -110,9 +118,9 @@
                                                                         Revoke
                                                                     </button>
                                                                 </li>
-                                                            {% endif %}
-                                                        </ul>
-                                                    </div>
+                                                            </ul>
+                                                        </div>
+                                                    {% endif %}
                                                 </td>
                                             </tr>
                                         {% endfor %}
