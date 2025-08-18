@@ -1,8 +1,73 @@
 # Gateway Development Notes
 
-+ [Handling migration conflicts](#handling-migration-conflicts)
-    + [Rebasing the migration](#rebasing-the-migration)
-    + [Workflow](#workflow)
++ [Gateway Development Notes](#gateway-development-notes)
+    + [OpenSearch Cluster Maintenance](#opensearch-cluster-maintenance)
+        + [Cluster health](#cluster-health)
+        + [Cluster stats](#cluster-stats)
+        + [Disk allocation](#disk-allocation)
+        + [Cluster settings](#cluster-settings)
+    + [OpenSearch Indices and Documents](#opensearch-indices-and-documents)
+        + [List OpenSearch indices](#list-opensearch-indices)
+        + [List all documents of an index](#list-all-documents-of-an-index)
+        + [Get a specific document by ID](#get-a-specific-document-by-id)
+    + [Handling migration conflicts](#handling-migration-conflicts)
+        + [Rebasing the migration](#rebasing-the-migration)
+        + [Workflow](#workflow)
+
+## OpenSearch Cluster Maintenance
+
+### [Cluster health](https://docs.opensearch.org/docs/latest/api-reference/cluster-api/cluster-health/)
+
+See [cluster API](https://docs.opensearch.org/docs/latest/api-reference/cluster-api/index/) for other methods.
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cluster/health" | jq .
+```
+
+### Cluster stats
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cluster/stats" | jq .
+```
+
+### [Disk allocation](https://docs.opensearch.org/docs/latest/api-reference/cat/cat-allocation/)
+
+See [CAT API](https://docs.opensearch.org/docs/latest/api-reference/cat/index/) for other stats.
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cat/allocation?v"
+```
+
+### Cluster settings
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cluster/settings?include_defaults=false" | jq .
+```
+
+## OpenSearch Indices and Documents
+
+### List OpenSearch indices
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cat/indices?v"
+```
+
+### List all documents of an index
+
++ Replace `captures-drf` with the targeted index name.
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" -X GET 'https://localhost:9200/captures-drf/_search?size=10000&_source=false' -H 'Content-Type: application/json' -d '{\"query\": {\"match_all\": {}}, \"stored_fields\": []}'" | jq .
+```
+
+### Get a specific document by ID
+
++ Replace `captures-drf` with the targeted index name.
++ Replace `966...19a` with the targeted document ID.
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/captures-drf/_doc/966074cf-644f-4598-8ea6-dae217ea719a" | jq .
+```
 
 ## Handling migration conflicts
 
