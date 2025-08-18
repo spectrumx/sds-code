@@ -142,16 +142,8 @@ class WaterfallRenderer {
 			}
 		}
 
-		// Draw highlights on the overlay canvas
-		this.redrawHighlights(
-			this.canvas,
-			sliceHeight,
-			startSliceIndex,
-			endSliceIndex,
-		);
-
-		// Update slice index legend
-		this.updateSliceIndexLegend(totalSlices, maxVisibleSlices, sliceHeight);
+		// Update the overlay with highlights and index legend
+		this.updateOverlay();
 	}
 
 	/**
@@ -325,41 +317,7 @@ class WaterfallRenderer {
 	}
 
 	/**
-	 * Redraw all highlight boxes on the overlay
-	 */
-	redrawHighlights(canvas, sliceHeight, startSliceIndex, endSliceIndex) {
-		if (this.overlayCanvas && this.overlayCtx) {
-			// Clear the overlay first
-			this.clearOverlay();
-
-			// Draw current slice highlight
-			this.drawHighlightBox(
-				this.currentSliceIndex,
-				startSliceIndex,
-				endSliceIndex,
-				sliceHeight,
-				canvas.width,
-				"#000000", // Black color for current slice
-				1,
-			);
-
-			// Draw hover highlight if there is one
-			if (this.hoveredSliceIndex !== null) {
-				this.drawHighlightBox(
-					this.hoveredSliceIndex,
-					startSliceIndex,
-					endSliceIndex,
-					sliceHeight,
-					canvas.width,
-					"#808080", // Light grey color for hover
-					1,
-				);
-			}
-		}
-	}
-
-	/**
-	 * Update only the overlay canvas (for hover effects without re-rendering waterfall)
+	 * Update the overlay canvas with highlights and index legend
 	 */
 	updateOverlay() {
 		if (!this.overlayCanvas || !this.overlayCtx) return;
@@ -380,20 +338,7 @@ class WaterfallRenderer {
 			this.totalSlices || 100,
 		);
 
-		this.updateOverlayHighlights(
-			this.canvas,
-			sliceHeight,
-			startSliceIndex,
-			endSliceIndex,
-		);
-	}
-
-	/**
-	 * Update only the overlay highlights
-	 */
-	updateOverlayHighlights(canvas, sliceHeight, startSliceIndex, endSliceIndex) {
-		if (!this.overlayCanvas || !this.overlayCtx) return;
-
+		// Clear and redraw everything on the overlay
 		this.clearOverlay();
 
 		// Draw current slice highlight
@@ -402,7 +347,7 @@ class WaterfallRenderer {
 			startSliceIndex,
 			endSliceIndex,
 			sliceHeight,
-			canvas.width,
+			this.canvas.width,
 			"#000000", // Black color for current slice
 			1,
 		);
@@ -414,11 +359,18 @@ class WaterfallRenderer {
 				startSliceIndex,
 				endSliceIndex,
 				sliceHeight,
-				canvas.width,
+				this.canvas.width,
 				"#808080", // Light grey color for hover
 				1,
 			);
 		}
+
+		// Draw the index legend
+		this.updateSliceIndexLegend(
+			this.totalSlices || 100,
+			maxVisibleSlices,
+			sliceHeight,
+		);
 	}
 
 	/**
@@ -435,21 +387,21 @@ class WaterfallRenderer {
 	}
 
 	/**
-	 * Update the slice index legend
+	 * Update the slice index legend on the overlay canvas
 	 */
 	updateSliceIndexLegend(totalSlices, maxVisibleSlices, sliceHeight) {
-		if (!this.ctx || !this.canvas) return;
+		if (!this.overlayCtx || !this.overlayCanvas) return;
 
 		// Clear the left side area for labels using consistent margins
 		const labelWidth = this.PLOTS_LEFT_MARGIN;
-		this.ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-		this.ctx.fillRect(0, 0, labelWidth, this.canvas.height);
+		this.overlayCtx.fillStyle = "rgba(255, 255, 255, 0.95)";
+		this.overlayCtx.fillRect(0, 0, labelWidth, this.overlayCanvas.height);
 
 		// Only draw indices if we have 5 or more rows
 		if (maxVisibleSlices >= 5) {
-			this.ctx.font = "10px Arial";
-			this.ctx.textAlign = "right";
-			this.ctx.fillStyle = "#000";
+			this.overlayCtx.font = "10px Arial";
+			this.overlayCtx.textAlign = "right";
+			this.overlayCtx.fillStyle = "#000";
 
 			// Show every 5th index
 			for (let i = 0; i < maxVisibleSlices; i++) {
@@ -471,14 +423,18 @@ class WaterfallRenderer {
 				) {
 					// Determine highlight color based on slice type
 					if (sliceIndex === this.currentSliceIndex) {
-						this.ctx.fillStyle = "#000"; // Black for current slice
+						this.overlayCtx.fillStyle = "#000"; // Black for current slice
 					} else if (sliceIndex === this.hoveredSliceIndex) {
-						this.ctx.fillStyle = "#333"; // Dark grey for hovered slice
+						this.overlayCtx.fillStyle = "#333"; // Dark grey for hovered slice
 					} else {
-						this.ctx.fillStyle = "#999"; // Light grey for other indices
+						this.overlayCtx.fillStyle = "#999"; // Light grey for other indices
 					}
 
-					this.ctx.fillText(String(displayedIndex), labelWidth - 5, y + 3);
+					this.overlayCtx.fillText(
+						String(displayedIndex),
+						labelWidth - 5,
+						y + 3,
+					);
 				}
 			}
 		}
