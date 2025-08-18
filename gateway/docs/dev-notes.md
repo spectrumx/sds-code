@@ -13,6 +13,10 @@
     + [Handling migration conflicts](#handling-migration-conflicts)
         + [Rebasing the migration](#rebasing-the-migration)
         + [Workflow](#workflow)
+    + [Troubleshooting](#troubleshooting)
+        + [Running Postgres commands](#running-postgres-commands)
+        + [Postgres collation version mismatch](#postgres-collation-version-mismatch)
+            + [Solution](#solution)
 
 ## OpenSearch Cluster Maintenance
 
@@ -138,4 +142,31 @@ git rebase --continue
 
 # finally, migrate your local env to continue development
 docker exec -it sds-gateway-local-app python manage.py migrate users
+```
+
+## Troubleshooting
+
+### Running Postgres commands
+
+```bash
+docker exec -it sds-gateway-local-postgres bash -c "psql -U \${POSTGRES_USER}"
+```
+
+### Postgres collation version mismatch
+
+```txt
+WARNING:  database "<DB_NAME>" has a collation version mismatch
+DETAIL:  The database was created using collation version X, but the operating system provides version Y.
+```
+
+#### Solution
+
+To refresh the collation version for all databases, you can iterate over them:
+
+```bash
+docker exec -it sds-gateway-local-postgres bash -c "
+    for db in \$(psql -U \${POSTGRES_USER} -tAc 'SELECT datname FROM pg_database WHERE datistemplate = false;'); do
+        psql -U \${POSTGRES_USER} -c \"ALTER DATABASE \\\"\$db\\\" REFRESH COLLATION VERSION;\"
+    done
+"
 ```
