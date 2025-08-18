@@ -35,7 +35,7 @@ class WaterfallVisualization {
 		this.handleCanvasClick = this.handleCanvasClick.bind(this);
 		this.handleCanvasMouseMove = this.handleCanvasMouseMove.bind(this);
 		this.handleCanvasMouseLeave = this.handleCanvasMouseLeave.bind(this);
-		this.handleResize = this.handleResize.bind(this);
+		this.resizeCanvas = this.resizeCanvas.bind(this);
 	}
 
 	/**
@@ -120,24 +120,20 @@ class WaterfallVisualization {
 		this.resizeCanvas();
 
 		// Add resize listener
-		window.addEventListener("resize", this.handleResize);
+		window.addEventListener("resize", this.resizeCanvas);
 	}
 
 	/**
 	 * Set up event listeners for component communication
 	 */
 	setupComponentEventListeners() {
-		// Slice changes are now handled via callback in WaterfallControls constructor
-
 		// Listen for color map change events
 		document.addEventListener("waterfall:colorMapChanged", (event) => {
 			const { colorMap } = event.detail;
 			this.colorMap = colorMap;
 
-			// Update renderer
 			this.waterfallRenderer.setColorMap(colorMap);
 
-			// Update color legend
 			this.updateColorLegend();
 
 			// Re-render waterfall with new color map
@@ -180,7 +176,6 @@ class WaterfallVisualization {
 		this.overlayCanvas.style.width = `${rect.width}px`;
 		this.overlayCanvas.style.height = `${rect.height}px`;
 
-		// Update renderer
 		if (this.waterfallRenderer) {
 			this.waterfallRenderer.resizeCanvas();
 		}
@@ -188,17 +183,7 @@ class WaterfallVisualization {
 		// Re-render if we have data
 		if (this.parsedWaterfallData && this.parsedWaterfallData.length > 0) {
 			this.render();
-		} else if (this.waterfallRenderer) {
-			// Only update color legend positioning if renderer is ready
-			this.updateColorLegendPosition();
 		}
-	}
-
-	/**
-	 * Handle canvas resize
-	 */
-	handleResize() {
-		this.resizeCanvas();
 	}
 
 	/**
@@ -214,9 +199,6 @@ class WaterfallVisualization {
 
 		// Render periodogram
 		this.renderPeriodogram();
-
-		// Update color legend positioning
-		this.updateColorLegendPosition();
 	}
 
 	/**
@@ -249,8 +231,6 @@ class WaterfallVisualization {
 	 */
 	updateSliceHighlights() {
 		if (!this.waterfallRenderer) return;
-
-		// Only update the overlay highlights, not the entire waterfall
 		this.waterfallRenderer.updateOverlay();
 	}
 
@@ -294,10 +274,7 @@ class WaterfallVisualization {
 			// Update controls UI
 			this.controls.setCurrentSliceIndex(clickedSliceIndex);
 
-			// Only update highlights, don't re-render everything
 			this.updateSliceHighlights();
-
-			// Update periodogram
 			this.renderPeriodogram();
 		}
 	}
@@ -406,18 +383,6 @@ class WaterfallVisualization {
 	}
 
 	/**
-	 * Update the color legend positioning to account for margins
-	 */
-	updateColorLegendPosition() {
-		const legendElement = document.getElementById("colorLegend");
-		if (!legendElement || !this.waterfallRenderer) return;
-
-		// Position the legend to sit in the right margin area outside the waterfall plot
-		legendElement.style.top = `${this.waterfallRenderer.TOP_MARGIN}px`;
-		legendElement.style.bottom = `${this.waterfallRenderer.BOTTOM_MARGIN}px`;
-	}
-
-	/**
 	 * Load waterfall data from the SDS API
 	 */
 	async loadWaterfallData() {
@@ -475,19 +440,11 @@ class WaterfallVisualization {
 			this.isLoading = false;
 			this.showLoading(false);
 
-			// Update controls
 			this.controls.setTotalSlices(this.totalSlices);
-
-			// Update renderer
 			this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
-
-			// Update periodogram
 			this.periodogramChart.updateYAxisBounds(this.scaleMin, this.scaleMax);
-
-			// Update color legend
 			this.updateColorLegend();
 
-			// Initial render
 			this.render();
 		} catch (error) {
 			console.error("Failed to load waterfall data:", error);
@@ -583,6 +540,7 @@ class WaterfallVisualization {
 
 	/**
 	 * Download the visualization as an image
+	 * TODO: Fix
 	 */
 	downloadVisualization() {
 		try {
@@ -668,7 +626,7 @@ class WaterfallVisualization {
 		}
 
 		// Remove event listeners
-		window.removeEventListener("resize", this.handleResize);
+		window.removeEventListener("resize", this.resizeCanvas);
 		if (this.canvas) {
 			this.canvas.removeEventListener("click", this.handleCanvasClick);
 			this.canvas.removeEventListener("mousemove", this.handleCanvasMouseMove);
