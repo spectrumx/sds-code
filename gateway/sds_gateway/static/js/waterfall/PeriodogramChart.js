@@ -104,6 +104,8 @@ class PeriodogramChart {
 					},
 				],
 			});
+
+			this.setCSSMarginProperties();
 		} catch (error) {
 			console.error("Failed to initialize periodogram chart:", error);
 			this.chart = null;
