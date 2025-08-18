@@ -3,6 +3,8 @@
  * Manages UI controls and event handling
  */
 
+import { WATERFALL_WINDOW_SIZE } from "./constants.js";
+
 class WaterfallControls {
 	constructor(onSliceChange) {
 		this.onSliceChange = onSliceChange;
@@ -15,7 +17,7 @@ class WaterfallControls {
 		this.hoveredSliceIndex = null;
 
 		// Constants
-		this.WATERFALL_WINDOW_SIZE = 100;
+		this.WATERFALL_WINDOW_SIZE = WATERFALL_WINDOW_SIZE;
 
 		// Bind methods to preserve context
 		this.handlePlayPause = this.handlePlayPause.bind(this);
@@ -393,12 +395,12 @@ class WaterfallControls {
 
 	handleSliceIndexInputKeyDown(event) {
 		switch (event.key) {
-			case "ArrowUp":
+			case "ArrowDown":
 			case "ArrowLeft":
 				event.preventDefault();
 				this.handleDecrementSlice();
 				break;
-			case "ArrowDown":
+			case "ArrowUp":
 			case "ArrowRight":
 				event.preventDefault();
 				this.handleIncrementSlice();

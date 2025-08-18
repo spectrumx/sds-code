@@ -172,10 +172,9 @@ class PeriodogramChart {
 	}
 
 	/**
-	 * Set CSS custom properties for margins to eliminate duplication
+	 * Set CSS custom properties for margins
 	 */
 	setCSSMarginProperties() {
-		// Set CSS custom properties on the document root to eliminate margin value duplication
 		document.documentElement.style.setProperty(
 			"--plots-left-margin",
 			`${PLOTS_LEFT_MARGIN - CANVASJS_LEFT_MARGIN}px`,

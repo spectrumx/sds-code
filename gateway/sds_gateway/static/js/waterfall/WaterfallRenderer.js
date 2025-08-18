@@ -131,7 +131,7 @@ class WaterfallRenderer {
 
 			const slice = waterfallData[sliceIndex];
 			if (slice?.data) {
-				// Calculate Y position: bottom slice is at bottom margin, top slice is at top margin
+				// Calculate Y position
 				const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
 
 				this.drawWaterfallSlice(slice.data, y, sliceHeight, this.canvas.width);
@@ -294,7 +294,6 @@ class WaterfallRenderer {
 		if (sliceInRange < 0 || sliceInRange >= endSliceIndex - startSliceIndex)
 			return;
 
-		// Calculate Y position with margins: bottom slice is at bottom margin
 		const maxVisibleSlices = Math.min(this.WATERFALL_WINDOW_SIZE, 100);
 		const y =
 			this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - sliceInRange) * sliceHeight;
@@ -405,7 +404,7 @@ class WaterfallRenderer {
 				if (sliceIndex >= totalSlices) break;
 
 				const displayedIndex = sliceIndex + 1; // Convert to 1-based for display
-				// Calculate Y position with margins: bottom slice is at bottom margin
+				// Calculate Y position with margins
 				const y =
 					this.BOTTOM_MARGIN +
 					(maxVisibleSlices - 1 - i) * sliceHeight +
