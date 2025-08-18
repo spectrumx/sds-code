@@ -77,8 +77,20 @@ class WaterfallVisualization {
 		this.periodogramChart = new PeriodogramChart("periodogramChart");
 		this.periodogramChart.initialize();
 
-		// Initialize controls
-		this.controls = new WaterfallControls();
+		// Initialize controls with callback for slice changes
+		this.controls = new WaterfallControls(
+			(currentSliceIndex, waterfallWindowStart) => {
+				this.currentSliceIndex = currentSliceIndex;
+				this.waterfallWindowStart = waterfallWindowStart;
+
+				// Update renderer state
+				this.waterfallRenderer.setCurrentSliceIndex(currentSliceIndex);
+				this.waterfallRenderer.setWaterfallWindowStart(waterfallWindowStart);
+
+				// Re-render
+				this.render();
+			},
+		);
 		this.controls.setupEventListeners();
 	}
 
@@ -107,20 +119,7 @@ class WaterfallVisualization {
 	 * Set up event listeners for component communication
 	 */
 	setupComponentEventListeners() {
-		// Listen for slice change events
-		document.addEventListener("waterfall:sliceChanged", (event) => {
-			const { currentSliceIndex, waterfallWindowStart } = event.detail;
-
-			this.currentSliceIndex = currentSliceIndex;
-			this.waterfallWindowStart = waterfallWindowStart;
-
-			// Update renderer state
-			this.waterfallRenderer.setCurrentSliceIndex(currentSliceIndex);
-			this.waterfallRenderer.setWaterfallWindowStart(waterfallWindowStart);
-
-			// Re-render
-			this.render();
-		});
+		// Slice changes are now handled via callback in WaterfallControls constructor
 
 		// Listen for color map change events
 		document.addEventListener("waterfall:colorMapChanged", (event) => {
