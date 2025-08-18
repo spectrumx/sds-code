@@ -380,13 +380,45 @@ class WaterfallRenderer {
 			this.totalSlices || 100,
 		);
 
-		// Redraw highlights on overlay
-		this.redrawHighlights(
+		this.updateOverlayHighlights(
 			this.canvas,
 			sliceHeight,
 			startSliceIndex,
 			endSliceIndex,
 		);
+	}
+
+	/**
+	 * Update only the overlay highlights
+	 */
+	updateOverlayHighlights(canvas, sliceHeight, startSliceIndex, endSliceIndex) {
+		if (!this.overlayCanvas || !this.overlayCtx) return;
+
+		this.clearOverlay();
+
+		// Draw current slice highlight
+		this.drawHighlightBox(
+			this.currentSliceIndex,
+			startSliceIndex,
+			endSliceIndex,
+			sliceHeight,
+			canvas.width,
+			"#000000", // Black color for current slice
+			1,
+		);
+
+		// Draw hover highlight if there is one
+		if (this.hoveredSliceIndex !== null) {
+			this.drawHighlightBox(
+				this.hoveredSliceIndex,
+				startSliceIndex,
+				endSliceIndex,
+				sliceHeight,
+				canvas.width,
+				"#808080", // Light grey color for hover
+				1,
+			);
+		}
 	}
 
 	/**

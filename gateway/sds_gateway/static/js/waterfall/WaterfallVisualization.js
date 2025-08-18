@@ -16,6 +16,7 @@ class WaterfallVisualization {
 
 		// Data state
 		this.waterfallData = [];
+		this.parsedWaterfallData = []; // Cache parsed data to avoid re-parsing
 		this.totalSlices = 0;
 		this.scaleMin = null;
 		this.scaleMax = null;
@@ -80,6 +81,10 @@ class WaterfallVisualization {
 		// Initialize controls with callback for slice changes
 		this.controls = new WaterfallControls(
 			(currentSliceIndex, waterfallWindowStart) => {
+				const sliceChanged = this.currentSliceIndex !== currentSliceIndex;
+				const windowChanged =
+					this.waterfallWindowStart !== waterfallWindowStart;
+
 				this.currentSliceIndex = currentSliceIndex;
 				this.waterfallWindowStart = waterfallWindowStart;
 
@@ -87,8 +92,14 @@ class WaterfallVisualization {
 				this.waterfallRenderer.setCurrentSliceIndex(currentSliceIndex);
 				this.waterfallRenderer.setWaterfallWindowStart(waterfallWindowStart);
 
-				// Re-render
-				this.render();
+				if (windowChanged) {
+					this.renderWaterfall();
+				}
+
+				if (sliceChanged) {
+					this.renderPeriodogram();
+					this.updateSliceHighlights();
+				}
 			},
 		);
 		this.controls.setupEventListeners();
@@ -132,8 +143,8 @@ class WaterfallVisualization {
 			// Update color legend
 			this.updateColorLegend();
 
-			// Re-render
-			this.render();
+			// Re-render waterfall with new color map
+			this.renderWaterfall();
 		});
 
 		// Listen for download events
@@ -178,7 +189,7 @@ class WaterfallVisualization {
 		}
 
 		// Re-render if we have data
-		if (this.waterfallData && this.waterfallData.length > 0) {
+		if (this.parsedWaterfallData && this.parsedWaterfallData.length > 0) {
 			this.render();
 		} else if (this.waterfallRenderer) {
 			// Only update color legend positioning if renderer is ready
@@ -197,30 +208,53 @@ class WaterfallVisualization {
 	 * Render the waterfall visualization
 	 */
 	render() {
-		if (!this.waterfallData || this.waterfallData.length === 0) {
+		if (!this.parsedWaterfallData || this.parsedWaterfallData.length === 0) {
 			return;
 		}
 
-		// Parse all waterfall data once for this render cycle
-		const parsedWaterfallData = this.waterfallData.map((slice) => ({
-			...slice,
-			data: this.parseWaterfallData(slice.data),
-		}));
+		// Render waterfall with cached parsed data
+		this.renderWaterfall();
 
-		// Render waterfall with parsed data - let renderer handle slicing
-		this.waterfallRenderer.renderWaterfall(
-			parsedWaterfallData,
-			this.totalSlices,
-		);
-
-		// Render periodogram with the current slice data
-		const currentSlice = parsedWaterfallData[this.currentSliceIndex];
-		if (currentSlice) {
-			this.periodogramChart.renderPeriodogram(currentSlice);
-		}
+		// Render periodogram
+		this.renderPeriodogram();
 
 		// Update color legend positioning
 		this.updateColorLegendPosition();
+	}
+
+	/**
+	 * Render the periodogram chart
+	 */
+	renderPeriodogram() {
+		if (!this.periodogramChart || this.parsedWaterfallData.length === 0) return;
+		this.periodogramChart.renderPeriodogram(
+			this.parsedWaterfallData[this.currentSliceIndex],
+		);
+	}
+
+	/**
+	 * Render only the waterfall plot (for color map changes)
+	 */
+	renderWaterfall() {
+		if (!this.parsedWaterfallData || this.parsedWaterfallData.length === 0) {
+			return;
+		}
+
+		// Render waterfall with cached parsed data - let renderer handle slicing
+		this.waterfallRenderer.renderWaterfall(
+			this.parsedWaterfallData,
+			this.totalSlices,
+		);
+	}
+
+	/**
+	 * Update only slice highlights without re-rendering everything
+	 */
+	updateSliceHighlights() {
+		if (!this.waterfallRenderer) return;
+
+		// Only update the overlay highlights, not the entire waterfall
+		this.waterfallRenderer.updateOverlay();
 	}
 
 	/**
@@ -256,8 +290,18 @@ class WaterfallVisualization {
 
 		// Validate the index is within bounds
 		if (clickedSliceIndex >= 0 && clickedSliceIndex < this.totalSlices) {
-			// Update controls
+			// Update visualization state
+			this.currentSliceIndex = clickedSliceIndex;
+			this.waterfallRenderer.setCurrentSliceIndex(clickedSliceIndex);
+
+			// Update controls UI
 			this.controls.setCurrentSliceIndex(clickedSliceIndex);
+
+			// Only update highlights, don't re-render everything
+			this.updateSliceHighlights();
+
+			// Update periodogram
+			this.renderPeriodogram();
 		}
 	}
 
@@ -440,6 +484,12 @@ class WaterfallVisualization {
 			this.waterfallData = waterfallJson;
 			this.totalSlices = waterfallJson.length;
 
+			// Parse all waterfall data once and cache it
+			this.parsedWaterfallData = this.waterfallData.map((slice) => ({
+				...slice,
+				data: this.parseWaterfallData(slice.data),
+			}));
+
 			// Calculate power bounds from all data
 			this.calculatePowerBounds();
 
@@ -503,7 +553,7 @@ class WaterfallVisualization {
 	 * Calculate power bounds from all waterfall data
 	 */
 	calculatePowerBounds() {
-		if (this.waterfallData.length === 0) {
+		if (this.parsedWaterfallData.length === 0) {
 			// Fallback to default bounds if no data
 			this.scaleMin = -130;
 			this.scaleMax = 0;
@@ -513,18 +563,14 @@ class WaterfallVisualization {
 		let globalMin = Number.POSITIVE_INFINITY;
 		let globalMax = Number.NEGATIVE_INFINITY;
 
-		// Iterate through all slices to find global min/max
-		for (const slice of this.waterfallData) {
-			if (slice.data) {
-				const sliceData = this.parseWaterfallData(slice.data);
+		// Iterate through all parsed slices to find global min/max
+		for (const slice of this.parsedWaterfallData) {
+			if (slice.data && slice.data.length > 0) {
+				const sliceMin = Math.min(...slice.data);
+				const sliceMax = Math.max(...slice.data);
 
-				if (sliceData && sliceData.length > 0) {
-					const sliceMin = Math.min(...sliceData);
-					const sliceMax = Math.max(...sliceData);
-
-					globalMin = Math.min(globalMin, sliceMin);
-					globalMax = Math.max(globalMax, sliceMax);
-				}
+				globalMin = Math.min(globalMin, sliceMin);
+				globalMax = Math.max(globalMax, sliceMax);
 			}
 		}
 
@@ -553,10 +599,7 @@ class WaterfallVisualization {
 
 		if (start >= end) return [];
 
-		return this.waterfallData.slice(start, end).map((slice) => ({
-			...slice,
-			data: this.parseWaterfallData(slice.data),
-		}));
+		return this.parsedWaterfallData.slice(start, end);
 	}
 
 	/**
