@@ -44,5 +44,6 @@
 	"python.testing.pytestArgs": ["spectrumx"],
 	"python.testing.unittestEnabled": false,
 	"python.testing.pytestEnabled": true,
-	"ruff.format.args": ["--config=pyproject.toml"]
+	"ruff.format.args": ["--config=pyproject.toml"],
+	"markdownlint.configFile": "../.markdownlint.yaml"
 }
