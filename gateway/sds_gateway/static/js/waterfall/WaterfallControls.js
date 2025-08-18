@@ -21,7 +21,6 @@ class WaterfallControls {
 
 		// Bind methods to preserve context
 		this.handlePlayPause = this.handlePlayPause.bind(this);
-		this.handleDownload = this.handleDownload.bind(this);
 		this.handleSliceChange = this.handleSliceChange.bind(this);
 		this.handleSliceIndexInputChange =
 			this.handleSliceIndexInputChange.bind(this);
@@ -44,12 +43,6 @@ class WaterfallControls {
 		const playPauseBtn = document.getElementById("playPauseBtn");
 		if (playPauseBtn) {
 			playPauseBtn.addEventListener("click", this.handlePlayPause);
-		}
-
-		// Download button
-		const downloadBtn = document.getElementById("downloadBtn");
-		if (downloadBtn) {
-			downloadBtn.addEventListener("click", this.handleDownload);
 		}
 
 		// Slice slider
@@ -351,10 +344,6 @@ class WaterfallControls {
 		} else {
 			this.startPlayback();
 		}
-	}
-
-	handleDownload() {
-		this.emitEvent("download", {});
 	}
 
 	handleSliceChange(event) {

@@ -139,11 +139,6 @@ class WaterfallVisualization {
 			// Re-render waterfall with new color map
 			this.renderWaterfall();
 		});
-
-		// Listen for download events
-		document.addEventListener("waterfall:download", () => {
-			this.downloadVisualization();
-		});
 	}
 
 	/**
@@ -536,49 +531,6 @@ class WaterfallVisualization {
 		if (start >= end) return [];
 
 		return this.parsedWaterfallData.slice(start, end);
-	}
-
-	/**
-	 * Download the visualization as an image
-	 * TODO: Fix
-	 */
-	downloadVisualization() {
-		try {
-			// Create a combined canvas with both periodogram and waterfall
-			const combinedCanvas = document.createElement("canvas");
-			const ctx = combinedCanvas.getContext("2d");
-
-			// Set size
-			combinedCanvas.width = this.canvas.width;
-			combinedCanvas.height = this.canvas.height + 200; // Add space for periodogram
-
-			// Fill background
-			ctx.fillStyle = "white";
-			ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
-
-			// Draw periodogram (simplified)
-			ctx.fillStyle = "#6c757d";
-			ctx.font = "16px Arial";
-			ctx.fillText("Periodogram", 10, 20);
-
-			// Draw waterfall
-			ctx.drawImage(this.canvas, 0, 200);
-
-			// Convert to blob and download
-			combinedCanvas.toBlob((blob) => {
-				const url = URL.createObjectURL(blob);
-				const a = document.createElement("a");
-				a.href = url;
-				a.download = `waterfall_${this.captureUuid}_${Date.now()}.png`;
-				document.body.appendChild(a);
-				a.click();
-				document.body.removeChild(a);
-				URL.revokeObjectURL(url);
-			}, "image/png");
-		} catch (error) {
-			console.error("Failed to download visualization:", error);
-			this.showError("Failed to download visualization");
-		}
 	}
 
 	/**
