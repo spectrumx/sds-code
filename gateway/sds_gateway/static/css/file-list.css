@@ -482,7 +482,8 @@ body {
 	width: auto;
 }
 
-/* Capture Modal Visualize Button */
+/* Capture modal visualize button */
 #visualize-btn {
+	/* Hidden by default */
 	display: none;
 }

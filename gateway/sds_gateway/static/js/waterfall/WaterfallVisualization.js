@@ -49,9 +49,6 @@ class WaterfallVisualization {
 			// Set up event listeners
 			this.setupEventListeners();
 
-			// Set CSS custom properties for margins (after renderer is initialized)
-			this.setCSSMarginProperties();
-
 			// Load initial data
 			await this.loadWaterfallData();
 
@@ -418,24 +415,6 @@ class WaterfallVisualization {
 		// Position the legend to sit in the right margin area outside the waterfall plot
 		legendElement.style.top = `${this.waterfallRenderer.TOP_MARGIN}px`;
 		legendElement.style.bottom = `${this.waterfallRenderer.BOTTOM_MARGIN}px`;
-	}
-
-	/**
-	 * Set CSS custom properties for margins
-	 */
-	setCSSMarginProperties() {
-		// Only set CSS properties if renderer is ready
-		if (!this.waterfallRenderer) return;
-
-		// Set CSS custom properties on the document root to eliminate margin value duplication
-		document.documentElement.style.setProperty(
-			"--waterfall-top-margin",
-			`${this.waterfallRenderer.TOP_MARGIN}px`,
-		);
-		document.documentElement.style.setProperty(
-			"--waterfall-bottom-margin",
-			`${this.waterfallRenderer.BOTTOM_MARGIN}px`,
-		);
 	}
 
 	/**

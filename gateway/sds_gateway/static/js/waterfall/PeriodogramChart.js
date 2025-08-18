@@ -16,14 +16,6 @@ class PeriodogramChart {
 	constructor(containerId) {
 		this.containerId = containerId;
 		this.chart = null;
-		this.scaleMin = DEFAULT_SCALE_MIN;
-		this.scaleMax = DEFAULT_SCALE_MAX;
-
-		// Constants for alignment from shared constants file
-		this.PLOTS_LEFT_MARGIN = PLOTS_LEFT_MARGIN;
-		this.PLOTS_RIGHT_MARGIN = PLOTS_RIGHT_MARGIN;
-		this.CANVASJS_LEFT_MARGIN = CANVASJS_LEFT_MARGIN;
-		this.CANVASJS_RIGHT_MARGIN = CANVASJS_RIGHT_MARGIN;
 	}
 
 	/**
@@ -48,7 +40,7 @@ class PeriodogramChart {
 			this.chart = new CanvasJS.Chart(container, {
 				animationEnabled: false,
 				theme: "light2",
-				title: {}, // Remove title for cleaner look
+				title: {},
 				axisX: {
 					// Hide axisX and remove margin to reduce space between periodogram and waterfall
 					tickLength: 0,
@@ -58,17 +50,15 @@ class PeriodogramChart {
 					margin: 0,
 				},
 				axisX2: {
-					interval: 0.1, // Smaller interval for MHz display
+					interval: 0.1,
 					title: "Frequency (MHz)",
 					titlePadding: 15,
 					titleFontSize: 16,
 					titleFontWeight: "bold",
 					labelFontWeight: "bold",
 					labelAngle: 90,
-					// Set reasonable default bounds
 					minimum: -1,
 					maximum: 1,
-					// Add grid lines for better readability
 					gridThickness: 1,
 					gridColor: "#e9ecef",
 				},
@@ -76,10 +66,10 @@ class PeriodogramChart {
 					interval: 20,
 					gridThickness: 1,
 					gridColor: "#e9ecef",
-					minimum: this.scaleMin,
-					maximum: this.scaleMax,
-					viewportMinimum: this.scaleMin,
-					viewportMaximum: this.scaleMax,
+					minimum: DEFAULT_SCALE_MIN,
+					maximum: DEFAULT_SCALE_MAX,
+					viewportMinimum: DEFAULT_SCALE_MIN,
+					viewportMaximum: DEFAULT_SCALE_MAX,
 					includeZero: false,
 					tickLength: 0,
 					labelPlacement: "inside",
@@ -117,14 +107,10 @@ class PeriodogramChart {
 	 */
 	updateYAxisBounds(scaleMin, scaleMax) {
 		if (this.chart && scaleMin !== null && scaleMax !== null) {
-			this.scaleMin = scaleMin;
-			this.scaleMax = scaleMax;
-
-			// Update the y-axis bounds
-			this.chart.options.axisY.minimum = this.scaleMin;
-			this.chart.options.axisY.maximum = this.scaleMax;
-			this.chart.options.axisY.viewportMinimum = this.scaleMin;
-			this.chart.options.axisY.viewportMaximum = this.scaleMax;
+			this.chart.options.axisY.minimum = scaleMin;
+			this.chart.options.axisY.maximum = scaleMax;
+			this.chart.options.axisY.viewportMinimum = scaleMin;
+			this.chart.options.axisY.viewportMaximum = scaleMax;
 		}
 	}
 
@@ -141,54 +127,18 @@ class PeriodogramChart {
 				return;
 			}
 
-			// Additional safety check for valid data
-			if (!dataArray.every((val) => Number.isFinite(val))) {
-				console.warn(
-					"Invalid data values detected, skipping periodogram render",
-				);
-				return;
-			}
-
 			// Create data points for the chart - convert frequencies to MHz for better display
-			const dataPoints = dataArray
-				.map((power, index) => {
-					const frequency =
-						(index - dataArray.length / 2) *
-						(currentSlice.sample_rate / dataArray.length);
-					// Convert to MHz to avoid extremely large numbers that could crash CanvasJS
-					const freqMHz = frequency / 1000000;
+			const dataPoints = dataArray.map((power, index) => {
+				const frequency =
+					(index - dataArray.length / 2) *
+					(currentSlice.sample_rate / dataArray.length);
+				const freqMHz = frequency / 1000000;
 
-					// Validate frequency value to prevent CanvasJS crashes
-					if (!Number.isFinite(freqMHz) || Math.abs(freqMHz) > 10000) {
-						console.warn(
-							`Invalid frequency value: ${freqMHz}, skipping data point`,
-						);
-						return null;
-					}
+				return { x: freqMHz, y: power };
+			});
 
-					// Validate power value to prevent CanvasJS crashes
-					if (!Number.isFinite(power) || Math.abs(power) > 1000) {
-						console.warn(`Invalid power value: ${power}, skipping data point`);
-						return null;
-					}
-
-					return { x: freqMHz, y: power };
-				})
-				.filter((point) => point !== null); // Remove invalid points
-
-			// Check if we have any valid data points
-			if (dataPoints.length === 0) {
-				console.warn(
-					"No valid data points after filtering, skipping periodogram render",
-				);
-				return;
-			}
-
-			// Update the chart with proper frequency bounds for alignment
 			this.chart.options.data[0].dataPoints = dataPoints;
 
-			// Set frequency bounds to match waterfall plot alignment
-			// Add validation to prevent invalid bounds that could cause infinite loops
 			if (
 				dataPoints.length > 0 &&
 				currentSlice.sample_rate &&
@@ -199,25 +149,14 @@ class PeriodogramChart {
 				const minFreq = centerFreq - (dataArray.length / 2) * freqStep;
 				const maxFreq = centerFreq + (dataArray.length / 2) * freqStep;
 
-				// Validate frequency bounds to prevent CanvasJS issues
-				// Convert to MHz and add reasonable bounds checking
 				const minFreqMHz = minFreq / 1000000;
 				const maxFreqMHz = maxFreq / 1000000;
 
-				if (
-					Number.isFinite(minFreqMHz) &&
-					Number.isFinite(maxFreqMHz) &&
-					minFreqMHz < maxFreqMHz &&
-					Math.abs(minFreqMHz) < 10000 && // Reasonable bounds: ±10 GHz
-					Math.abs(maxFreqMHz) < 10000
-				) {
+				if (minFreqMHz < maxFreqMHz) {
 					this.chart.options.axisX2.minimum = minFreqMHz;
 					this.chart.options.axisX2.maximum = maxFreqMHz;
 				} else {
-					console.warn(
-						"Frequency bounds out of reasonable range, using defaults",
-					);
-					// Use reasonable default bounds
+					console.warn("Frequency bounds not valid, using defaults");
 					this.chart.options.axisX2.minimum = -1;
 					this.chart.options.axisX2.maximum = 1;
 				}
@@ -239,11 +178,11 @@ class PeriodogramChart {
 		// Set CSS custom properties on the document root to eliminate margin value duplication
 		document.documentElement.style.setProperty(
 			"--plots-left-margin",
-			`${this.PLOTS_LEFT_MARGIN - this.CANVASJS_LEFT_MARGIN}px`,
+			`${PLOTS_LEFT_MARGIN - CANVASJS_LEFT_MARGIN}px`,
 		);
 		document.documentElement.style.setProperty(
 			"--plots-right-margin",
-			`${this.PLOTS_RIGHT_MARGIN - this.CANVASJS_RIGHT_MARGIN}px`,
+			`${PLOTS_RIGHT_MARGIN - CANVASJS_RIGHT_MARGIN}px`,
 		);
 	}
 

@@ -9,9 +9,12 @@ export const DEFAULT_COLOR_MAP = "viridis";
 export const DEFAULT_SCALE_MIN = -130;
 export const DEFAULT_SCALE_MAX = 0;
 
-// Margin constants
+// Desired margins for both periodogram and waterfall plots
 export const PLOTS_LEFT_MARGIN = 85;
 export const PLOTS_RIGHT_MARGIN = 80;
+
+// Approximate CanvasJS built-in margins we need to adjust for
+// in the periodogram
 export const CANVASJS_LEFT_MARGIN = 10;
 export const CANVASJS_RIGHT_MARGIN = 10;
 

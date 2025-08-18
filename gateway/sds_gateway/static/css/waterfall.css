@@ -43,8 +43,8 @@
 	min-height: 200px;
 	height: 200px;
 	/* Add padding to align with waterfall plot margins */
-	padding-right: var(--plots-right-margin, 80px); /* Use CSS custom property */
-	padding-left: var(--plots-left-margin, 85px); /* Use CSS custom property */
+	padding-right: var(--plots-right-margin, 80px);
+	padding-left: var(--plots-left-margin, 85px);
 }
 
 #waterfallPlot {
@@ -161,7 +161,7 @@
 	border-radius: 0.25rem;
 	padding: 0.5rem;
 	font-size: 0.75rem;
-	max-width: var(--plots-right-margin, 80px); /* Use CSS custom property */
+	max-width: var(--plots-right-margin, 80px);
 	z-index: 10;
 	display: flex;
 	flex-direction: row;
