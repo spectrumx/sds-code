@@ -7,11 +7,11 @@
 {% endblock title %}
 {% block css %}
     {{ block.super }}
-    <link rel="stylesheet"
-          href="{% static 'visualizations/css/waterfall.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/waterfall.css' %}" />
 {% endblock css %}
 {% block content %}
-    <div class="container-fluid px-5 pt-4">
+    <div class="container-fluid px-5 pt-4"
+         data-capture-uuid="{{ capture.uuid }}">
         <div class="row">
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -198,14 +198,6 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <!-- CanvasJS -->
     <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
-    <!-- Waterfall Visualization JavaScript -->
-    <script src="{% static 'visualizations/js/waterfall.js' %}"></script>
-    <script>
-        // Initialize waterfall visualization when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            const captureUuid = '{{ capture.uuid }}';
-            const waterfallViz = new WaterfallVisualization(captureUuid);
-            waterfallViz.initialize();
-        });
-    </script>
+    <!-- Waterfall Visualization Module -->
+    <script type="module" src="{% static 'js/waterfall/index.js' %}"></script>
 {% endblock javascript %}
