@@ -356,12 +356,16 @@ class WaterfallControls {
 	}
 
 	handleSliceChange(event) {
-		this.currentSliceIndex = Number.parseInt(event.target.value);
-		this.hoveredSliceIndex = null;
-		this.updateSliceUI();
+		const newIndex = Number.parseInt(event.target.value);
+		if (newIndex !== this.currentSliceIndex) {
+			this.currentSliceIndex = newIndex;
+			this.hoveredSliceIndex = null;
 
-		if (this.onSliceChange) {
-			this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+			this.updateSliceUI();
+
+			if (this.onSliceChange) {
+				this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+			}
 		}
 	}
 
@@ -370,10 +374,12 @@ class WaterfallControls {
 		if (
 			!Number.isNaN(newIndex) &&
 			newIndex >= 0 &&
-			newIndex < this.totalSlices
+			newIndex < this.totalSlices &&
+			newIndex !== this.currentSliceIndex
 		) {
 			this.currentSliceIndex = newIndex;
 			this.hoveredSliceIndex = null;
+
 			this.updateSliceUI();
 
 			if (this.onSliceChange) {
@@ -409,6 +415,7 @@ class WaterfallControls {
 			this.currentSliceIndex--;
 			// Clear hover state when changing slice
 			this.hoveredSliceIndex = null;
+
 			this.updateSliceUI();
 
 			if (this.onSliceChange) {
@@ -422,6 +429,7 @@ class WaterfallControls {
 			this.currentSliceIndex++;
 			// Clear hover state when changing slice
 			this.hoveredSliceIndex = null;
+
 			this.updateSliceUI();
 
 			if (this.onSliceChange) {
@@ -450,6 +458,7 @@ class WaterfallControls {
 			}
 			// Clear hover state when scrolling
 			this.hoveredSliceIndex = null;
+
 			this.updateSliceUI();
 
 			if (this.onSliceChange) {
@@ -478,6 +487,7 @@ class WaterfallControls {
 			}
 			// Clear hover state when scrolling
 			this.hoveredSliceIndex = null;
+
 			this.updateSliceUI();
 
 			if (this.onSliceChange) {
@@ -544,16 +554,20 @@ class WaterfallControls {
 	 * Set current slice index
 	 */
 	setCurrentSliceIndex(index) {
-		this.currentSliceIndex = index;
-		this.updateSliceUI();
+		if (index !== this.currentSliceIndex) {
+			this.currentSliceIndex = index;
+			this.updateSliceUI();
+		}
 	}
 
 	/**
 	 * Set waterfall window start
 	 */
 	setWaterfallWindowStart(start) {
-		this.waterfallWindowStart = start;
-		this.updateScrollIndicators();
+		if (start !== this.waterfallWindowStart) {
+			this.waterfallWindowStart = start;
+			this.updateScrollIndicators();
+		}
 	}
 
 	/**
