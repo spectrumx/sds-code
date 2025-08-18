@@ -4,7 +4,8 @@
  */
 
 class WaterfallControls {
-	constructor() {
+	constructor(onSliceChange) {
+		this.onSliceChange = onSliceChange;
 		this.isPlaying = false;
 		this.playbackInterval = null;
 		this.playbackSpeed = 1; // fps
@@ -274,34 +275,49 @@ class WaterfallControls {
 			playPauseBtn.classList.add("btn-primary");
 		}
 
-		const interval = 1000 / this.playbackSpeed; // Convert fps to milliseconds
-		this.playbackInterval = setInterval(() => {
-			// Move to next slice, but don't loop around
-			if (this.currentSliceIndex < this.totalSlices - 1) {
-				this.currentSliceIndex++;
-			} else {
-				// Stop playback when we reach the end
-				this.stopPlayback();
-				return;
+		// Use requestAnimationFrame for better timing
+		let lastFrameTime = performance.now();
+		const frameInterval = 1000 / this.playbackSpeed; // Convert fps to milliseconds
+
+		const animate = (currentTime) => {
+			if (!this.isPlaying) return;
+
+			const deltaTime = currentTime - lastFrameTime;
+
+			if (deltaTime >= frameInterval) {
+				// Move to next slice, but don't loop around
+				if (this.currentSliceIndex < this.totalSlices - 1) {
+					this.currentSliceIndex++;
+				} else {
+					// Stop playback when we reach the end
+					this.stopPlayback();
+					return;
+				}
+
+				// Update UI
+				const slider = document.getElementById("currentSlice");
+				if (slider) {
+					slider.value = this.currentSliceIndex;
+				}
+
+				// Clear hover state when changing slice during playback
+				this.hoveredSliceIndex = null;
+
+				this.updateSliceUI();
+
+				// Call callback for slice change
+				if (this.onSliceChange) {
+					this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+				}
+
+				lastFrameTime = currentTime;
 			}
 
-			// Update UI
-			const slider = document.getElementById("currentSlice");
-			if (slider) {
-				slider.value = this.currentSliceIndex;
-			}
+			// Continue animation loop
+			this.playbackInterval = requestAnimationFrame(animate);
+		};
 
-			// Clear hover state when changing slice during playback
-			this.hoveredSliceIndex = null;
-
-			this.updateSliceUI();
-
-			// Emit event for slice change
-			this.emitEvent("sliceChanged", {
-				currentSliceIndex: this.currentSliceIndex,
-				waterfallWindowStart: this.waterfallWindowStart,
-			});
-		}, interval);
+		this.playbackInterval = requestAnimationFrame(animate);
 	}
 
 	/**
@@ -312,7 +328,7 @@ class WaterfallControls {
 
 		this.isPlaying = false;
 		if (this.playbackInterval) {
-			clearInterval(this.playbackInterval);
+			cancelAnimationFrame(this.playbackInterval);
 			this.playbackInterval = null;
 		}
 
@@ -344,10 +360,9 @@ class WaterfallControls {
 		this.hoveredSliceIndex = null;
 		this.updateSliceUI();
 
-		this.emitEvent("sliceChanged", {
-			currentSliceIndex: this.currentSliceIndex,
-			waterfallWindowStart: this.waterfallWindowStart,
-		});
+		if (this.onSliceChange) {
+			this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+		}
 	}
 
 	handleSliceIndexInputChange(event) {
@@ -361,10 +376,9 @@ class WaterfallControls {
 			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 
-			this.emitEvent("sliceChanged", {
-				currentSliceIndex: this.currentSliceIndex,
-				waterfallWindowStart: this.waterfallWindowStart,
-			});
+			if (this.onSliceChange) {
+				this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+			}
 		} else {
 			// Reset to current value if invalid
 			this.updateSliceIndexInput();
@@ -397,10 +411,9 @@ class WaterfallControls {
 			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 
-			this.emitEvent("sliceChanged", {
-				currentSliceIndex: this.currentSliceIndex,
-				waterfallWindowStart: this.waterfallWindowStart,
-			});
+			if (this.onSliceChange) {
+				this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+			}
 		}
 	}
 
@@ -411,10 +424,9 @@ class WaterfallControls {
 			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 
-			this.emitEvent("sliceChanged", {
-				currentSliceIndex: this.currentSliceIndex,
-				waterfallWindowStart: this.waterfallWindowStart,
-			});
+			if (this.onSliceChange) {
+				this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+			}
 		}
 	}
 
@@ -440,10 +452,9 @@ class WaterfallControls {
 			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 
-			this.emitEvent("sliceChanged", {
-				currentSliceIndex: this.currentSliceIndex,
-				waterfallWindowStart: this.waterfallWindowStart,
-			});
+			if (this.onSliceChange) {
+				this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+			}
 		}
 	}
 
@@ -469,10 +480,9 @@ class WaterfallControls {
 			this.hoveredSliceIndex = null;
 			this.updateSliceUI();
 
-			this.emitEvent("sliceChanged", {
-				currentSliceIndex: this.currentSliceIndex,
-				waterfallWindowStart: this.waterfallWindowStart,
-			});
+			if (this.onSliceChange) {
+				this.onSliceChange(this.currentSliceIndex, this.waterfallWindowStart);
+			}
 		}
 	}
 
