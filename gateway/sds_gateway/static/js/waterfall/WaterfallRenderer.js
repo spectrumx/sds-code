@@ -123,10 +123,6 @@ class WaterfallRenderer {
 
 		// Calculate which slices to display
 		const startSliceIndex = this.waterfallWindowStart;
-		const endSliceIndex = Math.min(
-			this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE,
-			totalSlices,
-		);
 
 		// Draw waterfall slices from bottom to top
 		for (let i = 0; i < this.WATERFALL_WINDOW_SIZE; i++) {

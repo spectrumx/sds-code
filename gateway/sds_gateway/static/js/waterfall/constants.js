@@ -1,6 +1,5 @@
 /**
  * Constants for Waterfall Visualization
- * Centralized configuration values to eliminate duplication
  */
 
 // Color map constants
@@ -10,7 +9,7 @@ export const DEFAULT_COLOR_MAP = "viridis";
 export const DEFAULT_SCALE_MIN = -130;
 export const DEFAULT_SCALE_MAX = 0;
 
-// Margin constants (matching SVI implementation)
+// Margin constants
 export const PLOTS_LEFT_MARGIN = 85;
 export const PLOTS_RIGHT_MARGIN = 80;
 export const CANVASJS_LEFT_MARGIN = 10;
