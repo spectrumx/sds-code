@@ -121,7 +121,7 @@ git switch feat-branch
 docker exec -it sds-gateway-local-app python manage.py migrate users
 
 # rebase branches and migrations
-git rebase main
+git rebase origin/master
 # if no conflict, you're set; otherwise, you might see a conflict on max_migration.txt:
 # CONFLICT (content): Merge conflict in users/migrations/max_migration.txt
 # ...
