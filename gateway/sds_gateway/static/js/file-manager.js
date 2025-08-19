@@ -1,7 +1,118 @@
 class FileManager {
 	constructor() {
+		console.log("FileManager constructor called");
 		this.droppedFiles = null;
+		// Prevent browser from navigating away when user drags files over the whole window
+		this.addGlobalDropGuards();
 		this.init();
+	}
+
+	addGlobalDropGuards() {
+		console.log("Adding global drop guards");
+		// Prevent browser navigation on any drop event
+		document.addEventListener(
+			"dragover",
+			(e) => {
+				console.log("Dragover event on document");
+				e.preventDefault();
+			},
+			false,
+		);
+
+		document.addEventListener(
+			"drop",
+			(e) => {
+				console.log("Drop event on document");
+				console.log("Drop target:", e.target);
+				console.log("Drop target tagName:", e.target.tagName);
+				console.log("Drop target className:", e.target.className);
+				console.log("Drop coordinates:", e.clientX, e.clientY);
+				e.preventDefault();
+				e.stopPropagation();
+
+				// Always handle global drops for testing
+				console.log("Handling global drop - bypassing modal check for testing");
+				this.handleGlobalDrop(e);
+			},
+			false,
+		);
+
+		console.log("Global drop guards added");
+	}
+
+	async handleGlobalDrop(e) {
+		console.log("Global drop detected");
+
+		const dt = e.dataTransfer;
+		if (!dt) {
+			console.warn("No dataTransfer in global drop");
+			return;
+		}
+
+		console.log("Processing globally dropped files");
+		const files = await this.collectFilesFromDataTransfer(dt);
+		console.log("Collected files:", files);
+
+		if (!files.length) {
+			console.warn("No files collected from global drop");
+			return;
+		}
+
+		// Store the dropped files globally
+		window.selectedFiles = files;
+		console.log("Stored files in window.selectedFiles:", files.length, "files");
+
+		// Open the upload modal
+		const uploadModalEl = document.getElementById("uploadCaptureModal");
+		if (!uploadModalEl) {
+			console.error("Upload modal element not found");
+			return;
+		}
+
+		const uploadModal = new bootstrap.Modal(uploadModalEl);
+		uploadModal.show();
+		console.log("Opened upload modal");
+
+		// Wait a bit for modal to fully open, then trigger file selection
+		setTimeout(() => {
+			this.handleGlobalFilesInModal(files);
+		}, 200);
+	}
+
+	handleGlobalFilesInModal(files) {
+		console.log("Handling global files in modal");
+
+		// Update the file input to show selected files
+		const fileInput = document.getElementById("captureFileInput");
+		if (fileInput) {
+			// Create a new FileList-like object
+			const dataTransfer = new DataTransfer();
+			for (const file of files) {
+				dataTransfer.items.add(file);
+			}
+			fileInput.files = dataTransfer.files;
+		}
+
+		// Update the selected files display
+		this.handleFileSelection(files);
+
+		// Make sure the selected files section is visible
+		const selectedFilesSection = document.getElementById("selectedFiles");
+		if (selectedFilesSection) {
+			selectedFilesSection.classList.add("has-files");
+			console.log("Added has-files class to selected files section");
+		}
+
+		// Update the file input label to show selected files
+		const fileInputLabel = fileInput?.nextElementSibling;
+		if (fileInputLabel?.classList.contains("form-control")) {
+			const fileNames = files
+				.map((f) => f.webkitRelativePath || f.name)
+				.join(", ");
+			fileInputLabel.textContent = fileNames || "No directory selected.";
+		}
+
+		console.log("Global files loaded into modal:", files.length, "files");
 	}
 
 	convertToFiles(itemsOrFiles) {
@@ -297,6 +408,11 @@ class FileManager {
 			typeSelect.dispatchEvent(new Event("change"));
 		}
 
+		// Check for globally dropped files when modal opens
+		if (window.selectedFiles?.length) {
+			this.handleFileSelection(window.selectedFiles);
+		}
+
 		// Handle form submission
 		uploadForm.addEventListener("submit", async (e) => {
 			e.preventDefault();
@@ -329,10 +445,12 @@ class FileManager {
 					formData.append("scan_group", scanGroupVal);
 				}
 
-				// Add files and their relative paths
-				const files = this.droppedFiles?.length
-					? Array.from(this.droppedFiles)
-					: Array.from(fileInput.files);
+				// Add files and their relative paths - check for globally dropped files first
+				const files = window.selectedFiles?.length
+					? Array.from(window.selectedFiles)
+					: this.droppedFiles?.length
+						? Array.from(this.droppedFiles)
+						: Array.from(fileInput.files);
 
 				// Create an array of relative paths in the same order as files
 				const relativePaths = files.map(
@@ -355,6 +473,7 @@ class FileManager {
 				uploadText.classList.remove("d-none");
 				uploadSpinner.classList.add("d-none");
 				this.droppedFiles = null;
+				window.selectedFiles = null; // Clear global files after upload
 			}
 		});
 	}
@@ -1000,5 +1119,7 @@ class FileManager {
 
 // Initialize file manager when DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
+	console.log("DOMContentLoaded event fired, creating FileManager");
 	new FileManager();
+	console.log("FileManager created");
 });

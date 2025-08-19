@@ -23,6 +23,14 @@
     <link rel="stylesheet" href="{% static 'css/file-list.css' %}" />
 {% endblock css %}
 {% block content %}
+    <!-- Global Drop Zone Overlay (initially hidden) -->
+    <div id="globalDropZone" class="global-drop-zone d-none">
+        <div class="global-drop-zone-content">
+            <i class="material-icons global-drop-zone-icon">cloud_upload</i>
+            <div class="global-drop-zone-text">Drop files here to upload</div>
+            <div class="global-drop-zone-subtext">Release to start upload</div>
+        </div>
+    </div>
     <!-- Main Container -->
     <div class="container-fluid">
         <!-- New Button Dropdown -->

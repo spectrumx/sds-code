@@ -689,6 +689,14 @@ class FilesUploadModal {
 		}
 
 		if (result.file_upload_status === "success") {
+			const uploaded = uploadedCount ?? 0;
+			const message = `Upload complete: ${uploaded} / ${totalCount} file${totalCount === 1 ? "" : "s"} uploaded.`;
+			try {
+				sessionStorage.setItem(
+					"filesAlert",
+					JSON.stringify({ message: message, type: "success" }),
+				);
+			} catch (_) {}
 			setTimeout(() => window.location.reload(), 500);
 		} else {
 			this.showErrorModal(result);

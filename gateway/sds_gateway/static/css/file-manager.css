@@ -664,3 +664,45 @@ body {
 		margin: 0.5rem;
 	}
 }
+
+/* Global Drop Zone Overlay */
+.global-drop-zone {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0, 123, 255, 0.1);
+	border: 3px dashed #007bff;
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	backdrop-filter: blur(2px);
+}
+
+.global-drop-zone-content {
+	text-align: center;
+	background: white;
+	padding: 3rem;
+	border-radius: 1rem;
+	box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);
+}
+
+.global-drop-zone-icon {
+	font-size: 4rem;
+	color: #007bff;
+	margin-bottom: 1rem;
+}
+
+.global-drop-zone-text {
+	font-size: 1.5rem;
+	font-weight: 600;
+	color: #333;
+	margin-bottom: 0.5rem;
+}
+
+.global-drop-zone-subtext {
+	font-size: 1rem;
+	color: #666;
+}
