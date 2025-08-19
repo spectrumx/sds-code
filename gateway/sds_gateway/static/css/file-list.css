@@ -481,9 +481,3 @@ body {
 .items-per-page-select {
 	width: auto;
 }
-
-/* Capture modal visualize button */
-#visualize-btn {
-	/* Hidden by default */
-	display: none;
-}
