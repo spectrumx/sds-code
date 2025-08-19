@@ -2624,7 +2624,7 @@ class FileH5InfoView(Auth0LoginRequiredMixin, View):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
-class UploadFilesView(View):
+class UploadCaptureView(View):
     def _process_file_uploads(
         self,
         request: HttpRequest,
@@ -2929,6 +2929,17 @@ class UploadFilesView(View):
                 "Upload skipped. All files exist on server, but there were errors "
                 "during processing"
             )
+        elif file_upload_status == "success" and created_captures:
+            # Successful upload with capture creation
+            response_data["message"] = (
+                f"Upload completed successfully! {saved_files_count} files uploaded "
+                f"and {len(created_captures)} capture(s) created."
+            )
+        elif file_upload_status == "success":
+            # Successful upload without capture creation
+            response_data["message"] = (
+                f"Upload completed successfully! {saved_files_count} files uploaded."
+            )
 
         # Combine file upload errors and capture creation errors
         all_errors = []
@@ -2988,158 +2999,204 @@ class UploadFilesView(View):
         return created_captures, capture_errors
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
-        (
-            upload_chunk_files,
-            relative_paths,
-            all_relative_paths,
-            channels,
-            scan_group,
-            capture_type,
-        ) = self._parse_upload_request(request)
-
-        saved_files_count, file_errors = self._process_file_uploads(
-            request, upload_chunk_files, relative_paths
-        )
-
-        created_captures = []
-
-        # Check if all files were empty (skipped)
-        # If no files were sent (all skipped on frontend), consider them all empty
-        all_files_empty = (
-            all(f.size == 0 for f in upload_chunk_files) if upload_chunk_files else True
-        )
-
-        # Additional check: if no files were sent but we have all_relative_paths,
-        # this indicates all files were skipped on the frontend
-        if not upload_chunk_files and all_relative_paths:
-            all_files_empty = True
-
-        # Debug logging for request data
-        logger.info(
-            "Upload request - files count: %s, all_relative_paths count: %s, "
-            "all_files_empty: %s, capture_type: %s, channels: %s, scan_group: %s",
-            len(upload_chunk_files) if upload_chunk_files else 0,
-            len(all_relative_paths) if all_relative_paths else 0,
-            all_files_empty,
-            capture_type,
-            channels,
-            scan_group,
-        )
-
-        # Create captures if:
-        # 1. All uploads succeeded, OR
-        # 2. We have required fields (regardless of file upload status)
-        capture_errors = []
-        # Check if we have the required fields for capture creation
-        has_required_fields = self._check_required_fields(
-            capture_type, channels, scan_group
-        )
-
-        # Check if this is a chunked upload (skip capture creation for chunks)
-        is_chunk = request.POST.get("is_chunk", "false").lower() == "true"
-        chunk_number = request.POST.get("chunk_number", None)
-        total_chunks = request.POST.get("total_chunks", None)
-
-        # Determine if this is the last chunk or not a chunked upload
-        is_last_chunk = (
-            not is_chunk
-            or chunk_number is None
-            or total_chunks is None
-            or (int(chunk_number) == int(total_chunks))
-        )
-        should_create_captures = is_last_chunk
-
-        created_captures = []
-        capture_errors = []
-
-        # Only create captures if this is the last chunk AND there are no file
-        # upload errors
-        if should_create_captures and not file_errors:
-            # Handle capture creation
-            created_captures, capture_errors = self._process_capture_creation(
-                request,
-                channels,
-                capture_type,
-                scan_group,
+        try:
+            (
+                upload_chunk_files,
+                relative_paths,
                 all_relative_paths,
+                channels,
+                scan_group,
+                capture_type,
+            ) = self._parse_upload_request(request)
+
+            saved_files_count, file_errors = self._process_file_uploads(
+                request, upload_chunk_files, relative_paths
+            )
+
+            created_captures = []
+
+            # Check if all files were empty (skipped)
+            # If no files were sent (all skipped on frontend), consider them all empty
+            all_files_empty = (
+                all(f.size == 0 for f in upload_chunk_files)
+                if upload_chunk_files
+                else True
+            )
+
+            # Additional check: if no files were sent but we have all_relative_paths,
+            # this indicates all files were skipped on the frontend
+            if not upload_chunk_files and all_relative_paths:
+                all_files_empty = True
+
+            # Debug logging for request data
+            logger.info(
+                "Upload request - files count: %s, all_relative_paths count: %s, "
+                "all_files_empty: %s, capture_type: %s, channels: %s, scan_group: %s",
+                len(upload_chunk_files) if upload_chunk_files else 0,
+                len(all_relative_paths) if all_relative_paths else 0,
+                all_files_empty,
+                capture_type,
+                channels,
+                scan_group,
+            )
+
+            # Create captures if:
+            # 1. All uploads succeeded, OR
+            # 2. We have required fields (regardless of file upload status)
+            capture_errors = []
+            # Check if we have the required fields for capture creation
+            has_required_fields = self._check_required_fields(
+                capture_type, channels, scan_group
+            )
+
+            # Check if this is a chunked upload (skip capture creation for chunks)
+            is_chunk = request.POST.get("is_chunk", "false").lower() == "true"
+            chunk_number = request.POST.get("chunk_number", None)
+            total_chunks = request.POST.get("total_chunks", None)
+
+            # Determine if this is the last chunk or not a chunked upload
+            is_last_chunk = (
+                not is_chunk
+                or chunk_number is None
+                or total_chunks is None
+                or (int(chunk_number) == int(total_chunks))
+            )
+            should_create_captures = is_last_chunk
+
+            created_captures = []
+            capture_errors = []
+
+            # Only create captures if this is the last chunk AND there are no file
+            # upload errors
+            if should_create_captures and not file_errors:
+                # Handle capture creation
+                created_captures, capture_errors = self._process_capture_creation(
+                    request,
+                    channels,
+                    capture_type,
+                    scan_group,
+                    all_relative_paths,
+                    has_required_fields=has_required_fields,
+                )
+            elif should_create_captures and file_errors:
+                logger.info(
+                    "Skipping capture creation due to file upload errors: %s",
+                    file_errors,
+                )
+            else:
+                logger.info(
+                    "Skipping capture creation for chunk %s of %s",
+                    chunk_number,
+                    total_chunks,
+                )
+
+            # Log file upload errors if they occurred
+            if file_errors and not all_files_empty:
+                logger.error(
+                    "File upload errors occurred. Errors: %s",
+                    file_errors,
+                )
+
+            # Determine file upload status for frontend display
+            file_upload_status = self.file_upload_status_mux(
+                saved_files_count,
+                upload_chunk_files,
+                file_errors,
+                all_files_empty=all_files_empty,
                 has_required_fields=has_required_fields,
             )
-        elif should_create_captures and file_errors:
-            logger.info(
-                "Skipping capture creation due to file upload errors: %s",
+
+            file_capture_response_data = self._build_file_capture_response_data(
+                file_upload_status,
+                saved_files_count,
+                created_captures,
                 file_errors,
-            )
-        else:
-            logger.info(
-                "Skipping capture creation for chunk %s of %s",
-                chunk_number,
-                total_chunks,
+                capture_errors,
+                all_files_empty=all_files_empty,
+                has_required_fields=has_required_fields,
             )
 
-        # Handle dataset association for individual file uploads
-        dataset_uuid = request.POST.get("dataset_uuid")
-        if dataset_uuid and saved_files_count > 0 and not has_required_fields:
-            # This is an individual file upload to a dataset (not a capture upload)
-            try:
-                dataset = Dataset.objects.get(
-                    uuid=dataset_uuid, owner=request.user, is_deleted=False
+            # Handle dataset association for individual file uploads
+            dataset_uuid = request.POST.get("dataset_uuid")
+            if dataset_uuid and saved_files_count > 0 and not has_required_fields:
+                # This is an individual file upload to a dataset (not a capture upload)
+                try:
+                    dataset = Dataset.objects.get(
+                        uuid=dataset_uuid, owner=request.user, is_deleted=False
+                    )
+
+                    # Get the newly uploaded files by this user
+                    newly_uploaded_files = File.objects.filter(
+                        owner=request.user, is_deleted=False
+                    ).order_by("-created_at")[:saved_files_count]
+
+                    # Associate files with the dataset
+                    dataset.files.add(*newly_uploaded_files)
+
+                    logger.info(
+                        "Associated %d files with dataset %s (%s)",
+                        len(newly_uploaded_files),
+                        dataset.name,
+                        dataset_uuid,
+                    )
+                except Dataset.DoesNotExist:
+                    logger.exception("Dataset not found or access denied: %s", dataset_uuid)
+                    file_errors.append(f"Dataset not found: {dataset_uuid}")
+                except Exception as e:
+                    # Catch any database or validation errors during file association
+                    logger.exception(
+                        "Failed to associate files with dataset %s",
+                        dataset_uuid,
+                    )
+                    file_errors.append(f"Failed to associate files with dataset: {e!s}")
+
+            # Log file upload errors if they occurred
+            if file_errors and not all_files_empty:
+                logger.error(
+                    "File upload errors occurred. Errors: %s",
+                    file_errors,
                 )
 
-                # Get the newly uploaded files by this user
-                newly_uploaded_files = File.objects.filter(
-                    owner=request.user, is_deleted=False
-                ).order_by("-created_at")[:saved_files_count]
+            return JsonResponse(file_capture_response_data)
 
-                # Associate files with the dataset
-                dataset.files.add(*newly_uploaded_files)
-
-                logger.info(
-                    "Associated %d files with dataset %s (%s)",
-                    len(newly_uploaded_files),
-                    dataset.name,
-                    dataset_uuid,
-                )
-            except Dataset.DoesNotExist:
-                logger.exception("Dataset not found or access denied: %s", dataset_uuid)
-                file_errors.append(f"Dataset not found: {dataset_uuid}")
-            except Exception as e:
-                # Catch any database or validation errors during file association
-                logger.exception(
-                    "Failed to associate files with dataset %s",
-                    dataset_uuid,
-                )
-                file_errors.append(f"Failed to associate files with dataset: {e!s}")
-
-        # Log file upload errors if they occurred
-        if file_errors and not all_files_empty:
-            logger.error(
-                "File upload errors occurred. Errors: %s",
-                file_errors,
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.warning(
+                "Data validation error in UploadCaptureView.post: %s", str(e)
+            )
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid request data",
+                    "error_code": "VALIDATION_ERROR",
+                    "message": f"Data validation error: {e!s}",
+                },
+                status=400,
+            )
+        except (ConnectionError, TimeoutError) as e:
+            logger.exception("Network error in UploadCaptureView.post")
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Network connection error",
+                    "error_code": "NETWORK_ERROR",
+                    "message": f"Network error: {e!s}",
+                },
+                status=503,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in UploadCaptureView.post")
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Internal server error",
+                    "error_code": "UNKNOWN_ERROR",
+                    "message": f"{e!s}",
+                },
+                status=500,
             )
 
-        # Determine file upload status for frontend display
-        file_upload_status = self.file_upload_status_mux(
-            saved_files_count,
-            upload_chunk_files,
-            file_errors,
-            all_files_empty=all_files_empty,
-            has_required_fields=has_required_fields,
-        )
 
-        file_capture_response_data = self._build_file_capture_response_data(
-            file_upload_status,
-            saved_files_count,
-            created_captures,
-            file_errors,
-            capture_errors,
-            all_files_empty=all_files_empty,
-            has_required_fields=has_required_fields,
-        )
-
-        return JsonResponse(file_capture_response_data)
-
-
-user_upload_files_view = UploadFilesView.as_view()
+user_upload_capture_view = UploadCaptureView.as_view()
 
 
 @method_decorator(csrf_exempt, name="dispatch")
