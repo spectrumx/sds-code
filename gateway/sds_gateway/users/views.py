@@ -1,11 +1,14 @@
 import datetime
 import json
 import logging
+import tempfile
 import uuid
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
 from typing import cast
+
+import h5py  # type: ignore[import-not-found]
 
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
@@ -2521,10 +2524,6 @@ class FileH5InfoView(Auth0LoginRequiredMixin, View):
         except (TypeError, ValueError):
             pass
 
-        import tempfile
-
-        import h5py  # type: ignore[import-not-found]
-
         # Copy to temp file (h5py requires a filename)
         temp_file = tempfile.NamedTemporaryFile(  # noqa: SIM115 - needs real path; we manage cleanup
             delete=False, suffix=".h5"
@@ -3083,15 +3082,11 @@ class UploadFilesView(View):
         if dataset_uuid and saved_files_count > 0 and not has_required_fields:
             # This is an individual file upload to a dataset (not a capture upload)
             try:
-                from sds_gateway.api_methods.models import Dataset
-
                 dataset = Dataset.objects.get(
                     uuid=dataset_uuid, owner=request.user, is_deleted=False
                 )
 
                 # Get the newly uploaded files by this user
-                from sds_gateway.api_methods.models import File
-
                 newly_uploaded_files = File.objects.filter(
                     owner=request.user, is_deleted=False
                 ).order_by("-created_at")[:saved_files_count]
