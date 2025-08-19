@@ -631,29 +631,15 @@
                 return false; // No large files found
             }
 
-            document.getElementById('uploadCaptureForm').addEventListener('submit', async function(e) {
-                e.preventDefault();
-
-                // Set processing state
-                isProcessing = true;
-                uploadInProgress = true;
-                cancelRequested = false; // Reset cancel flag for new upload
-                sessionStorage.setItem('uploadInProgress', 'true');
-
-
-
-                // Check if files are selected
-                if (!window.selectedFiles || window.selectedFiles.length === 0) {
-                    alert('Please select files to upload.');
-                    return;
-                }
-
-                // Show progress section
+            // Helper function to check files for duplicates
+            async function checkFilesForDuplicates(files, cancelButton, submitButton) {
+                // Local progress bar variables
                 const progressSection = document.getElementById('checkingProgressSection');
                 const progressBar = document.getElementById('checkingProgressBar');
                 const progressText = document.getElementById('checkingProgressText');
                 const progressMessage = document.getElementById('progressMessage');
 
+                // Show progress section
                 progressSection.style.display = 'block';
                 progressMessage.textContent = 'Checking files for duplicates...';
 
@@ -665,17 +651,10 @@
                 // Initialize variables for file checking
                 window.filesToSkip = new Set();
                 window.fileCheckResults = new Map();
-                const files = window.selectedFiles;
                 const totalFiles = files.length;
-
-                // Check for large files before duplicate checking
-                if (checkForLargeFiles(files, progressSection, cancelButton, submitButton)) {
-                    return;
-                }
 
                 // Check each file for duplicates with progress
                 for (let i = 0; i < files.length; i++) {
-
                     const file = files[i];
 
                     // Update progress
@@ -738,10 +717,8 @@
 
                     // Check for cancellation after each file check
                     if (cancelRequested) {
-                        // Break out of the loop instead of throwing
                         break;
                     }
-
                 }
 
                 // Check if cancellation was requested during file checking
@@ -750,11 +727,104 @@
                     await new Promise(resolve => setTimeout(resolve, 100));
                     throw new Error('Upload cancelled by user');
                 }
+            }
 
-                // Update progress message for upload phase
-                progressMessage.textContent = 'Uploading files and creating captures...';
-                progressBar.style.width = '0%';
-                progressText.textContent = '0%';
+            // Helper function to handle skipped files upload
+            async function handleSkippedFilesUpload(allRelativePaths, abortController) {
+                // Create form data for skipped files case
+                const skippedFormData = new FormData();
+
+                // Always add all relative paths for capture creation
+                allRelativePaths.forEach(path => {
+                    skippedFormData.append('all_relative_paths', path);
+                });
+
+                // Add other form fields
+                const captureType = document.getElementById('captureTypeSelect').value;
+                skippedFormData.append('capture_type', captureType);
+
+                if (captureType === 'drf') {
+                    const channels = document.getElementById('captureChannelsInput').value;
+                    skippedFormData.append('channels', channels);
+                } else if (captureType === 'rh') {
+                    const scanGroup = document.getElementById('captureScanGroupInput').value;
+                    skippedFormData.append('scan_group', scanGroup);
+                }
+
+                // Don't send chunk information for skipped files
+                // This ensures capture creation happens
+
+                const response = await fetch("{% url 'users:upload_capture' %}", {
+                    method: 'POST',
+                    body: skippedFormData,
+                    signal: abortController.signal
+                });
+
+                const result = await response.json();
+                return result;
+            }
+
+            // Helper function to calculate total chunks
+            function calculateTotalChunks(filesToUpload, chunkSizeBytes) {
+                let totalChunks = 0;
+                let tempChunkSize = 0;
+
+                for (let i = 0; i < filesToUpload.length; i++) {
+                    const file = filesToUpload[i];
+                    if (file.size > chunkSizeBytes) {
+                        // Large file gets its own chunk
+                        totalChunks++;
+                        tempChunkSize = 0;
+                    } else if (tempChunkSize + file.size > chunkSizeBytes && tempChunkSize > 0) {
+                        // Current chunk would exceed size limit, start new chunk
+                        totalChunks++;
+                        tempChunkSize = file.size;
+                    } else {
+                        // Add to current chunk
+                        tempChunkSize += file.size;
+                    }
+                }
+
+                // Add final chunk if there are remaining files
+                if (tempChunkSize > 0) {
+                    totalChunks++;
+                }
+
+                return totalChunks;
+            }
+
+            document.getElementById('uploadCaptureForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                // Set processing state
+                isProcessing = true;
+                uploadInProgress = true;
+                cancelRequested = false; // Reset cancel flag for new upload
+                sessionStorage.setItem('uploadInProgress', 'true');
+
+
+
+                // Check if files are selected
+                if (!window.selectedFiles || window.selectedFiles.length === 0) {
+                    alert('Please select files to upload.');
+                    return;
+                }
+
+                const files = window.selectedFiles;
+
+                // Check for large files before duplicate checking
+                const progressSection = document.getElementById('checkingProgressSection');
+                if (checkForLargeFiles(files, progressSection, cancelButton, submitButton)) {
+                    return;
+                }
+
+                // Check files for duplicates
+                await checkFilesForDuplicates(files, cancelButton, submitButton);
+
+                // Redeclare progress bar variables for upload phase
+                const progressBar = document.getElementById('checkingProgressBar');
+                const progressText = document.getElementById('checkingProgressText');
+                const progressMessage = document.getElementById('progressMessage');
 
                 // Hide progress section
                 progressSection.style.display = 'none';
@@ -792,19 +862,12 @@
                 if (filesToUpload.length > 0) {
                     progressSection.style.display = 'block';
                     progressMessage.textContent = 'Uploading files and creating captures...';
-                    progressBar.style.width = '50%';
-                    progressText.textContent = '50%';
+                    progressBar.style.width = '0%';
+                    progressText.textContent = '0%';
                 }
-
-
-
-
 
                 // Upload files in chunks
                 try {
-                    // Update progress message for upload
-                    progressMessage.textContent = 'Uploading files and creating captures...';
-
                     // Create AbortController for upload
                     const abortController = new AbortController();
                     currentAbortController = abortController;
@@ -822,39 +885,7 @@
 
                     // Special case: if all files are skipped, send a single request without chunking
                     if (filesToUpload.length === 0) {
-                        // Create form data for skipped files case
-                        const skippedFormData = new FormData();
-
-                        // Always add all relative paths for capture creation
-                        allRelativePaths.forEach(path => {
-                            skippedFormData.append('all_relative_paths', path);
-                        });
-
-                        // Add other form fields
-                        const captureType = document.getElementById('captureTypeSelect').value;
-                        skippedFormData.append('capture_type', captureType);
-
-                        if (captureType === 'drf') {
-                            const channels = document.getElementById('captureChannelsInput').value;
-                            skippedFormData.append('channels', channels);
-                        } else if (captureType === 'rh') {
-                            const scanGroup = document.getElementById('captureScanGroupInput').value;
-                            skippedFormData.append('scan_group', scanGroup);
-                        }
-
-                        // Don't send chunk information for skipped files
-                        // This ensures capture creation happens
-
-                        const response = await fetch("{% url 'users:upload_capture' %}", {
-                            method: 'POST',
-                            body: skippedFormData,
-                            signal: abortController.signal
-                        });
-
-                        const result = await response.json();
-
-                        // Use the result directly
-                        allResults = result;
+                        allResults = await handleSkippedFilesUpload(allRelativePaths, abortController);
 
                     } else {
                         // Upload files in chunks based on size (50MB per chunk)
@@ -865,27 +896,7 @@
                         let filesProcessed = 0;
 
                         // Calculate total chunks first
-                        let totalChunks = 0;
-                        let tempChunkSize = 0;
-                        for (let i = 0; i < filesToUpload.length; i++) {
-                            const file = filesToUpload[i];
-                            if (file.size > CHUNK_SIZE_BYTES) {
-                                // Large file gets its own chunk
-                                totalChunks++;
-                                tempChunkSize = 0;
-                            } else if (tempChunkSize + file.size > CHUNK_SIZE_BYTES && tempChunkSize > 0) {
-                                // Current chunk would exceed 50MB, start new chunk
-                                totalChunks++;
-                                tempChunkSize = file.size;
-                            } else {
-                                // Add to current chunk
-                                tempChunkSize += file.size;
-                            }
-                        }
-                        // Add final chunk if there are remaining files
-                        if (tempChunkSize > 0) {
-                            totalChunks++;
-                        }
+                        const totalChunks = calculateTotalChunks(filesToUpload, CHUNK_SIZE_BYTES);
 
                         // Now upload files in chunks
                         for (let i = 0; i < filesToUpload.length; i++) {
