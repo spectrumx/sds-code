@@ -2,6 +2,10 @@ from django.urls import path
 
 from .api.views import GetAPIKeyView
 from .views import CheckFileExistsView
+from .views import FileContentView
+from .views import FileDownloadView
+from .views import FileH5InfoView
+from .views import FilesView
 from .views import ListCapturesView
 from .views import UploadFilesView
 from .views import user_captures_api_view
@@ -23,9 +27,17 @@ urlpatterns = [
     path("~update/", view=user_update_view, name="update"),
     path("<int:pk>/", view=user_detail_view, name="detail"),
     path("generate-api-key/", user_generate_api_key_view, name="generate_api_key"),
+    path("files/", FilesView.as_view(), name="files"),
     path("file-list/", ListCapturesView.as_view(), name="file_list"),
     path("file-list/api/", user_captures_api_view, name="captures_api"),
     path("file-detail/<uuid:uuid>/", user_file_detail_view, name="file_detail"),
+    path(
+        "files/<uuid:uuid>/download/",
+        FileDownloadView.as_view(),
+        name="file_download",
+    ),
+    path("files/<uuid:uuid>/content/", FileContentView.as_view(), name="file_content"),
+    path("files/<uuid:uuid>/h5info/", FileH5InfoView.as_view(), name="file_h5info"),
     path("dataset-list/", user_dataset_list_view, name="dataset_list"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
     path("group-captures/", user_group_captures_view, name="group_captures"),
