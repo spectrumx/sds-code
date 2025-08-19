@@ -604,6 +604,33 @@
                 }
             });
 
+            // Helper function to check for large files
+            function checkForLargeFiles(files, progressSection, cancelButton, submitButton) {
+                const LARGE_FILE_THRESHOLD = 512 * 1024 * 1024; // 512MB in bytes
+                const largeFiles = files.filter(file => file.size > LARGE_FILE_THRESHOLD);
+
+                if (largeFiles.length > 0) {
+                    // Reset UI state
+                    progressSection.style.display = 'none';
+                    cancelButton.textContent = 'Cancel';
+                    cancelButton.classList.remove('btn-warning');
+                    submitButton.disabled = false;
+
+                    // Create alert message
+                    const largeFileNames = largeFiles.map(file => file.name).join(', ');
+                    const alertMessage = `Large files detected (over 512MB): ${largeFileNames}\n\n` +
+                        `Please:\n` +
+                        `1. Skip these large files and upload the remaining files, or\n` +
+                        `2. Use the SpectrumX SDK (https://pypi.org/project/spectrumx/) to upload large files and add them to your capture.\n\n` +
+                        `Large files may cause issues with the web interface.`;
+
+                    alert(alertMessage);
+                    return true; // Indicates large files were found
+                }
+
+                return false; // No large files found
+            }
+
             document.getElementById('uploadCaptureForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -642,25 +669,7 @@
                 const totalFiles = files.length;
 
                 // Check for large files before duplicate checking
-                const LARGE_FILE_THRESHOLD = 512 * 1024 * 1024; // 512MB in bytes
-                const largeFiles = files.filter(file => file.size > LARGE_FILE_THRESHOLD);
-
-                if (largeFiles.length > 0) {
-                    // Reset UI state
-                    progressSection.style.display = 'none';
-                    cancelButton.textContent = 'Cancel';
-                    cancelButton.classList.remove('btn-warning');
-                    submitButton.disabled = false;
-
-                    // Create alert message
-                    const largeFileNames = largeFiles.map(file => file.name).join(', ');
-                    const alertMessage = `Large files detected (over 512MB): ${largeFileNames}\n\n` +
-                        `Please:\n` +
-                        `1. Skip these large files and upload the remaining files, or\n` +
-                        `2. Use the SpectrumX SDK (https://pypi.org/project/spectrumx/) to upload large files and add them to your capture.\n\n` +
-                        `Large files may cause issues with the web interface.`;
-
-                    alert(alertMessage);
+                if (checkForLargeFiles(files, progressSection, cancelButton, submitButton)) {
                     return;
                 }
 
