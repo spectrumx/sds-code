@@ -2836,6 +2836,17 @@ class UploadFilesView(View):
             else CaptureType.DigitalRF
         )
 
+        # Handle text file uploads: if relative_paths is shorter than files,
+        # generate relative paths using just the filename
+        if len(relative_paths) < len(upload_chunk_files):
+            logger.info(
+                "Text file upload detected - generating relative paths for %d files",
+                len(upload_chunk_files),
+            )
+            relative_paths = [f.name for f in upload_chunk_files]
+            if not all_relative_paths:
+                all_relative_paths = relative_paths.copy()
+
         return (
             upload_chunk_files,
             relative_paths,

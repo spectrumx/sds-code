@@ -188,7 +188,9 @@ class FileManager {
 			captureElements.selectedFilesList,
 			captureElements.uploadForm,
 		];
-		if (essentials.every((el) => el)) {
+		// Skip initialization if we're on the files page which has its own custom handler
+		const isFilesPage = window.location.pathname.includes("/users/files/");
+		if (essentials.every((el) => el) && !isFilesPage) {
 			this.initializeCaptureUpload(captureElements);
 		}
 
