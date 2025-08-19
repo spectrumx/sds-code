@@ -895,6 +895,12 @@ class ModalManager {
 		if (!linkElement) return;
 
 		try {
+			// Reset visualize button to hidden state
+			const visualizeBtn = document.getElementById("visualize-btn");
+			if (visualizeBtn) {
+				visualizeBtn.classList.add("d-none");
+			}
+
 			// Get all data attributes from the link with sanitization
 			const data = {
 				uuid: ComponentUtils.escapeHtml(
@@ -1306,7 +1312,7 @@ class ModalManager {
 
 		// Show button only for Digital RF captures
 		if (captureData.captureType === "drf") {
-			visualizeBtn.style.display = "block";
+			visualizeBtn.classList.remove("d-none");
 
 			// Set up click handler
 			visualizeBtn.onclick = () => {
@@ -1314,7 +1320,7 @@ class ModalManager {
 				window.location.href = `/visualizations/waterfall/${captureData.uuid}/`;
 			};
 		} else {
-			visualizeBtn.style.display = "none";
+			visualizeBtn.classList.add("d-none");
 		}
 	}
 
