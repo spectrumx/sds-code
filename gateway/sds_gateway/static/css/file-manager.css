@@ -11,7 +11,27 @@
 		rgba(60, 64, 67, 0.15);
 	--shadow-medium: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 2px 6px 2px
 		rgba(60, 64, 67, 0.15);
-	--transition-default: all 0.2s;
+	--transition-default: background-color 0.2s, box-shadow 0.2s, color 0.2s;
+	
+	/* Spacing and sizing variables */
+	--spacing-xs: 4px;
+	--spacing-sm: 8px;
+	--spacing-md: 12px;
+	--spacing-lg: 16px;
+	--spacing-xl: 24px;
+	--spacing-2xl: 32px;
+	--spacing-3xl: 48px;
+	--spacing-4xl: 96px;
+	--spacing-5xl: 120px;
+	
+	/* Component sizing */
+	--file-list-max-height: 320px;
+	--modal-max-width: 800px;
+	--button-height: 36px;
+	--header-height: 40px;
+	--breadcrumb-height: 32px;
+	--file-card-min-height: 40px;
+	--z-index-sticky: 10;
 }
 
 /* Base Styles */
@@ -20,6 +40,30 @@ body {
 	background-color: var(--color-background-hover);
 	margin: 0;
 	padding: 0;
+}
+
+/* Accessibility */
+/* Focus styles for keyboard navigation */
+.file-card:focus-visible,
+.breadcrumb-item:focus-visible,
+.new-button:focus-visible,
+.upload-zone:focus-visible,
+.dropdown-item:focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
 }
 
 /* Layout */
@@ -46,7 +90,7 @@ body {
 	min-height: 100px; /* Minimum height for empty state */
 }
 
-/* File cards container (removed - unused) */
+
 
 /* Individual file card */
 .file-card {
@@ -59,7 +103,7 @@ body {
 	text-align: left;
 	position: relative;
 	background-color: var(--color-background);
-	min-height: 40px;
+	min-height: var(--file-card-min-height);
 	gap: 12px;
 	border-bottom: 1px solid var(--color-border);
 }
@@ -82,7 +126,7 @@ body {
 	box-shadow: var(--shadow-small);
 }
 
-/* Removed non-clickable-file styles (unused) */
+
 
 .file-card-content {
 	display: flex;
@@ -129,14 +173,14 @@ body {
 	color: #005a9c; /* SpectrumX blue */
 }
 
-/* Removed expanded state styles (unused) */
+
 
 /* Directory hover should also use the same blue */
 .file-card[data-type="directory"]:hover .file-name {
 	color: #005a9c;
 }
 
-/* Consolidated dataset icon rules above; hover handled with other icons */
+
 
 .file-meta {
 	font-size: 13px;
@@ -153,7 +197,6 @@ body {
 }
 
 /* Keep the shared-with icon from shifting the centered date */
-/* Removed tooltip positioning in .file-meta (icon moved to .file-shared) */
 
 .file-shared {
 	font-size: 13px;
@@ -176,14 +219,14 @@ body {
 /* Header row */
 .file-card.header {
 	padding: 12px 16px;
-	height: 40px;
+	height: var(--header-height);
 	border-bottom: 1px solid var(--color-border);
 	font-weight: 500;
 	color: var(--color-text-secondary);
 	cursor: default;
 	position: sticky;
 	top: 0;
-	z-index: 99;
+	z-index: var(--z-index-sticky);
 	background-color: #f8f9fa;
 	border-top-left-radius: 8px;
 	border-top-right-radius: 8px;
@@ -209,7 +252,7 @@ body {
 	color: var(--color-text-secondary);
 }
 
-/* Removed icon-spacer (unused) */
+
 
 /* Breadcrumb Navigation */
 .breadcrumb {
@@ -219,7 +262,7 @@ body {
 	margin: 0;
 	padding: 0;
 	font-size: 14px;
-	height: 32px;
+	height: var(--breadcrumb-height);
 	font-family: var(--font-family);
 	font-weight: 400; /* Add normal font weight */
 }
@@ -230,7 +273,7 @@ body {
 	cursor: pointer;
 	display: flex;
 	align-items: center;
-	height: 32px;
+	height: var(--breadcrumb-height);
 	padding: 0 4px;
 	border-radius: 4px;
 	font-family: var(--font-family);
@@ -254,12 +297,12 @@ body {
 	text-decoration: none;
 }
 
-/* Removed breadcrumb-separator (unused) */
+
 
 /* Empty State */
 .no-files {
 	text-align: center;
-	padding: 120px 20px;
+	padding: var(--spacing-5xl) 20px;
 	color: var(--color-text-secondary);
 	background-color: var(--color-background);
 	margin: 0;
@@ -271,7 +314,7 @@ body {
 }
 
 .empty-folder-icon {
-	font-size: 96px;
+	font-size: var(--spacing-4xl);
 	margin-bottom: 24px;
 	color: var(--color-border);
 }
@@ -338,7 +381,7 @@ body {
 	list-style: none;
 	padding: 0;
 	margin: 0;
-	max-height: 320px; /* taller list for large folder previews */
+	max-height: var(--file-list-max-height); /* taller list for large folder previews */
 	overflow-y: auto;
 	border: 1px solid #dee2e6;
 	border-radius: 4px;
@@ -447,15 +490,11 @@ body {
 	color: var(--color-text-secondary);
 }
 
-/* Removed nested-files block (unused) */
+
 
 .file-card[data-type="directory"] .folder-icon {
-	margin-left: 0; /* Remove extra margin */
+	margin-left: 0;
 }
-
-/* Removed nested section styles (unused) */
-
-/* Removed nested indentation/hover/dividers (unused) */
 
 /* Adjust size of Bootstrap Icons */
 .bi {
@@ -464,7 +503,7 @@ body {
 	vertical-align: middle;
 }
 
-/* Removed duplicate dataset-icon.bi block (already covered under Icons) */
+
 
 .preview-content {
 	max-height: 500px;
@@ -485,17 +524,16 @@ body {
 	color: #212529;
 }
 
-/* Removed imagePreview styles (unused) */
 
-/* Removed file-info (unused) */
+
+
 
 /* Make modal larger for previews */
 #filePreviewModal .modal-dialog {
-	max-width: 800px;
+	max-width: var(--modal-max-width);
 }
 
-/* Remove the navigation style overrides */
-/* Main Navigation styles are now handled by base.html */
+/* Main Navigation styles are handled by base.html */
 
 /* Actions Bar (scoped) */
 .files-actions-bar {
@@ -515,7 +553,7 @@ body {
 	font-family: var(--font-family);
 	font-size: 14px;
 	font-weight: 500;
-	height: 36px;
+	height: var(--button-height);
 	padding: 0 16px;
 	display: flex;
 	align-items: center;
