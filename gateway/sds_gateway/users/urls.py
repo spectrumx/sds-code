@@ -3,7 +3,7 @@ from django.urls import path
 from .api.views import GetAPIKeyView
 from .views import CheckFileExistsView
 from .views import ListCapturesView
-from .views import UploadFilesView
+from .views import UploadCaptureView
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
@@ -44,7 +44,7 @@ urlpatterns = [
         user_download_item_view,
         name="download_item",
     ),
-    path("upload-files/", UploadFilesView.as_view(), name="upload_files"),
+    path("upload-capture/", UploadCaptureView.as_view(), name="upload_capture"),
     # TODO: Use this endpoint when implementing the file upload mode multiplexer
     path("check-file-exists/", CheckFileExistsView.as_view(), name="check_file_exists"),
     # Used by SVI Server to get API key for a user
