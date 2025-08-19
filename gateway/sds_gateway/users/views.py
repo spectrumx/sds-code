@@ -9,7 +9,6 @@ from typing import Any
 from typing import cast
 
 import h5py  # type: ignore[import-not-found]
-
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
