@@ -4,8 +4,9 @@ set -o errexit
 set -o nounset
 
 
-until timeout 10 celery -A config.celery_app inspect ping; do
+until celery -A config.celery_app inspect ping; do
     >&2 echo "Celery workers not available"
+    sleep 10
 done
 
 echo 'Starting flower'

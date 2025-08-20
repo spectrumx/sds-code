@@ -11,6 +11,8 @@ Metadata management and web interface for SDS.
     + [Debugging tips](#debugging-tips)
     + [Production deploy](#production-deploy)
     + [OpenSearch Query Tips](#opensearch-query-tips)
+    + [More docs](#more-docs)
+        + [Development](#development)
 
 ## Development environment
 
@@ -501,3 +503,9 @@ Here are some useful examples of advanced queries one might want to make to the 
     ```
 
    More information about `geo_distance` queries can be found [here](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geodistance/).
+
+## More docs
+
+### Development
+
++ [Handling migration conflicts](./docs/dev-notes.md#handling-migration-conflicts)

@@ -86,7 +86,7 @@ class TestUserRedirectView:
     def test_get_redirect_url(self, user: User, rf: RequestFactory) -> None:
         """Expects the user to be redirected to the API key generation page."""
         view = UserRedirectView()
-        redirect_to: str = reverse("users:generate_api_key")
+        redirect_to: str = reverse("users:view_api_key")
         request: WSGIRequest = rf.get("/fake-url")
         request.user = user
 

@@ -7,6 +7,7 @@ from typing import cast
 
 from django.db import transaction
 from django.db.models import QuerySet
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample
@@ -18,6 +19,7 @@ from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -41,8 +43,12 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
 from sds_gateway.api_methods.serializers.capture_serializers import (
+    PostProcessedDataSerializer,
+)
+from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
+from sds_gateway.api_methods.tasks import start_capture_post_processing
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
@@ -183,6 +189,33 @@ class CaptureViewSet(viewsets.ViewSet):
                     f"files to capture '{capture.uuid}'",
                 )
 
+    def _trigger_post_processing(self, capture: Capture) -> None:
+        """Trigger post-processing for a DigitalRF capture after OpenSearch indexing.
+
+        Args:
+            capture: The capture to trigger post-processing for
+        """
+        if capture.capture_type != CaptureType.DigitalRF:
+            return
+
+        log.info(f"Triggering post-processing for DigitalRF capture: {capture.uuid}")
+
+        try:
+            # Use the Celery task for post-processing to ensure proper async execution
+            # Launch the post-processing task asynchronously
+            result = start_capture_post_processing.delay(
+                str(capture.uuid), ["waterfall"]
+            )
+            log.info(
+                f"Launched post-processing task for capture {capture.uuid}, "
+                f"task_id: {result.id}"
+            )
+
+        except Exception as e:  # noqa: BLE001
+            log.error(
+                f"Failed to launch post-processing task for capture {capture.uuid}: {e}"
+            )
+
     @extend_schema(
         request=CapturePostSerializer,
         responses={
@@ -286,12 +319,21 @@ class CaptureViewSet(viewsets.ViewSet):
             "capture_candidate": capture_candidate,
         }
 
-    def _handle_capture_creation_errors(
-        self, capture: Capture, error: Exception
-    ) -> Response:
-        """Handle errors during capture creation and cleanup."""
-        if isinstance(error, UnknownIndexError):
-            user_msg = f"Unknown index: '{error}'. Try recreating this capture."
+        try:
+            self.ingest_capture(
+                capture=capture,
+                drf_channel=drf_channel,
+                rh_scan_group=rh_scan_group,
+                requester=requester,
+                top_level_dir=requested_top_level_dir,
+            )
+
+            # Use transaction.on_commit to ensure the task is queued after the
+            # transaction is committed
+            transaction.on_commit(lambda: self._trigger_post_processing(capture))
+
+        except UnknownIndexError as e:
+            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
             server_msg = (
                 f"Unknown index: '{error}'. Try running the init_indices "
                 "subcommand if this is index should exist."
@@ -635,6 +677,16 @@ class CaptureViewSet(viewsets.ViewSet):
                 requester=owner,
                 top_level_dir=requested_top_level_dir,
             )
+
+            # Trigger post-processing for DigitalRF captures after OpenSearch indexing
+            # is complete
+            if target_capture.capture_type == CaptureType.DigitalRF:
+                # Use transaction.on_commit to ensure the task is queued after the
+                # transaction is committed
+                transaction.on_commit(
+                    lambda: self._trigger_post_processing(target_capture)
+                )
+
         except UnknownIndexError as e:
             user_msg = f"Unknown index: '{e}'. Try recreating this capture."
             server_msg = (
@@ -780,6 +832,228 @@ class CaptureViewSet(viewsets.ViewSet):
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get"])
+    @extend_schema(
+        summary="Get post-processing status",
+        description="Get the status of post-processing for a capture",
+        responses={
+            200: OpenApiResponse(
+                description="Post-processing status",
+                examples=[
+                    OpenApiExample(
+                        "Success",
+                        value={
+                            "capture_uuid": "123e4567-e89b-12d3-a456-426614174000",
+                            "post_processed_data": [
+                                {
+                                    "id": 1,
+                                    "processing_type": "waterfall",
+                                    "processing_status": "completed",
+                                    "processed_at": "2024-01-01T12:00:00Z",
+                                    "is_ready": True,
+                                }
+                            ],
+                        },
+                    )
+                ],
+            ),
+            404: OpenApiResponse(description="Capture not found"),
+        },
+    )
+    def post_processing_status(self, request, pk=None):
+        """Get post-processing status for a capture."""
+        try:
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
+
+            # Get all post-processed data for this capture
+            processed_data = capture.post_processed_data.all().order_by(
+                "processing_type", "-created_at"
+            )
+
+            return Response(
+                {
+                    "capture_uuid": str(capture.uuid),
+                    "post_processed_data": PostProcessedDataSerializer(
+                        processed_data, many=True
+                    ).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    @action(detail=True, methods=["get"])
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="processing_type",
+                description=(
+                    "Type of post-processed data to download (e.g., 'waterfall')"
+                ),
+                required=True,
+                type=str,
+                location=OpenApiParameter.QUERY,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Post-processed data file"),
+            400: OpenApiResponse(description="Bad Request"),
+            404: OpenApiResponse(
+                description="Capture or post-processed data not found"
+            ),
+        },
+        summary="Download post-processed data",
+        description="Download a post-processed data file for a capture",
+    )
+    def download_post_processed_data(self, request, pk=None):
+        """Download post-processed data file for a capture."""
+        try:
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
+            processing_type = request.query_params.get("processing_type")
+
+            if not processing_type:
+                return Response(
+                    {"error": "processing_type parameter is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the most recent post-processed data for this capture and
+            # processing type
+            processed_data = (
+                capture.post_processed_data.filter(
+                    processing_type=processing_type,
+                    processing_status="completed",
+                )
+                .order_by("-created_at")
+                .first()
+            )
+
+            if not processed_data:
+                return Response(
+                    {
+                        "error": (
+                            f"No completed {processing_type} data found for this "
+                            "capture"
+                        )
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if not processed_data.data_file:
+                return Response(
+                    {
+                        "error": (
+                            f"Post-processed data file not found for {processing_type}"
+                        )
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Return the file as a download response
+            response = FileResponse(
+                processed_data.data_file, content_type="application/octet-stream"
+            )
+            response["Content-Disposition"] = (
+                f'attachment; filename="{processed_data.data_file.name.split("/")[-1]}"'
+            )
+            return response  # noqa: TRY300
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="processing_type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Type of post-processing (e.g., 'waterfall')",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Post-processed data metadata"),
+            400: OpenApiResponse(description="Bad Request"),
+            404: OpenApiResponse(
+                description="Capture or post-processed data not found"
+            ),
+        },
+        summary="Get post-processed data metadata",
+        description="Get metadata for post-processed data",
+    )
+    @action(detail=True, methods=["get"])
+    def get_post_processed_metadata(self, request, pk=None):
+        """Get metadata for post-processed data."""
+        try:
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
+            processing_type = request.query_params.get("processing_type")
+
+            if not processing_type:
+                return Response(
+                    {"error": "processing_type parameter is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the most recent post-processed data for this capture and
+            # processing type
+            processed_data = (
+                capture.post_processed_data.filter(
+                    processing_type=processing_type,
+                    processing_status="completed",
+                )
+                .order_by("-created_at")
+                .first()
+            )
+
+            if not processed_data:
+                return Response(
+                    {
+                        "error": (
+                            f"No completed {processing_type} data found for this "
+                            f"capture"
+                        )
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Return the metadata
+            return Response(
+                {
+                    "metadata": processed_data.metadata,
+                    "processing_type": processed_data.processing_type,
+                    "created_at": processed_data.created_at,
+                    "processing_parameters": processed_data.processing_parameters,
+                }
+            )
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
 
 def _check_capture_creation_constraints(

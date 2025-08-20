@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import uuid
+from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import cast
 from unittest.mock import patch
@@ -16,8 +17,12 @@ from rest_framework.test import APIClient
 from rest_framework.test import APITestCase
 
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
+from sds_gateway.api_methods.helpers.reconstruct_file_tree import (
+    _get_list_of_capture_files,
+)
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
@@ -1015,6 +1020,158 @@ class CaptureTestCases(APITestCase):
         data = response.json()
         assert data["success"] is False
         assert "not found or access denied" in data["message"].lower()
+
+    def test_directory_matching_avoids_partial_matches(self) -> None:
+        """Test that directory matching doesn't match partial directory names."""
+
+        # This test creates files in directories that could cause partial matching
+        # issues:
+        # - files/user_email/example/ (should match when searching for "example")
+        # - files/user_email/example-fixed/ (should NOT match when searching for
+        #   "example")
+        # - files/user_email/rh-example/ (should match when searching for "rh-example")
+        # - files/user_email/rh-example-fixed/ (should NOT match when searching for
+        #   "rh-example")
+
+        base_dir = f"files/{self.user.email}"
+
+        # Create files in "example" directory
+        example_dir = f"{base_dir}/example"
+        example_file = File.objects.create(
+            name="test.h5",
+            directory=example_dir,
+            media_type="application/octet-stream",
+            size=1024,
+            owner=self.user,
+        )
+
+        # Create files in "example-fixed" directory (should NOT be matched when
+        # searching for "example")
+        example_fixed_dir = f"{base_dir}/example-fixed"
+        example_fixed_file = File.objects.create(
+            name="test.h5",
+            directory=example_fixed_dir,
+            media_type="application/octet-stream",
+            size=1024,
+            owner=self.user,
+        )
+
+        # Test that searching for "example" directory only matches files in "example"
+        # and its subdirectories but NOT files in "example-fixed"
+        virtual_top_dir = Path(example_dir)
+
+        # For DigitalRF, we need to create files with the channel name in the directory
+        # path. Let's create files with the proper channel structure
+        channel_name = "test_channel"
+        example_with_channel_dir = f"{example_dir}/{channel_name}"
+        example_with_channel_file = File.objects.create(
+            name="test.h5",
+            directory=example_with_channel_dir,
+            media_type="application/octet-stream",
+            size=1024,
+            owner=self.user,
+        )
+
+        # Also create a file in example-fixed with the channel to test it's excluded
+        example_fixed_with_channel_dir = f"{example_fixed_dir}/{channel_name}"
+        example_fixed_with_channel_file = File.objects.create(
+            name="test.h5",
+            directory=example_fixed_with_channel_dir,
+            media_type="application/octet-stream",
+            size=1024,
+            owner=self.user,
+        )
+
+        matching_files = _get_list_of_capture_files(
+            capture_type=CaptureType.DigitalRF,
+            virtual_top_dir=virtual_top_dir,
+            owner=self.user,
+            drf_channel=channel_name,
+            verbose=True,
+        )
+
+        # Should find files in "example" directory under the channel name subdirectory
+        expected_files = {
+            example_with_channel_file,
+        }
+        actual_files = set(matching_files)
+
+        assert actual_files == expected_files, (
+            f"Expected files {expected_files}, but got {actual_files}. "
+            "Files in 'example-fixed' directory should not be matched "
+            "when searching for 'example'."
+        )
+
+        # Explicitly verify that ALL unwanted files are NOT included
+        unwanted_files = {
+            example_file,  # File in example/ without channel
+            example_fixed_file,  # File in example-fixed/ without channel
+            example_fixed_with_channel_file,  # File in example-fixed/ with channel
+        }
+
+        for unwanted_file in unwanted_files:
+            assert unwanted_file not in actual_files, (
+                f"File '{unwanted_file.name}' in directory '{unwanted_file.directory}' "
+                f"should NOT be matched when searching for '{virtual_top_dir}'"
+            )
+
+        # Test RadioHound case as well
+        # Create RadioHound files with similar directory names
+        rh_example_dir = f"{base_dir}/rh-example"
+        rh_example_file = File.objects.create(
+            name="test.rh.json",
+            directory=rh_example_dir,
+            media_type="application/json",
+            size=1024,
+            owner=self.user,
+        )
+
+        rh_example_fixed_dir = f"{base_dir}/rh-example-fixed"
+        rh_example_fixed_file = File.objects.create(
+            name="test.rh.json",
+            directory=rh_example_fixed_dir,
+            media_type="application/json",
+            size=1024,
+            owner=self.user,
+        )
+
+        # Test RadioHound directory matching
+        rh_virtual_top_dir = Path(rh_example_dir)
+
+        rh_matching_files = _get_list_of_capture_files(
+            capture_type=CaptureType.RadioHound,
+            virtual_top_dir=rh_virtual_top_dir,
+            owner=self.user,
+            verbose=True,
+        )
+
+        # Should only find files in "rh-example" directory, not "rh-example-fixed"
+        expected_rh_files = {rh_example_file}
+        actual_rh_files = set(rh_matching_files)
+
+        assert actual_rh_files == expected_rh_files, (
+            f"Expected RadioHound files {expected_rh_files}, but got "
+            f"{actual_rh_files}. Files in 'rh-example-fixed' directory should not be "
+            "matched when searching for 'rh-example'."
+        )
+
+        # Explicitly verify that the unwanted RadioHound file is NOT included
+        unwanted_rh_files = {rh_example_fixed_file}
+
+        for unwanted_file in unwanted_rh_files:
+            assert unwanted_file not in actual_rh_files, (
+                f"RadioHound file '{unwanted_file.name}' in directory "
+                f"'{unwanted_file.directory}' should NOT be matched when searching for "
+                f"'{rh_virtual_top_dir}'"
+            )
+
+        # Clean up test files to avoid ProtectedError in tearDown
+        File.objects.filter(
+            owner=self.user, directory__startswith=f"files/{self.user.email}/example"
+        ).delete()
+        File.objects.filter(
+            owner=self.user, directory__startswith=f"files/{self.user.email}/rh-example"
+        ).delete()
 
 
 class OpenSearchErrorTestCases(APITestCase):

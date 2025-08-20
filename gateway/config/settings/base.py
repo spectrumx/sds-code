@@ -149,6 +149,9 @@ THIRD_PARTY_APPS: list[str] = [
     "corsheaders",
     "drf_spectacular",
     "webpack_loader",
+    "django_cog.apps.DjangoCogConfig",
+    "nested_inline",
+    "django_linear_migrations",
 ]
 
 LOCAL_APPS: list[str] = [

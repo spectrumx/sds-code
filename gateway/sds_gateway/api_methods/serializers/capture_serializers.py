@@ -12,6 +12,7 @@ from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_meta
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import PostProcessedData
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 
 
@@ -25,6 +26,41 @@ class FileCaptureListSerializer(serializers.ModelSerializer[File]):
         ]
 
 
+class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]):
+    """Serializer for PostProcessedData model."""
+
+    class Meta:
+        model = PostProcessedData
+        fields = [
+            "uuid",
+            "capture",
+            "processing_type",
+            "processing_parameters",
+            "data_file",
+            "metadata",
+            "processing_status",
+            "processing_error",
+            "processed_at",
+            "pipeline_id",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "uuid",
+            "capture",
+            "processing_type",
+            "processing_parameters",
+            "data_file",
+            "metadata",
+            "processing_status",
+            "processing_error",
+            "processed_at",
+            "pipeline_id",
+            "created_at",
+            "updated_at",
+        ]
+
+
 class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     owner = UserGetSerializer()
     capture_props = serializers.SerializerMethodField()
@@ -35,6 +71,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
+    post_processed_data = serializers.SerializerMethodField()
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
@@ -108,6 +145,14 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     def get_capture_type_display(self, capture: Capture) -> str:
         """Get the display value for the capture type."""
         return capture.get_capture_type_display()
+
+    @extend_schema_field(PostProcessedDataSerializer(many=True))
+    def get_post_processed_data(self, obj: Capture) -> Any:
+        """Get all post-processed data for this capture."""
+        processed_data = obj.post_processed_data.all().order_by(
+            "processing_type", "-created_at"
+        )
+        return PostProcessedDataSerializer(processed_data, many=True).data
 
     class Meta:
         model = Capture

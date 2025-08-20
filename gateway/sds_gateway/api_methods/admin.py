@@ -39,3 +39,42 @@ class UserSharePermissionAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissi
     search_fields = ("item_uuid", "item_type", "shared_with", "owner")
     list_filter = ("item_type", "is_enabled")
     ordering = ("-updated_at",)
+
+
+@admin.register(models.PostProcessedData)
+class PostProcessedDataAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
+    list_display = (
+        "processing_type",
+        "capture",
+        "processing_status",
+        "processed_at",
+        "pipeline_id",
+    )
+    search_fields = ("uuid", "processing_type", "capture__name", "pipeline_id")
+    list_filter = ("processing_type", "processing_status", "processed_at")
+    readonly_fields = ("uuid", "created_at", "updated_at", "processed_at")
+    ordering = ("-created_at",)
+    fieldsets = (
+        (
+            "Basic Information",
+            {"fields": ("uuid", "capture", "processing_type", "processing_status")},
+        ),
+        (
+            "Processing Details",
+            {
+                "fields": (
+                    "processing_parameters",
+                    "pipeline_id",
+                    "processed_at",
+                )
+            },
+        ),
+        (
+            "Data & Metadata",
+            {"fields": ("data_file", "metadata", "processing_error")},
+        ),
+        (
+            "Timestamps",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )

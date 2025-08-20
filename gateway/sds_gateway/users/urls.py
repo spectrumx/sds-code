@@ -8,13 +8,16 @@ from .views import FileH5InfoView
 from .views import FilesView
 from .views import ListCapturesView
 from .views import UploadCaptureView
+from .views import generate_api_key_form_view
+from .views import new_api_key_view
+from .views import revoke_api_key_view
+from .views import user_api_key_view
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
 from .views import user_detail_view
 from .views import user_download_item_view
 from .views import user_file_detail_view
-from .views import user_generate_api_key_view
 from .views import user_group_captures_view
 from .views import user_redirect_view
 from .views import user_share_item_view
@@ -26,8 +29,9 @@ urlpatterns = [
     path("~redirect/", view=user_redirect_view, name="redirect"),
     path("~update/", view=user_update_view, name="update"),
     path("<int:pk>/", view=user_detail_view, name="detail"),
-    path("generate-api-key/", user_generate_api_key_view, name="generate_api_key"),
     path("files/", FilesView.as_view(), name="files"),
+    path("view-api-key/", user_api_key_view, name="view_api_key"),
+    path("new-api-key/", new_api_key_view, name="new_api_key"),
     path("file-list/", ListCapturesView.as_view(), name="file_list"),
     path("file-list/api/", user_captures_api_view, name="captures_api"),
     path("file-detail/<uuid:uuid>/", user_file_detail_view, name="file_detail"),
@@ -62,4 +66,10 @@ urlpatterns = [
     path("check-file-exists/", CheckFileExistsView.as_view(), name="check_file_exists"),
     # Used by SVI Server to get API key for a user
     path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),
+    path("revoke-api-key/", revoke_api_key_view, name="revoke_api_key"),
+    path(
+        "generate-api-key-form/",
+        generate_api_key_form_view,
+        name="generate_api_key_form",
+    ),
 ]

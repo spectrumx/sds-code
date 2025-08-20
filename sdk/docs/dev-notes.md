@@ -60,4 +60,8 @@ There are many benefits of treating directories as attributes (assume `<path>` e
 
 ## Supported Python Versions
 
-Maintaining older Python versions has a cost. The SpectrumX SDK aims to support the 2 most recent stable versions of Python at any given time, dropping support to Python versions 3 years after their initial release, in accordance to the [Scientific Python Ecosystem Coordination recommendation](https://scientific-python.org/specs/spec-0000/). With our first release being after Python 3.13 stable is out, the plan is to support Python versions 3.13 and 3.12 at launch. This may be revisited as the project matures.
+Maintaining older Python versions has a cost. The SpectrumX SDK aims to support the 4 most recent stable versions of Python at any given time, dropping support to the oldest Python versions, in accordance to the [Scientific Python Ecosystem Coordination recommendation](https://scientific-python.org/specs/spec-0000/).
+
+Current SDK support is for Python 3.10, 3.11, 3.12, and 3.13. When support to a new Python version becomes stable, support to the oldest interpreter will be dropped in new releases. We plan to support Python 3.14 as soon as the first stable release is out (2025-10) and our dependencies do the same, which will supercede 3.10.
+
++ [Python release calendar](https://devguide.python.org/versions/)

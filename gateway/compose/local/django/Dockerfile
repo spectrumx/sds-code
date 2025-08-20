@@ -82,6 +82,11 @@ COPY ./compose/local/django/start /start
 RUN sed -i 's/\r$//g' /start
 RUN chmod +x /start
 
+# Copy Celery scripts
+COPY ./compose/local/django/celery/flower/start /flower-start
+RUN sed -i 's/\r$//g' /flower-start
+RUN chmod +x /flower-start
+
 # copy application code to WORKDIR
 COPY . ${APP_HOME}
 

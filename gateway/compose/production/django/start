@@ -8,8 +8,12 @@ APP_DIR="/app"
 function echo_wait_and_quit() {
     local message="$1"
     echo >&2 "$message"
-    echo >&2 "Waiting for manual input before exiting..."
+
+    # this wait may be useful for manually running manage.py or
+    # other shell commands in the container in case of failure:
+    echo -e >&2 "\033[0;31mGiving time for manual input before exiting...\033[0m"
     sleep 3600
+
     exit 1
 }
 
@@ -20,7 +24,9 @@ function main() {
     }
 
     echo "Collecting static files..."
-    python manage.py collectstatic --noinput
+    python manage.py collectstatic --noinput || {
+        echo_wait_and_quit "Failed to collect static files."
+    }
 
     echo "Applying database migrations..."
     python manage.py migrate --noinput || {
@@ -37,10 +43,17 @@ function main() {
         echo_wait_and_quit "Failed to initialize SVI server token."
     }
 
+    echo "Setting up django-cog pipelines..."
+    python manage.py setup_pipelines --strategy=skip-if-exists || {
+        echo_wait_and_quit "Failed to set up django-cog pipelines."
+    }
+
     echo "Starting Gunicorn server..."
     exec /usr/local/bin/gunicorn config.asgi \
         --bind 0.0.0.0:18000 \
-        --chdir=/app -k uvicorn_worker.UvicornWorker
+        --chdir=/app -k uvicorn_worker.UvicornWorker || {
+            echo_wait_and_quit "Gunicorn server failed."
+        }
 
 }
 
