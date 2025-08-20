@@ -43,7 +43,7 @@ class Endpoints(StrEnum):
 
     AUTH = "/auth"
     CAPTURES = "/assets/captures"
-    DATASETS = "/assets/datasets"
+    DATASET_FILES = "/assets/datasets/{uuid}/files"
     EXPERIMENTS = "/assets/experiments"
     FILE_CONTENTS_CHECK = "/assets/utils/check_contents_exist"
     FILE_DOWNLOAD = "/assets/files/{uuid}/download"
@@ -608,9 +608,8 @@ class GatewayClient:
         """
         response = self._request(
             method=HTTPMethods.GET,
-            endpoint=Endpoints.DATASETS,
-            asset_id=dataset_uuid.hex,
-            endpoint_args={"files": ""},
+            endpoint=Endpoints.DATASET_FILES,
+            endpoint_args={"uuid": dataset_uuid.hex},
             params={"page": page, "page_size": page_size},
             verbose=verbose,
         )
