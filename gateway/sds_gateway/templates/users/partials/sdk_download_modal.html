@@ -36,6 +36,7 @@
                         <pre id="python-code" class="bg-light p-3 rounded border"><code class="language-python">from spectrumx import Client
 from spectrumx.errors import SDSError
 from pathlib import Path
+from uuid import UUID
 
 # Initialize the client with your SDS host
 client = Client(
@@ -46,7 +47,7 @@ client = Client(
 
 # when in dry-run (default), no changes are made to the SDS or the local filesystem
 # to enable the changes, set dry_run to False, as in:
-# client.dry_run = False
+client.dry_run = False  # ⚠️ This is required to actually download files!
 
 # authenticate using either the token from
 # the .env file or in the config passed in
@@ -55,8 +56,12 @@ client.authenticate()
 # Download a dataset by UUID
 try:
     # Specify the dataset UUID and local download path
-    dataset_uuid = "DATASET_UUID_PLACEHOLDER" # Will be replaced with actual UUID
+    dataset_uuid_str = "DATASET_UUID_PLACEHOLDER"  # Will be replaced with actual UUID
+    dataset_uuid = UUID(dataset_uuid_str)  # Convert to UUID object
     download_path = Path("./downloaded_dataset")
+
+    print(f"Downloading dataset: {dataset_uuid_str}")
+    print(f"Download path: {download_path}")
 
     # Download all files in the dataset
     results = client.download_dataset(
@@ -68,8 +73,8 @@ try:
     )
 
     # Check results for any errors
-    successful_downloads = [r for r in results if r.value is not None]
-    failed_downloads = [r for r in results if r.exception is not None]
+    successful_downloads = [r for r in results if r]  # Result objects are truthy if successful
+    failed_downloads = [r for r in results if not r]  # Result objects are falsy if failed
 
     print(f"Download completed!")
     print(f"Successfully downloaded: {len(successful_downloads)} files")
@@ -78,10 +83,14 @@ try:
     if failed_downloads:
         print("\nFailed downloads:")
         for result in failed_downloads:
-            print(f"  - {result.error_info.get('file', {}).get('name', 'Unknown')}: {result.exception}")
+            file_info = result.error_info.get('file', {})
+            file_name = file_info.get('name', 'Unknown') if isinstance(file_info, dict) else 'Unknown'
+            print(f"  - {file_name}: {result.exception_or('Unknown error')}")
 
 except SDSError as e:
-    print(f"Error downloading dataset: {e}")</code></pre>
+    print(f"Error downloading dataset: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}") </code></pre>
                     </div>
                     <!-- Additional Information -->
                     <div class="alert alert-info">
