@@ -238,7 +238,7 @@ class ReconstructRHFileTreeTest(APITestCase):
                 )
 
             # Verify the error message contains the expected text
-            error_message = str(context.exception)
+            error_message = str(context.value)
             assert "Insufficient disk space" in error_message
             assert "Required: 1073741824 bytes" in error_message
 
