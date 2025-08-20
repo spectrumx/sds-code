@@ -1,6 +1,15 @@
 class FileManager {
 	constructor() {
+		// Check browser compatibility before proceeding
+		if (!this.checkBrowserSupport()) {
+			this.showError("Your browser doesn't support required features. Please use a modern browser.", null, 'browser-compatibility');
+			return;
+		}
+
 		this.droppedFiles = null;
+		this.boundHandlers = new Map(); // Track bound event handlers for cleanup
+		this.activeModals = new Set(); // Track active modals
+		
 		// Prevent browser from navigating away when user drags files over the whole window
 		this.addGlobalDropGuards();
 		this.init();
@@ -186,7 +195,7 @@ class FileManager {
 		// Get container and data
 		this.container = document.querySelector(".files-container");
 		if (!this.container) {
-			this.showError("Files container not found");
+			this.showError("Files container not found", null, 'initialization');
 			return;
 		}
 
@@ -300,7 +309,7 @@ class FileManager {
 		} = elements;
 
 		if (!uploadZone || !fileInput || !selectedFilesList || !uploadForm) {
-			this.showError("Upload elements not found");
+			this.showError("Upload elements not found", null, 'upload-initialization');
 			return;
 		}
 
@@ -405,10 +414,10 @@ class FileManager {
 				uploadText.classList.add("d-none");
 				uploadSpinner.classList.remove("d-none");
 
-				// Get CSRF token from DOM and add it when present
-				const csrfEl = document.querySelector("[name=csrfmiddlewaretoken]");
-				if (csrfEl?.value) {
-					formData.append("csrfmiddlewaretoken", csrfEl.value);
+				// Get CSRF token and add it when present
+				const csrfToken = this.getCsrfToken();
+				if (csrfToken) {
+					formData.append("csrfmiddlewaretoken", csrfToken);
 				}
 
 				// Add capture type and channels from the form
@@ -445,7 +454,8 @@ class FileManager {
 					files,
 				});
 			} catch (error) {
-				this.showError(`Upload failed: ${error.message}`);
+				const userMessage = this.getUserFriendlyErrorMessage(error, 'capture-upload');
+				this.showError(`Upload failed: ${userMessage}`, error, 'capture-upload');
 			} finally {
 				submitBtn.disabled = false;
 				uploadText.classList.remove("d-none");
@@ -474,7 +484,8 @@ class FileManager {
 
 				await this.handleUpload(formData, submitBtn, "uploadFileModal");
 			} catch (error) {
-				this.showError(`Upload failed: ${error.message}`);
+				const userMessage = this.getUserFriendlyErrorMessage(error, 'text-upload');
+				this.showError(`Upload failed: ${userMessage}`, error, 'text-upload');
 			} finally {
 				submitBtn.disabled = false;
 				uploadText.classList.remove("d-none");
@@ -497,44 +508,36 @@ class FileManager {
 					: e.target.closest(".download-capture-btn");
 				const captureUuid = btn.dataset.captureUuid;
 				const captureName = btn.dataset.captureName || captureUuid;
+				
+				// Validate UUID before proceeding
+				if (!this.isValidUuid(captureUuid)) {
+					console.warn('Invalid capture UUID:', captureUuid);
+					this.showError('Invalid capture identifier', null, 'download');
+					return;
+				}
+				
+				// Validate UUID before proceeding
+				if (!this.isValidUuid(captureUuid)) {
+					console.warn('Invalid capture UUID:', captureUuid);
+					this.showError('Invalid capture identifier', null, 'download');
+					return;
+				}
+				
 				// Update modal text
 				const nameEl = document.getElementById("downloadCaptureName");
 				if (nameEl) nameEl.textContent = captureName;
-				// Silently ignore if element is missing in DOM variant
-				// Show modal using components.js helper or fallback
-				if (
-					window.components &&
-					typeof window.components.openCustomModal === "function"
-				) {
-					window.components.openCustomModal("downloadModal");
-				} else if (typeof openCustomModal === "function") {
-					openCustomModal("downloadModal");
-				} else if (window.openCustomModal) {
-					window.openCustomModal("downloadModal");
-				} else {
-					const m = document.getElementById("downloadModal");
-					if (m) m.style.display = "block";
-				}
+				
+				// Show modal using helper method
+				this.openModal("downloadModal");
+				
 				// Confirm handler
 				const confirmBtn = document.getElementById("confirmDownloadBtn");
 				if (confirmBtn) {
 					const onConfirm = () => {
-						if (
-							window.components &&
-							typeof window.components.closeCustomModal === "function"
-						) {
-							window.components.closeCustomModal("downloadModal");
-						} else if (typeof closeCustomModal === "function") {
-							closeCustomModal("downloadModal");
-						} else if (window.closeCustomModal) {
-							window.closeCustomModal("downloadModal");
-						} else {
-							const m = document.getElementById("downloadModal");
-							if (m) m.style.display = "none";
-						}
-						// Use unified download handler - much simpler!
+						this.closeModal("downloadModal");
+						
+						// Use unified download handler if available
 						if (window.components?.handleDownload) {
-							// Create a dummy button element for the unified handler
 							const dummyButton = document.createElement("button");
 							dummyButton.style.display = "none";
 							window.components.handleDownload(
@@ -558,44 +561,26 @@ class FileManager {
 					? e.target
 					: e.target.closest(".download-dataset-btn");
 				const datasetUuid = btn.dataset.datasetUuid;
-				if (
-					window.components &&
-					typeof window.components.openCustomModal === "function"
-				) {
-					window.components.openCustomModal("downloadModal");
-				} else if (typeof openCustomModal === "function") {
-					openCustomModal("downloadModal");
-				} else if (window.openCustomModal) {
-					window.openCustomModal("downloadModal");
-				} else {
-					const m = document.getElementById("downloadModal");
-					if (m) m.style.display = "block";
+				
+				// Validate UUID before proceeding
+				if (!this.isValidUuid(datasetUuid)) {
+					console.warn('Invalid dataset UUID:', datasetUuid);
+					this.showError('Invalid dataset identifier', null, 'download');
+					return;
 				}
+				// Show modal using helper method
+				this.openModal("downloadModal");
 				const confirmBtn = document.getElementById("confirmDownloadBtn");
 				if (confirmBtn) {
 					const onConfirm = () => {
-						if (
-							window.components &&
-							typeof window.components.closeCustomModal === "function"
-						) {
-							window.components.closeCustomModal("downloadModal");
-						} else if (typeof closeCustomModal === "function") {
-							closeCustomModal("downloadModal");
-						} else if (window.closeCustomModal) {
-							window.closeCustomModal("downloadModal");
-						} else {
-							const m = document.getElementById("downloadModal");
-							if (m) m.style.display = "none";
-						}
+						this.closeModal("downloadModal");
 						fetch(
 							`/users/download-item/dataset/${encodeURIComponent(datasetUuid)}/`,
 							{
 								method: "POST",
 								headers: {
 									"Content-Type": "application/json",
-									"X-CSRFToken":
-										document.querySelector("[name=csrfmiddlewaretoken]")
-											?.value || "",
+									"X-CSRFToken": this.getCsrfToken(),
 								},
 							},
 						)
@@ -627,16 +612,8 @@ class FileManager {
 				const card = fileDownloadLink.closest(".file-card");
 				const fileName =
 					card?.querySelector(".file-name")?.textContent?.trim() || "File";
-				// Use inline banner if available; otherwise, aria-live region
-				if (
-					window.components &&
-					typeof window.components.showSuccess === "function"
-				) {
-					window.components.showSuccess(`Download starting: ${fileName}`);
-				} else {
-					const live = document.getElementById("aria-live-region");
-					if (live) live.textContent = `Download starting: ${fileName}`;
-				}
+				// Use helper method to show success message
+				this.showSuccessMessage(`Download starting: ${fileName}`);
 				const href = fileDownloadLink.getAttribute("href");
 				try {
 					window.open(href, "_blank");
@@ -663,10 +640,7 @@ class FileManager {
 				const xhr = new XMLHttpRequest();
 				xhr.open("POST", "/users/upload-files/");
 				xhr.withCredentials = true;
-				xhr.setRequestHeader(
-					"X-CSRFToken",
-					document.querySelector("[name=csrfmiddlewaretoken]")?.value || "",
-				);
+				xhr.setRequestHeader("X-CSRFToken", this.getCsrfToken());
 				xhr.setRequestHeader("Accept", "application/json");
 
 				// Progress UI elements + smoothing state
@@ -778,18 +752,19 @@ class FileManager {
 				throw new Error(message);
 			}
 		} catch (error) {
+			const userMessage = this.getUserFriendlyErrorMessage(error, 'upload-handler');
 			try {
 				sessionStorage.setItem(
 					"filesAlert",
 					JSON.stringify({
-						message: `Upload failed: ${error.message}`,
+						message: `Upload failed: ${userMessage}`,
 						type: "error",
 					}),
 				);
 				// Reload to display the banner via template startup script
 				window.location.reload();
 			} catch (_) {
-				this.showError(`Upload failed: ${error.message}`);
+				this.showError(`Upload failed: ${userMessage}`, error, 'upload-handler');
 			}
 		} finally {
 			// Reset UI
@@ -830,6 +805,8 @@ class FileManager {
 
 	// File preview methods
 	async showTextFilePreview(fileUuid, fileName) {
+		const startTime = performance.now();
+		
 		try {
 			// Check if this is a file we should preview
 			if (!this.shouldPreviewFile(fileName)) {
@@ -839,109 +816,27 @@ class FileManager {
 
 			const content = await this.fetchFileContent(fileUuid);
 			this.showPreviewModal(fileName, content);
+			
+			// Log performance
+			const duration = this.measurePerformance('file-preview', startTime);
+			this.logPerformance('file-preview', duration, fileName);
 		} catch (error) {
 			if (error.message === "File too large to preview") {
 				this.showError(
 					"File is too large to preview. Please download it instead.",
+					error,
+					'file-preview'
 				);
 			} else {
-				this.showError(error.message || "Failed to load file preview");
+				const userMessage = this.getUserFriendlyErrorMessage(error, 'file-preview');
+				this.showError(userMessage, error, 'file-preview');
 			}
 		}
 	}
 
 	shouldPreviewFile(fileName) {
 		const extension = this.getFileExtension(fileName);
-		const lowerName = fileName.toLowerCase();
-
-		// Don't preview these file types
-		const nonPreviewableExtensions = [
-			"h5",
-			"hdf5",
-			"hdf",
-			"nc",
-			"netcdf",
-			"mat",
-			"sav",
-			"rdata",
-			"rds",
-			"bin",
-			"dat",
-			"raw",
-			"img",
-			"iso",
-			"dmg",
-			"pkg",
-			"deb",
-			"rpm",
-			"zip",
-			"tar",
-			"gz",
-			"bz2",
-			"7z",
-			"rar",
-			"exe",
-			"dll",
-			"so",
-			"dylib",
-			"pdb",
-			"obj",
-			"lib",
-			"a",
-			"o",
-			"class",
-			"jar",
-			"war",
-			"ear",
-			"pdf",
-			"doc",
-			"docx",
-			"xls",
-			"xlsx",
-			"ppt",
-			"pptx",
-			"odt",
-			"ods",
-			"odp",
-			"psd",
-			"ai",
-			"eps",
-			"svg",
-			"mp3",
-			"mp4",
-			"avi",
-			"mov",
-			"wmv",
-			"flv",
-			"db",
-			"sqlite",
-			"mdb",
-			"accdb",
-			"bak",
-			"tmp",
-			"temp",
-			"log",
-			"out",
-		];
-
-		// Don't preview binary or large data files
-		if (nonPreviewableExtensions.includes(extension)) {
-			return false;
-		}
-
-		// Don't preview files that are likely too large for preview
-		if (
-			lowerName.includes("data") ||
-			lowerName.includes("dataset") ||
-			lowerName.includes("backup") ||
-			lowerName.includes("dump") ||
-			lowerName.includes("export") ||
-			lowerName.includes("archive")
-		) {
-			return false;
-		}
-
-		return true;
+		return this.isPreviewableFileType(extension);
 	}
 
 	async fetchFileContent(fileUuid) {
@@ -960,19 +855,26 @@ class FileManager {
 		const modalTitle = modal.querySelector(".modal-title");
 		const previewContent = modal.querySelector(".preview-content");
 
+		// Enhanced accessibility
+		modal.setAttribute("aria-label", `Preview of ${fileName}`);
+		modal.setAttribute("aria-describedby", "preview-content");
+		modal.setAttribute("role", "dialog");
+		
 		modalTitle.textContent = fileName;
+		modalTitle.setAttribute("id", "preview-modal-title");
 
 		// Clear previous content
 		previewContent.innerHTML = "";
+		previewContent.setAttribute("id", "preview-content");
+		previewContent.setAttribute("aria-label", `Content of ${fileName}`);
 
 		// Check if we should use syntax highlighting
 		if (this.shouldUseSyntaxHighlighting(fileName)) {
 			this.showSyntaxHighlightedContent(previewContent, content, fileName);
 		} else {
 			// Basic text display
-			const preElement = document.createElement("pre");
-			preElement.className = "preview-text";
-			preElement.textContent = content;
+			const preElement = this.createElement("pre", "preview-text", content);
+			preElement.setAttribute("aria-label", `Text content of ${fileName}`);
 			previewContent.appendChild(preElement);
 		}
 
@@ -982,6 +884,131 @@ class FileManager {
 	// Helper methods for syntax highlighting
 	getFileExtension(fileName) {
 		return fileName.split(".").pop().toLowerCase();
+	}
+
+	// Helper method to open modal with fallbacks
+	openModal(modalId) {
+		this.activeModals.add(modalId);
+		
+		if (window.components?.openCustomModal) {
+			window.components.openCustomModal(modalId);
+		} else if (typeof openCustomModal === "function") {
+			openCustomModal(modalId);
+		} else if (window.openCustomModal) {
+			window.openCustomModal(modalId);
+		} else {
+			const modal = document.getElementById(modalId);
+			if (modal) modal.style.display = "block";
+		}
+	}
+
+	// Helper method to close modal with fallbacks
+	closeModal(modalId) {
+		this.activeModals.delete(modalId);
+		
+		if (window.components?.closeCustomModal) {
+			window.components.closeCustomModal(modalId);
+		} else if (typeof closeCustomModal === "function") {
+			closeCustomModal(modalId);
+		} else if (window.closeCustomModal) {
+			window.closeCustomModal(modalId);
+		} else {
+			const modal = document.getElementById(modalId);
+			if (modal) modal.style.display = "none";
+		}
+	}
+
+	// Helper method to show success message with fallbacks
+	showSuccessMessage(message) {
+		if (window.components?.showSuccess) {
+			window.components.showSuccess(message);
+		} else {
+			const live = document.getElementById("aria-live-region");
+			if (live) live.textContent = message;
+		}
+	}
+
+	// Helper method to get CSRF token
+	getCsrfToken() {
+		return document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+	}
+
+	// Helper method to check if file has extension
+	hasFileExtension(fileName) {
+		return /\.[^./]+$/.test(fileName);
+	}
+
+	// Input validation methods
+	isValidUuid(uuid) {
+		if (!uuid || typeof uuid !== 'string') return false;
+		const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+		return uuidRegex.test(uuid);
+	}
+
+	isValidFileName(fileName) {
+		if (!fileName || typeof fileName !== 'string') return false;
+		// Check for invalid characters and length
+		const invalidChars = /[<>:"/\\|?*\x00-\x1f]/;
+		return !invalidChars.test(fileName) && fileName.length <= 255;
+	}
+
+	isValidPath(path) {
+		if (!path || typeof path !== 'string') return false;
+		// Check for path traversal attempts and invalid characters
+		const invalidPathPatterns = /\.\.|[\x00-\x1f]|[<>:"|?*]/;
+		return !invalidPathPatterns.test(path) && path.length <= 4096;
+	}
+
+	sanitizeFileName(fileName) {
+		if (!fileName) return '';
+		// Remove or replace invalid characters
+		return fileName.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_');
+	}
+
+	// Helper method to create DOM element with attributes
+	createElement(tag, className, innerHTML) {
+		const element = document.createElement(tag);
+		if (className) element.className = className;
+		if (innerHTML) element.innerHTML = innerHTML;
+		return element;
+	}
+
+	// Helper method to check if file type is previewable
+	isPreviewableFileType(extension) {
+		const nonPreviewableExtensions = [
+			"h5", "hdf5", "hdf", "nc", "netcdf", "mat", "sav", "rdata", "rds",
+			"bin", "dat", "raw", "img", "iso", "dmg", "pkg", "deb", "rpm",
+			"zip", "tar", "gz", "bz2", "7z", "rar", "exe", "dll", "so", "dylib",
+			"pdb", "obj", "lib", "a", "o", "class", "jar", "war", "ear", "pdf",
+			"doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
+			"psd", "ai", "eps", "svg", "mp3", "mp4", "avi", "mov", "wmv", "flv",
+			"db", "sqlite", "mdb", "accdb", "bak", "tmp", "temp", "log", "out"
+		];
+		return !nonPreviewableExtensions.includes(extension);
+	}
+
+	// Helper method to extract text from notebook cell source
+	extractCellSourceText(source) {
+		if (Array.isArray(source)) {
+			return source.join("") || "";
+		} else if (typeof source === "string") {
+			return source;
+		}
+		return String(source || "");
+	}
+
+	// Helper method to extract text from notebook cell output
+	extractCellOutputText(output) {
+		if (output.output_type === "stream") {
+			return Array.isArray(output.text) ? output.text.join("") : String(output.text || "");
+		} else if (output.output_type === "execute_result") {
+			return output.data?.["text/plain"] 
+				? (Array.isArray(output.data["text/plain"]) 
+					? output.data["text/plain"].join("") 
+					: String(output.data["text/plain"]))
+				: "";
+		}
+		return "";
 	}
 
 	getLanguageFromExtension(extension) {
@@ -1048,59 +1075,12 @@ class FileManager {
 	shouldUseSyntaxHighlighting(fileName) {
 		const extension = this.getFileExtension(fileName);
 		const highlightableExtensions = [
-			"js",
-			"jsx",
-			"ts",
-			"tsx",
-			"py",
-			"pyw",
-			"ipynb",
-			"json",
-			"xml",
-			"html",
-			"htm",
-			"css",
-			"scss",
-			"sass",
-			"sh",
-			"bash",
-			"zsh",
-			"fish",
-			"c",
-			"cpp",
-			"cc",
-			"cxx",
-			"h",
-			"hpp",
-			"java",
-			"php",
-			"rb",
-			"go",
-			"rs",
-			"swift",
-			"kt",
-			"scala",
-			"clj",
-			"hs",
-			"ml",
-			"fs",
-			"cs",
-			"vb",
-			"sql",
-			"r",
-			"m",
-			"pl",
-			"tcl",
-			"lua",
-			"vim",
-			"yaml",
-			"yml",
-			"toml",
-			"ini",
-			"cfg",
-			"conf",
-			"md",
-			"markdown",
+			"js", "jsx", "ts", "tsx", "py", "pyw", "ipynb", "json", "xml",
+			"html", "htm", "css", "scss", "sass", "sh", "bash", "zsh", "fish",
+			"c", "cpp", "cc", "cxx", "h", "hpp", "java", "php", "rb", "go",
+			"rs", "swift", "kt", "scala", "clj", "hs", "ml", "fs", "cs", "vb",
+			"sql", "r", "m", "pl", "tcl", "lua", "vim", "yaml", "yml", "toml",
+			"ini", "cfg", "conf", "md", "markdown"
 		];
 		return highlightableExtensions.includes(extension);
 	}
@@ -1116,13 +1096,11 @@ class FileManager {
 		}
 
 		// Create code element with language class
-		const codeElement = document.createElement("code");
-		codeElement.className = `language-${language}`;
+		const codeElement = this.createElement("code", `language-${language}`);
 		codeElement.textContent = content;
 
 		// Create pre element
-		const preElement = document.createElement("pre");
-		preElement.className = "syntax-highlighted";
+		const preElement = this.createElement("pre", "syntax-highlighted");
 		preElement.appendChild(codeElement);
 
 		// Add to container
@@ -1140,12 +1118,10 @@ class FileManager {
 			const notebook = JSON.parse(content);
 
 			// Create a container for the notebook preview
-			const notebookContainer = document.createElement("div");
-			notebookContainer.className = "jupyter-notebook-preview";
+			const notebookContainer = this.createElement("div", "jupyter-notebook-preview");
 
 			// Add notebook metadata header
-			const header = document.createElement("div");
-			header.className = "notebook-header";
+			const header = this.createElement("div", "notebook-header");
 			header.innerHTML = `
 				<div class="notebook-title">
 					<i class="bi bi-journal-code"></i>
@@ -1178,17 +1154,12 @@ class FileManager {
 	}
 
 	createNotebookCell(cell, index) {
-		const cellContainer = document.createElement("div");
-		cellContainer.className = `notebook-cell ${cell.cell_type}`;
-
-		// Cell header with type and execution count
-		const cellHeader = document.createElement("div");
-		cellHeader.className = "cell-header";
+		const cellContainer = this.createElement("div", `notebook-cell ${cell.cell_type}`);
+		const cellHeader = this.createElement("div", "cell-header");
 
 		let headerContent = "";
 		if (cell.cell_type === "code") {
-			const execCount =
-				cell.execution_count !== null ? cell.execution_count : " ";
+			const execCount = cell.execution_count !== null ? cell.execution_count : " ";
 			headerContent = `
 				<span class="cell-type code">Code</span>
 				<span class="execution-count">In [${execCount}]:</span>
@@ -1201,27 +1172,15 @@ class FileManager {
 		cellContainer.appendChild(cellHeader);
 
 		// Cell content
-		const cellContent = document.createElement("div");
-		cellContent.className = "cell-content";
+		const cellContent = this.createElement("div", "cell-content");
 
 		if (cell.cell_type === "code") {
 			// Code cell with syntax highlighting
-			const codeElement = document.createElement("code");
-			codeElement.className = "language-python";
-
-			// Handle different source formats (string vs array)
-			let sourceText = "";
-			if (Array.isArray(cell.source)) {
-				sourceText = cell.source.join("") || "";
-			} else if (typeof cell.source === "string") {
-				sourceText = cell.source;
-			} else {
-				sourceText = String(cell.source || "");
-			}
-
+			const codeElement = this.createElement("code", "language-python");
+			const sourceText = this.extractCellSourceText(cell.source);
 			codeElement.textContent = sourceText;
 
-			const preElement = document.createElement("pre");
+			const preElement = this.createElement("pre");
 			preElement.appendChild(codeElement);
 			cellContent.appendChild(preElement);
 
@@ -1230,31 +1189,20 @@ class FileManager {
 				window.Prism.highlightElement(codeElement);
 			}
 
-			// Add output if present
-			if (cell.outputs && cell.outputs.length > 0) {
-				const outputContainer = document.createElement("div");
-				outputContainer.className = "cell-output";
-				outputContainer.innerHTML = `<span class="output-label">Out [${cell.execution_count}]:</span>`;
+							// Add output if present
+				if (cell.outputs && cell.outputs.length > 0) {
+					const outputContainer = this.createElement("div", "cell-output");
+					outputContainer.innerHTML = `<span class="output-label">Out [${cell.execution_count}]:</span>`;
 
 				for (const output of cell.outputs) {
-					if (output.output_type === "stream") {
-						const streamElement = document.createElement("pre");
-						streamElement.className = "output-stream";
-						const streamText = Array.isArray(output.text)
-							? output.text.join("")
-							: String(output.text || "");
-						streamElement.textContent = streamText;
-						outputContainer.appendChild(streamElement);
-					} else if (output.output_type === "execute_result") {
-						const resultElement = document.createElement("pre");
-						resultElement.className = "output-result";
-						const resultText = output.data?.["text/plain"]
-							? Array.isArray(output.data["text/plain"])
-								? output.data["text/plain"].join("")
-								: String(output.data["text/plain"])
-							: "";
-						resultElement.textContent = resultText;
-						outputContainer.appendChild(resultElement);
+					const outputText = this.extractCellOutputText(output);
+					if (outputText) {
+						const outputElement = this.createElement(
+							"pre",
+							output.output_type === "stream" ? "output-stream" : "output-result"
+						);
+						outputElement.textContent = outputText;
+						outputContainer.appendChild(outputElement);
 					}
 				}
 
@@ -1262,19 +1210,8 @@ class FileManager {
 			}
 		} else {
 			// Markdown cell
-			const markdownElement = document.createElement("div");
-			markdownElement.className = "markdown-content";
-
-			// Handle different source formats (string vs array)
-			let sourceText = "";
-			if (Array.isArray(cell.source)) {
-				sourceText = cell.source.join("") || "";
-			} else if (typeof cell.source === "string") {
-				sourceText = cell.source;
-			} else {
-				sourceText = String(cell.source || "");
-			}
-
+			const markdownElement = this.createElement("div", "markdown-content");
+			const sourceText = this.extractCellSourceText(cell.source);
 			markdownElement.textContent = sourceText;
 			cellContent.appendChild(markdownElement);
 		}
@@ -1283,11 +1220,22 @@ class FileManager {
 		return cellContainer;
 	}
 
-	showError(message) {
-		if (
-			window.components &&
-			typeof window.components.showError === "function"
-		) {
+	showError(message, error = null, context = '') {
+		// Log error details for debugging
+		if (error) {
+			console.error(`FileManager Error [${context}]:`, {
+				message: error.message,
+				stack: error.stack,
+				userMessage: message,
+				timestamp: new Date().toISOString(),
+				userAgent: navigator.userAgent
+			});
+		} else {
+			console.warn(`FileManager Warning [${context}]:`, message);
+		}
+
+		// Show user-friendly error message
+		if (window.components?.showError) {
 			window.components.showError(message);
 			return;
 		}
@@ -1299,10 +1247,37 @@ class FileManager {
 		// Final fallback: inline banner near top
 		const container =
 			document.querySelector(".container-fluid") || document.body;
-		const div = document.createElement("div");
-		div.className = "alert alert-danger alert-dismissible fade show";
-		div.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+		const div = this.createElement(
+			"div",
+			"alert alert-danger alert-dismissible fade show",
+			`${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`
+		);
 		container.insertBefore(div, container.firstChild);
+	}
+
+	// Enhanced error message formatting
+	getUserFriendlyErrorMessage(error, context = '') {
+		if (!error) return 'An unexpected error occurred';
+		
+		// Handle common error types
+		if (error.name === 'NetworkError' || error.message.includes('fetch')) {
+			return 'Network error: Please check your connection and try again';
+		}
+		if (error.name === 'TypeError' && error.message.includes('JSON')) {
+			return 'Invalid response format: Please try again or contact support';
+		}
+		if (error.message.includes('403') || error.message.includes('Forbidden')) {
+			return 'Access denied: You don\'t have permission to perform this action';
+		}
+		if (error.message.includes('404') || error.message.includes('Not Found')) {
+			return 'Resource not found: The requested file or directory may have been moved or deleted';
+		}
+		if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+			return 'Server error: Please try again later or contact support';
+		}
+		
+		// Default user-friendly message
+		return error.message || 'An unexpected error occurred';
 	}
 
 	escapeHtml(unsafe) {
@@ -1312,6 +1287,86 @@ class FileManager {
 			.replace(/>/g, "&gt;")
 			.replace(/"/g, "&quot;")
 			.replace(/'/g, "&#039;");
+	}
+
+	// Memory management and cleanup
+	cleanup() {
+		// Remove all bound event handlers
+		for (const [element, handler] of this.boundHandlers) {
+			if (element && element.removeEventListener) {
+				element.removeEventListener('click', handler);
+			}
+		}
+		this.boundHandlers.clear();
+
+		// Close all active modals
+		for (const modalId of this.activeModals) {
+			this.closeModal(modalId);
+		}
+		this.activeModals.clear();
+
+		// Clear file references
+		this.droppedFiles = null;
+		window.selectedFiles = null;
+
+		console.log('FileManager cleanup completed');
+	}
+
+	// Performance monitoring
+	measurePerformance(operation, startTime) {
+		const duration = performance.now() - startTime;
+		if (duration > 1000) {
+			console.warn(`Performance warning: ${operation} took ${duration.toFixed(2)}ms`);
+		}
+		return duration;
+	}
+
+	// Browser compatibility check
+	checkBrowserSupport() {
+		const requiredFeatures = {
+			'File API': 'File' in window,
+			'FileReader': 'FileReader' in window,
+			'FormData': 'FormData' in window,
+			'Fetch API': 'fetch' in window,
+			'Promise': 'Promise' in window,
+			'Performance API': 'performance' in window && 'now' in performance,
+			'Map': 'Map' in window,
+			'Set': 'Set' in window
+		};
+
+		const missingFeatures = Object.entries(requiredFeatures)
+			.filter(([name, supported]) => !supported)
+			.map(([name]) => name);
+
+		if (missingFeatures.length > 0) {
+			console.warn('Missing browser features:', missingFeatures);
+			return false;
+		}
+
+		return true;
+	}
+
+	logPerformance(operation, duration, context = '') {
+		const logData = {
+			operation,
+			duration: duration.toFixed(2),
+			timestamp: new Date().toISOString(),
+			context
+		};
+		
+		if (duration > 2000) {
+			console.error('Performance issue detected:', logData);
+		} else if (duration > 1000) {
+			console.warn('Performance warning:', logData);
+		} else {
+			console.log('Performance metric:', logData);
+		}
+	}
+
+	// Track event handler for cleanup
+	bindEventHandler(element, event, handler) {
+		this.boundHandlers.set(element, handler);
+		element.addEventListener(event, handler);
 	}
 
 	handleFileSelection(files) {
@@ -1324,18 +1379,17 @@ class FileManager {
 		// Filter out likely directory placeholders that some browsers expose on drop
 		const realFiles = allFiles.filter((f) => {
 			// Keep if size > 0 or has a known extension or MIME type
-			const hasExtension = /\.[^./]+$/.test(f.name);
+			const hasExtension = this.hasFileExtension(f.name);
 			return f.size > 0 || hasExtension || (f.type && f.type.length > 0);
 		});
 
 		// If selection came from the file input (webkitdirectory browse), show all files.
 		// If it came from drag-and-drop, we may have limited UI space; still show all for clarity.
 		for (const file of realFiles) {
-			const li = document.createElement("li");
-			li.innerHTML = `
+			const li = this.createElement("li", "", `
 				<i class="bi bi-file-text"></i>
 				<span>${file.webkitRelativePath || file.name}</span>
-			`;
+			`);
 			selectedFilesList.appendChild(li);
 		}
 
@@ -1348,24 +1402,22 @@ class FileManager {
 
 	renderFileTree(node, container, path = "") {
 		for (const [name, value] of Object.entries(node)) {
-			const li = document.createElement("li");
-
+			let li;
 			if (value instanceof File) {
 				// Render file
-				li.innerHTML = `
+				li = this.createElement("li", "", `
           <i class="bi bi-file-text"></i>
           <span>${name}</span>
-        `;
+        `);
 			} else {
 				// Render directory
-				li.innerHTML = `
+				li = this.createElement("li", "", `
           <i class="bi bi-folder"></i>
           <span>${name}</span>
           <ul></ul>
-        `;
+        `);
 				this.renderFileTree(value, li.querySelector("ul"), `${path + name}/`);
 			}
-
 			container.appendChild(li);
 		}
 	}
@@ -1375,48 +1427,74 @@ class FileManager {
 		if (e.target.closest(".file-actions")) {
 			return;
 		}
+		
 		const type = card.dataset.type;
 		const path = card.dataset.path;
 		const uuid = card.dataset.uuid;
-		const isCapture = card.dataset.isCapture === "true";
-		const isDataset = card.dataset.isDataset === "true";
-		const captureUuid = card.dataset.captureUuid;
 
 		if (type === "directory") {
-			// Handle directory navigation
-			if (path) {
-				// Remove any duplicate slashes and ensure proper path format
-				const cleanPath = path.replace(/\/+/g, "/").replace(/\/$/, "");
-				// Build the navigation URL
-				const navUrl = `/users/files/?dir=${encodeURIComponent(cleanPath)}`;
-				// Navigate to the directory using the dir query parameter
-				window.location.href = navUrl;
-			}
+			this.handleDirectoryClick(path);
 		} else if (type === "dataset") {
-			// Handle dataset click - show dataset contents
-			if (uuid) {
-				const datasetUrl = `/users/files/?dir=/datasets/${encodeURIComponent(uuid)}`;
-				window.location.href = datasetUrl;
-			}
+			this.handleDatasetClick(uuid);
 		} else if (type === "file") {
-			// Preview text-like files in modal, use H5 structure modal for .h5/.hdf5
-			if (uuid) {
-				// Prefer the exact text node for the filename and trim whitespace
-				const rawName =
-					card.querySelector(".file-name-text")?.textContent ||
-					card.querySelector(".file-name")?.textContent ||
-					"";
-				const name = rawName.trim();
-				const lower = name.toLowerCase();
-				if (this.shouldPreviewFile(name)) {
-					this.showTextFilePreview(uuid, name);
-				} else if (lower.endsWith(".h5") || lower.endsWith(".hdf5")) {
-					// H5 files - no preview, no action
-				} else {
-					const detailUrl = `/users/file-detail/${uuid}/`;
-					window.location.href = detailUrl;
-				}
+			this.handleFileClick(card, uuid);
+		}
+	}
+
+	handleDirectoryClick(path) {
+		if (path && this.isValidPath(path)) {
+			// Remove any duplicate slashes and ensure proper path format
+			const cleanPath = path.replace(/\/+/g, "/").replace(/\/$/, "");
+			// Build the navigation URL
+			const navUrl = `/users/files/?dir=${encodeURIComponent(cleanPath)}`;
+			// Navigate to the directory using the dir query parameter
+			window.location.href = navUrl;
+		} else {
+			console.warn('Invalid directory path:', path);
+			this.showError('Invalid directory path', null, 'navigation');
+		}
+	}
+
+	handleDatasetClick(uuid) {
+		if (uuid && this.isValidUuid(uuid)) {
+			const datasetUrl = `/users/files/?dir=/datasets/${encodeURIComponent(uuid)}`;
+			window.location.href = datasetUrl;
+		} else {
+			console.warn('Invalid dataset UUID:', uuid);
+			this.showError('Invalid dataset identifier', null, 'navigation');
+		}
+	}
+
+	handleFileClick(card, uuid) {
+		if (uuid && this.isValidUuid(uuid)) {
+			// Prefer the exact text node for the filename and trim whitespace
+			const rawName =
+				card.querySelector(".file-name-text")?.textContent ||
+				card.querySelector(".file-name")?.textContent ||
+				"";
+			const name = rawName.trim();
+			
+			// Validate and sanitize filename
+			if (!this.isValidFileName(name)) {
+				console.warn('Invalid filename:', name);
+				this.showError('Invalid filename', null, 'file-preview');
+				return;
 			}
+			
+			const sanitizedName = this.sanitizeFileName(name);
+			const lower = sanitizedName.toLowerCase();
+			
+			if (this.shouldPreviewFile(sanitizedName)) {
+				this.showTextFilePreview(uuid, sanitizedName);
+			} else if (lower.endsWith(".h5") || lower.endsWith(".hdf5")) {
+				// H5 files - no preview, no action
+			} else {
+				const detailUrl = `/users/file-detail/${uuid}/`;
+				window.location.href = detailUrl;
+			}
+		} else {
+			console.warn('Invalid file UUID:', uuid);
+			this.showError('Invalid file identifier', null, 'file-preview');
 		}
 	}
 }
