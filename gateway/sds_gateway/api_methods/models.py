@@ -75,6 +75,14 @@ class ProcessingStatus(StrEnum):
     Failed = "failed"
 
 
+class ZipFileStatus(StrEnum):
+    """The status of a zip file."""
+
+    Pending = "pending"
+    Created = "created"
+    Failed = "failed"
+
+
 class DatasetStatus(StrEnum):
     """The status of a dataset."""
 
@@ -668,6 +676,11 @@ class TemporaryZipFile(BaseModel):
     filename = models.CharField(max_length=255)
     file_size = models.BigIntegerField()
     files_processed = models.IntegerField()
+    creation_status = models.CharField(
+        max_length=20,
+        choices=[(st.value, st.value.title()) for st in ZipFileStatus],
+        default=ZipFileStatus.Pending.value,
+    )
     expires_at = models.DateTimeField()
     is_downloaded = models.BooleanField(default=False)
     downloaded_at = models.DateTimeField(null=True, blank=True)
@@ -706,6 +719,16 @@ class TemporaryZipFile(BaseModel):
         self.is_downloaded = True
         self.downloaded_at = datetime.datetime.now(datetime.UTC)
         self.save(update_fields=["is_downloaded", "downloaded_at"])
+
+    def mark_failed(self):
+        """Mark the file as failed."""
+        self.creation_status = ZipFileStatus.Failed.value
+        self.save(update_fields=["creation_status"])
+
+    def mark_completed(self):
+        """Mark the file as completed."""
+        self.creation_status = ZipFileStatus.Completed.value
+        self.save(update_fields=["creation_status"])
 
     def delete_file(self):
         """Delete the actual file from disk."""

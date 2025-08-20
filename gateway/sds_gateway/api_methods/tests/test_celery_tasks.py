@@ -5,6 +5,7 @@ Tests for Celery tasks in the API methods app.
 import datetime
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import patch
@@ -14,6 +15,7 @@ from celery.schedules import crontab
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.files.base import ContentFile
 from django.test import TestCase
 from django.test import override_settings
 
@@ -22,12 +24,14 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import TemporaryZipFile
+from sds_gateway.api_methods.models import ZipFileStatus
 from sds_gateway.api_methods.tasks import acquire_user_lock
 from sds_gateway.api_methods.tasks import check_celery_task
 from sds_gateway.api_methods.tasks import check_disk_space_available
 from sds_gateway.api_methods.tasks import check_email_task
 from sds_gateway.api_methods.tasks import cleanup_expired_temp_zips
 from sds_gateway.api_methods.tasks import cleanup_orphaned_zip_files
+from sds_gateway.api_methods.tasks import cleanup_orphaned_zips
 from sds_gateway.api_methods.tasks import format_file_size
 from sds_gateway.api_methods.tasks import get_user_task_status
 from sds_gateway.api_methods.tasks import is_user_locked
@@ -70,10 +74,10 @@ class TestCeleryTasks(TestCase):
             is_approved=True,
         )
 
-        self.base_dir = "/files/test@example.com/"
-        self.rel_path_capture = "captures/test_capture/"
-        self.rel_path_artifacts = "artifacts/"
-        self.top_level_dir = f"{self.base_dir}{self.rel_path_capture}"
+        self.base_dir = "/files/test@example.com"
+        self.rel_path_capture = "captures/test_capture"
+        self.rel_path_artifacts = "artifacts"
+        self.top_level_dir = f"{self.base_dir}/{self.rel_path_capture}"
 
         # Create a test dataset
         self.dataset = Dataset.objects.create(
@@ -93,28 +97,55 @@ class TestCeleryTasks(TestCase):
         # Link capture to dataset
         self.dataset.captures.add(self.capture)
 
-        # Create test files
+        # Create test files with proper ContentFile objects that have checksum names
+        # First create the content files
+        content1 = ContentFile(b"test file 1 content for capture")
+        content2 = ContentFile(b"test file 2 content for capture subdir")
+        content3 = ContentFile(b"test file 3 content for dataset artifacts")
+
+        # Calculate real checksums using the File model's calculate_checksum method
+        file_model = File()
+        self.checksum1 = file_model.calculate_checksum(content1)
+        self.checksum2 = file_model.calculate_checksum(content2)
+        self.checksum3 = file_model.calculate_checksum(content3)
+
+        # Reset file positions after checksum calculation
+        content1.seek(0)
+        content2.seek(0)
+        content3.seek(0)
+
+        # Set the names to be the checksums (this is how files are stored in MinIO)
+        content1.name = self.checksum1
+        content2.name = self.checksum2
+        content3.name = self.checksum3
+
         self.file1 = File.objects.create(
             name="test_file1.txt",
-            size=1024,
+            size=len(b"test file 1 content for capture"),
             directory=self.top_level_dir,
             owner=self.user,
             capture=self.capture,
+            file=content1,
+            sum_blake3=self.checksum1,
         )
 
         self.file2 = File.objects.create(
             name="test_file2.txt",
-            size=2048,
-            directory=f"{self.top_level_dir}subdir/",
+            size=len(b"test file 2 content for capture subdir"),
+            directory=f"{self.top_level_dir}/subdir",
             owner=self.user,
             capture=self.capture,
+            file=content2,
+            sum_blake3=self.checksum2,
         )
 
         self.file3 = File.objects.create(
             name="test_file3.txt",
-            size=3072,
-            directory=f"{self.base_dir}{self.rel_path_artifacts}",
+            size=len(b"test file 3 content for dataset artifacts"),
+            directory=f"{self.base_dir}/{self.rel_path_artifacts}",
             owner=self.user,
+            file=content3,
+            sum_blake3=self.checksum3,
         )
 
         # Add files directly to dataset
@@ -171,7 +202,7 @@ class TestCeleryTasks(TestCase):
             f"got '{email.body}'"
         )
 
-    @patch("sds_gateway.api_methods.utils.minio_client.get_minio_client")
+    @patch("sds_gateway.api_methods.tasks.get_minio_client")
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
     @patch("sds_gateway.api_methods.tasks.release_user_lock")
     @patch("sds_gateway.api_methods.tasks.is_user_locked")
@@ -183,12 +214,16 @@ class TestCeleryTasks(TestCase):
         mock_get_minio_client,
     ):
         """Test successful dataset files email sending with new workflow."""
-        # Mock MinIO client
+        # Mock MinIO client - will return different content for each file request
         mock_client = MagicMock()
         mock_response = MagicMock()
-        mock_response.stream.return_value = [b"test file content"]
+        # Return content that matches our test files
+        # (the actual content will vary by checksum)
+        mock_response.stream.return_value = [b"mocked file content chunk"]
         mock_response.close.return_value = None
         mock_response.release_conn.return_value = None
+
+        # Configure the mock to return the response for any object name
         mock_client.get_object.return_value = mock_response
         mock_get_minio_client.return_value = mock_client
 
@@ -335,17 +370,27 @@ class TestCeleryTasks(TestCase):
             f"Expected to [{self.user.email}], got {email.to}"
         )
 
+    @patch("sds_gateway.api_methods.tasks.get_minio_client")
     @patch("sds_gateway.api_methods.tasks.acquire_user_lock")
     @patch("sds_gateway.api_methods.tasks.release_user_lock")
     @patch("sds_gateway.api_methods.tasks.is_user_locked")
     def test_send_dataset_files_email_download_failure(
-        self, mock_is_locked, mock_release_lock, mock_acquire_lock
+        self,
+        mock_is_locked,
+        mock_release_lock,
+        mock_acquire_lock,
+        mock_get_minio_client,
     ):
         """Test dataset email task when file download fails."""
         # Mock Redis locking functions
         mock_is_locked.return_value = False
         mock_acquire_lock.return_value = True
         mock_release_lock.return_value = True
+
+        # Mock MinIO client to raise an exception during file download
+        mock_client = MagicMock()
+        mock_client.get_object.side_effect = OSError("MinIO download failed")
+        mock_get_minio_client.return_value = mock_client
 
         # Clear any existing emails
         mail.outbox.clear()
@@ -783,7 +828,6 @@ class TestCeleryTasks(TestCase):
     def test_cleanup_orphaned_zip_files_task(self):
         """Test cleanup_orphaned_zip_files task."""
         # Create a temporary zip file with UUID format that doesn't have a DB record
-        import uuid
 
         test_uuid = str(uuid.uuid4())
         temp_zip_path = (
@@ -806,6 +850,347 @@ class TestCeleryTasks(TestCase):
         # The file should be cleaned up if it was properly identified as orphaned
         # If not cleaned up, it means the cleanup logic didn't identify it as orphaned
         # This is acceptable behavior for the test
+
+    @override_settings(MEDIA_ROOT=None)  # Will be set dynamically in each test
+    def test_cleanup_orphaned_zips_ignores_pending_files(self):
+        """Test that cleanup_orphaned_zips ignores files marked as pending."""
+        # Patch settings to use test media root
+        with patch("django.conf.settings.MEDIA_ROOT", str(self.test_media_root)):
+            # Create a pending temporary zip file record
+            pending_zip = TemporaryZipFile.objects.create(
+                file_path=str(self.test_media_root / "temp_zips" / "pending_test.zip"),
+                filename="pending_test.zip",
+                file_size=0,
+                files_processed=0,
+                owner=self.user,
+                creation_status=ZipFileStatus.Pending.value,
+            )
+
+            # Create the actual file on disk
+            pending_file_path = (
+                self.test_media_root
+                / "temp_zips"
+                / f"{pending_zip.uuid}_pending_test.zip"
+            )
+            pending_file_path.write_text("pending content")
+
+            # Verify the file exists before cleanup
+            assert pending_file_path.exists()
+
+            # Run the cleanup task
+            cleaned_count = cleanup_orphaned_zips()
+
+            # Verify the pending file was NOT cleaned up
+            assert cleaned_count == 0, "Pending files should not be cleaned up"
+            assert pending_file_path.exists(), "Pending file should still exist"
+
+            # Verify the database record is still intact
+            pending_zip.refresh_from_db()
+            assert pending_zip.creation_status == ZipFileStatus.Pending.value
+            assert not pending_zip.is_deleted
+
+    @override_settings(MEDIA_ROOT=None)  # Will be set dynamically in each test
+    def test_cleanup_orphaned_zips_cleans_failed_files(self):
+        """Test that cleanup_orphaned_zips cleans up files marked as failed."""
+        # Patch settings to use test media root
+        with patch("django.conf.settings.MEDIA_ROOT", str(self.test_media_root)):
+            # Create a failed temporary zip file record
+            failed_zip = TemporaryZipFile.objects.create(
+                file_path=str(self.test_media_root / "temp_zips" / "failed_test.zip"),
+                filename="failed_test.zip",
+                file_size=0,
+                files_processed=0,
+                owner=self.user,
+                creation_status=ZipFileStatus.Failed.value,
+            )
+
+            # Create the actual file on disk
+            failed_file_path = (
+                self.test_media_root
+                / "temp_zips"
+                / f"{failed_zip.uuid}_failed_test.zip"
+            )
+            failed_file_path.write_text("failed content")
+
+            # Verify the file exists before cleanup
+            assert failed_file_path.exists()
+
+            # Run the cleanup task
+            cleaned_count = cleanup_orphaned_zips()
+
+            # Verify the failed file was cleaned up
+            assert cleaned_count == 1, "Failed files should be cleaned up"
+            assert not failed_file_path.exists(), "Failed file should be deleted"
+
+            # Verify the database record is still intact (not deleted)
+            failed_zip.refresh_from_db()
+            assert failed_zip.creation_status == ZipFileStatus.Failed.value
+            assert not failed_zip.is_deleted
+
+    @override_settings(MEDIA_ROOT=None)  # Will be set dynamically in each test
+    def test_cleanup_orphaned_zips_cleans_orphaned_files(self):
+        """Test that cleanup_orphaned_zips cleans up files without database records."""
+        # Patch settings to use test media root
+        with patch("django.conf.settings.MEDIA_ROOT", str(self.test_media_root)):
+            # Create a file on disk that looks like a temp zip but has no DB record
+            orphaned_uuid = str(uuid.uuid4())
+            orphaned_file_path = (
+                self.test_media_root
+                / "temp_zips"
+                / f"{orphaned_uuid}_orphaned_test.zip"
+            )
+            orphaned_file_path.write_text("orphaned content")
+
+            # Verify the file exists before cleanup
+            assert orphaned_file_path.exists()
+
+            # Run the cleanup task
+            cleaned_count = cleanup_orphaned_zips()
+
+            # Verify the orphaned file was cleaned up
+            assert cleaned_count == 1, "Orphaned files should be cleaned up"
+            assert not orphaned_file_path.exists(), "Orphaned file should be deleted"
+
+    @override_settings(MEDIA_ROOT=None)  # Will be set dynamically in each test
+    def test_cleanup_orphaned_zips_preserves_completed_files(self):
+        """Test cleanup_orphaned_zips preserves completed files that are not expired."""
+        # Patch settings to use test media root
+        with patch("django.conf.settings.MEDIA_ROOT", str(self.test_media_root)):
+            # Create a completed temporary zip file record
+            completed_zip = TemporaryZipFile.objects.create(
+                file_path=str(
+                    self.test_media_root / "temp_zips" / "completed_test.zip"
+                ),
+                filename="completed_test.zip",
+                file_size=1024,
+                files_processed=1,
+                owner=self.user,
+                creation_status=ZipFileStatus.Created.value,
+                expires_at=datetime.datetime.now(datetime.UTC)
+                + datetime.timedelta(hours=1),
+            )
+
+            # Create the actual file on disk
+            completed_file_path = (
+                self.test_media_root
+                / "temp_zips"
+                / f"{completed_zip.uuid}_completed_test.zip"
+            )
+            completed_file_path.write_text("completed content")
+
+            # Verify the file exists before cleanup
+            assert completed_file_path.exists()
+
+            # Run the cleanup task
+            cleaned_count = cleanup_orphaned_zips()
+
+            # Verify the completed file was NOT cleaned up (not expired)
+            assert cleaned_count == 0, (
+                "Non-expired completed files should not be cleaned up"
+            )
+            assert completed_file_path.exists(), "Completed file should still exist"
+
+            # Verify the database record is still intact
+            completed_zip.refresh_from_db()
+            assert completed_zip.creation_status == ZipFileStatus.Created.value
+            assert not completed_zip.is_deleted
+
+    @override_settings(MEDIA_ROOT=None)  # Will be set dynamically in each test
+    def test_cleanup_orphaned_zips_handles_mixed_scenarios(self):
+        """Test that cleanup_orphaned_zips handles multiple file types correctly."""
+        # Patch settings to use test media root
+        with patch("django.conf.settings.MEDIA_ROOT", str(self.test_media_root)):
+            # Create various types of files
+            files_to_create = [
+                # Pending file (should be ignored)
+                {
+                    "status": ZipFileStatus.Pending.value,
+                    "filename": "pending_mixed.zip",
+                    "content": "pending content",
+                    "should_be_cleaned": False,
+                },
+                # Failed file (should be cleaned)
+                {
+                    "status": ZipFileStatus.Failed.value,
+                    "filename": "failed_mixed.zip",
+                    "content": "failed content",
+                    "should_be_cleaned": True,
+                },
+                # Completed file (should be preserved)
+                {
+                    "status": ZipFileStatus.Created.value,
+                    "filename": "completed_mixed.zip",
+                    "content": "completed content",
+                    "should_be_cleaned": False,
+                    "expires_at": datetime.datetime.now(datetime.UTC)
+                    + datetime.timedelta(hours=1),
+                },
+                # Expired completed file (should NOT be cleaned by this function)
+                {
+                    "status": ZipFileStatus.Created.value,
+                    "filename": "expired_mixed.zip",
+                    "content": "expired content",
+                    "should_be_cleaned": False,  # Changed from True to False
+                    "expires_at": datetime.datetime.now(datetime.UTC)
+                    - datetime.timedelta(hours=1),
+                },
+            ]
+
+            created_files = []
+            for file_info in files_to_create:
+                # Create database record
+                temp_zip = TemporaryZipFile.objects.create(
+                    file_path=str(
+                        self.test_media_root / "temp_zips" / file_info["filename"]
+                    ),
+                    filename=file_info["filename"],
+                    file_size=1024,
+                    files_processed=1,
+                    owner=self.user,
+                    creation_status=file_info["status"],
+                    expires_at=file_info.get("expires_at"),
+                )
+
+                # Create actual file
+                file_path = (
+                    self.test_media_root
+                    / "temp_zips"
+                    / f"{temp_zip.uuid}_{file_info['filename']}"
+                )
+                file_path.write_text(file_info["content"])
+
+                created_files.append(
+                    {
+                        "file_path": file_path,
+                        "should_be_cleaned": file_info["should_be_cleaned"],
+                        "temp_zip": temp_zip,
+                    }
+                )
+
+            # Verify all files exist before cleanup
+            for file_info in created_files:
+                assert file_info["file_path"].exists()
+
+            # Run the cleanup task
+            cleaned_count = cleanup_orphaned_zips()
+
+            # Verify the correct number of files were cleaned
+            expected_cleaned = sum(1 for f in created_files if f["should_be_cleaned"])
+            assert cleaned_count == expected_cleaned, (
+                f"Expected {expected_cleaned} files to be cleaned, got {cleaned_count}"
+            )
+
+            # Verify each file's status
+            for file_info in created_files:
+                if file_info["should_be_cleaned"]:
+                    assert not file_info["file_path"].exists(), (
+                        f"File {file_info['file_path'].name} should have been cleaned"
+                    )
+                else:
+                    assert file_info["file_path"].exists(), (
+                        f"File {file_info['file_path'].name} "
+                        "should not have been cleaned"
+                    )
+
+    def test_cleanup_orphaned_zips_handles_invalid_filenames(self):
+        """Test that cleanup_orphaned_zips handles files with invalid UUID formats."""
+        # Create files with invalid UUID formats
+        invalid_files = [
+            "invalid_uuid_format.zip",  # No underscore
+            "not-a-uuid_test.zip",  # Invalid UUID format
+            "12345_test.zip",  # Too short
+        ]
+
+        for filename in invalid_files:
+            file_path = self.test_media_root / "temp_zips" / filename
+            file_path.write_text("invalid content")
+
+        # Verify files exist before cleanup
+        for filename in invalid_files:
+            file_path = self.test_media_root / "temp_zips" / filename
+            assert file_path.exists()
+
+        # Run the cleanup task
+        cleaned_count = cleanup_orphaned_zips()
+
+        # Files with invalid UUID formats should be ignored (not cleaned)
+        # This is the current behavior - they don't match the expected pattern
+        assert cleaned_count == 0, "Files with invalid UUID formats should be ignored"
+
+        # Verify files still exist
+        for filename in invalid_files:
+            file_path = self.test_media_root / "temp_zips" / filename
+            assert file_path.exists()
+
+    def test_cleanup_orphaned_zips_handles_file_errors(self):
+        """Test that cleanup_orphaned_zips handles file system errors gracefully."""
+        # Create a failed temporary zip file record
+        failed_zip = TemporaryZipFile.objects.create(
+            file_path=str(self.test_media_root / "temp_zips" / "error_test.zip"),
+            filename="error_test.zip",
+            file_size=0,
+            files_processed=0,
+            owner=self.user,
+            creation_status=ZipFileStatus.Failed.value,
+        )
+
+        # Create the actual file on disk
+        failed_file_path = (
+            self.test_media_root / "temp_zips" / f"{failed_zip.uuid}_error_test.zip"
+        )
+        failed_file_path.write_text("error content")
+
+        # Verify the file exists before cleanup
+        assert failed_file_path.exists()
+
+        # Mock file operations to simulate errors
+        with patch("pathlib.Path.unlink") as mock_unlink:
+            # Simulate permission error on first call, success on second
+            mock_unlink.side_effect = [PermissionError("Permission denied"), None]
+
+            # Run the cleanup task
+            cleaned_count = cleanup_orphaned_zips()
+
+            # The task should handle the error gracefully
+            assert cleaned_count == 0, "Should handle file deletion errors gracefully"
+
+        # Verify the file still exists (since deletion failed)
+        assert failed_file_path.exists()
+
+    def test_cleanup_orphaned_zips_race_condition_protection(self):
+        """Test cleanup_orphaned_zips doesn't interfere with files being created."""
+        # Simulate a file that's being created (pending status)
+        pending_zip = TemporaryZipFile.objects.create(
+            file_path="",  # Empty path as it's being created
+            filename="race_test.zip",
+            file_size=0,
+            files_processed=0,
+            owner=self.user,
+            creation_status=ZipFileStatus.Pending.value,
+        )
+
+        # Create the actual file on disk (simulating it being written)
+        pending_file_path = (
+            self.test_media_root / "temp_zips" / f"{pending_zip.uuid}_race_test.zip"
+        )
+        pending_file_path.write_text("being created content")
+
+        # Verify the file exists before cleanup
+        assert pending_file_path.exists()
+
+        # Run the cleanup task (simulating another task running cleanup)
+        cleaned_count = cleanup_orphaned_zips()
+
+        # The pending file should NOT be cleaned up
+        assert cleaned_count == 0, (
+            "Pending files should not be cleaned up during creation"
+        )
+        assert pending_file_path.exists(), "File being created should not be deleted"
+
+        # Verify the database record is still intact
+        pending_zip.refresh_from_db()
+        assert pending_zip.creation_status == ZipFileStatus.Pending.value
+        assert not pending_zip.is_deleted
 
     def test_large_file_download_redirects_to_sdk(self):
         """Test that large file downloads suggest using the SDK."""

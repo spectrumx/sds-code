@@ -3,6 +3,7 @@ import re
 import shutil
 import uuid
 import zipfile
+from email.mime.image import MIMEImage
 from pathlib import Path
 from typing import Any
 from typing import cast
@@ -22,11 +23,13 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.models import TemporaryZipFile
+from sds_gateway.api_methods.models import ZipFileStatus
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.utils.disk_utils import DISK_SPACE_BUFFER
 from sds_gateway.api_methods.utils.disk_utils import check_disk_space_available
 from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
 from sds_gateway.api_methods.utils.disk_utils import format_file_size
+from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
@@ -60,12 +63,24 @@ def cleanup_orphaned_zips() -> int:
             if "_" in filename:
                 uuid_part = filename.split("_")[0]
                 # Check if this UUID exists in the database
-                exists = TemporaryZipFile.objects.filter(uuid=uuid_part).exists()
-                if not exists:
+                temp_zip_record = TemporaryZipFile.objects.filter(
+                    uuid=uuid_part
+                ).first()
+
+                if not temp_zip_record:
                     # No database record, this is an orphaned file
                     zip_file.unlink()
                     cleaned_count += 1
                     logger.info(f"Cleaned up orphaned zip file: {zip_file}")
+                elif temp_zip_record.creation_status == ZipFileStatus.Failed.value:
+                    # File is marked as failed, clean it up
+                    zip_file.unlink()
+                    cleaned_count += 1
+                    logger.info(f"Cleaned up failed zip file: {zip_file}")
+                # Skip pending files - they are actively being created
+                elif temp_zip_record.creation_status == ZipFileStatus.Pending.value:
+                    logger.debug(f"Skipping pending zip file: {zip_file}")
+                    continue
         except (OSError, ValueError) as e:
             logger.error(f"Error processing zip file {zip_file}: {e}")
             # Try to delete the problematic file anyway
@@ -109,8 +124,6 @@ def send_email(
         attach_logo: Whether to attach the logo as an embedded image (default: True)
     """
 
-    from django.conf import settings
-
     if not recipient_list:
         return False
     if not plain_message and plain_template and context:
@@ -137,8 +150,6 @@ def send_email(
             with logo_path.open("rb") as logo_file:
                 logo_content = logo_file.read()
                 # Attach logo with Content-ID for embedding
-                from email.mime.image import MIMEImage
-
                 logo_mime = MIMEImage(logo_content)
                 logo_mime.add_header("Content-ID", "<logo>")
                 email.attach(logo_mime)
@@ -264,7 +275,9 @@ def check_email_task(email_address: str = "test@example.com") -> str:
         return f"Test email sent to {email_address}"
 
 
-def create_zip_from_files(files: list[File], zip_name: str) -> tuple[str, int, int]:
+def create_zip_from_files(
+    files: list[File], zip_name: str, zip_uuid: str
+) -> tuple[str, int, int]:
     """
     Create a zip file by streaming files directly from MinIO storage.
 
@@ -274,20 +287,18 @@ def create_zip_from_files(files: list[File], zip_name: str) -> tuple[str, int, i
     Args:
         files: List of File model instances to include in the zip
         zip_name: Name for the zip file
+        zip_uuid: UUID to use for the zip filename
 
     Returns:
         tuple: (zip_file_path, total_size, files_processed)
     """
-    from sds_gateway.api_methods.utils.minio_client import get_minio_client
-
     # Create persistent zip file in media directory
     media_root = Path(settings.MEDIA_ROOT)
     temp_zips_dir = media_root / "temp_zips"
     temp_zips_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create a unique filename to avoid conflicts
-    unique_id = str(uuid.uuid4())
-    zip_filename = f"{unique_id}_{zip_name}"
+    # Use the provided UUID for the filename
+    zip_filename = f"{zip_uuid}_{zip_name}"
     zip_file_path = temp_zips_dir / zip_filename
 
     total_size = 0
@@ -685,8 +696,12 @@ def _create_error_response(
 
 
 def _process_item_files(
-    user: User, item: Any, item_type: ItemType, item_uuid: str
-) -> tuple[dict[str, str | int] | None, str | None, int | None, int | None]:
+    user: User,
+    item: Any,
+    item_type: ItemType,
+    item_uuid: str,
+    temp_zip: TemporaryZipFile,
+) -> tuple[dict | None, str | None, int | None, int | None]:
     """
     Process files for an item and create a zip file.
 
@@ -773,7 +788,7 @@ def _process_item_files(
 
     try:
         zip_file_path, total_size, files_processed = create_zip_from_files(
-            files, zip_filename
+            files, zip_filename, str(temp_zip.uuid)
         )
     except (OSError, ValueError) as e:
         logger.exception(f"Failed to create zip file for {item_type} {item_uuid}: {e}")
@@ -836,6 +851,50 @@ def _handle_user_lock_validation(
         }
 
     return None
+
+
+def _create_pending_temp_zip_record(
+    user: User,
+    item: Any,
+    item_type: ItemType,
+    item_uuid: str,
+) -> TemporaryZipFile:
+    """Create a pending temporary zip file record at the start of the process."""
+
+    unsafe_item_name = getattr(item, "name", str(item)) or item_type
+    safe_item_name = re.sub(r"[^a-zA-Z0-9._-]", "", unsafe_item_name.replace(" ", "_"))
+    zip_filename = f"{item_type}_{safe_item_name}_{item_uuid}.zip"
+
+    # Create a unique filename to avoid conflicts
+    unique_id = str(uuid.uuid4())
+    final_zip_filename = f"{unique_id}_{zip_filename}"
+
+    # Create the record with pending status and placeholder values
+    return TemporaryZipFile.objects.create(
+        file_path="",  # Will be updated when file is created
+        filename=final_zip_filename,
+        file_size=0,  # Will be updated when file is created
+        files_processed=0,  # Will be updated when file is created
+        owner=user,
+        creation_status=ZipFileStatus.Pending.value,
+    )
+
+
+def _update_temp_zip_record(
+    temp_zip: TemporaryZipFile,
+    zip_file_path: str,
+    total_size: int,
+    files_processed: int,
+) -> TemporaryZipFile:
+    """Update a temporary zip file record with final details and mark as created."""
+
+    temp_zip.file_path = zip_file_path
+    temp_zip.file_size = total_size
+    temp_zip.files_processed = files_processed
+    temp_zip.creation_status = ZipFileStatus.Created.value
+    temp_zip.save()
+
+    return temp_zip
 
 
 def _create_temp_zip_record(
@@ -920,7 +979,7 @@ def _handle_timeout_exception(
 @shared_task(
     time_limit=30 * 60, soft_time_limit=25 * 60
 )  # 30 min hard limit, 25 min soft limit
-def send_item_files_email(  # noqa: C901, PLR0912
+def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
     item_uuid: str, user_id: str, item_type: str | ItemType
 ) -> dict[str, str | int]:
     """
@@ -979,28 +1038,30 @@ def send_item_files_email(  # noqa: C901, PLR0912
             f"Acquired lock for user {user_id}, starting {item_type_enum} download"
         )
 
+        # Create pending temporary zip file record first
+        temp_zip = _create_pending_temp_zip_record(
+            user, item, item_type_enum, item_uuid
+        )
+
         # Process files and create zip
         error_response, zip_file_path, total_size, files_processed = (
-            _process_item_files(user, item, item_type_enum, item_uuid)
+            _process_item_files(user, item, item_type_enum, item_uuid, temp_zip)
         )
         if error_response:
+            # Mark the record as failed
+            temp_zip.mark_failed()
             return error_response
 
         # Ensure we have valid values for zip creation
         if zip_file_path is None or total_size is None or files_processed is None:
             error_message = "Failed to process files for zip creation"
             _send_item_download_error_email(user, item, item_type_enum, error_message)
+            temp_zip.mark_failed()
             return _create_error_response("error", error_message, item_uuid, user_id)
 
-        # Create temporary zip file record
-        temp_zip = _create_temp_zip_record(
-            user,
-            zip_file_path,
-            total_size,
-            files_processed,
-            item,
-            item_type_enum,
-            item_uuid,
+        # Update temporary zip file record with final details
+        temp_zip = _update_temp_zip_record(
+            temp_zip, zip_file_path, total_size, files_processed
         )
 
         # Send email with download link
@@ -1029,10 +1090,16 @@ def send_item_files_email(  # noqa: C901, PLR0912
         error_message = f"Error processing {item_type_enum} download: {e!s}"
         if user is not None and item is not None and item_type_enum is not None:
             _send_item_download_error_email(user, item, item_type_enum, error_message)
+        # Mark temp_zip as failed if it exists
+        if "temp_zip" in locals():
+            temp_zip.mark_failed()
         result = _create_error_response("error", error_message, item_uuid)
 
     except (SoftTimeLimitExceeded, TimeoutError) as e:
         result = _handle_timeout_exception(user, item, item_type_enum, item_uuid, e)
+        # Mark temp_zip as failed if it exists
+        if "temp_zip" in locals():
+            temp_zip.mark_failed()
 
     finally:
         # Always release the lock, even if there was an error
