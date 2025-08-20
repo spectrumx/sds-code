@@ -835,66 +835,10 @@ class UserSearchHandler {
 						// Close modal first
 						closeCustomModal("downloadModal");
 
-						// Show loading state
-						button.innerHTML =
-							'<i class="bi bi-hourglass-split"></i> Processing...';
-						button.disabled = true;
-
-						// Make API request
-						fetch(`/users/download-item/dataset/${datasetUuid}/`, {
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-								"X-CSRFToken": this.getCSRFToken(),
-							},
-						})
-							.then((response) => {
-								// Check if response is JSON
-								const contentType = response.headers.get("content-type");
-								if (contentType?.includes("application/json")) {
-									return response.json();
-								}
-								// If not JSON, throw an error with the response text
-								return response.text().then((text) => {
-									throw new Error(`Server returned non-JSON response: ${text}`);
-								});
-							})
-							.then((data) => {
-								if (data.success === true) {
-									button.innerHTML =
-										'<i class="bi bi-check-circle text-success"></i> Download Requested';
-									showAlert(
-										data.message ||
-											"Download request submitted successfully! You will receive an email when ready.",
-										"success",
-									);
-								} else {
-									button.innerHTML =
-										'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-									showAlert(
-										data.message ||
-											"Download request failed. Please try again.",
-										"error",
-									);
-								}
-							})
-							.catch((error) => {
-								console.error("Download error:", error);
-								button.innerHTML =
-									'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-								showAlert(
-									error.message ||
-										"An error occurred while processing your request.",
-									"error",
-								);
-							})
-							.finally(() => {
-								// Reset button after 3 seconds
-								setTimeout(() => {
-									button.innerHTML = "Download";
-									button.disabled = false;
-								}, 3000);
-							});
+						// Use unified download handler
+						if (window.components?.handleDownload) {
+							window.components.handleDownload("dataset", datasetUuid, button);
+						}
 					};
 				});
 			}
