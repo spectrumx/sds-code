@@ -853,11 +853,117 @@ class FileManager {
 	// File preview methods
 	async showTextFilePreview(fileUuid, fileName) {
 		try {
+			// Check if this is a file we should preview
+			if (!this.shouldPreviewFile(fileName)) {
+				this.showError("This file type cannot be previewed");
+				return;
+			}
+
 			const content = await this.fetchFileContent(fileUuid);
 			this.showPreviewModal(fileName, content);
 		} catch (error) {
-			this.showError(error.message || "Failed to load file preview");
+			if (error.message === "File too large to preview") {
+				this.showError(
+					"File is too large to preview. Please download it instead.",
+				);
+			} else {
+				this.showError(error.message || "Failed to load file preview");
+			}
 		}
+	}
+
+	shouldPreviewFile(fileName) {
+		const extension = this.getFileExtension(fileName);
+		const lowerName = fileName.toLowerCase();
+
+		// Don't preview these file types
+		const nonPreviewableExtensions = [
+			"h5",
+			"hdf5",
+			"hdf",
+			"nc",
+			"netcdf",
+			"mat",
+			"sav",
+			"rdata",
+			"rds",
+			"bin",
+			"dat",
+			"raw",
+			"img",
+			"iso",
+			"dmg",
+			"pkg",
+			"deb",
+			"rpm",
+			"zip",
+			"tar",
+			"gz",
+			"bz2",
+			"7z",
+			"rar",
+			"exe",
+			"dll",
+			"so",
+			"dylib",
+			"pdb",
+			"obj",
+			"lib",
+			"a",
+			"o",
+			"class",
+			"jar",
+			"war",
+			"ear",
+			"pdf",
+			"doc",
+			"docx",
+			"xls",
+			"xlsx",
+			"ppt",
+			"pptx",
+			"odt",
+			"ods",
+			"odp",
+			"psd",
+			"ai",
+			"eps",
+			"svg",
+			"mp3",
+			"mp4",
+			"avi",
+			"mov",
+			"wmv",
+			"flv",
+			"db",
+			"sqlite",
+			"mdb",
+			"accdb",
+			"bak",
+			"tmp",
+			"temp",
+			"log",
+			"out",
+		];
+
+		// Don't preview binary or large data files
+		if (nonPreviewableExtensions.includes(extension)) {
+			return false;
+		}
+
+		// Don't preview files that are likely too large for preview
+		if (
+			lowerName.includes("data") ||
+			lowerName.includes("dataset") ||
+			lowerName.includes("backup") ||
+			lowerName.includes("dump") ||
+			lowerName.includes("export") ||
+			lowerName.includes("archive")
+		) {
+			return false;
+		}
+
+		return true;
 	}
 
 	async fetchFileContent(fileUuid) {
@@ -1152,7 +1258,7 @@ class FileManager {
 				outputContainer.className = "cell-output";
 				outputContainer.innerHTML = `<span class="output-label">Out [${cell.execution_count}]:</span>`;
 
-				cell.outputs.forEach((output) => {
+				for (const output of cell.outputs) {
 					if (output.output_type === "stream") {
 						const streamElement = document.createElement("pre");
 						streamElement.className = "output-stream";
@@ -1172,7 +1278,7 @@ class FileManager {
 						resultElement.textContent = resultText;
 						outputContainer.appendChild(resultElement);
 					}
-				});
+				}
 
 				cellContent.appendChild(outputContainer);
 			}
@@ -1324,16 +1430,7 @@ class FileManager {
 					"";
 				const name = rawName.trim();
 				const lower = name.toLowerCase();
-				if (
-					lower.endsWith(".json") ||
-					lower.endsWith(".txt") ||
-					lower.endsWith(".log") ||
-					lower.endsWith(".py") ||
-					lower.endsWith(".js") ||
-					lower.endsWith(".md") ||
-					lower.endsWith(".csv") ||
-					lower.endsWith(".ipynb")
-				) {
+				if (this.shouldPreviewFile(name)) {
 					this.showTextFilePreview(uuid, name);
 				} else if (lower.endsWith(".h5") || lower.endsWith(".hdf5")) {
 					// H5 files - no preview, no action

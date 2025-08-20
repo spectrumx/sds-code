@@ -2908,6 +2908,79 @@ class UploadCaptureView(View):
 
         return created_captures, capture_errors
 
+    def _determine_upload_status(self, upload_chunk_files, all_relative_paths):
+        """Determine if all files were empty (skipped)."""
+        # If no files were sent (all skipped on frontend), consider them all empty
+        all_files_empty = (
+            all(f.size == 0 for f in upload_chunk_files) if upload_chunk_files else True
+        )
+
+        # Additional check: if no files were sent but we have all_relative_paths,
+        # this indicates all files were skipped on the frontend
+        if not upload_chunk_files and all_relative_paths:
+            all_files_empty = True
+
+        return all_files_empty
+
+    def _should_create_captures_for_request(self, request):
+        """Determine if captures should be created for this request."""
+        # Check if this is a chunked upload (skip capture creation for chunks)
+        is_chunk = request.POST.get("is_chunk", "false").lower() == "true"
+        chunk_number = request.POST.get("chunk_number", None)
+        total_chunks = request.POST.get("total_chunks", None)
+
+        # Determine if this is the last chunk or not a chunked upload
+        return (
+            not is_chunk
+            or chunk_number is None
+            or total_chunks is None
+            or (int(chunk_number) == int(total_chunks))
+        )
+
+    def _associate_files_with_dataset(self, request, saved_files_count, file_errors):
+        """Associate newly uploaded files with a dataset."""
+        dataset_uuid = request.POST.get("dataset_uuid")
+        try:
+            dataset = Dataset.objects.get(
+                uuid=dataset_uuid, owner=request.user, is_deleted=False
+            )
+
+            # Get the newly uploaded files by this user
+            newly_uploaded_files = (
+                File.objects.filter(owner=request.user, is_deleted=False)
+                .exclude(name__endswith=".DS_Store")
+                .exclude(name__startswith=".")
+                .exclude(
+                    name__in=[
+                        "Thumbs.db",
+                        "desktop.ini",
+                        ".DS_Store",
+                        "._.DS_Store",
+                    ]
+                )
+                .order_by("-created_at")[:saved_files_count]
+            )
+
+            # Associate files with the dataset
+            dataset.files.add(*newly_uploaded_files)
+
+            logger.info(
+                "Associated %d files with dataset %s (%s)",
+                len(newly_uploaded_files),
+                dataset.name,
+                dataset_uuid,
+            )
+        except Dataset.DoesNotExist:
+            logger.exception("Dataset not found or access denied: %s", dataset_uuid)
+            file_errors.append(f"Dataset not found: {dataset_uuid}")
+        except Exception as e:
+            # Catch any database or validation errors during file association
+            logger.exception(
+                "Failed to associate files with dataset %s",
+                dataset_uuid,
+            )
+            file_errors.append(f"Failed to associate files with dataset: {e!s}")
+
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
         try:
             (
@@ -2923,20 +2996,10 @@ class UploadCaptureView(View):
                 request, upload_chunk_files, relative_paths
             )
 
-            created_captures = []
-
-            # Check if all files were empty (skipped)
-            # If no files were sent (all skipped on frontend), consider them all empty
-            all_files_empty = (
-                all(f.size == 0 for f in upload_chunk_files)
-                if upload_chunk_files
-                else True
+            # Determine upload status
+            all_files_empty = self._determine_upload_status(
+                upload_chunk_files, all_relative_paths
             )
-
-            # Additional check: if no files were sent but we have all_relative_paths,
-            # this indicates all files were skipped on the frontend
-            if not upload_chunk_files and all_relative_paths:
-                all_files_empty = True
 
             # Debug logging for request data
             logger.info(
@@ -2950,28 +3013,13 @@ class UploadCaptureView(View):
                 scan_group,
             )
 
-            # Create captures if:
-            # 1. All uploads succeeded, OR
-            # 2. We have required fields (regardless of file upload status)
-            capture_errors = []
             # Check if we have the required fields for capture creation
             has_required_fields = self._check_required_fields(
                 capture_type, channels, scan_group
             )
 
-            # Check if this is a chunked upload (skip capture creation for chunks)
-            is_chunk = request.POST.get("is_chunk", "false").lower() == "true"
-            chunk_number = request.POST.get("chunk_number", None)
-            total_chunks = request.POST.get("total_chunks", None)
-
-            # Determine if this is the last chunk or not a chunked upload
-            is_last_chunk = (
-                not is_chunk
-                or chunk_number is None
-                or total_chunks is None
-                or (int(chunk_number) == int(total_chunks))
-            )
-            should_create_captures = is_last_chunk
+            # Determine if captures should be created
+            should_create_captures = self._should_create_captures_for_request(request)
 
             created_captures = []
             capture_errors = []
@@ -2994,6 +3042,9 @@ class UploadCaptureView(View):
                     file_errors,
                 )
             else:
+                # Get chunk info for logging
+                chunk_number = request.POST.get("chunk_number", None)
+                total_chunks = request.POST.get("total_chunks", None)
                 logger.info(
                     "Skipping capture creation for chunk %s of %s",
                     chunk_number,
@@ -3027,51 +3078,14 @@ class UploadCaptureView(View):
             )
 
             # Handle dataset association for individual file uploads
-            dataset_uuid = request.POST.get("dataset_uuid")
-            if dataset_uuid and saved_files_count > 0 and not has_required_fields:
-                # This is an individual file upload to a dataset (not a capture upload)
-                try:
-                    dataset = Dataset.objects.get(
-                        uuid=dataset_uuid, owner=request.user, is_deleted=False
-                    )
-
-                    # Get the newly uploaded files by this user
-                    newly_uploaded_files = (
-                        File.objects.filter(owner=request.user, is_deleted=False)
-                        .exclude(name__endswith=".DS_Store")
-                        .exclude(name__startswith=".")
-                        .exclude(
-                            name__in=[
-                                "Thumbs.db",
-                                "desktop.ini",
-                                ".DS_Store",
-                                "._.DS_Store",
-                            ]
-                        )
-                        .order_by("-created_at")[:saved_files_count]
-                    )
-
-                    # Associate files with the dataset
-                    dataset.files.add(*newly_uploaded_files)
-
-                    logger.info(
-                        "Associated %d files with dataset %s (%s)",
-                        len(newly_uploaded_files),
-                        dataset.name,
-                        dataset_uuid,
-                    )
-                except Dataset.DoesNotExist:
-                    logger.exception(
-                        "Dataset not found or access denied: %s", dataset_uuid
-                    )
-                    file_errors.append(f"Dataset not found: {dataset_uuid}")
-                except Exception as e:
-                    # Catch any database or validation errors during file association
-                    logger.exception(
-                        "Failed to associate files with dataset %s",
-                        dataset_uuid,
-                    )
-                    file_errors.append(f"Failed to associate files with dataset: {e!s}")
+            if (
+                request.POST.get("dataset_uuid")
+                and saved_files_count > 0
+                and not has_required_fields
+            ):
+                self._associate_files_with_dataset(
+                    request, saved_files_count, file_errors
+                )
 
             # Log file upload errors if they occurred
             if file_errors and not all_files_empty:
