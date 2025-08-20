@@ -605,7 +605,8 @@
             });
 
             // Helper function to check for large files
-            function checkForLargeFiles(files, progressSection, cancelButton, submitButton) {
+            function checkForLargeFiles(files, cancelButton, submitButton) {
+                const progressSection = document.getElementById('checkingProgressSection');
                 const LARGE_FILE_THRESHOLD = 512 * 1024 * 1024; // 512MB in bytes
                 const largeFiles = files.filter(file => file.size > LARGE_FILE_THRESHOLD);
 
@@ -711,6 +712,8 @@
                         if (data.data && data.data.file_exists_in_tree === true) {
                             window.filesToSkip.add(fileKey);
                         }
+
+
                     } catch (error) {
                         // Error checking file
                     }
@@ -720,10 +723,12 @@
                         break;
                     }
                 }
+                progressSection.style.display = 'none';
 
                 // Check if cancellation was requested during file checking
                 if (cancelRequested) {
                     // Small delay to ensure UI updates are visible
+                    progressSection.style.display = 'none';
                     await new Promise(resolve => setTimeout(resolve, 100));
                     throw new Error('Upload cancelled by user');
                 }
@@ -793,6 +798,241 @@
                 return totalChunks;
             }
 
+            // Function to upload files in chunks
+            async function uploadFilesInChunks(filesToUpload, relativePathsToUpload, allRelativePaths, totalFiles) {
+                // Get progress elements locally
+                const progressBar = document.getElementById('checkingProgressBar');
+                const progressText = document.getElementById('checkingProgressText');
+                const progressMessage = document.getElementById('progressMessage');
+                const progressSection = document.getElementById('checkingProgressSection');
+
+                // Show upload progress if there are files to upload
+                if (filesToUpload.length > 0) {
+                    progressSection.style.display = 'block';
+                    progressMessage.textContent = 'Uploading files and creating captures...';
+                    progressBar.style.width = '0%';
+                    progressText.textContent = '0%';
+                }
+
+                // Create AbortController for upload
+                const abortController = new AbortController();
+                currentAbortController = abortController;
+
+                // Chunk size for file uploads (50 MB per chunk)
+                const CHUNK_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB in bytes
+                let allResults = {
+                    file_upload_status: 'success',
+                    saved_files_count: 0,
+                    captures: [],
+                    errors: [],
+                    message: ''
+                };
+
+                // Special case: if all files are skipped, send a single request without chunking
+                if (filesToUpload.length === 0) {
+                    allResults = await handleSkippedFilesUpload(allRelativePaths, abortController);
+
+                } else {
+                    // Upload files in chunks based on size (50MB per chunk)
+                    let currentChunk = [];
+                    let currentChunkPaths = [];
+                    let currentChunkSize = 0;
+                    let chunkNumber = 1;
+                    let filesProcessed = 0;
+
+                    // Calculate total chunks first
+                    const totalChunks = calculateTotalChunks(filesToUpload, CHUNK_SIZE_BYTES);
+
+                    // Now upload files in chunks
+                    for (let i = 0; i < filesToUpload.length; i++) {
+                        const file = filesToUpload[i];
+                        const filePath = relativePathsToUpload[i];
+
+                        // Check if this file would exceed the 50MB limit
+                        if (currentChunkSize + file.size > CHUNK_SIZE_BYTES && currentChunk.length > 0) {
+                            // Upload current chunk before adding this file
+                            await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, false);
+
+                            // Reset for next chunk
+                            currentChunk = [];
+                            currentChunkPaths = [];
+                            currentChunkSize = 0;
+                            chunkNumber++;
+                        }
+
+                        // Add file to current chunk
+                        currentChunk.push(file);
+                        currentChunkPaths.push(filePath);
+                        currentChunkSize += file.size;
+                        filesProcessed++;
+
+                        // Check if this is the last file
+                        if (i === filesToUpload.length - 1) {
+                            // Upload final chunk
+                            await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, true);
+                        }
+
+                        // Check if cancel was requested
+                        if (cancelRequested) {
+                            break;
+                        }
+                    }
+
+                    // Helper function to upload a chunk
+                    async function uploadChunk(chunk, chunkPaths, chunkNum, totalChunks, filesProcessed, isFinalChunk) {
+                        // Update progress
+                        const progress = Math.round((filesProcessed / totalFiles) * 100);
+                        progressBar.style.width = progress + '%';
+                        progressText.textContent = progress + '%';
+
+                        if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
+                            // Large file upload
+                            const file = chunk[0];
+                            progressMessage.textContent = `Uploading large file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)...`;
+                        } else {
+                            // Normal chunk upload
+                            progressMessage.textContent = `Uploading chunk ${chunkNum}/${totalChunks} (${filesProcessed} files processed)...`;
+                        }
+
+                        // Create form data for this chunk
+                        const chunkFormData = new FormData();
+
+                        // Add files for this chunk
+                        chunk.forEach(file => {
+                            chunkFormData.append('files', file);
+                        });
+                        chunkPaths.forEach(path => {
+                            chunkFormData.append('relative_paths', path);
+                        });
+
+                        // Always add all relative paths for capture creation
+                        allRelativePaths.forEach(path => {
+                            chunkFormData.append('all_relative_paths', path);
+                        });
+
+                        // Add other form fields
+                        const captureType = document.getElementById('captureTypeSelect').value;
+                        chunkFormData.append('capture_type', captureType);
+
+                        if (captureType === 'drf') {
+                            const channels = document.getElementById('captureChannelsInput').value;
+                            chunkFormData.append('channels', channels);
+                        } else if (captureType === 'rh') {
+                            const scanGroup = document.getElementById('captureScanGroupInput').value;
+                            chunkFormData.append('scan_group', scanGroup);
+                        }
+
+                        // Add chunk information
+                        chunkFormData.append('is_chunk', 'true');
+                        chunkFormData.append('chunk_number', chunkNum.toString());
+                        chunkFormData.append('total_chunks', totalChunks.toString());
+
+                        // Check for cancellation before starting this chunk
+                        if (cancelRequested) {
+                            throw new Error('Upload cancelled by user');
+                        }
+
+                        // Upload this chunk with timeout (longer timeout for large files)
+                        const controller = new AbortController();
+                        currentAbortController = controller;
+                        const timeout = chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES ? 600000 : 300000; // 10 min for large files, 5 min for normal
+                        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                        let response;
+                        let chunkResult;
+
+                        try {
+                            response = await fetch("{% url 'users:upload_capture' %}", {
+                                method: 'POST',
+                                body: chunkFormData,
+                                signal: controller.signal
+                            });
+
+                            clearTimeout(timeoutId);
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+
+                            chunkResult = await response.json();
+
+                            // Debug logging for large files
+                            if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
+                                console.log('Large file upload result:', {
+                                    isFinalChunk,
+                                    chunkResult,
+                                    captures: chunkResult.captures,
+                                    message: chunkResult.message
+                                });
+                            }
+
+                        } catch (error) {
+                            clearTimeout(timeoutId);
+                            if (error.name === 'AbortError') {
+                                throw new Error('Upload timeout - connection may be lost');
+                            }
+                            throw error;
+                        }
+
+                        // Merge results
+                        if (chunkResult.saved_files_count !== undefined) {
+                            allResults.saved_files_count += chunkResult.saved_files_count;
+                        }
+                        // Collect captures from the final chunk
+                        if (chunkResult.captures && isFinalChunk) {
+                            allResults.captures = allResults.captures.concat(chunkResult.captures);
+                        }
+                        // Also collect any message from the final chunk
+                        if (chunkResult.message && isFinalChunk) {
+                            allResults.message = chunkResult.message;
+                        }
+                        if (chunkResult.errors) {
+                            allResults.errors = allResults.errors.concat(chunkResult.errors);
+                        }
+
+                        // Check if any chunk failed
+                        if (chunkResult.file_upload_status === 'error') {
+                            allResults.file_upload_status = 'error';
+                            allResults.message = chunkResult.message || 'Upload failed';
+                            const progressMessage = document.getElementById('progressMessage');
+                            if (progressMessage) {
+                                progressMessage.textContent = 'Upload aborted due to errors. Please check the results.';
+                            }
+                            throw new Error('Upload failed: ' + chunkResult.message);
+                        } else if (chunkResult.file_upload_status === 'success') {
+                            // Only update to success if this is the final chunk
+                            if (isFinalChunk) {
+                                allResults.file_upload_status = 'success';
+                            }
+                        }
+                    }
+                }
+
+                // Check if cancellation was requested during chunk upload
+                if (cancelRequested) {
+                    // Small delay to ensure UI updates are visible
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    throw new Error('Upload cancelled by user');
+                }
+
+                // Check if upload was aborted due to errors
+                if (allResults.file_upload_status === 'error') {
+                    // Clear the reference since upload was aborted
+                    currentAbortController = null;
+                    // Show error results
+                    showUploadResults(allResults, allResults.saved_files_count, totalFiles);
+                    return allResults; // Exit early, don't continue with normal flow
+                }
+
+                // Clear the reference since upload completed
+                currentAbortController = null;
+
+                // Debug logging for final results
+                console.log('Final upload results:', allResults);
+
+                return allResults;
+            }
+
             document.getElementById('uploadCaptureForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -801,8 +1041,6 @@
                 uploadInProgress = true;
                 cancelRequested = false; // Reset cancel flag for new upload
                 sessionStorage.setItem('uploadInProgress', 'true');
-
-
 
                 // Check if files are selected
                 if (!window.selectedFiles || window.selectedFiles.length === 0) {
@@ -813,21 +1051,12 @@
                 const files = window.selectedFiles;
 
                 // Check for large files before duplicate checking
-                const progressSection = document.getElementById('checkingProgressSection');
-                if (checkForLargeFiles(files, progressSection, cancelButton, submitButton)) {
+                if (checkForLargeFiles(files, cancelButton, submitButton)) {
                     return;
                 }
 
                 // Check files for duplicates
                 await checkFilesForDuplicates(files, cancelButton, submitButton);
-
-                // Redeclare progress bar variables for upload phase
-                const progressBar = document.getElementById('checkingProgressBar');
-                const progressText = document.getElementById('checkingProgressText');
-                const progressMessage = document.getElementById('progressMessage');
-
-                // Hide progress section
-                progressSection.style.display = 'none';
 
                 // Prepare files for upload (only non-skipped files)
                 const filesToUpload = [];
@@ -858,235 +1087,18 @@
                     }
                 }
 
-                // Show upload progress if there are files to upload
-                if (filesToUpload.length > 0) {
-                    progressSection.style.display = 'block';
-                    progressMessage.textContent = 'Uploading files and creating captures...';
-                    progressBar.style.width = '0%';
-                    progressText.textContent = '0%';
-                }
-
                 // Upload files in chunks
                 try {
-                    // Create AbortController for upload
-                    const abortController = new AbortController();
-                    currentAbortController = abortController;
-
-                    // Chunk size for file uploads (50 MB per chunk)
-                    const CHUNK_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB in bytes
-                    const totalFiles = filesToUpload.length;
-                    let allResults = {
-                        file_upload_status: 'success',
-                        saved_files_count: 0,
-                        captures: [],
-                        errors: [],
-                        message: ''
-                    };
-
-                    // Special case: if all files are skipped, send a single request without chunking
-                    if (filesToUpload.length === 0) {
-                        allResults = await handleSkippedFilesUpload(allRelativePaths, abortController);
-
-                    } else {
-                        // Upload files in chunks based on size (50MB per chunk)
-                        let currentChunk = [];
-                        let currentChunkPaths = [];
-                        let currentChunkSize = 0;
-                        let chunkNumber = 1;
-                        let filesProcessed = 0;
-
-                        // Calculate total chunks first
-                        const totalChunks = calculateTotalChunks(filesToUpload, CHUNK_SIZE_BYTES);
-
-                        // Now upload files in chunks
-                        for (let i = 0; i < filesToUpload.length; i++) {
-                            const file = filesToUpload[i];
-                            const filePath = relativePathsToUpload[i];
-
-                            // Check if this file would exceed the 50MB limit
-                            if (currentChunkSize + file.size > CHUNK_SIZE_BYTES && currentChunk.length > 0) {
-                                // Upload current chunk before adding this file
-                                await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, false);
-
-                                // Reset for next chunk
-                                currentChunk = [];
-                                currentChunkPaths = [];
-                                currentChunkSize = 0;
-                                chunkNumber++;
-                            }
-
-                            // Add file to current chunk
-                            currentChunk.push(file);
-                            currentChunkPaths.push(filePath);
-                            currentChunkSize += file.size;
-                            filesProcessed++;
-
-                            // Check if this is the last file
-                            if (i === filesToUpload.length - 1) {
-                                // Upload final chunk
-                                await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, true);
-                            }
-
-                            // Check if cancel was requested
-                            if (cancelRequested) {
-                                break;
-                            }
-                        }
-
-                        // Helper function to upload a chunk
-                        async function uploadChunk(chunk, chunkPaths, chunkNum, totalChunks, filesProcessed, isFinalChunk) {
-                            // Update progress
-                            const progress = Math.round((filesProcessed / totalFiles) * 100);
-                            progressBar.style.width = progress + '%';
-                            progressText.textContent = progress + '%';
-
-                            if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
-                                // Large file upload
-                                const file = chunk[0];
-                                progressMessage.textContent = `Uploading large file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)...`;
-                            } else {
-                                // Normal chunk upload
-                                progressMessage.textContent = `Uploading chunk ${chunkNum}/${totalChunks} (${filesProcessed} files processed)...`;
-                            }
-
-                            // Create form data for this chunk
-                            const chunkFormData = new FormData();
-
-                            // Add files for this chunk
-                            chunk.forEach(file => {
-                                chunkFormData.append('files', file);
-                            });
-                            chunkPaths.forEach(path => {
-                                chunkFormData.append('relative_paths', path);
-                            });
-
-                            // Always add all relative paths for capture creation
-                            allRelativePaths.forEach(path => {
-                                chunkFormData.append('all_relative_paths', path);
-                            });
-
-                            // Add other form fields
-                            const captureType = document.getElementById('captureTypeSelect').value;
-                            chunkFormData.append('capture_type', captureType);
-
-                            if (captureType === 'drf') {
-                                const channels = document.getElementById('captureChannelsInput').value;
-                                chunkFormData.append('channels', channels);
-                            } else if (captureType === 'rh') {
-                                const scanGroup = document.getElementById('captureScanGroupInput').value;
-                                chunkFormData.append('scan_group', scanGroup);
-                            }
-
-                            // Add chunk information
-                            chunkFormData.append('is_chunk', 'true');
-                            chunkFormData.append('chunk_number', chunkNum.toString());
-                            chunkFormData.append('total_chunks', totalChunks.toString());
-
-                            // Check for cancellation before starting this chunk
-                            if (cancelRequested) {
-                                throw new Error('Upload cancelled by user');
-                            }
-
-                            // Upload this chunk with timeout (longer timeout for large files)
-                            const controller = new AbortController();
-                            currentAbortController = controller;
-                            const timeout = chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES ? 600000 : 300000; // 10 min for large files, 5 min for normal
-                            const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-                            let response;
-                            let chunkResult;
-
-                            try {
-                                response = await fetch("{% url 'users:upload_capture' %}", {
-                                    method: 'POST',
-                                    body: chunkFormData,
-                                    signal: controller.signal
-                                });
-
-                                clearTimeout(timeoutId);
-
-                                if (!response.ok) {
-                                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                                }
-
-                                chunkResult = await response.json();
-
-                                // Debug logging for large files
-                                if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
-                                    console.log('Large file upload result:', {
-                                        isFinalChunk,
-                                        chunkResult,
-                                        captures: chunkResult.captures,
-                                        message: chunkResult.message
-                                    });
-                                }
-
-                            } catch (error) {
-                                clearTimeout(timeoutId);
-                                if (error.name === 'AbortError') {
-                                    throw new Error('Upload timeout - connection may be lost');
-                                }
-                                throw error;
-                            }
-
-                            // Merge results
-                            if (chunkResult.saved_files_count !== undefined) {
-                                allResults.saved_files_count += chunkResult.saved_files_count;
-                            }
-                            // Collect captures from the final chunk
-                            if (chunkResult.captures && isFinalChunk) {
-                                allResults.captures = allResults.captures.concat(chunkResult.captures);
-                            }
-                            // Also collect any message from the final chunk
-                            if (chunkResult.message && isFinalChunk) {
-                                allResults.message = chunkResult.message;
-                            }
-                            if (chunkResult.errors) {
-                                allResults.errors = allResults.errors.concat(chunkResult.errors);
-                            }
-
-                            // Check if any chunk failed
-                            if (chunkResult.file_upload_status === 'error') {
-                                allResults.file_upload_status = 'error';
-                                allResults.message = chunkResult.message || 'Upload failed';
-                                const progressMessage = document.getElementById('progressMessage');
-                                if (progressMessage) {
-                                    progressMessage.textContent = 'Upload aborted due to errors. Please check the results.';
-                                }
-                                throw new Error('Upload failed: ' + chunkResult.message);
-                            } else if (chunkResult.file_upload_status === 'success') {
-                                // Only update to success if this is the final chunk
-                                if (isFinalChunk) {
-                                    allResults.file_upload_status = 'success';
-                                }
-                            }
-                        }
-                    }
-
-                    // Check if cancellation was requested during chunk upload
-                    if (cancelRequested) {
-                        // Small delay to ensure UI updates are visible
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        throw new Error('Upload cancelled by user');
-                    }
-
-                    // Check if upload was aborted due to errors
-                    if (allResults.file_upload_status === 'error') {
-                        // Clear the reference since upload was aborted
-                        currentAbortController = null;
-                        // Show error results
-                        showUploadResults(allResults, allResults.saved_files_count, totalFiles);
-                        return; // Exit early, don't continue with normal flow
-                    }
+                    const uploadResults = await uploadFilesInChunks(filesToUpload, relativePathsToUpload, allRelativePaths, filesToUpload.length);
 
                     // Clear the reference since upload completed
                     currentAbortController = null;
 
                     // Debug logging for final results
-                    console.log('Final upload results:', allResults);
+                    console.log('Final upload results:', uploadResults);
 
                     // Show results
-                    showUploadResults(allResults, allResults.saved_files_count, totalFiles);
+                    showUploadResults(uploadResults, uploadResults.saved_files_count, filesToUpload.length);
 
                     // Don't auto-reload for successful uploads - let user close modal first
                 } catch (error) {
@@ -1187,8 +1199,6 @@
                 if (uploadModal) {
                     uploadModal.hide();
                 }
-
-
 
                 let msg = '';
                 if (result.file_upload_status === 'success') {
