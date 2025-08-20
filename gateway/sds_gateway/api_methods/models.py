@@ -716,7 +716,7 @@ class UserSharePermission(BaseModel):
     class PermissionType(models.TextChoices):
         """Enumeration of permission types."""
 
-        VIEW = "viewer", "Viewer"
+        VIEWER = "viewer", "Viewer"
 
     # The user who owns the item being shared
     owner = models.ForeignKey(
@@ -728,7 +728,7 @@ class UserSharePermission(BaseModel):
     permission_level = models.CharField(
         max_length=20,
         choices=PermissionType.choices,
-        default=PermissionType.VIEW,
+        default=PermissionType.VIEWER,
     )
 
     # The user who is being granted access
