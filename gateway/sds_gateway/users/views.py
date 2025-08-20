@@ -785,11 +785,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
                 else ""
             )
             self._add_capture_files(request, items, capture_uuid, subpath=subpath)
-        elif current_dir.startswith("/datasets/"):
-            # Inside a dataset - show captures within the dataset
-            parts = current_dir.strip("/").split("/")
-            dataset_uuid = parts[1] if len(parts) > 1 else ""
-            self._add_dataset_captures(request, items, dataset_uuid)
+
         else:
             # Unknown directory - go back to root
             return HttpResponseRedirect("/users/files/")
@@ -797,14 +793,10 @@ class FilesView(Auth0LoginRequiredMixin, View):
         # Build breadcrumb parts
         breadcrumb_parts = self._build_breadcrumbs(current_dir, request.user.email)
 
-        # Get datasets for the upload modal
-        datasets = request.user.datasets.filter(is_deleted=False)
-
         # Debug logging
         logger.debug(
-            "FilesView: context summary items=%d datasets=%d",
+            "FilesView: context summary items=%d",
             len(items),
-            len(datasets),
         )
         logger.debug(
             "FilesView: first items preview=%s",
@@ -824,7 +816,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
                 "current_dir": current_dir,
                 "breadcrumb_parts": breadcrumb_parts,
                 "user_email": request.user.email,
-                "datasets": datasets,
             },
         )
 
@@ -832,14 +823,13 @@ class FilesView(Auth0LoginRequiredMixin, View):
         """Return a consistent display string for modified timestamps."""
         return dt.strftime("%Y-%m-%d %H:%M") if dt else "N/A"
 
-    def _make_dir_item(  # noqa: PLR0913
+    def _make_dir_item(
         self,
         *,
         name: str,
         path: str,
         uuid: str = "",
         is_capture: bool = False,
-        is_dataset: bool = False,
         is_shared: bool = False,
         is_owner: bool = False,
         capture_uuid: str = "",
@@ -853,7 +843,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
             "path": path,
             "uuid": uuid,
             "is_capture": is_capture,
-            "is_dataset": is_dataset,
             "is_shared": is_shared,
             "is_owner": is_owner,
             "capture_uuid": capture_uuid,
@@ -876,7 +865,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
             "path": str(file_obj.uuid),
             "uuid": str(file_obj.uuid),
             "is_capture": False,
-            "is_dataset": False,
             "is_shared": is_shared,
             "capture_uuid": capture_uuid,
             "modified_at": self._format_modified(getattr(file_obj, "updated_at", None)),
@@ -885,15 +873,13 @@ class FilesView(Auth0LoginRequiredMixin, View):
 
     def _add_root_items(self, request, items):
         """Add captures and datasets to the root directory."""
-        # Get user's captures and datasets
+        # Get user's captures
         user_captures = request.user.captures.filter(is_deleted=False)
-        user_datasets = request.user.datasets.filter(is_deleted=False)
 
         logger.debug(
-            "FilesView: user=%s has captures=%d datasets=%d",
+            "FilesView: user=%s has captures=%d",
             request.user.email,
             user_captures.count(),
-            user_datasets.count(),
         )
 
         # Add captures as folders
@@ -904,7 +890,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     path=f"/captures/{capture.uuid}",
                     uuid=str(capture.uuid),
                     is_capture=True,
-                    is_dataset=False,
                     is_shared=False,
                     is_owner=True,  # User owns their own captures
                     capture_uuid=str(capture.uuid),
@@ -915,21 +900,31 @@ class FilesView(Auth0LoginRequiredMixin, View):
                 )
             )
 
-        # Add datasets as folders
-        for dataset in user_datasets:
+        # Add individual files that are not part of any capture
+        individual_files = (
+            File.objects.filter(
+                owner=request.user,
+                is_deleted=False,
+                capture__isnull=True,
+            )
+            .exclude(name__endswith=".DS_Store")
+            .exclude(name__startswith=".")
+            .exclude(name__in=["Thumbs.db", "desktop.ini", ".DS_Store", "._.DS_Store"])
+            .order_by("name")
+        )
+
+        logger.debug(
+            "FilesView: user=%s has individual files=%d",
+            request.user.email,
+            individual_files.count(),
+        )
+
+        for file_obj in individual_files:
             items.append(
-                self._make_dir_item(
-                    name=dataset.name,
-                    path=f"/datasets/{dataset.uuid}",
-                    uuid=str(dataset.uuid),
-                    is_capture=False,
-                    is_dataset=True,
-                    is_shared=False,
-                    is_owner=True,  # User owns their own datasets
+                self._make_file_item(
+                    file_obj=file_obj,
                     capture_uuid="",
-                    modified_at_display=self._format_modified(
-                        getattr(dataset, "updated_at", None)
-                    ),
+                    is_shared=False,
                     shared_by="",
                 )
             )
@@ -960,7 +955,12 @@ class FilesView(Auth0LoginRequiredMixin, View):
                 return
 
         # Get files associated with this capture
-        capture_files = File.objects.filter(capture=capture, is_deleted=False)
+        capture_files = (
+            File.objects.filter(capture=capture, is_deleted=False)
+            .exclude(name__endswith=".DS_Store")
+            .exclude(name__startswith=".")
+            .exclude(name__in=["Thumbs.db", "desktop.ini", ".DS_Store", "._.DS_Store"])
+        )
 
         logger.debug(
             "FilesView: capture=%s files=%d",
@@ -1043,7 +1043,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     path=next_path,
                     uuid="",
                     is_capture=False,
-                    is_dataset=False,
                     is_shared=False,
                     is_owner=True,  # Directories within user's own captures
                     capture_uuid=str(capture_uuid),
@@ -1065,62 +1064,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
                 )
             )
 
-    def _add_dataset_captures(self, request, items, dataset_uuid):
-        """Add captures within a specific dataset."""
-        try:
-            dataset = request.user.datasets.get(uuid=dataset_uuid, is_deleted=False)
-        except Dataset.DoesNotExist:
-            # Check if it's shared
-            shared_permission = UserSharePermission.objects.filter(
-                item_uuid=dataset_uuid,
-                item_type=ItemType.DATASET,
-                shared_with=request.user,
-                is_deleted=False,
-                is_enabled=True,
-            ).first()
-            if shared_permission:
-                dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
-            else:
-                return
-
-        # Get captures within this dataset
-        dataset_captures = dataset.captures.filter(is_deleted=False)
-
-        logger.debug(
-            "FilesView: dataset=%s captures=%d", dataset.name, dataset_captures.count()
-        )
-
-        # Add captures as folders
-        for capture in dataset_captures:
-            items.append(
-                self._make_dir_item(
-                    name=capture.name or f"Capture {capture.uuid}",
-                    path=f"/captures/{capture.uuid}",
-                    uuid=str(capture.uuid),
-                    is_capture=True,
-                    is_dataset=False,
-                    is_shared=False,
-                    is_owner=True,  # Captures within user's own datasets
-                    capture_uuid=str(capture.uuid),
-                    modified_at_display=self._format_modified(
-                        getattr(capture, "updated_at", None)
-                    ),
-                    shared_by="",
-                )
-            )
-
-        # Also add dataset files that are not part of any capture (artifacts)
-        dataset_artifacts = dataset.files.filter(is_deleted=False, capture__isnull=True)
-        for file_obj in dataset_artifacts:
-            items.append(
-                self._make_file_item(
-                    file_obj=file_obj,
-                    capture_uuid="",
-                    is_shared=False,
-                    shared_by="",
-                )
-            )
-
     def _add_shared_items(self, request, items):
         """Add shared captures and datasets, avoiding N+1 lookups."""
         shared_permissions = (
@@ -1135,27 +1078,17 @@ class FilesView(Auth0LoginRequiredMixin, View):
 
         # Build mapping from item_uuid to owner email by type
         capture_owner_by_uuid: dict[str, str] = {}
-        dataset_owner_by_uuid: dict[str, str] = {}
         capture_uuids: list[str] = []
-        dataset_uuids: list[str] = []
         for perm in shared_permissions:
             if perm.item_type == ItemType.CAPTURE:
                 capture_uuids.append(str(perm.item_uuid))
                 capture_owner_by_uuid[str(perm.item_uuid)] = getattr(
                     perm.owner, "email", "Unknown"
                 )
-            elif perm.item_type == ItemType.DATASET:
-                dataset_uuids.append(str(perm.item_uuid))
-                dataset_owner_by_uuid[str(perm.item_uuid)] = getattr(
-                    perm.owner, "email", "Unknown"
-                )
 
         # Fetch items (excluding user's own)
         shared_captures = Capture.objects.filter(
             uuid__in=capture_uuids, is_deleted=False
-        ).exclude(owner=request.user)
-        shared_datasets = Dataset.objects.filter(
-            uuid__in=dataset_uuids, is_deleted=False
         ).exclude(owner=request.user)
 
         for capture in shared_captures:
@@ -1165,7 +1098,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
                     path=f"/captures/{capture.uuid}",
                     uuid=str(capture.uuid),
                     is_capture=True,
-                    is_dataset=False,
                     is_shared=True,
                     is_owner=False,  # Shared items are not owned by current user
                     capture_uuid=str(capture.uuid),
@@ -1173,24 +1105,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
                         getattr(capture, "updated_at", None)
                     ),
                     shared_by=capture_owner_by_uuid.get(str(capture.uuid), "Unknown"),
-                )
-            )
-
-        for dataset in shared_datasets:
-            items.append(
-                self._make_dir_item(
-                    name=dataset.name,
-                    path=f"/datasets/{dataset.uuid}",
-                    uuid=str(dataset.uuid),
-                    is_capture=False,
-                    is_dataset=True,
-                    is_shared=True,
-                    is_owner=False,  # Shared items are not owned by current user
-                    capture_uuid="",
-                    modified_at_display=self._format_modified(
-                        getattr(dataset, "updated_at", None)
-                    ),
-                    shared_by=dataset_owner_by_uuid.get(str(dataset.uuid), "Unknown"),
                 )
             )
 
@@ -1208,22 +1122,18 @@ class FilesView(Auth0LoginRequiredMixin, View):
         path_parts = current_dir.strip("/").split("/")
 
         def resolve_name(index: int, part: str) -> str:
-            # Resolve UUID to a human-friendly name for captures/datasets
-            if index > 0 and path_parts[0] in {"captures", "datasets"} and index == 1:
+            # Resolve UUID to a human-friendly name for captures
+            if index > 0 and path_parts[0] == "captures" and index == 1:
                 try:
-                    if path_parts[0] == "captures":
-                        obj = Capture.objects.only("name").filter(uuid=part).first()
-                        return obj.name or str(part) if obj else str(part)
-                    if path_parts[0] == "datasets":
-                        obj = Dataset.objects.only("name").filter(uuid=part).first()
-                        return obj.name if obj and obj.name else str(part)
+                    obj = Capture.objects.only("name").filter(uuid=part).first()
+                    return obj.name or str(part) if obj else str(part)
                 except Exception:  # noqa: BLE001 - resolving display names is best-effort
                     return str(part)
             return str(part)
 
         for i, part in enumerate(path_parts):
             # Skip noisy storage and container segments
-            if part in {"files", user_email, "captures", "datasets"}:
+            if part in {"files", user_email, "captures"}:
                 continue
             breadcrumb_parts.append(
                 {
@@ -3126,9 +3036,20 @@ class UploadCaptureView(View):
                     )
 
                     # Get the newly uploaded files by this user
-                    newly_uploaded_files = File.objects.filter(
-                        owner=request.user, is_deleted=False
-                    ).order_by("-created_at")[:saved_files_count]
+                    newly_uploaded_files = (
+                        File.objects.filter(owner=request.user, is_deleted=False)
+                        .exclude(name__endswith=".DS_Store")
+                        .exclude(name__startswith=".")
+                        .exclude(
+                            name__in=[
+                                "Thumbs.db",
+                                "desktop.ini",
+                                ".DS_Store",
+                                "._.DS_Store",
+                            ]
+                        )
+                        .order_by("-created_at")[:saved_files_count]
+                    )
 
                     # Associate files with the dataset
                     dataset.files.add(*newly_uploaded_files)
@@ -3140,7 +3061,9 @@ class UploadCaptureView(View):
                         dataset_uuid,
                     )
                 except Dataset.DoesNotExist:
-                    logger.exception("Dataset not found or access denied: %s", dataset_uuid)
+                    logger.exception(
+                        "Dataset not found or access denied: %s", dataset_uuid
+                    )
                     file_errors.append(f"Dataset not found: {dataset_uuid}")
                 except Exception as e:
                     # Catch any database or validation errors during file association

@@ -21,6 +21,9 @@
     <link href="{% static 'css/file-manager.css' %}" rel="stylesheet" />
     <!-- Reuse captures modal styling from file_list -->
     <link rel="stylesheet" href="{% static 'css/file-list.css' %}" />
+    <!-- Prism.js for syntax highlighting -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" />
 {% endblock css %}
 {% block content %}
     <!-- Global Drop Zone Overlay (initially hidden) -->
@@ -67,35 +70,18 @@
         <div class="files-container"
              data-current-dir="{{ current_dir }}"
              data-user-email="{{ user_email }}">
-            {% if dataset %}
-                <div class="dataset-context mb-4">
-                    <h4>
-                        <i class="bi bi-database me-2"></i>
-                        {{ dataset.name }}
-                    </h4>
-                    <nav aria-label="Dataset breadcrumb">
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item">
-                                <a href="{% url 'users:files' %}">Home</a>
-                            </li>
-                            <li class="breadcrumb-item active">Dataset Contents</li>
-                        </ol>
-                    </nav>
-                </div>
-            {% else %}
-                <nav aria-label="File location breadcrumb">
-                    <ol class="breadcrumb">
+            <nav aria-label="File location breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'users:files' %}">Home</a>
+                    </li>
+                    {% for part in breadcrumb_parts %}
                         <li class="breadcrumb-item">
-                            <a href="{% url 'users:files' %}">Home</a>
+                            <a href="{% url 'users:files' %}?dir={{ part.path|urlencode }}">{{ part.name }}</a>
                         </li>
-                        {% for part in breadcrumb_parts %}
-                            <li class="breadcrumb-item">
-                                <a href="{% url 'users:files' %}?dir={{ part.path|urlencode }}">{{ part.name }}</a>
-                            </li>
-                        {% endfor %}
-                    </ol>
-                </nav>
-            {% endif %}
+                    {% endfor %}
+                </ol>
+            </nav>
             <!-- Files Grid -->
             <div class="files-grid">
                 <div class="file-card header">
@@ -112,14 +98,12 @@
                          data-path="{{ item.path }}"
                          data-uuid="{{ item.uuid|default:'' }}"
                          data-is-capture="{{ item.is_capture|yesno:'true,false' }}"
-                         data-is-dataset="{{ item.is_dataset|yesno:'true,false' }}"
                          data-is-shared="{{ item.is_shared|yesno:'true,false' }}"
                          data-capture-uuid="{{ item.capture_uuid|default:'' }}"
-                         data-description="{{ item.description|default:'' }}">
+                         data-description="{{ item.description|default:'' }}"
+                         {% if item.type == 'file' and item.name|lower|slice:'-3:' == '.h5' or item.name|lower|slice:'-5:' == 'hdf5' %}data-h5-file="true"{% endif %}>
                         <div class="file-card-content">
-                            {% if item.is_dataset %}
-                                <i class="bi bi-database dataset-icon"></i>
-                            {% elif item.type == "directory" %}
+                            {% if item.type == "directory" %}
                                 <i class="bi bi-folder folder-icon"></i>
                             {% else %}
                                 <i class="material-icons file-icon">description</i>
@@ -142,107 +126,90 @@
                             <div class="file-shared">
                                 {% if item.shared_by %}{{ item.shared_by }}{% endif %}
                             </div>
-                            <div class="file-actions">
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center"
-                                            type="button"
-                                            data-bs-toggle="dropdown"
-                                            data-bs-popper="static"
-                                            aria-expanded="false"
-                                            aria-label="Actions for {{ item.name }}">
-                                        <i class="bi bi-three-dots-vertical"></i>
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        {% if item.is_dataset %}
-                                            {% if item.is_owner %}
+                            {% if item.type == 'file' and item.name|lower|slice:'-3:' == '.h5' or item.name|lower|slice:'-5:' == 'hdf5' %}
+                                <!-- No actions for H5 files -->
+                            {% else %}
+                                <!-- Show actions for captures and individual files -->
+                                <div class="file-actions">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-popper="static"
+                                                aria-expanded="false"
+                                                aria-label="Actions for {{ item.name }}">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            {% if item.is_capture %}
+                                                <!-- Capture actions -->
+                                                {% if item.is_owner %}
+                                                    <li>
+                                                        <button class="dropdown-item capture-details-btn"
+                                                                type="button"
+                                                                data-uuid="{{ item.uuid }}"
+                                                                data-name="{{ item.name|default:'' }}"
+                                                                data-channel="{{ item.capture_uuid }}"
+                                                                data-scan-group=""
+                                                                data-capture-type=""
+                                                                data-top-level-dir=""
+                                                                data-owner="{{ request.user.email }}"
+                                                                data-origin=""
+                                                                data-created-at=""
+                                                                data-updated-at=""
+                                                                data-is-public="false"
+                                                                data-center-frequency-ghz=""
+                                                                data-is-multi-channel="false"
+                                                                data-channels="">
+                                                            <i class="bi bi-pencil me-2"></i>Edit
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <button class="dropdown-item"
+                                                                type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#share-modal-{{ item.uuid }}">
+                                                            <i class="bi bi-share me-2"></i>Share
+                                                        </button>
+                                                    </li>
+                                                {% endif %}
                                                 <li>
-                                                    <button class="dropdown-item"
+                                                    <button class="dropdown-item download-capture-btn"
                                                             type="button"
-                                                            data-edit-url="{% url 'users:group_captures' %}?dataset_uuid={{ item.uuid }}"
-                                                            onclick="window.location.href=this.dataset.editUrl">
-                                                        <i class="bi bi-pencil me-2"></i>Edit
+                                                            data-capture-uuid="{{ item.uuid }}"
+                                                            data-capture-name="{{ item.name }}">
+                                                        <i class="bi bi-download me-2"></i>Download
                                                     </button>
                                                 </li>
+                                            {% elif item.type == 'file' %}
+                                                <!-- Individual file actions -->
                                                 <li>
-                                                    <button class="dropdown-item"
+                                                    <a class="dropdown-item"
+                                                       href="{% url 'users:file_download' uuid=item.uuid %}">
+                                                        <i class="bi bi-download me-2"></i>Download
+                                                    </a>
+                                                </li>
+                                            {% elif item.type == 'directory' and item.capture_uuid %}
+                                                <!-- Nested directory within capture actions -->
+                                                <li>
+                                                    <button class="dropdown-item download-capture-btn"
                                                             type="button"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#share-modal-{{ item.uuid }}">
-                                                        <i class="bi bi-share me-2"></i>Share
+                                                            data-capture-uuid="{{ item.capture_uuid }}"
+                                                            data-capture-name="{{ item.name }}">
+                                                        <i class="bi bi-download me-2"></i>Download
                                                     </button>
                                                 </li>
                                             {% endif %}
-                                            <li>
-                                                <button class="dropdown-item download-dataset-btn"
-                                                        type="button"
-                                                        data-dataset-uuid="{{ item.uuid }}"
-                                                        data-dataset-name="{{ item.name }}">
-                                                    <i class="bi bi-download me-2"></i>Download
-                                                </button>
-                                            </li>
-                                        {% elif item.is_capture %}
-                                            {% if item.is_owner %}
-                                                <li>
-                                                    <button class="dropdown-item capture-details-btn"
-                                                            type="button"
-                                                            data-uuid="{{ item.uuid }}"
-                                                            data-name="{{ item.name|default:'' }}"
-                                                            data-channel="{{ item.capture_uuid }}"
-                                                            data-scan-group=""
-                                                            data-capture-type=""
-                                                            data-top-level-dir=""
-                                                            data-owner="{{ request.user.email }}"
-                                                            data-origin=""
-                                                            data-dataset=""
-                                                            data-created-at=""
-                                                            data-updated-at=""
-                                                            data-is-public="false"
-                                                            data-center-frequency-ghz=""
-                                                            data-is-multi-channel="false"
-                                                            data-channels="">
-                                                        <i class="bi bi-pencil me-2"></i>Edit
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item"
-                                                            type="button"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#share-modal-{{ item.uuid }}">
-                                                        <i class="bi bi-share me-2"></i>Share
-                                                    </button>
-                                                </li>
-                                            {% endif %}
-                                            <li>
-                                                <button class="dropdown-item download-capture-btn"
-                                                        type="button"
-                                                        data-capture-uuid="{{ item.uuid }}"
-                                                        data-capture-name="{{ item.name }}">
-                                                    <i class="bi bi-download me-2"></i>Download
-                                                </button>
-                                            </li>
-                                        {% elif item.type == 'file' %}
-                                            <li>
-                                                <a class="dropdown-item"
-                                                   href="{% url 'users:file_download' uuid=item.uuid %}">
-                                                    <i class="bi bi-download me-2"></i>Download
-                                                </a>
-                                            </li>
-                                        {% endif %}
-                                    </ul>
+                                        </ul>
+                                    </div>
                                 </div>
-                            </div>
+                            {% endif %}
                         </div>
                     </div>
                 {% empty %}
                     <div class="no-files">
                         <i class="material-icons empty-folder-icon">folder_open</i>
-                        <p>
-                            {% if dataset %}
-                                This dataset has no files or captures
-                            {% else %}
-                                This folder is empty
-                            {% endif %}
-                        </p>
+                        <p>This folder is empty</p>
                     </div>
                 {% endfor %}
             </div>
@@ -450,18 +417,6 @@
                                    required
                                    tabindex="0" />
                         </div>
-                        <div class="mb-3">
-                            <label for="datasetSelect" class="form-label">Select Dataset</label>
-                            <select class="form-select"
-                                    id="datasetSelect"
-                                    name="dataset_uuid"
-                                    required
-                                    tabindex="0">
-                                <option value="">Select a dataset...</option>
-                                {% for dataset in datasets %}<option value="{{ dataset.uuid }}">{{ dataset.name }}</option>{% endfor %}
-                            </select>
-                            <div class="form-text">Choose which dataset this file should be added to.</div>
-                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button"
@@ -512,11 +467,9 @@
     </div>
     <!-- Include capture modal for editing -->
     {% include "users/partials/capture_modal.html" %}
-    <!-- Include share modals for datasets and captures -->
+    <!-- Include share modals for captures -->
     {% for item in items %}
-        {% if item.is_dataset %}
-            {% include "users/partials/share_modal.html" with item=item item_type="dataset" %}
-        {% elif item.is_capture %}
+        {% if item.is_capture %}
             {% include "users/partials/share_modal.html" with item=item item_type="capture" %}
         {% endif %}
     {% endfor %}
@@ -528,6 +481,13 @@
     <script src="{% static 'js/file-manager.js' %}?v=7"></script>
     <!-- Load the WASM library for BLAKE3 hashing -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
+    <!-- Prism.js for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
     <!-- Configuration for external JavaScript files -->
     <script>
         // Global configuration for files page JavaScript modules

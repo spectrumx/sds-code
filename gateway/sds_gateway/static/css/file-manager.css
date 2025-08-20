@@ -164,8 +164,13 @@ body {
 /* Hover effects for all items */
 .file-card:hover .file-name,
 .file-card:hover .folder-icon,
-.file-card:hover .file-icon,
-.file-card:hover .dataset-icon.bi {
+.file-card:hover .file-icon {
+	color: #005a9c; /* SpectrumX blue */
+}
+
+/* No hover effects for H5 files */
+.file-card[data-type="file"]:not([data-h5-file="true"]):hover .file-name,
+.file-card[data-type="file"]:not([data-h5-file="true"]):hover .file-icon {
 	color: #005a9c; /* SpectrumX blue */
 }
 
@@ -506,6 +511,246 @@ body {
 	font-size: 14px;
 	line-height: 1.5;
 	color: #212529;
+}
+
+/* Enhanced syntax highlighting styles */
+.syntax-highlighted {
+	margin: 0;
+	padding: 0;
+	border-radius: 6px;
+	overflow: hidden;
+	background: #f8f9fa;
+	border: 1px solid #e9ecef;
+}
+
+.syntax-highlighted code {
+	font-family: "Fira Code", "Monaco", "Consolas", "Liberation Mono",
+		"Courier New", monospace;
+	font-size: 13px;
+	line-height: 1.6;
+	padding: 1rem;
+	display: block;
+	overflow-x: auto;
+	white-space: pre;
+	background: transparent;
+}
+
+/* Custom Prism.js theme overrides for better readability */
+.syntax-highlighted .token.comment,
+.syntax-highlighted .token.prolog,
+.syntax-highlighted .token.doctype,
+.syntax-highlighted .token.cdata {
+	color: #6a737d;
+	font-style: italic;
+}
+
+.syntax-highlighted .token.string,
+.syntax-highlighted .token.attr-value {
+	color: #032f62;
+}
+
+.syntax-highlighted .token.keyword,
+.syntax-highlighted .token.operator {
+	color: #d73a49;
+}
+
+.syntax-highlighted .token.function,
+.syntax-highlighted .token.class-name {
+	color: #6f42c1;
+}
+
+.syntax-highlighted .token.number,
+.syntax-highlighted .token.boolean {
+	color: #005cc5;
+}
+
+.syntax-highlighted .token.variable {
+	color: #24292e;
+}
+
+.syntax-highlighted .token.property {
+	color: #005cc5;
+}
+
+.syntax-highlighted .token.tag {
+	color: #22863a;
+}
+
+.syntax-highlighted .token.attr-name {
+	color: #6f42c1;
+}
+
+/* File preview modal enhancements */
+#filePreviewModal .modal-body {
+	padding: 0;
+}
+
+#filePreviewModal .preview-content {
+	max-height: 70vh;
+	overflow: auto;
+}
+
+/* Jupyter Notebook Preview Styles */
+.jupyter-notebook-preview {
+	font-family: var(--font-family);
+	background: #fff;
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.notebook-header {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	padding: 20px;
+	border-bottom: 1px solid #e9ecef;
+}
+
+.notebook-title {
+	font-size: 24px;
+	font-weight: 600;
+	margin-bottom: 8px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.notebook-title i {
+	font-size: 28px;
+	color: #ffd700;
+}
+
+.notebook-info {
+	display: flex;
+	gap: 20px;
+	font-size: 14px;
+	opacity: 0.9;
+}
+
+.notebook-kernel {
+	background: rgba(255, 255, 255, 0.2);
+	padding: 4px 12px;
+	border-radius: 16px;
+	font-weight: 500;
+}
+
+.notebook-cells {
+	background: rgba(255, 255, 255, 0.2);
+	padding: 4px 12px;
+	border-radius: 16px;
+	font-weight: 500;
+}
+
+.notebook-cell {
+	margin: 0;
+	border-bottom: 1px solid #f0f0f0;
+}
+
+.notebook-cell:last-child {
+	border-bottom: none;
+}
+
+.cell-header {
+	background: #f8f9fa;
+	padding: 8px 16px;
+	border-left: 4px solid transparent;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.notebook-cell.code .cell-header {
+	border-left-color: #007acc;
+}
+
+.notebook-cell.markdown .cell-header {
+	border-left-color: #28a745;
+}
+
+.cell-type {
+	padding: 2px 8px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.cell-type.code {
+	background: #e3f2fd;
+	color: #1976d2;
+}
+
+.cell-type.markdown {
+	background: #e8f5e8;
+	color: #2e7d32;
+}
+
+.execution-count {
+	color: #666;
+	font-family: "Monaco", "Consolas", monospace;
+}
+
+.cell-content {
+	padding: 16px;
+}
+
+.cell-content pre {
+	margin: 0;
+	background: #f8f9fa;
+	border: 1px solid #e9ecef;
+	border-radius: 6px;
+	padding: 12px;
+	font-size: 13px;
+	line-height: 1.5;
+	overflow-x: auto;
+}
+
+.cell-content code {
+	background: transparent;
+	padding: 0;
+	border: none;
+	font-size: inherit;
+}
+
+.markdown-content {
+	line-height: 1.6;
+	color: #333;
+}
+
+.cell-output {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid #e9ecef;
+}
+
+.output-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: #666;
+	margin-bottom: 8px;
+	display: block;
+}
+
+.output-stream {
+	background: #f5f5f5;
+	border: 1px solid #e0e0e0;
+	border-radius: 4px;
+	padding: 8px;
+	font-family: "Monaco", "Consolas", monospace;
+	font-size: 12px;
+	color: #333;
+}
+
+.output-result {
+	background: #e8f5e8;
+	border: 1px solid #c8e6c9;
+	border-radius: 4px;
+	padding: 8px;
+	font-family: "Monaco", "Consolas", monospace;
+	font-size: 12px;
+	color: #2e7d32;
 }
 
 /* Make modal larger for previews */

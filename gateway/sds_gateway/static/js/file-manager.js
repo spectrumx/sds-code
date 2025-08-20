@@ -224,7 +224,7 @@ class FileManager {
 			path: card.dataset.path,
 			uuid: card.dataset.uuid,
 			is_capture: card.dataset.isCapture === "true",
-			is_dataset: card.dataset.isDataset === "true",
+
 			is_shared: card.dataset.isShared === "true",
 			capture_uuid: card.dataset.captureUuid,
 			description: card.dataset.description,
@@ -862,10 +862,12 @@ class FileManager {
 
 	async fetchFileContent(fileUuid) {
 		const response = await fetch(`/users/files/${fileUuid}/content/`);
+
 		if (!response.ok) {
 			const error = await response.json();
 			throw new Error(error.error || "Failed to fetch file content");
 		}
+
 		return response.text();
 	}
 
@@ -876,99 +878,325 @@ class FileManager {
 
 		modalTitle.textContent = fileName;
 
-		const preElement = document.createElement("pre");
-		preElement.className = "preview-text";
-		preElement.textContent = content;
-
+		// Clear previous content
 		previewContent.innerHTML = "";
-		previewContent.appendChild(preElement);
+
+		// Check if we should use syntax highlighting
+		if (this.shouldUseSyntaxHighlighting(fileName)) {
+			this.showSyntaxHighlightedContent(previewContent, content, fileName);
+		} else {
+			// Basic text display
+			const preElement = document.createElement("pre");
+			preElement.className = "preview-text";
+			preElement.textContent = content;
+			previewContent.appendChild(preElement);
+		}
 
 		new bootstrap.Modal(modal).show();
 	}
 
-	async showH5FileInfo(fileUuid, fileName) {
-		try {
-			const response = await fetch(`/users/files/${fileUuid}/h5info/`);
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || "Failed to fetch H5 file info");
-			}
+	// Helper methods for syntax highlighting
+	getFileExtension(fileName) {
+		return fileName.split(".").pop().toLowerCase();
+	}
 
-			const structure = await response.json();
+	getLanguageFromExtension(extension) {
+		const languageMap = {
+			js: "javascript",
+			jsx: "javascript",
+			ts: "typescript",
+			tsx: "typescript",
+			py: "python",
+			pyw: "python",
+			ipynb: "json", // Jupyter notebooks are JSON
+			json: "json",
+			xml: "markup",
+			html: "markup",
+			htm: "markup",
+			css: "css",
+			scss: "css",
+			sass: "css",
+			sh: "bash",
+			bash: "bash",
+			zsh: "bash",
+			fish: "bash",
+			c: "c",
+			cpp: "cpp",
+			cc: "cpp",
+			cxx: "cpp",
+			h: "c",
+			hpp: "cpp",
+			java: "java",
+			php: "php",
+			rb: "ruby",
+			go: "go",
+			rs: "rust",
+			swift: "swift",
+			kt: "kotlin",
+			scala: "scala",
+			clj: "clojure",
+			hs: "haskell",
+			ml: "ocaml",
+			fs: "fsharp",
+			cs: "csharp",
+			vb: "vbnet",
+			sql: "sql",
+			r: "r",
+			m: "matlab",
+			pl: "perl",
+			tcl: "tcl",
+			lua: "lua",
+			vim: "vim",
+			yaml: "yaml",
+			yml: "yaml",
+			toml: "toml",
+			ini: "ini",
+			cfg: "ini",
+			conf: "ini",
+			md: "markdown",
+			markdown: "markdown",
+			txt: "text",
+			log: "text",
+		};
+		return languageMap[extension] || "text";
+	}
 
-			// Update modal content
-			const modal = document.getElementById("filePreviewModal");
-			const modalTitle = modal.querySelector(".modal-title");
-			const previewContent = modal.querySelector(".preview-content");
+	shouldUseSyntaxHighlighting(fileName) {
+		const extension = this.getFileExtension(fileName);
+		const highlightableExtensions = [
+			"js",
+			"jsx",
+			"ts",
+			"tsx",
+			"py",
+			"pyw",
+			"ipynb",
+			"json",
+			"xml",
+			"html",
+			"htm",
+			"css",
+			"scss",
+			"sass",
+			"sh",
+			"bash",
+			"zsh",
+			"fish",
+			"c",
+			"cpp",
+			"cc",
+			"cxx",
+			"h",
+			"hpp",
+			"java",
+			"php",
+			"rb",
+			"go",
+			"rs",
+			"swift",
+			"kt",
+			"scala",
+			"clj",
+			"hs",
+			"ml",
+			"fs",
+			"cs",
+			"vb",
+			"sql",
+			"r",
+			"m",
+			"pl",
+			"tcl",
+			"lua",
+			"vim",
+			"yaml",
+			"yml",
+			"toml",
+			"ini",
+			"cfg",
+			"conf",
+			"md",
+			"markdown",
+		];
+		return highlightableExtensions.includes(extension);
+	}
 
-			modalTitle.textContent = `${fileName} - Structure`;
+	showSyntaxHighlightedContent(container, content, fileName) {
+		const extension = this.getFileExtension(fileName);
+		const language = this.getLanguageFromExtension(extension);
 
-			// Create content container
-			const container = document.createElement("div");
-			container.className = "h5-structure";
-			container.style.cssText = `
-        padding: 16px;
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 4px;
-        font-family: monospace;
-        font-size: 13px;
-        line-height: 1.4;
-        overflow: auto;
-        max-height: 70vh;
-      `;
-
-			// Recursively build structure display
-			function buildStructureHtml(data, indent = 0) {
-				let html = "";
-				const padding = "  ".repeat(indent);
-
-				for (const [name, info] of Object.entries(data)) {
-					if (info.type === "group") {
-						html += `${padding}<span style="color: #005a9c;">Group: ${name}/</span>\n`;
-						if (Object.keys(info.attributes).length > 0) {
-							html += `${padding}  Attributes:\n`;
-							for (const [key, value] of Object.entries(info.attributes)) {
-								html += `${padding}    ${key}: ${value}\n`;
-							}
-						}
-						if (info.children && Object.keys(info.children).length > 0) {
-							html += buildStructureHtml(info.children, indent + 1);
-						}
-					} else if (info.type === "dataset") {
-						html += `${padding}<span style="color: #1e8449;">Dataset: ${name}</span>\n`;
-						html += `${padding}  Shape: ${JSON.stringify(info.shape)}\n`;
-						html += `${padding}  Type: ${info.dtype}\n`;
-						if (Object.keys(info.attributes).length > 0) {
-							html += `${padding}  Attributes:\n`;
-							for (const [key, value] of Object.entries(info.attributes)) {
-								html += `${padding}    ${key}: ${value}\n`;
-							}
-						}
-						if (info.preview !== undefined) {
-							html += `${padding}  Preview: ${JSON.stringify(info.preview)}\n`;
-						}
-					}
-				}
-
-				return html;
-			}
-
-			// Create a pre element for the structure
-			const preElement = document.createElement("pre");
-			preElement.style.margin = "0";
-			preElement.innerHTML = buildStructureHtml(structure);
-
-			// Add the content
-			container.appendChild(preElement);
-			previewContent.innerHTML = "";
-			previewContent.appendChild(container);
-
-			// Show the modal
-			new bootstrap.Modal(modal).show();
-		} catch (error) {
-			this.showError(error.message || "Failed to load H5 file information");
+		// Special handling for Jupyter notebooks
+		if (extension === "ipynb") {
+			this.showJupyterNotebookPreview(container, content, fileName);
+			return;
 		}
+
+		// Create code element with language class
+		const codeElement = document.createElement("code");
+		codeElement.className = `language-${language}`;
+		codeElement.textContent = content;
+
+		// Create pre element
+		const preElement = document.createElement("pre");
+		preElement.className = "syntax-highlighted";
+		preElement.appendChild(codeElement);
+
+		// Add to container
+		container.appendChild(preElement);
+
+		// Apply Prism.js highlighting
+		if (window.Prism) {
+			window.Prism.highlightElement(codeElement);
+		}
+	}
+
+	showJupyterNotebookPreview(container, content, fileName) {
+		try {
+			// Parse the JSON content
+			const notebook = JSON.parse(content);
+
+			// Create a container for the notebook preview
+			const notebookContainer = document.createElement("div");
+			notebookContainer.className = "jupyter-notebook-preview";
+
+			// Add notebook metadata header
+			const header = document.createElement("div");
+			header.className = "notebook-header";
+			header.innerHTML = `
+				<div class="notebook-title">
+					<i class="bi bi-journal-code"></i>
+					${notebook.metadata?.title || fileName}
+				</div>
+				<div class="notebook-info">
+					<span class="notebook-kernel">${notebook.metadata?.kernelspec?.display_name || "Python"}</span>
+					<span class="notebook-cells">${notebook.cells?.length || 0} cells</span>
+				</div>
+			`;
+			notebookContainer.appendChild(header);
+
+			// Process each cell
+			if (notebook.cells && Array.isArray(notebook.cells)) {
+				notebook.cells.forEach((cell, index) => {
+					const cellElement = this.createNotebookCell(cell, index);
+					notebookContainer.appendChild(cellElement);
+				});
+			}
+
+			container.appendChild(notebookContainer);
+		} catch (error) {
+			// Fallback to JSON display if parsing fails
+			console.warn(
+				"Failed to parse Jupyter notebook, falling back to JSON:",
+				error,
+			);
+			this.showSyntaxHighlightedContent(container, content, "fallback.json");
+		}
+	}
+
+	createNotebookCell(cell, index) {
+		const cellContainer = document.createElement("div");
+		cellContainer.className = `notebook-cell ${cell.cell_type}`;
+
+		// Cell header with type and execution count
+		const cellHeader = document.createElement("div");
+		cellHeader.className = "cell-header";
+
+		let headerContent = "";
+		if (cell.cell_type === "code") {
+			const execCount =
+				cell.execution_count !== null ? cell.execution_count : " ";
+			headerContent = `
+				<span class="cell-type code">Code</span>
+				<span class="execution-count">In [${execCount}]:</span>
+			`;
+		} else {
+			headerContent = `<span class="cell-type markdown">Markdown</span>`;
+		}
+
+		cellHeader.innerHTML = headerContent;
+		cellContainer.appendChild(cellHeader);
+
+		// Cell content
+		const cellContent = document.createElement("div");
+		cellContent.className = "cell-content";
+
+		if (cell.cell_type === "code") {
+			// Code cell with syntax highlighting
+			const codeElement = document.createElement("code");
+			codeElement.className = "language-python";
+
+			// Handle different source formats (string vs array)
+			let sourceText = "";
+			if (Array.isArray(cell.source)) {
+				sourceText = cell.source.join("") || "";
+			} else if (typeof cell.source === "string") {
+				sourceText = cell.source;
+			} else {
+				sourceText = String(cell.source || "");
+			}
+
+			codeElement.textContent = sourceText;
+
+			const preElement = document.createElement("pre");
+			preElement.appendChild(codeElement);
+			cellContent.appendChild(preElement);
+
+			// Apply syntax highlighting
+			if (window.Prism) {
+				window.Prism.highlightElement(codeElement);
+			}
+
+			// Add output if present
+			if (cell.outputs && cell.outputs.length > 0) {
+				const outputContainer = document.createElement("div");
+				outputContainer.className = "cell-output";
+				outputContainer.innerHTML = `<span class="output-label">Out [${cell.execution_count}]:</span>`;
+
+				cell.outputs.forEach((output) => {
+					if (output.output_type === "stream") {
+						const streamElement = document.createElement("pre");
+						streamElement.className = "output-stream";
+						const streamText = Array.isArray(output.text)
+							? output.text.join("")
+							: String(output.text || "");
+						streamElement.textContent = streamText;
+						outputContainer.appendChild(streamElement);
+					} else if (output.output_type === "execute_result") {
+						const resultElement = document.createElement("pre");
+						resultElement.className = "output-result";
+						const resultText = output.data?.["text/plain"]
+							? Array.isArray(output.data["text/plain"])
+								? output.data["text/plain"].join("")
+								: String(output.data["text/plain"])
+							: "";
+						resultElement.textContent = resultText;
+						outputContainer.appendChild(resultElement);
+					}
+				});
+
+				cellContent.appendChild(outputContainer);
+			}
+		} else {
+			// Markdown cell
+			const markdownElement = document.createElement("div");
+			markdownElement.className = "markdown-content";
+
+			// Handle different source formats (string vs array)
+			let sourceText = "";
+			if (Array.isArray(cell.source)) {
+				sourceText = cell.source.join("") || "";
+			} else if (typeof cell.source === "string") {
+				sourceText = cell.source;
+			} else {
+				sourceText = String(cell.source || "");
+			}
+
+			markdownElement.textContent = sourceText;
+			cellContent.appendChild(markdownElement);
+		}
+
+		cellContainer.appendChild(cellContent);
+		return cellContainer;
 	}
 
 	showError(message) {
@@ -1103,11 +1331,13 @@ class FileManager {
 					lower.endsWith(".py") ||
 					lower.endsWith(".js") ||
 					lower.endsWith(".md") ||
-					lower.endsWith(".csv")
+					lower.endsWith(".csv") ||
+					lower.endsWith(".ipynb")
 				) {
 					this.showTextFilePreview(uuid, name);
 				} else if (lower.endsWith(".h5") || lower.endsWith(".hdf5")) {
-					this.showH5FileInfo(uuid, name);
+					// H5 files - no preview, no action
+					console.log("H5 file clicked, no preview available");
 				} else {
 					const detailUrl = `/users/file-detail/${uuid}/`;
 					window.location.href = detailUrl;
