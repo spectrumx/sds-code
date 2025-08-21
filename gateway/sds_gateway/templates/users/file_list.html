@@ -851,7 +851,7 @@
                         // Check if this file would exceed the 50MB limit
                         if (currentChunkSize + file.size > CHUNK_SIZE_BYTES && currentChunk.length > 0) {
                             // Upload current chunk before adding this file
-                            await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, false);
+                            await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, false, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES);
 
                             // Reset for next chunk
                             currentChunk = [];
@@ -869,7 +869,7 @@
                         // Check if this is the last file
                         if (i === filesToUpload.length - 1) {
                             // Upload final chunk
-                            await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, true);
+                            await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, true, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES);
                         }
 
                         // Check if cancel was requested
@@ -878,134 +878,7 @@
                         }
                     }
 
-                    // Helper function to upload a chunk
-                    async function uploadChunk(chunk, chunkPaths, chunkNum, totalChunks, filesProcessed, isFinalChunk) {
-                        // Update progress
-                        const progress = Math.round((filesProcessed / totalFiles) * 100);
-                        progressBar.style.width = progress + '%';
-                        progressText.textContent = progress + '%';
 
-                        if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
-                            // Large file upload
-                            const file = chunk[0];
-                            progressMessage.textContent = `Uploading large file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)...`;
-                        } else {
-                            // Normal chunk upload
-                            progressMessage.textContent = `Uploading chunk ${chunkNum}/${totalChunks} (${filesProcessed} files processed)...`;
-                        }
-
-                        // Create form data for this chunk
-                        const chunkFormData = new FormData();
-
-                        // Add files for this chunk
-                        chunk.forEach(file => {
-                            chunkFormData.append('files', file);
-                        });
-                        chunkPaths.forEach(path => {
-                            chunkFormData.append('relative_paths', path);
-                        });
-
-                        // Always add all relative paths for capture creation
-                        allRelativePaths.forEach(path => {
-                            chunkFormData.append('all_relative_paths', path);
-                        });
-
-                        // Add other form fields
-                        const captureType = document.getElementById('captureTypeSelect').value;
-                        chunkFormData.append('capture_type', captureType);
-
-                        if (captureType === 'drf') {
-                            const channels = document.getElementById('captureChannelsInput').value;
-                            chunkFormData.append('channels', channels);
-                        } else if (captureType === 'rh') {
-                            const scanGroup = document.getElementById('captureScanGroupInput').value;
-                            chunkFormData.append('scan_group', scanGroup);
-                        }
-
-                        // Add chunk information
-                        chunkFormData.append('is_chunk', 'true');
-                        chunkFormData.append('chunk_number', chunkNum.toString());
-                        chunkFormData.append('total_chunks', totalChunks.toString());
-
-                        // Check for cancellation before starting this chunk
-                        if (cancelRequested) {
-                            throw new Error('Upload cancelled by user');
-                        }
-
-                        // Upload this chunk with timeout (longer timeout for large files)
-                        const controller = new AbortController();
-                        currentAbortController = controller;
-                        const timeout = chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES ? 600000 : 300000; // 10 min for large files, 5 min for normal
-                        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-                        let response;
-                        let chunkResult;
-
-                        try {
-                            response = await fetch("{% url 'users:upload_capture' %}", {
-                                method: 'POST',
-                                body: chunkFormData,
-                                signal: controller.signal
-                            });
-
-                            clearTimeout(timeoutId);
-
-                            if (!response.ok) {
-                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                            }
-
-                            chunkResult = await response.json();
-
-                            // Debug logging for large files
-                            if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
-                                console.log('Large file upload result:', {
-                                    isFinalChunk,
-                                    chunkResult,
-                                    captures: chunkResult.captures,
-                                    message: chunkResult.message
-                                });
-                            }
-
-                        } catch (error) {
-                            clearTimeout(timeoutId);
-                            if (error.name === 'AbortError') {
-                                throw new Error('Upload timeout - connection may be lost');
-                            }
-                            throw error;
-                        }
-
-                        // Merge results
-                        if (chunkResult.saved_files_count !== undefined) {
-                            allResults.saved_files_count += chunkResult.saved_files_count;
-                        }
-                        // Collect captures from the final chunk
-                        if (chunkResult.captures && isFinalChunk) {
-                            allResults.captures = allResults.captures.concat(chunkResult.captures);
-                        }
-                        // Also collect any message from the final chunk
-                        if (chunkResult.message && isFinalChunk) {
-                            allResults.message = chunkResult.message;
-                        }
-                        if (chunkResult.errors) {
-                            allResults.errors = allResults.errors.concat(chunkResult.errors);
-                        }
-
-                        // Check if any chunk failed
-                        if (chunkResult.file_upload_status === 'error') {
-                            allResults.file_upload_status = 'error';
-                            allResults.message = chunkResult.message || 'Upload failed';
-                            const progressMessage = document.getElementById('progressMessage');
-                            if (progressMessage) {
-                                progressMessage.textContent = 'Upload aborted due to errors. Please check the results.';
-                            }
-                            throw new Error('Upload failed: ' + chunkResult.message);
-                        } else if (chunkResult.file_upload_status === 'success') {
-                            // Only update to success if this is the final chunk
-                            if (isFinalChunk) {
-                                allResults.file_upload_status = 'success';
-                            }
-                        }
-                    }
                 }
 
                 // Check if cancellation was requested during chunk upload
@@ -1031,6 +904,142 @@
                 console.log('Final upload results:', allResults);
 
                 return allResults;
+            }
+
+            // Helper function to upload a chunk
+            async function uploadChunk(chunk, chunkPaths, chunkNum, totalChunks, filesProcessed, isFinalChunk, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES) {
+                // Get progress elements locally
+                const progressBar = document.getElementById('checkingProgressBar');
+                const progressText = document.getElementById('checkingProgressText');
+                const progressMessage = document.getElementById('progressMessage');
+
+                // Update progress
+                const progress = Math.round((filesProcessed / totalFiles) * 100);
+                progressBar.style.width = progress + '%';
+                progressText.textContent = progress + '%';
+
+                if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
+                    // Large file upload
+                    const file = chunk[0];
+                    progressMessage.textContent = `Uploading large file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)...`;
+                } else {
+                    // Normal chunk upload
+                    progressMessage.textContent = `Uploading chunk ${chunkNum}/${totalChunks} (${filesProcessed} files processed)...`;
+                }
+
+                // Create form data for this chunk
+                const chunkFormData = new FormData();
+
+                // Add files for this chunk
+                chunk.forEach(file => {
+                    chunkFormData.append('files', file);
+                });
+                chunkPaths.forEach(path => {
+                    chunkFormData.append('relative_paths', path);
+                });
+
+                // Always add all relative paths for capture creation
+                allRelativePaths.forEach(path => {
+                    chunkFormData.append('all_relative_paths', path);
+                });
+
+                // Add other form fields
+                const captureType = document.getElementById('captureTypeSelect').value;
+                chunkFormData.append('capture_type', captureType);
+
+                if (captureType === 'drf') {
+                    const channels = document.getElementById('captureChannelsInput').value;
+                    chunkFormData.append('channels', channels);
+                } else if (captureType === 'rh') {
+                    const scanGroup = document.getElementById('captureScanGroupInput').value;
+                    chunkFormData.append('scan_group', scanGroup);
+                }
+
+                // Add chunk information
+                chunkFormData.append('is_chunk', 'true');
+                chunkFormData.append('chunk_number', chunkNum.toString());
+                chunkFormData.append('total_chunks', totalChunks.toString());
+
+                // Check for cancellation before starting this chunk
+                if (cancelRequested) {
+                    throw new Error('Upload cancelled by user');
+                }
+
+                // Upload this chunk with timeout (longer timeout for large files)
+                const controller = new AbortController();
+                currentAbortController = controller;
+                const MIN_AVG_UPLOAD_RATE = 100 * 1024; // 100 KB/s minimum upload rate
+                const total_chunk_size_bytes = chunk.reduce((total, file) => total + file.size, 0);
+                const timeout = total_chunk_size_bytes / MIN_AVG_UPLOAD_RATE * 1000; // 1.5h for 512MB, 9 mins for a 50 MB chunk
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                let response;
+                let chunkResult;
+
+                try {
+                    response = await fetch("{% url 'users:upload_capture' %}", {
+                        method: 'POST',
+                        body: chunkFormData,
+                        signal: controller.signal
+                    });
+
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    chunkResult = await response.json();
+
+                    // Debug logging for large files
+                    if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
+                        console.log('Large file upload result:', {
+                            isFinalChunk,
+                            chunkResult,
+                            captures: chunkResult.captures,
+                            message: chunkResult.message
+                        });
+                    }
+
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        throw new Error('Upload timeout - connection may be lost');
+                    }
+                    throw error;
+                }
+
+                // Merge results
+                if (chunkResult.saved_files_count !== undefined) {
+                    allResults.saved_files_count += chunkResult.saved_files_count;
+                }
+                // Collect captures from the final chunk
+                if (chunkResult.captures && isFinalChunk) {
+                    allResults.captures = allResults.captures.concat(chunkResult.captures);
+                }
+                // Also collect any message from the final chunk
+                if (chunkResult.message && isFinalChunk) {
+                    allResults.message = chunkResult.message;
+                }
+                if (chunkResult.errors) {
+                    allResults.errors = allResults.errors.concat(chunkResult.errors);
+                }
+
+                // Check if any chunk failed
+                if (chunkResult.file_upload_status === 'error') {
+                    allResults.file_upload_status = 'error';
+                    allResults.message = chunkResult.message || 'Upload failed';
+                    const progressMessage = document.getElementById('progressMessage');
+                    if (progressMessage) {
+                        progressMessage.textContent = 'Upload aborted due to errors. Please check the results.';
+                    }
+                    throw new Error('Upload failed: ' + chunkResult.message);
+                } else if (chunkResult.file_upload_status === 'success') {
+                    // Only update to success if this is the final chunk
+                    if (isFinalChunk) {
+                        allResults.file_upload_status = 'success';
+                    }
+                }
             }
 
             document.getElementById('uploadCaptureForm').addEventListener('submit', async function(e) {
