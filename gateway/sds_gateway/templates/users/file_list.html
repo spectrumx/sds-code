@@ -6,6 +6,10 @@
 {% block bodyclass %}
     hero-white-page
 {% endblock bodyclass %}
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/visualization_modal.css' %}" />
+{% endblock css %}
 {% block body %}
     <!-- Add Font Awesome for sort arrows -->
     <link rel="stylesheet"
@@ -242,12 +246,24 @@
     </div>
     <!-- Capture Details Modal -->
     {% include "users/partials/capture_modal.html" %}
+    <!-- Visualization Selection Modal -->
+    {% include "users/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
     <script src="{% static 'js/userSearchComponent.js' %}"></script>
+    <script src="{% static 'js/visualizationModal.js' %}"></script>
+    <!-- Pass Django context data to JavaScript -->
+    <script>
+        // Make visualization compatibility data available to JavaScript
+        window.visualizationCompatibility = {
+            {
+                visualization_compatibility | safe
+            }
+        };
+    </script>
     <script>
         // Initialize noUiSlider for frequency range
         document.addEventListener('DOMContentLoaded', function() {
@@ -352,6 +368,11 @@
                     }
                 });
             });
+
+            // Initialize visualization modal
+            if (window.VisualizationModal) {
+                new window.VisualizationModal();
+            }
 
             // Check for download alert messages
             const downloadAlert = sessionStorage.getItem('captureDownloadAlert');
