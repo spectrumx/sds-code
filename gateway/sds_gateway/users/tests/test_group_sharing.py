@@ -626,7 +626,7 @@ class TestGroupSharingIntegrity:
 
         # For now, test that group_member cannot access admin-like operations
         # This would need to be updated when proper deletion endpoints are added
-        assert True  # Placeholder - implement when deletion endpoints exist
+        assert True  # TODO: implement when deletion endpoints exist
 
 
 @pytest.mark.django_db
