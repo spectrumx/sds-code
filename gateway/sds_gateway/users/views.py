@@ -409,6 +409,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         user_emails_str: str,
         request_user: User,
         message: str = "",
+        permission_level: str = "viewer",
+        user_permissions: dict = None,
     ) -> tuple[list[str], list[str]]:
         """
         Add users and groups to item sharing using UserSharePermission
@@ -421,6 +423,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             emails or group identifiers to share with
             request_user: The user sharing the item
             message: A message to share with the users
+            permission_level: The permission level to grant (viewer, contributor, co-owner)
+            user_permissions: A dictionary mapping user emails to their individual permission levels
 
         Returns:
             A tuple containing a list of shared users and a list of errors
@@ -437,15 +441,20 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         errors = []
 
         for identifier in identifiers:
+            # Get individual permission level for this user/group
+            individual_permission = permission_level
+            if user_permissions and identifier in user_permissions:
+                individual_permission = user_permissions[identifier]
+            
             if identifier.startswith("group:"):
                 group_shared_users, group_errors = self._add_group_to_item(
-                    identifier, item_uuid, item_type, request_user, message
+                    identifier, item_uuid, item_type, request_user, message, individual_permission
                 )
                 shared_users.extend(group_shared_users)
                 errors.extend(group_errors)
             else:
                 user_shared, user_error = self._add_individual_user_to_item(
-                    identifier, item_uuid, item_type, request_user, message
+                    identifier, item_uuid, item_type, request_user, message, individual_permission
                 )
                 if user_shared:
                     shared_users.append(user_shared)
@@ -461,6 +470,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         item_type: ItemType,
         request_user: User,
         message: str,
+        permission_level: str = "viewer",
     ) -> tuple[list[str], list[str]]:
         """Add a group to item sharing."""
         group_uuid = group_identifier.split(":")[1]  # Remove "group:" prefix
@@ -489,6 +499,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     item_uuid=item_uuid,
                     item_type=item_type,
                     message=message,
+                    permission_level=permission_level,
                 )
                 shared_users.append(member.email)
 
@@ -504,6 +515,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         item_type: ItemType,
         request_user: User,
         message: str,
+        permission_level: str = "viewer",
     ) -> tuple[str | None, str | None]:
         """Add an individual user to item sharing. Returns (shared_user, error)."""
         try:
@@ -526,9 +538,10 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                         None,
                         f"{item_type.capitalize()} is already shared with {email}",
                     )
-                # Re-enable the existing disabled permission
+                # Re-enable the existing disabled permission and update permission level
                 existing_permission.is_enabled = True
                 existing_permission.message = message
+                existing_permission.permission_level = permission_level
                 existing_permission.save()
                 return email, None
 
@@ -539,6 +552,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 item_type=item_type,
                 item_uuid=item_uuid,
                 message=message,
+                permission_level=permission_level,
                 is_enabled=True,
             )
         except User.DoesNotExist:
@@ -744,6 +758,32 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         # Get form data
         user_emails_str = request.POST.get("user-search", "").strip()
         message = request.POST.get("notify_message", "").strip() or ""
+        permission_level = request.POST.get("permission_level", "viewer").strip()
+        
+        # Parse user permissions if provided
+        user_permissions = None
+        user_permissions_str = request.POST.get("user_permissions", "")
+        if user_permissions_str:
+            try:
+                user_permissions = json.loads(user_permissions_str)
+                # Validate all permission levels
+                valid_permissions = ["viewer", "contributor", "co-owner"]
+                for email, perm_level in user_permissions.items():
+                    if perm_level not in valid_permissions:
+                        return JsonResponse(
+                            {"error": f"Invalid permission level '{perm_level}' for user {email}. Must be one of: {', '.join(valid_permissions)}"}, 
+                            status=400
+                        )
+            except json.JSONDecodeError:
+                return JsonResponse({"error": "Invalid user_permissions format"}, status=400)
+
+        # Validate permission level (fallback for backward compatibility)
+        valid_permissions = ["viewer", "contributor", "co-owner"]
+        if permission_level not in valid_permissions:
+            return JsonResponse(
+                {"error": f"Invalid permission level. Must be one of: {', '.join(valid_permissions)}"}, 
+                status=400
+            )
 
         # Parse users to remove
         try:
@@ -753,7 +793,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
         # Handle adding new users
         shared_users, add_errors = self._add_users_to_item(
-            item_uuid, item_type, user_emails_str, request.user, message
+            item_uuid, item_type, user_emails_str, request.user, message, permission_level, user_permissions
         )
 
         # Handle removing users
@@ -1774,9 +1814,8 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             "name": perm.shared_with.name,
             "email": perm.shared_with.email,
             "type": "user",
+            "permission_level": perm.permission_level,
         }
-        if hasattr(perm, "permission_level"):
-            user_data["permission_level"] = perm.permission_level
         shared_users.append(user_data)
 
     def _paginate_datasets(self, datasets: list[dict], request: HttpRequest) -> Any:

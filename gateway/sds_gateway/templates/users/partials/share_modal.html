@@ -23,7 +23,6 @@
                           method="post">
                         {% csrf_token %}
                         <div class="user-search-input-container">
-                            <div class="selected-users-chips d-flex flex-wrap align-items-center mb-2"></div>
                             <input type="text"
                                    class="form-control user-search-input mb-3"
                                    placeholder="Search users by name or email..."
@@ -38,6 +37,22 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Selected Users with Individual Permission Levels -->
+                        <div class="selected-users-permissions-section mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-shield-lock me-1"></i>Selected Users & Permission Levels:
+                            </label>
+                            <div class="selected-users-chips d-flex flex-column gap-2"></div>
+                            <div class="form-text">
+                                <small class="text-muted">
+                                    <strong>Viewer:</strong> Can view dataset information and download files<br>
+                                    <strong>Contributor:</strong> Can add their own assets to the dataset<br>
+                                    <strong>Co-Owner:</strong> Can add/remove assets and edit dataset metadata
+                                </small>
+                            </div>
+                        </div>
+                        
                         <!-- Notify/message section, shown only if chips are present -->
                         <div id="notify-message-section-{{ item.uuid }}" class="d-none mt-3">
                             <div class="form-check mb-2">
@@ -139,11 +154,13 @@
                                                 </div>
                                                 <div class="col-md-2 d-flex justify-content-end align-items-center">
                                                     <div class="d-flex align-items-center gap-2">
-                                                        <span class="badge bg-info">
-                                                            {% if user.permission_level %}
-                                                                {{ user.permission_level|title }}
+                                                        <span class="permission-badge {% if user.permission_level == 'co-owner' %}co-owner{% elif user.permission_level == 'contributor' %}contributor{% else %}viewer{% endif %}">
+                                                            {% if user.permission_level == 'co-owner' %}
+                                                                <i class="bi bi-gear"></i>Co-Owner
+                                                            {% elif user.permission_level == 'contributor' %}
+                                                                <i class="bi bi-plus-circle"></i>Contributor
                                                             {% else %}
-                                                                Viewer
+                                                                <i class="bi bi-eye"></i>Viewer
                                                             {% endif %}
                                                         </span>
                                                         <div class="dropdown">
@@ -218,6 +235,70 @@
                 row.addEventListener('mouseleave', function() {
                     popup.style.display = 'none';
                 });
+            }
+        });
+
+        // Permission level selection functionality
+        const permissionSelects = document.querySelectorAll('[id^="permission-level-"]');
+        permissionSelects.forEach(select => {
+            select.addEventListener('change', function() {
+                const selectedValue = this.value;
+                const form = this.closest('form');
+                const saveButton = form.querySelector('[id^="share-item-btn-"]');
+                const pendingMessage = form.querySelector('[id^="pending-changes-message-"]');
+                
+                // Update the form data to include the selected permission level
+                const permissionInput = form.querySelector('input[name="permission_level"]');
+                if (!permissionInput) {
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'permission_level';
+                    hiddenInput.value = selectedValue;
+                    form.appendChild(hiddenInput);
+                } else {
+                    permissionInput.value = selectedValue;
+                }
+                
+                // Show pending changes message
+                if (pendingMessage) {
+                    pendingMessage.classList.remove('d-none');
+                }
+                
+                // Enable save button if there are selected users
+                const selectedChips = form.querySelectorAll('.selected-user-chip');
+                if (selectedChips.length > 0 && saveButton) {
+                    saveButton.disabled = false;
+                }
+            });
+        });
+
+        // Update share button state based on selected users and permission level
+        function updateShareButtonState(form) {
+            const selectedChips = form.querySelectorAll('.selected-user-chip');
+            const saveButton = form.querySelector('[id^="share-item-btn-"]');
+            const pendingMessage = form.querySelector('[id^="pending-changes-message-"]');
+            
+            if (selectedChips.length > 0) {
+                if (saveButton) saveButton.disabled = false;
+                if (pendingMessage) pendingMessage.classList.remove('d-none');
+            } else {
+                if (saveButton) saveButton.disabled = true;
+                if (pendingMessage) pendingMessage.classList.add('d-none');
+            }
+        }
+
+        // Listen for changes in selected users
+        document.addEventListener('userSelected', function(e) {
+            const form = e.target.closest('form');
+            if (form) {
+                updateShareButtonState(form);
+            }
+        });
+
+        document.addEventListener('userRemoved', function(e) {
+            const form = e.target.closest('form');
+            if (form) {
+                updateShareButtonState(form);
             }
         });
     });
