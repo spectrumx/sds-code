@@ -697,6 +697,11 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
         except (EmptyPage, PageNotAnInteger):
             files_page = paginator.page(1)
 
+        # Get visualization compatibility data
+        from sds_gateway.visualizations import get_all_visualization_types
+
+        visualization_compatibility = get_all_visualization_types()
+
         return render(
             request,
             template_name=self.template_name,
@@ -707,6 +712,7 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
                 "total_items": paginator.count,
                 "sort_by": sort_by,
                 "sort_order": sort_order,
+                "visualization_compatibility": visualization_compatibility,
             },
         )
 
@@ -862,6 +868,11 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         # Update the page_obj with enhanced captures
         page_obj.object_list = _get_captures_for_template(page_obj, request)
 
+        # Get visualization compatibility data
+        from sds_gateway.visualizations import get_all_visualization_types
+
+        visualization_compatibility = get_all_visualization_types()
+
         return render(
             request,
             self.template_name,
@@ -876,6 +887,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
                 "min_freq": params["min_freq"],
                 "max_freq": params["max_freq"],
                 "items_per_page": params["items_per_page"],
+                "visualization_compatibility": visualization_compatibility,
             },
         )
 

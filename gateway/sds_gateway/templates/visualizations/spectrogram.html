@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}
+    Spectrogram Visualization - {{ capture.name }}
+{% endblock title %}
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/spectrogram.css' %}" />
+{% endblock css %}
+{% block content %}
+    <div class="container-fluid px-5 pt-4"
+         data-capture-uuid="{{ capture.uuid }}">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h1 class="mb-1 text-start">Spectrogram Visualization</h1>
+                        <p class="text-muted mb-0">
+                            Capture: {{ capture.name }} ({{ capture.get_capture_type_display |default:"Unknown Type" }})
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <!-- Controls Panel -->
+            <div class="col-md-3 col-lg-2">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="fftSize" class="form-label">FFT Size</label>
+                            <select class="form-select" id="fftSize">
+                                <option value="64">64</option>
+                                <option value="128">128</option>
+                                <option value="256">256</option>
+                                <option value="512">512</option>
+                                <option value="1024" selected>1024</option>
+                                <option value="2048">2048</option>
+                                <option value="4096">4096</option>
+                                <option value="8192">8192</option>
+                                <option value="16384">16384</option>
+                                <option value="32768">32768</option>
+                                <option value="65536">65536</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="stdDev" class="form-label">Window Standard Deviation (samples)</label>
+                            <input type="number"
+                                   class="form-control"
+                                   id="stdDev"
+                                   value="100"
+                                   min="10"
+                                   max="500" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="hopSize" class="form-label">Hop Size (samples)</label>
+                            <input type="number"
+                                   class="form-control"
+                                   id="hopSize"
+                                   value="500"
+                                   min="100"
+                                   max="1000" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="colorMap" class="form-label">Color Map</label>
+                            <select class="form-select" id="colorMap">
+                                <option value="magma" selected>Magma</option>
+                                <option value="viridis">Viridis</option>
+                                <option value="plasma">Plasma</option>
+                                <option value="inferno">Inferno</option>
+                                <option value="cividis">Cividis</option>
+                                <option value="turbo">Turbo</option>
+                                <option value="jet">Jet</option>
+                                <option value="hot">Hot</option>
+                                <option value="cool">Cool</option>
+                                <option value="rainbow">Rainbow</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <button type="button"
+                                    class="btn btn-primary w-100"
+                                    id="generateSpectrogramBtn">
+                                <i class="bi bi-play-fill"></i> Generate Spectrogram
+                            </button>
+                        </div>
+                        <div class="mb-3">
+                            <button type="button"
+                                    class="btn btn-outline-secondary w-100"
+                                    id="saveSpectrogramBtn"
+                                    style="display: none">
+                                <i class="bi bi-download"></i> Save Spectrogram
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Visualization Area -->
+            <div class="col-md-9 col-lg-10">
+                <div class="card">
+                    <div class="card-body p-0">
+                        <!-- Spectrogram Display -->
+                        <div id="spectrogramDisplay">
+                            <div id="spectrogramCanvas">
+                                <canvas id="spectrogramCanvas" width="800" height="400"></canvas>
+                                <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Status Messages -->
+                            <div id="statusMessage" class="text-center p-4">
+                                <p class="text-muted">Configure settings and click "Generate Spectrogram" to begin</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Capture Info -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Capture Info</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-3">Name:</dt>
+                            <dd class="col-9">
+                                {{ capture.name }}
+                            </dd>
+                            <dt class="col-3">Type:</dt>
+                            <dd class="col-9">
+                                {{ capture.capture_type }}
+                            </dd>
+                            <dt class="col-3">Channel:</dt>
+                            <dd class="col-9">
+                                {{ capture.channel|default:"N/A" }}
+                            </dd>
+                            <dt class="col-3">Created:</dt>
+                            <dd class="col-9">
+                                {{ capture.created_at|date:"M d, Y" }}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Loading Modal -->
+    <div class="modal fade"
+         id="loadingModal"
+         tabindex="-1"
+         aria-labelledby="loadingModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mb-0">Generating spectrogram...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+{% block javascript %}
+    <!-- Spectrogram Visualization Module -->
+    <script type="module" src="{% static 'js/spectrogram/index.js' %}"></script>
+{% endblock javascript %}
