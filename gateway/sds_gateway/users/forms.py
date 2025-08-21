@@ -10,6 +10,7 @@ from django.forms import EmailField
 from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
 
+from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 
 from .models import User
@@ -94,10 +95,7 @@ class DatasetInfoForm(forms.Form):
     status = forms.ChoiceField(
         label="Status",
         required=True,
-        choices=[
-            ("draft", "Draft"),
-            ("final", "Final"),
-        ],
+        choices=Dataset.STATUS_CHOICES,
         initial="draft",
         widget=forms.Select(attrs={"class": "form-control"}),
         help_text="Draft: Work in progress, Final: Complete and ready for use",
