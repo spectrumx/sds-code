@@ -1314,10 +1314,17 @@ class ModalManager {
 		if (captureData.captureType === "drf") {
 			visualizeBtn.classList.remove("d-none");
 
-			// Set up click handler
+			// Set up click handler to open visualization modal
 			visualizeBtn.onclick = () => {
-				// Navigate to visualization page
-				window.location.href = `/visualizations/waterfall/${captureData.uuid}/`;
+				// Set the capture data attributes for the modal
+				visualizeBtn.setAttribute("data-capture-uuid", captureData.uuid);
+				visualizeBtn.setAttribute("data-capture-type", captureData.captureType);
+
+				// Open the visualization modal
+				const visualizationModal = new bootstrap.Modal(
+					document.getElementById("visualization-modal"),
+				);
+				visualizationModal.show();
 			};
 		} else {
 			visualizeBtn.classList.add("d-none");

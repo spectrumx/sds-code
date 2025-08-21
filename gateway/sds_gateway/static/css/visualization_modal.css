@@ -1,0 +1,84 @@
+/* Visualization Modal Styles */
+
+.visualization-option.disabled {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.visualization-option.disabled .card {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+}
+
+.visualization-option.disabled .card-title {
+	color: #6c757d;
+}
+
+.visualization-option.disabled .card-text {
+	color: #adb5bd;
+}
+
+.visualization-option.disabled .supported-types small {
+	color: #dc3545 !important;
+}
+
+.visualization-option .card {
+	transition: all 0.2s ease-in-out;
+	border: 2px solid transparent;
+}
+
+.visualization-option .card:hover {
+	border-color: #0d6efd;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.visualization-option.disabled .card:hover {
+	border-color: transparent;
+	transform: none;
+	box-shadow: none;
+}
+
+.visualization-option .bi {
+	font-size: 3rem;
+}
+
+.visualization-option .card-footer {
+	border-top: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.visualization-option .visualization-select-btn {
+	transition: all 0.2s ease-in-out;
+}
+
+.visualization-option .visualization-select-btn:hover:not(:disabled) {
+	transform: translateX(2px);
+}
+
+#processing-status-container .card {
+	border: 1px solid #dee2e6;
+	transition: all 0.2s ease-in-out;
+}
+
+#processing-status-container .card:hover {
+	border-color: #0d6efd;
+}
+
+#processing-status-container .badge {
+	font-size: 0.875rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.visualization-option .bi {
+		font-size: 2.5rem;
+	}
+
+	.visualization-option .card-title {
+		font-size: 1.1rem;
+	}
+
+	.visualization-option .card-text {
+		font-size: 0.9rem;
+	}
+}
