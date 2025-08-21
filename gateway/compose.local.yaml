@@ -21,7 +21,7 @@ networks:
     sds-gateway-local-opensearch-net:
         driver: bridge
     sds-network-local:
-        # external: true  # make it external if running with traefik on this machine
+        external: true  # make it external if running with traefik on this machine
         driver: bridge
 services:
 
@@ -172,7 +172,7 @@ services:
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
-        command: celery -A config.celery_app worker -l INFO
+        command: uv run celery -A config.celery_app worker -l INFO
         networks:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
@@ -201,7 +201,7 @@ services:
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
-        command: celery -A config.celery_app beat -l INFO
+        command: uv run celery -A config.celery_app beat -l INFO
         networks:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
