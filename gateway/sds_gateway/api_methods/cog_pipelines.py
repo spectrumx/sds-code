@@ -40,38 +40,39 @@ class WaterfallSliceParams:
 
 
 # Pipeline configuration functions for Django admin setup
-def get_waterfall_pipeline_config() -> dict[str, Any]:
-    """Get configuration for waterfall processing pipeline.
+def get_visualization_pipeline_config() -> dict[str, Any]:
+    """Get configuration for visualization processing pipeline.
 
     This should be used to set up the pipeline in Django admin with the following
     structure:
 
     Pipeline:
-    - Name: ProcessingType.Waterfall.get_pipeline_name()
+    - Name: "visualization_processing"
     - Schedule: None (manual launch)
     - Prevent overlapping runs: False (allow concurrent processing)
 
     Stages:
     1. "setup_stage" - setup_post_processing_cog (validates capture, creates records)
-    2. "process_stage" - process_waterfall_data_cog (does download, processing, and
-       storage)
+    2. "waterfall_stage" - process_waterfall_data_cog (processes waterfall data)
+    3. "spectrogram_stage" - process_spectrogram_data_cog (processes spectrogram data)
 
     Tasks in each stage:
     - setup_stage: setup_post_processing_cog (capture_uuid and processing_types passed
       as runtime args)
-    - process_stage: process_waterfall_data_cog (capture_uuid passed as runtime arg,
+    - waterfall_stage: process_waterfall_data_cog (capture_uuid passed as runtime arg,
       depends on setup_stage)
+    - spectrogram_stage: process_spectrogram_data_cog (capture_uuid passed as runtime arg,
+      depends on setup_stage, independent of waterfall_stage)
     """
-    from .models import ProcessingType
 
     return {
-        "pipeline_name": ProcessingType.Waterfall.get_pipeline_name(),
+        "pipeline_name": "visualization_processing",
         "prevent_overlapping_runs": False,
         "stages": [
             {
                 "name": "setup_stage",
                 "description": "Setup post-processing (validate capture, create "
-                "records)",
+                "records for waterfall and spectrogram)",
                 "tasks": [
                     {
                         "name": "setup_processing",
@@ -82,7 +83,7 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
                 ],
             },
             {
-                "name": "process_stage",
+                "name": "waterfall_stage",
                 "description": "Process waterfall data (downloads, processes, and "
                 "stores)",
                 "depends_on": ["setup_stage"],
@@ -95,13 +96,27 @@ def get_waterfall_pipeline_config() -> dict[str, Any]:
                     }
                 ],
             },
+            {
+                "name": "spectrogram_stage",
+                "description": "Process spectrogram data (downloads, processes, and "
+                "stores)",
+                "depends_on": ["setup_stage"],
+                "tasks": [
+                    {
+                        "name": "process_spectrogram",
+                        "cog": "process_spectrogram_data_cog",
+                        "args": {},
+                        "description": "Process spectrogram data",
+                    }
+                ],
+            },
         ],
     }
 
 
 # Pipeline registry for easy access
 PIPELINE_CONFIGS = {
-    "waterfall": get_waterfall_pipeline_config,  # Simplified single-step pipeline
+    "visualization": get_visualization_pipeline_config,  # Unified pipeline for all visualizations
 }
 
 
@@ -124,9 +139,7 @@ def get_pipeline_config(pipeline_type: str) -> dict[str, Any]:
 
 # Cog functions (pipeline steps)
 @cog
-def setup_post_processing_cog(
-    capture_uuid: str, processing_types: list[str] | None = None
-) -> None:
+def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) -> None:
     """Setup post-processing for a capture.
 
     Args:
@@ -140,7 +153,6 @@ def setup_post_processing_cog(
 
         # Import models here to avoid Django app registry issues
         from .models import Capture
-        from .models import ProcessingType
 
         # Get the capture with retry mechanism for transaction timing issues
         capture: Capture | None = None
@@ -170,9 +182,9 @@ def setup_post_processing_cog(
                     raise ValueError(error_msg) from None
 
         # At this point, capture should not be None due to the retry logic above
-        assert capture is not None, (
-            f"Capture {capture_uuid} should have been found by now"
-        )
+        assert (
+            capture is not None
+        ), f"Capture {capture_uuid} should have been found by now"
 
         # Validate capture type
         # Import here to avoid Django app registry issues
@@ -184,7 +196,8 @@ def setup_post_processing_cog(
 
         # Set default processing types if not specified
         if not processing_types:
-            processing_types = [ProcessingType.Waterfall.value]
+            error_msg = "No processing types specified"
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Create PostProcessedData records for each processing type
         for processing_type in processing_types:
@@ -250,17 +263,29 @@ def _process_waterfall_files(
 
 @cog
 def process_waterfall_data_cog(
-    capture_uuid: str, max_slices: int | None = None
+    capture_uuid: str,
+    processing_types: list[str],
 ) -> dict[str, Any]:
     """Process waterfall data for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
-        max_slices: Maximum number of slices to process (default: None)
+        processing_types: List of processing types to run
 
     Returns:
         Dict with status and processed data info
     """
+    # Check if waterfall processing is requested
+    if processing_types and "waterfall" not in processing_types:
+        logger.info(
+            f"Skipping waterfall processing for capture {capture_uuid} - not requested"
+        )
+        return {
+            "status": "skipped",
+            "message": "Waterfall processing not requested",
+            "capture_uuid": capture_uuid,
+        }
+
     logger.info(f"Processing waterfall JSON data for capture {capture_uuid}")
 
     try:
@@ -293,10 +318,27 @@ def process_waterfall_data_cog(
             temp_path = Path(temp_dir)
 
             try:
-                # Process the waterfall files
-                waterfall_result = _process_waterfall_files(
-                    capture, processed_data, temp_path, max_slices
+                # Reconstruct the DigitalRF files for processing
+                capture_files = capture.files.filter(is_deleted=False)
+                reconstructed_path = reconstruct_drf_files(
+                    capture, capture_files, temp_path
                 )
+
+                if not reconstructed_path:
+                    error_msg = "Failed to reconstruct DigitalRF directory structure"
+                    processed_data.mark_processing_failed(error_msg)
+                    raise ValueError(error_msg)  # noqa: TRY301
+
+                # Process the waterfall data in JSON format
+                waterfall_result = convert_drf_to_waterfall_json(
+                    reconstructed_path,
+                    capture.channel,
+                    ProcessingType.Waterfall.value,
+                )
+
+                if waterfall_result["status"] != "success":
+                    processed_data.mark_processing_failed(waterfall_result["message"])
+                    raise ValueError(waterfall_result["message"])  # noqa: TRY301
 
                 # Create a temporary JSON file
                 import json
@@ -353,6 +395,121 @@ def process_waterfall_data_cog(
 
     except Exception as e:
         logger.error(f"Waterfall processing failed for capture {capture_uuid}: {e}")
+        raise
+
+
+@cog
+def process_spectrogram_data_cog(
+    capture_uuid: str, processing_types: list[str]
+) -> dict[str, Any]:
+    """Process spectrogram data for a capture.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+        processing_types: List of processing types to run
+
+    Returns:
+        Dict with status and processed data info
+    """
+    # Check if spectrogram processing is requested
+    if processing_types and "spectrogram" not in processing_types:
+        logger.info(
+            f"Skipping spectrogram processing for capture {capture_uuid} - not requested"
+        )
+        return {
+            "status": "skipped",
+            "message": "Spectrogram processing not requested",
+            "capture_uuid": capture_uuid,
+        }
+
+    logger.info(f"Processing spectrogram data for capture {capture_uuid}")
+
+    try:
+        # Import models here to avoid Django app registry issues
+        from .models import Capture
+        from .models import PostProcessedData
+        from .models import ProcessingType
+
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+
+        # Get the processed data record and mark processing as started
+        processed_data = PostProcessedData.objects.filter(
+            capture=capture,
+            processing_type=ProcessingType.Spectrogram.value,
+        ).first()
+
+        if not processed_data:
+            error_msg = (
+                f"No processed data record found for {ProcessingType.Spectrogram.value}"
+            )
+            raise ValueError(error_msg)  # noqa: TRY301
+
+        # Mark processing as started
+        processed_data.mark_processing_started(pipeline_id="django_cog_pipeline")
+
+        # Use built-in temporary directory context manager
+        with tempfile.TemporaryDirectory(
+            prefix=f"spectrogram_{capture_uuid}_"
+        ) as temp_dir:
+            temp_path = Path(temp_dir)
+
+            try:
+                # Reconstruct the DigitalRF files for processing
+                capture_files = capture.files.filter(is_deleted=False)
+                reconstructed_path = reconstruct_drf_files(
+                    capture, capture_files, temp_path
+                )
+
+                if not reconstructed_path:
+                    error_msg = "Failed to reconstruct DigitalRF directory structure"
+                    processed_data.mark_processing_failed(error_msg)
+                    raise ValueError(error_msg)  # noqa: TRY301
+
+                # Generate spectrogram
+                spectrogram_result = generate_spectrogram_from_drf(
+                    reconstructed_path,
+                    capture.channel,
+                    ProcessingType.Spectrogram.value,
+                )
+
+                if spectrogram_result["status"] != "success":
+                    processed_data.mark_processing_failed(spectrogram_result["message"])
+                    raise ValueError(spectrogram_result["message"])  # noqa: TRY301
+
+                # Store the spectrogram image
+                store_result = store_processed_data(
+                    capture_uuid,
+                    ProcessingType.Spectrogram.value,
+                    spectrogram_result["image_path"],
+                    f"spectrogram_{capture_uuid}.png",
+                    spectrogram_result["metadata"],
+                )
+
+                if store_result["status"] != "success":
+                    processed_data.mark_processing_failed(store_result["message"])
+                    raise ValueError(store_result["message"])
+
+                # Mark processing as completed
+                processed_data.mark_processing_completed()
+
+                logger.info(
+                    f"Completed spectrogram processing for capture {capture_uuid}"
+                )
+                return {
+                    "status": "success",
+                    "capture_uuid": capture_uuid,
+                    "message": "Spectrogram processed and stored successfully",
+                    "metadata": spectrogram_result["metadata"],
+                    "store_result": store_result,
+                }
+
+            except Exception as e:
+                # Mark processing as failed
+                processed_data.mark_processing_failed(f"Processing failed: {e!s}")
+                raise
+
+    except Exception as e:
+        logger.error(f"Spectrogram processing failed for capture {capture_uuid}: {e}")
         raise
 
 
@@ -476,9 +633,9 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
             file_path = Path(
                 f"{capture_dir}/{file_obj.directory}/{file_obj.name}"
             ).resolve()
-            assert file_path.is_relative_to(temp_path), (
-                f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
-            )
+            assert file_path.is_relative_to(
+                temp_path
+            ), f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Download the file from MinIO
@@ -699,4 +856,195 @@ def store_processed_data(
 
     except Exception as e:
         logger.exception(f"Error storing {processing_type} file: {e}")
+        raise
+
+
+def generate_spectrogram_from_drf(
+    drf_path: Path, channel: str, processing_type: str
+) -> dict:
+    """Generate a spectrogram from DigitalRF data.
+
+    Args:
+        drf_path: Path to the DigitalRF directory
+        channel: Channel name to process
+        processing_type: Type of processing (spectrogram)
+
+    Returns:
+        Dict with status and spectrogram data
+    """
+    logger.info(f"Generating spectrogram from DigitalRF data for channel {channel}")
+
+    try:
+        # Initialize DigitalRF reader
+        reader = DigitalRFReader(str(drf_path))
+        channels = reader.get_channels()
+
+        if not channels:
+            error_msg = "No channels found in DigitalRF data"
+            raise ValueError(error_msg)  # noqa: TRY301
+
+        if channel not in channels:
+            error_msg = (
+                f"Channel {channel} not found in DigitalRF data. "
+                f"Available channels: {channels}"
+            )
+            raise ValueError(error_msg)  # noqa: TRY301
+
+        # Get sample bounds
+        bounds = reader.get_bounds(channel)
+        if bounds is None:
+            error_msg = "Could not get sample bounds for channel"
+            raise ValueError(error_msg)  # noqa: TRY301
+
+        start_sample, end_sample = bounds
+        if start_sample is None or end_sample is None:
+            error_msg = "Invalid sample bounds for channel"
+            raise ValueError(error_msg)  # noqa: TRY301
+        total_samples = end_sample - start_sample
+
+        # Get metadata from DigitalRF properties
+        drf_props_path = drf_path / channel / "drf_properties.h5"
+        with h5py.File(drf_props_path, "r") as f:
+            sample_rate_numerator = f.attrs.get("sample_rate_numerator")
+            sample_rate_denominator = f.attrs.get("sample_rate_denominator")
+            if sample_rate_numerator is None or sample_rate_denominator is None:
+                error_msg = "Sample rate information missing from DigitalRF properties"
+                raise ValueError(error_msg)  # noqa: TRY301
+            sample_rate = float(sample_rate_numerator) / float(sample_rate_denominator)
+
+        # Get center frequency from metadata
+        center_freq = 0.0
+        try:
+            # Try to get center frequency from metadata
+            metadata_dict = reader.read_metadata(
+                start_sample, min(1000, end_sample - start_sample), channel
+            )
+            if metadata_dict and "center_freq" in metadata_dict:
+                center_freq = float(metadata_dict["center_freq"])
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not read center frequency from metadata: {e}")
+
+        # Calculate frequency range
+        freq_span = sample_rate
+        min_frequency = center_freq - freq_span / 2
+        max_frequency = center_freq + freq_span / 2
+
+        # Spectrogram parameters
+        fft_size = 1024  # Default FFT size
+        std_dev = 100  # Default window standard deviation
+        hop_size = 500  # Default hop size
+        colormap = "magma"  # Default colormap
+
+        # Generate spectrogram using matplotlib
+        try:
+            import matplotlib
+
+            matplotlib.use("Agg")  # Use non-interactive backend
+            import matplotlib.pyplot as plt
+            from scipy.signal import ShortTimeFFT
+            from scipy.signal.windows import gaussian
+        except ImportError as e:
+            error_msg = (
+                f"Required libraries for spectrogram generation not available: {e}"
+            )
+            raise ValueError(error_msg)
+
+        # Read a subset of data for spectrogram generation
+        # Limit to first 100k samples to avoid memory issues
+        max_samples_for_spectrogram = min(total_samples, 100000)
+        data_array = reader.read_vector(
+            start_sample, max_samples_for_spectrogram, channel, 0
+        )
+
+        # Create Gaussian window
+        gaussian_window = gaussian(fft_size, std=std_dev, sym=True)
+
+        # Create ShortTimeFFT object
+        short_time_fft = ShortTimeFFT(
+            gaussian_window,
+            hop=hop_size,
+            fs=sample_rate,
+            mfft=fft_size,
+            fft_mode="centered",
+        )
+
+        # Generate spectrogram
+        spectrogram = short_time_fft.spectrogram(data_array)
+
+        # Create the spectrogram figure
+        extent = short_time_fft.extent(max_samples_for_spectrogram)
+        time_min, time_max = extent[:2]
+
+        # Create figure
+        figure, axes = plt.subplots(figsize=(10, 6))
+
+        # Set title
+        title = f"Spectrogram - Channel {channel}"
+        if center_freq != 0:
+            title += f" (Center: {center_freq / 1e6:.2f} MHz)"
+        axes.set_title(title, fontsize=14)
+
+        # Set axis labels
+        axes.set_xlabel("Time (s)", fontsize=12)
+        axes.set_ylabel("Frequency (Hz)", fontsize=12)
+
+        # Plot spectrogram
+        spectrogram_db = 10 * np.log10(np.fmax(spectrogram, 1e-12))
+        image = axes.imshow(
+            spectrogram_db,
+            origin="lower",
+            aspect="auto",
+            extent=extent,
+            cmap=colormap,
+        )
+
+        # Add colorbar
+        colorbar = figure.colorbar(
+            image,
+            label="Power Spectral Density (dB)",
+        )
+
+        # Adjust layout
+        figure.tight_layout()
+
+        # Save to temporary file
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+            figure.savefig(tmp_file.name, dpi=150, bbox_inches="tight")
+            image_path = tmp_file.name
+
+        # Clean up matplotlib figure
+        plt.close(figure)
+
+        # Create metadata
+        metadata = {
+            "center_frequency": center_freq,
+            "sample_rate": sample_rate,
+            "min_frequency": min_frequency,
+            "max_frequency": max_frequency,
+            "total_samples": total_samples,
+            "samples_processed": max_samples_for_spectrogram,
+            "fft_size": fft_size,
+            "window_std_dev": std_dev,
+            "hop_size": hop_size,
+            "colormap": colormap,
+            "channel": channel,
+            "processing_parameters": {
+                "fft_size": fft_size,
+                "std_dev": std_dev,
+                "hop_size": hop_size,
+                "colormap": colormap,
+            },
+        }
+
+        return {  # noqa: TRY300
+            "status": "success",
+            "message": "Spectrogram generated successfully",
+            "image_path": image_path,
+            "metadata": metadata,
+        }
+
+    except Exception as e:
+        logger.exception(f"Error generating spectrogram from DigitalRF: {e}")
         raise

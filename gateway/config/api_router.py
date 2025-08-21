@@ -7,6 +7,7 @@ from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
 from sds_gateway.api_methods.views.dataset_endpoints import DatasetViewSet
 from sds_gateway.api_methods.views.file_endpoints import FileViewSet
 from sds_gateway.api_methods.views.file_endpoints import check_contents_exist
+from sds_gateway.api_methods.views.visualization_endpoints import VisualizationViewSet
 from sds_gateway.users.api.views import UserViewSet
 
 router = DefaultRouter() if settings.DEBUG else SimpleRouter()
@@ -16,6 +17,7 @@ router.register(r"auth", ValidateAuthViewSet, basename="auth")
 router.register(r"assets/files", FileViewSet, basename="files")
 router.register(r"assets/captures", CaptureViewSet, basename="captures")
 router.register(r"assets/datasets", DatasetViewSet, basename="datasets")
+router.register(r"visualizations", VisualizationViewSet, basename="visualizations")
 
 app_name = "api"
 urlpatterns = [

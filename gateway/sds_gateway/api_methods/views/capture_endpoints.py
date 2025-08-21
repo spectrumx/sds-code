@@ -202,22 +202,24 @@ class CaptureViewSet(viewsets.ViewSet):
         if capture.capture_type != CaptureType.DigitalRF:
             return
 
-        log.info(f"Triggering post-processing for DigitalRF capture: {capture.uuid}")
+        log.info(
+            f"Triggering visualization processing for DigitalRF capture: {capture.uuid}"
+        )
 
         try:
             # Use the Celery task for post-processing to ensure proper async execution
-            # Launch the post-processing task asynchronously
+            # Launch the visualization processing task asynchronously
             result = start_capture_post_processing.delay(
-                str(capture.uuid), ["waterfall"]
+                str(capture.uuid), ["waterfall", "spectrogram"]
             )
             log.info(
-                f"Launched post-processing task for capture {capture.uuid}, "
+                f"Launched visualization processing task for capture {capture.uuid}, "
                 f"task_id: {result.id}"
             )
 
         except Exception as e:  # noqa: BLE001
             log.error(
-                f"Failed to launch post-processing task for capture {capture.uuid}: {e}"
+                f"Failed to launch visualization processing task for capture {capture.uuid}: {e}"
             )
 
     @extend_schema(

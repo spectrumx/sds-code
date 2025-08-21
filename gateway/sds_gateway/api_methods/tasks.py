@@ -21,7 +21,6 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
-from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import ZipFileStatus
 from sds_gateway.api_methods.models import user_has_access_to_item
@@ -615,7 +614,7 @@ def notify_shared_users(
 
 @shared_task
 def start_capture_post_processing(
-    capture_uuid: str, processing_types: list[str] | None = None
+    capture_uuid: str, processing_types: list[str]
 ) -> dict:
     """
     Start post-processing pipeline for a DigitalRF capture.
@@ -632,29 +631,24 @@ def start_capture_post_processing(
     try:
         # Set default processing types if not specified
         if not processing_types:
-            processing_types = [ProcessingType.Waterfall.value]
+            error_msg = "No processing types specified"
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Get the appropriate pipeline from the database
         from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
 
-        # For now, we only support waterfall processing
-        if "waterfall" in processing_types:
-            pipeline_name = ProcessingType.Waterfall.get_pipeline_name()
-            pipeline = get_latest_pipeline_by_base_name(pipeline_name)
-            if not pipeline:
-                error_msg = (
-                    f"No {pipeline_name} pipeline found. Please run setup_pipelines."
-                )
-                raise ValueError(error_msg)  # noqa: TRY301
-
-            # Launch the pipeline with runtime arguments
-            # Setup and validation will be handled by the setup stage in the pipeline
-            pipeline.launch(
-                capture_uuid=capture_uuid, processing_types=processing_types
+        # Always use the visualization pipeline - individual cogs will check if they should run
+        pipeline_name = "visualization_processing"
+        pipeline = get_latest_pipeline_by_base_name(pipeline_name)
+        if not pipeline:
+            error_msg = (
+                f"No {pipeline_name} pipeline found. Please run setup_pipelines."
             )
-        else:
-            error_msg = f"Unsupported processing types: {processing_types}"
             raise ValueError(error_msg)  # noqa: TRY301
+
+        # Launch the visualization pipeline with processing types
+        # Individual cogs will check if they should run based on processing_types
+        pipeline.launch(capture_uuid=capture_uuid, processing_types=processing_types)
 
         return {
             "status": "success",
