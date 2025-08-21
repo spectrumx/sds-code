@@ -23,11 +23,6 @@ function main() {
         echo_wait_and_quit "Failed to change directory to ${APP_DIR}."
     }
 
-    echo "Updating installed dependencies..."
-    uv sync --frozen --extra production || {
-        echo_wait_and_quit "Failed to sync project dependencies."
-    }
-
     echo "Collecting static files..."
     uv run manage.py collectstatic --noinput || {
         echo_wait_and_quit "Failed to collect static files."
@@ -38,7 +33,31 @@ function main() {
         echo_wait_and_quit "Failed to apply database migrations."
     }
 
-echo "Initializing OpenSearch indices..."
-uv run manage.py init_indices
+    echo "Initializing OpenSearch indices..."
+    uv run manage.py init_indices || {
+        echo_wait_and_quit "Failed to initialize OpenSearch indices."
+    }
 
-exec uv run /usr/local/bin/gunicorn config.asgi --bind 0.0.0.0:18000 --chdir=/app -k uvicorn_worker.UvicornWorker
+    echo "Initializing SVI server token..."
+    uv run manage.py init_svi_token || {
+        echo_wait_and_quit "Failed to initialize SVI server token."
+    }
+
+    echo "Setting up django-cog pipelines..."
+    uv run manage.py setup_pipelines --strategy=skip-if-exists || {
+        echo_wait_and_quit "Failed to set up django-cog pipelines."
+    }
+
+    echo "Starting Gunicorn server..."
+    exec /usr/local/bin/gunicorn config.asgi \
+        --bind 0.0.0.0:18000 \
+        --chdir=/app -k uvicorn_worker.UvicornWorker || {
+            echo_wait_and_quit "Gunicorn server failed."
+        }
+
+}
+
+main "$@" || {
+    echo >&2 "An error occurred while starting the Django application."
+    exit 1
+}

@@ -1,5 +1,16 @@
-# define an alias for the specific python version used in this file.
-FROM docker.io/python:3.12-slim-bookworm AS python
+# https://hub.docker.com/_/node/tags?name=slim
+FROM docker.io/node:24-trixie-slim AS client-builder
+
+ARG APP_HOME=/app
+WORKDIR ${APP_HOME}
+
+COPY ./package.json ${APP_HOME}
+RUN npm install && npm cache clean --force
+COPY . ${APP_HOME}
+RUN npm run build
+
+# https://hub.docker.com/_/python/tags?name=3.13
+FROM docker.io/python:3.13-slim-trixie AS python
 
 # install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/

@@ -205,7 +205,7 @@ services:
             - ./.envs/production/minio.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
-        command: celery -A config.celery_app worker -l INFO
+        command: uv run celery -A config.celery_app worker -l INFO
         networks:
             - sds-gateway-prod-opensearch-net
             - sds-gateway-prod-minio-net
@@ -247,7 +247,7 @@ services:
             - ./.envs/production/minio.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
-        command: celery -A config.celery_app beat -l INFO
+        command: uv run celery -A config.celery_app beat -l INFO
         networks:
             - sds-gateway-prod-opensearch-net
             - sds-gateway-prod-minio-net
