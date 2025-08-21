@@ -908,6 +908,13 @@
 
             // Helper function to upload a chunk
             async function uploadChunk(chunk, chunkPaths, chunkNum, totalChunks, filesProcessed, isFinalChunk, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES) {
+                console.log(`Uploading chunk ${chunkNum}/${totalChunks}:`, {
+                    chunkSize: chunk.length,
+                    chunkPaths: chunkPaths,
+                    filesProcessed: filesProcessed,
+                    isFinalChunk: isFinalChunk,
+                    chunkFiles: chunk.map(f => f.webkitRelativePath || f.name)
+                });
                 // Get progress elements locally
                 const progressBar = document.getElementById('checkingProgressBar');
                 const progressText = document.getElementById('checkingProgressText');
@@ -969,8 +976,23 @@
                 const controller = new AbortController();
                 currentAbortController = controller;
                 const MIN_AVG_UPLOAD_RATE = 100 * 1024; // 100 KB/s minimum upload rate
+                const MIN_TIMEOUT_MS = 30000; // Minimum 30 seconds timeout
                 const total_chunk_size_bytes = chunk.reduce((total, file) => total + file.size, 0);
-                const timeout = total_chunk_size_bytes / MIN_AVG_UPLOAD_RATE * 1000; // 1.5h for 512MB, 9 mins for a 50 MB chunk
+                const calculated_timeout = total_chunk_size_bytes / MIN_AVG_UPLOAD_RATE * 1000;
+                const timeout = Math.max(calculated_timeout, MIN_TIMEOUT_MS); // Use at least 30 seconds
+
+                // Debug logging for timeout calculation
+                console.log(`Chunk ${chunkNum} timeout calculation:`, {
+                    total_chunk_size_bytes: total_chunk_size_bytes,
+                    total_chunk_size_mb: (total_chunk_size_bytes / (1024 * 1024)).toFixed(2),
+                    min_upload_rate_kbps: MIN_AVG_UPLOAD_RATE / 1024,
+                    calculated_timeout_ms: calculated_timeout,
+                    calculated_timeout_minutes: (calculated_timeout / (1000 * 60)).toFixed(2),
+                    final_timeout_ms: timeout,
+                    final_timeout_minutes: (timeout / (1000 * 60)).toFixed(2),
+                    using_minimum: calculated_timeout < MIN_TIMEOUT_MS
+                });
+
                 const timeoutId = setTimeout(() => controller.abort(), timeout);
 
                 let response;
@@ -1015,7 +1037,15 @@
                 }
                 // Collect captures from the final chunk
                 if (chunkResult.captures && isFinalChunk) {
+                    console.log(`Chunk ${chunkNum} (final): Collecting captures:`, {
+                        chunkCaptures: chunkResult.captures,
+                        allResultsCapturesBefore: allResults.captures,
+                        isFinalChunk: isFinalChunk
+                    });
                     allResults.captures = allResults.captures.concat(chunkResult.captures);
+                    console.log(`Chunk ${chunkNum} (final): allResults.captures after:`, allResults.captures);
+                } else if (chunkResult.captures && !isFinalChunk) {
+                    console.log(`Chunk ${chunkNum} (non-final): Skipping captures (not final chunk):`, chunkResult.captures);
                 }
                 // Also collect any message from the final chunk
                 if (chunkResult.message && isFinalChunk) {
@@ -1074,6 +1104,8 @@
                 // Always collect all relative paths for capture creation, even for skipped files
                 const allRelativePaths = [];
 
+                let skippedFilesCount = 0;
+
                 for (const file of files) {
                     let directory = "/";
                     if (file.webkitRelativePath) {
@@ -1093,8 +1125,23 @@
                     if (!window.filesToSkip.has(fileKey)) {
                         filesToUpload.push(file);
                         relativePathsToUpload.push(relativePath);
+                    } else {
+                        skippedFilesCount++;
                     }
                 }
+
+                // Debug logging for file structure
+                console.log('Files to upload structure:', {
+                    totalFiles: filesToUpload.length,
+                    skippedFiles: skippedFilesCount,
+                    totalSelectedFiles: files.length,
+                    files: filesToUpload.map(f => ({
+                        name: f.name,
+                        path: f.webkitRelativePath || f.name,
+                        size: f.size,
+                        sizeMB: (f.size / (1024 * 1024)).toFixed(2)
+                    }))
+                });
 
                 // Upload files in chunks
                 try {
@@ -1104,10 +1151,13 @@
                     currentAbortController = null;
 
                     // Debug logging for final results
-                    console.log('Final upload results:', uploadResults);
+                    console.log('Final upload results:', {
+                        ...uploadResults,
+                        capturesLength: uploadResults.captures ? uploadResults.captures.length : 0
+                    });
 
                     // Show results
-                    showUploadResults(uploadResults, uploadResults.saved_files_count, filesToUpload.length);
+                    showUploadResults(uploadResults, uploadResults.saved_files_count, files.length, skippedFilesCount);
 
                     // Don't auto-reload for successful uploads - let user close modal first
                 } catch (error) {
@@ -1182,7 +1232,7 @@
             }
 
             // Function to show upload results
-            function showUploadResults(result, uploadedCount, totalCount) {
+            function showUploadResults(result, uploadedCount, totalCount, skippedCount = 0) {
                 // Debug logging
                 console.log('showUploadResults called with:', {
                     result,
@@ -1190,7 +1240,8 @@
                     totalCount,
                     hasMessage: !!result.message,
                     message: result.message,
-                    captures: result.captures
+                    captures: result.captures,
+                    capturesLength: result.captures ? result.captures.length : 0
                 });
 
                 // Check if page was refreshed during upload
@@ -1211,20 +1262,31 @@
 
                 let msg = '';
                 if (result.file_upload_status === 'success') {
-                    // Use backend message if available, otherwise fall back to frontend logic
-                    if (result.message) {
-                        msg = `<b>${result.message}</b>`;
-                    } else if (uploadedCount === 0 && totalCount > 0) {
+                    // Use frontend accumulated count for accuracy, but include backend message for additional info
+                    if (uploadedCount === 0 && totalCount > 0) {
                         // All files were skipped
-                        msg = `<b>Upload complete!</b><br />All ${totalCount} files already existed and were skipped.`;
+                        msg = `<b>Upload complete!</b><br />All ${totalCount} files already existed on the server.`;
+                    } else if (skippedCount > 0) {
+                        // Some files were uploaded, some were skipped
+                        msg = `<b>Upload complete!</b><br />Files uploaded: <strong>${uploadedCount}</strong> / ${totalCount}`;
+                        msg += `<br />Files already exist: <strong>${skippedCount}</strong>`;
                     } else {
-                        // Some or all files were uploaded
+                        // All files were uploaded (no skipped files)
                         msg = `<b>Upload complete!</b><br />Files uploaded: <strong>${uploadedCount}</strong> / ${totalCount}`;
                     }
 
                     if (result.captures && result.captures.length > 0) {
+                        console.log('Displaying captures in modal:', {
+                            captures: result.captures,
+                            capturesLength: result.captures.length
+                        });
                         let uuids = result.captures.map(uuid => `<li>${uuid}</li>`).join('');
                         msg += `<br />Created capture UUID(s):<ul>${uuids}</ul>`;
+                    } else {
+                        console.log('No captures to display:', {
+                            hasCaptures: !!result.captures,
+                            capturesLength: result.captures ? result.captures.length : 0
+                        });
                     }
                     if (result.errors && result.errors.length > 0) {
                         let errs = result.errors.map(e => `<li>${e}</li>`).join('');
