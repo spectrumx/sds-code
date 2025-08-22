@@ -1316,14 +1316,18 @@ class ModalManager {
 
 			// Set up click handler to open visualization modal
 			visualizeBtn.onclick = () => {
-				// Set the capture data attributes for the modal
-				visualizeBtn.setAttribute("data-capture-uuid", captureData.uuid);
-				visualizeBtn.setAttribute("data-capture-type", captureData.captureType);
+				// Store capture data in the modal element for the visualization modal to access
+				const vizModal = document.getElementById("visualization-modal");
+				if (vizModal) {
+					vizModal.setAttribute("data-current-capture-uuid", captureData.uuid);
+					vizModal.setAttribute(
+						"data-current-capture-type",
+						captureData.captureType,
+					);
+				}
 
 				// Open the visualization modal
-				const visualizationModal = new bootstrap.Modal(
-					document.getElementById("visualization-modal"),
-				);
+				const visualizationModal = new bootstrap.Modal(vizModal);
 				visualizationModal.show();
 			};
 		} else {
