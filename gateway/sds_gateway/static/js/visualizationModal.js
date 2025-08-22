@@ -35,15 +35,30 @@ class VisualizationModal {
 
 		// Handle modal show event
 		this.modal.addEventListener("show.bs.modal", (e) => {
-			const button = e.relatedTarget;
-			if (button && button.dataset.captureUuid) {
-				this.currentCaptureUuid = button.dataset.captureUuid;
-				this.currentCaptureType = button.dataset.captureType;
+			// Get capture data from the modal element
+			this.currentCaptureUuid = this.modal.getAttribute(
+				"data-current-capture-uuid",
+			);
+			this.currentCaptureType = this.modal.getAttribute(
+				"data-current-capture-type",
+			);
 
+			if (this.currentCaptureUuid && this.currentCaptureType) {
 				// Filter visualizations based on current capture type (Django already rendered them)
 				this.filterVisualizationOptions();
 				this.loadProcessingStatus();
+			} else {
+				console.error("No capture UUID or type found");
 			}
+		});
+
+		// Handle modal hide event to clean up
+		this.modal.addEventListener("hidden.bs.modal", () => {
+			// Clear the stored capture data
+			this.modal.removeAttribute("data-current-capture-uuid");
+			this.modal.removeAttribute("data-current-capture-type");
+			this.currentCaptureUuid = null;
+			this.currentCaptureType = null;
 		});
 	}
 
@@ -83,14 +98,11 @@ class VisualizationModal {
 			".visualization-option",
 		);
 
-		visualizationCards.forEach((card) => {
+		for (const card of visualizationCards) {
 			const vizType = card.dataset.visualization;
 			const config = this.visualizationCompatibility[vizType];
 
-			if (
-				config &&
-				config.supported_capture_types.includes(this.currentCaptureType)
-			) {
+			if (config?.supported_capture_types.includes(this.currentCaptureType)) {
 				// Show this visualization option
 				card.style.display = "block";
 				const button = card.querySelector(".visualization-select-btn");
@@ -102,7 +114,7 @@ class VisualizationModal {
 				// Hide this visualization option
 				card.style.display = "none";
 			}
-		});
+		}
 
 		// Check if any visualizations are available
 		const visibleCards = this.modal.querySelectorAll(
