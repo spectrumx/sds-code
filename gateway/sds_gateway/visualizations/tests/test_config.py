@@ -19,15 +19,19 @@ class VisualizationConfigTestCases(TestCase):
         # Check that supported_capture_types uses enum values
         waterfall_config = VISUALIZATION_COMPATIBILITY["waterfall"]
         assert isinstance(waterfall_config["supported_capture_types"], list)
-        assert CaptureType.DigitalRF in waterfall_config["supported_capture_types"]
+        assert (
+            CaptureType.DigitalRF.value in waterfall_config["supported_capture_types"]
+        )
 
         spectrogram_config = VISUALIZATION_COMPATIBILITY["spectrogram"]
         assert isinstance(spectrogram_config["supported_capture_types"], list)
-        assert CaptureType.DigitalRF in spectrogram_config["supported_capture_types"]
+        assert (
+            CaptureType.DigitalRF.value in spectrogram_config["supported_capture_types"]
+        )
 
     def test_get_available_visualizations_with_drf(self):
         """Test getting available visualizations for DigitalRF capture type."""
-        available = get_available_visualizations(CaptureType.DigitalRF)
+        available = get_available_visualizations(CaptureType.DigitalRF.value)
 
         assert "waterfall" in available
         assert "spectrogram" in available
@@ -39,11 +43,11 @@ class VisualizationConfigTestCases(TestCase):
     def test_get_available_visualizations_with_other_types(self):
         """Test getting available visualizations for other capture types."""
         # RadioHound should not have any visualizations currently
-        available_rh = get_available_visualizations(CaptureType.RadioHound)
+        available_rh = get_available_visualizations(CaptureType.RadioHound.value)
         assert available_rh == {}
 
         # SigMF should not have any visualizations currently
-        available_sigmf = get_available_visualizations(CaptureType.SigMF)
+        available_sigmf = get_available_visualizations(CaptureType.SigMF.value)
         assert available_sigmf == {}
 
     def test_get_all_visualization_types(self):
