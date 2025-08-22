@@ -7,16 +7,11 @@ import { CANVAS_DIMENSIONS } from "./constants.js";
 
 export class SpectrogramRenderer {
 	constructor(canvasId = "spectrogramCanvas") {
-		this.canvas = document.getElementById(canvasId);
+		this.canvasId = canvasId;
+		this.canvas = null;
 		this.ctx = null;
 		this.imageData = null;
 		this.isInitialized = false;
-
-		if (this.canvas) {
-			this.initializeCanvas();
-		} else {
-			console.error(`Canvas with ID '${canvasId}' not found`);
-		}
 	}
 
 	/**
@@ -24,6 +19,13 @@ export class SpectrogramRenderer {
 	 */
 	initializeCanvas() {
 		try {
+			this.canvas = document.getElementById(this.canvasId);
+
+			if (!this.canvas) {
+				console.error(`Canvas with ID '${this.canvasId}' not found`);
+				return false;
+			}
+
 			this.ctx = this.canvas.getContext("2d");
 
 			// Set canvas dimensions
@@ -36,8 +38,10 @@ export class SpectrogramRenderer {
 
 			this.isInitialized = true;
 			this.clearCanvas();
+			return true;
 		} catch (error) {
 			console.error("Failed to initialize canvas:", error);
+			return false;
 		}
 	}
 
@@ -45,31 +49,21 @@ export class SpectrogramRenderer {
 	 * Clear the canvas
 	 */
 	clearCanvas() {
-		if (!this.isInitialized) return;
+		if (!this.isReady()) return;
 
 		this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
 		// Draw a placeholder background
 		this.ctx.fillStyle = "#f8f9fa";
 		this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-		// Draw placeholder text
-		this.ctx.fillStyle = "#6c757d";
-		this.ctx.font = "16px Arial";
-		this.ctx.textAlign = "center";
-		this.ctx.fillText(
-			"No spectrogram data",
-			this.canvas.width / 2,
-			this.canvas.height / 2,
-		);
 	}
 
 	/**
 	 * Render spectrogram data from image blob
 	 */
 	async renderFromImageBlob(imageBlob) {
-		if (!this.isInitialized) {
-			console.error("Canvas not initialized");
+		if (!this.isReady()) {
+			console.error("Canvas not ready");
 			return false;
 		}
 
@@ -107,8 +101,8 @@ export class SpectrogramRenderer {
 	 * Render spectrogram data from image URL
 	 */
 	async renderFromImageUrl(imageUrl) {
-		if (!this.isInitialized) {
-			console.error("Canvas not initialized");
+		if (!this.isReady()) {
+			console.error("Canvas not ready");
 			return false;
 		}
 
@@ -141,7 +135,7 @@ export class SpectrogramRenderer {
 	 * Render image to canvas with proper scaling
 	 */
 	renderImage(image) {
-		if (!this.isInitialized) return;
+		if (!this.isReady()) return;
 
 		// Clear canvas
 		this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -175,8 +169,8 @@ export class SpectrogramRenderer {
 	 * Render spectrogram from raw data array (for future implementation)
 	 */
 	renderFromData(dataArray, width, height, colorMap = "magma") {
-		if (!this.isInitialized) {
-			console.error("Canvas not initialized");
+		if (!this.isReady()) {
+			console.error("Canvas not ready");
 			return false;
 		}
 
@@ -197,7 +191,7 @@ export class SpectrogramRenderer {
 	 * Show a placeholder message on the canvas
 	 */
 	showPlaceholderMessage(message) {
-		if (!this.isInitialized) return;
+		if (!this.isReady()) return;
 
 		this.clearCanvas();
 
@@ -211,7 +205,7 @@ export class SpectrogramRenderer {
 	 * Show an error message on the canvas
 	 */
 	showErrorMessage(message) {
-		if (!this.isInitialized) return;
+		if (!this.isReady()) return;
 
 		this.clearCanvas();
 
@@ -230,7 +224,7 @@ export class SpectrogramRenderer {
 	 * Export the current canvas as a blob
 	 */
 	exportAsBlob(mimeType = "image/png", quality = 0.9) {
-		if (!this.isInitialized || !this.imageData) {
+		if (!this.isReady() || !this.imageData) {
 			return null;
 		}
 
@@ -253,7 +247,7 @@ export class SpectrogramRenderer {
 	 * Resize canvas to new dimensions
 	 */
 	resizeCanvas(width, height) {
-		if (!this.isInitialized) return;
+		if (!this.isReady()) return;
 
 		this.canvas.width = width;
 		this.canvas.height = height;
@@ -267,10 +261,37 @@ export class SpectrogramRenderer {
 	}
 
 	/**
+	 * Check if renderer is properly initialized
+	 */
+	isRendererInitialized() {
+		return this.isInitialized;
+	}
+
+	/**
 	 * Check if canvas is ready for rendering
 	 */
 	isReady() {
-		return this.isInitialized && this.ctx !== null;
+		return this.isInitialized && this.ctx !== null && this.canvas !== null;
+	}
+
+	/**
+	 * Check if canvas element exists in DOM
+	 */
+	canvasExists() {
+		return document.getElementById(this.canvasId) !== null;
+	}
+
+	/**
+	 * Wait for canvas to be available in DOM
+	 */
+	async waitForCanvas(timeout = 5000) {
+		const startTime = Date.now();
+
+		while (!this.canvasExists() && Date.now() - startTime < timeout) {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
+
+		return this.canvasExists();
 	}
 
 	/**
