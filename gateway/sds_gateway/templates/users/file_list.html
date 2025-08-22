@@ -256,14 +256,12 @@
     <script src="{% static 'js/userSearchComponent.js' %}"></script>
     <script src="{% static 'js/visualizationModal.js' %}"></script>
     <!-- Pass Django context data to JavaScript -->
+    {# djlint:off #}
     <script>
         // Make visualization compatibility data available to JavaScript
-        window.visualizationCompatibility = {
-            {
-                visualization_compatibility | safe
-            }
-        };
-    </script>
+        window.visualizationCompatibility = {{ visualization_compatibility | safe }};
+</script>
+    {# djlint:on #}
     <script>
         // Initialize noUiSlider for frequency range
         document.addEventListener('DOMContentLoaded', function() {

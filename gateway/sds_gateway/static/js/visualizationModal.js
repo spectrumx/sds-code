@@ -236,25 +236,33 @@ class VisualizationModal {
 		}
 
 		let html = '<div class="row">';
+		let hasCompatibleStatus = false;
 
-		// Waterfall status
-		const waterfallData = postProcessedData.find(
-			(item) => item.processing_type === "waterfall",
-		);
-		html += this.createStatusCard("waterfall", waterfallData, "Waterfall");
-
-		// Spectrogram status
-		const spectrogramData = postProcessedData.find(
-			(item) => item.processing_type === "spectrogram",
-		);
-		html += this.createStatusCard(
-			"spectrogram",
-			spectrogramData,
-			"Spectrogram",
-		);
+		// Only show processing status for visualization types compatible with current capture type
+		for (const [vizType, config] of Object.entries(
+			this.visualizationCompatibility,
+		)) {
+			if (config.supported_capture_types.includes(this.currentCaptureType)) {
+				const vizData = postProcessedData.find(
+					(item) => item.processing_type === vizType,
+				);
+				html += this.createStatusCard(
+					vizType,
+					vizData,
+					this.capitalizeFirst(vizType),
+				);
+				hasCompatibleStatus = true;
+			}
+		}
 
 		html += "</div>";
-		container.innerHTML = html;
+
+		if (!hasCompatibleStatus) {
+			container.innerHTML =
+				'<p class="text-muted">No compatible visualizations available for this capture type</p>';
+		} else {
+			container.innerHTML = html;
+		}
 	}
 
 	/**
