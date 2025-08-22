@@ -28,9 +28,9 @@ export class SpectrogramVisualization {
 	/**
 	 * Initialize the spectrogram visualization
 	 */
-	initialize() {
+	async initialize() {
 		try {
-			this.initializeComponents();
+			await this.initializeComponents();
 			this.setupEventHandlers();
 			this.checkForDefaultSpectrogram();
 		} catch (error) {
@@ -42,7 +42,7 @@ export class SpectrogramVisualization {
 	/**
 	 * Initialize all component classes
 	 */
-	initializeComponents() {
+	async initializeComponents() {
 		// Initialize controls
 		this.controls = new SpectrogramControls();
 
@@ -53,6 +53,20 @@ export class SpectrogramVisualization {
 		this.statusMessage = document.getElementById("statusMessage");
 		this.loadingOverlay = document.getElementById("loadingOverlay");
 		this.saveButton = document.getElementById("saveSpectrogramBtn");
+
+		// Wait for canvas to be available and initialize the renderer
+		try {
+			const canvasReady = await this.renderer.waitForCanvas();
+			if (canvasReady) {
+				if (!this.renderer.initializeCanvas()) {
+					console.error("Failed to initialize spectrogram renderer canvas");
+				}
+			} else {
+				console.error("Canvas element not found after waiting");
+			}
+		} catch (error) {
+			console.error("Error during canvas initialization:", error);
+		}
 
 		// Set up control callbacks
 		this.controls.setGenerateCallback(() => this.generateSpectrogram());
@@ -322,7 +336,7 @@ export class SpectrogramVisualization {
 			const cookies = document.cookie.split(";");
 			for (let i = 0; i < cookies.length; i++) {
 				const cookie = cookies[i].trim();
-				if (cookie.substring(0, name.length + 1) === name + "=") {
+				if (cookie.substring(0, name.length + 1) === `${name}=`) {
 					cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
 					break;
 				}
@@ -449,3 +463,5 @@ export class SpectrogramVisualization {
 		}
 	}
 }
+
+window.SpectrogramVisualization = SpectrogramVisualization;

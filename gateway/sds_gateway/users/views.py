@@ -919,9 +919,9 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
             files_page = paginator.page(1)
 
         # Get visualization compatibility data
-        from sds_gateway.visualizations import get_all_visualization_types
+        from sds_gateway.visualizations import get_visualization_compatibility
 
-        visualization_compatibility = get_all_visualization_types()
+        visualization_compatibility = get_visualization_compatibility()
 
         return render(
             request,
@@ -1128,9 +1128,9 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         page_obj.object_list = _get_captures_for_template(page_obj, request)
 
         # Get visualization compatibility data
-        from sds_gateway.visualizations import get_all_visualization_types
+        from sds_gateway.visualizations import get_visualization_compatibility
 
-        visualization_compatibility = get_all_visualization_types()
+        visualization_compatibility = get_visualization_compatibility()
 
         return render(
             request,
