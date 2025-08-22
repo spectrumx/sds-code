@@ -6,7 +6,7 @@ default_language_version:
 
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v5.0.0
+      rev: v6.0.0
       hooks:
           - id: trailing-whitespace
           - id: end-of-file-fixer
@@ -31,7 +31,7 @@ repos:
     #   biome-format    Format the committed files
     #   biome-lint      Lint and apply safe fixes to the committed files
     - repo: https://github.com/biomejs/pre-commit
-      rev: v2.0.0-beta.5
+      rev: v2.2.0
       hooks:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.0.0"]
@@ -44,12 +44,16 @@ repos:
 
     # Run the Ruff linter.
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.11.12
+      rev: v0.12.10
       hooks:
           # Linter
           - id: ruff # runs ruff check --force-exclude
             args:
-                # we have to pick one config between gateway and sdk...
+                # we have to pick one ruff config between gateway and sdk...
+                #   the SDK has additional constraints for having to support multiple
+                #   python versions, so it's a safer choice for a project-wide config;
+                #   though be aware that this might omit PyUpgrade improvements that
+                #   could be applied to the gateway side.
                 [
                     # --verbose, # for debugging
                     # --show-files, # for debugging
