@@ -58,6 +58,7 @@ WORKDIR ${APP_HOME}
 COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
 RUN uv sync --frozen --extra ${BUILD_ENVIRONMENT}
 
+# "entrypoint" only has a production version
 COPY ./compose/production/django/entrypoint /entrypoint
 RUN sed -i 's/\r$//g' /entrypoint
 RUN chmod +x /entrypoint

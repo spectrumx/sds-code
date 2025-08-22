@@ -24,6 +24,10 @@ build:
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) pull --ignore-buildable
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) build $(ARGS)
 
+clean:
+	@removed_count=$$(rm -rfv '.pytest_cache' '.ruff_cache' '__pycache__' | wc -l); \
+	echo "Removed $${removed_count} entries"
+
 up:
 	@echo "Starting sds-gateway"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) up -d --remove-orphans $(ARGS)
