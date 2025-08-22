@@ -238,8 +238,6 @@ export class SpectrogramVisualization {
 			const blob = await response.blob();
 			await this.renderer.renderFromImageBlob(blob);
 
-			// Show success state
-			this.updateStatus(STATUS_MESSAGES.SUCCESS);
 			this.setGeneratingState(false);
 			this.showSaveButton(true);
 
@@ -311,8 +309,7 @@ export class SpectrogramVisualization {
 				const blob = await response.blob();
 				await this.renderer.renderFromImageBlob(blob);
 
-				// Show success state
-				this.updateStatus("Default spectrogram loaded successfully");
+				this.updateStatus("");
 				this.showSaveButton(true);
 
 				// Store the result for saving
@@ -322,7 +319,7 @@ export class SpectrogramVisualization {
 			}
 		} catch (error) {
 			console.error("Error loading existing spectrogram:", error);
-			this.updateStatus("Failed to load existing spectrogram");
+			this.updateStatus("Failed to load spectrogram");
 		}
 	}
 
