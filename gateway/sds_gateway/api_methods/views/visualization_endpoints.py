@@ -31,6 +31,14 @@ class VisualizationViewSet(ViewSet):
     ViewSet for generating visualizations from captures.
     """
 
+    # Constants for validation
+    MIN_FFT_SIZE = 64
+    MAX_FFT_SIZE = 65536
+    MIN_STD_DEV = 10
+    MAX_STD_DEV = 500
+    MIN_HOP_SIZE = 100
+    MAX_HOP_SIZE = 1000
+
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -166,7 +174,7 @@ class VisualizationViewSet(ViewSet):
             serializer = PostProcessedDataSerializer(spectrogram_data)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.error(f"Error creating spectrogram: {e}")
             return Response(
                 {"error": "Failed to create spectrogram"},
@@ -222,7 +230,7 @@ class VisualizationViewSet(ViewSet):
             serializer = PostProcessedDataSerializer(processing_job)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.error(f"Error getting spectrogram status: {e}")
             return Response(
                 {"error": "Failed to get spectrogram status"},
@@ -294,9 +302,9 @@ class VisualizationViewSet(ViewSet):
             file_response["Content-Disposition"] = (
                 f'attachment; filename="spectrogram_{capture_uuid}.png"'
             )
-            return file_response
+            return file_response  # noqa: TRY300
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.error(f"Error downloading spectrogram: {e}")
             return Response(
                 {"error": "Failed to download spectrogram"},
@@ -325,18 +333,28 @@ class VisualizationViewSet(ViewSet):
                                 "waterfall": {
                                     "type": "waterfall",
                                     "supported_capture_types": ["drf", "rh"],
-                                    "description": "View signal data as a scrolling waterfall display with periodogram",
+                                    "description": (
+                                        "View signal data as a scrolling waterfall "
+                                        "display with periodogram"
+                                    ),
                                     "icon": "bi-water",
                                     "color": "primary",
-                                    "url_pattern": "/visualizations/waterfall/{capture_uuid}/",
+                                    "url_pattern": (
+                                        "/visualizations/waterfall/{capture_uuid}/"
+                                    ),
                                 },
                                 "spectrogram": {
                                     "type": "spectrogram",
                                     "supported_capture_types": ["drf", "sigmf"],
-                                    "description": "Visualize signal strength across frequency and time",
+                                    "description": (
+                                        "Visualize signal strength across "
+                                        "frequency and time"
+                                    ),
                                     "icon": "bi-graph-up",
                                     "color": "success",
-                                    "url_pattern": "/visualizations/spectrogram/{capture_uuid}/",
+                                    "url_pattern": (
+                                        "/visualizations/spectrogram/{capture_uuid}/"
+                                    ),
                                 },
                             },
                         },
@@ -362,19 +380,9 @@ class VisualizationViewSet(ViewSet):
                 )
 
             # Import the compatibility function
-            from sds_gateway.api_methods.models import CaptureType
             from sds_gateway.visualizations import get_available_visualizations
 
-            # Convert string to enum value
-            try:
-                capture_type_enum = CaptureType(capture_type)
-            except ValueError:
-                return Response(
-                    {"error": f"Invalid capture type: {capture_type}"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            available_visualizations = get_available_visualizations(capture_type_enum)
+            available_visualizations = get_available_visualizations(capture_type)
 
             return Response(
                 {
@@ -384,7 +392,7 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.error(f"Error getting visualization compatibility: {e}")
             return Response(
                 {"error": "Failed to get visualization compatibility"},
@@ -398,15 +406,19 @@ class VisualizationViewSet(ViewSet):
         Validate spectrogram parameters.
         """
         # Validate FFT size (must be power of 2)
-        if fft_size < 64 or fft_size > 65536 or (fft_size & (fft_size - 1)) != 0:
+        if (
+            fft_size < self.MIN_FFT_SIZE
+            or fft_size > self.MAX_FFT_SIZE
+            or (fft_size & (fft_size - 1)) != 0
+        ):
             return False
 
         # Validate standard deviation
-        if std_dev < 10 or std_dev > 500:
+        if std_dev < self.MIN_STD_DEV or std_dev > self.MAX_STD_DEV:
             return False
 
         # Validate hop size
-        if hop_size < 100 or hop_size > 1000:
+        if hop_size < self.MIN_HOP_SIZE or hop_size > self.MAX_HOP_SIZE:
             return False
 
         # Validate colormap
@@ -422,10 +434,7 @@ class VisualizationViewSet(ViewSet):
             "cool",
             "rainbow",
         ]
-        if colormap not in valid_colormaps:
-            return False
-
-        return True
+        return colormap in valid_colormaps
 
     def _start_spectrogram_processing(
         self, spectrogram_data: PostProcessedData
@@ -448,18 +457,18 @@ class VisualizationViewSet(ViewSet):
                 )
 
                 log.info(
-                    f"Launched spectrogram processing task for {spectrogram_data.uuid}, "
-                    f"task_id: {result.id}"
+                    f"Launched spectrogram processing task for "
+                    f"{spectrogram_data.uuid}, task_id: {result.id}"
                 )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 log.error(f"Could not launch spectrogram processing task: {e}")
                 # Mark as failed
                 spectrogram_data.processing_status = ProcessingStatus.Failed.value
                 spectrogram_data.processing_error = f"Failed to launch task: {e}"
                 spectrogram_data.save()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.error(f"Error starting spectrogram processing: {e}")
             spectrogram_data.processing_status = ProcessingStatus.Failed.value
             spectrogram_data.processing_error = str(e)
