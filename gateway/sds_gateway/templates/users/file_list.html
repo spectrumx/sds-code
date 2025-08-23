@@ -773,28 +773,55 @@
             function calculateTotalChunks(filesToUpload, chunkSizeBytes) {
                 let totalChunks = 0;
                 let tempChunkSize = 0;
+                let tempChunkFiles = 0; // Track number of files in current chunk (mirrors currentChunk.length)
+
+                console.log('=== CHUNK CALCULATION DEBUG ===');
+                console.log('Files to upload:', filesToUpload.length);
+                console.log('Chunk size limit:', (chunkSizeBytes / (1024 * 1024)).toFixed(1), 'MB');
 
                 for (let i = 0; i < filesToUpload.length; i++) {
                     const file = filesToUpload[i];
-                    if (file.size > chunkSizeBytes) {
-                        // Large file gets its own chunk
+                    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                    console.log(`\nFile ${i + 1}: ${file.name}`);
+                    console.log(`  Size: ${fileSizeMB} MB`);
+                    console.log(`  Current tempChunkSize: ${(tempChunkSize / (1024 * 1024)).toFixed(2)} MB`);
+                    console.log(`  Current tempChunkFiles: ${tempChunkFiles}`);
+
+                    // Check if this file would exceed the chunk limit (mirrors upload logic exactly)
+                    if (tempChunkSize + file.size > chunkSizeBytes && tempChunkFiles > 0) {
+                        // Current chunk would exceed size limit, start new chunk
+                        const wouldBeSize = ((tempChunkSize + file.size) / (1024 * 1024)).toFixed(2);
+                        console.log(`  -> CHUNK FULL: ${wouldBeSize} MB > ${(chunkSizeBytes / (1024 * 1024)).toFixed(1)} MB`);
+                        console.log(`  -> Creating new chunk. Total chunks: ${totalChunks + 1}`);
                         totalChunks++;
                         tempChunkSize = 0;
-                    } else if (tempChunkSize + file.size > chunkSizeBytes && tempChunkSize > 0) {
-                        // Current chunk would exceed size limit, start new chunk
+                        tempChunkFiles = 0;
+                    }
+
+                    // Now add the file to the current chunk
+                    if (file.size > chunkSizeBytes) {
+                        // Large file gets its own chunk
+                        console.log(`  -> LARGE FILE: ${fileSizeMB} MB > ${(chunkSizeBytes / (1024 * 1024)).toFixed(1)} MB`);
+                        console.log(`  -> Creating new chunk. Total chunks: ${totalChunks + 1}`);
                         totalChunks++;
-                        tempChunkSize = file.size;
+                        tempChunkSize = 0;
+                        tempChunkFiles = 0;
                     } else {
                         // Add to current chunk
                         tempChunkSize += file.size;
+                        tempChunkFiles++;
+                        console.log(`  -> ADDING TO CHUNK: New tempChunkSize: ${(tempChunkSize / (1024 * 1024)).toFixed(2)} MB, Files: ${tempChunkFiles}`);
                     }
                 }
 
                 // Add final chunk if there are remaining files
                 if (tempChunkSize > 0) {
+                    console.log(`\n-> FINAL CHUNK: ${(tempChunkSize / (1024 * 1024)).toFixed(2)} MB remaining`);
+                    console.log(`-> Creating final chunk. Total chunks: ${totalChunks + 1}`);
                     totalChunks++;
                 }
 
+                console.log(`\n=== FINAL RESULT: ${totalChunks} total chunks ===`);
                 return totalChunks;
             }
 
@@ -843,13 +870,24 @@
                     // Calculate total chunks first
                     const totalChunks = calculateTotalChunks(filesToUpload, CHUNK_SIZE_BYTES);
 
+                    console.log('=== ACTUAL CHUNK UPLOAD DEBUG ===');
+                    console.log('Starting upload with calculated total chunks:', totalChunks);
+
                     // Now upload files in chunks
                     for (let i = 0; i < filesToUpload.length; i++) {
                         const file = filesToUpload[i];
                         const filePath = relativePathsToUpload[i];
 
+                        console.log(`\nProcessing file ${i + 1}/${filesToUpload.length}: ${file.name}`);
+                        console.log(`  File size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`);
+                        console.log(`  Current chunk size: ${(currentChunkSize / (1024 * 1024)).toFixed(2)} MB`);
+                        console.log(`  Current chunk number: ${chunkNumber}`);
+                        console.log(`  Files in current chunk: ${currentChunk.length}`);
+
                         // Check if this file would exceed the 50MB limit
                         if (currentChunkSize + file.size > CHUNK_SIZE_BYTES && currentChunk.length > 0) {
+                            console.log(`  -> CHUNK FULL: Would exceed ${(CHUNK_SIZE_BYTES / (1024 * 1024)).toFixed(1)} MB limit`);
+                            console.log(`  -> Uploading chunk ${chunkNumber}/${totalChunks}`);
                             // Upload current chunk before adding this file
                             await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, false, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES);
 
@@ -858,6 +896,7 @@
                             currentChunkPaths = [];
                             currentChunkSize = 0;
                             chunkNumber++;
+                            console.log(`  -> Reset for next chunk. New chunk number: ${chunkNumber}`);
                         }
 
                         // Add file to current chunk
@@ -865,9 +904,11 @@
                         currentChunkPaths.push(filePath);
                         currentChunkSize += file.size;
                         filesProcessed++;
+                        console.log(`  -> Added to chunk. New chunk size: ${(currentChunkSize / (1024 * 1024)).toFixed(2)} MB`);
 
                         // Check if this is the last file
                         if (i === filesToUpload.length - 1) {
+                            console.log(`  -> LAST FILE: Uploading final chunk ${chunkNumber}/${totalChunks}`);
                             // Upload final chunk
                             await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, true, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES);
                         }
