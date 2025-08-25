@@ -1,13 +1,13 @@
 <!-- SDK Download Instructions Modal -->
 <div class="modal fade"
-     id="sdkDownloadModal"
+     id="sdkDownloadModal-{{ dataset.uuid }}"
      tabindex="-1"
-     aria-labelledby="sdkDownloadModalLabel"
+     aria-labelledby="sdkDownloadModalLabel-{{ dataset.uuid }}"
      aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="sdkDownloadModalLabel">
+                <h5 class="modal-title" id="sdkDownloadModalLabel-{{ dataset.uuid }}">
                     <i class="bi bi-code-slash"></i> SDK Download Instructions
                 </h5>
                 <button type="button"
@@ -28,12 +28,12 @@
                                 <i class="bi bi-filetype-py"></i> Python Example
                             </h6>
                             <button class="btn btn-sm btn-outline-primary copy-btn"
-                                    data-clipboard-target="#python-code"
+                                    data-clipboard-target="#python-code-{{ dataset.uuid }}"
                                     title="Copy to clipboard">
                                 <i class="bi bi-clipboard"></i> Copy
                             </button>
                         </div>
-                        <pre id="python-code" class="bg-light p-3 rounded border"><code class="language-python">from spectrumx import Client
+                        <pre id="python-code-{{ dataset.uuid }}" class="bg-light p-3 rounded border"><code class="language-python">from spectrumx import Client
 from spectrumx.errors import SDSError
 from pathlib import Path
 from uuid import UUID
@@ -56,7 +56,7 @@ client.authenticate()
 # Download a dataset by UUID
 try:
     # Specify the dataset UUID and local download path
-    dataset_uuid_str = "DATASET_UUID_PLACEHOLDER"  # Will be replaced with actual UUID
+    dataset_uuid_str = "{{ dataset.uuid }}"
     dataset_uuid = UUID(dataset_uuid_str)  # Convert to UUID object
     download_path = Path("./downloaded_dataset")
 
@@ -216,29 +216,9 @@ except Exception as e:
     });
 
     // Function to show SDK download modal
-    function showSDKDownloadModal(datasetUuid, datasetName) {
-        // Update the dataset UUID in the code example
-        const codeElement = document.querySelector('#python-code code');
-        if (codeElement) {
-            // Get the original code text and replace the dataset UUID
-            let codeText = codeElement.textContent;
-
-            // Replace the placeholder with the actual dataset UUID
-            codeText = codeText.replace(
-                /dataset_uuid = "DATASET_UUID_PLACEHOLDER"/,
-                `dataset_uuid = "${datasetUuid}"`
-            );
-
-            codeElement.textContent = codeText;
-
-            // Re-highlight the code
-            if (typeof Prism !== 'undefined') {
-                Prism.highlightElement(codeElement);
-            }
-        }
-
-        // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('sdkDownloadModal'));
+    function showSDKDownloadModal(datasetUuid) {
+        // Show the dataset-specific modal
+        const modal = new bootstrap.Modal(document.getElementById(`sdkDownloadModal-${datasetUuid}`));
         modal.show();
     }
 

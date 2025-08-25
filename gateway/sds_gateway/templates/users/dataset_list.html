@@ -153,7 +153,7 @@
                                                             <li>
                                                                 <button class="dropdown-item"
                                                                         type="button"
-                                                                        onclick="showSDKDownloadModal('{{ dataset.uuid }}', '{{ dataset.name }}')">
+                                                                        onclick="showSDKDownloadModal('{{ dataset.uuid }}')">
                                                                     <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
                                                                 </button>
                                                             </li>
@@ -224,10 +224,10 @@
     </div>
     <!-- Modals to reveal on click -->
     {% include "users/partials/web_download_modal.html" %}
-    {% include "users/partials/sdk_download_modal.html" %}
     {% include "users/partials/dataset_details_modal.html" %}
     {% for dataset in page_obj %}
         {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
+        {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
     {% endfor %}
     <!-- Toast container for notifications -->
     <div aria-live="polite"
