@@ -97,6 +97,8 @@
 
 [tool.coverage]
 
+    data_file = "tests/coverage/.coverage"
+
     [tool.coverage.run]
         # https://coverage.readthedocs.io/en/latest/config.html#run
         branch  = true
