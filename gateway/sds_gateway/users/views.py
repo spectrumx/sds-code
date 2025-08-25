@@ -2276,7 +2276,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 include_groups=False,
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+            return JsonResponse({"error": "Group not found"}, status=404)
 
     def _display_share_groups_page(self, request: HttpRequest) -> HttpResponse:
         """Display the main share groups page."""
@@ -2308,7 +2308,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 {"success": True, "members": member_list, "count": len(member_list)}
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+            return JsonResponse({"error": "Group not found"}, status=404)
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Handle ShareGroup operations (create, update, delete)."""
@@ -2346,7 +2346,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return JsonResponse(
                 {
                     "success": True,
-                    "message": f'ShareGroup "{name}" created successfully',
+                    "message": f'Group "{name}" created successfully',
                     "group": {
                         "uuid": str(share_group.uuid),
                         "name": share_group.name,
@@ -2373,7 +2373,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+            return JsonResponse({"error": "Group not found"}, status=404)
 
         # Get shared assets that will be accessible to new group members
         # (commented out as not currently used)
@@ -2492,7 +2492,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+            return JsonResponse({"error": "Group not found"}, status=404)
 
         # Parse user emails
         user_emails = [
@@ -2617,7 +2617,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+            return JsonResponse({"error": "Group not found"}, status=404)
 
         shared_assets = self._get_shared_assets_for_group(share_group)
 
@@ -2635,7 +2635,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "ShareGroup not found"}, status=404)
+            return JsonResponse({"error": "Group not found"}, status=404)
 
         try:
             # remove all members from the group
@@ -2656,7 +2656,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return JsonResponse(
                 {
                     "success": True,
-                    "message": f'ShareGroup "{share_group.name}" deleted successfully',
+                    "message": f'Group "{share_group.name}" deleted successfully',
                 }
             )
         except (ValueError, IntegrityError) as e:
