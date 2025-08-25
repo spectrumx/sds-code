@@ -568,9 +568,9 @@ def convert_drf_to_waterfall_json(  # noqa: C901, PLR0915
             if waterfall_file:
                 waterfall_data.append(waterfall_file)
 
-            # Log progress every 10 slices
-            if slice_idx % 10 == 0:
-                logger.info(f"Processed {slice_idx}/{slices_to_process} slices")
+            # Log progress
+            if slice_idx % 400 == 0:
+                logger.debug(f"Processed {slice_idx}/{slices_to_process} slices")
 
         metadata = {
             "center_frequency": center_freq,
