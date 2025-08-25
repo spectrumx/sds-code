@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+from django.core.files.base import ContentFile
 from factory import Faker
 from factory import post_generation
 from factory.django import DjangoModelFactory
@@ -162,8 +163,6 @@ class FileFactory(DjangoModelFactory):
             self.file = extracted
         else:
             # Create a simple file content
-            from django.core.files.base import ContentFile
-
             content = b"test file content"
             self.file = ContentFile(content, name=self.name)
 

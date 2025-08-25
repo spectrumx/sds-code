@@ -1,5 +1,6 @@
 """Tests for dataset endpoints."""
 
+import uuid
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -389,8 +390,6 @@ class DatasetEndpointsTestCase(TestCase):
 
     def test_get_dataset_files_not_found(self):
         """Test dataset files manifest with non-existent UUID."""
-        import uuid
-
         fake_uuid = uuid.uuid4()
         url = reverse("api:datasets-files", kwargs={"pk": fake_uuid})
         response = self.client.get(url)
@@ -421,8 +420,6 @@ class DatasetEndpointsTestCase(TestCase):
     def test_get_dataset_files_missing_uuid(self):
         """Test dataset files manifest without UUID parameter."""
         # Use a valid UUID format that doesn't exist to test the 404 case
-        import uuid
-
         fake_uuid = uuid.uuid4()
         url = reverse("api:datasets-files", kwargs={"pk": fake_uuid})
         response = self.client.get(url)

@@ -15,14 +15,16 @@
 /* Top Gradient Bar */
 .top-gradient-bar {
 	height: 4px;
-	background: linear-gradient(to right,
-			#f9c97d,
-			#f2a2a4,
-			#e27bb1,
-			#bf5ce1,
-			#7f5ae1,
-			#5ab9e6,
-			#59d5e0);
+	background: linear-gradient(
+		to right,
+		#f9c97d,
+		#f2a2a4,
+		#e27bb1,
+		#bf5ce1,
+		#7f5ae1,
+		#5ab9e6,
+		#59d5e0
+	);
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -489,7 +491,10 @@
 	transition: transform 0.2s ease;
 }
 
-.filters-panel .filters-section .filter-header[aria-expanded="false"] .bi-chevron-down {
+.filters-panel
+	.filters-section
+	.filter-header[aria-expanded="false"]
+	.bi-chevron-down {
 	transform: rotate(-90deg);
 }
 
@@ -1148,7 +1153,8 @@ body {
 
 .notify-message-anim {
 	overflow: hidden;
-	transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s
+		cubic-bezier(0.4, 0, 0.2, 1);
 	max-height: 0;
 	opacity: 0;
 	pointer-events: none;
