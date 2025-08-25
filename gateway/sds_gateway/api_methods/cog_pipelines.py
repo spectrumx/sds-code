@@ -15,6 +15,9 @@ from django.conf import settings
 from django_cog import cog
 from loguru import logger
 
+# PLC0415: models are imported in functions to run after the Django app is ready
+# ruff: noqa: PLC0415
+
 
 @dataclass
 class WaterfallSliceParams:
@@ -356,7 +359,7 @@ def _create_or_reset_processed_data(capture, processing_type: str):
     return processed_data
 
 
-def _process_waterfall_slice(params: WaterfallSliceParams) -> dict | None:
+def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | None:
     """Process a single waterfall slice."""
     # Calculate sample range for this slice
     slice_start_sample = (
@@ -464,8 +467,11 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
 
 
 def convert_drf_to_waterfall_json(  # noqa: C901, PLR0915
-    drf_path: Path, channel: str, processing_type: str, max_slices: int | None = None
-) -> dict:
+    drf_path: Path,
+    channel: str,
+    processing_type: str,
+    max_slices: int | None = None,
+) -> dict[str, Any]:
     """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
     logger.info(
         f"Converting DigitalRF data to waterfall JSON format for channel {channel}"
@@ -595,8 +601,8 @@ def store_processed_data(
     processing_type: str,
     curr_file_path: str,
     new_filename: str,
-    metadata: dict | None = None,
-) -> dict:
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Store processed data back to SDS storage as a file.
 
