@@ -44,8 +44,8 @@
 }
 
 .hero-white-page .hero {
-	background-color: var(--white) !important;
-	color: var(--text-color) !important;
+	background-color: var(--white);
+	color: var(--text-color);
 }
 
 .hero-content a {
@@ -330,18 +330,18 @@
 .search-container {
 	margin: 1rem 0 0.25rem;
 	padding: 1rem;
-	background-color: white !important;
+	background-color: white;
 	position: relative;
 	z-index: 2;
 	border-radius: 8px;
 }
 
 .search-container .input-group {
-	background-color: white !important;
+	background-color: white;
 }
 
 .search-container .input-group .form-control {
-	background-color: white !important;
+	background-color: white;
 	border: 1px solid #dee2e6;
 	border-radius: 0.25rem;
 	padding: 0.375rem 0.75rem;
@@ -378,14 +378,14 @@
 
 .table-responsive table {
 	margin-bottom: 0;
-	background: white !important;
+	background: white;
 	width: 100%;
 	border-collapse: separate;
 	border-spacing: 0;
 }
 
 .table-responsive .table {
-	background-color: white !important;
+	background-color: white;
 	color: #212529;
 }
 
@@ -393,7 +393,7 @@
 	position: sticky;
 	top: 0;
 	z-index: 3;
-	background: white !important;
+	background: white;
 }
 
 .table-responsive .table thead::after {
@@ -407,7 +407,7 @@
 }
 
 .table-responsive .table thead th {
-	background: white !important;
+	background: white;
 	color: #495057;
 	text-align: left;
 	padding: 12px;
@@ -421,15 +421,15 @@
 }
 
 .table-responsive .table tbody tr {
-	background-color: white !important;
+	background-color: white;
 }
 
 .table-responsive .table tbody tr:nth-child(even) {
-	background-color: #fff !important;
+	background-color: #fff;
 }
 
 .table-responsive .table tbody tr:hover {
-	background-color: #f8f9fa !important;
+	background-color: #f8f9fa;
 }
 
 .table-responsive .table tbody tr td {
@@ -437,17 +437,17 @@
 	border: none;
 	color: #212529;
 	vertical-align: middle;
-	background-color: inherit !important;
+	background-color: inherit;
 }
 
 .table-responsive .table tbody tr td a {
-	color: var(--lfs-blue) !important;
+	color: var(--lfs-blue);
 	font-weight: 400;
 	text-decoration: underline;
 }
 
 .table-responsive .table tbody tr td a:hover {
-	color: #004b80 !important;
+	color: #004b80;
 }
 
 /* Filters Panel Styles */
@@ -746,7 +746,7 @@ body {
 /* Captures Table Styles */
 #captures-table tbody tr.table-warning {
 	--bs-table-bg: var(--bs-warning-bg-subtle);
-	background-color: var(--bs-warning-bg-subtle) !important;
+	background-color: var(--bs-warning-bg-subtle);
 }
 
 #captures-table tbody tr.capture-row {
@@ -836,7 +836,7 @@ body {
 }
 
 .display-none {
-	display: none !important;
+	display: none;
 }
 
 .active-tab {
@@ -1180,11 +1180,11 @@ body {
 }
 
 .dataset-name-link.text-muted {
-	color: #6c757d !important;
+	color: #6c757d;
 }
 
 .dataset-name-link.text-muted:hover {
-	color: #495057 !important;
+	color: #495057;
 }
 
 .clickable-row {
