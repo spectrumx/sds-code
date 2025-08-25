@@ -1189,6 +1189,54 @@ body {
 	background-color: rgba(0, 0, 0, 0.05);
 }
 
+/* Copy UUID Button Styles */
+.copy-uuid-btn {
+	transition: all 0.2s ease !important;
+	background: none !important;
+	border: none !important;
+	border-radius: 0.25rem !important;
+	padding: 0 0.25rem !important;
+	color: #6c757d !important;
+	font-size: inherit !important;
+	cursor: pointer !important;
+}
+
+.copy-uuid-btn:hover {
+	background: none !important;
+	border: none !important;
+	color: #495057 !important;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.copy-uuid-btn:active {
+	transform: none !important;
+	box-shadow: none !important;
+}
+
+.copy-uuid-btn.btn-success {
+	background: none !important;
+	border: none !important;
+	color: #198754 !important;
+}
+
+.copy-uuid-btn.btn-success:hover {
+	background: none !important;
+	border: none !important;
+	color: #157347 !important;
+}
+
+.copy-uuid-btn.btn-danger {
+	background: none !important;
+	border: none !important;
+	color: #dc3545 !important;
+}
+
+.copy-uuid-btn.btn-danger:hover {
+	background: none !important;
+	border: none !important;
+	color: #bb2d3b !important;
+}
+
 .code-example pre {
 	font-size: 0.875rem;
 	line-height: 1.4;
