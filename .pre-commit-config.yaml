@@ -36,17 +36,18 @@ repos:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.0.0"]
 
+    # automatically upgrades Django code to migrates patterns and avoid deprecation warnings
     - repo: https://github.com/adamchainz/django-upgrade
       rev: "1.25.0"
       hooks:
           - id: django-upgrade
             args: ["--target-version", "4.2"]
 
-    # Run the Ruff linter.
+    # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
       rev: v0.12.10
       hooks:
-          # Linter
+          # linter
           - id: ruff # runs ruff check --force-exclude
             args:
                 # we have to pick one ruff config between gateway and sdk...
@@ -65,16 +66,18 @@ repos:
                     "sdk/pyproject.toml",
                     # --show-settings, # for debugging
                 ]
-          # Formatter
+          # formatter
           - id: ruff-format # runs ruff format --force-exclude
             args: [--config, "sdk/pyproject.toml"]
 
+    # linter for django templates
     - repo: https://github.com/Riverside-Healthcare/djLint
       rev: v1.36.4
       hooks:
           - id: djlint-reformat-django
           - id: djlint-django
 
+    # linter for markdown files - see .markdownlint.yaml to configure rules
     - repo: https://github.com/igorshubovych/markdownlint-cli
       rev: "v0.45.0"
       hooks:
