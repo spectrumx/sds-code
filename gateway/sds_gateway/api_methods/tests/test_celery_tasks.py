@@ -3,11 +3,13 @@ Tests for Celery tasks in the API methods app.
 """
 
 import datetime
+import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+from celery.exceptions import SoftTimeLimitExceeded
 from celery.schedules import crontab
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -21,13 +23,15 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.tasks import acquire_user_lock
+from sds_gateway.api_methods.tasks import check_celery_task
+from sds_gateway.api_methods.tasks import check_email_task
 from sds_gateway.api_methods.tasks import cleanup_expired_temp_zips
 from sds_gateway.api_methods.tasks import get_user_task_status
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import release_user_lock
 from sds_gateway.api_methods.tasks import send_item_files_email
-from sds_gateway.api_methods.tasks import test_celery_task
-from sds_gateway.api_methods.tasks import test_email_task
+
+# pyright: reportFunctionMemberAccess=false, reportCallIssue=false
 
 User = get_user_model()
 
@@ -115,15 +119,14 @@ class TestCeleryTasks(TestCase):
     def tearDown(self):
         """Clean up test data."""
         # Clean up test media directory
-        import shutil
 
         if self.test_media_root.exists():
             shutil.rmtree(self.test_media_root)
 
-    def test_test_celery_task(self):
+    def test_celery_task(self):
         """Test the basic Celery task functionality."""
         # Test with default message
-        result = test_celery_task.delay()
+        result = check_celery_task.delay()
         expected_result = "Hello from Celery! - Task completed successfully!"
         assert result.get() == expected_result, (
             f"Expected '{expected_result}', got '{result.get()}'"
@@ -131,19 +134,19 @@ class TestCeleryTasks(TestCase):
 
         # Test with custom message
         custom_message = "Custom message"
-        result = test_celery_task.delay(custom_message)
+        result = check_celery_task.delay(custom_message)
         expected_result = f"{custom_message} - Task completed successfully!"
         assert result.get() == expected_result, (
             f"Expected '{expected_result}', got '{result.get()}'"
         )
 
-    def test_test_email_task(self):
+    def test_email_task(self):
         """Test the email sending task."""
         # Clear any existing emails
         mail.outbox.clear()
 
         # Test email sending
-        result = test_email_task.delay("test@example.com")
+        result = check_email_task.delay("test@example.com")
         expected_result = "Test email sent to test@example.com"
         assert result.get() == expected_result, (
             f"Expected '{expected_result}', got '{result.get()}'"
@@ -395,8 +398,6 @@ class TestCeleryTasks(TestCase):
             with patch(
                 "sds_gateway.api_methods.tasks._process_item_files"
             ) as mock_process:
-                from celery.exceptions import SoftTimeLimitExceeded
-
                 mock_process.side_effect = SoftTimeLimitExceeded("Task timed out")
 
                 # Test the task
@@ -503,7 +504,7 @@ class TestCeleryTasks(TestCase):
     def test_task_error_handling(self):
         """Test that tasks handle errors gracefully."""
         # Test with invalid email address (should not crash)
-        result = test_email_task.delay("invalid-email")
+        result = check_email_task.delay("invalid-email")
         # Task should complete without raising an exception
         assert result.get() is not None, "Task result should not be None"
 

@@ -102,6 +102,10 @@ class Unset:
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Unset)
 
+    def __hash__(self) -> int:
+        # singleton identity is sufficient for hashing
+        return id(self)
+
 
 _unset = Unset()
 _unset_alt = Unset()

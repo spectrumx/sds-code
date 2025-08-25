@@ -322,7 +322,10 @@ class Capture(BaseModel):
 
     def get_capture_type_display(self) -> str:
         """Get the display value for the capture type."""
-        return dict(self.CAPTURE_TYPE_CHOICES).get(self.capture_type, self.capture_type)
+        return cast(
+            "str",
+            dict(self.CAPTURE_TYPE_CHOICES).get(self.capture_type, self.capture_type),
+        )
 
     def get_capture(self) -> dict[str, Any]:
         """Return a Capture or composite of Captures for multi-channel captures.
@@ -689,7 +692,6 @@ class TemporaryZipFile(BaseModel):
     @property
     def download_url(self) -> str:
         """Generate the download URL for this file."""
-        from django.conf import settings
 
         # Get the site domain from settings, with fallback
         site_domain = settings.SITE_DOMAIN

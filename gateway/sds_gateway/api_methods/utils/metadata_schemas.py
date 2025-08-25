@@ -161,7 +161,7 @@ drf_capture_metadata_schema = {
 }
 
 # fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
-drf_capture_index_mapping = {
+drf_capture_index_mapping: dict[str, dict[str, str]] = {
     "H5Tget_class": {
         "type": "integer",
     },
@@ -357,7 +357,7 @@ base_index_fields = [
     "capture_props",
 ]
 
-capture_index_mapping_by_type = {
+capture_index_mapping_by_type: dict[CaptureType, dict[str, dict[str, Any]]] = {
     CaptureType.DigitalRF: drf_capture_index_mapping,
     CaptureType.RadioHound: rh_capture_index_mapping,
 }

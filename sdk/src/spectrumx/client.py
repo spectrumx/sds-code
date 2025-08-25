@@ -50,7 +50,7 @@ class Client:
         verbose: bool = False,
     ) -> None:
         # avoids circular import
-        from spectrumx.api import sds_files as _sds_files
+        from spectrumx.api import sds_files as _sds_files  # noqa: PLC0415
 
         self._sds_files = _sds_files
 

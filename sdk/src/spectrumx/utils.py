@@ -61,7 +61,7 @@ def log_user_error(msg: str, depth: int = 1) -> None:
     logger.error(msg)
 
 
-def into_human_bool(value: str | int | bool) -> bool:
+def into_human_bool(value: str | int | bool) -> bool:  # noqa: FBT001
     """Converts a string to a boolean value, defaulting to False when invalid."""
     if isinstance(value, bool):
         return value
@@ -75,7 +75,7 @@ def into_human_bool(value: str | int | bool) -> bool:
 def is_running_in_notebook() -> bool:
     """Check if the current environment is a Jupyter notebook."""
     try:
-        from IPython import (  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
+        from IPython import (  # pyright: ignore[reportMissingModuleSource, reportMissingImports]  # noqa: PLC0415
             get_ipython,  # pyright: ignore[reportPrivateImportUsage]
         )
 

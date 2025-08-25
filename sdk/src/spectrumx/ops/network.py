@@ -55,7 +55,9 @@ def success_or_raise(
 def extract_error_details_from_html(response: requests.Response) -> str:
     """Extracts error details from an HTML response, focusing on specific elements."""
     try:
-        from bs4 import BeautifulSoup  # pyright: ignore[reportMissingModuleSource]
+        from bs4 import (  # noqa: PLC0415
+            BeautifulSoup,  # pyright: ignore[reportMissingModuleSource]
+        )
     except ImportError:
         log.warning("Install 'BeautifulSoup' to have a more detailed error message.")
         return response.reason

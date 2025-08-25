@@ -35,6 +35,7 @@ from sds_gateway.api_methods.helpers.index_handling import index_capture_metadat
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
+from sds_gateway.api_methods.helpers.search_captures import get_composite_captures
 from sds_gateway.api_methods.helpers.search_captures import search_captures
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
@@ -427,17 +428,17 @@ class CaptureViewSet(viewsets.ViewSet):
         request: Request,
     ) -> Response:
         """Paginate and serialize composite capture results."""
-        from sds_gateway.api_methods.helpers.search_captures import (
-            get_composite_captures,
-        )
 
         # Get composite captures
         composite_captures = get_composite_captures(captures)
 
         # Manual pagination for composite captures
         paginator = CapturePagination()
-        page_size = paginator.get_page_size(request)
-        page_number = paginator.get_page_number(request, paginator)
+        page_size = cast("int", paginator.get_page_size(request))
+        page_number = cast(
+            "int",
+            paginator.get_page_number(request, paginator=paginator),  # pyright: ignore[reportArgumentType]
+        )
 
         start_index = (page_number - 1) * page_size
         end_index = start_index + page_size

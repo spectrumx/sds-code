@@ -14,7 +14,7 @@ All SDK functions below should be called in dry_run mode to run in environments
 Run it as a standalone script between the package build and publishing steps.
 Avoid adding third-party imports to this file.
 """
-# ruff: noqa: ERA001, T201, I001
+# ruff: noqa: ERA001, T201, I001, PLC0415
 
 from collections.abc import Callable
 from dataclasses import dataclass
