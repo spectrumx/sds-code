@@ -272,7 +272,7 @@
                                             </div>
                                             <small class="ms-2 text-muted" id="checkingProgressText">0%</small>
                                         </div>
-                                        <small class="text-muted" id="progressMessage">Checking files for duplicates...</small>
+                                        <small class="text-muted" id="progressMessage">Processing files for upload...</small>
                                     </div>
                                     <!-- File Selection Section -->
                                     <label for="captureFileInput" class="form-label">Select a folder to upload</label>
@@ -530,7 +530,7 @@
 
             // Handle beforeunload event (page refresh/close)
             window.addEventListener('beforeunload', function(e) {
-                if (uploadInProgress || sessionStorage.getItem('uploadInProgress')) {
+                if (isProcessing || uploadInProgress || sessionStorage.getItem('uploadInProgress')) {
                     e.preventDefault();
                     e.returnValue = 'Upload in progress will be aborted. Are you sure you want to leave?';
                     return e.returnValue;
@@ -546,6 +546,7 @@
 
             // Get button references
             const cancelButton = document.querySelector('#uploadCaptureModal .btn-secondary');
+            const closeButton = document.querySelector('#uploadCaptureModal .btn-close');
             const submitButton = document.getElementById('uploadSubmitBtn');
 
             // Store abort controller reference for cancellation
@@ -573,7 +574,8 @@
             // Handle cancel button click
             let cancelRequested = false;
 
-            cancelButton.addEventListener('click', function() {
+            // Helper function to handle cancellation logic
+            function handleCancellation(buttonType) {
                 if (isProcessing) {
                     // Cancel processing
                     cancelRequested = true;
@@ -583,9 +585,14 @@
                         currentAbortController.abort();
                     }
 
-                    // Update UI immediately
-                    cancelButton.textContent = 'Cancelling...';
-                    cancelButton.disabled = true;
+                    // Update UI immediately based on button type
+                    if (buttonType === 'cancel') {
+                        cancelButton.textContent = 'Cancelling...';
+                        cancelButton.disabled = true;
+                    } else if (buttonType === 'close') {
+                        closeButton.disabled = true;
+                        closeButton.style.opacity = '0.5';
+                    }
 
                     // Update progress message
                     const progressMessage = document.getElementById('progressMessage');
@@ -599,9 +606,17 @@
                             resetUIState();
                         }
                     }, 500);
-                } else {
-                    // Normal cancel (no processing active)
                 }
+                // If not processing, let the normal button behavior handle it
+            }
+
+            cancelButton.addEventListener('click', function() {
+                handleCancellation('cancel');
+            });
+
+            // Handle close button (X) click - same logic as cancel button
+            closeButton.addEventListener('click', function() {
+                handleCancellation('close');
             });
 
             // Helper function to check for large files
@@ -642,7 +657,7 @@
 
                 // Show progress section
                 progressSection.style.display = 'block';
-                progressMessage.textContent = 'Checking files for duplicates...';
+                progressMessage.textContent = 'Processing files for upload...';
 
                 // Update UI to show processing state
                 cancelButton.textContent = 'Cancel Processing';
@@ -730,6 +745,10 @@
                     // Small delay to ensure UI updates are visible
                     progressSection.style.display = 'none';
                     await new Promise(resolve => setTimeout(resolve, 100));
+
+                    // Show alert for duplicate checking cancellation
+                    alert('Processing cancelled. No files were uploaded.');
+
                     throw new Error('Upload cancelled by user');
                 }
             }
@@ -1203,11 +1222,17 @@
                     // Don't auto-reload for successful uploads - let user close modal first
                 } catch (error) {
                     if (cancelRequested) {
-                        alert('Upload cancelled. Any files uploaded before cancellation have been saved.');
-                        // Reload page after cancellation
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1000);
+                        // Check if this was cancelled during duplicate checking (no files uploaded yet)
+                        if (!uploadInProgress) {
+                            // Already showed alert in checkFilesForDuplicates function
+                            // No need to reload since no files were uploaded
+                        } else {
+                            alert('Upload cancelled. Any files uploaded before cancellation have been saved.');
+                            // Reload page after cancellation
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        }
                     } else if (error.name === 'AbortError') {
                         alert('Upload was interrupted. Any files uploaded before the interruption have been saved.');
                         // Reload page after interruption
@@ -1250,6 +1275,12 @@
                 cancelButton.textContent = 'Cancel';
                 cancelButton.classList.remove('btn-warning');
                 cancelButton.disabled = false;
+
+                // Reset close button
+                if (closeButton) {
+                    closeButton.disabled = false;
+                    closeButton.style.opacity = '1';
+                }
 
                 // Reset progress elements
                 const progressBar = document.getElementById('checkingProgressBar');
