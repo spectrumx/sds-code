@@ -1,13 +1,17 @@
 # SpectrumX SDK Changelog
 
-## `0.1.13` - 2025-08-xx
+## `0.1.14` - 2025-09-xx
+
+## `0.1.13` - 2025-08-25
+
++ Features:
+    + [**Added `download_dataset` method to client**](https://github.com/spectrumx/sds-code/pull/165): Users can now download datasets through the SDK by passing in a dataset UUID e.g. `sds_client.download_dataset(uuid=<dataset_uuid>, to_local_path=...)`.
+    + [**Added a `files_to_download` argument to the `download()` method**](https://github.com/spectrumx/sds-code/pull/165): Can now supply a pre-filtered list of files to download rather than downloading all files in a path.
 
 ## `0.1.12` - 2025-08-12
 
 + Features:
     + [**Added `name` parameter to `upload_capture` method**](https://github.com/spectrumx/sds-code/pull/143): `upload_capture()` now accepts an optional `name` parameter to set custom capture names.
-    + [**Added `download_dataset` method to client**](https://github.com/spectrumx/sds-code/pull/165): Users can now download datasets through the SDK by passing in a dataset UUID.
-    + [**Added a `files_to_download` argument to the `download()` method**](https://github.com/spectrumx/sds-code/pull/165): Can now supply a pre-filtered list of files to download rather than downloading all files in a path.
 
 ## `0.1.11` - 2025-07-03
 
