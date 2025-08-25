@@ -31,7 +31,7 @@ repos:
     #   biome-format    Format the committed files
     #   biome-lint      Lint and apply safe fixes to the committed files
     - repo: https://github.com/biomejs/pre-commit
-      rev: v2.2.0
+      rev: v2.2.2
       hooks:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.0.0"]
