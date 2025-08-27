@@ -13,6 +13,7 @@ volumes:
     sds-gateway-local-postgres-data-backups: {}
     sds-gateway-local-postgres-data: {}
     sds-gateway-local-redis-data: {}
+    jupyterhub_data: {}
 
 networks:
     # for safety, all gateway local networks start with "sds-gateway-local-"
@@ -240,6 +241,37 @@ services:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
             - sds-network-local
+
+    jupyter:
+        build:
+            context: .
+            dockerfile: ./compose/local/jupyter/Dockerfile
+            args:
+                JUPYTERHUB_VERSION: latest
+        restart: always
+        image: sds-gateway-local-jupyter
+        container_name: sds-gateway-local-jupyter
+        networks:
+            sds-network-local:
+                aliases:
+                    - jupyterhub
+        volumes:
+            - './compose/local/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
+            - './compose/local/jupyter/sample_scripts:/srv/jupyter/sample_scripts:ro'
+            - './scripts:/srv/jupyter/scripts:ro'
+            - '/var/run/docker.sock:/var/run/docker.sock:rw'
+            - 'jupyterhub_data:/data'
+        ports:
+            - '8888:8000'
+        env_file:
+            - ./.envs/local/jupyterhub.env
+        environment:
+            JUPYTERHUB_ADMIN: admin
+            DOCKER_NETWORK_NAME: gateway_sds-network-local
+            DOCKER_NOTEBOOK_IMAGE: quay.io/jupyter/base-notebook:latest
+            DOCKER_NOTEBOOK_DIR: /home/jovyan/work
+        depends_on:
+            - nginx
 
     # ==========================
     # local development services
