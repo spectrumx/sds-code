@@ -1316,19 +1316,13 @@ class ModalManager {
 
 			// Set up click handler to open visualization modal
 			visualizeBtn.onclick = () => {
-				// Store capture data in the modal element for the visualization modal to access
-				const vizModal = document.getElementById("visualization-modal");
-				if (vizModal) {
-					vizModal.setAttribute("data-current-capture-uuid", captureData.uuid);
-					vizModal.setAttribute(
-						"data-current-capture-type",
+				// Use the VisualizationModal instance to open with capture data
+				if (window.visualizationModalInstance) {
+					window.visualizationModalInstance.openWithCaptureData(
+						captureData.uuid,
 						captureData.captureType,
 					);
 				}
-
-				// Open the visualization modal
-				const visualizationModal = new bootstrap.Modal(vizModal);
-				visualizationModal.show();
 			};
 		} else {
 			visualizeBtn.classList.add("d-none");
@@ -1930,3 +1924,30 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Global event listener for visualization trigger buttons
+document.addEventListener("DOMContentLoaded", () => {
+	// Initialize VisualizationModal instance if available
+	if (window.VisualizationModal) {
+		window.visualizationModalInstance = new window.VisualizationModal();
+	}
+
+	// Handle clicks on visualization trigger buttons
+	document.addEventListener("click", (e) => {
+		if (e.target.closest(".visualization-trigger-btn")) {
+			const button = e.target.closest(".visualization-trigger-btn");
+			const captureUuid = button.getAttribute("data-capture-uuid");
+			const captureType = button.getAttribute("data-capture-type");
+
+			if (captureUuid && captureType) {
+				// Use the VisualizationModal instance to open with capture data
+				if (window.visualizationModalInstance) {
+					window.visualizationModalInstance.openWithCaptureData(
+						captureUuid,
+						captureType,
+					);
+				}
+			}
+		}
+	});
+});
