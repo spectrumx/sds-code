@@ -15,6 +15,25 @@ class VisualizationModal {
 		this.init();
 	}
 
+	/**
+	 * Open the visualization modal with capture data
+	 */
+	openWithCaptureData(captureUuid, captureType) {
+		this.currentCaptureUuid = captureUuid;
+		this.currentCaptureType = captureType;
+
+		// Filter visualizations based on current capture type
+		this.filterVisualizationOptions();
+		this.loadProcessingStatus();
+
+		// Open the modal
+		let visualizationModal = bootstrap.Modal.getInstance(this.modal);
+		if (!visualizationModal) {
+			visualizationModal = new bootstrap.Modal(this.modal);
+		}
+		visualizationModal.show();
+	}
+
 	init() {
 		if (!this.modal) {
 			console.error("Visualization modal not found");
@@ -33,32 +52,27 @@ class VisualizationModal {
 			}
 		});
 
-		// Handle modal show event
-		this.modal.addEventListener("show.bs.modal", (e) => {
-			// Get capture data from the modal element
-			this.currentCaptureUuid = this.modal.getAttribute(
-				"data-current-capture-uuid",
-			);
-			this.currentCaptureType = this.modal.getAttribute(
-				"data-current-capture-type",
-			);
-
-			if (this.currentCaptureUuid && this.currentCaptureType) {
-				// Filter visualizations based on current capture type (Django already rendered them)
-				this.filterVisualizationOptions();
-				this.loadProcessingStatus();
-			} else {
-				console.error("No capture UUID or type found");
-			}
-		});
-
 		// Handle modal hide event to clean up
 		this.modal.addEventListener("hidden.bs.modal", () => {
 			// Clear the stored capture data
-			this.modal.removeAttribute("data-current-capture-uuid");
-			this.modal.removeAttribute("data-current-capture-type");
 			this.currentCaptureUuid = null;
 			this.currentCaptureType = null;
+
+			// Remove any lingering modal backdrops
+			const backdrops = Array.from(
+				document.querySelectorAll(".modal-backdrop"),
+			);
+			for (const backdrop of backdrops) {
+				if (backdrop.parentNode) {
+					backdrop.parentNode.removeChild(backdrop);
+				}
+			}
+
+			// Remove modal-open class from body if no other modals are open
+			if (document.querySelectorAll(".modal.show").length === 0) {
+				document.body.classList.remove("modal-open");
+				document.body.style.paddingRight = "";
+			}
 		});
 	}
 
