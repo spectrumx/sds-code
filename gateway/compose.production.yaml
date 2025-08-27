@@ -14,6 +14,7 @@ volumes:
     sds-gateway-prod-postgres-data: {}
     sds-gateway-prod-redis-data: {}
     sds-gateway-prod-static: {}
+    sds-gateway-prod-jupyter-data: {}  # for JupyterHub persistent data
 
 networks:
     # for safety, all gateway production networks start with "sds-gateway-prod-"
@@ -299,6 +300,45 @@ services:
     #         - sds-gateway-prod-opensearch-net
     #         - sds-gateway-prod-minio-net
     #         - sds-network-prod
+
+    jupyter:
+        # JupyterHub for interactive data analysis and notebooks (PRODUCTION)
+        build:
+            context: .
+            dockerfile: ./compose/production/jupyter/Dockerfile
+            args:
+                JUPYTERHUB_VERSION: latest
+        restart: always
+        image: sds-gateway-prod-jupyter
+        container_name: sds-gateway-prod-jupyter
+        networks:
+            sds-network-prod:
+                aliases:
+                    - jupyterhub
+        volumes:
+            - source: ./compose/production/jupyter/jupyterhub_config.py
+              target: /srv/jupyterhub/jupyterhub_config.py
+              type: bind
+              read_only: true
+            - source: /var/run/docker.sock
+              target: /var/run/docker.sock
+              type: bind
+              read_only: false
+            - source: sds-gateway-prod-jupyter-data
+              target: /data
+              type: volume
+              read_only: false
+        ports:
+            - '18888:8000'
+        env_file:
+            - ./.envs/production/jupyterhub.env
+        environment:
+            JUPYTERHUB_ADMIN: admin
+            DOCKER_NETWORK_NAME: sds-network-prod
+            DOCKER_NOTEBOOK_IMAGE: quay.io/jupyter/base-notebook:latest
+            DOCKER_NOTEBOOK_DIR: /home/jovyan/work
+        depends_on:
+            - nginx
 
     # ===================
     # production services

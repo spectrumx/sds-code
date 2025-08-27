@@ -1,0 +1,11 @@
+numpy
+pandas
+matplotlib
+scikit-learn
+jupyterlab
+jupyterlab-server
+notebook
+ipywidgets
+spectrumx
+dockerspawner
+oauthenticator
