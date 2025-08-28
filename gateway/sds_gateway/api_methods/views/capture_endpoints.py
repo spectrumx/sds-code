@@ -319,40 +319,6 @@ class CaptureViewSet(viewsets.ViewSet):
             "capture_candidate": capture_candidate,
         }
 
-        try:
-            self.ingest_capture(
-                capture=capture,
-                drf_channel=drf_channel,
-                rh_scan_group=rh_scan_group,
-                requester=requester,
-                top_level_dir=requested_top_level_dir,
-            )
-
-            # Use transaction.on_commit to ensure the task is queued after the
-            # transaction is committed
-            transaction.on_commit(lambda: self._trigger_post_processing(capture))
-
-        except UnknownIndexError as e:
-            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
-            server_msg = (
-                f"Unknown index: '{error}'. Try running the init_indices "
-                "subcommand if this is index should exist."
-            )
-            log.error(server_msg)
-            # Transaction will automatically rollback, so no need to manually delete
-            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        if isinstance(error, ValueError):
-            user_msg = f"Error handling metadata for capture '{capture.uuid}': {error}"
-            # Transaction will automatically rollback, so no need to manually delete
-            return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        if isinstance(error, os_exceptions.ConnectionError):
-            user_msg = f"Error connecting to OpenSearch: {error}"
-            log.error(user_msg)
-            # Transaction will automatically rollback, so no need to manually delete
-            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        # Re-raise unexpected errors
-        raise error
-
     def create(self, request: Request) -> Response:
         """Create a capture object, connecting files and indexing the metadata."""
         # Validate request

@@ -120,7 +120,7 @@ class CaptureTypeSelector {
 			"captureScanGroupInput",
 		);
 		this.uploadModal = document.getElementById("uploadCaptureModal");
-		
+
 		// Log which elements were found for debugging
 		console.log("CaptureTypeSelector elements found:", {
 			captureTypeSelect: !!this.captureTypeSelect,
@@ -128,7 +128,7 @@ class CaptureTypeSelector {
 			scanGroupInputGroup: !!this.scanGroupInputGroup,
 			captureChannelsInput: !!this.captureChannelsInput,
 			captureScanGroupInput: !!this.captureScanGroupInput,
-			uploadModal: !!this.uploadModal
+			uploadModal: !!this.uploadModal,
 		});
 	}
 
@@ -534,10 +534,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	try {
 		// Check if we're on a page that needs these components
-		const needsCaptureSelector = document.getElementById("captureTypeSelect") || 
-								   document.getElementById("uploadCaptureModal");
-		const needsPageInitializer = document.querySelector(".modal[data-item-uuid]") ||
-								   document.getElementById("capture-modal");
+		const needsCaptureSelector =
+			document.getElementById("captureTypeSelect") ||
+			document.getElementById("uploadCaptureModal");
+		const needsPageInitializer =
+			document.querySelector(".modal[data-item-uuid]") ||
+			document.getElementById("capture-modal");
 
 		// Initialize capture type selector only if needed
 		let captureSelector = null;
@@ -567,7 +569,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 		console.log("Files UI initialized successfully", {
 			captureSelector: !!captureSelector,
-			pageInitializer: !!filesPageInitializer
+			pageInitializer: !!filesPageInitializer,
 		});
 	} catch (error) {
 		ErrorHandler.showError(

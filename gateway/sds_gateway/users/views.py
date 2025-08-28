@@ -3,11 +3,11 @@ import json
 import logging
 import tempfile
 import uuid
-from contextlib import suppress
 from pathlib import Path
 from typing import Any
 from typing import cast
 
+import h5py
 from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
@@ -67,9 +67,16 @@ from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.users.files_utils import add_capture_files
+from sds_gateway.users.files_utils import add_root_items
+from sds_gateway.users.files_utils import add_shared_items
+from sds_gateway.users.files_utils import build_breadcrumbs
+from sds_gateway.users.files_utils import format_modified
+from sds_gateway.users.files_utils import make_dir_item
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
+from sds_gateway.users.h5_utils import summarize_h5_file
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FileTreeMixin
@@ -94,6 +101,8 @@ def validate_uuid(uuid_string: str) -> bool:
         return False
     else:
         return True
+
+
 def get_active_api_key_count(api_keys) -> int:
     """
     Calculate the number of active (non-revoked and non-expired) API keys.
@@ -109,6 +118,23 @@ def get_active_api_key_count(api_keys) -> int:
         1
         for key in api_keys
         if not key.revoked and (not key.expiry_date or key.expiry_date >= now)
+    )
+
+
+def get_filtered_files_queryset(base_queryset: QuerySet[File]) -> QuerySet[File]:
+    """
+    Apply common file filtering to exclude system files and hidden files.
+
+    Args:
+        base_queryset: Base File queryset to filter
+
+    Returns:
+        QuerySet[File]: Filtered queryset excluding system files
+    """
+    return (
+        base_queryset.exclude(name__endswith=".DS_Store")
+        .exclude(name__startswith=".")
+        .exclude(name__in=[".DS_Store", "._.DS_Store", "Thumbs.db", "desktop.ini"])
     )
 
 
@@ -911,34 +937,11 @@ class FilesView(Auth0LoginRequiredMixin, View):
 
     def _format_modified(self, dt):
         """Return a consistent display string for modified timestamps."""
-        return dt.strftime("%Y-%m-%d %H:%M") if dt else "N/A"
+        return format_modified(dt)
 
-    def _make_dir_item(
-        self,
-        *,
-        name: str,
-        path: str,
-        uuid: str = "",
-        is_capture: bool = False,
-        is_shared: bool = False,
-        is_owner: bool = False,
-        capture_uuid: str = "",
-        modified_at_display: str = "N/A",
-        shared_by: str = "",
-    ) -> dict:
+    def _make_dir_item(self, **kwargs):
         """Create a standardized directory item dict for the template."""
-        return {
-            "type": "directory",
-            "name": name,
-            "path": path,
-            "uuid": uuid,
-            "is_capture": is_capture,
-            "is_shared": is_shared,
-            "is_owner": is_owner,
-            "capture_uuid": capture_uuid,
-            "modified_at": modified_at_display,
-            "shared_by": shared_by,
-        }
+        return make_dir_item(**kwargs)
 
     def _make_file_item(
         self,
@@ -963,276 +966,21 @@ class FilesView(Auth0LoginRequiredMixin, View):
 
     def _add_root_items(self, request, items):
         """Add captures and datasets to the root directory."""
-        # Get user's captures
-        user_captures = request.user.captures.filter(is_deleted=False)
-
-        logger.debug(
-            "FilesView: user=%s has captures=%d",
-            request.user.email,
-            user_captures.count(),
-        )
-
-        # Add captures as folders
-        for capture in user_captures:
-            items.append(
-                self._make_dir_item(
-                    name=capture.name or f"Capture {capture.uuid}",
-                    path=f"/captures/{capture.uuid}",
-                    uuid=str(capture.uuid),
-                    is_capture=True,
-                    is_shared=False,
-                    is_owner=True,  # User owns their own captures
-                    capture_uuid=str(capture.uuid),
-                    modified_at_display=self._format_modified(
-                        getattr(capture, "updated_at", None)
-                    ),
-                    shared_by="",
-                )
-            )
-
-        # Add individual files that are not part of any capture
-        individual_files = (
-            File.objects.filter(
-                owner=request.user,
-                is_deleted=False,
-                capture__isnull=True,
-            )
-            .exclude(name__endswith=".DS_Store")
-            .exclude(name__startswith=".")
-            .exclude(name__in=["Thumbs.db", "desktop.ini", ".DS_Store", "._.DS_Store"])
-            .order_by("name")
-        )
-
-        logger.debug(
-            "FilesView: user=%s has individual files=%d",
-            request.user.email,
-            individual_files.count(),
-        )
-
-        for file_obj in individual_files:
-            items.append(
-                self._make_file_item(
-                    file_obj=file_obj,
-                    capture_uuid="",
-                    is_shared=False,
-                    shared_by="",
-                )
-            )
-
+        add_root_items(request, items)
         # Add shared items
         self._add_shared_items(request, items)
 
-    def _add_capture_files(self, request, items, capture_uuid, subpath: str = ""):  # noqa: C901, PLR0912, PLR0915
-        """Add nested directories/files within a specific capture.
-
-        Displays only the immediate children (directories and files) of the
-        provided subpath within the capture, preserving the nested structure.
-        """
-        try:
-            capture = request.user.captures.get(uuid=capture_uuid, is_deleted=False)
-        except Capture.DoesNotExist:
-            # Check if it's shared
-            shared_permission = UserSharePermission.objects.filter(
-                item_uuid=capture_uuid,
-                item_type=ItemType.CAPTURE,
-                shared_with=request.user,
-                is_deleted=False,
-                is_enabled=True,
-            ).first()
-            if shared_permission:
-                capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
-            else:
-                return
-
-        # Get files associated with this capture
-        capture_files = (
-            File.objects.filter(capture=capture, is_deleted=False)
-            .exclude(name__endswith=".DS_Store")
-            .exclude(name__startswith=".")
-            .exclude(name__in=["Thumbs.db", "desktop.ini", ".DS_Store", "._.DS_Store"])
-        )
-
-        logger.debug(
-            "FilesView: capture=%s files=%d",
-            capture.name,
-            capture_files.count(),
-        )
-
-        # Normalize helper
-        def _norm(path: str) -> str:
-            """Normalize a path (no leading/trailing slashes)."""
-            return path.strip("/")
-
-        capture_root = _norm(capture.top_level_dir or "")
-        current_subpath = _norm(subpath)
-        user_root = _norm(f"files/{request.user.email}")
-
-        # Collect immediate child directories and files under current_subpath
-        child_dirs: set[str] = set()
-        child_files: list[File] = []
-
-        for file_obj in capture_files:
-            # Build the directory relative to the capture's top level dir
-            file_dir = _norm(file_obj.directory)
-
-            # Start with the most specific root (capture_root),
-            # else fall back to user root
-            rel_dir = file_dir
-            if capture_root and file_dir.startswith(capture_root):
-                rel_dir = file_dir[len(capture_root) :].lstrip("/")
-            else:
-                # Strip '/files/<email>/' if present
-                if user_root and file_dir.startswith(user_root):
-                    rel_dir = file_dir[len(user_root) :].lstrip("/")
-                # If rel_dir begins with the capture folder name,
-                # drop it to get inside-capture path
-                if "/" in rel_dir:
-                    _first_seg, rest = rel_dir.split("/", 1)
-                    rel_dir = rest  # drop capture folder name
-                else:
-                    rel_dir = ""
-
-            # If we're inside a subpath, filter to entries within that subpath
-            if current_subpath:
-                if rel_dir == current_subpath:
-                    # File directly in current subpath
-                    child_files.append(file_obj)
-                    continue
-                if rel_dir.startswith(current_subpath + "/"):
-                    remainder = rel_dir[len(current_subpath) + 1 :]
-                else:
-                    # This file is not under the current subpath
-                    continue
-            else:
-                remainder = rel_dir
-
-            # Determine if this file belongs to an immediate child directory
-            if not remainder:
-                # File lives directly at this level (capture root or current subpath)
-                child_files.append(file_obj)
-            elif remainder:
-                first_component = remainder.split("/", 1)[0]
-                # If remainder still has nested components, it's a child dir
-                if "/" in remainder:
-                    child_dirs.add(first_component)
-                else:
-                    # File directly within this level
-                    child_files.append(file_obj)
-
-        # Add immediate child directories first
-        for dirname in sorted(child_dirs):
-            # Build the next-level path
-            next_path_parts = ["captures", str(capture_uuid)]
-            if current_subpath:
-                next_path_parts.append(current_subpath)
-            next_path_parts.append(dirname)
-            next_path = "/" + "/".join(next_path_parts)
-            items.append(
-                self._make_dir_item(
-                    name=dirname,
-                    path=next_path,
-                    uuid="",
-                    is_capture=False,
-                    is_shared=False,
-                    is_owner=True,  # Directories within user's own captures
-                    capture_uuid=str(capture_uuid),
-                    modified_at_display=self._format_modified(
-                        getattr(capture, "updated_at", None)
-                    ),
-                    shared_by="",
-                )
-            )
-
-        # Then add files that live directly in this level
-        for file_obj in sorted(child_files, key=lambda f: f.name.lower()):
-            items.append(
-                self._make_file_item(
-                    file_obj=file_obj,
-                    capture_uuid=str(capture_uuid),
-                    is_shared=False,
-                    shared_by="",
-                )
-            )
+    def _add_capture_files(self, request, items, capture_uuid, subpath: str = ""):
+        """Add nested directories/files within a specific capture."""
+        add_capture_files(request, items, capture_uuid, subpath)
 
     def _add_shared_items(self, request, items):
         """Add shared captures and datasets, avoiding N+1 lookups."""
-        shared_permissions = (
-            UserSharePermission.objects.filter(
-                shared_with=request.user,
-                is_deleted=False,
-                is_enabled=True,
-            )
-            .select_related("owner")
-            .only("item_uuid", "item_type", "owner__email")
-        )
-
-        # Build mapping from item_uuid to owner email by type
-        capture_owner_by_uuid: dict[str, str] = {}
-        capture_uuids: list[str] = []
-        for perm in shared_permissions:
-            if perm.item_type == ItemType.CAPTURE:
-                capture_uuids.append(str(perm.item_uuid))
-                capture_owner_by_uuid[str(perm.item_uuid)] = getattr(
-                    perm.owner, "email", "Unknown"
-                )
-
-        # Fetch items (excluding user's own)
-        shared_captures = Capture.objects.filter(
-            uuid__in=capture_uuids, is_deleted=False
-        ).exclude(owner=request.user)
-
-        for capture in shared_captures:
-            items.append(
-                self._make_dir_item(
-                    name=capture.name or f"Capture {capture.uuid}",
-                    path=f"/captures/{capture.uuid}",
-                    uuid=str(capture.uuid),
-                    is_capture=True,
-                    is_shared=True,
-                    is_owner=False,  # Shared items are not owned by current user
-                    capture_uuid=str(capture.uuid),
-                    modified_at_display=self._format_modified(
-                        getattr(capture, "updated_at", None)
-                    ),
-                    shared_by=capture_owner_by_uuid.get(str(capture.uuid), "Unknown"),
-                )
-            )
+        add_shared_items(request, items)
 
     def _build_breadcrumbs(self, current_dir, user_email: str):
-        """Build breadcrumb navigation with friendly names.
-
-        - Skips technical segments like "files", the user's email, and
-          container segments ("captures", "datasets").
-        - Resolves UUID segments to item names for captures/datasets when possible.
-        """
-        breadcrumb_parts: list[dict[str, str]] = []
-        if current_dir == "/":
-            return breadcrumb_parts
-
-        path_parts = current_dir.strip("/").split("/")
-
-        def resolve_name(index: int, part: str) -> str:
-            # Resolve UUID to a human-friendly name for captures
-            if index > 0 and path_parts[0] == "captures" and index == 1:
-                try:
-                    obj = Capture.objects.only("name").filter(uuid=part).first()
-                    return obj.name or str(part) if obj else str(part)
-                except Exception:  # noqa: BLE001 - resolving display names is best-effort
-                    return str(part)
-            return str(part)
-
-        for i, part in enumerate(path_parts):
-            # Skip noisy storage and container segments
-            if part in {"files", user_email, "captures"}:
-                continue
-            breadcrumb_parts.append(
-                {
-                    "name": resolve_name(i, part),
-                    "path": "/" + "/".join(path_parts[: i + 1]),
-                }
-            )
-
-        return breadcrumb_parts
+        """Build breadcrumb navigation with friendly names."""
+        return build_breadcrumbs(current_dir, user_email)
 
 
 class ListCapturesView(Auth0LoginRequiredMixin, View):
@@ -2489,7 +2237,7 @@ class FileH5InfoView(Auth0LoginRequiredMixin, View):
     MAX_CHILDREN_PER_GROUP = 200
     MAX_RECURSION_DEPTH = 4
 
-    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:  # noqa: C901, PLR0911, PLR0912, PLR0915
+    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:  # noqa: C901, PLR0911
         file_uuid = kwargs.get("uuid")
         if not file_uuid:
             return JsonResponse({"error": "File UUID required"}, status=400)
@@ -2545,82 +2293,20 @@ class FileH5InfoView(Auth0LoginRequiredMixin, View):
             temp_file.flush()
             temp_file.close()
 
-            # Open and summarize
-            def summarize_group(group_obj, depth):
-                children: dict[str, dict] = {}
-                for index, (child_name, child) in enumerate(group_obj.items()):
-                    key = str(child_name)
-                    children[key] = summarize(key, child, depth + 1)
-                    if index + 1 >= self.MAX_CHILDREN_PER_GROUP:
-                        break
-                return {
-                    "type": "group",
-                    "attributes": {k: str(v) for k, v in group_obj.attrs.items()},
-                    "children": children,
-                }
-
-            def summarize_dataset(dataset_obj):
-                info = {
-                    "type": "dataset",
-                    "shape": [int(x) for x in dataset_obj.shape]
-                    if hasattr(dataset_obj, "shape")
-                    else [],
-                    "dtype": str(dataset_obj.dtype)
-                    if hasattr(dataset_obj, "dtype")
-                    else "",
-                    "attributes": {k: str(v) for k, v in dataset_obj.attrs.items()},
-                }
-                try:
-                    size = int(dataset_obj.size) if hasattr(dataset_obj, "size") else 0
-                    if size and size <= self.MAX_PREVIEW_ELEMENTS:
-                        data = dataset_obj[()]
-                        if hasattr(data, "tolist"):
-                            data = data.tolist()
-                        if isinstance(data, (bytes, bytearray)):
-                            try:
-                                data = data.decode("utf-8", errors="replace")
-                            except Exception:  # noqa: BLE001 - best-effort decoding
-                                data = str(data)
-                        info["preview"] = data
-                except Exception as exc:  # noqa: BLE001 - preview is best-effort
-                    logger.debug("H5 dataset preview skipped: %s", exc)
-                return info
-
-            def summarize(name, obj, depth=0):
-                if depth > self.MAX_RECURSION_DEPTH:
-                    return {"type": "group", "attributes": {}, "children": {}}
-                if isinstance(obj, h5py.Group):
-                    return summarize_group(obj, depth)
-                if isinstance(obj, h5py.Dataset):
-                    return summarize_dataset(obj)
-                return {"type": "unknown"}
-
+            # Open and summarize using extracted utilities
             with h5py.File(temp_path, "r") as h5:
-                structure = {}
-                for key, obj in h5.items():
-                    structure[str(key)] = summarize(str(key), obj, depth=0)
-
-            # Final pass: sanitize any lingering bytes
-            def sanitize(value):
-                if isinstance(value, (bytes, bytearray)):
-                    try:
-                        return value.decode("utf-8", errors="replace")
-                    except Exception:  # noqa: BLE001 - best-effort decoding
-                        return str(value)
-                if isinstance(value, dict):
-                    return {str(k): sanitize(v) for k, v in value.items()}
-                if isinstance(value, list):
-                    return [sanitize(v) for v in value]
-                return value
-
-            sanitized = sanitize(structure)
+                sanitized = summarize_h5_file(
+                    h5,
+                    max_children_per_group=self.MAX_CHILDREN_PER_GROUP,
+                    max_recursion_depth=self.MAX_RECURSION_DEPTH,
+                    max_preview_elements=self.MAX_PREVIEW_ELEMENTS,
+                )
             return JsonResponse(sanitized)
         except OSError:
             logger.exception("Error creating H5 preview")
             return JsonResponse({"error": "Error reading HDF5 file"}, status=500)
         finally:
-            with suppress(Exception):
-                Path(temp_path).unlink(missing_ok=True)
+            Path(temp_path).unlink(missing_ok=True)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -3036,20 +2722,9 @@ class UploadCaptureView(View):
             )
 
             # Get the newly uploaded files by this user
-            newly_uploaded_files = (
+            newly_uploaded_files = get_filtered_files_queryset(
                 File.objects.filter(owner=request.user, is_deleted=False)
-                .exclude(name__endswith=".DS_Store")
-                .exclude(name__startswith=".")
-                .exclude(
-                    name__in=[
-                        "Thumbs.db",
-                        "desktop.ini",
-                        ".DS_Store",
-                        "._.DS_Store",
-                    ]
-                )
-                .order_by("-created_at")[:saved_files_count]
-            )
+            ).order_by("-created_at")[:saved_files_count]
 
             # Associate files with the dataset
             dataset.files.add(*newly_uploaded_files)
