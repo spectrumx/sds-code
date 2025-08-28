@@ -901,6 +901,188 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 {"error": f"User with email {user_email} not found"}, status=400
             )
 
+    def patch(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: ItemType,
+        *args: Any,
+        **kwargs: Any,
+    ) -> HttpResponse:
+        """Update permission levels for shared users.
+
+        Args:
+            request: The HTTP request object
+            item_uuid: The UUID of the item
+            item_type: The type of item
+
+        Returns:
+            A JSON response containing the response message
+        """
+        # Validate request
+        validation_error = self._validate_share_request(request, item_uuid, item_type)
+        if validation_error:
+            return validation_error
+
+        # Get the user email and new permission level from the request
+        user_email = request.POST.get("user_email", "").strip()
+        new_permission_level = request.POST.get("permission_level", "").strip()
+
+        if not user_email:
+            return JsonResponse({"error": "User email is required"}, status=400)
+
+        if not new_permission_level:
+            return JsonResponse({"error": "Permission level is required"}, status=400)
+
+        # Validate permission level
+        valid_permissions = ["viewer", "contributor", "co-owner"]
+        if new_permission_level not in valid_permissions:
+            return JsonResponse(
+                {"error": f"Invalid permission level. Must be one of: {', '.join(valid_permissions)}"}, 
+                status=400
+            )
+
+        try:
+            # Find the user to update
+            user_to_update = User.objects.get(email=user_email)
+
+            # Check if the user is actually shared with this item
+            share_permission = UserSharePermission.objects.filter(
+                item_uuid=item_uuid,
+                item_type=item_type,
+                owner=request.user,
+                shared_with=user_to_update,
+                is_deleted=False,
+                is_enabled=True,
+            ).first()
+
+            if not share_permission:
+                return JsonResponse(
+                    {
+                        "error": (
+                            f"User {user_email} is not shared with this "
+                            f"{item_type.lower()}"
+                        )
+                    },
+                    status=400,
+                )
+
+            # Update the permission level
+            old_permission = share_permission.permission_level
+            share_permission.permission_level = new_permission_level
+            share_permission.save()
+
+            # Update dataset authors if this is a dataset
+            if item_type == ItemType.DATASET:
+                dataset = Dataset.objects.filter(uuid=item_uuid, is_deleted=False).first()
+                if dataset:
+                    dataset.update_authors_field()
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": f"Updated {user_email} permission from {old_permission} to {new_permission_level}",
+                }
+            )
+
+        except User.DoesNotExist:
+            return JsonResponse(
+                {"error": f"User with email {user_email} not found"}, status=400
+            )
+
+    def put(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: ItemType,
+        *args: Any,
+        **kwargs: Any,
+    ) -> HttpResponse:
+        """Update permission levels for group members.
+
+        Args:
+            request: The HTTP request object
+            item_uuid: The UUID of the item
+            item_type: The type of item
+
+        Returns:
+            A JSON response containing the response message
+        """
+        # Validate request
+        validation_error = self._validate_share_request(request, item_uuid, item_type)
+        if validation_error:
+            return validation_error
+
+        # Get the group UUID and new permission level from the request
+        group_uuid = request.POST.get("group_uuid", "").strip()
+        new_permission_level = request.POST.get("permission_level", "").strip()
+
+        if not group_uuid:
+            return JsonResponse({"error": "Group UUID is required"}, status=400)
+
+        if not new_permission_level:
+            return JsonResponse({"error": "Permission level is required"}, status=400)
+
+        # Validate permission level
+        valid_permissions = ["viewer", "contributor", "co-owner"]
+        if new_permission_level not in valid_permissions:
+            return JsonResponse(
+                {"error": f"Invalid permission level. Must be one of: {', '.join(valid_permissions)}"}, 
+                status=400
+            )
+
+        try:
+            # Find the group
+            group = ShareGroup.objects.get(uuid=group_uuid, owner=request.user, is_deleted=False)
+            
+            # Get all permissions for this group and item
+            group_permissions = UserSharePermission.objects.filter(
+                item_uuid=item_uuid,
+                item_type=item_type,
+                owner=request.user,
+                share_groups=group,
+                is_deleted=False,
+                is_enabled=True,
+            )
+
+            
+
+            if not group_permissions.exists():
+                return JsonResponse(
+                    {
+                        "error": (
+                            f"Group is not shared with this {item_type.lower()}"
+                        )
+                    },
+                    status=400,
+                )
+
+            # Update all group member permissions
+            updated_count = 0
+            for permission in group_permissions:
+                old_permission = permission.permission_level
+                permission.permission_level = new_permission_level
+                permission.save()
+                updated_count += 1
+
+            # Update dataset authors if this is a dataset
+            if item_type == ItemType.DATASET:
+                dataset = Dataset.objects.filter(uuid=item_uuid, is_deleted=False).first()
+                if dataset:
+                    dataset.update_authors_field()
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": f"Updated {updated_count} group members to {new_permission_level} permission",
+                }
+            )
+
+        except ShareGroup.DoesNotExist:
+            return JsonResponse(
+                {"error": f"Group not found or you don't own it"}, status=400
+            )
+
 
 user_share_item_view = ShareItemView.as_view()
 
