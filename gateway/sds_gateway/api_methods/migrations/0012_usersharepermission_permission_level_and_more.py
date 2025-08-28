@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='usersharepermission',
             name='permission_level',
-            field=models.CharField(choices=[('viewer', 'Viewer')], default='viewer', max_length=20),
+            field=models.CharField(choices=[('viewer', 'Viewer'), ('contributor', 'Contributor'), ('co-owner', 'Co-Owner')], default='viewer', max_length=20),
         ),
         migrations.AlterField(
             model_name='usersharepermission',
