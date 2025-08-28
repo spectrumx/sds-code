@@ -42,11 +42,10 @@
                                             <th scope="col" class="sortable w-20" data-sort="name">
                                                 Dataset Name <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-35">Description</th>
-                                            <th scope="col" class="sortable w-15" data-sort="authors">
+                                            <th scope="col" class="sortable w-25" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="sortable w-20" data-sort="created_at">
+                                            <th scope="col" class="sortable w-25" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="w-10">Actions</th>
@@ -67,11 +66,10 @@
                                             <th scope="col" class="sortable w-15" data-sort="name">
                                                 Dataset Name <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-35">Description</th>
-                                            <th scope="col" class="sortable w-10" data-sort="authors">
+                                            <th scope="col" class="sortable w-25" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="sortable w-20" data-sort="created_at">
+                                            <th scope="col" class="sortable w-25" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="w-10">Actions</th>
@@ -107,7 +105,6 @@
                                                         </span>
                                                     {% endif %}
                                                 </td>
-                                                <td class="text-break">{{ dataset.description|truncatechars:80 }}</td>
                                                 <td class="text-break">{{ dataset.authors }}</td>
                                                 <td class="text-nowrap">
                                                     {% if dataset.dataset.created_at %}

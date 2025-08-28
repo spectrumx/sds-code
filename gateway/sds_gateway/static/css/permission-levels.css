@@ -184,4 +184,294 @@
     border: 0.25rem solid transparent;
     border-top-color: #333;
     margin-bottom: -0.25rem;
+}
+
+/* Dropdown menu styles for permission changes */
+.permission-change-btn {
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.permission-change-btn:hover:not(:disabled) {
+    background-color: #f8f9fa;
+    transform: translateX(2px);
+}
+
+.permission-change-btn.active {
+    background-color: #e3f2fd;
+    color: #1976d2;
+    font-weight: 500;
+}
+
+/* Current permission styling */
+.permission-change-btn.current-permission {
+    background-color: #e3f2fd;
+    color: #1976d2;
+    font-weight: 500;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+.permission-change-btn.current-permission:hover {
+    background-color: #e3f2fd;
+    transform: none;
+}
+
+.permission-change-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.permission-change-btn:disabled:hover {
+    background-color: transparent;
+    transform: none;
+}
+
+/* Ensure dropdown header text stays on one line */
+.dropdown-item-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Badge animation for permission changes */
+.permission-badge {
+    transition: all 0.3s ease;
+}
+
+.permission-badge.updating {
+    opacity: 0.7;
+    transform: scale(0.95);
+}
+
+/* Enhanced badge styles for the share modal */
+.permission-badge.bg-info {
+    background-color: #e3f2fd !important;
+    color: #1976d2 !important;
+    border: 1px solid #bbdefb;
+}
+
+.permission-badge.bg-warning {
+    background-color: #fff3e0 !important;
+    color: #f57c00 !important;
+    border: 1px solid #ffcc02;
+}
+
+.permission-badge.bg-success {
+    background-color: #e8f5e8 !important;
+    color: #2e7d32 !important;
+    border: 1px solid #c8e6c9;
+}
+
+.permission-badge.bg-secondary {
+    background-color: #f5f5f5 !important;
+    color: #6c757d !important;
+    border: 1px solid #dee2e6;
+}
+
+/* Google Drive-style access level dropdown */
+.access-level-dropdown {
+    min-width: 120px;
+    text-align: left;
+    border: 1px solid #dadce0;
+    background-color: #fff;
+    color: #3c4043;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.access-level-dropdown::after {
+    content: '';
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid #5f6368;
+    margin-left: 0.5rem;
+    flex-shrink: 0;
+}
+
+/* Permission level color coordination */
+.access-level-dropdown[data-current-permission="viewer"] {
+    color: var(--spectrumx-viewer-color);
+    border-color: var(--spectrumx-viewer-border);
+}
+
+.access-level-dropdown[data-current-permission="viewer"]:hover {
+    background-color: var(--spectrumx-viewer-bg);
+    border-color: var(--spectrumx-viewer-border);
+}
+
+.access-level-dropdown[data-current-permission="viewer"]:focus {
+    border-color: var(--spectrumx-viewer-border);
+    box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.2);
+}
+
+.access-level-dropdown[data-current-permission="viewer"]::after {
+    border-top-color: var(--spectrumx-viewer-color);
+}
+
+.access-level-dropdown[data-current-permission="contributor"] {
+    color: var(--spectrumx-contributor-color);
+    border-color: var(--spectrumx-contributor-border);
+}
+
+.access-level-dropdown[data-current-permission="contributor"]:hover {
+    background-color: var(--spectrumx-contributor-bg);
+    border-color: var(--spectrumx-contributor-border);
+}
+
+.access-level-dropdown[data-current-permission="contributor"]:focus {
+    border-color: var(--spectrumx-contributor-border);
+    box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
+}
+
+.access-level-dropdown[data-current-permission="contributor"]::after {
+    border-top-color: var(--spectrumx-contributor-color);
+}
+
+.access-level-dropdown[data-current-permission="co-owner"] {
+    color: var(--spectrumx-co-owner-color);
+    border-color: var(--spectrumx-co-owner-border);
+}
+
+.access-level-dropdown[data-current-permission="co-owner"]:hover {
+    background-color: var(--spectrumx-co-owner-bg);
+    border-color: var(--spectrumx-co-owner-border);
+}
+
+.access-level-dropdown[data-current-permission="co-owner"]:focus {
+    border-color: var(--spectrumx-co-owner-border);
+    box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+}
+
+.access-level-dropdown[data-current-permission="co-owner"]::after {
+    border-top-color: var(--spectrumx-co-owner-color);
+}
+
+.access-level-menu {
+    min-width: 180px;
+    border: 1px solid #dadce0;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 0.5rem 0;
+}
+
+.access-level-menu .dropdown-item {
+    padding: 0.5rem 1rem;
+    color: #3c4043;
+    font-size: 0.875rem;
+    border: none;
+    background: none;
+    transition: background-color 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+/* Permission level colors in dropdown menu */
+.access-level-menu .permission-change-btn[data-permission-level="viewer"] {
+    color: var(--spectrumx-viewer-color);
+}
+
+.access-level-menu .permission-change-btn[data-permission-level="viewer"]:hover {
+    background-color: var(--spectrumx-viewer-bg);
+    color: var(--spectrumx-viewer-hover-color);
+}
+
+.access-level-menu .permission-change-btn[data-permission-level="viewer"].selected {
+    background-color: var(--spectrumx-viewer-bg);
+    color: var(--spectrumx-viewer-hover-color);
+    font-weight: 500;
+}
+.access-level-menu .permission-change-btn[data-permission-level="viewer"].selected .bi-check {
+    color: var(--spectrumx-viewer-hover-color);
+}
+
+.access-level-menu .permission-change-btn[data-permission-level="contributor"] {
+    color: var(--spectrumx-contributor-color);
+}
+
+.access-level-menu .permission-change-btn[data-permission-level="contributor"]:hover {
+    background-color: var(--spectrumx-contributor-bg);
+    color: var(--spectrumx-contributor-hover-color);
+}
+
+.access-level-menu .permission-change-btn[data-permission-level="contributor"].selected {
+    background-color: var(--spectrumx-contributor-bg);
+    color: var(--spectrumx-contributor-hover-color);
+    font-weight: 500;
+}
+.access-level-menu .permission-change-btn[data-permission-level="contributor"].selected .bi-check {
+    color: var(--spectrumx-contributor-hover-color);
+}
+
+.access-level-menu .permission-change-btn[data-permission-level="co-owner"] {
+    color: var(--spectrumx-co-owner-color);
+}
+
+.access-level-menu .permission-change-btn[data-permission-level="co-owner"]:hover {
+    background-color: var(--spectrumx-co-owner-bg);
+    color: var(--spectrumx-co-owner-hover-color);
+}
+
+.access-level-menu .permission-change-btn[data-permission-level="co-owner"].selected {
+    background-color: var(--spectrumx-co-owner-bg);
+    color: var(--spectrumx-co-owner-hover-color);
+    font-weight: 500;
+}
+.access-level-menu .permission-change-btn[data-permission-level="co-owner"].selected .bi-check {
+    color: var(--spectrumx-co-owner-hover-color);
+}
+
+/* Remove access styling */
+.access-level-menu .dropdown-item.text-danger {
+    color: var(--spectrumx-remove-color);
+}
+
+.access-level-menu .dropdown-item.text-danger:hover {
+    background-color: var(--spectrumx-remove-bg);
+    color: var(--spectrumx-remove-hover-color);
+}
+
+.access-level-menu .dropdown-item.text-danger .bi-person-slash {
+    color: var(--spectrumx-remove-color);
+}
+
+.access-level-menu .dropdown-item.text-danger:hover .bi-person-slash {
+    color: var(--spectrumx-remove-hover-color);
+}
+
+/* Remove access dropdown button styling */
+.access-level-dropdown[data-current-permission="remove"] {
+    color: var(--spectrumx-remove-color);
+    border-color: var(--spectrumx-remove-border);
+}
+
+.access-level-dropdown[data-current-permission="remove"]:hover {
+    background-color: var(--spectrumx-remove-bg);
+    border-color: var(--spectrumx-remove-border);
+}
+
+.access-level-dropdown[data-current-permission="remove"]:focus {
+    border-color: var(--spectrumx-remove-border);
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+
+.access-level-dropdown[data-current-permission="remove"]::after {
+    border-top-color: var(--spectrumx-remove-color);
+}
+
+.access-level-menu .dropdown-divider {
+    margin: 0.5rem 0;
+    border-color: #dadce0;
 } 

@@ -853,7 +853,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         self,
         request: HttpRequest,
         item_uuid: str,
-        item_type: str,
+        item_type: ItemType,
         *args: Any,
         **kwargs: Any,
     ) -> HttpResponse:
