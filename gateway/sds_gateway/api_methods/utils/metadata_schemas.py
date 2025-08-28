@@ -6,6 +6,9 @@ import logging
 from typing import TYPE_CHECKING
 from typing import Any
 
+if TYPE_CHECKING:
+    from sds_gateway.api_methods.models import CaptureType
+
 log = logging.getLogger(__name__)
 
 drf_capture_metadata_schema = {
@@ -389,7 +392,7 @@ def get_mapping_by_capture_type(
 ) -> dict[str, str | dict[str, Any]]:
     """Get the mapping for a given capture type."""
     # Local import to avoid circular dependency
-    from sds_gateway.api_methods.models import CaptureType
+    from sds_gateway.api_methods.models import CaptureType  # noqa: PLC0415
 
     # Initialize mapping if not already done
     if not capture_index_mapping_by_type:
@@ -418,7 +421,7 @@ def get_mapping_by_capture_type(
 def infer_index_name(capture_type: "CaptureType") -> str:
     """Infer the index name for a given capture."""
     # Local import to avoid circular dependency
-    from sds_gateway.api_methods.models import CaptureType
+    from sds_gateway.api_methods.models import CaptureType  # noqa: PLC0415
 
     # Handle enum inputs (strings match fine against StrEnum)
     match capture_type:

@@ -86,6 +86,7 @@ from sds_gateway.users.mixins import UserSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.utils import deduplicate_composite_captures
+from sds_gateway.users.utils import get_index_name_for_capture_type
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 
 # Constants
@@ -2494,7 +2495,6 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 user_dataset_details_view = DatasetDetailsView.as_view()
 
 
-
 class FileContentView(Auth0LoginRequiredMixin, View):
     """Serve small text content of a file for modal previews.
 
@@ -2710,9 +2710,9 @@ class UploadCaptureView(View):
         """
         try:
             # Set the index name based on capture type
-            from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
-
-            capture_data["index_name"] = infer_index_name(capture_data["capture_type"])
+            capture_data["index_name"] = get_index_name_for_capture_type(
+                capture_data["capture_type"]
+            )
 
             # Use the helper function to create the capture
             responses, capture_errors = create_capture_helper_simple(
@@ -3293,6 +3293,7 @@ class CheckFileExistsView(View):
 
 user_check_file_exists_view = CheckFileExistsView.as_view()
 
+
 class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     """
     View to handle ShareGroup management functionality.
@@ -3726,4 +3727,3 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
 
 user_share_group_list_view = ShareGroupListView.as_view()
-

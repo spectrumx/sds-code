@@ -125,7 +125,8 @@ body {
 }
 
 .file-card-content {
-	display: flex;
+	display: grid;
+	grid-template-columns: 32px 1fr 150px 120px 100px; /* icon, name, modified, shared, actions */
 	align-items: center;
 	width: 100%;
 	gap: 16px;
@@ -137,12 +138,10 @@ body {
 	color: var(--color-text-primary);
 	margin: 0;
 	font-weight: 400;
-	flex: 1;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	padding-right: 24px;
-	display: inline-flex;
+	display: flex;
 	align-items: center;
 	gap: 6px;
 }
@@ -183,14 +182,8 @@ body {
 	font-size: 13px;
 	color: var(--color-text-secondary);
 	white-space: nowrap;
-	flex-shrink: 0;
-	min-width: 150px; /* Increased width for modified date */
 	text-align: center; /* Center align the modified date */
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	position: relative;
-	padding-right: 24px; /* reserve space for right-aligned shared icon */
+	padding: 0 8px; /* Small padding for spacing */
 }
 
 /* Keep the shared-with icon from shifting the centered date */
@@ -199,13 +192,17 @@ body {
 	font-size: 13px;
 	color: var(--color-text-secondary);
 	white-space: nowrap;
-	flex-shrink: 0;
-	min-width: 120px; /* Fixed width for shared by column */
 	text-align: center; /* Center align shared by */
-	margin-left: 0; /* Remove offset that pushes content */
+	padding: 0 8px; /* Small padding for spacing */
+}
+
+/* Actions column */
+.file-actions {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	text-align: center;
+	padding: 0 8px; /* Small padding for spacing */
 }
 
 /* Directory Specific */
@@ -229,6 +226,15 @@ body {
 	border-top-right-radius: 8px;
 }
 
+/* Header has different grid layout (no icon column) */
+.file-card.header .file-card-content {
+	display: grid;
+	grid-template-columns: 1fr 150px 120px 100px; /* name, modified, shared, actions */
+	align-items: center;
+	width: 100%;
+	gap: 16px;
+}
+
 .file-card.header:hover {
 	background-color: #f8f9fa;
 }
@@ -239,14 +245,17 @@ body {
 	font-size: 13px;
 	text-transform: none;
 	letter-spacing: normal;
+	padding-left: 48px; /* Account for icon space (32px icon + 16px gap) */
 }
 
 .file-card.header .file-meta,
-.file-card.header .file-shared {
+.file-card.header .file-shared,
+.file-card.header .file-actions {
 	font-size: 13px;
 	text-transform: none;
 	letter-spacing: normal;
 	color: var(--color-text-secondary);
+	text-align: center; /* Center align header text */
 }
 
 /* Breadcrumb Navigation */
