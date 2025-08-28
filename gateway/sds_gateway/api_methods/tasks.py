@@ -4,6 +4,7 @@ import uuid
 import zipfile
 from pathlib import Path
 from typing import Any
+from typing import cast
 
 import redis
 from celery import shared_task
@@ -23,6 +24,8 @@ from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
+
+# ruff: noqa: PLC0415
 
 
 def get_redis_client() -> Redis:
@@ -169,7 +172,7 @@ def is_user_locked(user_id: str, task_name: str) -> bool:
 
 
 @shared_task
-def test_celery_task(message: str = "Hello from Celery!") -> str:
+def check_celery_task(message: str = "Hello from Celery!") -> str:
     """
     Test task to verify Celery is working.
 
@@ -184,7 +187,7 @@ def test_celery_task(message: str = "Hello from Celery!") -> str:
 
 
 @shared_task
-def test_email_task(email_address: str = "test@example.com") -> str:
+def check_email_task(email_address: str = "test@example.com") -> str:
     """
     Test task to send an email via MailHog for testing.
 
@@ -302,7 +305,7 @@ def create_zip_from_files(files: list[File], zip_name: str) -> tuple[str, int, i
 
 
 @shared_task
-def cleanup_expired_temp_zips() -> dict:
+def cleanup_expired_temp_zips() -> dict[str, str | int]:
     """
     Celery task to clean up expired temporary zip files.
 
@@ -362,7 +365,9 @@ def cleanup_expired_temp_zips() -> dict:
         }
 
 
-def get_user_task_status(user_id: str, task_name: str) -> dict:
+def get_user_task_status(
+    user_id: str, task_name: str
+) -> dict[str, str | int | bool | None]:
     """
     Get detailed status information about a user's task.
 
@@ -382,23 +387,23 @@ def get_user_task_status(user_id: str, task_name: str) -> dict:
             ttl = redis_client.ttl(lock_key)
 
             # Handle potential None values
-            timestamp_str = None
+            timestamp_str_or_none: str | None = None
             if lock_timestamp:
                 try:
-                    timestamp_str = lock_timestamp.decode("utf-8")
+                    timestamp_str_or_none = cast("str", lock_timestamp.decode("utf-8"))
                 except (AttributeError, UnicodeDecodeError):
-                    timestamp_str = str(lock_timestamp)
+                    timestamp_str_or_none = str(lock_timestamp)
 
             ttl_value = 0
             if ttl is not None:
                 try:
-                    ttl_value = max(0, int(ttl))
+                    ttl_value = max(0, int(ttl))  # pyright: ignore[reportArgumentType]
                 except (ValueError, TypeError):
                     ttl_value = 0
 
             return {
                 "is_locked": True,
-                "lock_timestamp": timestamp_str,
+                "lock_timestamp": timestamp_str_or_none,
                 "ttl_seconds": ttl_value,
                 "task_name": task_name,
                 "user_id": user_id,
@@ -576,9 +581,9 @@ def _create_error_response(
     item_uuid: str,
     user_id: str | None = None,
     total_size: int = 0,
-) -> dict:
+) -> dict[str, str | int]:
     """Create a standardized error response."""
-    response = {
+    response: dict[str, str | int] = {
         "status": status,
         "message": message,
         "item_uuid": item_uuid,
@@ -592,7 +597,7 @@ def _create_error_response(
 
 def _process_item_files(
     user: User, item: Any, item_type: ItemType, item_uuid: str
-) -> tuple[dict | None, str | None, int | None, int | None]:
+) -> tuple[dict[str, str | int] | None, str | None, int | None, int | None]:
     """
     Process files for an item and create a zip file.
 
@@ -635,7 +640,7 @@ def _process_item_files(
 
 def _handle_user_lock_validation(
     user_id: str, user: User, item: Any, item_type: ItemType, task_name: str
-) -> dict | None:
+) -> dict[str, str | int] | None:
     """
     Handle user lock validation and acquisition.
 
@@ -727,8 +732,12 @@ def _send_download_email(
 
 
 def _handle_timeout_exception(
-    user: User | None, item: Any, item_type: ItemType, item_uuid: str, e: Exception
-) -> dict:
+    user: User | None,
+    item: Any,
+    item_type: ItemType | None,
+    item_uuid: str,
+    e: Exception,
+) -> dict[str, Any]:
     """Handle timeout exceptions in the download task."""
     logger.exception(
         f"Timeout or soft time limit exceeded for {item_type} download "
@@ -739,7 +748,7 @@ def _handle_timeout_exception(
         "has timed out or exceeded the soft time limit. "
         "Please try again or contact support."
     )
-    if user is not None and item is not None:
+    if user is not None and item is not None and item_type is not None:
         _send_item_download_error_email(user, item, item_type, error_message)
     return _create_error_response("error", error_message, item_uuid)
 
@@ -749,7 +758,7 @@ def _handle_timeout_exception(
 )  # 30 min hard limit, 25 min soft limit
 def send_item_files_email(  # noqa: C901
     item_uuid: str, user_id: str, item_type: str | ItemType
-) -> dict:
+) -> dict[str, str | int]:
     """
     Unified Celery task to create a zip file of item files and send it via email.
 
@@ -765,9 +774,10 @@ def send_item_files_email(  # noqa: C901
     """
     # Initialize variables that might be used in finally block
     task_name = f"{item_type}_download"
-    user = None
     item = None
+    item_type_enum: ItemType | None = None
     result = None
+    user = None
 
     try:
         # Convert string item_type to enum if needed
@@ -780,7 +790,7 @@ def send_item_files_email(  # noqa: C901
                 )
 
         # At this point, item_type is guaranteed to be ItemType
-        item_type_enum: ItemType = item_type
+        item_type_enum = item_type
 
         # Validate the request
         error_result, user, item = _validate_item_download_request(
@@ -852,7 +862,7 @@ def send_item_files_email(  # noqa: C901
         )
         # Send error email if we have user and item
         error_message = f"Error processing {item_type_enum} download: {e!s}"
-        if user is not None and item is not None:
+        if user is not None and item is not None and item_type_enum is not None:
             _send_item_download_error_email(user, item, item_type_enum, error_message)
         result = _create_error_response("error", error_message, item_uuid)
 
@@ -870,7 +880,7 @@ def send_item_files_email(  # noqa: C901
 
 def _validate_item_download_request(
     item_uuid: str, user_id: str, item_type: ItemType
-) -> tuple[dict | None, User | None, Any]:
+) -> tuple[dict[str, str | int] | None, User | None, Any]:
     """
     Validate item download request parameters.
 

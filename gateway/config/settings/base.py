@@ -157,6 +157,7 @@ THIRD_PARTY_APPS: list[str] = [
 LOCAL_APPS: list[str] = [
     "sds_gateway.users",
     "sds_gateway.api_methods",
+    "sds_gateway.visualizations",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
@@ -251,7 +252,7 @@ TEMPLATES: list[dict[str, Any]] = [
         # https://docs.djangoproject.com/en/dev/ref/settings/#app-dirs
         "APP_DIRS": True,
         "OPTIONS": {
-            # https://docs.djangoproject.com/en/dev/ref/settings/#template-context-processors
+            # https://docs.djangoproject.com/en/4.2/topics/templates/#module-django.template.backends.django
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
@@ -384,7 +385,7 @@ CELERY_TASK_SEND_SENT_EVENT: bool = True
 CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
     "cleanup-expired-temp-zips": {
         "task": "sds_gateway.api_methods.tasks.cleanup_expired_temp_zips",
-        "schedule": crontab(hour=2, minute=0),  # Run daily at 2:00 AM
+        "schedule": crontab(hour="2", minute="0"),  # Run daily at 2:00 AM
         "options": {"expires": 3600},  # Task expires after 1 hour
     },
 }

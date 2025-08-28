@@ -25,6 +25,7 @@ from spectrumx.models.captures import CaptureType
 
 from .errors import AuthError
 from .errors import CaptureError
+from .errors import DatasetError
 from .errors import FileError
 from .models.files import File
 from .models.files import FileUpload
@@ -42,7 +43,7 @@ class Endpoints(StrEnum):
 
     AUTH = "/auth"
     CAPTURES = "/assets/captures"
-    DATASETS = "/assets/datasets"
+    DATASET_FILES = "/assets/datasets/{uuid}/files"
     EXPERIMENTS = "/assets/experiments"
     FILE_CONTENTS_CHECK = "/assets/utils/check_contents_exist"
     FILE_DOWNLOAD = "/assets/files/{uuid}/download"
@@ -588,3 +589,29 @@ class GatewayClient:
         network.success_or_raise(response, ContextException=CaptureError)
         if self.verbose:
             log.debug(f"Capture with UUID {capture_uuid} deleted successfully")
+
+    def get_dataset_files(
+        self,
+        *,
+        dataset_uuid: uuid.UUID,
+        page: int = 1,
+        page_size: int = 30,
+        verbose: bool = False,
+    ) -> bytes:
+        """Get a manifest of files in the dataset for efficient downloading.
+
+        Args:
+            dataset_uuid: The UUID of the dataset to get files for.
+            verbose: Show network requests and other info.
+        Returns:
+            The response content containing the dataset file manifest.
+        """
+        response = self._request(
+            method=HTTPMethods.GET,
+            endpoint=Endpoints.DATASET_FILES,
+            endpoint_args={"uuid": dataset_uuid.hex},
+            params={"page": page, "page_size": page_size},
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=DatasetError)
+        return response.content

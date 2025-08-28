@@ -10,6 +10,7 @@ from loguru import logger as log
 from pydantic import UUID4
 
 from spectrumx.api.captures import CaptureAPI
+from spectrumx.api.datasets import DatasetAPI
 from spectrumx.errors import CaptureError
 from spectrumx.errors import Result
 from spectrumx.errors import SDSError
@@ -50,7 +51,7 @@ class Client:
         verbose: bool = False,
     ) -> None:
         # avoids circular import
-        from spectrumx.api import sds_files as _sds_files
+        from spectrumx.api import sds_files as _sds_files  # noqa: PLC0415
 
         self._sds_files = _sds_files
 
@@ -74,6 +75,10 @@ class Client:
 
         # create internal API instances
         self.captures = CaptureAPI(
+            gateway=self._gateway,
+            dry_run=self.dry_run,
+        )
+        self.datasets = DatasetAPI(
             gateway=self._gateway,
             dry_run=self.dry_run,
         )
@@ -104,7 +109,7 @@ class Client:
         self._verbose = bool(value)
         self._gateway.verbose = self._verbose
         self.captures.verbose = self._verbose
-        self.captures.verbose = self._verbose
+        self.datasets.verbose = self._verbose
         # add future API instances here
 
     @property
@@ -118,6 +123,7 @@ class Client:
 
         self._config.dry_run = bool(value)
         self.captures.dry_run = self._config.dry_run
+        self.datasets.dry_run = self._config.dry_run
         # add future API instances here
 
         msg = (
@@ -181,8 +187,9 @@ class Client:
     def download(
         self,
         *,
-        from_sds_path: PurePosixPath | Path | str,
+        from_sds_path: PurePosixPath | Path | str | None = None,
         to_local_path: Path | str,
+        files_to_download: list[File] | Paginator[File] | None = None,
         skip_contents: bool = False,
         overwrite: bool = False,
         verbose: bool = True,
@@ -192,24 +199,59 @@ class Client:
         Args:
             from_sds_path:  The virtual directory on SDS to download files from.
             to_local_path:  The local path to save the downloaded files to.
+            files_to_download:  A paginator or list (in dry run mode) of files to
+                download. If not provided, all files in the directory will be
+                downloaded.
             skip_contents:  When True, only the metadata is downloaded.
             overwrite:      Whether to overwrite existing local files.
             verbose:        Show a progress bar.
         Returns:
             A list of results for each file discovered and downloaded.
         """
-        from_sds_path = PurePosixPath(from_sds_path)
+
+        if from_sds_path is not None:
+            if files_to_download is not None:
+                error_msg = (
+                    "Both a path in the SDS and a list of files "
+                    "were provided: please provide only one."
+                )
+                raise ValueError(error_msg)
+            from_sds_path = PurePosixPath(from_sds_path)
         to_local_path = Path(to_local_path)
 
-        # local vars
-        prefix = "Dry-run: simulating download:" if self.dry_run else "Downloading:"
+        # Prepare the download environment
+        self._prepare_download_directory(to_local_path)
+        files_to_download = self._get_files_to_download(
+            from_sds_path=from_sds_path,
+            files_to_download=files_to_download,
+            verbose=verbose,
+        )
 
+        # Download files
+        return self._download_files(
+            files_to_download=files_to_download,
+            to_local_path=to_local_path,
+            skip_contents=skip_contents,
+            overwrite=overwrite,
+            verbose=verbose,
+        )
+
+    def _prepare_download_directory(self, to_local_path: Path) -> None:
+        """Prepare the download directory."""
         if not to_local_path.exists():
             if self.dry_run:
                 log_user(f"Dry run: would create the directory '{to_local_path}'")
             else:
                 to_local_path.mkdir(parents=True)
 
+    def _get_files_to_download(
+        self,
+        *,
+        from_sds_path: PurePosixPath | None,
+        files_to_download: list[File] | Paginator[File] | None,
+        verbose: bool,
+    ) -> list[File] | Paginator[File]:
+        """Get the list of files to download."""
         if self.dry_run:
             log_user(
                 "Called download() in dry run mode: "
@@ -218,10 +260,30 @@ class Client:
             files_to_download = files.generate_random_files(num_files=10)
             log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
         else:
-            files_to_download = self.list_files(sds_path=from_sds_path)
+            if from_sds_path is not None:
+                files_to_download = self.list_files(sds_path=from_sds_path)
+            elif files_to_download is None:
+                error_msg = (
+                    "Either a path in the SDS or a paginator/list of files "
+                    "must be provided"
+                )
+                raise ValueError(error_msg)
             if verbose:
                 log_user(f"Discovered {len(files_to_download)} files")
 
+        return files_to_download
+
+    def _download_files(
+        self,
+        *,
+        files_to_download: list[File] | Paginator[File],
+        to_local_path: Path,
+        skip_contents: bool,
+        overwrite: bool,
+        verbose: bool,
+    ) -> list[Result[File]]:
+        """Download the files and return results."""
+        prefix = "Dry-run: simulating download:" if self.dry_run else "Downloading:"
         prog_bar = get_prog_bar(
             files_to_download, desc="Downloading", disable=not verbose
         )
@@ -229,74 +291,85 @@ class Client:
         results: list[Result[File]] = []
         for file_info in prog_bar:
             prog_bar.set_description(f"{prefix} '{file_info.name}'")
-            sds_dir = file_info.directory
-
-            local_file_path = Path(f"{to_local_path}/{sds_dir}") / file_info.name
-            local_file_path = clean_local_path(local_file_path)
-            # this path will be validated later
-
-            # skip download of local files (without UUID)
-            if file_info.uuid is None:
-                msg = f"Skipping local file: {file_info.name}"
-                log_user_warning(msg)
-                results.append(
-                    Result(
-                        exception=SDSError(msg),
-                        error_info={
-                            "file": file_info,
-                        },
-                    )
-                )
-                continue
-
-            # register failure if the resolved path is not relative to the target
-            local_file_path = local_file_path.resolve()
-            to_local_path = to_local_path.resolve()
-            log.debug(f"Resolved path: {local_file_path}")
-            log.debug(f"Target path: {to_local_path}")
-            if not local_file_path.is_relative_to(to_local_path):
-                msg = (
-                    f"Resolved path {local_file_path} is not relative to "
-                    f"{to_local_path}: skipping download."
-                )
-                log_user_warning(msg)
-                results.append(
-                    Result(
-                        exception=SDSError(msg),
-                        error_info={
-                            "file": file_info,
-                        },
-                    )
-                )
-                continue
-
-            # avoid unintended overwrites (success)
-            if local_file_path.exists() and not overwrite:
-                log_user(f"Skipping existing file: '{local_file_path}'")
-                results.append(Result(value=file_info))
-                continue
-
-            # download the file and register result
-            try:
-                log.debug(f"Dw: {local_file_path}")
-                downloaded_file = self.download_file(
-                    file_uuid=file_info.uuid,
-                    to_local_path=local_file_path,
-                    skip_contents=skip_contents,
-                )
-                results.append(Result(value=downloaded_file))
-            except SDSError as err:
-                log_user_error(f"Download failed: {err}")
-                results.append(
-                    Result(
-                        exception=err,
-                        error_info={
-                            "file": file_info,
-                        },
-                    )
-                )
+            result = self._download_single_file(
+                file_info=file_info,
+                to_local_path=to_local_path,
+                skip_contents=skip_contents,
+                overwrite=overwrite,
+            )
+            results.append(result)
 
         return results
+
+    def _download_single_file(
+        self,
+        *,
+        file_info: File,
+        to_local_path: Path,
+        skip_contents: bool,
+        overwrite: bool,
+    ) -> Result[File]:
+        """Download a single file and return the result."""
+        # Handle local files without UUID
+        if file_info.uuid is None:
+            msg = f"Skipping local file: {file_info.name}"
+            log_user_warning(msg)
+            return Result(
+                exception=SDSError(msg),
+                error_info={"file": file_info},
+            )
+
+        # Calculate local file path
+        local_file_path = self._calculate_local_file_path(file_info, to_local_path)
+
+        # Validate path is relative to target
+        if not self._is_path_relative_to_target(local_file_path, to_local_path):
+            msg = (
+                f"Resolved path {local_file_path} is not relative to "
+                f"{to_local_path}: skipping download."
+            )
+            log_user_warning(msg)
+            return Result(
+                exception=SDSError(msg),
+                error_info={"file": file_info},
+            )
+
+        # Handle existing files
+        if local_file_path.exists() and not overwrite:
+            log_user(f"Skipping existing file: '{local_file_path}'")
+            return Result(value=file_info)
+
+        # Download the file
+        try:
+            log.debug(f"Dw: {local_file_path}")
+            downloaded_file = self.download_file(
+                file_uuid=file_info.uuid,
+                to_local_path=local_file_path,
+                skip_contents=skip_contents,
+            )
+            return Result(value=downloaded_file)
+        except SDSError as err:
+            log_user_error(f"Download failed: {err}")
+            return Result(
+                exception=err,
+                error_info={"file": file_info},
+            )
+
+    def _calculate_local_file_path(self, file_info: File, to_local_path: Path) -> Path:
+        """Calculate the local file path for a file."""
+        sds_dir = file_info.directory
+        local_file_path = Path(f"{to_local_path}/{sds_dir}") / file_info.name
+        return clean_local_path(local_file_path)
+
+    def _is_path_relative_to_target(
+        self, local_file_path: Path, to_local_path: Path
+    ) -> bool:
+        """Check if the local file path is relative to the target directory."""
+        local_file_path = local_file_path.resolve()
+        to_local_path = to_local_path.resolve()
+        log.debug(f"Resolved path: {local_file_path}")
+        log.debug(f"Target path: {to_local_path}")
+        return local_file_path.is_relative_to(to_local_path)
 
     def list_files(
         self, sds_path: PurePosixPath | Path | str, *, verbose: bool = False
@@ -347,6 +420,59 @@ class Client:
             to_local_path=to_local_path,
             skip_contents=skip_contents,
             warn_missing_path=warn_missing_path,
+        )
+
+    def download_dataset(
+        self,
+        *,
+        dataset_uuid: UUID4 | str,
+        to_local_path: Path | str,
+        skip_contents: bool = False,
+        overwrite: bool = False,
+        verbose: bool = True,
+    ) -> list[Result[File]]:
+        """Downloads all files in a dataset using the existing download infrastructure.
+
+        This approach uses the get_dataset_files endpoint to get a paginated list of
+        File objects and then uses the existing download() method with
+        files_to_download parameter.
+
+        Args:
+            dataset_uuid: The UUID of the dataset to download.
+            to_local_path: The local path to save the downloaded files to.
+            skip_contents: When True, only the metadata is downloaded.
+            overwrite: Whether to overwrite existing local files.
+            verbose: Show progress bars and detailed output.
+        Returns:
+            A list of results for each file downloaded.
+        """
+        if isinstance(dataset_uuid, str):
+            dataset_uuid = UUID(dataset_uuid)
+
+        # Get all files in the dataset as a paginator
+        files_to_download = self.datasets.get_files(dataset_uuid=dataset_uuid)
+
+        if verbose:
+            log_user(
+                f"Downloading files from dataset "
+                f"(total: {len(files_to_download)} files)"
+            )
+
+        # Create target directory
+        to_local_path = Path(to_local_path)
+        if not to_local_path.exists():
+            if self.dry_run:
+                log_user(f"Dry run: would create the directory '{to_local_path}'")
+            else:
+                to_local_path.mkdir(parents=True, exist_ok=True)
+
+        # Use the existing download() method with the file list
+        return self.download(
+            to_local_path=to_local_path,
+            files_to_download=files_to_download,
+            skip_contents=skip_contents,
+            overwrite=overwrite,
+            verbose=verbose,
         )
 
     def upload(

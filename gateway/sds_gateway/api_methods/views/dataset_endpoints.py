@@ -1,0 +1,136 @@
+"""Dataset operations endpoints for the SDS Gateway API."""
+
+from django.db.models import QuerySet
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiResponse
+from drf_spectacular.utils import extend_schema
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.viewsets import ViewSet
+
+from sds_gateway.api_methods.authentication import APIKeyAuthentication
+from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.api_methods.views.file_endpoints import FilePagination
+
+
+class DatasetViewSet(ViewSet):
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def _get_file_objects(self, dataset: Dataset) -> QuerySet[File]:
+        """Get all files associated with a dataset."""
+
+        # Get the files directly connected to the dataset
+        artifact_files = dataset.files.filter(is_deleted=False)
+
+        # Get the files connected to the captures associated with the dataset
+        dataset_captures = dataset.captures.filter(is_deleted=False)
+        capture_files = File.objects.filter(
+            capture__in=dataset_captures,
+            is_deleted=False,
+        )
+
+        # Combine using union to avoid duplicates
+        return artifact_files.union(capture_files)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Dataset UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+            OpenApiParameter(
+                name="page",
+                description="Page number for pagination.",
+                required=False,
+                type=int,
+                location=OpenApiParameter.QUERY,
+                default=1,
+            ),
+            OpenApiParameter(
+                name="page_size",
+                description="Number of items per page.",
+                required=False,
+                type=int,
+                location=OpenApiParameter.QUERY,
+                default=FilePagination.page_size,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Dataset file listing"),
+            400: OpenApiResponse(description="Bad Request"),
+            403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="Not Found"),
+        },
+        description=(
+            "Get a manifest of files in the dataset, separated by "
+            "captures and artifacts. "
+            "This allows efficient downloading using the existing download "
+            "infrastructure."
+        ),
+        summary="Get Dataset Files Manifest",
+    )
+    @action(detail=True, methods=["get"], url_path="files", url_name="files")
+    def get_dataset_files(
+        self, request: Request, pk: str | None = None
+    ) -> JsonResponse:
+        """Get a paginated list of files in the dataset to be downloaded."""
+
+        if pk is None:
+            return Response(
+                {"detail": "Dataset UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target_dataset = get_object_or_404(
+            Dataset,
+            pk=pk,
+            is_deleted=False,
+        )
+
+        # Check if user is the owner or has share permissions
+        user_is_owner = target_dataset.owner == request.user
+        user_has_share_permission = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            item_type=ItemType.DATASET,
+            item_uuid=target_dataset.uuid,
+            is_enabled=True,
+            is_deleted=False,
+        ).exists()
+
+        if not user_is_owner and not user_has_share_permission:
+            return Response(
+                {"detail": "You do not have permission to access this dataset."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Get all files associated with this dataset
+        dataset_files = self._get_file_objects(target_dataset)
+
+        if not dataset_files.exists():
+            return Response(
+                {"detail": "No files found in dataset."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Order and deduplicate files by path and created_at
+        ordered_files = dataset_files.order_by("-created_at")
+        paginator = FilePagination()
+        paginated_files = paginator.paginate_queryset(ordered_files, request=request)
+
+        # Serialize the files
+        serializer = FileGetSerializer(paginated_files, many=True)
+
+        return paginator.get_paginated_response(serializer.data)

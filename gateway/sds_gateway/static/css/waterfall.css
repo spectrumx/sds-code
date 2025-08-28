@@ -1,0 +1,337 @@
+/* Waterfall Visualization Styles */
+
+.loading-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(255, 255, 255, 0.9);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	backdrop-filter: blur(2px);
+}
+
+#waterfallCanvas {
+	border: none;
+	cursor: crosshair;
+	position: relative;
+}
+
+.control-panel {
+	position: sticky;
+	top: 1rem;
+}
+
+/* Custom range slider styling */
+.form-range::-webkit-slider-thumb {
+	background: #0d6efd;
+	border-radius: 50%;
+	cursor: pointer;
+}
+
+.form-range::-moz-range-thumb {
+	background: #0d6efd;
+	border-radius: 50%;
+	cursor: pointer;
+}
+
+/* Chart container styling */
+#periodogramChart {
+	min-height: 200px;
+	height: 200px;
+	/* Add padding to align with waterfall plot margins */
+	padding-right: var(--plots-right-margin, 80px);
+	padding-left: var(--plots-left-margin, 85px);
+}
+
+#waterfallPlot {
+	position: relative;
+	height: 400px;
+	/* Ensure proper alignment with periodogram */
+	margin-left: 0;
+	margin-right: 0;
+}
+
+#waterfallOverlayCanvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+	z-index: 1;
+}
+
+#loadingOverlay {
+	display: none;
+}
+
+/* Button states */
+.btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* Loading states */
+.loading {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.col-md-3.col-lg-2 {
+		margin-bottom: 1rem;
+	}
+
+	#waterfallCanvas {
+		width: 100% !important;
+		height: auto !important;
+	}
+}
+
+/* Custom scrollbar for controls */
+.card-body::-webkit-scrollbar {
+	width: 6px;
+}
+
+.card-body::-webkit-scrollbar-track {
+	background: #f1f1f1;
+	border-radius: 3px;
+}
+
+.card-body::-webkit-scrollbar-thumb {
+	background: #c1c1c1;
+	border-radius: 3px;
+}
+
+.card-body::-webkit-scrollbar-thumb:hover {
+	background: #a8a8a8;
+}
+
+/* Animation for loading states */
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.fade-in {
+	animation: fadeIn 0.3s ease-in;
+}
+
+/* Tooltip styling */
+.tooltip {
+	position: absolute;
+	background: rgba(0, 0, 0, 0.8);
+	color: white;
+	padding: 0.5rem;
+	border-radius: 0.25rem;
+	font-size: 0.875rem;
+	pointer-events: none;
+	z-index: 1001;
+}
+
+/* Frequency and time axis labels */
+.axis-label {
+	font-size: 0.75rem;
+	fill: #6c757d;
+	text-anchor: middle;
+}
+
+/* Grid lines */
+.grid-line {
+	stroke: #e9ecef;
+	stroke-width: 0.5;
+	opacity: 0.5;
+}
+
+/* Waterfall color scale legend */
+.color-legend {
+	position: absolute;
+	top: 5px;
+	bottom: 5px;
+	right: 10px;
+	background: rgba(255, 255, 255, 0.95);
+	border: 1px solid #dee2e6;
+	border-radius: 0.25rem;
+	padding: 0.5rem;
+	font-size: 0.75rem;
+	max-width: var(--plots-right-margin, 80px);
+	z-index: 10;
+	display: flex;
+	flex-direction: row;
+	align-items: stretch;
+}
+
+.legend-gradient {
+	width: 20px;
+	height: calc(100% - 40px);
+	margin: 10px 0;
+	border: 1px solid #dee2e6;
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+
+.legend-labels {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	height: calc(100% - 40px);
+	font-size: 0.7rem;
+	color: #000;
+	text-align: left;
+	margin-left: 8px;
+	flex-grow: 1;
+}
+
+/* Scroll indicators for waterfall plot */
+.scroll-indicator {
+	width: 0;
+	height: 0;
+	cursor: pointer;
+	margin: 0 auto;
+	display: block;
+	transition: all 0.2s ease;
+	border-radius: 2px;
+}
+
+.scroll-indicator:hover {
+	opacity: 0.8;
+	transform: scale(1.1);
+}
+
+.scroll-indicator.up {
+	border-left: 15px solid transparent;
+	border-right: 15px solid transparent;
+	border-bottom: 15px solid #808080;
+}
+
+.scroll-indicator.down {
+	border-left: 15px solid transparent;
+	border-right: 15px solid transparent;
+	border-top: 15px solid #808080;
+}
+
+.scroll-indicator.disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
+
+.scroll-indicator.disabled:hover {
+	opacity: 0.3;
+	transform: none;
+}
+
+/* Responsive scroll indicators */
+@media (max-width: 768px) {
+	.scroll-indicator.up,
+	.scroll-indicator.down {
+		border-left-width: 12px;
+		border-right-width: 12px;
+		border-bottom-width: 12px;
+		border-top-width: 12px;
+	}
+}
+
+/* Scroll indicator container states */
+.scroll-indicator-container {
+	visibility: hidden;
+	height: 20px;
+	margin: 0.5rem 0;
+}
+
+.scroll-indicator-container.visible {
+	visibility: visible;
+}
+
+/* Slice index input styling */
+#sliceIndexInput {
+	text-align: center;
+	font-weight: 500;
+	border: 1px solid #dee2e6;
+}
+
+#sliceIndexInput:focus {
+	border-color: #0d6efd;
+	box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Hide the default increment/decrement arrows */
+#sliceIndexInput::-webkit-inner-spin-button,
+#sliceIndexInput::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+#sliceIndexInput[type="number"] {
+	appearance: textfield;
+	-moz-appearance: textfield;
+}
+
+/* Center the slice controls */
+.slice-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: nowrap;
+	width: 100%;
+}
+
+.slice-controls .btn {
+	flex-shrink: 0;
+	min-width: auto;
+	padding-left: 0.5rem;
+	padding-right: 0.5rem;
+}
+
+.slice-controls .btn:hover {
+	background-color: #0d6efd;
+	border-color: #0d6efd !important;
+	color: #fff !important;
+}
+
+.slice-controls .btn:first-child {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.slice-controls .btn:last-child {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.slice-controls .btn i {
+	font-size: 0.875rem;
+}
+
+.slice-controls .mx-2 {
+	flex-shrink: 0;
+}
+
+/* Ensure the input field doesn't take up too much space */
+.slice-controls #sliceIndexInput {
+	width: 70px;
+	min-width: 70px;
+	border-radius: 0;
+}
+
+/* Responsive canvas sizing */
+@media (max-width: 1200px) {
+	#waterfallCanvas {
+		width: 100% !important;
+		height: auto !important;
+	}
+}
+
+/* Print styles */
+@media print {
+	.btn-group,
+	.control-panel {
+		display: none !important;
+	}
+}

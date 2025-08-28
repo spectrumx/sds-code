@@ -15,7 +15,7 @@
     name = "spectrumx"
     readme = "./docs/README.md"
     requires-python = ">=3.10"
-    version = "0.1.12"
+    version = "0.1.13"
 
     # https://pypi.org/classifiers/
     classifiers = [
@@ -162,6 +162,10 @@
             # of types for comparison.
             # UP038 deactivated because it can make the code slow:
             # https://github.com/astral-sh/ruff/issues/7871
+            # TODO: re-enable UP046 when support for 3.10 and 3.11 are dropped
+            "UP046",
+            # TODO: re-enable UP047 when support for 3.10 and 3.11 are dropped
+            "UP047",
         ]
         select = [
             # https://docs.astral.sh/ruff/settings/#lint_select
@@ -282,7 +286,7 @@
         # more verbose:
         # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
         # less verbose:
-        addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --tb=short"
+        addopts = "--maxfail=10 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --tb=short"
         console_output_style = "progress"
         log_auto_indent = true
         log_cli = true

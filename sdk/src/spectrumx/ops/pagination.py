@@ -1,11 +1,11 @@
 """Pagination for SDS constructs."""
 
+import copy
 import json
 import sys
 import time
 import uuid
-from pathlib import Path
-from pathlib import PurePosixPath
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Generic
@@ -42,13 +42,26 @@ class Paginator(Generic[T]):
     ## Usage example
 
     ```
+    # For file listings
     file_paginator = Paginator[File](
         Entry=File,
         gateway=gateway,
-        sds_path="/path/to/files",
+        list_method=gateway.list_files,
+        list_kwargs={"sds_path": "/path/to/files"},
         dry_run=False,
         verbose=True,
     )
+
+    # For dataset files
+    dataset_paginator = Paginator[File](
+        Entry=File,
+        gateway=gateway,
+        list_method=gateway.get_dataset_files,
+        list_kwargs={"dataset_uuid": "123e4567-e89b-12d3-a456-426614174000"},
+        dry_run=False,
+        verbose=True,
+    )
+
     print(f"Total files matched: {len(file_paginator)}")
     # len() will fetch the first page
 
@@ -68,7 +81,8 @@ class Paginator(Generic[T]):
         *,
         Entry: type[SDSModel],  # noqa: N803
         gateway: GatewayClient,
-        sds_path: PurePosixPath | Path | str,
+        list_method: Callable[..., bytes],
+        list_kwargs: dict[str, Any],
         dry_run: bool = False,
         page_size: int = 30,
         start_page: int = 1,
@@ -80,7 +94,9 @@ class Paginator(Generic[T]):
         Args:
             Entry:          The SDSModel subclass to use when parsing the entries.
             gateway:        The gateway client to use for fetching pages.
-            sds_path:       The SDS path to paginate through.
+            list_method:    The method to call for fetching pages
+                (e.g., gateway.list_files).
+            list_kwargs:    Keyword arguments to pass to the list_method.
             dry_run:        If True, will generate synthetic pages instead of fetching.
             page_size:      The number of entries to fetch per page.
             start_page:     The page number to start fetching from.
@@ -101,8 +117,11 @@ class Paginator(Generic[T]):
         ):  # pragma: no cover
             msg = "Total matches must be an integer."
             raise ValueError(msg)
-        if not isinstance(sds_path, (PurePosixPath, Path, str)):  # pragma: no cover
-            msg = "SDS path must be a PurePosixPath, Path, or str."
+        if not callable(list_method):  # pragma: no cover
+            msg = "List method must be callable."
+            raise TypeError(msg)
+        if not isinstance(list_kwargs, dict):  # pragma: no cover
+            msg = "List kwargs must be a dictionary."
             raise TypeError(msg)
         if not isinstance(gateway, GatewayClient):  # pragma: no cover
             msg = "Gateway client must be provided."
@@ -113,9 +132,12 @@ class Paginator(Generic[T]):
         self.dry_run = dry_run
         self._Entry = Entry
         self._gateway = gateway
+        self._list_method = list_method
+        self._list_kwargs = copy.deepcopy(
+            list_kwargs
+        )  # Make a copy to avoid modifying the original
         self._next_page = start_page
         self._page_size = page_size
-        self._sds_path = PurePosixPath(sds_path)
         self._total_matches = total_matches if total_matches else 1
         self._verbose: bool = verbose
 
@@ -198,12 +220,17 @@ class Paginator(Generic[T]):
             else:
                 # try to fetch the next page
                 try:
-                    raw_page = self._gateway.list_files(
-                        sds_path=self._sds_path,
-                        page=self._next_page,
-                        page_size=self._page_size,
-                        verbose=self._verbose,
+                    # Prepare kwargs for the listing method
+                    call_kwargs = self._list_kwargs.copy()
+                    call_kwargs.update(
+                        {
+                            "page": self._next_page,
+                            "page_size": self._page_size,
+                            "verbose": self._verbose,
+                        }
                     )
+
+                    raw_page = self._list_method(**call_kwargs)
                     self._ingest_new_page(raw_page)
                 except FileError as err:  # pragma: no cover
                     # log an unexpected FileError if it happens
@@ -277,7 +304,8 @@ def main() -> None:  # pragma: no cover
             host="localhost",
             api_key="does-not-matter-in-dry-run",
         ),
-        sds_path="/path/to/files",
+        list_method=lambda **kwargs: b'{"count": 25, "results": []}',  # Mock response
+        list_kwargs={"sds_path": "/path/to/files"},
         page_size=10,
         dry_run=True,  # in dry-run this should always generate 2.5 pages
         verbose=True,

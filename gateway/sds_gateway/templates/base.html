@@ -87,7 +87,7 @@
                                     <a class="nav-link" href="{% url 'users:files' %}">Files</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" href="{% url 'users:generate_api_key_form' %}">API Key</a>
+                                    <a class="nav-link" href="{% url 'users:view_api_key' %}">API Key</a>
                                 </li>
                                 {% if not request.user.is_authenticated %}
                                     <li class="nav-item">
@@ -106,6 +106,9 @@
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end"
                                             aria-labelledby="navbarUserDropdown">
+                                            <li>
+                                                <a class="dropdown-item" href="{% url 'users:share_group_list' %}">{% translate "Manage Groups" %}</a>
+                                            </li>
                                             <li>
                                                 <a class="dropdown-item" href="{% url 'account_logout' %}">{% translate "Logout" %}</a>
                                             </li>

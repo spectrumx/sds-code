@@ -19,6 +19,8 @@ from rest_framework.test import APITestCase
 
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
+from sds_gateway.api_methods.tests.factories import MockMinIOContext
+from sds_gateway.api_methods.tests.factories import create_file_with_minio_mock
 from sds_gateway.users.models import UserAPIKey
 
 if TYPE_CHECKING:
@@ -342,39 +344,53 @@ class FileTestCases(APITestCase):
         assert "file_exists_in_tree" in response.data
         assert "user_mutable_attributes_differ" in response.data
 
-    @patch("sds_gateway.api_methods.views.file_endpoints.download_file")
-    def test_download_file_uses_helper_function(self, mock_download):
+    def test_download_file_uses_helper_function(self):
         """Test that the download endpoint uses the helper function."""
-        # Mock the helper function
-        mock_download.return_value = b"test file content"
+        # Create a test file with MinIO mocking
+        with MockMinIOContext(b"test file content"):
+            test_file = create_file_with_minio_mock(
+                file_content=b"test file content", owner=self.user
+            )
+
+        # Update the download URL to use the new test file
+        download_url = reverse("api:files-download", args=[test_file.uuid])
 
         # Make request to download endpoint
-        response = self.client.get(self.download_url)
-
-        # Verify the helper function was called
-        mock_download.assert_called_once_with(self.file)
+        response = self.client.get(download_url)
 
         # Verify response
         assert response.status_code == status.HTTP_200_OK
         assert response.content == b"test file content"
-        assert response["Content-Type"] == "text/plain"
+        # Default media type from factory
+        assert response["Content-Type"] == "application/x-hdf5"
         assert (
             response["Content-Disposition"]
-            == f'attachment; filename="{self.file.name}"'
+            == f'attachment; filename="{test_file.name}"'
         )
 
-    @patch("sds_gateway.api_methods.views.file_endpoints.download_file")
-    def test_download_file_handles_errors(self, mock_download):
+    def test_download_file_handles_errors(self):
         """Test that the download endpoint handles errors from the helper function."""
-        # Mock the helper function to raise an exception
-        mock_download.side_effect = OSError("Download failed")
+        # Create a test file with MinIO mocking
+        with MockMinIOContext(b"test content"):
+            test_file = create_file_with_minio_mock(
+                file_content=b"test content", owner=self.user
+            )
 
-        # Make request to download endpoint
-        response = self.client.get(self.download_url)
+        # Update the download URL to use the new test file
+        download_url = reverse("api:files-download", args=[test_file.uuid])
 
-        # Verify error response
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert "Failed to download file" in response.data["detail"]
+        # Mock the download_file function to raise an exception
+        with patch(
+            "sds_gateway.api_methods.views.file_endpoints.download_file"
+        ) as mock_download:
+            mock_download.side_effect = OSError("Download failed")
+
+            # Make request to download endpoint
+            response = self.client.get(download_url)
+
+            # Verify error response
+            assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+            assert "Failed to download file" in response.data["detail"]
 
     def test_download_file_not_found(self):
         """Test that the download endpoint returns 404 for non-existent files."""

@@ -14,6 +14,7 @@ from django.utils.translation import gettext_lazy as _
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.models import User
 from sds_gateway.users.utils import deduplicate_composite_captures
@@ -51,16 +52,24 @@ class Auth0LoginRequiredMixin(LoginRequiredMixin):
 class UserSearchMixin:
     """Mixin to handle user search functionality for sharing."""
 
-    def search_users(self, request, exclude_user_ids=None) -> JsonResponse:
+    def search_users(
+        self,
+        request,
+        exclude_user_ids=None,
+        exclude_group_ids=None,
+        include_groups: bool = True,  # noqa: FBT001, FBT002
+    ) -> JsonResponse:
         """
-        Search for users to share with by name or email.
+        Search for users and groups to share with by name or email.
 
         This method searches for users by exact name or email, and also includes users
-        that the current user has previously interacted with.
+        that the current user has previously interacted with. Optionally includes
+        share groups owned by the current user.
 
         Args:
             request: The HTTP request object
             exclude_user_ids: A list of user IDs to exclude from the search results
+            include_groups: Whether to include share groups in the search results
 
         Returns:
             A JSON response containing the search results
@@ -112,14 +121,59 @@ class UserSearchMixin:
 
         # Serialize users for response
         users_data = [
-            {
-                "name": user.name,
-                "email": user.email,
-            }
-            for user in users
+            {"name": user.name, "email": user.email, "type": "user"} for user in users
         ]
 
-        return JsonResponse(users_data, safe=False)
+        # Add groups if requested
+        if include_groups:
+            # Search for share groups owned by the current user
+            groups = ShareGroup.objects.filter(
+                owner=request.user, is_deleted=False, name__icontains=query
+            )
+
+            # Exclude groups if provided
+            if exclude_group_ids:
+                groups = groups.exclude(uuid__in=exclude_group_ids)
+
+            groups = groups[:limit]
+
+            groups_data = [
+                {
+                    "name": group.name,
+                    "email": f"group:{group.uuid}",  # Use group UUID as identifier
+                    "type": "group",
+                    "member_count": group.members.count(),
+                }
+                for group in groups
+            ]
+
+            # Combine users and groups, prioritizing groups first
+            all_results = []
+
+            # Add exact email matches first (highest priority)
+            exact_email_users = [u for u in users_data if u["email"] == query]
+            all_results.extend(exact_email_users)
+
+            # Add exact group name matches (second priority)
+            exact_name_groups = [
+                g for g in groups_data if g["name"].lower() == query.lower()
+            ]
+            all_results.extend(exact_name_groups)
+
+            # Add remaining groups first (third priority)
+            remaining_groups = [g for g in groups_data if g not in exact_name_groups]
+            all_results.extend(remaining_groups)
+
+            # Add remaining users last (lowest priority)
+            remaining_users = [u for u in users_data if u not in exact_email_users]
+            all_results.extend(remaining_users)
+
+            # Limit total results
+            all_results = all_results[:limit]
+        else:
+            all_results = users_data
+
+        return JsonResponse(all_results, safe=False)
 
 
 class FormSearchMixin:

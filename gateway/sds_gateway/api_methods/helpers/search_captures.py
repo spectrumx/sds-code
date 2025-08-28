@@ -10,9 +10,15 @@ from rich.pretty import pretty_repr
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    build_composite_capture_data,
+)
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    serialize_capture_or_composite,
+)
 from sds_gateway.api_methods.utils.metadata_schemas import base_index_fields
 from sds_gateway.api_methods.utils.metadata_schemas import (
-    capture_index_mapping_by_type as md_props_by_type,  # type: dict[CaptureType, dict[str, Any]]
+    capture_index_mapping_by_type as md_props_by_type,
 )
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
@@ -356,12 +362,6 @@ def get_composite_captures(captures: QuerySet[Capture]) -> list[dict[str, Any]]:
     Returns:
         list: List of composite capture data
     """
-    from sds_gateway.api_methods.serializers.capture_serializers import (
-        build_composite_capture_data,
-    )
-    from sds_gateway.api_methods.serializers.capture_serializers import (
-        serialize_capture_or_composite,
-    )
 
     grouped_captures = group_captures_by_top_level_dir(captures)
     composite_captures = []

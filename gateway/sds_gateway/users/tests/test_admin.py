@@ -11,6 +11,7 @@ from django.urls import reverse
 from pytest_django.asserts import assertRedirects
 from pytest_django.fixtures import SettingsWrapper
 
+import sds_gateway.users.admin as users_admin
 from sds_gateway.users.models import User
 
 
@@ -51,8 +52,6 @@ class TestUserAdmin:
     def _force_allauth(self, settings) -> None:
         settings.DJANGO_ADMIN_FORCE_ALLAUTH = True
         # Reload the admin module to apply the setting change
-        import sds_gateway.users.admin as users_admin
-
         with contextlib.suppress(admin.sites.AlreadyRegistered):  # type: ignore[attr-defined]
             reload(users_admin)
 

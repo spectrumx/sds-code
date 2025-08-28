@@ -45,6 +45,9 @@
                                             <th scope="col" class="sortable w-25" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
+                                            <th scope="col" class="sortable w-15" data-sort="status">
+                                                Status <i class="bi bi-caret-down-fill sort-icon"></i>
+                                            </th>
                                             <th scope="col" class="sortable w-25" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
@@ -70,6 +73,9 @@
                                             <th scope="col" class="sortable w-25" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
+                                            <th scope="col" class="sortable w-15" data-sort="status">
+                                                Status <i class="bi bi-caret-down-fill sort-icon"></i>
+                                            </th>
                                             <th scope="col" class="sortable w-25" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
@@ -94,6 +100,9 @@
                                                               data-bs-toggle="modal"
                                                               data-bs-target="#datasetDetailsModal"
                                                               data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</span>
+                                                    {% endif %}
+                                                    {% if dataset.status == 'draft' %}
+                                                        <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
                                                     {% endif %}
                                                     {% if dataset.is_shared_with_me %}
                                                         <span class="ms-2 align-middle"
@@ -135,11 +144,17 @@
                                                                 </li>
                                                             {% endif %}
                                                             <li>
-                                                                <button class="dropdown-item download-dataset-btn"
+                                                                <button class="dropdown-item"
                                                                         type="button"
-                                                                        data-dataset-uuid="{{ dataset.uuid }}"
-                                                                        data-dataset-name="{{ dataset.name }}">
-                                                                    <i class="bi bi-download me-2"></i>Download
+                                                                        onclick="showWebDownloadModal('{{ dataset.uuid }}', '{{ dataset.name }}')">
+                                                                    <i class="bi bi-download me-2"></i>Web Download
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button class="dropdown-item"
+                                                                        type="button"
+                                                                        onclick="showSDKDownloadModal('{{ dataset.uuid }}')">
+                                                                    <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
                                                                 </button>
                                                             </li>
                                                         </ul>
@@ -206,44 +221,13 @@
                 </div>
             </div>
         </div>
-        <!-- Download Confirmation Modal -->
-        <div class="custom-modal"
-             id="downloadModal"
-             tabindex="-1"
-             aria-labelledby="downloadModalLabel"
-             aria-hidden="true">
-            <div class="custom-modal-backdrop"></div>
-            <div class="custom-modal-dialog">
-                <div class="custom-modal-content">
-                    <div class="custom-modal-header">
-                        <h5 class="custom-modal-title" id="downloadModalLabel">Download Dataset</h5>
-                        <button type="button"
-                                class="btn-close"
-                                data-bs-dismiss="modal"
-                                aria-label="Close"
-                                onclick="closeCustomModal('downloadModal')"></button>
-                    </div>
-                    <div class="custom-modal-body">
-                        <p>Are you sure you want to download this dataset?</p>
-                        <p>
-                            <strong>Dataset:</strong> <span id="downloadDatasetName"></span>
-                        </p>
-                    </div>
-                    <div class="custom-modal-footer">
-                        <button type="button"
-                                class="btn btn-secondary"
-                                onclick="closeCustomModal('downloadModal')">Cancel</button>
-                        <button type="button" class="btn btn-primary" id="confirmDownloadBtn">Download</button>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
     <!-- Modals to reveal on click -->
-    {% include "users/partials/download_confirmation.html" %}
+    {% include "users/partials/web_download_modal.html" %}
     {% include "users/partials/dataset_details_modal.html" %}
     {% for dataset in page_obj %}
         {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
+        {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
     {% endfor %}
     <!-- Toast container for notifications -->
     <div aria-live="polite"
@@ -258,33 +242,6 @@
     <script src="{% static 'js/userSearchComponent.js' %}"></script>
     <script src="{% static 'js/datasetDetailsModal.js' %}"></script>
     <script>
-        // Custom modal functions
-        function openCustomModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.style.display = 'block';
-                document.body.style.overflow = 'hidden';
-            }
-        }
-
-        function closeCustomModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.style.display = 'none';
-                document.body.style.overflow = 'auto';
-            }
-        }
-
-        // Close modal when clicking backdrop
-        document.addEventListener('click', function(event) {
-            if (event.target.classList.contains('custom-modal-backdrop')) {
-                const modal = event.target.closest('.custom-modal');
-                if (modal) {
-                    closeCustomModal(modal.id);
-                }
-            }
-        });
-
         document.addEventListener('DOMContentLoaded', function() {
             // Create a UserSearchHandler for each share modal
             document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {

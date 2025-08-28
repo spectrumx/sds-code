@@ -136,6 +136,15 @@
                                                     data-capture-uuid="{{ cap.uuid }}"
                                                     data-capture-name="{{ cap.name|default:'' }}">Download</button>
                                         </li>
+                                        {% if cap.capture_type == 'drf' %}
+                                            <li>
+                                                <hr class="dropdown-divider" />
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'visualizations:waterfall' cap.uuid %}">Visualize</a>
+                                            </li>
+                                        {% endif %}
                                     </ul>
                                 </div>
                             </td>

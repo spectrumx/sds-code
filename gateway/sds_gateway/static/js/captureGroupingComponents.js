@@ -34,6 +34,7 @@ class FormHandler {
 		// Store references to required fields
 		this.nameField = document.getElementById("id_name");
 		this.authorField = document.getElementById("id_author");
+		this.statusField = document.getElementById("id_status");
 
 		this.initializeEventListeners();
 		this.initializeErrorContainer();
@@ -96,6 +97,11 @@ class FormHandler {
 		}
 		if (this.authorField) {
 			this.authorField.addEventListener("input", () =>
+				this.validateCurrentStep(),
+			);
+		}
+		if (this.statusField) {
+			this.statusField.addEventListener("change", () =>
 				this.validateCurrentStep(),
 			);
 		}
@@ -167,6 +173,8 @@ class FormHandler {
 					this.nameField.value;
 				document.querySelector("#step4 .dataset-author").textContent =
 					this.authorField.value;
+				document.querySelector("#step4 .dataset-status").textContent =
+					this.statusField.options[this.statusField.selectedIndex].text;
 				document.querySelector("#step4 .dataset-description").textContent =
 					document.getElementById("id_description").value ||
 					"No description provided.";
@@ -420,10 +428,11 @@ class FormHandler {
 	}
 
 	validateDatasetInfo() {
-		// Only check if both fields have non-empty values
+		// Check if all required fields have non-empty values
 		const nameValue = this.nameField?.value.trim() || "";
 		const authorValue = this.authorField?.value.trim() || "";
-		return nameValue !== "" && authorValue !== "";
+		const statusValue = this.statusField?.value || "";
+		return nameValue !== "" && authorValue !== "" && statusValue !== "";
 	}
 
 	validateCapturesSelection() {

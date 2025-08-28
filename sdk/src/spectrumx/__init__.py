@@ -61,7 +61,7 @@ def enable_logging() -> None:
         log.enable(LIB_NAME)  # pyright: ignore[reportPossiblyUnboundVariable]
         log.info(f"Enabled logging for '{LIB_NAME}'")  # pyright: ignore[reportPossiblyUnboundVariable]
     except NameError:
-        import logging
+        import logging  # noqa: PLC0415
 
         logger = logging.getLogger(__name__)
 

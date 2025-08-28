@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}
+    Waterfall Visualization - {{ capture.name }}
+{% endblock title %}
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/waterfall.css' %}" />
+{% endblock css %}
+{% block content %}
+    <div class="container-fluid px-5 pt-4"
+         data-capture-uuid="{{ capture.uuid }}">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h1 class="mb-1 text-start">Waterfall Visualization</h1>
+                        <p class="text-muted mb-0">
+                            Capture: {{ capture.name }} ({{ capture.get_capture_type_display |default:"Unknown Type" }})
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <!-- Controls Panel -->
+            <div class="col-md-3 col-lg-2">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="currentSlice" class="form-label">Current Slice</label>
+                            <div class="d-flex align-items-center justify-content-center mb-2 slice-controls">
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        id="decrementSlice"
+                                        aria-label="Previous slice">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <div class="flex-shrink-0">
+                                    <input type="number"
+                                           class="form-control form-control-sm text-center"
+                                           id="sliceIndexInput"
+                                           min="1"
+                                           max="1"
+                                           value="1"
+                                           aria-label="Slice index input" />
+                                </div>
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        id="incrementSlice"
+                                        aria-label="Next slice">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="text-muted small me-2" id="sliceMinLabel">1</span>
+                                <input type="range"
+                                       class="form-range flex-grow-1"
+                                       id="currentSlice"
+                                       min="0"
+                                       max="0"
+                                       value="0" />
+                                <span class="text-muted small ms-2" id="sliceMaxLabel">1</span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="playbackSpeed" class="form-label">Playback</label>
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-primary w-100" id="playPauseBtn">
+                                    <i class="bi bi-play-fill"></i> Play
+                                </button>
+                            </div>
+                            <select class="form-select" id="playbackSpeed">
+                                <option value="0.5">0.5 fps</option>
+                                <option value="1" selected>1 fps</option>
+                                <option value="2">2 fps</option>
+                                <option value="5">5 fps</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="colorMap" class="form-label">Color Map</label>
+                            <select class="form-select" id="colorMap">
+                                <option value="viridis" selected>Viridis</option>
+                                <option value="plasma">Plasma</option>
+                                <option value="inferno">Inferno</option>
+                                <option value="magma">Magma</option>
+                                <option value="hot">Hot</option>
+                                <option value="gray">Gray</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Visualization Area -->
+            <div class="col-md-9 col-lg-10">
+                <div class="card">
+                    <div class="card-body p-0">
+                        <!-- Periodogram Chart -->
+                        <div>
+                            <div id="periodogramChart"></div>
+                        </div>
+                        <!-- Waterfall Plot -->
+                        <div>
+                            <!-- Scroll indicator above -->
+                            <div class="text-center mb-0 scroll-indicator-container"
+                                 id="scrollIndicatorAbove">
+                                <div class="scroll-indicator up"
+                                     title="More recent scans above"
+                                     id="scrollUpBtn">
+                                    <div class="scroll-arrow up"></div>
+                                </div>
+                            </div>
+                            <div id="waterfallPlot">
+                                <canvas id="waterfallCanvas" width="800" height="400"></canvas>
+                                <canvas id="waterfallOverlayCanvas" width="800" height="400"></canvas>
+                                <div id="loadingOverlay" class="loading-overlay">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                <!-- Color Legend - positioned to sit in right margin area -->
+                                <div id="colorLegend" class="color-legend">
+                                    <div class="legend-gradient"></div>
+                                    <div class="legend-labels"></div>
+                                </div>
+                            </div>
+                            <!-- Scroll indicator below -->
+                            <div class="text-center mt-1 scroll-indicator-container"
+                                 id="scrollIndicatorBelow">
+                                <div class="scroll-indicator down"
+                                     title="Older scans below"
+                                     id="scrollDownBtn">
+                                    <div class="scroll-arrow down"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Capture Info -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Capture Info</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-3">Name:</dt>
+                            <dd class="col-9">
+                                {{ capture.name }}
+                            </dd>
+                            <dt class="col-3">Type:</dt>
+                            <dd class="col-9">
+                                {{ capture.capture_type }}
+                            </dd>
+                            <dt class="col-3">Channel:</dt>
+                            <dd class="col-9">
+                                {{ capture.channel|default:"N/A" }}
+                            </dd>
+                            <dt class="col-3">Created:</dt>
+                            <dd class="col-9">
+                                {{ capture.created_at|date:"M d, Y" }}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Loading Modal -->
+    <div class="modal fade"
+         id="loadingModal"
+         tabindex="-1"
+         aria-labelledby="loadingModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mb-0">Loading waterfall data...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+{% block javascript %}
+    <!-- CanvasJS -->
+    <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+    <!-- Waterfall Visualization Module -->
+    <script type="module" src="{% static 'js/waterfall/index.js' %}"></script>
+{% endblock javascript %}

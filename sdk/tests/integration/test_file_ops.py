@@ -493,7 +493,7 @@ def test_download_single_file(
     ],
     indirect=True,
 )
-def test_download_files_in_bulk(
+def test_download_files_in_bulk_with_path(
     integration_client: Client, temp_file_tree: Path
 ) -> None:
     """Test downloading multiple files from SDS."""
@@ -547,6 +547,96 @@ def test_download_files_in_bulk(
 
         assert download_path.is_file(), "Downloaded file not found."
         assert upload_path.is_file(), "Downloaded file not found."
+
+        # they must be different
+        assert upload_path != download_path, (
+            "Uploaded and downloaded file path should be different."
+        )
+
+        # check contents are the same
+        assert downloaded_file.is_same_contents(uploaded_file, verbose=True), (
+            f"Contents mismatch for file {uploaded_file.path.name}"
+        )
+
+        # assert downloaded path is a child of the download_dir
+        assert download_path.is_relative_to(download_dir), (
+            "Downloaded file path should be a child of the download directory."
+            f"{download_path} not in {download_dir}"
+        )
+
+    log.info(f"Downloaded {len(uploaded_files)} files.")
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_meta_download_or_upload(),
+            *PassthruEndpoints.file_content_download(),
+        ]
+    ],
+    indirect=True,
+)
+def test_download_files_in_bulk_with_paginator(
+    integration_client: Client, temp_file_tree: Path
+) -> None:
+    """Test downloading multiple files from SDS using a paginator."""
+    random_subdir_name = get_random_line(10, include_punctuation=False)
+    sds_path = PurePosixPath("/test-tree") / random_subdir_name
+    results = integration_client.upload(
+        local_path=temp_file_tree,
+        sds_path=sds_path,
+        verbose=True,
+    )
+    log.info(f"Uploaded {len(results)} files.")
+    failures = [result for result in results if not result]
+    if failures:
+        pytest.fail(f"One or more file uploads failed: {failures}")
+    uploaded_files: list[File] = [result() for result in results if result]
+    assert len(uploaded_files) > 0, "No files uploaded."
+
+    # download files into a subdirectory
+    download_dir = temp_file_tree / "_downloaded_files"
+    download_dir.mkdir(parents=True, exist_ok=True)
+    downloaded_files_result = integration_client.download(
+        files_to_download=uploaded_files,
+        to_local_path=download_dir,
+        verbose=True,
+    )
+    downloaded_files = [result() for result in downloaded_files_result if result]
+    download_failures = [
+        result.error_info for result in downloaded_files_result if not result
+    ]
+    assert len(download_failures) == 0, f"Download failures: {download_failures}"
+
+    assert len(downloaded_files) > 0, "No files downloaded."
+
+    # sort downloaded_files and uploaded_files by uuid
+    downloaded_files = sorted(downloaded_files, key=lambda f: f.uuid or "-")
+    uploaded_files = sorted(uploaded_files, key=lambda f: f.uuid or "-")
+    assert len(downloaded_files) == len(uploaded_files), (
+        "Number of downloaded files does not match the number of uploaded files."
+    )
+
+    for uploaded_file, downloaded_file in zip(
+        uploaded_files, downloaded_files, strict=True
+    ):
+        download_path = downloaded_file.local_path
+        upload_path = uploaded_file.local_path
+
+        # check paths are valid
+        assert download_path is not None, "Downloaded file not found."
+        assert upload_path is not None, "Uploaded file not found."
+
+        download_path = download_path.resolve()
+        upload_path = upload_path.resolve()
+
+        assert download_path.is_file(), "Downloaded file not found."
+        assert upload_path.is_file(), "Uploaded file not found."
 
         # they must be different
         assert upload_path != download_path, (

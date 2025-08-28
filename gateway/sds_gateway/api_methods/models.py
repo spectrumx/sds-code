@@ -76,6 +76,13 @@ class ProcessingStatus(StrEnum):
     Failed = "failed"
 
 
+class DatasetStatus(StrEnum):
+    """The status of a dataset."""
+
+    DRAFT = "draft"
+    FINAL = "final"
+
+
 def default_expiration_date() -> datetime.datetime:
     """Returns the default expiration date for a file."""
     # 2 years from now
@@ -323,7 +330,10 @@ class Capture(BaseModel):
 
     def get_capture_type_display(self) -> str:
         """Get the display value for the capture type."""
-        return dict(self.CAPTURE_TYPE_CHOICES).get(self.capture_type, self.capture_type)
+        return cast(
+            "str",
+            dict(self.CAPTURE_TYPE_CHOICES).get(self.capture_type, self.capture_type),
+        )
 
     def get_capture(self) -> dict[str, Any]:
         """Return a Capture or composite of Captures for multi-channel captures.
@@ -559,7 +569,18 @@ class Dataset(BaseModel):
 
     list_fields = ["authors", "keywords", "institutions"]
 
+    STATUS_CHOICES = [
+        (DatasetStatus.DRAFT, "Draft"),
+        (DatasetStatus.FINAL, "Final"),
+    ]
+
     name = models.CharField(max_length=255, blank=False, default=None)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=DatasetStatus.DRAFT,
+        help_text="The current status of the dataset",
+    )
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         blank=True,
@@ -679,7 +700,6 @@ class TemporaryZipFile(BaseModel):
     @property
     def download_url(self) -> str:
         """Generate the download URL for this file."""
-        from django.conf import settings
 
         # Get the site domain from settings, with fallback
         site_domain = settings.SITE_DOMAIN
@@ -724,7 +744,7 @@ class UserSharePermission(BaseModel):
     class PermissionType(models.TextChoices):
         """Enumeration of permission types."""
 
-        VIEW = "view", "View"
+        VIEWER = "viewer", "Viewer"
 
     # The user who owns the item being shared
     owner = models.ForeignKey(
@@ -733,11 +753,25 @@ class UserSharePermission(BaseModel):
         related_name="owned_share_permissions",
     )
 
+    permission_level = models.CharField(
+        max_length=20,
+        choices=PermissionType.choices,
+        default=PermissionType.VIEWER,
+    )
+
     # The user who is being granted access
     shared_with = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        blank=True,
+        null=True,
         related_name="received_share_permissions",
+    )
+
+    share_groups = models.ManyToManyField(
+        "ShareGroup",
+        blank=True,
+        related_name="group_share_permissions",
     )
 
     # The type of item being shared
@@ -792,6 +826,20 @@ class UserSharePermission(BaseModel):
         if item_type:
             queryset = queryset.filter(item_type=item_type)
         return queryset
+
+    def has_access_through_groups(self) -> bool:
+        """Check if user still has access through any group."""
+        return self.share_groups.filter(is_deleted=False).exists()
+
+    def update_enabled_status(self) -> None:
+        """Update enabled status based on group access."""
+        if self.share_groups.exists():
+            # User has access through groups, keep enabled
+            self.is_enabled = True
+        else:
+            # No group access, disable
+            self.is_enabled = False
+        self.save()
 
     @classmethod
     def get_shared_users_for_item(cls, item_uuid, item_type):
@@ -909,6 +957,26 @@ class PostProcessedData(BaseModel):
         with Path(file_path).open("rb") as f:
             self.data_file.save(filename, f, save=False)
         self.save(update_fields=["data_file"])
+
+
+class ShareGroup(BaseModel):
+    """
+    Model to handle share groups for datasets and captures.
+    """
+
+    name = models.CharField(max_length=255)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,  # prevents users from being deleted if they own groups (delete the groups first). # noqa: E501
+        related_name="owned_share_groups",
+    )
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="member_share_groups",
+    )
+
+    def __str__(self) -> str:
+        return f"ShareGroup: {self.name} (Owner: {self.owner.email})"
 
 
 def _extract_drf_capture_props(

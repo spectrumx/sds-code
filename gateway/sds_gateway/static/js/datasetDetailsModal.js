@@ -42,10 +42,19 @@ class DatasetDetailsModal {
 			}
 		});
 
-		// Modal hidden event
-		document.addEventListener("hidden.bs.modal", (event) => {
-			if (event.target.id === "datasetDetailsModal") {
-				this.resetModal();
+		// Reset modal when it's hidden
+		document
+			.getElementById("datasetDetailsModal")
+			.addEventListener("hidden.bs.modal", (event) => {
+				if (event.target.id === "datasetDetailsModal") {
+					this.resetModal();
+				}
+			});
+
+		// Copy UUID button functionality
+		document.addEventListener("click", (event) => {
+			if (event.target.closest(".copy-uuid-btn")) {
+				this.copyDatasetUuid();
 			}
 		});
 	}
@@ -103,6 +112,9 @@ class DatasetDetailsModal {
 	 * Populate dataset information in the modal
 	 */
 	populateDatasetInfo(dataset) {
+		// Store dataset UUID for copy functionality
+		this.currentDatasetUuid = dataset.uuid;
+
 		// Dataset basic info
 		document.querySelector(".dataset-details-name").textContent =
 			dataset.name || "N/A";
@@ -110,6 +122,17 @@ class DatasetDetailsModal {
 			dataset.authors || "N/A";
 		document.querySelector(".dataset-details-description").textContent =
 			dataset.description || "No description available";
+
+		// Format status with badge using database values
+		const statusElement = document.querySelector(".dataset-details-status");
+		if (dataset.status === "draft") {
+			statusElement.innerHTML = `<span class="badge bg-secondary">${dataset.status_display || "Draft"}</span>`;
+		} else if (dataset.status === "final") {
+			statusElement.innerHTML = `<span class="badge bg-success">${dataset.status_display || "Final"}</span>`;
+		} else {
+			statusElement.textContent =
+				dataset.status_display || dataset.status || "N/A";
+		}
 
 		// Format dates
 		const createdDate = dataset.created_at
@@ -123,6 +146,80 @@ class DatasetDetailsModal {
 			createdDate;
 		document.querySelector(".dataset-details-updated").textContent =
 			updatedDate;
+	}
+
+	/**
+	 * Copy dataset UUID to clipboard
+	 */
+	async copyDatasetUuid() {
+		if (!this.currentDatasetUuid) {
+			this.showAlert("No dataset UUID available to copy", "warning");
+			return;
+		}
+
+		try {
+			await navigator.clipboard.writeText(this.currentDatasetUuid);
+
+			// Update button to show success state
+			const copyBtn = document.querySelector(".copy-uuid-btn");
+			const icon = copyBtn.querySelector("i");
+			const originalIcon = icon.className;
+			const originalTitle = copyBtn.getAttribute("title");
+			const originalClasses = copyBtn.className;
+
+			// Change icon, title, and button styling to show success
+			icon.className = "bi bi-check-circle-fill";
+			copyBtn.className = "btn btn-sm btn-success copy-uuid-btn";
+			copyBtn.setAttribute("title", "UUID copied!");
+
+			// Show success message to user
+			this.showAlert(
+				"Dataset UUID copied to clipboard successfully",
+				"success",
+			);
+
+			// Reset after 2 seconds
+			setTimeout(() => {
+				icon.className = originalIcon;
+				copyBtn.className = originalClasses;
+				copyBtn.setAttribute("title", originalTitle);
+			}, 2000);
+		} catch (error) {
+			console.error("Failed to copy UUID:", error);
+
+			// Show error state briefly
+			const copyBtn = document.querySelector(".copy-uuid-btn");
+			const icon = copyBtn.querySelector("i");
+			const originalIcon = icon.className;
+			const originalTitle = copyBtn.getAttribute("title");
+			const originalClasses = copyBtn.className;
+
+			// Change to error state
+			icon.className = "bi bi-x-circle-fill";
+			copyBtn.className = "btn btn-sm btn-danger copy-uuid-btn";
+			copyBtn.setAttribute("title", "Failed to copy");
+
+			// Show user-visible error message
+			let errorMessage = "Failed to copy UUID to clipboard";
+			if (error.name === "NotAllowedError") {
+				errorMessage =
+					"Clipboard access denied. Please copy the UUID manually.";
+			} else if (error.name === "NotSupportedError") {
+				errorMessage =
+					"Clipboard API not supported. Please copy the UUID manually.";
+			} else if (error.name === "SecurityError") {
+				errorMessage =
+					"Clipboard access blocked by security policy. Please copy the UUID manually.";
+			}
+			this.showAlert(errorMessage, "error");
+
+			// Reset after 2 seconds
+			setTimeout(() => {
+				icon.className = originalIcon;
+				copyBtn.className = originalClasses;
+				copyBtn.setAttribute("title", originalTitle);
+			}, 2000);
+		}
 	}
 
 	/**

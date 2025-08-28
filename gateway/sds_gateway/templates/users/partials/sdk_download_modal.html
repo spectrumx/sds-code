@@ -1,0 +1,227 @@
+<!-- SDK Download Instructions Modal -->
+<div class="modal fade"
+     id="sdkDownloadModal-{{ dataset.uuid }}"
+     tabindex="-1"
+     aria-labelledby="sdkDownloadModalLabel-{{ dataset.uuid }}"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sdkDownloadModalLabel-{{ dataset.uuid }}">
+                    <i class="bi bi-code-slash"></i> SDK Download Instructions
+                </h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="sdk-download-instructions">
+                    <h6 class="mb-3">Download Dataset Using the SDK</h6>
+                    <p class="text-muted mb-4">
+                        You can programmatically download datasets using the SpectrumX Data System (SDS) SDK. Here is an example:
+                    </p>
+                    <!-- Python Example -->
+                    <div class="code-example mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">
+                                <i class="bi bi-filetype-py"></i> Python Example
+                            </h6>
+                            <button class="btn btn-sm btn-outline-primary copy-btn"
+                                    data-clipboard-target="#python-code-{{ dataset.uuid }}"
+                                    title="Copy to clipboard">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                        <pre id="python-code-{{ dataset.uuid }}" class="bg-light p-3 rounded border"><code class="language-python">from spectrumx import Client
+from spectrumx.errors import SDSError
+from pathlib import Path
+from uuid import UUID
+
+# Initialize the client with your SDS host
+client = Client(
+    host="sds.crc.nd.edu",
+    # env_file=Path(".env"),  # default, recommended to keep tokens out of version control
+    # env_config={"SDS_SECRET_TOKEN": "my-custom-token"},  # alternative way to pass the access token
+)
+
+# when in dry-run (default), no changes are made to the SDS or the local filesystem
+# to enable the changes, set dry_run to False, as in:
+client.dry_run = False  # ⚠️ This is required to actually download files!
+
+# authenticate using either the token from
+# the .env file or in the config passed in
+client.authenticate()
+
+# Download a dataset by UUID
+try:
+    # Specify the dataset UUID and local download path
+    dataset_uuid_str = "{{ dataset.uuid }}"
+    dataset_uuid = UUID(dataset_uuid_str)  # Convert to UUID object
+    download_path = Path("./downloaded_dataset")
+
+    print(f"Downloading dataset: {dataset_uuid_str}")
+    print(f"Download path: {download_path}")
+
+    # Download all files in the dataset
+    results = client.download_dataset(
+        dataset_uuid=dataset_uuid,
+        to_local_path=download_path,
+        skip_contents=False,  # Set to True to download only metadata
+        overwrite=False,      # Set to True to overwrite existing files
+        verbose=True          # Show progress bars
+    )
+
+    # Check results for any errors
+    successful_downloads = [r for r in results if r]  # Result objects are truthy if successful
+    failed_downloads = [r for r in results if not r]  # Result objects are falsy if failed
+
+    print(f"Download completed!")
+    print(f"Successfully downloaded: {len(successful_downloads)} files")
+    print(f"Failed downloads: {len(failed_downloads)} files")
+
+    if failed_downloads:
+        print("\nFailed downloads:")
+        for result in failed_downloads:
+            file_info = result.error_info.get('file', {})
+            file_name = file_info.get('name', 'Unknown') if isinstance(file_info, dict) else 'Unknown'
+            print(f"  - {file_name}: {result.exception_or('Unknown error')}")
+
+except SDSError as e:
+    print(f"Error downloading dataset: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}") </code></pre>
+                    </div>
+                    <!-- Additional Information -->
+                    <div class="alert alert-info">
+                        <h6>
+                            <i class="bi bi-info-circle"></i> Additional Information
+                        </h6>
+                        <ul class="mb-0">
+                            <li>
+                                <strong>Dataset UUID:</strong> You can find the dataset UUID in the URL when viewing a dataset or in the dataset list
+                            </li>
+                            <li>
+                                <strong>API Key:</strong> Set the <code>SDS_API_KEY</code> environment variable or configure it in your settings
+                            </li>
+                            <li>
+                                <strong>Progress Tracking:</strong> Enable <code>verbose=True</code> to see progress bars and detailed output
+                            </li>
+                            <li>
+                                <strong>Error Handling:</strong> The SDK returns detailed results for each file, allowing you to handle partial failures
+                            </li>
+                            <li>
+                                <strong>File Organization:</strong> Files maintain their original directory structure when downloaded
+                            </li>
+                        </ul>
+                    </div>
+                    <!-- Error Handling Tips -->
+                    <div class="alert alert-warning">
+                        <h6>
+                            <i class="bi bi-exclamation-triangle"></i> Error Handling Tips
+                        </h6>
+                        <ul class="mb-0">
+                            <li>
+                                <strong>Authentication:</strong> Ensure your API key is valid and has proper permissions
+                            </li>
+                            <li>
+                                <strong>Network Issues:</strong> The SDK gives the user the option to retry failed downloads
+                            </li>
+                            <li>
+                                <strong>Disk Space:</strong> Check available disk space before downloading large datasets
+                            </li>
+                            <li>
+                                <strong>File Permissions:</strong> Ensure you have write permissions to the download directory
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Prism.js CSS for syntax highlighting -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css"
+      rel="stylesheet" />
+<!-- Prism.js JavaScript for syntax highlighting -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+<script>
+    // Initialize syntax highlighting and copy functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Prism.js syntax highlighting
+        if (typeof Prism !== 'undefined') {
+            Prism.highlightAll();
+        }
+
+        // Copy to clipboard functionality
+        const copyButtons = document.querySelectorAll('.copy-btn');
+
+        copyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-clipboard-target');
+                const codeElement = document.querySelector(targetId);
+
+                if (codeElement) {
+                    const textToCopy = codeElement.textContent;
+
+                    // Use modern clipboard API if available
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(textToCopy).then(() => {
+                            showCopySuccess(this);
+                        }).catch(() => {
+                            fallbackCopyTextToClipboard(textToCopy, this);
+                        });
+                    } else {
+                        fallbackCopyTextToClipboard(textToCopy, this);
+                    }
+                }
+            });
+        });
+
+        function showCopySuccess(button) {
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            button.classList.add('copied');
+
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('copied');
+            }, 2000);
+        }
+
+        function fallbackCopyTextToClipboard(text, button) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                document.execCommand('copy');
+                showCopySuccess(button);
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+            }
+
+            document.body.removeChild(textArea);
+        }
+    });
+
+    // Function to show SDK download modal
+    function showSDKDownloadModal(datasetUuid) {
+        // Show the dataset-specific modal
+        const modal = new bootstrap.Modal(document.getElementById(`sdkDownloadModal-${datasetUuid}`));
+        modal.show();
+    }
+
+    // Make the function globally available
+    window.showSDKDownloadModal = showSDKDownloadModal;
+</script>

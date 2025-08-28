@@ -3,6 +3,7 @@
 # ruff: noqa: SLF001
 # pyright: reportPrivateUsage=false
 
+import uuid
 from collections.abc import Generator
 from unittest.mock import MagicMock
 from unittest.mock import patch
@@ -25,26 +26,32 @@ def gateway() -> GatewayClient:
 def test_paginator_respects_dry_run(gateway: GatewayClient) -> None:
     """Tests that the paginator respects the dry-run mode."""
     raw_first_page = b'{"count": 0, "results": []}'
+
+    # Configure the mock to return the expected bytes
+    gateway.list_files.return_value = raw_first_page
+
     paginator_wet = Paginator[File](
         Entry=File,
         gateway=gateway,
-        sds_path="/path/to/files",
+        list_method=gateway.list_files,
+        list_kwargs={"sds_path": "/path/to/files"},
         page_size=3,
         dry_run=False,
     )
     assert paginator_wet.dry_run is False, "Dry-run mode should be off"
-    with patch.object(
-        gateway, attribute="list_files", return_value=raw_first_page
-    ) as mock_list_files:
-        for _file_obj in paginator_wet:
-            break
-        mock_list_files.assert_called_once()
+
+    # Force the paginator to fetch data by calling len()
+    len(paginator_wet)
+
+    # Check that the mock was called
+    gateway.list_files.assert_called_once()
     del paginator_wet
 
     paginator_dry = Paginator[File](
         Entry=File,
         gateway=gateway,
-        sds_path="/path/to/files",
+        list_method=gateway.list_files,
+        list_kwargs={"sds_path": "/path/to/files"},
         page_size=3,
         dry_run=True,
     )
@@ -55,8 +62,8 @@ def test_paginator_respects_dry_run(gateway: GatewayClient) -> None:
         mock_list_files.assert_not_called()
 
 
-def test_paginator_dry_run_ingest(gateway: GatewayClient) -> None:
-    """Tests the dry-run mode of the paginator."""
+def test_paginator_dry_run_ingest_list_files(gateway: GatewayClient) -> None:
+    """Tests the dry-run mode of the paginator for list_files."""
     page_size = 3
     expected_yield = int(2.5 * page_size)  # default for dry-run is 2.5 pages
 
@@ -65,8 +72,45 @@ def test_paginator_dry_run_ingest(gateway: GatewayClient) -> None:
         paginator = Paginator[File](
             Entry=File,
             gateway=gateway,
-            sds_path="/path/to/files",
-            page_size=3,
+            list_method=gateway.list_files,
+            list_kwargs={"sds_path": "/path/to/files"},
+            page_size=page_size,
+            dry_run=True,
+        )
+
+        # initial state assertions
+        assert paginator._has_fetched is False
+        assert paginator._has_next_page is True
+        assert paginator._next_page == 1
+        assert paginator._total_matches == 1
+        assert paginator._yielded_count == 0
+
+        test_yield_count: int = 0
+
+        # consume files and count them
+        for file_obj in paginator:
+            test_yield_count += 1
+            assert isinstance(file_obj, File), "Expected a File instance"
+        assert test_yield_count == expected_yield, (
+            f"Expected {expected_yield} files, got {test_yield_count}"
+        )
+
+
+def test_paginator_dry_run_ingest_get_dataset_files(gateway: GatewayClient) -> None:
+    """Tests the dry-run mode of the paginator for get_dataset_files."""
+    page_size = 3
+    expected_yield = int(2.5 * page_size)  # default for dry-run is 2.5 pages
+
+    with patch.object(gateway, attribute="get_dataset_files") as mock_get_dataset_files:
+        mock_get_dataset_files.side_effect = Exception(
+            "Should not be called in dry-run mode"
+        )
+        paginator = Paginator[File](
+            Entry=File,
+            gateway=gateway,
+            list_method=gateway.get_dataset_files,
+            list_kwargs={"dataset_uuid": uuid.uuid4()},
+            page_size=page_size,
             dry_run=True,
         )
 
@@ -107,10 +151,14 @@ def test_paginator_bool_non_empty(
     non_empty_paginator = Paginator[File](
         Entry=File,
         gateway=gateway,
-        sds_path="/path/to/files",
+        list_method=gateway.list_files,
+        list_kwargs={"sds_path": "/path/to/files"},
         page_size=3,
         dry_run=False,
     )
+
+    # Configure the mock to return the expected bytes
+    gateway.list_files.return_value = raw_first_page
 
     with patch.object(gateway, attribute="list_files", return_value=raw_first_page):
         assert non_empty_paginator, "Paginator should evaluate to True when not empty"
@@ -135,10 +183,15 @@ def test_paginator_bool_empty(
     empty_paginator = Paginator[File](
         Entry=File,
         gateway=gateway,
-        sds_path="/path/to/files",
+        list_method=gateway.list_files,
+        list_kwargs={"sds_path": "/path/to/files"},
         page_size=3,
         dry_run=False,
     )
+
+    # Configure the mock to return the expected bytes
+    gateway.list_files.return_value = raw_empty_page
+
     with patch.object(gateway, attribute="list_files", return_value=raw_empty_page):
         assert not empty_paginator, "Paginator should evaluate to False when empty"
 
@@ -168,7 +221,8 @@ def test_paginator_internal_state(
     paginator = Paginator[File](
         Entry=File,
         gateway=gateway,
-        sds_path="/path/to/files",
+        list_method=gateway.list_files,
+        list_kwargs={"sds_path": "/path/to/files"},
         page_size=page_size,
         dry_run=False,
     )
@@ -193,6 +247,9 @@ def test_paginator_internal_state(
         "Total matches is unknown (default=1) before the first page is fetched"
     )
 
+    # Configure the mock to return the expected bytes
+    gateway.list_files.return_value = raw_first_page
+
     # assertions after the first page is fetched
     with patch.object(gateway, attribute="list_files", return_value=raw_first_page):
         assert len(paginator) == target_count  # this will fetch the first page
@@ -216,6 +273,9 @@ def test_paginator_internal_state(
         "Yield count does not match the items actually yielded (1st page)"
     )
     assert paginator._yielded_count == test_yield_count
+
+    # Configure the mock to return the second page
+    gateway.list_files.return_value = raw_second_page
 
     # assertions after the second and final page is fetched
     with patch.object(gateway, attribute="list_files", return_value=raw_second_page):

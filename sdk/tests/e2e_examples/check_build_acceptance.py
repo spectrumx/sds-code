@@ -14,7 +14,7 @@ All SDK functions below should be called in dry_run mode to run in environments
 Run it as a standalone script between the package build and publishing steps.
 Avoid adding third-party imports to this file.
 """
-# ruff: noqa: ERA001, T201, I001
+# ruff: noqa: ERA001, T201, I001, PLC0415
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -287,6 +287,29 @@ def check_capture_usage() -> None:
     )
 
 
+def check_download_modes() -> None:
+    """Other download examples."""
+
+    sds = Client(host=SDS_HOST)
+    sds.authenticate()
+    reference_name: str = "my_spectrum_files"
+
+    file_paginator = sds.list_files(sds_path=reference_name)
+
+    sds.download(
+        files_to_download=file_paginator,
+        to_local_path=Path("sds-downloads") / "files" / reference_name,
+        overwrite=False,  # do not overwrite local existing files (default)
+        verbose=True,
+    )
+
+    ds_uuid = "123e4567-e89b-12d3-a456-426614174000"
+    sds.download_dataset(
+        dataset_uuid=ds_uuid,
+        to_local_path=Path("sds-downloads") / "datasets" / ds_uuid,
+    )
+
+
 def check_experiments() -> None:
     """Basic experimental features usage example."""
     # sds = Client(host=SDS_HOST)
@@ -326,6 +349,7 @@ def main() -> None:
         CheckCaller(call_fn=check_file_listing_usage, name="File listing usage"),
         CheckCaller(call_fn=check_capture_usage, name="Capture usage"),
         CheckCaller(call_fn=check_experiments, name="Experimental features"),
+        CheckCaller(call_fn=check_download_modes, name="Download usage"),
     ]
     for check in all_checks:
         log_header(f"Running {check.name} check...".upper())

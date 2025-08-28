@@ -6,9 +6,6 @@ import logging
 from typing import TYPE_CHECKING
 from typing import Any
 
-if TYPE_CHECKING:
-    from sds_gateway.api_methods.models import CaptureType
-
 log = logging.getLogger(__name__)
 
 drf_capture_metadata_schema = {
@@ -163,7 +160,7 @@ drf_capture_metadata_schema = {
 }
 
 # fields to be explicitly mapped in the capture metadata index, see https://opensearch.org/docs/2.5/field-types/mappings/#explicit-mapping
-drf_capture_index_mapping = {
+drf_capture_index_mapping: dict[str, dict[str, str]] = {
     "H5Tget_class": {
         "type": "integer",
     },
@@ -359,8 +356,9 @@ base_index_fields = [
     "capture_props",
 ]
 
-# This will be populated at runtime to avoid circular imports
-capture_index_mapping_by_type = {}
+# Initialize empty dictionary to avoid circular import issues
+# Will be populated dynamically in get_mapping_for_capture_type()
+capture_index_mapping_by_type: dict[Any, dict[str, dict[str, Any]]] = {}
 
 base_properties = {
     "channel": {"type": "keyword"},

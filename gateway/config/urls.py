@@ -19,6 +19,11 @@ urlpatterns = [
     # User management
     path("users/", include("sds_gateway.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
+    # Visualizations
+    path(
+        "visualizations/",
+        include("sds_gateway.visualizations.urls", namespace="visualizations"),
+    ),
     # Your stuff: custom urls includes go here
     # ...
     # Media files
