@@ -200,49 +200,70 @@
                                                 </div>
                                                 <div class="col-md-2 d-flex justify-content-end align-items-center">
                                                     <div class="d-flex align-items-center gap-2">
-                                                        <!-- Permission Level Selector -->
-                                                        <select class="form-select form-select-sm permission-level-selector" 
-                                                                data-user-email="{{ user.email }}"
-                                                                data-user-name="{{ user.name }}"
-                                                                data-item-uuid="{{ item.uuid }}"
-                                                                data-item-type="{{ item_type }}"
-                                                                style="min-width: 120px;">
-                                                            <option value="viewer" {% if user.permission_level == 'viewer' %}selected{% endif %}>
-                                                                <i class="bi bi-eye"></i> Viewer
-                                                            </option>
-                                                            <option value="contributor" {% if user.permission_level == 'contributor' %}selected{% endif %}>
-                                                                <i class="bi bi-plus-circle"></i> Contributor
-                                                            </option>
-                                                            <option value="co-owner" {% if user.permission_level == 'co-owner' %}selected{% endif %}>
-                                                                <i class="bi bi-gear"></i> Co-Owner
-                                                            </option>
-                                                        </select>
+                                                        <!-- Access Level Dropdown Button -->
                                                         <div class="dropdown">
-                                                            <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                            <button class="btn btn-sm dropdown-toggle access-level-dropdown"
                                                                     type="button"
                                                                     data-bs-toggle="dropdown"
                                                                     data-bs-popper="static"
                                                                     aria-expanded="false"
-                                                                    aria-label="Actions for {{ user.name }}">
-                                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                                    data-user-email="{{ user.email }}"
+                                                                    data-user-name="{{ user.name }}"
+                                                                    data-item-uuid="{{ item.uuid }}"
+                                                                    data-item-type="{{ item_type }}"
+                                                                    data-current-permission="{{ user.permission_level }}">
+                                                                {% if user.permission_level == 'viewer' %}
+                                                                    <i class="bi bi-eye me-1"></i>Viewer
+                                                                {% elif user.permission_level == 'contributor' %}
+                                                                    <i class="bi bi-plus-circle me-1"></i>Contributor
+                                                                {% elif user.permission_level == 'co-owner' %}
+                                                                    <i class="bi bi-gear me-1"></i>Co-Owner
+                                                                {% else %}
+                                                                    <i class="bi bi-question-circle me-1"></i>{{ user.permission_level|title }}
+                                                                {% endif %}
                                                             </button>
-                                                            <ul class="dropdown-menu">
+                                                            <ul class="dropdown-menu access-level-menu">
                                                                 <li>
-                                                                    <span class="dropdown-item-text text-muted">
-                                                                        <i class="bi bi-eye me-2"></i>View
-                                                                    </span>
+                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'viewer' %}selected{% endif %}"
+                                                                            type="button"
+                                                                            data-permission-level="viewer">
+                                                                        <i class="bi bi-eye me-2"></i>Viewer
+                                                                        {% if user.permission_level == 'viewer' %}
+                                                                            <i class="bi bi-check ms-auto"></i>
+                                                                        {% endif %}
+                                                                    </button>
+                                                                </li>
+                                                                <li>
+                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'contributor' %}selected{% endif %}"
+                                                                            type="button"
+                                                                            data-permission-level="contributor">
+                                                                        <i class="bi bi-plus-circle me-2"></i>Contributor
+                                                                        {% if user.permission_level == 'contributor' %}
+                                                                            <i class="bi bi-check ms-auto"></i>
+                                                                        {% endif %}
+                                                                    </button>
+                                                                </li>
+                                                                <li>
+                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'co-owner' %}selected{% endif %}"
+                                                                            type="button"
+                                                                            data-permission-level="co-owner">
+                                                                        <i class="bi bi-gear me-2"></i>Co-Owner
+                                                                        {% if user.permission_level == 'co-owner' %}
+                                                                            <i class="bi bi-check ms-auto"></i>
+                                                                        {% endif %}
+                                                                    </button>
                                                                 </li>
                                                                 <li>
                                                                     <hr class="dropdown-divider" />
                                                                 </li>
                                                                 <li>
-                                                                    <button class="dropdown-item text-danger remove-access-btn"
+                                                                    <button class="dropdown-item text-danger remove-access-btn permission-change-btn"
                                                                             type="button"
                                                                             data-user-email="{{ user.email }}"
                                                                             data-user-name="{{ user.name }}"
                                                                             data-item-uuid="{{ item.uuid }}"
                                                                             data-item-type="{{ item_type }}">
-                                                                        <i class="bi bi-person-slash me-2"></i>Remove Access
+                                                                        <i class="bi bi-person-slash me-2"></i>Remove access
                                                                     </button>
                                                                 </li>
                                                             </ul>
@@ -275,9 +296,26 @@
     </div>
 </div>
 <script>
-    // Group member popup functionality
-    document.addEventListener('DOMContentLoaded', function() {
-        const groupRows = document.querySelectorAll('tr:has(.bi-people-fill)');
+            // Group member popup functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize access level dropdowns
+            const accessLevelDropdowns = document.querySelectorAll('.access-level-dropdown');
+            accessLevelDropdowns.forEach(dropdown => {
+                const currentPermission = dropdown.getAttribute('data-current-permission');
+                const dropdownMenu = dropdown.nextElementSibling;
+                const permissionBtns = dropdownMenu.querySelectorAll('.permission-change-btn');
+                
+                // Mark current permission as selected
+                permissionBtns.forEach(btn => {
+                    if (btn.getAttribute('data-permission-level') === currentPermission) {
+                        btn.classList.add('selected');
+                    }
+                });
+                
+                // Colors are now handled by CSS based on data-current-permission attribute
+            });
+            
+            const groupRows = document.querySelectorAll('tr:has(.bi-people-fill)');
 
         groupRows.forEach(row => {
             const popup = row.querySelector('.group-members-popup');
@@ -292,37 +330,227 @@
             }
         });
 
-        // Permission level selection functionality
-        const permissionSelects = document.querySelectorAll('[id^="permission-level-"]');
-        permissionSelects.forEach(select => {
-            select.addEventListener('change', function() {
-                const selectedValue = this.value;
-                const form = this.closest('form');
+        // Store pending changes for each modal
+        const pendingChanges = new Map();
+        
+        // Permission level change functionality
+        const permissionChangeBtns = document.querySelectorAll('.permission-change-btn');
+        permissionChangeBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const newPermissionLevel = this.getAttribute('data-permission-level');
+                const dropdown = this.closest('.dropdown');
+                const dropdownButton = dropdown.querySelector('.access-level-dropdown');
+                const userEmail = dropdownButton.getAttribute('data-user-email');
+                const userName = dropdownButton.getAttribute('data-user-name');
+                const itemUuid = dropdownButton.getAttribute('data-item-uuid');
+                const itemType = dropdownButton.getAttribute('data-item-type');
+                const currentPermission = dropdownButton.getAttribute('data-current-permission');
+                
+                // Don't do anything if selecting the same permission
+                if (newPermissionLevel === currentPermission) {
+                    return;
+                }
+                
+                // Update the dropdown button text and icon
+                const iconClass = newPermissionLevel === 'viewer' ? 'bi-eye' : 
+                                newPermissionLevel === 'contributor' ? 'bi-plus-circle' : 
+                                newPermissionLevel === 'co-owner' ? 'bi-gear' : 'bi-question-circle';
+                
+                dropdownButton.innerHTML = `<i class="bi ${iconClass} me-1"></i>${newPermissionLevel.charAt(0).toUpperCase() + newPermissionLevel.slice(1)}`;
+                dropdownButton.setAttribute('data-current-permission', newPermissionLevel);
+                
+                // Update button colors based on permission level
+                dropdownButton.className = 'btn btn-sm dropdown-toggle access-level-dropdown';
+                // Colors are now handled by CSS based on data-current-permission attribute
+                
+                // Update checkmarks in dropdown menu
+                const dropdownMenu = dropdown.querySelector('.access-level-menu');
+                const allPermissionBtns = dropdownMenu.querySelectorAll('.permission-change-btn');
+                
+                // Remove selected class and checkmarks from all buttons
+                allPermissionBtns.forEach(btn => {
+                    btn.classList.remove('selected');
+                    const checkmark = btn.querySelector('.bi-check');
+                    if (checkmark) {
+                        checkmark.remove();
+                    }
+                });
+                
+                // Add selected class and checkmark to the clicked button
+                this.classList.add('selected');
+                const checkmark = document.createElement('i');
+                checkmark.className = 'bi bi-check ms-auto';
+                this.appendChild(checkmark);
+                
+                // Store the pending change
+                const form = dropdown.closest('form');
+                const modalId = form.id;
+                if (!pendingChanges.has(modalId)) {
+                    pendingChanges.set(modalId, { permissionChanges: [], removals: [] });
+                }
+                
+                const changes = pendingChanges.get(modalId);
+                // Remove any existing permission change for this user
+                changes.permissionChanges = changes.permissionChanges.filter(change => change.userEmail !== userEmail);
+                // Add the new permission change
+                changes.permissionChanges.push({
+                    userEmail: userEmail,
+                    userName: userName,
+                    itemUuid: itemUuid,
+                    itemType: itemType,
+                    newPermissionLevel: newPermissionLevel
+                });
+                
+                // Enable save button and show pending changes
                 const saveButton = form.querySelector('[id^="share-item-btn-"]');
                 const pendingMessage = form.querySelector('[id^="pending-changes-message-"]');
                 
-                // Update the form data to include the selected permission level
-                const permissionInput = form.querySelector('input[name="permission_level"]');
-                if (!permissionInput) {
-                    const hiddenInput = document.createElement('input');
-                    hiddenInput.type = 'hidden';
-                    hiddenInput.name = 'permission_level';
-                    hiddenInput.value = selectedValue;
-                    form.appendChild(hiddenInput);
-                } else {
-                    permissionInput.value = selectedValue;
+                if (saveButton) saveButton.disabled = false;
+                if (pendingMessage) pendingMessage.classList.remove('d-none');
+                
+                // Close the dropdown
+                const bsDropdown = bootstrap.Dropdown.getInstance(dropdownButton);
+                if (bsDropdown) {
+                    bsDropdown.hide();
+                }
+            });
+        });
+        
+        // Remove access functionality
+        const removeAccessBtns = document.querySelectorAll('.remove-access-btn');
+        removeAccessBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const userEmail = this.getAttribute('data-user-email');
+                const userName = this.getAttribute('data-user-name');
+                const itemUuid = this.getAttribute('data-item-uuid');
+                const itemType = this.getAttribute('data-item-type');
+                
+                // Find the user row and cross out the name
+                const userRow = this.closest('tr');
+                const userNameElement = userRow.querySelector('h5');
+                if (userNameElement) {
+                    userNameElement.style.textDecoration = 'line-through';
+                    userNameElement.style.opacity = '0.6';
                 }
                 
-                // Show pending changes message
-                if (pendingMessage) {
-                    pendingMessage.classList.remove('d-none');
+                // Store the pending removal
+                const form = this.closest('form');
+                const modalId = form.id;
+                if (!pendingChanges.has(modalId)) {
+                    pendingChanges.set(modalId, { permissionChanges: [], removals: [] });
                 }
                 
-                // Enable save button if there are selected users
-                const selectedChips = form.querySelectorAll('.selected-user-chip');
-                if (selectedChips.length > 0 && saveButton) {
-                    saveButton.disabled = false;
+                const changes = pendingChanges.get(modalId);
+                // Remove any existing removal for this user
+                changes.removals = changes.removals.filter(removal => removal.userEmail !== userEmail);
+                // Add the new removal
+                changes.removals.push({
+                    userEmail: userEmail,
+                    userName: userName,
+                    itemUuid: itemUuid,
+                    itemType: itemType
+                });
+                
+                // Enable save button and show pending changes
+                const saveButton = form.querySelector('[id^="share-item-btn-"]');
+                const pendingMessage = form.querySelector('[id^="pending-changes-message-"]');
+                
+                if (saveButton) saveButton.disabled = false;
+                if (pendingMessage) pendingMessage.classList.remove('d-none');
+                
+                // Close the dropdown
+                const dropdown = this.closest('.dropdown');
+                const dropdownButton = dropdown.querySelector('.access-level-dropdown');
+                const bsDropdown = bootstrap.Dropdown.getInstance(dropdownButton);
+                if (bsDropdown) {
+                    bsDropdown.hide();
                 }
+            });
+        });
+
+        // Save button functionality
+        const saveButtons = document.querySelectorAll('[id^="share-item-btn-"]');
+        saveButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const form = this.closest('form');
+                const modalId = form.id;
+                const changes = pendingChanges.get(modalId);
+                
+                if (!changes || (changes.permissionChanges.length === 0 && changes.removals.length === 0)) {
+                    return;
+                }
+                
+                // Disable save button and show loading state
+                this.disabled = true;
+                this.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Saving...';
+                
+                // Process permission changes
+                const permissionPromises = changes.permissionChanges.map(change => {
+                    return fetch(`/users/share/${change.itemType}/${change.itemUuid}/`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        body: `user_email=${encodeURIComponent(change.userEmail)}&permission_level=${encodeURIComponent(change.newPermissionLevel)}`
+                    }).then(response => response.json());
+                });
+                
+                // Process removals
+                const removalPromises = changes.removals.map(removal => {
+                    return fetch(`/users/share/${removal.itemType}/${removal.itemUuid}/`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        },
+                        body: `user_email=${encodeURIComponent(removal.userEmail)}`
+                    }).then(response => response.json());
+                });
+                
+                // Execute all changes
+                Promise.all([...permissionPromises, ...removalPromises])
+                    .then(results => {
+                        const successCount = results.filter(result => result.success).length;
+                        const totalCount = results.length;
+                        
+                        if (successCount === totalCount) {
+                            // All changes successful
+                            alert(`Successfully updated ${successCount} permission(s)`);
+                            
+                            // Clear pending changes
+                            pendingChanges.delete(modalId);
+                            
+                            // Reset UI
+                            const pendingMessage = form.querySelector('[id^="pending-changes-message-"]');
+                            if (pendingMessage) pendingMessage.classList.add('d-none');
+                            
+                            // Close modal
+                            const modal = form.closest('.modal');
+                            const bsModal = bootstrap.Modal.getInstance(modal);
+                            if (bsModal) {
+                                bsModal.hide();
+                            }
+                            
+                            // Reload page to reflect changes
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 500);
+                        } else {
+                            // Some changes failed
+                            const failedCount = totalCount - successCount;
+                            alert(`Updated ${successCount} permission(s), but ${failedCount} failed. Please try again.`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error saving changes:', error);
+                        alert('An error occurred while saving changes. Please try again.');
+                    })
+                    .finally(() => {
+                        // Reset save button
+                        this.disabled = false;
+                        this.innerHTML = 'Save';
+                    });
             });
         });
 
