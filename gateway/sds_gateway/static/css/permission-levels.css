@@ -69,6 +69,62 @@
     padding: 0.5rem;
 }
 
+/* Permission level selectors for existing users */
+.permission-level-selector {
+    font-size: 0.875rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+}
+
+.permission-level-selector:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.permission-level-selector.focused {
+    border-color: #86b7fe;
+    background-color: #f8f9fa;
+}
+
+.permission-level-selector.updating {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Permission level selector styling */
+.permission-level-selector.permission-viewer {
+    border-color: #bbdefb;
+    background-color: #e3f2fd;
+}
+
+.permission-level-selector.permission-contributor {
+    border-color: #c8e6c9;
+    background-color: #e8f5e8;
+}
+
+.permission-level-selector.permission-co-owner {
+    border-color: #ffcc02;
+    background-color: #fff3e0;
+}
+
+.permission-level-selector.permission-multiple {
+    border-color: #ffb74d;
+    background-color: #fff8e1;
+    color: #f57c00;
+}
+
+/* Group permission management */
+.group-permission-selector {
+    font-weight: 600;
+    border-width: 2px;
+}
+
+.member-permission-selector {
+    font-size: 0.8rem;
+    margin-left: 1rem;
+}
+
 /* Hover effects for permission badges */
 .permission-badge:hover {
     transform: translateY(-1px);

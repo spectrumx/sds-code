@@ -149,20 +149,74 @@
                                                                     </small>
                                                                 </div>
                                                             </div>
+                                                            <!-- Group Permission Management -->
+                                                            <div class="group-permission-management mt-2">
+                                                                <div class="d-flex align-items-center gap-2">
+                                                                    <small class="text-muted">Group Permission:</small>
+                                                                    <select class="form-select form-select-sm group-permission-selector" 
+                                                                            data-group-uuid="{{ user.email|slice:'6:' }}"
+                                                                            data-item-uuid="{{ item.uuid }}"
+                                                                            data-item-type="{{ item_type }}"
+                                                                            style="min-width: 120px;">
+                                                                        <option value="viewer" {% if user.permission_level == 'viewer' %}selected{% endif %}>
+                                                                            <i class="bi bi-eye"></i> Viewer
+                                                                        </option>
+                                                                        <option value="contributor" {% if user.permission_level == 'contributor' %}selected{% endif %}>
+                                                                            <i class="bi bi-plus-circle"></i> Contributor
+                                                                        </option>
+                                                                        <option value="co-owner" {% if user.permission_level == 'co-owner' %}selected{% endif %}>
+                                                                            <i class="bi bi-gear"></i> Co-Owner
+                                                                        </option>
+                                                                        <option value="multiple" {% if user.permission_level == 'multiple' %}selected{% endif %}>
+                                                                            <i class="bi bi-three-dots"></i> Multiple
+                                                                        </option>
+                                                                    </select>
+                                                                </div>
+                                                                <!-- Individual Member Permissions (collapsible) -->
+                                                                <div class="member-permissions mt-2" style="display: none;">
+                                                                    <small class="text-muted d-block mb-1">Individual Permissions:</small>
+                                                                    {% for member in user.members %}
+                                                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                                                            <small class="text-muted" style="min-width: 120px;">{{ member.name }}:</small>
+                                                                            <select class="form-select form-select-sm member-permission-selector" 
+                                                                                    data-group-uuid="{{ user.email|slice:'6:' }}"
+                                                                                    data-member-email="{{ member.email }}"
+                                                                                    data-item-uuid="{{ item.uuid }}"
+                                                                                    data-item-type="{{ item_type }}"
+                                                                                    style="min-width: 100px;">
+                                                                                <option value="viewer">Viewer</option>
+                                                                                <option value="contributor">Contributor</option>
+                                                                                <option value="co-owner">Co-Owner</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    {% endfor %}
+                                                                </div>
+                                                                <button type="button" class="btn btn-sm btn-outline-secondary mt-1 toggle-member-permissions">
+                                                                    <i class="bi bi-chevron-down"></i> Manage Individual Permissions
+                                                                </button>
+                                                            </div>
                                                         {% endif %}
                                                     </div>
                                                 </div>
                                                 <div class="col-md-2 d-flex justify-content-end align-items-center">
                                                     <div class="d-flex align-items-center gap-2">
-                                                        <span class="permission-badge {% if user.permission_level == 'co-owner' %}co-owner{% elif user.permission_level == 'contributor' %}contributor{% else %}viewer{% endif %}">
-                                                            {% if user.permission_level == 'co-owner' %}
-                                                                <i class="bi bi-gear"></i>Co-Owner
-                                                            {% elif user.permission_level == 'contributor' %}
-                                                                <i class="bi bi-plus-circle"></i>Contributor
-                                                            {% else %}
-                                                                <i class="bi bi-eye"></i>Viewer
-                                                            {% endif %}
-                                                        </span>
+                                                        <!-- Permission Level Selector -->
+                                                        <select class="form-select form-select-sm permission-level-selector" 
+                                                                data-user-email="{{ user.email }}"
+                                                                data-user-name="{{ user.name }}"
+                                                                data-item-uuid="{{ item.uuid }}"
+                                                                data-item-type="{{ item_type }}"
+                                                                style="min-width: 120px;">
+                                                            <option value="viewer" {% if user.permission_level == 'viewer' %}selected{% endif %}>
+                                                                <i class="bi bi-eye"></i> Viewer
+                                                            </option>
+                                                            <option value="contributor" {% if user.permission_level == 'contributor' %}selected{% endif %}>
+                                                                <i class="bi bi-plus-circle"></i> Contributor
+                                                            </option>
+                                                            <option value="co-owner" {% if user.permission_level == 'co-owner' %}selected{% endif %}>
+                                                                <i class="bi bi-gear"></i> Co-Owner
+                                                            </option>
+                                                        </select>
                                                         <div class="dropdown">
                                                             <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
                                                                     type="button"
