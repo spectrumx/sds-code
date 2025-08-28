@@ -38,14 +38,14 @@ repos:
 
     # automatically upgrades Django code to migrates patterns and avoid deprecation warnings
     - repo: https://github.com/adamchainz/django-upgrade
-      rev: "1.25.0"
+      rev: "1.27.0"
       hooks:
           - id: django-upgrade
             args: ["--target-version", "4.2"]
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.12.10
+      rev: v0.12.11
       hooks:
           # linter
           - id: ruff # runs ruff check --force-exclude
