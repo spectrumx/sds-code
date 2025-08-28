@@ -269,7 +269,7 @@ def _check_disk_space_available_for_reconstruction(
                 f"available in target directory: {target_dir}"
             )
             log.error(msg)
-            raise ValueError(msg)
+            raise OSError(msg)
 
     return True
 

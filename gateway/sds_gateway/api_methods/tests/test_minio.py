@@ -227,7 +227,7 @@ class ReconstructRHFileTreeTest(APITestCase):
         mock_estimate_size.return_value = 1024 * 1024 * 1024  # 1GB estimated size
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(ValueError, match="Insufficient disk space") as context:
+            with pytest.raises(OSError, match="Insufficient disk space") as context:
                 reconstruct_tree(
                     target_dir=Path(temp_dir),
                     virtual_top_dir=self.top_level_dir,

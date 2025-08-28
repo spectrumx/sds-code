@@ -224,7 +224,7 @@ def _process_waterfall_files(
             f"available in temp directory: {temp_path}"
         )
         processed_data.mark_processing_failed(error_msg)
-        raise ValueError(error_msg)
+        raise OSError(error_msg)
 
     reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
 
