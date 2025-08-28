@@ -3,12 +3,14 @@
 ## 🎯 **Authentication Strategy**
 
 ### **Local Development** 🚀
+
 - **Simple authentication** with username/password
 - **No external dependencies** required
 - **Quick setup** for development and testing
 - **Login**: `admin` / `admin`
 
 ### **Production** 🔒
+
 - **OAuth authentication** via Auth0
 - **Secure enterprise authentication**
 - **SSL/TLS encryption**
@@ -16,7 +18,7 @@
 
 ## 📁 **File Structure**
 
-```
+```text
 gateway/
 ├── compose/
 │   ├── local/jupyter/           # Local development (no OAuth)
@@ -39,37 +41,43 @@ gateway/
 ## 🔧 **Local Development**
 
 ### **Current Status**: ✅ Working
+
 - **Port**: 8888
-- **URL**: http://localhost:8888
+- **URL**: <http://localhost:8888>
 - **Authentication**: Simple local
 - **Dependencies**: Minimal
 
 ### **Start Local Services**
+
 ```bash
 cd gateway
 docker-compose -f compose.local.yaml up -d
 ```
 
 ### **Access JupyterHub**
-- Open http://localhost:8888
+
+- Open <http://localhost:8888>
 - Login: `admin` / `admin`
 - Start creating notebooks!
 
 ## 🚀 **Production Deployment**
 
 ### **Current Status**: ✅ Ready
+
 - **Port**: 18888
 - **Authentication**: OAuth via Auth0
 - **Security**: SSL/TLS ready
 - **Dependencies**: Full OAuth stack
 
 ### **Configure Production**
+
 1. **Edit** `.envs/production/jupyterhub.env`
 2. **Set** Auth0 credentials
 3. **Configure** SSL certificates
 4. **Deploy** with production compose
 
 ### **Start Production Services**
+
 ```bash
 cd gateway
 docker-compose -f compose.production.yaml up -d
@@ -78,6 +86,7 @@ docker-compose -f compose.production.yaml up -d
 ## 🔄 **Switching Between Configurations**
 
 ### **Local → OAuth (for testing)**
+
 1. Edit `compose/local/jupyter/jupyterhub_config.py`
 2. Change to `oauthenticator.auth0.Auth0OAuthenticator`
 3. Add `oauthenticator` to `requirements.txt`
@@ -85,18 +94,21 @@ docker-compose -f compose.production.yaml up -d
 5. Restart JupyterHub
 
 ### **Production → Local (not recommended)**
+
 - Production should always use OAuth
 - Only for emergency maintenance
 
 ## 📋 **Environment Variables**
 
 ### **Local** (`.envs/local/jupyterhub.env`)
+
 ```bash
 # Minimal configuration
 JUPYTERHUB_CRYPT_KEY=v+TxsSbEdubzX7WT4/7R7cxKXre4NjiGSuXG07xWLWA=
 ```
 
 ### **Production** (`.envs/production/jupyterhub.env`)
+
 ```bash
 # OAuth configuration
 AUTH0_CLIENT_ID=your-production-client-id
@@ -120,5 +132,5 @@ JUPYTERHUB_HOST=your-domain.com:18888
 
 Your JupyterHub is now set up for both local development and production deployment:
 
-- **Local**: http://localhost:8888 (admin/admin)
+- **Local**: <http://localhost:8888> (admin/admin)
 - **Production**: Configure Auth0 and deploy to port 18888

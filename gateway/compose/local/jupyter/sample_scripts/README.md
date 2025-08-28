@@ -28,8 +28,9 @@ The `copy_to_home.py` script runs **automatically** via JupyterHub's `post_start
 ## 📁 **What Gets Copied Automatically**
 
 From the repository `gateway/scripts/` directory:
+
 - `benchmark-disks.sh` - Disk performance benchmarking
-- `create-snapshot.sh` - Create system snapshots  
+- `create-snapshot.sh` - Create system snapshots
 - `restore-snapshot.sh` - Restore system snapshots
 - `common.sh` - Common shell functions
 - Any other scripts in that directory
@@ -37,6 +38,7 @@ From the repository `gateway/scripts/` directory:
 ## 🔧 **Technical Implementation**
 
 ### **JupyterHub Configuration:**
+
 ```python
 # Automatically copy repository scripts to user's home directory when container starts
 c.DockerSpawner.post_start_cmd = [
@@ -46,6 +48,7 @@ c.DockerSpawner.post_start_cmd = [
 ```
 
 ### **Script Features:**
+
 - **Automatic execution** during container startup
 - **Duplicate prevention** (won't copy if already exists)
 - **Comprehensive logging** for troubleshooting
@@ -55,6 +58,7 @@ c.DockerSpawner.post_start_cmd = [
 ## 📚 **User Experience**
 
 ### **Immediate Access:**
+
 ```bash
 # User can immediately access scripts
 cd ~/scripts
@@ -70,6 +74,7 @@ python spectrogram_analysis.py
 ```
 
 ### **Adding Your Own Scripts:**
+
 1. **Navigate to `~/scripts/`** (already created automatically)
 2. **Create new Python or shell scripts**
 3. **Include your spectrogram sample script**
@@ -86,6 +91,7 @@ python spectrogram_analysis.py
 ## 🎉 **Result**
 
 Every JupyterHub user automatically gets:
+
 - ✅ **Repository scripts** in `~/scripts/` (automatic)
 - ✅ **Place to add their own scripts** (ready to use)
 - ✅ **Immediate access** (no setup required)

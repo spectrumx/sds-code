@@ -9,54 +9,52 @@ It runs automatically via JupyterHub's post_start_cmd, ensuring every user gets
 access to the repository scripts without manual intervention.
 """
 
-import os
-import shutil
 import logging
-from pathlib import Path
+import shutil
 import sys
+from pathlib import Path
 
 # Configure logging for JupyterHub integration
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
 def copy_repository_scripts():
     """Copy the repository scripts directory to the user's home directory."""
-    
+
     # Get the user's home directory
     home_dir = Path.home()
     target_dir = home_dir / "scripts"
-    
+
     # Source is the gateway/scripts directory (mounted in the container)
     # We need to look for the actual scripts directory that should be mounted
     source_dir = Path("/srv/jupyter/scripts")
-    
+
     logger.info(f"Starting automatic script copy for user home: {home_dir}")
     logger.info(f"Source scripts directory: {source_dir}")
     logger.info(f"Target scripts directory: {target_dir}")
-    
+
     # Check if source directory exists
     if not source_dir.exists():
         logger.error(f"Repository scripts directory not found: {source_dir}")
         logger.error("This script should be run from within the JupyterHub container")
         return False
-    
+
     # Check if already set up (avoid duplicate copies)
     if target_dir.exists() and any(target_dir.iterdir()):
         logger.info(f"Scripts directory already exists and populated: {target_dir}")
         logger.info("Skipping copy operation to avoid duplicates")
         return True
-    
+
     # Create target directory if it doesn't exist
     target_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Copy all files and subdirectories from the scripts directory
     copied_count = 0
     skipped_count = 0
-    
+
     try:
         for item in source_dir.iterdir():
             if item.is_file():
@@ -67,19 +65,21 @@ def copy_repository_scripts():
                 shutil.copytree(item, target_dir / item.name, dirs_exist_ok=True)
                 logger.info(f"Copied directory: {item.name}/")
                 copied_count += 1
-        
+
         logger.info(f"Copy operation completed: {copied_count} items copied")
-        
+
         if copied_count > 0:
             # Create a welcome message
             create_welcome_message(target_dir)
-            
+
             # Log success
             logger.info(f"Successfully set up scripts directory: {target_dir}")
-            logger.info(f"Available scripts: {[item.name for item in target_dir.iterdir()]}")
-            
+            logger.info(
+                f"Available scripts: {[item.name for item in target_dir.iterdir()]}"
+            )
+
         return True
-        
+
     except Exception as e:
         logger.error(f"Error copying repository scripts: {e}")
         return False
@@ -87,9 +87,9 @@ def copy_repository_scripts():
 
 def create_welcome_message(target_dir: Path):
     """Create a welcome message for the user."""
-    
+
     welcome_file = target_dir / "WELCOME.md"
-    
+
     welcome_content = """# Welcome to SDS Gateway JupyterHub! 👋
 
 ## 🎉 Your repository scripts are ready!
@@ -158,9 +158,9 @@ pip install numpy matplotlib scipy h5py digital_rf
 
 Happy scripting! 🎯
 """
-    
+
     try:
-        with open(welcome_file, 'w') as f:
+        with open(welcome_file, "w") as f:
             f.write(welcome_content)
         logger.info("Created welcome message for user")
     except Exception as e:
@@ -169,12 +169,12 @@ Happy scripting! 🎯
 
 def main():
     """Main function - called automatically by JupyterHub."""
-    
+
     logger.info("Starting automatic repository scripts copy for JupyterHub user")
-    
+
     try:
         success = copy_repository_scripts()
-        
+
         if success:
             logger.info("Repository scripts copy completed successfully")
             print("✅ Repository scripts automatically copied to ~/scripts/")
@@ -182,12 +182,12 @@ def main():
             logger.error("Failed to copy repository scripts")
             print("❌ Failed to copy repository scripts automatically")
             return 1
-            
+
     except Exception as e:
         logger.error(f"Unexpected error during automatic copy: {e}")
         print(f"💥 Error: {e}")
         return 1
-    
+
     return 0
 
 
