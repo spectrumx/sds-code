@@ -10,22 +10,26 @@ This directory contains the JupyterHub configuration for the SDS Gateway project
 ## Local Development
 
 ### Current Setup
+
 - **Authenticator**: `jupyterhub.auth.DummyAuthenticator`
 - **Login**: Username: `admin`, Password: `admin`
 - **No external dependencies** required
 
 ### Access
-- **URL**: http://localhost:8888
+
+- **URL**: <http://localhost:8888>
 - **Port**: 8888 (mapped from container port 8000)
 
 ## Production Deployment
 
 ### OAuth Setup
+
 - **Authenticator**: `oauthenticator.auth0.Auth0OAuthenticator`
 - **Requires**: Auth0 credentials and SSL certificates
 - **Port**: 18888 (production)
 
 ### Configuration Files
+
 - `compose/production/jupyter/` - Production configuration
 - `.envs/production/jupyterhub.env` - Production environment variables
 

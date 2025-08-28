@@ -1,73 +1,70 @@
-# Copyright (c) Jupyter Development Team.
-# Distributed under the terms of the Modified BSD License.
-
-# Configuration file for JupyterHub
+# Local JupyterHub configuration file for SVI integration
 import os
 
+# JupyterHub configuration
 c = get_config()  # noqa: F821
 
-# We rely on environment variables to configure JupyterHub so that we
-# avoid having to rebuild the JupyterHub container every time we change a
-# configuration parameter.
-
-# Spawn single-user servers as Docker containers
-c.JupyterHub.spawner_class = "dockerspawner.DockerSpawner"
-
-# Spawn containers from this image
-c.DockerSpawner.image = os.environ["DOCKER_NOTEBOOK_IMAGE"]
-
-# Connect containers to this Docker network
-network_name = os.environ["DOCKER_NETWORK_NAME"]
-c.DockerSpawner.use_internal_ip = True
-c.DockerSpawner.network_name = network_name
-
-# Simplify network configuration
-c.DockerSpawner.extra_host_config = {}  # Remove network_mode since we're using network_name
-
-# Remove network config from create_kwargs since we're using network_name
-c.DockerSpawner.extra_create_kwargs = {}
-
-# Explicitly set notebook directory because we'll be mounting a volume to it.
-# Most `jupyter/docker-stacks` *-notebook images run the Notebook server as
-# user `jovyan`, and set the notebook directory to `/home/jovyan/work`.
-# We follow the same convention.
-notebook_dir = os.environ.get("DOCKER_NOTEBOOK_DIR", "/home/jovyan/work")
-c.DockerSpawner.notebook_dir = notebook_dir
-
-# Mount the real user's Docker volume on the host to the notebook user's
-# notebook directory in the container
-c.DockerSpawner.volumes = {"jupyterhub-user-{username}": notebook_dir}
-
-# Remove conflicting container removal settings
-c.DockerSpawner.remove = False  # Set to False to avoid conflict with restart policy
-
-# For debugging arguments passed to spawned containers
-c.DockerSpawner.debug = True
-
-# User containers will access hub by container name on the Docker network
-c.JupyterHub.hub_ip = "jupyterhub"
+# JupyterHub configuration
+c.JupyterHub.bind_url = "http://0.0.0.0:8000"
+c.JupyterHub.hub_ip = "jupyterhub"  # Container name for internal communication
 c.JupyterHub.hub_port = 8080
 
-# Persist hub data on volume mounted inside container
-c.JupyterHub.cookie_secret_file = "/data/jupyterhub_cookie_secret"
-c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
+# Security configuration - use standard paths
+c.JupyterHub.cookie_secret_file = os.environ.get(
+    "JUPYTERHUB_COOKIE_SECRET_FILE", "/data/jupyterhub_cookie_secret"
+)
+
+# Use Docker spawner for containerized user servers
+c.JupyterHub.spawner_class = "dockerspawner.DockerSpawner"
+
+# Docker spawner configuration
+c.DockerSpawner.image = os.environ.get(
+    "DOCKER_NOTEBOOK_IMAGE", "quay.io/jupyter/base-notebook:latest"
+)
+c.DockerSpawner.network_name = os.environ.get(
+    "DOCKER_NETWORK_NAME", "gateway_sds-network-local"
+)
+c.DockerSpawner.notebook_dir = os.environ.get(
+    "DOCKER_NOTEBOOK_DIR", "/home/jovyan/work"
+)
+c.DockerSpawner.volumes = {
+    "jupyterhub_data": "/home/jovyan/work",
+    "/var/run/docker.sock": "/var/run/docker.sock",
+    "/Users/srucker1/Desktop/sds-code/gateway/compose/local/jupyter/sample_scripts": "/srv/jupyter/sample_scripts",
+    "/Users/srucker1/Desktop/sds-code/gateway/scripts": "/srv/jupyter/scripts"
+}
+c.DockerSpawner.extra_host_config = {
+    "security_opt": ["label:disable"],
+    "cap_add": ["SYS_ADMIN"],
+}
 
 # Use simple local authenticator for development
 c.JupyterHub.authenticator_class = "jupyterhub.auth.DummyAuthenticator"
-
-# Allow all users and auto-login for development
-c.DummyAuthenticator.password = "admin"
+c.DummyAuthenticator.password = os.environ.get("JUPYTERHUB_DUMMY_PASSWORD", "admin")
 c.DummyAuthenticator.allowed_users = {"admin"}
-c.Authenticator.admin_users = {"admin"}
 
-# Enable debug logging
-c.JupyterHub.log_level = "DEBUG"
-c.Authenticator.enable_auth_state = True
+# Admin users
+c.JupyterHub.admin_users = {os.environ.get("JUPYTERHUB_ADMIN", "admin")}
 
-# Install packages using DockerSpawner's command configuration
-c.DockerSpawner.cmd = ["start-notebook.sh"]
-c.DockerSpawner.args = ["--NotebookApp.allow_origin='*'"]
+# Database configuration - use SQLite for local development
+c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
 
-# Automatically copy repository scripts to user's home directory when container starts
-# Use a shell script to handle multiple commands properly
-c.DockerSpawner.post_start_cmd = "bash -c 'pip install spectrumx && python /srv/jupyter/sample_scripts/copy_to_home.py'"
+# Logging
+c.JupyterHub.log_level = "INFO"
+c.Spawner.debug = True
+
+# User limits
+c.Spawner.mem_limit = "2G"
+c.Spawner.cpu_limit = 1.0
+
+# Timeout settings
+c.Spawner.start_timeout = 600  # 10 minutes for first startup
+c.Spawner.http_timeout = 300   # 5 minutes for HTTP operations
+
+# Enable JupyterLab
+c.Spawner.environment = {"JUPYTER_ENABLE_LAB": "yes"}
+
+# Mount host directories into user containers (now handled in main volumes config)
+
+# Automatic script loading - copy repository scripts to user's home directory
+c.DockerSpawner.post_start_cmd = "bash -c 'pip install spectrumx && cp -r /srv/jupyter/scripts /home/jovyan/ && cp -r /srv/jupyter/sample_scripts /home/jovyan/ && chmod -R 755 /home/jovyan/scripts && chmod -R 755 /home/jovyan/sample_scripts'"

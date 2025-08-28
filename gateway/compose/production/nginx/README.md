@@ -16,12 +16,14 @@ This directory contains nginx configurations for serving JupyterHub in productio
 **Access**: `https://yourdomain.com/jupyter/`
 
 This configuration:
+
 - Routes JupyterHub under `/jupyter/` path
 - Keeps everything on the same domain
 - Easier SSL certificate management
 - Good for internal/enterprise use
 
 **Usage**:
+
 1. Deploy with the main application
 2. Access JupyterHub at `https://yourdomain.com/jupyter/`
 3. Update JupyterHub OAuth callback URLs accordingly
@@ -32,12 +34,14 @@ This configuration:
 **Access**: `https://jupyter.yourdomain.com/`
 
 This configuration:
+
 - Routes JupyterHub to a separate subdomain
 - Cleaner URLs for users
 - Can have separate SSL certificates
 - Good for public-facing deployments
 
 **Usage**:
+
 1. Copy `jupyterhub.conf` to your nginx sites-available
 2. Update `server_name` to your actual domain
 3. Configure SSL certificates for the subdomain
@@ -50,12 +54,14 @@ This configuration:
 When using nginx routing, update your Auth0 configuration:
 
 **Path-based routing**:
-```
+
+```text
 https://yourdomain.com/jupyter/hub/oauth_callback
 ```
 
 **Subdomain routing**:
-```
+
+```text
 https://jupyter.yourdomain.com/hub/oauth_callback
 ```
 
@@ -64,11 +70,13 @@ https://jupyter.yourdomain.com/hub/oauth_callback
 Update your JupyterHub config to match the nginx routing:
 
 **Path-based routing**:
+
 ```python
 c.JupyterHub.base_url = '/jupyter/'
 ```
 
 **Subdomain routing**:
+
 ```python
 c.JupyterHub.base_url = '/'
 ```
@@ -76,6 +84,7 @@ c.JupyterHub.base_url = '/'
 ### 3. SSL/TLS
 
 Ensure your SSL certificates cover:
+
 - **Path-based**: Main domain + `/jupyter/` path
 - **Subdomain**: `jupyter.yourdomain.com`
 
@@ -90,6 +99,7 @@ Ensure your SSL certificates cover:
 ## Testing
 
 ### Local Testing
+
 ```bash
 # Test nginx config syntax
 docker exec sds-gateway-prod-nginx nginx -t
@@ -99,6 +109,7 @@ docker exec sds-gateway-prod-nginx tail -f /var/log/nginx/error.log
 ```
 
 ### Production Deployment
+
 1. **Update** nginx configuration
 2. **Reload** nginx: `nginx -s reload`
 3. **Test** JupyterHub access
