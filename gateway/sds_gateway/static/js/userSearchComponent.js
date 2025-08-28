@@ -939,12 +939,9 @@ class UserSearchHandler {
 
 				// Change the dropdown button to show "Remove Access" is selected
 				dropdownButton.innerHTML =
-					'<i class="bi bi-person-slash text-danger"></i>';
+					'<span class="text-danger"><i class="bi bi-person-slash"></i> Remove</span>';
 				dropdownButton.classList.add("btn-outline-danger");
 				dropdownButton.classList.remove("btn-light");
-
-				// Disable the dropdown to prevent further changes
-				dropdownButton.disabled = true;
 
 				// Close the dropdown menu
 				const dropdownToggle = dropdownButton;
