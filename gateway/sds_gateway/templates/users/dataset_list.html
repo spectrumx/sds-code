@@ -41,12 +41,8 @@
                                             <th scope="col" class="sortable w-25" data-sort="name">
                                                 Dataset Name <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-auto">Description</th>
                                             <th scope="col" class="sortable w-25" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
-                                            </th>
-                                            <th scope="col" class="sortable w-15" data-sort="status">
-                                                Status <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="sortable w-25" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
@@ -69,12 +65,8 @@
                                             <th scope="col" class="sortable w-25" data-sort="name">
                                                 Dataset Name <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-auto">Description</th>
                                             <th scope="col" class="sortable w-25" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
-                                            </th>
-                                            <th scope="col" class="sortable w-15" data-sort="status">
-                                                Status <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="sortable w-25" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
@@ -112,7 +104,6 @@
                                                         </span>
                                                     {% endif %}
                                                 </td>
-                                                <td class="text-break">{{ dataset.description|truncatechars:80 }}</td>
                                                 <td class="text-break">{{ dataset.authors }}</td>
                                                 <td class="text-nowrap">{{ dataset.created_at }}</td>
                                                 <td class="text-end">
