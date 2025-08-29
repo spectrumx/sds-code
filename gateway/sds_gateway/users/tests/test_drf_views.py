@@ -15,6 +15,7 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.api.views import UserViewSet
 from sds_gateway.users.models import User
+from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 
 # Test constants
 TEST_PASSWORD = "testpass123"  # noqa: S105
