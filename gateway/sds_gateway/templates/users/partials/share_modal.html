@@ -195,13 +195,25 @@
                                                                 <!-- Disable permission options other than viewer (TODO: Enable this when the access controls are implemented) -->
                                                                 <!--
                                                                 <li>
-                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'contributor' %}selected{% endif %}" type="button" data-user-email="{{ user.email }}" data-user-name="{{ user.name }}" data-item-uuid="{{ item.uuid }}" data-item-type="{{ item_type }}" data-permission-level="contributor">
+                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'contributor' %}selected{% endif %}"
+                                                                            type="button"
+                                                                            data-user-email="{{ user.email }}"
+                                                                            data-user-name="{{ user.name }}"
+                                                                            data-item-uuid="{{ item.uuid }}"
+                                                                            data-item-type="{{ item_type }}"
+                                                                            data-permission-level="contributor">
                                                                         <i class="bi bi-plus-circle me-2"></i>Contributor
                                                                         {% if user.permission_level == 'contributor' %}<i class="bi bi-check ms-auto"></i>{% endif %}
                                                                     </button>
                                                                 </li>
                                                                 <li>
-                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'co-owner' %}selected{% endif %}" type="button" data-user-email="{{ user.email }}" data-user-name="{{ user.name }}" data-item-uuid="{{ item.uuid }}" data-item-type="{{ item_type }}" data-permission-level="co-owner">
+                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'co-owner' %}selected{% endif %}"
+                                                                            type="button"
+                                                                            data-user-email="{{ user.email }}"
+                                                                            data-user-name="{{ user.name }}"
+                                                                            data-item-uuid="{{ item.uuid }}"
+                                                                            data-item-type="{{ item_type }}"
+                                                                            data-permission-level="co-owner">
                                                                         <i class="bi bi-gear me-2"></i>Co-Owner
                                                                         {% if user.permission_level == 'co-owner' %}<i class="bi bi-check ms-auto"></i>{% endif %}
                                                                     </button>

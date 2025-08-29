@@ -530,6 +530,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             owner=request_user,
             shared_with=user,
             is_deleted=False,
+            is_enabled=True,
         ).first()
 
     def _validate_share_request(
@@ -990,13 +991,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     ) -> tuple[list[str], list[str]]:
         """
         Add users and groups to item sharing.
-
         Args:
             item_uuid: The UUID of the item to share
             item_type: The type of item to share
             users: Dictionary mapping user emails to permission levels
             request_user: The user sharing the item
-
         Returns:
             A tuple containing a list of shared users and a list of errors
         """
