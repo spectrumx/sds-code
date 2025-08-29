@@ -1128,7 +1128,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         page_obj.object_list = _get_captures_for_template(page_obj, request)
 
         # Get visualization compatibility data
-        from sds_gateway.visualizations import get_visualization_compatibility
+        from sds_gateway.visualizations.config import get_visualization_compatibility
 
         visualization_compatibility = get_visualization_compatibility()
 

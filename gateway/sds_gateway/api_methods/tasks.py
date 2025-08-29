@@ -635,9 +635,10 @@ def start_capture_post_processing(
             raise ValueError(error_msg)  # noqa: TRY301
 
         # Get the appropriate pipeline from the database
-        from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
+        from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
 
-        # Always use the visualization pipeline - individual cogs will check if they should run
+        # Always use the visualization pipeline - individual cogs will check if they
+        # should run
         pipeline_name = "visualization_processing"
         pipeline = get_latest_pipeline_by_base_name(pipeline_name)
         if not pipeline:
