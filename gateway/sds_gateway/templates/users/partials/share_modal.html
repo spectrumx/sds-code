@@ -288,11 +288,11 @@
             const popup = row.querySelector('.group-members-popup');
             if (popup) {
                 row.addEventListener('mouseenter', function() {
-                    popup.style.display = 'block';
+                    popup.classList.remove('d-none');
                 });
 
                 row.addEventListener('mouseleave', function() {
-                    popup.style.display = 'none';
+                    popup.classList.add('d-none');
                 });
             }
         });
