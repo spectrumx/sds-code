@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
@@ -86,11 +87,11 @@ class DatasetInfoForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 5}),
     )
-    author = forms.CharField(
-        label="Author",
+    authors = forms.CharField(
+        label="Authors",
         required=True,
-        disabled=True,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
+        widget=forms.HiddenInput(attrs={"class": "form-control"}),
+        help_text="Add authors to the dataset. The first author should be the primary author.",
     )
     status = forms.ChoiceField(
         label="Status",
@@ -105,7 +106,9 @@ class DatasetInfoForm(forms.Form):
         user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
         if user:
-            self.fields["author"].initial = user.name
+            # Set initial authors as JSON string with the user as the first author
+            initial_authors = [user.name or user.email]
+            self.fields["authors"].initial = json.dumps(initial_authors)
 
     def clean_name(self):
         """Validate the dataset name."""
@@ -115,12 +118,32 @@ class DatasetInfoForm(forms.Form):
 
         return name.strip()
 
-    def clean_author(self):
-        """Validate the author name."""
-        author = self.cleaned_data["author"]
-        if len(author.strip()) < MIN_AUTHOR_NAME_LENGTH:
-            raise ValidationError(AUTHOR_NAME_LENGTH_ERROR)
-        return author.strip()
+    def clean_authors(self):
+        """Validate the authors list."""
+        authors_json = self.cleaned_data["authors"]
+        try:
+            authors = json.loads(authors_json)
+            if not isinstance(authors, list):
+                raise ValidationError("Authors must be a list")
+            
+            if not authors:
+                raise ValidationError("At least one author is required")
+            
+            # Validate each author name
+            cleaned_authors = []
+            for author in authors:
+                if not author or not author.strip():
+                    continue
+                if len(author.strip()) < MIN_AUTHOR_NAME_LENGTH:
+                    raise ValidationError(f"Author name '{author}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters.")
+                cleaned_authors.append(author.strip())
+            
+            if not cleaned_authors:
+                raise ValidationError("At least one valid author is required")
+            
+            return json.dumps(cleaned_authors)
+        except json.JSONDecodeError:
+            raise ValidationError("Invalid authors format")
 
     def clean_description(self):
         """Clean and validate the description."""

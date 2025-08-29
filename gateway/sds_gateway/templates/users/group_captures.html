@@ -76,37 +76,69 @@
                                         <div class="col-md-8">
                                             <div class="row g-6">
                                                 <div class="col-md-4">
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.name.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.name.label }}
+                                                    {% if can_edit_metadata %}
+                                                        <div class="form-group mt-4">
+                                                            <label for="{{ dataset_form.name.id_for_label }}" class="form-label">
+                                                                {{ dataset_form.name.label }}
+                                                                <span class="text-danger">*</span>
+                                                            </label>
+                                                            {{ dataset_form.name }}
+                                                        </div>
+                                                                                                            <div class="form-group mt-4">
+                                                        <label class="form-label">
+                                                            Authors
                                                             <span class="text-danger">*</span>
                                                         </label>
-                                                        {{ dataset_form.name }}
+                                                        <div id="authors-container">
+                                                            <div class="authors-list">
+                                                                <!-- Authors will be dynamically added here -->
+                                                            </div>
+                                                            {% if can_edit_metadata %}
+                                                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-author-btn">
+                                                                    <i class="bi bi-plus"></i> Add Author
+                                                                </button>
+                                                            {% endif %}
+                                                        </div>
+                                                        {{ dataset_form.authors }}
                                                     </div>
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.author.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.author.label }}
-                                                            <span class="text-danger">*</span>
-                                                        </label>
-                                                        {{ dataset_form.author }}
-                                                    </div>
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.status.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.status.label }}
-                                                            <span class="text-danger">*</span>
-                                                        </label>
-                                                        {{ dataset_form.status }}
-                                                        {% if dataset_form.status.help_text %}<div class="form-text">{{ dataset_form.status.help_text }}</div>{% endif %}
-                                                    </div>
+                                                        <div class="form-group mt-4">
+                                                            <label for="{{ dataset_form.status.id_for_label }}" class="form-label">
+                                                                {{ dataset_form.status.label }}
+                                                                <span class="text-danger">*</span>
+                                                            </label>
+                                                            {{ dataset_form.status }}
+                                                            {% if dataset_form.status.help_text %}<div class="form-text">{{ dataset_form.status.help_text }}</div>{% endif %}
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="form-group mt-4">
+                                                            <label class="form-label">Dataset Name</label>
+                                                            <input type="text" class="form-control" value="{{ existing_dataset.name }}" readonly>
+                                                        </div>
+                                                        <div class="form-group mt-4">
+                                                            <label class="form-label">Author</label>
+                                                            <input type="text" class="form-control" value="{{ existing_dataset.authors.0 }}" readonly>
+                                                        </div>
+                                                        <div class="form-group mt-4">
+                                                            <label class="form-label">Status</label>
+                                                            <input type="text" class="form-control" value="{{ existing_dataset.get_status_display }}" readonly>
+                                                        </div>
+                                                    {% endif %}
                                                 </div>
                                                 <div class="col-md-8">
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.description.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.description.label }}
-                                                            <span class="text-muted">(Optional)</span>
-                                                        </label>
-                                                        {{ dataset_form.description }}
-                                                    </div>
+                                                    {% if can_edit_metadata %}
+                                                        <div class="form-group mt-4">
+                                                            <label for="{{ dataset_form.description.id_for_label }}" class="form-label">
+                                                                {{ dataset_form.description.label }}
+                                                                <span class="text-muted">(Optional)</span>
+                                                            </label>
+                                                            {{ dataset_form.description }}
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="form-group mt-4">
+                                                            <label class="form-label">Description</label>
+                                                            <textarea class="form-control" rows="3" readonly>{{ existing_dataset.description|default:"No description provided." }}</textarea>
+                                                        </div>
+                                                    {% endif %}
                                                 </div>
                                             </div>
                                             <div class="text-muted small mt-3">
@@ -117,47 +149,55 @@
                                 </div>
                                 <!-- Step 2: Captures Selection -->
                                 <div class="tab-pane fade" id="step2">
-                                    <div class="row g-4">
-                                        <div class="col-md-8">
-                                            <div class="card">
-                                                <div class="card-header">
-                                                    <h5 class="mb-0">
-                                                        Select Captures for Dataset: "<span class="dataset-name-display">Untitled Dataset</span>"
-                                                    </h5>
-                                                </div>
-                                                <div class="card-body">
-                                                    <div class="mb-3" id="captures-search-form">
-                                                        <div class="row g-3">
-                                                            {% for field in capture_search_form %}
-                                                                <div class="col-md-3">
-                                                                    <div class="form-group">
-                                                                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
-                                                                        {{ field }}
+                                    {% if existing_dataset %}
+                                        {% include "users/partials/captures_management.html" %}
+                                    {% else %}
+                                        <div class="row g-4">
+                                            <div class="col-md-8">
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h5 class="mb-0">
+                                                            Select Captures for Dataset: "<span class="dataset-name-display">Untitled Dataset</span>"
+                                                        </h5>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <div class="mb-3" id="captures-search-form">
+                                                            <div class="row g-3">
+                                                                {% for field in capture_search_form %}
+                                                                    <div class="col-md-3">
+                                                                        <div class="form-group">
+                                                                            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                                                            {{ field }}
+                                                                        </div>
                                                                     </div>
+                                                                {% endfor %}
+                                                                <div class="col-12 d-flex gap-2">
+                                                                    <button type="button"
+                                                                            class="btn btn-primary btn-sm btn-fixed-width"
+                                                                            id="search-captures">Search Captures</button>
+                                                                    <button type="button"
+                                                                            class="btn btn-secondary btn-sm btn-fixed-width"
+                                                                            id="clear-captures-search">Clear</button>
                                                                 </div>
-                                                            {% endfor %}
-                                                            <div class="col-12 d-flex gap-2">
-                                                                <button type="button"
-                                                                        class="btn btn-primary btn-sm btn-fixed-width"
-                                                                        id="search-captures">Search Captures</button>
-                                                                <button type="button"
-                                                                        class="btn btn-secondary btn-sm btn-fixed-width"
-                                                                        id="clear-captures-search">Clear</button>
                                                             </div>
                                                         </div>
+                                                        {% include "users/partials/captures_table.html" %}
                                                     </div>
-                                                    {% include "users/partials/captures_table.html" %}
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    {% endif %}
                                 </div>
                                 <!-- Step 3: Files Selection -->
                                 <div class="tab-pane fade" id="step3">
-                                    <div class="row g-4">
-                                        <div class="col-md-1"></div>
-                                        <div class="col-md-10">{% include "users/partials/file_browser.html" %}</div>
-                                    </div>
+                                    {% if existing_dataset %}
+                                        {% include "users/partials/files_management.html" %}
+                                    {% else %}
+                                        <div class="row g-4">
+                                            <div class="col-md-1"></div>
+                                            <div class="col-md-10">{% include "users/partials/file_browser.html" %}</div>
+                                        </div>
+                                    {% endif %}
                                 </div>
                                 <!-- Step 4: Review and Create -->
                                 <div class="tab-pane fade" id="step4">
@@ -186,6 +226,9 @@
     {% block extra_js %}
         <!-- Direct include of captureGroupingComponents.js as fallback -->
         <script src="{% static 'js/captureGroupingComponents.js' %}"></script>
+        {% if existing_dataset %}
+            <script src="{% static 'js/datasetEditingComponents.js' %}"></script>
+        {% endif %}
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script src="{% static 'webpack_bundles/js/vendors.js' %}"></script>
         <script src="{% static 'webpack_bundles/js/project.js' %}"></script>
@@ -209,6 +252,9 @@
                     // Update immediately if there's an existing value
                     updateDatasetNameDisplay();
                 }
+
+                // Initialize authors management
+                initializeAuthorsManagement();
 
                 // Basic step navigation fallback
                 const nextBtn = document.getElementById('nextStep');
@@ -288,6 +334,19 @@
                         const initialCaptureDetails = {{ selected_captures_details_json|safe }};
                         const initialFileDetails = {{ selected_files_details_json|safe }};
 
+                        {% if existing_dataset %}
+                            // Initialize dataset editing handler
+                            const editingHandler = new DatasetEditingHandler({
+                                datasetUuid: '{{ existing_dataset.uuid }}',
+                                permissionLevel: '{{ permission_level }}',
+                                canEditMetadata: {% if can_edit_metadata %}true{% else %}false{% endif %},
+                                canAddAssets: {% if can_add_assets %}true{% else %}false{% endif %},
+                                canRemoveAssets: {% if can_remove_assets %}true{% else %}false{% endif %},
+                                initialCaptures: initialCaptures,
+                                initialFiles: initialFiles,
+                            });
+                        {% endif %}
+
                         // Initialize form handler with initial values
                         const formHandler = new FormHandler({
                             formId: 'datasetForm',
@@ -309,7 +368,7 @@
                                             tableBodyId: 'captures-table-body',
                                             paginationContainerId: 'captures-pagination',
                                             type: 'captures',
-                                            formHandler: formHandler,
+                                            formHandler: {% if existing_dataset %}editingHandler{% else %}formHandler{% endif %},
                                             initialCaptureDetails: initialCaptureDetails
                                         });
                                         formHandler.capturesSearchHandler.initializeCapturesSearch();
@@ -324,7 +383,7 @@
                                             paginationContainerId: 'files-pagination',
                                             type: 'files',
                                             confirmFileSelectionId: 'confirm-file-selection',
-                                            formHandler: formHandler,
+                                            formHandler: {% if existing_dataset %}editingHandler{% else %}formHandler{% endif %},
                                             initialFileDetails: initialFileDetails
                                         });
                                         formHandler.filesSearchHandler.loadFileTree();
@@ -338,6 +397,319 @@
                 // Show the body after basic initialization
                 document.getElementById('body').classList.remove('d-none');
             });
+
+            // Authors management functionality
+            function initializeAuthorsManagement() {
+                const authorsContainer = document.getElementById('authors-container');
+                const authorsList = authorsContainer?.querySelector('.authors-list');
+                const addAuthorBtn = document.getElementById('add-author-btn');
+                const authorsHiddenField = document.getElementById('id_authors');
+                
+                if (!authorsContainer || !authorsList || !authorsHiddenField) return;
+
+                // Check if we're in edit mode
+                const isEditMode = {% if existing_dataset %}true{% else %}false{% endif %};
+                
+                // Get initial authors from the hidden field
+                let authors = [];
+                let originalAuthors = []; // Store original authors for edit mode
+                try {
+                    const initialAuthors = authorsHiddenField.value;
+                    if (initialAuthors) {
+                        authors = JSON.parse(initialAuthors);
+                        if (isEditMode) {
+                            originalAuthors = [...authors]; // Keep a copy of original authors
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing initial authors:', e);
+                }
+
+                // If no authors, add the current user as the first author
+                if (authors.length === 0) {
+                    const currentUserName = '{{ request.user.name|default:request.user.email }}';
+                    authors = [currentUserName];
+                    if (isEditMode) {
+                        originalAuthors = [...authors];
+                    }
+                }
+
+                // Track author changes for edit mode
+                let authorChanges = {
+                    added: [],
+                    removed: [],
+                    modified: {} // index -> {old: string, new: string}
+                };
+
+                function updateAuthorsDisplay() {
+                    authorsList.innerHTML = '';
+                    authors.forEach((author, index) => {
+                        const authorDiv = document.createElement('div');
+                        authorDiv.className = 'author-item d-flex align-items-center mb-2';
+                        
+                        // Check if this author is marked for removal in edit mode
+                        const isMarkedForRemoval = isEditMode && authorChanges.removed.includes(index);
+                        
+                        // Apply visual styling for marked authors
+                        if (isMarkedForRemoval) {
+                            authorDiv.classList.add('marked-for-removal');
+                        }
+                        
+                        authorDiv.innerHTML = `
+                            <input type="text" 
+                                   class="form-control me-2 author-input" 
+                                   value="${author}" 
+                                   placeholder="Author Name"
+                                   ${index === 0 ? 'readonly' : ''}
+                                   ${isMarkedForRemoval ? 'disabled' : ''}
+                                   data-index="${index}">
+                            ${index === 0 ? 
+                                '<span class="badge bg-primary me-2">Primary</span>' : 
+                                (isEditMode && isMarkedForRemoval ? 
+                                    `<button type="button" class="btn btn-sm btn-outline-success cancel-remove-author" data-index="${index}"><i class="bi bi-arrow-counterclockwise"></i></button>` :
+                                    `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}"><i class="bi bi-trash"></i></button>`
+                                )
+                            }
+                        `;
+                        authorsList.appendChild(authorDiv);
+                    });
+
+                    // Update hidden field
+                    authorsHiddenField.value = JSON.stringify(authors);
+
+                    // Show/hide add button based on permissions
+                    if (addAuthorBtn) {
+                        addAuthorBtn.style.display = {% if can_edit_metadata %}''{% else %}'none'{% endif %};
+                    }
+                }
+
+                function addAuthor() {
+                    const newIndex = authors.length;
+                    authors.push('');
+                    
+                    if (isEditMode) {
+                        // Mark as added in edit mode
+                        if (!authorChanges.added.includes(newIndex)) {
+                            authorChanges.added.push(newIndex);
+                        }
+                    }
+                    
+                    updateAuthorsDisplay();
+                    
+                    // Focus on the new input
+                    const newInput = authorsList.querySelector(`input[data-index="${newIndex}"]`);
+                    if (newInput) {
+                        newInput.focus();
+                    }
+                    
+                    // Update review display
+                    if (window.updateReviewAuthorsDisplay) {
+                        window.updateReviewAuthorsDisplay();
+                    }
+                }
+
+                function removeAuthor(index) {
+                    console.log('Attempting to remove author at index:', index, 'Total authors:', authors.length);
+                    if (index > 0) { // Don't remove the primary author
+                        if (isEditMode) {
+                            // In edit mode, mark for removal instead of actually removing
+                            if (!authorChanges.removed.includes(index)) {
+                                authorChanges.removed.push(index);
+                            }
+                            updateAuthorsDisplay();
+                            console.log('Author marked for removal');
+                            
+                            // Update review display
+                            if (window.updateReviewAuthorsDisplay) {
+                                window.updateReviewAuthorsDisplay();
+                            }
+                        } else {
+                            // In create mode, remove immediately
+                            authors.splice(index, 1);
+                            updateAuthorsDisplay();
+                            console.log('Author removed successfully');
+                            
+                            // Update review display
+                            if (window.updateReviewAuthorsDisplay) {
+                                window.updateReviewAuthorsDisplay();
+                            }
+                        }
+                    } else {
+                        // Show warning that primary author cannot be removed
+                        showNotification('The primary author cannot be removed. This is the dataset creator.', 'warning');
+                        console.log('Prevented removal of primary author');
+                    }
+                }
+
+                function cancelAuthorRemoval(index) {
+                    if (isEditMode && authorChanges.removed.includes(index)) {
+                        const removeIndex = authorChanges.removed.indexOf(index);
+                        if (removeIndex > -1) {
+                            authorChanges.removed.splice(removeIndex, 1);
+                        }
+                        updateAuthorsDisplay();
+                        console.log('Author removal cancelled');
+                        
+                        // Update review display
+                        if (window.updateReviewAuthorsDisplay) {
+                            window.updateReviewAuthorsDisplay();
+                        }
+                    }
+                }
+
+                function showNotification(message, type = 'info') {
+                    const errorContainer = document.getElementById('formErrors');
+                    const errorContent = errorContainer?.querySelector('.error-content');
+                    
+                    if (errorContainer && errorContent) {
+                        // Change alert type based on message type
+                        errorContainer.className = `alert alert-${type === 'warning' ? 'warning' : 'danger'} bg-${type === 'warning' ? 'warning' : 'danger'}-subtle text-${type === 'warning' ? 'warning' : 'danger'} mb-4 form-error-container`;
+                        
+                        // Update icon based on type
+                        const icon = errorContainer.querySelector('i');
+                        if (icon) {
+                            icon.className = `bi bi-${type === 'warning' ? 'exclamation-triangle' : 'exclamation-triangle'}-fill me-2`;
+                        }
+                        
+                        errorContent.innerHTML = `<ul class="mb-0 list-unstyled"><li>${message}</li></ul>`;
+                        
+                        // Show the notification
+                        errorContainer.classList.remove('d-none');
+                        errorContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => {
+                            errorContainer.classList.add('d-none');
+                        }, 5000);
+                    }
+                }
+
+                // Event listeners
+                if (addAuthorBtn) {
+                    addAuthorBtn.addEventListener('click', addAuthor);
+                }
+
+                // Handle input changes
+                authorsList.addEventListener('input', (e) => {
+                    if (e.target.classList.contains('author-input')) {
+                        const index = parseInt(e.target.dataset.index);
+                        const oldValue = authors[index];
+                        authors[index] = e.target.value;
+                        
+                        // Track modifications in edit mode
+                        if (isEditMode && index < originalAuthors.length) {
+                            const originalValue = originalAuthors[index];
+                            if (e.target.value !== originalValue) {
+                                authorChanges.modified[index] = {
+                                    old: originalValue,
+                                    new: e.target.value
+                                };
+                            } else {
+                                delete authorChanges.modified[index];
+                            }
+                        }
+                        
+                        // Only update display if we need to remove empty authors
+                        let needsUpdate = false;
+                        if (index > 0 && !authors[index].trim()) {
+                            authors.splice(index, 1);
+                            needsUpdate = true;
+                        }
+                        
+                        authorsHiddenField.value = JSON.stringify(authors);
+                        
+                        // Only call updateAuthorsDisplay if we actually removed an author
+                        if (needsUpdate) {
+                            updateAuthorsDisplay();
+                        }
+                        
+                        // Update review display if we're on the review step
+                        if (window.updateReviewAuthorsDisplay) {
+                            window.updateReviewAuthorsDisplay();
+                        }
+                    }
+                });
+
+                // Handle remove and cancel buttons
+                authorsList.addEventListener('click', (e) => {
+                    const removeButton = e.target.closest('.remove-author');
+                    const cancelButton = e.target.closest('.cancel-remove-author');
+                    
+                    if (removeButton) {
+                        console.log('Remove button clicked');
+                        console.log('Remove button:', removeButton);
+                        console.log('Remove button dataset:', removeButton.dataset);
+                        const index = parseInt(removeButton.dataset.index);
+                        console.log('Removing author at index:', index);
+                        removeAuthor(index);
+                    } else if (cancelButton) {
+                        console.log('Cancel button clicked');
+                        const index = parseInt(cancelButton.dataset.index);
+                        console.log('Cancelling removal for author at index:', index);
+                        cancelAuthorRemoval(index);
+                    }
+                });
+
+                // Function to update review page with author changes
+                function updateReviewAuthorsDisplay() {
+                    if (!isEditMode) {
+                        // In create mode, just show the current authors
+                        const authorsDisplay = document.querySelector("#step4 .dataset-authors");
+                        if (authorsDisplay) {
+                            authorsDisplay.textContent = authors.join(', ');
+                        }
+                        return;
+                    }
+                    
+                    // In edit mode, show changes in the change list
+                    const changeList = document.querySelector("#step4 .dataset-authors-change-list");
+                    if (!changeList) return;
+                    
+                    changeList.innerHTML = '';
+                    
+                    // Show added authors
+                    authorChanges.added.forEach(index => {
+                        if (authors[index]) {
+                            const li = document.createElement('li');
+                            li.className = 'text-success';
+                            li.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Add: ${authors[index]}`;
+                            changeList.appendChild(li);
+                        }
+                    });
+                    
+                    // Show removed authors
+                    authorChanges.removed.forEach(index => {
+                        if (originalAuthors[index]) {
+                            const li = document.createElement('li');
+                            li.className = 'text-danger';
+                            li.innerHTML = `<i class="bi bi-dash-circle me-1"></i>Remove: ${originalAuthors[index]}`;
+                            changeList.appendChild(li);
+                        }
+                    });
+                    
+                    // Show modified authors
+                    Object.entries(authorChanges.modified).forEach(([index, change]) => {
+                        const li = document.createElement('li');
+                        li.style.color = '#d97706';
+                        li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change: "${change.old}" → "${change.new}"`;
+                        changeList.appendChild(li);
+                    });
+                    
+                    // Show current authors (excluding marked for removal)
+                    const currentAuthors = authors.filter((author, index) => !authorChanges.removed.includes(index));
+                    const authorsDisplay = document.querySelector("#step4 .dataset-authors");
+                    if (authorsDisplay) {
+                        authorsDisplay.textContent = currentAuthors.join(', ');
+                    }
+                }
+
+                // Initial display
+                updateAuthorsDisplay();
+                
+                // Make functions available globally for FormHandler
+                window.updateReviewAuthorsDisplay = updateReviewAuthorsDisplay;
+                window.getAuthorChanges = () => authorChanges;
+            }
 </script>
         {# djlint:on #}
     {% endblock extra_js %}
