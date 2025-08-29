@@ -1021,6 +1021,53 @@ class UserSearchHandler {
 					if (checkmark) {
 						checkmark.remove();
 					}
+				});
+				
+				// Add selected class and checkmark to the clicked button
+				button.classList.add('selected');
+				const checkmark = document.createElement('i');
+				checkmark.className = 'bi bi-check ms-auto';
+				button.appendChild(checkmark);
+
+				// Update user text for removal case
+				if (permissionLevel === 'remove') {
+					const userRow = button.closest('tr');
+					const userNameElement = userRow.querySelector('h5');
+					if (userNameElement) {
+						userNameElement.style.textDecoration = 'line-through';
+						userNameElement.style.opacity = '0.6';
+					}
+				} else {
+					// Clear any existing text decoration or opacity
+					const userRow = button.closest('tr');
+					const userNameElement = userRow.querySelector('h5');
+					if (userNameElement) {
+						userNameElement.style.textDecoration = 'none';
+						userNameElement.style.opacity = '1';
+					}
+				}
+
+				// Handle removal
+				if (permissionLevel === 'remove') {
+					this.pendingRemovals.add(userEmail);
+					// Remove from permission changes if it was there
+					if (this.pendingPermissionChanges && this.pendingPermissionChanges.has(userEmail)) {
+						this.pendingPermissionChanges.delete(userEmail);
+					}
+				} else {
+					// Handle permission level change
+					this.pendingRemovals.delete(userEmail); // Remove from removals if it was there
+					
+					// Store the permission change
+					if (!this.pendingPermissionChanges) {
+						this.pendingPermissionChanges = new Map();
+					}
+					this.pendingPermissionChanges.set(userEmail, {
+						userName: userName,
+						itemUuid: itemUuid,
+						itemType: itemType,
+						permissionLevel: permissionLevel
+					});
 				}
 
 				// Add selected class and checkmark to the clicked button
