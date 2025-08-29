@@ -986,23 +986,6 @@ class UserSharePermission(BaseModel):
                 "role": "owner"
             })
         
-        # Add contributors and co-owners
-        permissions = cls.objects.filter(
-            item_uuid=dataset_uuid,
-            item_type=ItemType.DATASET,
-            permission_level__in=[cls.PermissionType.CONTRIBUTOR, cls.PermissionType.CO_OWNER],
-            is_deleted=False,
-            is_enabled=True,
-        ).select_related("shared_with")
-        
-        for permission in permissions:
-            role = "contributor" if permission.permission_level == cls.PermissionType.CONTRIBUTOR else "co-owner"
-            authors.append({
-                "name": permission.shared_with.name or permission.shared_with.email,
-                "email": permission.shared_with.email,
-                "role": role
-            })
-        
         return authors
 
 
