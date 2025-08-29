@@ -104,7 +104,17 @@
                                                         </span>
                                                     {% endif %}
                                                 </td>
-                                                <td class="text-break">{{ dataset.authors }}</td>
+                                                <td class="text-break">
+                                                    {% if dataset.authors %}
+                                                        {% if dataset.authors|length > 1 %}
+                                                            {{ dataset.authors|join:", " }}
+                                                        {% else %}
+                                                            {{ dataset.authors.0 }}
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <span class="text-muted">No authors</span>
+                                                    {% endif %}
+                                                </td>
                                                 <td class="text-nowrap">{{ dataset.created_at }}</td>
                                                 <td class="text-end">
                                                     <div class="dropdown">
@@ -117,7 +127,7 @@
                                                             <i class="bi bi-three-dots-vertical"></i>
                                                         </button>
                                                         <ul class="dropdown-menu">
-                                                            {% if dataset.is_owner %}
+                                                            {% if dataset.is_owner or dataset.permission_level in 'co-owner, contributor' %}
                                                                 <li>
                                                                     <button class="dropdown-item"
                                                                             type="button"

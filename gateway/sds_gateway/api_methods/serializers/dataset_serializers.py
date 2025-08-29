@@ -15,7 +15,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
 
     def get_authors(self, obj):
-        return obj.authors[0] if obj.authors else None
+        return obj.get_authors_display() if obj.authors else []
 
     def get_is_shared_with_me(self, obj):
         """Check if the dataset is shared with the current user."""
