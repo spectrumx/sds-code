@@ -1,11 +1,9 @@
-"""
-Visualizations app for SDS Gateway.
-"""
-
-from .config import get_available_visualizations
-from .config import get_visualization_compatibility
+from .cog_pipelines import process_spectrogram_data_cog
+from .cog_pipelines import process_waterfall_data_cog
+from .cog_pipelines import setup_post_processing_cog
 
 __all__ = [
-    "get_available_visualizations",
-    "get_visualization_compatibility",
+    "process_spectrogram_data_cog",
+    "process_waterfall_data_cog",
+    "setup_post_processing_cog",
 ]
