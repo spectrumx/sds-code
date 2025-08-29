@@ -1,6 +1,4 @@
-"""
-Visualization endpoints for generating spectrograms and other visualizations.
-"""
+"""API views for the visualizations app."""
 
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -18,12 +16,11 @@ from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.models import PostProcessedData
-from sds_gateway.api_methods.models import ProcessingStatus
-from sds_gateway.api_methods.models import ProcessingType
-from sds_gateway.api_methods.serializers.capture_serializers import (
-    PostProcessedDataSerializer,
-)
+
+from .models import PostProcessedData
+from .models import ProcessingStatus
+from .models import ProcessingType
+from .serializers import PostProcessedDataSerializer
 
 
 class VisualizationViewSet(ViewSet):
@@ -380,7 +377,7 @@ class VisualizationViewSet(ViewSet):
                 )
 
             # Import the compatibility function
-            from sds_gateway.visualizations import get_available_visualizations
+            from .config import get_available_visualizations
 
             available_visualizations = get_available_visualizations(capture_type)
 
