@@ -44,9 +44,6 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
 )
 from sds_gateway.api_methods.serializers.capture_serializers import (
-    PostProcessedDataSerializer,
-)
-from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.tasks import start_capture_post_processing
@@ -57,6 +54,7 @@ from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
+from sds_gateway.visualizations.serializers import PostProcessedDataSerializer
 
 MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
 
@@ -219,7 +217,8 @@ class CaptureViewSet(viewsets.ViewSet):
 
         except Exception as e:  # noqa: BLE001
             log.error(
-                f"Failed to launch visualization processing task for capture {capture.uuid}: {e}"
+                f"Failed to launch visualization processing task for capture "
+                f"{capture.uuid}: {e}"
             )
 
     @extend_schema(
@@ -834,7 +833,7 @@ class CaptureViewSet(viewsets.ViewSet):
             )
 
             # Get all post-processed data for this capture
-            processed_data = capture.post_processed_data.all().order_by(
+            processed_data = capture.visualization_post_processed_data.all().order_by(
                 "processing_type", "-created_at"
             )
 
@@ -898,7 +897,7 @@ class CaptureViewSet(viewsets.ViewSet):
             # Get the most recent post-processed data for this capture and
             # processing type
             processed_data = (
-                capture.post_processed_data.filter(
+                capture.visualization_post_processed_data.filter(
                     processing_type=processing_type,
                     processing_status="completed",
                 )
@@ -984,7 +983,7 @@ class CaptureViewSet(viewsets.ViewSet):
             # Get the most recent post-processed data for this capture and
             # processing type
             processed_data = (
-                capture.post_processed_data.filter(
+                capture.visualization_post_processed_data.filter(
                     processing_type=processing_type,
                     processing_status="completed",
                 )
