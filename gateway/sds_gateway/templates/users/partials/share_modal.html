@@ -16,68 +16,73 @@
                         aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="fw-bold">Share this {{ item_type }} with others:</p>
-                <div>
-                    <form id="share-form-{{ item.uuid }}"
-                          action="{% url 'users:share_item' item_type item.uuid %}"
-                          method="post">
-                        {% csrf_token %}
-                        <div class="user-search-input-container">
-                            <input type="text"
-                                   class="form-control user-search-input mb-3"
-                                   placeholder="Search users by name or email..."
-                                   id="user-search-{{ item.uuid }}"
-                                   name="user-search"
-                                   autocomplete="off" />
-                            <!-- User search dropdown -->
-                            <div class="user-search-dropdown d-none"
-                                 id="user-search-dropdown-{{ item.uuid }}">
-                                <div class="list-group">
-                                    <!-- Search results will be populated here -->
+                {% if item.is_owner or item.permission_level == 'co-owner' %}
+                    <p class="fw-bold">Share this {{ item_type }} with others:</p>
+                    <div>
+                        <form id="share-form-{{ item.uuid }}"
+                              action="{% url 'users:share_item' item_type item.uuid %}"
+                              method="post">
+                            {% csrf_token %}
+                            <div class="user-search-input-container">
+                                <input type="text"
+                                       class="form-control user-search-input mb-3"
+                                       placeholder="Search users by name or email..."
+                                       id="user-search-{{ item.uuid }}"
+                                       name="user-search"
+                                       autocomplete="off" />
+                                <!-- User search dropdown -->
+                                <div class="user-search-dropdown d-none"
+                                     id="user-search-dropdown-{{ item.uuid }}">
+                                    <div class="list-group">
+                                        <!-- Search results will be populated here -->
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <!-- Selected Users with Individual Permission Levels -->
-                        <div class="selected-users-permissions-section mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-shield-lock me-1"></i>Selected Users & Permission Levels:
-                            </label>
-                            <div class="selected-users-chips d-flex flex-column gap-2"></div>
-                            <div class="form-text">
-                                <small class="text-muted">
-                                    <strong>Viewer:</strong> Can view dataset information and download files
-                                    <!-- Disable contributor and co-owner options (TODO: Enable this when the access controls are implemented) -->
-                                    <!--
-                                    <br />
-                                    <strong>Contributor:</strong> Can add their own assets to the dataset
-                                    <br />
-                                    <strong>Co-Owner:</strong> Can add/remove assets and edit dataset metadata
-                                    -->
-                                </small>
+                            
+                            <!-- Selected Users with Individual Permission Levels -->
+                            <div class="selected-users-permissions-section mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-shield-lock me-1"></i>Selected Users & Permission Levels:
+                                </label>
+                                <div class="selected-users-chips d-flex flex-column gap-2"></div>
+                                <div class="form-text">
+                                    <small class="text-muted">
+                                        <strong>Viewer:</strong> Can view dataset information and download files<br>
+                                        <strong>Contributor:</strong> Can add their own assets to the dataset<br>
+                                        <strong>Co-Owner:</strong> Can add/remove assets and edit dataset metadata
+                                    </small>
+                                </div>
                             </div>
-                        </div>
-                        <!-- Notify/message section, shown only if chips are present -->
-                        <div id="notify-message-section-{{ item.uuid }}" class="d-none mt-3">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       value="1"
-                                       id="notify-users-checkbox-{{ item.uuid }}"
-                                       name="notify_users"
-                                       checked />
-                                <label class="form-check-label" for="notify-users-checkbox-{{ item.uuid }}">Notify users by email</label>
+                            
+                            <!-- Notify/message section, shown only if chips are present -->
+                            <div id="notify-message-section-{{ item.uuid }}" class="d-none mt-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           value="1"
+                                           id="notify-users-checkbox-{{ item.uuid }}"
+                                           name="notify_users"
+                                           checked />
+                                    <label class="form-check-label" for="notify-users-checkbox-{{ item.uuid }}">Notify users by email</label>
+                                </div>
+                                <div id="notify-message-textarea-container-{{ item.uuid }}"
+                                     class="mb-2 notify-message-anim">
+                                    <textarea class="form-control"
+                                              id="notify-message-textarea-{{ item.uuid }}"
+                                              name="notify_message"
+                                              rows="3"
+                                              placeholder="Add a message (optional)"></textarea>
+                                </div>
                             </div>
-                            <div id="notify-message-textarea-container-{{ item.uuid }}"
-                                 class="mb-2 notify-message-anim">
-                                <textarea class="form-control"
-                                          id="notify-message-textarea-{{ item.uuid }}"
-                                          name="notify_message"
-                                          rows="3"
-                                          placeholder="Add a message (optional)"></textarea>
-                            </div>
-                        </div>
-                    </form>
-                </div>
+                        </form>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>
+                        You have <strong>{{ item.permission_level|title }}</strong> access to this {{ item_type }}. 
+                        Only owners and co-owners can manage sharing.
+                    </div>
+                {% endif %}
                 <hr class="modal-divider" />
                 <!-- Users with Access section, hidden if chips are present -->
                 <div id="users-with-access-section-{{ item.uuid }}">
@@ -157,8 +162,9 @@
                                                 </div>
                                                 <div class="col-md-2 d-flex justify-content-end align-items-center">
                                                     <div class="d-flex align-items-center gap-2">
-                                                        <!-- Access Level Dropdown Button -->
-                                                        <div class="dropdown">
+                                                        {% if item.is_owner or item.permission_level == 'co-owner' %}
+                                                            <!-- Access Level Dropdown Button -->
+                                                            <div class="dropdown">
                                                             <button class="btn btn-sm dropdown-toggle access-level-dropdown"
                                                                     type="button"
                                                                     data-bs-toggle="dropdown"
@@ -224,6 +230,17 @@
                                                             </ul>
                                                         </div>
                                                     </div>
+                                                        {% else %}
+                                                            <!-- Show permission level as static badge for users who can't manage permissions -->
+                                                            <span class="badge 
+                                                                {% if user.permission_level == 'viewer' %}bg-info
+                                                                {% elif user.permission_level == 'contributor' %}bg-warning
+                                                                {% elif user.permission_level == 'co-owner' %}bg-success
+                                                                {% else %}bg-secondary{% endif %}">
+                                                                {{ user.permission_level|title }}
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>
@@ -239,10 +256,12 @@
                               class="text-muted d-none">
                             <i class="bi bi-exclamation-triangle me-1"></i>Pending changes
                         </span>
-                        <button type="button"
-                                class="btn btn-primary"
-                                id="share-item-btn-{{ item.uuid }}"
-                                disabled>Save</button>
+                        {% if item.is_owner or item.permission_level == 'co-owner' %}
+                            <button type="button"
+                                    class="btn btn-primary"
+                                    id="share-item-btn-{{ item.uuid }}"
+                                    disabled>Save</button>
+                        {% endif %}
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>

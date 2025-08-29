@@ -1374,35 +1374,3 @@ def handle_dataset_soft_delete(sender, instance: Dataset, **kwargs) -> None:
 
         for permission in share_permissions:
             permission.soft_delete()
-
-
-@receiver(post_save, sender=UserSharePermission)
-def handle_usersharepermission_change(
-    sender, instance: UserSharePermission, **kwargs
-) -> None:
-    """
-    Handle changes to UserSharePermission by updating dataset authors field.
-    """
-    if instance.item_type == ItemType.DATASET and instance.is_enabled:
-        # Update the authors field for the dataset
-        dataset = Dataset.objects.filter(
-            uuid=instance.item_uuid, is_deleted=False
-        ).first()
-        if dataset:
-            dataset.update_authors_field()
-
-
-@receiver(post_delete, sender=UserSharePermission)
-def handle_usersharepermission_delete(
-    sender, instance: UserSharePermission, **kwargs
-) -> None:
-    """
-    Handle deletion of UserSharePermission by updating dataset authors field.
-    """
-    if instance.item_type == ItemType.DATASET:
-        # Update the authors field for the dataset
-        dataset = Dataset.objects.filter(
-            uuid=instance.item_uuid, is_deleted=False
-        ).first()
-        if dataset:
-            dataset.update_authors_field()
