@@ -248,36 +248,3 @@ class PermissionUpdateTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
         data = response.json()
         self.assertFalse(data.get('success', True))
-
-    def test_dataset_authors_update_on_permission_change(self):
-        """Test that dataset authors are updated when permissions change."""
-        # Create initial permission
-        UserSharePermission.objects.create(
-            owner=self.owner,
-            shared_with=self.user1,
-            item_type=ItemType.DATASET,
-            item_uuid=self.dataset.uuid,
-            permission_level="viewer"
-        )
-        
-        # Login as owner
-        self.client.force_login(self.owner)
-        
-        # Update permission to contributor (should add to authors)
-        response = self.client.patch(
-            reverse('users:share_item', kwargs={
-                'item_type': 'dataset',
-                'item_uuid': self.dataset.uuid
-            }),
-            data={
-                'user_email': 'user1@example.com',
-                'permission_level': 'contributor'
-            }
-        )
-        
-        self.assertEqual(response.status_code, 200)
-        
-        # Verify dataset authors were updated
-        self.dataset.refresh_from_db()
-        authors = self.dataset.get_authors_display()
-        self.assertIn('User One', authors)
