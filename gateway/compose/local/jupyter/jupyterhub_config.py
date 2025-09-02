@@ -30,8 +30,10 @@ c.DockerSpawner.notebook_dir = os.environ.get(
 c.DockerSpawner.volumes = {
     "jupyterhub_data": "/home/jovyan/work",
     "/var/run/docker.sock": "/var/run/docker.sock",
-    "/Users/srucker1/Desktop/sds-code/gateway/compose/local/jupyter/sample_scripts": "/srv/jupyter/sample_scripts",
-    "/Users/srucker1/Desktop/sds-code/gateway/scripts": "/srv/jupyter/scripts"
+    "/Users/srucker1/Desktop/sds-code/gateway/compose/local/jupyter/sample_scripts": (
+        "/srv/jupyter/sample_scripts"
+    ),
+    "/Users/srucker1/Desktop/sds-code/gateway/scripts": "/srv/jupyter/scripts",
 }
 c.DockerSpawner.extra_host_config = {
     "security_opt": ["label:disable"],
@@ -59,7 +61,7 @@ c.Spawner.cpu_limit = 1.0
 
 # Timeout settings
 c.Spawner.start_timeout = 600  # 10 minutes for first startup
-c.Spawner.http_timeout = 300   # 5 minutes for HTTP operations
+c.Spawner.http_timeout = 300  # 5 minutes for HTTP operations
 
 # Enable JupyterLab
 c.Spawner.environment = {"JUPYTER_ENABLE_LAB": "yes"}
@@ -67,4 +69,13 @@ c.Spawner.environment = {"JUPYTER_ENABLE_LAB": "yes"}
 # Mount host directories into user containers (now handled in main volumes config)
 
 # Automatic script loading - copy repository scripts to user's home directory
-c.DockerSpawner.post_start_cmd = "bash -c 'pip install spectrumx && cp -r /srv/jupyter/scripts /home/jovyan/ && cp -r /srv/jupyter/sample_scripts /home/jovyan/ && chmod -R 755 /home/jovyan/scripts && chmod -R 755 /home/jovyan/sample_scripts'"
+c.DockerSpawner.post_start_cmd = (
+    "bash -c 'pip install spectrumx && "
+    "mkdir -p /home/jovyan/work/scripts /home/jovyan/work/sample_scripts && "
+    "if [ ! -f /home/jovyan/work/scripts/.initialized ]; then "
+    "cp -r /srv/jupyter/scripts/* /home/jovyan/work/scripts/ && "
+    "cp -r /srv/jupyter/sample_scripts/* /home/jovyan/work/sample_scripts/ && "
+    "touch /home/jovyan/work/scripts/.initialized && "
+    "chmod -R 755 /home/jovyan/work/scripts && "
+    "chmod -R 755 /home/jovyan/work/sample_scripts; fi'"
+)

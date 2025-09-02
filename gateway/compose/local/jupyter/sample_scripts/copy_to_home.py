@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
+# ruff: noqa: T201, G004, EXE001, F841, TRY300, BLE001, TRY400, PTH123
 """
 Automatic Repository Scripts Copy Utility
 
-This script automatically copies the gateway/scripts directory from the SDS code repository
-into the user's JupyterHub home directory when their container starts up.
+This script automatically copies the gateway/scripts directory from the SDS code
+repository into the user's JupyterHub home directory when their container starts up.
 
 It runs automatically via JupyterHub's post_start_cmd, ensuring every user gets
 access to the repository scripts without manual intervention.
+
+Note: Print statements are intentional for user feedback in this utility script.
 """
 
 import logging
@@ -94,7 +97,8 @@ def create_welcome_message(target_dir: Path):
 
 ## 🎉 Your repository scripts are ready!
 
-This directory contains scripts from the SDS Gateway repository, automatically copied to your JupyterHub home space for easy access.
+This directory contains scripts from the SDS Gateway repository, automatically
+copied to your JupyterHub home space for easy access.
 
 ## 📁 Available Scripts
 
@@ -184,7 +188,7 @@ def main():
             return 1
 
     except Exception as e:
-        logger.error(f"Unexpected error during automatic copy: {e}")
+        logger.error("Unexpected error during automatic copy: %s", e)
         print(f"💥 Error: {e}")
         return 1
 
