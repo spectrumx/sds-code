@@ -1,11 +1,13 @@
 from django.urls import path
 
 from .api.views import GetAPIKeyView
+from .views import CheckFileExistsView
 from .views import ListCapturesView
 from .views import generate_api_key_form_view
 from .views import new_api_key_view
 from .views import revoke_api_key_view
 from .views import user_api_key_view
+from .views import UploadCaptureView
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
@@ -48,6 +50,8 @@ urlpatterns = [
         name="download_item",
     ),
     path("share-groups/", user_share_group_list_view, name="share_group_list"),
+    path("upload-capture/", UploadCaptureView.as_view(), name="upload_capture"),
+    path("check-file-exists/", CheckFileExistsView.as_view(), name="check_file_exists"),
     # Used by SVI Server to get API key for a user
     path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),
     path("revoke-api-key/", revoke_api_key_view, name="revoke_api_key"),

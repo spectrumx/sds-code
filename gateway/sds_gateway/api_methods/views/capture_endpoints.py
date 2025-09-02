@@ -160,7 +160,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 capture_type=capture.capture_type,
                 drf_channel=drf_channel,
                 rh_scan_group=rh_scan_group,
-                verbose=True,
+                verbose=False,
             )
 
             # try to validate and index metadata before connecting files
@@ -254,8 +254,10 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
         summary="Create Capture",
     )
-    def create(self, request: Request) -> Response:  # noqa: PLR0911
-        """Create a capture object, connecting files and indexing the metadata."""
+    def _validate_create_request(
+        self, request: Request
+    ) -> tuple[Response | None, dict[str, Any] | None]:
+        """Validate the create request and return response or validated data."""
         drf_channel = request.data.get("channel", None)
         rh_scan_group = request.data.get("scan_group", None)
         capture_type = request.data.get("capture_type", None)
@@ -268,11 +270,9 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": "The `capture_type` field is required."},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
 
         unsafe_top_level_dir = request.data.get("top_level_dir", "")
-
-        # sanitize top_level_dir
         requested_top_level_dir = sanitize_path_rel_to_user(
             unsafe_path=unsafe_top_level_dir,
             request=request,
@@ -281,18 +281,19 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": "The provided `top_level_dir` is invalid."},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-        if capture_type == CaptureType.DigitalRF and not drf_channel:
+            ), None
+
+        if capture_type == "drf" and not drf_channel:
             return Response(
                 {"detail": "The `channel` field is required for DigitalRF captures."},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
 
         requester = cast("User", request.user)
-
-        # Populate index_name based on capture type
         request_data = request.data.copy()
-        request_data["index_name"] = infer_index_name(capture_type)
+        # Convert string to CaptureType enum
+        capture_type_enum = CaptureType(capture_type)
+        request_data["index_name"] = infer_index_name(capture_type_enum)
 
         post_serializer = CapturePostSerializer(
             data=request_data,
@@ -304,10 +305,10 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": errors},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
+
         capture_candidate: dict[str, Any] = post_serializer.validated_data
 
-        # check capture creation constraints and form error message to end-user
         try:
             _check_capture_creation_constraints(capture_candidate, owner=requester)
             log.info("Constraint check passed, proceeding with capture creation")
@@ -319,46 +320,84 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": msg},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
+            ), None
 
-        log.info(f"Saving capture to database: {capture_candidate.get('uuid', 'N/A')}")
-        capture = post_serializer.save()
-        log.info(f"Capture {capture.uuid} created and ingest started")
+        return None, {
+            "drf_channel": drf_channel,
+            "rh_scan_group": rh_scan_group,
+            "requested_top_level_dir": requested_top_level_dir,
+            "requester": requester,
+            "capture_candidate": capture_candidate,
+        }
 
-        try:
-            self.ingest_capture(
-                capture=capture,
-                drf_channel=drf_channel,
-                rh_scan_group=rh_scan_group,
-                requester=requester,
-                top_level_dir=requested_top_level_dir,
-            )
-
-            # Use transaction.on_commit to ensure the task is queued after the
-            # transaction is committed
-            transaction.on_commit(lambda: self._trigger_post_processing(capture))
-
-        except UnknownIndexError as e:
-            user_msg = f"Unknown index: '{e}'. Try recreating this capture."
+    def _handle_capture_creation_errors(
+        self, capture: Capture, error: Exception
+    ) -> Response:
+        """Handle errors during capture creation and cleanup."""
+        if isinstance(error, UnknownIndexError):
+            user_msg = f"Unknown index: '{error}'. Try recreating this capture."
             server_msg = (
-                f"Unknown index: '{e}'. Try running the init_indices "
+                f"Unknown index: '{error}'. Try running the init_indices "
                 "subcommand if this is index should exist."
             )
             log.error(server_msg)
-            capture.soft_delete()
+            # Transaction will automatically rollback, so no need to manually delete
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError as e:
-            user_msg = f"Error handling metadata for capture '{capture.uuid}': {e}"
-            capture.soft_delete()
+        if isinstance(error, ValueError):
+            user_msg = f"Error handling metadata for capture '{capture.uuid}': {error}"
+            # Transaction will automatically rollback, so no need to manually delete
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
-        except os_exceptions.ConnectionError as e:
-            user_msg = f"Error connecting to OpenSearch: {e}"
+        if isinstance(error, os_exceptions.ConnectionError):
+            user_msg = f"Error connecting to OpenSearch: {error}"
             log.error(user_msg)
-            capture.soft_delete()
+            # Transaction will automatically rollback, so no need to manually delete
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        # Re-raise unexpected errors
+        raise error
 
-        get_serializer = CaptureGetSerializer(capture)
-        return Response(get_serializer.data, status=status.HTTP_201_CREATED)
+    def create(self, request: Request) -> Response:
+        """Create a capture object, connecting files and indexing the metadata."""
+        # Validate request
+        response, validated_data = self._validate_create_request(request)
+        if response is not None:
+            return response
+
+        if validated_data is None:
+            return Response(
+                {"detail": "Validation failed but no specific error was returned."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        drf_channel = validated_data["drf_channel"]
+        rh_scan_group = validated_data["rh_scan_group"]
+        requested_top_level_dir = validated_data["requested_top_level_dir"]
+        requester = validated_data["requester"]
+
+        # Create the capture within a transaction
+        try:
+            with transaction.atomic():
+                post_serializer = CapturePostSerializer(
+                    data=request.data.copy(),
+                    context={"request_user": request.user},
+                )
+                post_serializer.is_valid()
+                capture = post_serializer.save()
+
+                self.ingest_capture(
+                    capture=capture,
+                    drf_channel=drf_channel,
+                    rh_scan_group=rh_scan_group,
+                    requester=requester,
+                    top_level_dir=requested_top_level_dir,
+                )
+
+            # If we get here, the transaction was successful
+            get_serializer = CaptureGetSerializer(capture)
+            return Response(get_serializer.data, status=status.HTTP_201_CREATED)
+
+        except (UnknownIndexError, ValueError, os_exceptions.ConnectionError) as e:
+            # Transaction will auto-rollback, no manual deletion needed
+            return self._handle_capture_creation_errors(capture, e)
 
     @extend_schema(
         parameters=[
@@ -1071,6 +1110,10 @@ def _check_capture_creation_constraints(
         AssertionError:     If an internal assertion fails.
     """
 
+    log.debug(
+        "No channel and top_level_dir conflictsfor current user's DigitalRF captures."
+    )
+
     capture_type = capture_candidate.get("capture_type")
     top_level_dir = capture_candidate.get("top_level_dir")
     _errors: dict[str, str] = {}
@@ -1149,9 +1192,8 @@ def _check_capture_creation_constraints(
             owner=owner,
         )
         if scan_group is None:
-            log.debug(
-                "No scan group provided for RadioHound capture.",
-            )
+            # No scan group provided for RadioHound capture
+            pass
         elif cap_qs.exists():
             conflicting_capture = cap_qs.first()
             assert conflicting_capture is not None, "QuerySet should not be empty here."
