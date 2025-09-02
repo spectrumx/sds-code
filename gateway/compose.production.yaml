@@ -328,15 +328,23 @@ services:
               target: /data
               type: volume
               read_only: false
+        userns_mode: 'host'  # needs to match UID of the host machine in order to access the Docker socket
+        user: root  # docker socket requires root user
         ports:
             - '18888:8000'
         env_file:
             - ./.envs/production/jupyterhub.env
         environment:
             JUPYTERHUB_ADMIN: admin
+            JUPYTERHUB_HOST: sds-gateway.crc.nd.edu/notebook  # Update with your actual domain
             DOCKER_NETWORK_NAME: sds-network-prod
             DOCKER_NOTEBOOK_IMAGE: quay.io/jupyter/base-notebook:latest
             DOCKER_NOTEBOOK_DIR: /home/jovyan/work
+            # Add these environment variables for network configuration
+            HUB_IP: jupyterhub
+            DOCKER_JUPYTER_CONTAINER: jupyterhub
+            # Ensure the network is created with the full name
+            COMPOSE_PROJECT_NAME: sds-gateway-prod
         depends_on:
             - nginx
 
