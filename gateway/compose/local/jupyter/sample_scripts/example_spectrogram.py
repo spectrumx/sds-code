@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: T201, BLE001, F841, EXE001
 """
 Example Spectrogram Script
 
@@ -7,6 +8,8 @@ to the ~/scripts directory after running copy_to_home.py.
 
 This script demonstrates basic spectrogram generation and can be customized
 for your specific RF data analysis needs.
+
+Note: This is an educational example script, so print statements are intentional.
 """
 
 import matplotlib.pyplot as plt

@@ -30,6 +30,10 @@ c.DockerSpawner.notebook_dir = os.environ.get(
 c.DockerSpawner.volumes = {
     "sds-gateway-prod-jupyterhub-data": "/home/jovyan/work",
     "/var/run/docker.sock": "/var/run/docker.sock",
+    "/opt/spectrumx/gateway/compose/production/jupyter/sample_scripts": (
+        "/srv/jupyter/sample_scripts"
+    ),
+    "/opt/spectrumx/gateway/scripts": "/srv/jupyter/scripts",
 }
 c.DockerSpawner.extra_host_config = {
     "security_opt": ["label:disable"],
@@ -78,6 +82,18 @@ c.Spawner.http_timeout = 120
 
 # Enable JupyterLab
 c.Spawner.environment = {"JUPYTER_ENABLE_LAB": "yes"}
+
+# Automatic script loading - copy repository scripts to user's work directory
+c.DockerSpawner.post_start_cmd = (
+    "bash -c 'pip install spectrumx && "
+    "mkdir -p /home/jovyan/work/scripts /home/jovyan/work/sample_scripts && "
+    "if [ ! -f /home/jovyan/work/scripts/.initialized ]; then "
+    "cp -r /srv/jupyter/scripts/* /home/jovyan/work/scripts/ && "
+    "cp -r /srv/jupyter/sample_scripts/* /home/jovyan/work/sample_scripts/ && "
+    "touch /home/jovyan/work/scripts/.initialized && "
+    "chmod -R 755 /home/jovyan/work/scripts && "
+    "chmod -R 755 /home/jovyan/work/sample_scripts; fi'"
+)
 
 # Rate limiting
 c.JupyterHub.concurrent_spawn_limit = 5
