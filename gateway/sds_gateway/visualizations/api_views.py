@@ -8,6 +8,7 @@ from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
 from loguru import logger as log
 from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -36,7 +37,7 @@ class VisualizationViewSet(ViewSet):
     MIN_HOP_SIZE = 100
     MAX_HOP_SIZE = 1000
 
-    authentication_classes = [APIKeyAuthentication]
+    authentication_classes = [SessionAuthentication, APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
