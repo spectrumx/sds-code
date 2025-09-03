@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{% static 'css/spectrogram.css' %}" />
 {% endblock css %}
 {% block content %}
+    {% csrf_token %}
     <div class="container-fluid px-5 pt-4"
          data-capture-uuid="{{ capture.uuid }}">
         <div class="row">
