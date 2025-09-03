@@ -68,23 +68,32 @@ export class SpectrogramRenderer {
 		}
 
 		try {
+			// Clear canvas first to ensure old content is removed
+			this.clearCanvas();
+			console.log("Canvas cleared, starting image load...");
+			
 			// Create image from blob
 			const image = new Image();
 			const imageUrl = URL.createObjectURL(imageBlob);
+			console.log("Created image URL:", imageUrl);
 
 			return new Promise((resolve, reject) => {
 				image.onload = () => {
 					try {
+						console.log("Image loaded successfully, dimensions:", image.width, "x", image.height);
 						this.renderImage(image);
 						URL.revokeObjectURL(imageUrl);
+						console.log("Image rendered to canvas");
 						resolve(true);
 					} catch (error) {
+						console.error("Error rendering image:", error);
 						URL.revokeObjectURL(imageUrl);
 						reject(error);
 					}
 				};
 
-				image.onerror = () => {
+				image.onerror = (error) => {
+					console.error("Image load error:", error);
 					URL.revokeObjectURL(imageUrl);
 					reject(new Error("Failed to load image"));
 				};
@@ -98,44 +107,12 @@ export class SpectrogramRenderer {
 	}
 
 	/**
-	 * Render spectrogram data from image URL
-	 */
-	async renderFromImageUrl(imageUrl) {
-		if (!this.isReady()) {
-			console.error("Canvas not ready");
-			return false;
-		}
-
-		try {
-			const image = new Image();
-
-			return new Promise((resolve, reject) => {
-				image.onload = () => {
-					try {
-						this.renderImage(image);
-						resolve(true);
-					} catch (error) {
-						reject(error);
-					}
-				};
-
-				image.onerror = () => {
-					reject(new Error("Failed to load image from URL"));
-				};
-
-				image.src = imageUrl;
-			});
-		} catch (error) {
-			console.error("Error rendering spectrogram from URL:", error);
-			return false;
-		}
-	}
-
-	/**
 	 * Render image to canvas with proper scaling
 	 */
 	renderImage(image) {
 		if (!this.isReady()) return;
+
+		console.log("Rendering image to canvas, canvas size:", this.canvas.width, "x", this.canvas.height);
 
 		// Clear canvas
 		this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -153,6 +130,8 @@ export class SpectrogramRenderer {
 		const x = (this.canvas.width - scaledWidth) / 2;
 		const y = (this.canvas.height - scaledHeight) / 2;
 
+		console.log("Image scaling - original:", image.width, "x", image.height, "scaled:", scaledWidth, "x", scaledHeight, "position:", x, y);
+
 		// Draw the image
 		this.ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
 
@@ -163,61 +142,8 @@ export class SpectrogramRenderer {
 			this.canvas.width,
 			this.canvas.height,
 		);
-	}
-
-	/**
-	 * Render spectrogram from raw data array (for future implementation)
-	 */
-	renderFromData(dataArray, width, height, colorMap = "magma") {
-		if (!this.isReady()) {
-			console.error("Canvas not ready");
-			return false;
-		}
-
-		try {
-			// This is a placeholder for future implementation
-			// where we would render spectrogram data directly from arrays
-			console.log("Raw data rendering not yet implemented");
-
-			// For now, show a placeholder
-			this.showPlaceholderMessage("Raw data rendering coming soon...");
-		} catch (error) {
-			console.error("Error rendering from raw data:", error);
-			return false;
-		}
-	}
-
-	/**
-	 * Show a placeholder message on the canvas
-	 */
-	showPlaceholderMessage(message) {
-		if (!this.isReady()) return;
-
-		this.clearCanvas();
-
-		this.ctx.fillStyle = "#6c757d";
-		this.ctx.font = "16px Arial";
-		this.ctx.textAlign = "center";
-		this.ctx.fillText(message, this.canvas.width / 2, this.canvas.height / 2);
-	}
-
-	/**
-	 * Show an error message on the canvas
-	 */
-	showErrorMessage(message) {
-		if (!this.isReady()) return;
-
-		this.clearCanvas();
-
-		// Draw error background
-		this.ctx.fillStyle = "#f8d7da";
-		this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-		// Draw error text
-		this.ctx.fillStyle = "#dc3545";
-		this.ctx.font = "16px Arial";
-		this.ctx.textAlign = "center";
-		this.ctx.fillText(message, this.canvas.width / 2, this.canvas.height / 2);
+		
+		console.log("Image drawn to canvas successfully");
 	}
 
 	/**

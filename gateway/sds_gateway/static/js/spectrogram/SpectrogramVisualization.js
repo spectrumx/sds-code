@@ -3,9 +3,9 @@
  * Orchestrates all spectrogram components and handles the main functionality
  */
 
+import { API_ENDPOINTS, ERROR_MESSAGES, STATUS_MESSAGES } from "./constants.js";
 import { SpectrogramControls } from "./SpectrogramControls.js";
 import { SpectrogramRenderer } from "./SpectrogramRenderer.js";
-import { API_ENDPOINTS, ERROR_MESSAGES, STATUS_MESSAGES } from "./constants.js";
 
 export class SpectrogramVisualization {
 	constructor(captureUuid) {
@@ -69,7 +69,10 @@ export class SpectrogramVisualization {
 		}
 
 		// Set up control callbacks
-		this.controls.setGenerateCallback(() => this.generateSpectrogram());
+		this.controls.setGenerateCallback(() => {
+			console.log("New callback; Generate button clicked");
+			this.generateSpectrogram();
+		});
 	}
 
 	/**
@@ -236,9 +239,19 @@ export class SpectrogramVisualization {
 			}
 
 			const blob = await response.blob();
-			await this.renderer.renderFromImageBlob(blob);
+			console.log("Received spectrogram blob:", blob.size, "bytes, type:", blob.type);
+			
+			// Revoke the old URL before creating a new one
+			if (this.currentSpectrogramUrl) {
+				URL.revokeObjectURL(this.currentSpectrogramUrl);
+				this.currentSpectrogramUrl = null;
+			}
+			
+			const renderResult = await this.renderer.renderFromImageBlob(blob);
+			console.log("Render result:", renderResult);
 
 			this.setGeneratingState(false);
+			this.updateStatus(STATUS_MESSAGES.SUCCESS);
 			this.showSaveButton(true);
 
 			// Store the result for saving
@@ -294,7 +307,7 @@ export class SpectrogramVisualization {
 	/**
 	 * Load an existing spectrogram
 	 */
-	async loadExistingSpectrogram(spectrogramUuid) {
+	async loadExistingSpectrogram() {
 		try {
 			const response = await fetch(
 				`/api/v1/assets/captures/${this.captureUuid}/download_post_processed_data/?processing_type=spectrogram`,
@@ -307,6 +320,13 @@ export class SpectrogramVisualization {
 
 			if (response.ok) {
 				const blob = await response.blob();
+				
+				// Revoke the old URL before creating a new one
+				if (this.currentSpectrogramUrl) {
+					URL.revokeObjectURL(this.currentSpectrogramUrl);
+					this.currentSpectrogramUrl = null;
+				}
+				
 				await this.renderer.renderFromImageBlob(blob);
 
 				this.updateStatus("");
@@ -413,7 +433,7 @@ export class SpectrogramVisualization {
 	showError(message) {
 		this.updateStatus(message);
 		if (this.renderer) {
-			this.renderer.showErrorMessage(message);
+			this.renderer.clearCanvas();
 		}
 	}
 
