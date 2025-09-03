@@ -6,8 +6,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from django.conf import settings
 from django_cog import cog
+from django_cog import cog_error_handler
 from loguru import logger
 
 from sds_gateway.visualizations.processing.waterfall import (
@@ -44,6 +44,7 @@ def get_visualization_pipeline_config() -> dict[str, Any]:
     return {
         "pipeline_name": "visualization_processing",
         "prevent_overlapping_runs": False,
+        "error_handler": "visualization_error_handler",
         "stages": [
             {
                 "name": "setup_stage",
@@ -258,79 +259,67 @@ def process_waterfall_data_cog(
     with tempfile.TemporaryDirectory(prefix=f"waterfall_{capture_uuid}_") as temp_dir:
         temp_path = Path(temp_dir)
 
+        # Reconstruct the DigitalRF files for processing
+        capture_files = capture.files.filter(is_deleted=False)
+        reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
+
+        if not reconstructed_path:
+            error_msg = "Failed to reconstruct DigitalRF directory structure"
+            processed_data.mark_processing_failed(error_msg)
+            raise ValueError(error_msg)
+
+        # Process the waterfall data in JSON format
+        waterfall_result = convert_drf_to_waterfall_json(
+            reconstructed_path,
+            capture.channel,
+        )
+
+        if waterfall_result["status"] != "success":
+            processed_data.mark_processing_failed(waterfall_result["message"])
+            raise ValueError(waterfall_result["message"])
+
+        # Create a temporary JSON file
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as temp_file:
+            json.dump(waterfall_result["json_data"], temp_file, indent=2)
+            temp_file_path = temp_file.name
+            logger.info(f"Created temporary JSON file at {temp_file_path}")
+
         try:
-            # Reconstruct the DigitalRF files for processing
-            capture_files = capture.files.filter(is_deleted=False)
-            reconstructed_path = reconstruct_drf_files(
-                capture, capture_files, temp_path
+            # Store the JSON file
+            new_filename = f"waterfall_{capture_uuid}.json"
+
+            store_result = store_processed_data(
+                capture_uuid,
+                ProcessingType.Waterfall.value,
+                temp_file_path,
+                new_filename,
+                waterfall_result["metadata"],
             )
 
-            if not reconstructed_path:
-                error_msg = "Failed to reconstruct DigitalRF directory structure"
-                processed_data.mark_processing_failed(error_msg)
-                raise ValueError(error_msg)  # noqa: TRY301
+            if store_result["status"] != "success":
+                processed_data.mark_processing_failed(store_result["message"])
+                raise ValueError(store_result["message"])
 
-            # Process the waterfall data in JSON format
-            waterfall_result = convert_drf_to_waterfall_json(
-                reconstructed_path,
-                capture.channel,
-            )
+            # Mark processing as completed
+            processed_data.mark_processing_completed()
 
-            if waterfall_result["status"] != "success":
-                processed_data.mark_processing_failed(waterfall_result["message"])
-                raise ValueError(waterfall_result["message"])  # noqa: TRY301
+            logger.info(f"Completed waterfall processing for capture {capture_uuid}")
+            return {
+                "status": "success",
+                "capture_uuid": capture_uuid,
+                "message": ("Waterfall JSON data processed and stored successfully"),
+                "json_data": waterfall_result["json_data"],
+                "metadata": waterfall_result["metadata"],
+                "store_result": store_result,
+            }
 
-            # Create a temporary JSON file
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".json", delete=False
-            ) as temp_file:
-                json.dump(waterfall_result["json_data"], temp_file, indent=2)
-                temp_file_path = temp_file.name
-                logger.info(f"Created temporary JSON file at {temp_file_path}")
-
-            try:
-                # Store the JSON file
-                new_filename = f"waterfall_{capture_uuid}.json"
-
-                store_result = store_processed_data(
-                    capture_uuid,
-                    ProcessingType.Waterfall.value,
-                    temp_file_path,
-                    new_filename,
-                    waterfall_result["metadata"],
-                )
-
-                if store_result["status"] != "success":
-                    processed_data.mark_processing_failed(store_result["message"])
-                    raise ValueError(store_result["message"])
-
-                # Mark processing as completed
-                processed_data.mark_processing_completed()
-
-                logger.info(
-                    f"Completed waterfall processing for capture {capture_uuid}"
-                )
-                return {
-                    "status": "success",
-                    "capture_uuid": capture_uuid,
-                    "message": (
-                        "Waterfall JSON data processed and stored successfully"
-                    ),
-                    "json_data": waterfall_result["json_data"],
-                    "metadata": waterfall_result["metadata"],
-                    "store_result": store_result,
-                }
-
-            finally:
-                # Clean up temporary file
-                if "temp_file_path" in locals():
-                    Path(temp_file_path).unlink(missing_ok=True)
-                    logger.info(f"Cleaned up temporary file {temp_file_path}")
-
-        except Exception as e:
-            # Mark processing as failed
-            processed_data.mark_processing_failed(f"Processing failed: {e!s}")
-            raise
+        finally:
+            # Clean up temporary file
+            if "temp_file_path" in locals():
+                Path(temp_file_path).unlink(missing_ok=True)
+                logger.info(f"Cleaned up temporary file {temp_file_path}")
 
 
 @cog
@@ -357,18 +346,6 @@ def process_spectrogram_data_cog(
     from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
         store_processed_data,
     )
-
-    # Check if spectrogram feature is enabled
-    if not settings.EXPERIMENTAL_SPECTROGRAM:
-        logger.info(
-            f"Skipping spectrogram processing for capture {capture_uuid} - "
-            f"experimental feature disabled"
-        )
-        return {
-            "status": "skipped",
-            "message": "Spectrogram feature is not enabled",
-            "capture_uuid": capture_uuid,
-        }
 
     # Check if spectrogram processing is requested
     if ProcessingType.Spectrogram.value not in processing_config:
@@ -405,65 +382,111 @@ def process_spectrogram_data_cog(
     with tempfile.TemporaryDirectory(prefix=f"spectrogram_{capture_uuid}_") as temp_dir:
         temp_path = Path(temp_dir)
 
+        # Reconstruct the DigitalRF files for processing
+        from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
+
+        capture_files = capture.files.filter(is_deleted=False)
+        reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
+
+        if not reconstructed_path:
+            error_msg = "Failed to reconstruct DigitalRF directory structure"
+            processed_data.mark_processing_failed(error_msg)
+            raise ValueError(error_msg)
+
+        # Generate spectrogram
+        from sds_gateway.visualizations.processing.spectrogram import (
+            generate_spectrogram_from_drf,
+        )
+
+        spectrogram_result = generate_spectrogram_from_drf(
+            reconstructed_path,
+            capture.channel,
+            processing_config["spectrogram"],
+        )
+
+        if spectrogram_result["status"] != "success":
+            processed_data.mark_processing_failed(spectrogram_result["message"])
+            raise ValueError(spectrogram_result["message"])
+
+        # Store the spectrogram image
+        from sds_gateway.visualizations.processing.utils import store_processed_data
+
+        store_result = store_processed_data(
+            capture_uuid,
+            ProcessingType.Spectrogram.value,
+            spectrogram_result["image_path"],
+            f"spectrogram_{capture_uuid}.png",
+            spectrogram_result["metadata"],
+        )
+
+        if store_result["status"] != "success":
+            processed_data.mark_processing_failed(store_result["message"])
+            raise ValueError(store_result["message"])
+
+        # Mark processing as completed
+        processed_data.mark_processing_completed()
+
+        logger.info(f"Completed spectrogram processing for capture {capture_uuid}")
+        return {
+            "status": "success",
+            "capture_uuid": capture_uuid,
+            "message": "Spectrogram processed and stored successfully",
+            "metadata": spectrogram_result["metadata"],
+            "store_result": store_result,
+        }
+
+
+# Custom error handler for COG tasks
+@cog_error_handler
+def visualization_error_handler(error, task_run=None):
+    """
+    Custom error handler for visualization pipeline tasks.
+
+    This handler automatically updates PostProcessedData records to "failed" status
+    when any COG task fails, providing centralized error handling.
+
+    Args:
+        error: The exception that occurred
+        task_run: The task run object (optional, provided by Django COG)
+    """
+    logger.error(f"COG task failed: {error}")
+
+    if task_run:
+        logger.error(f"Failed task: {task_run.task.name}")
+        logger.error(f"Task run ID: {task_run.id}")
+
+        # Try to extract capture_uuid from task arguments
         try:
-            # Reconstruct the DigitalRF files for processing
-            from sds_gateway.visualizations.processing.utils import (
-                reconstruct_drf_files,
-            )
+            # Get the task arguments - they should contain capture_uuid
+            task_args = task_run.task.arguments_as_json or {}
+            capture_uuid = task_args.get("capture_uuid")
 
-            capture_files = capture.files.filter(is_deleted=False)
-            reconstructed_path = reconstruct_drf_files(
-                capture, capture_files, temp_path
-            )
+            if capture_uuid:
+                logger.info(
+                    f"Attempting to mark PostProcessedData records as failed for capture {capture_uuid}"
+                )
 
-            if not reconstructed_path:
-                error_msg = "Failed to reconstruct DigitalRF directory structure"
-                processed_data.mark_processing_failed(error_msg)
-                raise ValueError(error_msg)  # noqa: TRY301
+                # Import models here to avoid Django app registry issues
+                from sds_gateway.visualizations.models import PostProcessedData
+                from sds_gateway.visualizations.models import ProcessingStatus
 
-            # Generate spectrogram
-            from sds_gateway.visualizations.processing.spectrogram import (
-                generate_spectrogram_from_drf,
-            )
+                # Find any PostProcessedData records for this capture that are still pending
+                failed_records = PostProcessedData.objects.filter(
+                    capture__uuid=capture_uuid,
+                    processing_status=ProcessingStatus.Pending.value,
+                )
 
-            spectrogram_result = generate_spectrogram_from_drf(
-                reconstructed_path,
-                capture.channel,
-                processing_config["spectrogram"],
-            )
+                for record in failed_records:
+                    error_message = f"COG task '{task_run.task.name}' failed: {error}"
+                    record.mark_processing_failed(error_message)
+                    logger.info(
+                        f"Marked PostProcessedData record {record.uuid} as failed due to COG task failure"
+                    )
 
-            if spectrogram_result["status"] != "success":
-                processed_data.mark_processing_failed(spectrogram_result["message"])
-                raise ValueError(spectrogram_result["message"])  # noqa: TRY301
+            else:
+                logger.warning("Could not extract capture_uuid from task arguments")
 
-            # Store the spectrogram image
-            from sds_gateway.visualizations.processing.utils import store_processed_data
-
-            store_result = store_processed_data(
-                capture_uuid,
-                ProcessingType.Spectrogram.value,
-                spectrogram_result["image_path"],
-                f"spectrogram_{capture_uuid}.png",
-                spectrogram_result["metadata"],
-            )
-
-            if store_result["status"] != "success":
-                processed_data.mark_processing_failed(store_result["message"])
-                raise ValueError(store_result["message"])  # noqa: TRY301
-
-            # Mark processing as completed
-            processed_data.mark_processing_completed()
-
-            logger.info(f"Completed spectrogram processing for capture {capture_uuid}")
-            return {
-                "status": "success",
-                "capture_uuid": capture_uuid,
-                "message": "Spectrogram processed and stored successfully",
-                "metadata": spectrogram_result["metadata"],
-                "store_result": store_result,
-            }
-
-        except Exception as e:
-            # Mark processing as failed
-            processed_data.mark_processing_failed(f"Processing failed: {e!s}")
-            raise
+        except Exception as cleanup_error:
+            logger.error(f"Failed to update PostProcessedData records: {cleanup_error}")
+    else:
+        logger.warning("No task_run object provided to error handler")
