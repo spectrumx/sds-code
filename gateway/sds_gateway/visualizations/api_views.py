@@ -18,7 +18,6 @@ from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.tasks import start_capture_post_processing
 
 from .config import get_available_visualizations
 from .models import PostProcessedData
@@ -135,6 +134,10 @@ class VisualizationViewSet(ViewSet):
         ).first()
 
         if existing_spectrogram:
+            log.info(
+                f"Existing spectrogram found for capture {capture.uuid}: {existing_spectrogram.uuid} "
+                f"with parameters: {existing_spectrogram.processing_parameters}"
+            )
             if (
                 existing_spectrogram.processing_status
                 == ProcessingStatus.Completed.value
@@ -149,6 +152,10 @@ class VisualizationViewSet(ViewSet):
                 # Return processing status
                 serializer = PostProcessedDataSerializer(existing_spectrogram)
                 return Response(serializer.data, status=status.HTTP_200_OK)
+
+        log.info(
+            f"No existing spectrogram found for capture {capture.uuid} with these parameters. Creating new spectrogram."
+        )
 
         # Create new spectrogram processing record
         processing_params = {
@@ -173,8 +180,10 @@ class VisualizationViewSet(ViewSet):
         try:
             # Start spectrogram processing
             # This will use the cog pipeline to generate the spectrogram
-            self._start_spectrogram_processing(spectrogram_data)
-
+            self._start_spectrogram_processing(spectrogram_data, processing_params)
+            log.info(
+                f"Started spectrogram processing for capture {capture.uuid}: {spectrogram_data.uuid}"
+            )
             serializer = PostProcessedDataSerializer(spectrogram_data)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -440,7 +449,7 @@ class VisualizationViewSet(ViewSet):
         return colormap in valid_colormaps
 
     def _start_spectrogram_processing(
-        self, spectrogram_data: PostProcessedData
+        self, spectrogram_data: PostProcessedData, processing_params: dict
     ) -> None:
         """
         Start spectrogram processing using the cog pipeline.
@@ -451,13 +460,23 @@ class VisualizationViewSet(ViewSet):
             spectrogram_data.save()
 
             # Launch spectrogram processing as a Celery task
+            from sds_gateway.api_methods.tasks import start_capture_post_processing
+
+            # Launch the spectrogram processing task
+            processing_config = {
+                "spectrogram": {
+                    "fft_size": processing_params["fft_size"],
+                    "std_dev": processing_params["std_dev"],
+                    "hop_size": processing_params["hop_size"],
+                    "colormap": processing_params["colormap"],
+                }
+            }
             result = start_capture_post_processing.delay(
-                str(spectrogram_data.capture.uuid), ["spectrogram"]
+                str(spectrogram_data.capture.uuid), processing_config
             )
 
             log.info(
-                f"Launched spectrogram processing task for "
-                f"{spectrogram_data.uuid}, task_id: {result.id}"
+                f"Launched spectrogram processing task for {spectrogram_data.uuid}, task_id: {result.id}"
             )
         except Exception as e:  # noqa: BLE001
             log.error(f"Error starting spectrogram processing: {e}")

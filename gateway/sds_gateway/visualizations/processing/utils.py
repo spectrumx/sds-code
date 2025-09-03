@@ -118,37 +118,54 @@ def store_processed_data(
     }
 
 
-def create_or_reset_processed_data(capture, processing_type: str):
+def create_or_reset_processed_data(
+    capture, processing_type: str, processing_parameters: dict | None = None
+):
     """Create or reset a PostProcessedData record for a capture and processing type.
 
     Args:
         capture: The capture to create processed data for
         processing_type: Type of processing (waterfall, spectrogram, etc.)
+        processing_parameters: Parameters for the processing type
 
     Returns:
         PostProcessedData: The created or reset record
     """
+    # Import models here to avoid Django app registry issues
+    from sds_gateway.visualizations.models import PostProcessedData
 
-    # Try to get existing record
-    processed_data, newly_created = PostProcessedData.objects.get_or_create(
+    # Try to get existing record (any record for this capture and processing type)
+    logger.info(
+        f"Looking for existing PostProcessedData for capture {capture.uuid}, type {processing_type}"
+    )
+    processed_data = PostProcessedData.objects.filter(
         capture=capture,
         processing_type=processing_type,
-        processing_parameters={},  # Default empty parameters
-        defaults={
-            "processing_status": ProcessingStatus.Pending.value,
-            "metadata": {},
-        },
-    )
+    ).first()
 
-    if not newly_created:
-        # Reset existing record
+    if not processed_data:
+        # Create new record with provided parameters
+        logger.info(f"Creating new PostProcessedData record for {processing_type}")
+        processed_data = PostProcessedData.objects.create(
+            capture=capture,
+            processing_type=processing_type,
+            processing_parameters=processing_parameters or {},
+            processing_status=ProcessingStatus.Pending.value,
+            metadata={},
+        )
+        logger.info(f"Created PostProcessedData record {processed_data.uuid}")
+
+    else:
+        logger.info(
+            f"Resetting existing PostProcessedData record {processed_data.uuid}"
+        )
         processed_data.processing_status = ProcessingStatus.Pending.value
         processed_data.processing_error = ""
         processed_data.processed_at = None
         processed_data.pipeline_id = ""
+        processed_data.processing_parameters = processing_parameters or {}
         processed_data.metadata = {}
         if processed_data.data_file:
             processed_data.data_file.delete(save=False)
         processed_data.save()
-
-    return processed_data
+        logger.info(f"Reset PostProcessedData record {processed_data.uuid}")

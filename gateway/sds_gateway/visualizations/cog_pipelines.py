@@ -10,9 +10,6 @@ from django.conf import settings
 from django_cog import cog
 from loguru import logger
 
-from sds_gateway.visualizations.processing.spectrogram import (
-    generate_spectrogram_from_drf,
-)
 from sds_gateway.visualizations.processing.waterfall import (
     convert_drf_to_waterfall_json,
 )
@@ -119,12 +116,12 @@ def get_pipeline_config(pipeline_type: str) -> dict[str, Any]:
 
 # Cog functions (pipeline steps)
 @cog
-def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) -> None:
+def setup_post_processing_cog(capture_uuid: str, processing_config: dict) -> None:
     """Setup post-processing for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run
+        processing_config: Dict with processing configurations for each type
     Returns:
         None
     """
@@ -138,7 +135,9 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
     )
 
     try:
-        logger.info(f"Starting setup for capture {capture_uuid}")
+        logger.info(
+            f"Starting setup for capture {capture_uuid} with config: {processing_config}"
+        )
 
         # Get the capture with retry mechanism for transaction timing issues
         capture: Capture | None = None
@@ -176,14 +175,22 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
             error_msg = f"Capture {capture_uuid} is not a DigitalRF capture"
             raise ValueError(error_msg)  # noqa: TRY301
 
-        # Set default processing types if not specified
-        if not processing_types:
-            error_msg = "No processing types specified"
+        # Validate processing config
+        if not processing_config:
+            error_msg = "No processing config specified"
             raise ValueError(error_msg)  # noqa: TRY301
 
         # Create PostProcessedData records for each processing type
-        for processing_type in processing_types:
-            create_or_reset_processed_data(capture, ProcessingType(processing_type))
+        logger.info(
+            f"Creating PostProcessedData records for {len(processing_config)} processing types"
+        )
+        for processing_type, parameters in processing_config.items():
+            logger.info(
+                f"Creating record for {processing_type} with parameters: {parameters}"
+            )
+            create_or_reset_processed_data(
+                capture, ProcessingType(processing_type), parameters
+            )
 
         logger.info(f"Completed setup for capture {capture_uuid}")
     except Exception as e:
@@ -328,13 +335,13 @@ def process_waterfall_data_cog(
 
 @cog
 def process_spectrogram_data_cog(
-    capture_uuid: str, processing_types: list[str]
+    capture_uuid: str, processing_config: dict
 ) -> dict[str, Any]:
     """Process spectrogram data for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run
+        processing_config: Dict with processing configurations
 
     Returns:
         Dict with status and processed data info
@@ -364,7 +371,7 @@ def process_spectrogram_data_cog(
         }
 
     # Check if spectrogram processing is requested
-    if processing_types and ProcessingType.Spectrogram.value not in processing_types:
+    if ProcessingType.Spectrogram.value not in processing_config:
         logger.info(
             f"Skipping spectrogram processing for capture {capture_uuid} - not "
             f"requested"
@@ -400,6 +407,9 @@ def process_spectrogram_data_cog(
 
         try:
             # Reconstruct the DigitalRF files for processing
+            from sds_gateway.visualizations.processing.utils import (
+                reconstruct_drf_files,
+            )
 
             capture_files = capture.files.filter(is_deleted=False)
             reconstructed_path = reconstruct_drf_files(
@@ -412,10 +422,14 @@ def process_spectrogram_data_cog(
                 raise ValueError(error_msg)  # noqa: TRY301
 
             # Generate spectrogram
+            from sds_gateway.visualizations.processing.spectrogram import (
+                generate_spectrogram_from_drf,
+            )
+
             spectrogram_result = generate_spectrogram_from_drf(
                 reconstructed_path,
                 capture.channel,
-                ProcessingType.Spectrogram.value,
+                processing_config["spectrogram"],
             )
 
             if spectrogram_result["status"] != "success":
@@ -423,6 +437,8 @@ def process_spectrogram_data_cog(
                 raise ValueError(spectrogram_result["message"])  # noqa: TRY301
 
             # Store the spectrogram image
+            from sds_gateway.visualizations.processing.utils import store_processed_data
+
             store_result = store_processed_data(
                 capture_uuid,
                 ProcessingType.Spectrogram.value,
