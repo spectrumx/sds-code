@@ -613,9 +613,7 @@ def notify_shared_users(
 
 
 @shared_task
-def start_capture_post_processing(
-    capture_uuid: str, processing_types: list[str]
-) -> dict:
+def start_capture_post_processing(capture_uuid: str, processing_config: dict) -> dict:
     """
     Start post-processing pipeline for a DigitalRF capture.
 
@@ -624,14 +622,18 @@ def start_capture_post_processing(
 
     Args:
         capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run (waterfall, spectrogram, etc.)
+        processing_config: Dict with processing configurations, e.g.:
+            {
+                "spectrogram": {"fft_size": 1024, "std_dev": 100, "hop_size": 500, "colormap": "magma"},
+                "waterfall": {...}
+            }
     """
     logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
 
     try:
-        # Set default processing types if not specified
-        if not processing_types:
-            error_msg = "No processing types specified"
+        # Validate processing config
+        if not processing_config:
+            error_msg = "No processing config specified"
             raise ValueError(error_msg)  # noqa: TRY301
 
         # Get the appropriate pipeline from the database
@@ -647,17 +649,27 @@ def start_capture_post_processing(
             )
             raise ValueError(error_msg)  # noqa: TRY301
 
-        # Launch the visualization pipeline with processing types
-        # Individual cogs will check if they should run based on processing_types
-        pipeline.launch(capture_uuid=capture_uuid, processing_types=processing_types)
+        # Launch the visualization pipeline with processing config
+        # Individual cogs will check if they should run based on processing_config
+        logger.info(
+            f"Launching pipeline {pipeline_name} for capture {capture_uuid} with config: {processing_config}"
+        )
+        try:
+            pipeline.launch(
+                capture_uuid=capture_uuid, processing_config=processing_config
+            )
+            logger.info(f"Pipeline launched successfully for capture {capture_uuid}")
+        except Exception as e:
+            logger.error(f"Pipeline launch failed for capture {capture_uuid}: {e}")
+            raise
 
         return {
             "status": "success",
             "message": (
-                f"Post-processing pipeline started for {len(processing_types)} types"
+                f"Post-processing pipeline started for {len(processing_config)} processing types"
             ),
             "capture_uuid": capture_uuid,
-            "processing_types": processing_types,
+            "processing_config": processing_config,
         }
 
     except Capture.DoesNotExist:

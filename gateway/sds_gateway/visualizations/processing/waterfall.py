@@ -151,15 +151,15 @@ def validate_digitalrf_data(drf_path: Path, channel: str) -> WaterfallSliceParam
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Could not read center frequency from metadata: {e}")
 
-    # Create WaterfallSliceParams - Pydantic will validate everything
+    # Create WaterfallSliceParams
     return WaterfallSliceParams(
         reader=reader,
         channel=channel,
         slice_idx=0,  # Will be updated per slice
         start_sample=start_sample,
-        samples_per_slice=1024,  # Default, will be updated per slice
+        samples_per_slice=1024,
         end_sample=end_sample,
-        fft_size=1024,  # Default
+        fft_size=1024,
         center_freq=center_freq,
         sample_rate_numerator=sample_rate_numerator,
         sample_rate_denominator=sample_rate_denominator,
@@ -220,9 +220,9 @@ def convert_drf_to_waterfall_json(
     # Validate DigitalRF data and get base parameters
     base_params = validate_digitalrf_data(drf_path, channel)
 
-    # Processing parameters
-    fft_size = 1024  # Default, could be configurable
-    samples_per_slice = 1024  # Default, could be configurable
+    # Processing parameters (could be configurable)
+    fft_size = 1024
+    samples_per_slice = 1024
 
     # Calculate total slices and limit to max_slices
     total_slices = base_params.total_samples // samples_per_slice
