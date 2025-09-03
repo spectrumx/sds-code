@@ -9,6 +9,10 @@ export class SpectrogramControls {
 	constructor() {
 		this.settings = { ...DEFAULT_SPECTROGRAM_SETTINGS };
 		this.onSettingsChange = null;
+		this.onGenerateClick = () => {
+			console.warn("Default callback; Generate callback not set")
+		};
+		this.generateClickHandler = null; // Store reference to event handler
 		this.initializeControls();
 	}
 
@@ -29,7 +33,13 @@ export class SpectrogramControls {
 			!this.colorMapSelect ||
 			!this.generateBtn
 		) {
-			console.error("Required control elements not found");
+			console.error("Required control elements not found", {
+				fftSizeSelect: !!this.fftSizeSelect,
+				stdDevInput: !!this.stdDevInput,
+				hopSizeInput: !!this.hopSizeInput,
+				colorMapSelect: !!this.colorMapSelect,
+				generateBtn: !!this.generateBtn
+			});
 			return;
 		}
 
@@ -73,11 +83,6 @@ export class SpectrogramControls {
 		this.colorMapSelect.addEventListener("change", (e) => {
 			this.settings.colorMap = e.target.value;
 			this.notifySettingsChange();
-		});
-
-		// Generate button click
-		this.generateBtn.addEventListener("click", () => {
-			this.onGenerateClick();
 		});
 	}
 
@@ -166,6 +171,13 @@ export class SpectrogramControls {
 	 * Set callback for generate button clicks
 	 */
 	setGenerateCallback(callback) {
+		if (this.generateClickHandler) {
+			this.generateBtn.removeEventListener("click", this.generateClickHandler);
+		}
+		this.generateClickHandler = () => {
+			callback();
+		};
+		this.generateBtn.addEventListener("click", this.generateClickHandler);
 		this.onGenerateClick = callback;
 	}
 
@@ -199,5 +211,14 @@ export class SpectrogramControls {
 		this.settings = { ...DEFAULT_SPECTROGRAM_SETTINGS };
 		this.updateControlValues();
 		this.notifySettingsChange();
+	}
+
+	/**
+	 * Clean up event listeners
+	 */
+	destroy() {
+		if (this.generateBtn && this.generateClickHandler) {
+			this.generateBtn.removeEventListener("click", this.generateClickHandler);
+		}
 	}
 }
