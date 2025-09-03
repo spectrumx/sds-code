@@ -85,21 +85,20 @@ class VisualizationViewSet(ViewSet):
         },
     )
     @action(detail=True, methods=["post"], url_path="create_spectrogram")
-    def create_spectrogram(self, request: Request, capture_uuid: str) -> Response:
+    def create_spectrogram(self, request: Request, pk: str | None = None) -> Response:
         """
         Create a spectrogram visualization for a capture.
 
         Args:
             request: The HTTP request
-            capture_uuid: UUID of the capture
-
+            pk: UUID of the capture
         Returns:
             Response with processing job details
         """
         try:
             # Get the capture
             capture = get_object_or_404(
-                Capture, uuid=capture_uuid, owner=request.user, is_deleted=False
+                Capture, uuid=pk, owner=request.user, is_deleted=False
             )
 
             # Validate request data
@@ -167,7 +166,6 @@ class VisualizationViewSet(ViewSet):
                 processing_parameters=processing_params,
                 processing_status=ProcessingStatus.Pending.value,
                 metadata={
-                    "requested_by": str(request.user.uuid),
                     "requested_at": request.data.get("timestamp"),
                     "image_dimensions": request.data.get("dimensions", {}),
                 },
@@ -215,7 +213,9 @@ class VisualizationViewSet(ViewSet):
         },
     )
     @action(detail=True, methods=["get"], url_path="spectrogram_status")
-    def get_spectrogram_status(self, request: Request, capture_uuid: str) -> Response:
+    def get_spectrogram_status(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """
         Get the status of a spectrogram generation job.
         """
@@ -231,7 +231,7 @@ class VisualizationViewSet(ViewSet):
             processing_job = get_object_or_404(
                 PostProcessedData,
                 uuid=job_id,
-                capture__uuid=capture_uuid,
+                capture__uuid=pk,
                 processing_type=ProcessingType.Spectrogram.value,
             )
 
@@ -270,7 +270,7 @@ class VisualizationViewSet(ViewSet):
     )
     @action(detail=True, methods=["get"], url_path="download_spectrogram")
     def download_spectrogram(
-        self, request: Request, capture_uuid: str
+        self, request: Request, pk: str | None = None
     ) -> Response | FileResponse:
         """
         Download the generated spectrogram image.
@@ -287,7 +287,7 @@ class VisualizationViewSet(ViewSet):
             processing_job = get_object_or_404(
                 PostProcessedData,
                 uuid=job_id,
-                capture__uuid=capture_uuid,
+                capture__uuid=pk,
                 processing_type=ProcessingType.Spectrogram.value,
             )
 
@@ -308,7 +308,7 @@ class VisualizationViewSet(ViewSet):
                 processing_job.data_file, content_type="image/png"
             )
             file_response["Content-Disposition"] = (
-                f'attachment; filename="spectrogram_{capture_uuid}.png"'
+                f'attachment; filename="spectrogram_{pk}.png"'
             )
             return file_response  # noqa: TRY300
 
