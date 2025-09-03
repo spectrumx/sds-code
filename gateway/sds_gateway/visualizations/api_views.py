@@ -88,14 +88,13 @@ class VisualizationViewSet(ViewSet):
         },
     )
     @action(detail=True, methods=["post"], url_path="create_spectrogram")
-    def create_spectrogram(self, request: Request, capture_uuid: str) -> Response:
+    def create_spectrogram(self, request: Request, pk: str | None = None) -> Response:
         """
         Create a spectrogram visualization for a capture.
 
         Args:
             request: The HTTP request
-            capture_uuid: UUID of the capture
-
+            pk: UUID of the capture
         Returns:
             Response with processing job details
         """
@@ -106,7 +105,7 @@ class VisualizationViewSet(ViewSet):
             )
         # Get the capture
         capture = get_object_or_404(
-            Capture, uuid=capture_uuid, owner=request.user, is_deleted=False
+            Capture, uuid=pk, owner=request.user, is_deleted=False
         )
 
         # Validate request data
@@ -221,7 +220,9 @@ class VisualizationViewSet(ViewSet):
         },
     )
     @action(detail=True, methods=["get"], url_path="spectrogram_status")
-    def get_spectrogram_status(self, request: Request, capture_uuid: str) -> Response:
+    def get_spectrogram_status(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """
         Get the status of a spectrogram generation job.
         """
@@ -243,7 +244,7 @@ class VisualizationViewSet(ViewSet):
             processing_job = get_object_or_404(
                 PostProcessedData,
                 uuid=job_id,
-                capture__uuid=capture_uuid,
+                capture__uuid=pk,
                 processing_type=ProcessingType.Spectrogram.value,
             )
 
@@ -282,17 +283,11 @@ class VisualizationViewSet(ViewSet):
     )
     @action(detail=True, methods=["get"], url_path="download_spectrogram")
     def download_spectrogram(
-        self, request: Request, capture_uuid: str
+        self, request: Request, pk: str | None = None
     ) -> Response | FileResponse:
         """
         Download the generated spectrogram image.
         """
-        if not settings.EXPERIMENTAL_SPECTROGRAM:
-            return Response(
-                {"error": "Spectrogram feature is not enabled"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         job_id = request.query_params.get("job_id")
         if not job_id:
             return Response(
@@ -304,7 +299,7 @@ class VisualizationViewSet(ViewSet):
         processing_job = get_object_or_404(
             PostProcessedData,
             uuid=job_id,
-            capture__uuid=capture_uuid,
+            capture__uuid=pk,
             processing_type=ProcessingType.Spectrogram.value,
         )
 
@@ -323,7 +318,7 @@ class VisualizationViewSet(ViewSet):
         # Return the file
         file_response = FileResponse(processing_job.data_file, content_type="image/png")
         file_response["Content-Disposition"] = (
-            f'attachment; filename="spectrogram_{capture_uuid}.png"'
+            f'attachment; filename="spectrogram_{pk}.png"'
         )
         return file_response
 
