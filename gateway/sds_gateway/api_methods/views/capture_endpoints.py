@@ -301,10 +301,17 @@ class CaptureViewSet(viewsets.ViewSet):
         capture_candidate: dict[str, Any] = post_serializer.validated_data
 
         # check capture creation constraints and form error message to end-user
-        log.info(f"CREATE: About to check constraints for capture with top_level_dir: '{requested_top_level_dir}', channel: '{drf_channel}', capture_type: '{capture_type}'")
+        log.info(
+            f"CREATE: About to check constraints for capture with "
+            f"top_level_dir: '{requested_top_level_dir}', "
+            f"channel: '{drf_channel}', "
+            f"capture_type: '{capture_type}'"
+        )
         try:
             _check_capture_creation_constraints(capture_candidate, owner=requester)
-            log.info("CREATE: Constraint check passed, proceeding with capture creation")
+            log.info(
+                "CREATE: Constraint check passed, proceeding with capture creation"
+            )
         except ValueError as err:
             msg = "One or more capture creation constraints violated:"
             for error in err.args[0].splitlines():
@@ -315,7 +322,10 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        log.info(f"CREATE: Saving capture to database with UUID: {capture_candidate.get('uuid', 'N/A')}")
+        log.info(
+            f"CREATE: Saving capture to database with UUID: "
+            f"{capture_candidate.get('uuid', 'N/A')}"
+        )
         capture = post_serializer.save()
         log.info(f"CREATE: Capture saved successfully with UUID: {capture.uuid}")
 
@@ -1023,6 +1033,20 @@ class CaptureViewSet(viewsets.ViewSet):
             )
 
 
+def _normalize_top_level_dir(top_level_dir: str) -> str:
+    """Normalize the top_level_dir to match the database format.
+
+    Args:
+        top_level_dir: The path to normalize
+
+    Returns:
+        The normalized path with leading slash
+    """
+    if not top_level_dir.startswith("/"):
+        return "/" + top_level_dir
+    return top_level_dir
+
+
 def _check_capture_creation_constraints(
     capture_candidate: dict[str, Any],
     owner: User,
@@ -1041,7 +1065,10 @@ def _check_capture_creation_constraints(
         AssertionError:     If an internal assertion fails.
     """
 
-    log.info(f"CONSTRAINT CHECK START: Checking constraints for capture candidate: {capture_candidate}")
+    log.info(
+        f"CONSTRAINT CHECK START: Checking constraints for capture candidate: "
+        f"{capture_candidate}"
+    )
     log.info(f"CONSTRAINT CHECK START: Owner: {owner.email}")
 
     capture_type = capture_candidate.get("capture_type")
@@ -1073,14 +1100,17 @@ def _check_capture_creation_constraints(
     # CONSTRAINT: DigitalRF captures must have unique channel and top_level_dir
     if capture_type == CaptureType.DigitalRF:
         channel = capture_candidate.get("channel")
-        
-        # Normalize the top_level_dir to match the database format (add leading slash if missing)
-        normalized_top_level_dir = top_level_dir
-        if not normalized_top_level_dir.startswith("/"):
-            normalized_top_level_dir = "/" + normalized_top_level_dir
-        
-        log.info(f"CONSTRAINT CHECK: DigitalRF capture - channel: '{channel}', top_level_dir: '{top_level_dir}' (normalized: '{normalized_top_level_dir}'), owner: {owner.email}")
-        
+
+        # Normalize the top_level_dir to match the database format
+        normalized_top_level_dir = _normalize_top_level_dir(top_level_dir)
+
+        log.info(
+            f"CONSTRAINT CHECK: DigitalRF capture - channel: '{channel}', "
+            f"top_level_dir: '{top_level_dir}' "
+            f"(normalized: '{normalized_top_level_dir}'), "
+            f"owner: {owner.email}"
+        )
+
         cap_qs: QuerySet[Capture] = Capture.objects.filter(
             channel=channel,
             top_level_dir=normalized_top_level_dir,
@@ -1088,7 +1118,7 @@ def _check_capture_creation_constraints(
             is_deleted=False,
             owner=owner,
         )
-        
+
         if not channel:
             log.error(
                 "No channel provided for DigitalRF capture. This missing "
@@ -1097,17 +1127,23 @@ def _check_capture_creation_constraints(
         elif cap_qs.exists():
             conflicting_capture = cap_qs.first()
             assert conflicting_capture is not None, "QuerySet should not be empty here."
-            log.warning(f"CONSTRAINT VIOLATION: Found conflicting capture {conflicting_capture.uuid} for channel '{channel}' and top_level_dir '{top_level_dir}'")
+            log.warning(
+                f"CONSTRAINT VIOLATION: Found conflicting capture "
+                f"{conflicting_capture.uuid} for channel '{channel}' "
+                f"and top_level_dir '{top_level_dir}'"
+            )
             _errors.update(
                 {
-                    "drf_unique_channel_and_tld": "This channel and top level "
-                    "directory are already in use by "
-                    f"another capture: {conflicting_capture.pk}",
+                    "drf_unique_channel_and_tld": (
+                        "This channel and top level directory are already in use by "
+                        f"another capture: {conflicting_capture.pk}"
+                    ),
                 },
             )
         else:
             log.info(
-                f"CONSTRAINT CHECK PASSED: No conflicts found for DigitalRF capture - channel: '{channel}', top_level_dir: '{normalized_top_level_dir}'"
+                f"CONSTRAINT CHECK PASSED: No conflicts found for DigitalRF capture - "
+                f"channel: '{channel}', top_level_dir: '{normalized_top_level_dir}'"
             )
 
     # CONSTRAINT: RadioHound captures must have unique scan group
@@ -1128,8 +1164,10 @@ def _check_capture_creation_constraints(
             assert conflicting_capture is not None, "QuerySet should not be empty here."
             _errors.update(
                 {
-                    "rh_unique_scan_group": f"This scan group is already in use by "
-                    f"another capture: {conflicting_capture.pk}",
+                    "rh_unique_scan_group": (
+                        f"This scan group is already in use by "
+                        f"another capture: {conflicting_capture.pk}"
+                    ),
                 },
             )
         else:
@@ -1141,7 +1179,6 @@ def _check_capture_creation_constraints(
         msg = "Capture creation constraints violated:"
         for rule, error in _errors.items():
             msg += f"\n\t{rule}: {error}"
-        log.warning(f"CONSTRAINT CHECK FAILED: {msg}")  # error for user, warning on server
+        log.warning(f"CONSTRAINT CHECK FAILED: {msg}")
         raise ValueError(msg)
-    else:
-        log.info("CONSTRAINT CHECK COMPLETED: All constraints passed successfully")
+    log.info("CONSTRAINT CHECK COMPLETED: All constraints passed successfully")
