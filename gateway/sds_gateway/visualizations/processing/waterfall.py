@@ -189,9 +189,7 @@ def convert_drf_to_waterfall_json(  # noqa: C901, PLR0915
         center_freq = 0.0
         try:
             # Try to get center frequency from metadata
-            metadata_dict = reader.read_metadata(
-                start_sample, min(1000, end_sample - start_sample), channel
-            )
+            metadata_dict = reader.read_metadata(start_sample, end_sample, channel)
             if metadata_dict and "center_freq" in metadata_dict:
                 center_freq = float(metadata_dict["center_freq"])
         except Exception as e:  # noqa: BLE001

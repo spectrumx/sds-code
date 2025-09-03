@@ -14,14 +14,15 @@ from scipy.signal.windows import gaussian
 
 
 def generate_spectrogram_from_drf(
-    drf_path: Path, channel: str, processing_type: str
+    drf_path: Path, channel: str, processing_parameters: dict | None = None
 ) -> dict:
     """Generate a spectrogram from DigitalRF data.
 
     Args:
         drf_path: Path to the DigitalRF directory
         channel: Channel name to process
-        processing_type: Type of processing (spectrogram)
+        processing_parameters: Dict containing spectrogram parameters
+            (fft_size, std_dev, hop_size, colormap)
 
     Returns:
         Dict with status and spectrogram data
@@ -70,9 +71,7 @@ def generate_spectrogram_from_drf(
         center_freq = 0.0
         try:
             # Try to get center frequency from metadata
-            metadata_dict = reader.read_metadata(
-                start_sample, min(1000, end_sample - start_sample), channel
-            )
+            metadata_dict = reader.read_metadata(start_sample, end_sample, channel)
             if metadata_dict and "center_freq" in metadata_dict:
                 center_freq = float(metadata_dict["center_freq"])
         except Exception as e:  # noqa: BLE001
@@ -83,11 +82,19 @@ def generate_spectrogram_from_drf(
         min_frequency = center_freq - freq_span / 2
         max_frequency = center_freq + freq_span / 2
 
-        # Spectrogram parameters
-        fft_size = 1024  # Default FFT size
-        std_dev = 100  # Default window standard deviation
-        hop_size = 500  # Default hop size
-        colormap = "magma"  # Default colormap
+        # Spectrogram parameters - use passed parameters or defaults
+        if processing_parameters is None:
+            processing_parameters = {}
+
+        fft_size = processing_parameters.get("fft_size", 1024)
+        std_dev = processing_parameters.get("std_dev", 100)
+        hop_size = processing_parameters.get("hop_size", 500)
+        colormap = processing_parameters.get("colormap", "magma")
+
+        logger.info(
+            f"Using spectrogram parameters: fft_size={fft_size}, "
+            f"std_dev={std_dev}, hop_size={hop_size}, colormap={colormap}"
+        )
 
         # Generate spectrogram using matplotlib
         try:
@@ -98,12 +105,7 @@ def generate_spectrogram_from_drf(
             )
             raise
 
-        # Read a subset of data for spectrogram generation
-        # Limit to first 100k samples to avoid memory issues
-        max_samples_for_spectrogram = min(total_samples, 100000)
-        data_array = reader.read_vector(
-            start_sample, max_samples_for_spectrogram, channel, 0
-        )
+        data_array = reader.read_vector(start_sample, total_samples, channel, 0)
 
         # Create Gaussian window
         gaussian_window = gaussian(fft_size, std=std_dev, sym=True)
@@ -120,9 +122,7 @@ def generate_spectrogram_from_drf(
         # Generate spectrogram
         spectrogram = short_time_fft.spectrogram(data_array)
 
-        # Create the spectrogram figure
-        extent = short_time_fft.extent(max_samples_for_spectrogram)
-        time_min, time_max = extent[:2]
+        extent = short_time_fft.extent(total_samples)
 
         # Create figure
         figure, axes = plt.subplots(figsize=(10, 6))
@@ -171,7 +171,7 @@ def generate_spectrogram_from_drf(
             "min_frequency": min_frequency,
             "max_frequency": max_frequency,
             "total_samples": total_samples,
-            "samples_processed": max_samples_for_spectrogram,
+            "samples_processed": total_samples,
             "fft_size": fft_size,
             "window_std_dev": std_dev,
             "hop_size": hop_size,

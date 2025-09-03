@@ -109,17 +109,19 @@ def get_pipeline_config(pipeline_type: str) -> dict[str, Any]:
 
 # Cog functions (pipeline steps)
 @cog
-def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) -> None:
+def setup_post_processing_cog(capture_uuid: str, processing_config: dict) -> None:
     """Setup post-processing for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run
+        processing_config: Dict with processing configurations for each type
     Returns:
         None
     """
     try:
-        logger.info(f"Starting setup for capture {capture_uuid}")
+        logger.info(
+            f"Starting setup for capture {capture_uuid} with config: {processing_config}"
+        )
 
         # Import models here to avoid Django app registry issues
         from sds_gateway.api_methods.models import Capture
@@ -164,14 +166,20 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
             error_msg = f"Capture {capture_uuid} is not a DigitalRF capture"
             raise ValueError(error_msg)  # noqa: TRY301
 
-        # Set default processing types if not specified
-        if not processing_types:
-            error_msg = "No processing types specified"
+        # Validate processing config
+        if not processing_config:
+            error_msg = "No processing config specified"
             raise ValueError(error_msg)  # noqa: TRY301
 
         # Create PostProcessedData records for each processing type
-        for processing_type in processing_types:
-            _create_or_reset_processed_data(capture, processing_type)
+        logger.info(
+            f"Creating PostProcessedData records for {len(processing_config)} processing types"
+        )
+        for processing_type, parameters in processing_config.items():
+            logger.info(
+                f"Creating record for {processing_type} with parameters: {parameters}"
+            )
+            _create_or_reset_processed_data(capture, processing_type, parameters)
 
         logger.info(f"Completed setup for capture {capture_uuid}")
     except Exception as e:
@@ -330,19 +338,19 @@ def process_waterfall_data_cog(
 
 @cog
 def process_spectrogram_data_cog(
-    capture_uuid: str, processing_types: list[str]
+    capture_uuid: str, processing_config: dict
 ) -> dict[str, Any]:
     """Process spectrogram data for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run
+        processing_config: Dict with processing configurations
 
     Returns:
         Dict with status and processed data info
     """
     # Check if spectrogram processing is requested
-    if processing_types and "spectrogram" not in processing_types:
+    if "spectrogram" not in processing_config:
         logger.info(
             f"Skipping spectrogram processing for capture {capture_uuid} - not "
             f"requested"
@@ -408,7 +416,7 @@ def process_spectrogram_data_cog(
                 spectrogram_result = generate_spectrogram_from_drf(
                     reconstructed_path,
                     capture.channel,
-                    ProcessingType.Spectrogram.value,
+                    processing_config["spectrogram"],
                 )
 
                 if spectrogram_result["status"] != "success":
@@ -457,12 +465,15 @@ def process_spectrogram_data_cog(
 
 
 # Helper functions
-def _create_or_reset_processed_data(capture, processing_type: str):
+def _create_or_reset_processed_data(
+    capture, processing_type: str, processing_parameters: dict | None = None
+):
     """Create or reset a PostProcessedData record for a capture and processing type.
 
     Args:
         capture: The capture to create processed data for
         processing_type: Type of processing (waterfall, spectrogram, etc.)
+        processing_parameters: Parameters for the processing type
 
     Returns:
         PostProcessedData: The created or reset record
@@ -471,26 +482,40 @@ def _create_or_reset_processed_data(capture, processing_type: str):
     from sds_gateway.visualizations.models import PostProcessedData
     from sds_gateway.visualizations.models import ProcessingStatus
 
-    # Try to get existing record
-    processed_data, newly_created = PostProcessedData.objects.get_or_create(
+    # Try to get existing record (any record for this capture and processing type)
+    logger.info(
+        f"Looking for existing PostProcessedData for capture {capture.uuid}, type {processing_type}"
+    )
+    processed_data = PostProcessedData.objects.filter(
         capture=capture,
         processing_type=processing_type,
-        processing_parameters={},  # Default empty parameters
-        defaults={
-            "processing_status": ProcessingStatus.Pending.value,
-            "metadata": {},
-        },
-    )
+    ).first()
 
-    if not newly_created:
-        # Reset existing record
+    if not processed_data:
+        # Create new record with provided parameters
+        logger.info(f"Creating new PostProcessedData record for {processing_type}")
+        processed_data = PostProcessedData.objects.create(
+            capture=capture,
+            processing_type=processing_type,
+            processing_parameters=processing_parameters or {},
+            processing_status=ProcessingStatus.Pending.value,
+            metadata={},
+        )
+        logger.info(f"Created PostProcessedData record {processed_data.uuid}")
+
+    else:
+        logger.info(
+            f"Resetting existing PostProcessedData record {processed_data.uuid}"
+        )
         processed_data.processing_status = ProcessingStatus.Pending.value
         processed_data.processing_error = ""
         processed_data.processed_at = None
         processed_data.pipeline_id = ""
+        processed_data.processing_parameters = processing_parameters or {}
         processed_data.metadata = {}
         if processed_data.data_file:
             processed_data.data_file.delete(save=False)
         processed_data.save()
+        logger.info(f"Reset PostProcessedData record {processed_data.uuid}")
 
     return processed_data
