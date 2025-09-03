@@ -6,6 +6,7 @@ import json
 from django.core.management.base import BaseCommand
 from django_cog.models import CeleryQueue
 from django_cog.models import Cog
+from django_cog.models import CogErrorHandler
 from django_cog.models import Pipeline
 from django_cog.models import Stage
 from django_cog.models import Task
@@ -142,12 +143,25 @@ class Command(BaseCommand):
                     queue_name="celery"
                 )
 
+                # Get or create the error handler from config
+                error_handler_name = config.get("error_handler")
+                error_handler_cog = None
+                if error_handler_name:
+                    error_handler_cog = CogErrorHandler.objects.filter(
+                        name=error_handler_name
+                    ).first()
+                    if not error_handler_cog:
+                        error_handler_cog = CogErrorHandler.objects.create(
+                            name=error_handler_name
+                        )
+
                 Task.objects.create(
                     stage=stage,
                     name=task_config["name"],
                     cog=cog,
                     arguments_as_json=json.dumps(task_config["args"]),
                     queue=default_queue,
+                    error_handler=error_handler_cog,
                 )
 
         return stage_objects

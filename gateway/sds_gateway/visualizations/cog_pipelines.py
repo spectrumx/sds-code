@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from django_cog import cog
+from django_cog import cog_error_handler
 from loguru import logger
 
 
@@ -37,6 +38,7 @@ def get_visualization_pipeline_config() -> dict[str, Any]:
     return {
         "pipeline_name": "visualization_processing",
         "prevent_overlapping_runs": False,
+        "error_handler": "visualization_error_handler",
         "stages": [
             {
                 "name": "setup_stage",
@@ -519,3 +521,59 @@ def _create_or_reset_processed_data(
         logger.info(f"Reset PostProcessedData record {processed_data.uuid}")
 
     return processed_data
+
+
+# Custom error handler for COG tasks
+@cog_error_handler
+def visualization_error_handler(error, task_run=None):
+    """
+    Custom error handler for visualization pipeline tasks.
+
+    This handler automatically updates PostProcessedData records to "failed" status
+    when any COG task fails, providing centralized error handling.
+
+    Args:
+        error: The exception that occurred
+        task_run: The task run object (optional, provided by Django COG)
+    """
+    logger.error(f"COG task failed: {error}")
+
+    if task_run:
+        logger.error(f"Failed task: {task_run.task.name}")
+        logger.error(f"Task run ID: {task_run.id}")
+
+        # Try to extract capture_uuid from task arguments
+        try:
+            # Get the task arguments - they should contain capture_uuid
+            task_args = task_run.task.arguments_as_json or {}
+            capture_uuid = task_args.get("capture_uuid")
+
+            if capture_uuid:
+                logger.info(
+                    f"Attempting to mark PostProcessedData records as failed for capture {capture_uuid}"
+                )
+
+                # Import models here to avoid Django app registry issues
+                from sds_gateway.visualizations.models import PostProcessedData
+                from sds_gateway.visualizations.models import ProcessingStatus
+
+                # Find any PostProcessedData records for this capture that are still pending
+                failed_records = PostProcessedData.objects.filter(
+                    capture__uuid=capture_uuid,
+                    processing_status=ProcessingStatus.Pending.value,
+                )
+
+                for record in failed_records:
+                    error_message = f"COG task '{task_run.task.name}' failed: {error}"
+                    record.mark_processing_failed(error_message)
+                    logger.info(
+                        f"Marked PostProcessedData record {record.uuid} as failed due to COG task failure"
+                    )
+
+            else:
+                logger.warning("Could not extract capture_uuid from task arguments")
+
+        except Exception as cleanup_error:
+            logger.error(f"Failed to update PostProcessedData records: {cleanup_error}")
+    else:
+        logger.warning("No task_run object provided to error handler")
