@@ -46,6 +46,49 @@
 	font-size: 0.875rem;
 }
 
+/* User profile styling */
+.form-control[readonly] {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+	color: #6c757d;
+}
+
+.form-control[readonly]:focus {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+	box-shadow: none;
+}
+
+/* Author management styling */
+.author-item {
+	transition: all 0.3s ease;
+}
+
+.author-item:hover {
+	background-color: #f8f9fa;
+}
+
+.author-item.marked-for-removal {
+	opacity: 0.5;
+	background-color: #f8f9fa;
+	border-color: #dc3545 !important;
+}
+
+.author-item.marked-for-removal .form-control {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+	color: #6c757d;
+}
+
+.author-name-input,
+.author-orcid-input {
+	font-size: 0.9rem;
+}
+
+.author-orcid-input {
+	font-family: 'Courier New', monospace;
+}
+
 /* Permission-based styling */
 .readonly-field {
 	background-color: #f8f9fa;

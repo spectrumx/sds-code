@@ -84,7 +84,7 @@
                                                             </label>
                                                             {{ dataset_form.name }}
                                                         </div>
-                                                                                                            <div class="form-group mt-4">
+                                                        <div class="form-group mt-4">
                                                         <label class="form-label">
                                                             Authors
                                                             <span class="text-danger">*</span>
@@ -253,9 +253,6 @@
                     updateDatasetNameDisplay();
                 }
 
-                // Initialize authors management
-                initializeAuthorsManagement();
-
                 // Basic step navigation fallback
                 const nextBtn = document.getElementById('nextStep');
                 const prevBtn = document.getElementById('prevStep');
@@ -391,6 +388,9 @@
                                 }
                             }
                         });
+                        
+                        // Initialize authors management after FormHandler is created
+                        initializeAuthorsManagement();
                     }
                 }, 100);
 
@@ -404,7 +404,10 @@
                 const authorsList = authorsContainer?.querySelector('.authors-list');
                 const addAuthorBtn = document.getElementById('add-author-btn');
                 const authorsHiddenField = document.getElementById('id_authors');
-                
+                console.log('Authors container:', authorsContainer);
+                console.log('Authors list:', authorsList);
+                console.log('Authors hidden field:', authorsHiddenField);
+                console.log('Authors hidden field value:', authorsHiddenField?.value);
                 if (!authorsContainer || !authorsList || !authorsHiddenField) return;
 
                 // Check if we're in edit mode
@@ -415,7 +418,7 @@
                 let originalAuthors = []; // Store original authors for edit mode
                 try {
                     const initialAuthors = authorsHiddenField.value;
-                    if (initialAuthors) {
+                    if (initialAuthors && initialAuthors.trim() !== '') {
                         authors = JSON.parse(initialAuthors);
                         if (isEditMode) {
                             originalAuthors = [...authors]; // Keep a copy of original authors
@@ -424,13 +427,38 @@
                 } catch (e) {
                     console.error('Error parsing initial authors:', e);
                 }
-
                 // If no authors, add the current user as the first author
                 if (authors.length === 0) {
                     const currentUserName = '{{ request.user.name|default:request.user.email }}';
-                    authors = [currentUserName];
+                    const currentUserOrcid = '{{ request.user.orcid_id|default:"" }}';
+                    authors = [{
+                        name: currentUserName,
+                        orcid_id: currentUserOrcid
+                    }];
                     if (isEditMode) {
                         originalAuthors = [...authors];
+                    }
+                } else {
+                    // Convert legacy string authors to new format if needed
+                    authors = authors.map(author => {
+                        if (typeof author === 'string') {
+                            return {
+                                name: author,
+                                orcid_id: ''
+                            };
+                        }
+                        return author;
+                    });
+                    if (isEditMode) {
+                        originalAuthors = originalAuthors.map(author => {
+                            if (typeof author === 'string') {
+                                return {
+                                    name: author,
+                                    orcid_id: ''
+                                };
+                            }
+                            return author;
+                        });
                     }
                 }
 
@@ -445,7 +473,7 @@
                     authorsList.innerHTML = '';
                     authors.forEach((author, index) => {
                         const authorDiv = document.createElement('div');
-                        authorDiv.className = 'author-item d-flex align-items-center mb-2';
+                        authorDiv.className = 'author-item mb-3 p-3 border rounded';
                         
                         // Check if this author is marked for removal in edit mode
                         const isMarkedForRemoval = isEditMode && authorChanges.removed.includes(index);
@@ -455,21 +483,50 @@
                             authorDiv.classList.add('marked-for-removal');
                         }
                         
+                        const authorName = typeof author === 'string' ? author : author.name || '';
+                        const authorOrcid = typeof author === 'string' ? '' : author.orcid_id || '';
+                        
                         authorDiv.innerHTML = `
-                            <input type="text" 
-                                   class="form-control me-2 author-input" 
-                                   value="${author}" 
-                                   placeholder="Author Name"
-                                   ${index === 0 ? 'readonly' : ''}
-                                   ${isMarkedForRemoval ? 'disabled' : ''}
-                                   data-index="${index}">
-                            ${index === 0 ? 
-                                '<span class="badge bg-primary me-2">Primary</span>' : 
-                                (isEditMode && isMarkedForRemoval ? 
-                                    `<button type="button" class="btn btn-sm btn-outline-success cancel-remove-author" data-index="${index}"><i class="bi bi-arrow-counterclockwise"></i></button>` :
-                                    `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}"><i class="bi bi-trash"></i></button>`
-                                )
-                            }
+                            <div class="position-relative">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div class="flex-grow-1">
+                                        ${index === 0 ? '<span class="badge bg-primary">Primary</span>' : ''}
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        ${index === 0 ? 
+                                            '<i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>' : 
+                                            (isEditMode && isMarkedForRemoval ? 
+                                                `<button type="button" class="btn btn-sm btn-outline-success cancel-remove-author" data-index="${index}" title="Cancel removal"><i class="bi bi-arrow-counterclockwise"></i></button>` :
+                                                `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="Remove author"><i class="bi bi-trash"></i></button>`
+                                            )
+                                        }
+                                    </div>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-12">
+                                        <label class="form-label small">Author Name</label>
+                                        <input type="text" 
+                                               class="form-control author-name-input" 
+                                               value="${authorName}" 
+                                               placeholder="Enter full name"
+                                               ${index === 0 ? 'readonly' : ''}
+                                               ${isMarkedForRemoval ? 'disabled' : ''}
+                                               data-index="${index}"
+                                               data-field="name">
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label small">ORCID ID</label>
+                                        <input type="text" 
+                                               class="form-control author-orcid-input" 
+                                               value="${authorOrcid}" 
+                                               placeholder="0000-0000-0000-0000"
+                                               ${index === 0 ? 'readonly' : ''}
+                                               ${isMarkedForRemoval ? 'disabled' : ''}
+                                               data-index="${index}"
+                                               data-field="orcid_id">
+                                    </div>
+                                </div>
+                            </div>
                         `;
                         authorsList.appendChild(authorDiv);
                     });
@@ -485,7 +542,10 @@
 
                 function addAuthor() {
                     const newIndex = authors.length;
-                    authors.push('');
+                    authors.push({
+                        name: '',
+                        orcid_id: ''
+                    });
                     
                     if (isEditMode) {
                         // Mark as added in edit mode
@@ -496,8 +556,8 @@
                     
                     updateAuthorsDisplay();
                     
-                    // Focus on the new input
-                    const newInput = authorsList.querySelector(`input[data-index="${newIndex}"]`);
+                    // Focus on the new name input
+                    const newInput = authorsList.querySelector(`input[data-index="${newIndex}"][data-field="name"]`);
                     if (newInput) {
                         newInput.focus();
                     }
@@ -509,7 +569,6 @@
                 }
 
                 function removeAuthor(index) {
-                    console.log('Attempting to remove author at index:', index, 'Total authors:', authors.length);
                     if (index > 0) { // Don't remove the primary author
                         if (isEditMode) {
                             // In edit mode, mark for removal instead of actually removing
@@ -517,7 +576,6 @@
                                 authorChanges.removed.push(index);
                             }
                             updateAuthorsDisplay();
-                            console.log('Author marked for removal');
                             
                             // Update review display
                             if (window.updateReviewAuthorsDisplay) {
@@ -527,7 +585,6 @@
                             // In create mode, remove immediately
                             authors.splice(index, 1);
                             updateAuthorsDisplay();
-                            console.log('Author removed successfully');
                             
                             // Update review display
                             if (window.updateReviewAuthorsDisplay) {
@@ -537,7 +594,6 @@
                     } else {
                         // Show warning that primary author cannot be removed
                         showNotification('The primary author cannot be removed. This is the dataset creator.', 'warning');
-                        console.log('Prevented removal of primary author');
                     }
                 }
 
@@ -548,7 +604,6 @@
                             authorChanges.removed.splice(removeIndex, 1);
                         }
                         updateAuthorsDisplay();
-                        console.log('Author removal cancelled');
                         
                         // Update review display
                         if (window.updateReviewAuthorsDisplay) {
@@ -591,27 +646,49 @@
 
                 // Handle input changes
                 authorsList.addEventListener('input', (e) => {
-                    if (e.target.classList.contains('author-input')) {
+                    if (e.target.classList.contains('author-name-input') || e.target.classList.contains('author-orcid-input')) {
                         const index = parseInt(e.target.dataset.index);
-                        const oldValue = authors[index];
-                        authors[index] = e.target.value;
+                        const field = e.target.dataset.field;
+                        
+                        // Ensure author object exists
+                        if (!authors[index] || typeof authors[index] === 'string') {
+                            authors[index] = {
+                                name: typeof authors[index] === 'string' ? authors[index] : '',
+                                orcid_id: ''
+                            };
+                        }
+                        
+                        const oldValue = authors[index][field];
+                        authors[index][field] = e.target.value;
                         
                         // Track modifications in edit mode
                         if (isEditMode && index < originalAuthors.length) {
-                            const originalValue = originalAuthors[index];
+                            const originalAuthor = originalAuthors[index];
+                            const originalValue = typeof originalAuthor === 'string' ? 
+                                (field === 'name' ? originalAuthor : '') : 
+                                (originalAuthor[field] || '');
+                            
                             if (e.target.value !== originalValue) {
-                                authorChanges.modified[index] = {
+                                if (!authorChanges.modified[index]) {
+                                    authorChanges.modified[index] = {};
+                                }
+                                authorChanges.modified[index][field] = {
                                     old: originalValue,
                                     new: e.target.value
                                 };
                             } else {
-                                delete authorChanges.modified[index];
+                                if (authorChanges.modified[index]) {
+                                    delete authorChanges.modified[index][field];
+                                    if (Object.keys(authorChanges.modified[index]).length === 0) {
+                                        delete authorChanges.modified[index];
+                                    }
+                                }
                             }
                         }
                         
                         // Only update display if we need to remove empty authors
                         let needsUpdate = false;
-                        if (index > 0 && !authors[index].trim()) {
+                        if (index > 0 && !authors[index].name.trim() && !authors[index].orcid_id.trim()) {
                             authors.splice(index, 1);
                             needsUpdate = true;
                         }
@@ -636,16 +713,10 @@
                     const cancelButton = e.target.closest('.cancel-remove-author');
                     
                     if (removeButton) {
-                        console.log('Remove button clicked');
-                        console.log('Remove button:', removeButton);
-                        console.log('Remove button dataset:', removeButton.dataset);
                         const index = parseInt(removeButton.dataset.index);
-                        console.log('Removing author at index:', index);
                         removeAuthor(index);
                     } else if (cancelButton) {
-                        console.log('Cancel button clicked');
                         const index = parseInt(cancelButton.dataset.index);
-                        console.log('Cancelling removal for author at index:', index);
                         cancelAuthorRemoval(index);
                     }
                 });
@@ -656,7 +727,16 @@
                         // In create mode, just show the current authors
                         const authorsDisplay = document.querySelector("#step4 .dataset-authors");
                         if (authorsDisplay) {
-                            authorsDisplay.textContent = authors.join(', ');
+                            const authorNames = authors.map(author => {
+                                if (typeof author === 'string') return author;
+                                const name = author.name || 'Unnamed Author';
+                                const orcid = author.orcid_id;
+                                if (orcid) {
+                                    return `${name} (<a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a>)`;
+                                }
+                                return name;
+                            });
+                            authorsDisplay.innerHTML = authorNames.join(', ');
                         }
                         return;
                     }
@@ -670,9 +750,14 @@
                     // Show added authors
                     authorChanges.added.forEach(index => {
                         if (authors[index]) {
+                            const author = authors[index];
+                            const authorName = typeof author === 'string' ? author : author.name || 'Unnamed Author';
+                            const authorOrcid = typeof author === 'string' ? '' : author.orcid_id || '';
+                            const orcidDisplay = authorOrcid ? ` (<a href="https://orcid.org/${authorOrcid}" target="_blank" class="text-decoration-none">${authorOrcid}</a>)` : '';
+                            
                             const li = document.createElement('li');
                             li.className = 'text-success';
-                            li.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Add: ${authors[index]}`;
+                            li.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Add: ${authorName}${orcidDisplay}`;
                             changeList.appendChild(li);
                         }
                     });
@@ -680,26 +765,43 @@
                     // Show removed authors
                     authorChanges.removed.forEach(index => {
                         if (originalAuthors[index]) {
+                            const author = originalAuthors[index];
+                            const authorName = typeof author === 'string' ? author : author.name || 'Unnamed Author';
+                            const authorOrcid = typeof author === 'string' ? '' : author.orcid_id || '';
+                            const orcidDisplay = authorOrcid ? ` (<a href="https://orcid.org/${authorOrcid}" target="_blank" class="text-decoration-none">${authorOrcid}</a>)` : '';
+                            
                             const li = document.createElement('li');
                             li.className = 'text-danger';
-                            li.innerHTML = `<i class="bi bi-dash-circle me-1"></i>Remove: ${originalAuthors[index]}`;
+                            li.innerHTML = `<i class="bi bi-dash-circle me-1"></i>Remove: ${authorName}${orcidDisplay}`;
                             changeList.appendChild(li);
                         }
                     });
                     
                     // Show modified authors
-                    Object.entries(authorChanges.modified).forEach(([index, change]) => {
-                        const li = document.createElement('li');
-                        li.style.color = '#d97706';
-                        li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change: "${change.old}" → "${change.new}"`;
-                        changeList.appendChild(li);
+                    Object.entries(authorChanges.modified).forEach(([index, changes]) => {
+                        Object.entries(changes).forEach(([field, change]) => {
+                            const li = document.createElement('li');
+                            li.style.color = '#d97706';
+                            const fieldLabel = field === 'name' ? 'Name' : 'ORCID ID';
+                            li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change ${fieldLabel}: "${change.old}" → "${change.new}"`;
+                            changeList.appendChild(li);
+                        });
                     });
                     
                     // Show current authors (excluding marked for removal)
                     const currentAuthors = authors.filter((author, index) => !authorChanges.removed.includes(index));
                     const authorsDisplay = document.querySelector("#step4 .dataset-authors");
                     if (authorsDisplay) {
-                        authorsDisplay.textContent = currentAuthors.join(', ');
+                        const authorNames = currentAuthors.map(author => {
+                            if (typeof author === 'string') return author;
+                            const name = author.name || 'Unnamed Author';
+                            const orcid = author.orcid_id;
+                            if (orcid) {
+                                return `${name} (<a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a>)`;
+                            }
+                            return name;
+                        });
+                        authorsDisplay.innerHTML = authorNames.join(', ');
                     }
                 }
 
