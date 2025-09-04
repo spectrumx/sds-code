@@ -42,9 +42,6 @@ def _load_undesired_globs(ignore_file: Path | None = None) -> list[str]:
     return undesired_basenames
 
 
-DISALLOWED_GLOBS = _load_undesired_globs()
-
-
 def get_file_media_type(file_path: Path) -> str:
     """Returns the media type of a file.
 
@@ -130,8 +127,8 @@ def is_valid_file(
         reasons.append(f"Invalid MIME type: {file_mime}")
     if not file_path.is_file():
         reasons.append("Not a file")
-    if file_path.stat().st_size == 0:
-        reasons.append("Empty file")
+    elif file_path.stat().st_size == 0:
+        reasons.append("Empty file, or could not read it")
     final_decision = (
         file_path.is_file() and file_path.stat().st_size > 0 and is_valid_mime
     )
@@ -212,3 +209,21 @@ def generate_random_files(num_files: int) -> list[File]:
         file_obj = generate_sample_file(uuid.uuid4())
         sample_files.append(file_obj)
     return sample_files
+
+
+DISALLOWED_GLOBS = _load_undesired_globs()
+
+
+def main() -> None:
+    for pattern in DISALLOWED_GLOBS:
+        log.error(pattern)
+    invalid_files = [Path("/this/is/a/test/index.html.tmp")]
+
+    for file_case in invalid_files:
+        is_valid, reasons = is_valid_file(file_case)
+        log.warning(is_valid)
+        log.warning(reasons)
+
+
+if __name__ == "__main__":
+    main()
