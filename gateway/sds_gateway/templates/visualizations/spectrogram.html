@@ -109,14 +109,16 @@
                             <div id="spectrogramContainer">
                                 <canvas id="spectrogramCanvas" width="800" height="400"></canvas>
                                 <div id="loadingOverlay" class="loading-overlay d-none">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
+                                    <div class="spinner-border text-primary"
+                                         role="status"
+                                         aria-label="Generating spectrogram">
+                                        <span class="visually-hidden">Generating spectrogram...</span>
                                     </div>
                                 </div>
                             </div>
                             <!-- Status Messages -->
                             <div id="statusMessage" class="text-center p-4">
-                                <p class="text-muted">Configure settings and click "Generate Spectrogram" to begin</p>
+                                <p class="text-muted"></p>
                             </div>
                         </div>
                     </div>
