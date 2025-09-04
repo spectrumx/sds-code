@@ -17,7 +17,6 @@ from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
-from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.views.file_endpoints import FilePagination
@@ -101,7 +100,9 @@ class DatasetViewSet(ViewSet):
             is_deleted=False,
         )
 
-        if not user_has_access_to_item(request.user, target_dataset.uuid, ItemType.DATASET):
+        if not user_has_access_to_item(
+            request.user, target_dataset.uuid, ItemType.DATASET
+        ):
             return Response(
                 {"detail": "You do not have permission to access this dataset."},
                 status=status.HTTP_403_FORBIDDEN,
