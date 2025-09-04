@@ -53,7 +53,6 @@ export const API_ENDPOINTS = {
 
 // Status messages
 export const STATUS_MESSAGES = {
-	READY: 'Configure settings and click "Generate Spectrogram" to begin',
 	GENERATING: "Generating spectrogram...",
 	SUCCESS: "",
 	ERROR: "Failed to generate spectrogram",
