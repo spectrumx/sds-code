@@ -106,7 +106,7 @@ user_detail_view = UserDetailView.as_view()
 
 class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView):  # pyright: ignore[reportMissingTypeArgument]
     model = User
-    fields = ["name"]
+    fields = ["name", "orcid_id"]
     success_message = _("Information successfully updated")
 
     def get_success_url(self):
@@ -1350,6 +1350,10 @@ class GroupCapturesView(
             existing_dataset = Dataset.objects.get(uuid=dataset_uuid)
             permission_level = get_user_permission_level(self.request.user, dataset_uuid, ItemType.DATASET)
             is_owner = existing_dataset.owner == self.request.user
+        else:
+            # For new dataset creation, user is always the owner
+            permission_level = "owner"
+            is_owner = True
 
         # Get form
         if self.request.method == "POST":
@@ -1357,12 +1361,15 @@ class GroupCapturesView(
         else:
             initial_data = {}
             if existing_dataset:
-                            initial_data = {
-                "name": existing_dataset.name,
-                "description": existing_dataset.description,
-                "authors": json.dumps(existing_dataset.get_authors_display()),
-                "status": existing_dataset.status,
-            }
+                initial_data = {
+                    "name": existing_dataset.name,
+                    "description": existing_dataset.description,
+                    "authors": json.dumps(existing_dataset.get_authors_display()),
+                    "status": existing_dataset.status,
+                }
+            else:
+                # For new datasets, let the form handle authors initialization
+                initial_data = {}
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
         selected_files, selected_files_details = self._get_file_context(
@@ -1492,6 +1499,9 @@ class GroupCapturesView(
                     status=403,
                 )
         else:
+            # For new dataset creation, user is always the owner
+            permission_level = "owner"
+            
             # For creation, get selected captures and files from hidden fields
             selected_captures = request.POST.get("selected_captures", "").split(",")
             selected_files = request.POST.get("selected_files", "").split(",")

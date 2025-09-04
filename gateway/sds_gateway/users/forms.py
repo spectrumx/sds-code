@@ -105,9 +105,16 @@ class DatasetInfoForm(forms.Form):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
-        if user:
+        initial_authors = self.initial.get("authors")
+        # Check if authors is empty (None, empty string, or "[]")
+        is_authors_empty = not initial_authors or initial_authors in ["", "[]"]
+        if user and is_authors_empty:
             # Set initial authors as JSON string with the user as the first author
-            initial_authors = [user.name or user.email]
+            # Use new object format with name and orcid_id
+            initial_authors = [{
+                "name": user.name or user.email,
+                "orcid_id": user.orcid_id or ""
+            }]
             self.fields["authors"].initial = json.dumps(initial_authors)
 
     def clean_name(self):
@@ -132,11 +139,29 @@ class DatasetInfoForm(forms.Form):
             # Validate each author name
             cleaned_authors = []
             for author in authors:
-                if not author or not author.strip():
-                    continue
-                if len(author.strip()) < MIN_AUTHOR_NAME_LENGTH:
-                    raise ValidationError(f"Author name '{author}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters.")
-                cleaned_authors.append(author.strip())
+                # Handle both old string format and new object format
+                if isinstance(author, str):
+                    # Convert old string format to new object format
+                    author_name = author.strip()
+                    if not author_name:
+                        continue
+                    if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
+                        raise ValidationError(f"Author name '{author_name}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters.")
+                    cleaned_authors.append({
+                        "name": author_name,
+                        "orcid_id": ""
+                    })
+                elif isinstance(author, dict):
+                    # Handle new object format
+                    author_name = author.get("name", "").strip()
+                    if not author_name:
+                        continue
+                    if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
+                        raise ValidationError(f"Author name '{author_name}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters.")
+                    cleaned_authors.append({
+                        "name": author_name,
+                        "orcid_id": author.get("orcid_id", "").strip()
+                    })
             
             if not cleaned_authors:
                 raise ValidationError("At least one valid author is required")

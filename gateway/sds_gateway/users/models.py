@@ -28,6 +28,7 @@ class User(AbstractUser):
     username: str | None = None
     name = models.CharField(_("Name of User"), blank=True, max_length=255)
     email = models.EmailField(_("Email address"), unique=True)
+    orcid_id = models.CharField(_("ORCID ID"), blank=True, max_length=255)
     is_approved = models.BooleanField(
         _("Approved"),
         default=settings.SDS_NEW_USERS_APPROVED_ON_CREATION,
