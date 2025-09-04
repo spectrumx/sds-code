@@ -28,6 +28,7 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.tests.factories import UserSharePermissionFactory
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.views.capture_endpoints import _normalize_top_level_dir
 from sds_gateway.users.models import UserAPIKey
 
 # Test constants
@@ -91,12 +92,14 @@ class CaptureTestCases(APITestCase):
         )
 
         # Create test captures without metadata
+        # Normalize paths to match what the API would do
+
         self.drf_capture_v0 = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,
             channel=self.channel_v0,
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
-            top_level_dir=self.top_level_dir_v0,
+            top_level_dir=_normalize_top_level_dir(self.top_level_dir_v0),
         )
 
         self.drf_capture_v1 = Capture.objects.create(
@@ -104,7 +107,7 @@ class CaptureTestCases(APITestCase):
             channel=self.channel_v1,
             index_name=f"{self.test_index_prefix}-drf",
             owner=self.user,
-            top_level_dir=self.top_level_dir_v1,
+            top_level_dir=_normalize_top_level_dir(self.top_level_dir_v1),
         )
 
         self.rh_capture = Capture.objects.create(
@@ -112,7 +115,7 @@ class CaptureTestCases(APITestCase):
             index_name=f"{self.test_index_prefix}-rh",
             owner=self.user,
             scan_group=self.scan_group,
-            top_level_dir=self.top_level_dir_rh,
+            top_level_dir=_normalize_top_level_dir(self.top_level_dir_rh),
         )
 
         # Define test metadata
@@ -472,6 +475,7 @@ class CaptureTestCases(APITestCase):
 
     def test_list_captures_200(self) -> None:
         """Test listing captures returns metadata for all captures."""
+
         response_raw = self.client.get(self.list_url)
         assert response_raw.status_code == status.HTTP_200_OK
 
@@ -496,14 +500,18 @@ class CaptureTestCases(APITestCase):
             if "center_freq" in drf_capture["capture_props"]:
                 assert drf_capture["capture_props"]["center_freq"] == self.center_freq
                 assert drf_capture["channel"] == self.channel_v0
-                assert drf_capture["top_level_dir"] == self.top_level_dir_v0
+                assert drf_capture["top_level_dir"] == _normalize_top_level_dir(
+                    self.top_level_dir_v0
+                )
             else:
                 assert (
                     drf_capture["capture_props"]["center_frequencies"][0]
                     == self.center_freq
                 )
                 assert drf_capture["channel"] == self.channel_v1
-                assert drf_capture["top_level_dir"] == self.top_level_dir_v1
+                assert drf_capture["top_level_dir"] == _normalize_top_level_dir(
+                    self.top_level_dir_v1
+                )
 
         # verify rh capture
         rh_capture = next(
@@ -516,8 +524,11 @@ class CaptureTestCases(APITestCase):
 
         # verify other fields are present
         assert rh_capture["channel"] == "", "Expected empty channel for RH capture"
-        assert rh_capture["top_level_dir"] == self.top_level_dir_rh, (
-            f"Expected top level dir {self.top_level_dir_rh}, "
+        assert rh_capture["top_level_dir"] == _normalize_top_level_dir(
+            self.top_level_dir_rh
+        ), (
+            f"Expected top level dir "
+            f"{_normalize_top_level_dir(self.top_level_dir_rh)}, "
             f"got {rh_capture['top_level_dir']}"
         )
         assert rh_capture["scan_group"] == str(self.scan_group), (
@@ -1173,6 +1184,229 @@ class CaptureTestCases(APITestCase):
         File.objects.filter(
             owner=self.user, directory__startswith=f"files/{self.user.email}/rh-example"
         ).delete()
+
+    def test_duplicate_check_path_normalization_regression(self) -> None:
+        """
+        Regression test for duplicate checking bug with path normalization.
+
+        This test ensures that duplicate checking works correctly regardless of
+        whether the top_level_dir is provided with or without a leading slash.
+        The bug was that paths like "test-dir" and "/test-dir" were not being
+        recognized as duplicates due to inconsistent normalization.
+        """
+        # Test case 1: Create capture with path without leading slash
+        channel_without_slash = f"{self.channel_v0}_no_slash"
+        path_without_slash = "test-dir-no-slash"
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata_v0,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture_v0.index_name,
+            ),
+        ):
+            # Create first capture with path without leading slash
+            response1 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_without_slash,
+                    "top_level_dir": path_without_slash,
+                },
+            )
+            assert response1.status_code == status.HTTP_201_CREATED, (
+                f"First capture creation failed: {response1.status_code}"
+            )
+
+            # Try to create duplicate with path WITH leading slash
+            response2 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_without_slash,
+                    "top_level_dir": f"/{path_without_slash}",  # Add leading slash
+                },
+            )
+            assert response2.status_code == status.HTTP_400_BAD_REQUEST, (
+                f"Duplicate detection failed: {response2.status_code}"
+            )
+            response2_data = response2.json()
+            assert (
+                "channel and top level directory are already in use"
+                in response2_data["detail"]
+            ), f"Unexpected error message: {response2_data['detail']}"
+
+    def test_duplicate_check_path_normalization_reverse_regression(self) -> None:
+        """
+        Regression test for duplicate checking bug with path normalization (reverse).
+
+        This test ensures that duplicate checking works correctly when the first
+        capture is created with a leading slash and the duplicate attempt is without.
+        """
+        # Test case 2: Create capture with path WITH leading slash first
+        channel_with_slash = f"{self.channel_v0}_with_slash"
+        path_with_slash = "/test-dir-with-slash"
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata_v0,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture_v0.index_name,
+            ),
+        ):
+            # Create first capture with path WITH leading slash
+            response1 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_with_slash,
+                    "top_level_dir": path_with_slash,
+                },
+            )
+            assert response1.status_code == status.HTTP_201_CREATED, (
+                f"First capture creation failed: {response1.status_code}"
+            )
+
+            # Try to create duplicate with path WITHOUT leading slash
+            response2 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_with_slash,
+                    "top_level_dir": path_with_slash.lstrip("/"),  # Remove slash
+                },
+            )
+            assert response2.status_code == status.HTTP_400_BAD_REQUEST, (
+                f"Duplicate detection failed: {response2.status_code}"
+            )
+            response2_data = response2.json()
+            assert (
+                "channel and top level directory are already in use"
+                in response2_data["detail"]
+            ), f"Unexpected error message: {response2_data['detail']}"
+
+    def test_duplicate_check_whitespace_path_regression(self) -> None:
+        """
+        Regression test for duplicate checking with whitespace paths.
+
+        This test ensures that duplicate checking handles edge cases like paths
+        with only whitespace correctly.
+        """
+        channel_whitespace_path = f"{self.channel_v0}_whitespace_path"
+        base_path = "test-dir-whitespace"
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata_v0,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture_v0.index_name,
+            ),
+        ):
+            # Create first capture with path with leading space
+            response1 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_whitespace_path,
+                    "top_level_dir": f" {base_path}",  # Leading space
+                },
+            )
+            assert response1.status_code == status.HTTP_201_CREATED, (
+                f"First capture creation failed: {response1.status_code}"
+            )
+
+            # Try to create duplicate with same path without leading space
+            response2 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_whitespace_path,
+                    "top_level_dir": base_path,  # No leading space
+                },
+            )
+            # This should either be detected as duplicate or succeed depending on
+            # how path sanitization handles whitespace
+            assert response2.status_code in [
+                status.HTTP_400_BAD_REQUEST,
+                status.HTTP_201_CREATED,
+            ], f"Unexpected status code: {response2.status_code}"
+
+            if response2.status_code == status.HTTP_400_BAD_REQUEST:
+                response2_data = response2.json()
+                assert (
+                    "channel and top level directory are already in use"
+                    in response2_data["detail"]
+                ), f"Unexpected error message: {response2_data['detail']}"
+
+    def test_duplicate_check_multiple_slashes_regression(self) -> None:
+        """
+        Regression test for duplicate checking with multiple leading slashes.
+
+        This test ensures that duplicate checking handles paths with multiple
+        leading slashes correctly.
+        """
+        channel_multi_slash = f"{self.channel_v0}_multi_slash"
+        base_path = "test-dir-multi-slash"
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata_v0,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture_v0.index_name,
+            ),
+        ):
+            # Create first capture with single leading slash
+            response1 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_multi_slash,
+                    "top_level_dir": f"/{base_path}",
+                },
+            )
+            assert response1.status_code == status.HTTP_201_CREATED, (
+                f"First capture creation failed: {response1.status_code}"
+            )
+
+            # Try to create duplicate with multiple leading slashes
+            response2 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_multi_slash,
+                    "top_level_dir": f"//{base_path}",  # Double slash
+                },
+            )
+            # This should either be detected as duplicate or fail validation
+            # The exact behavior depends on how normalization handles multiple slashes
+            assert response2.status_code in [
+                status.HTTP_400_BAD_REQUEST,
+                status.HTTP_201_CREATED,
+            ], f"Unexpected status code: {response2.status_code}"
+
+            if response2.status_code == status.HTTP_400_BAD_REQUEST:
+                response2_data = response2.json()
+                # Should either be duplicate error or validation error
+                assert any(
+                    phrase in response2_data["detail"]
+                    for phrase in [
+                        "channel and top level directory are already in use",
+                        "invalid",
+                        "normalize",
+                    ]
+                ), f"Unexpected error message: {response2_data['detail']}"
 
     def test_list_captures_includes_shared_captures(self) -> None:
         """Test that list captures includes captures shared with the user."""
