@@ -3,9 +3,9 @@
  * Orchestrates all spectrogram components and handles the main functionality
  */
 
-import { API_ENDPOINTS, ERROR_MESSAGES, STATUS_MESSAGES } from "./constants.js";
 import { SpectrogramControls } from "./SpectrogramControls.js";
 import { SpectrogramRenderer } from "./SpectrogramRenderer.js";
+import { API_ENDPOINTS, ERROR_MESSAGES, STATUS_MESSAGES } from "./constants.js";
 
 export class SpectrogramVisualization {
 	constructor(captureUuid) {
@@ -32,7 +32,8 @@ export class SpectrogramVisualization {
 		try {
 			await this.initializeComponents();
 			this.setupEventHandlers();
-			this.checkForDefaultSpectrogram();
+			// Generate spectrogram with default parameters
+			await this.generateSpectrogram();
 		} catch (error) {
 			console.error("Failed to initialize spectrogram visualization:", error);
 			this.showError(ERROR_MESSAGES.RENDER_ERROR);
@@ -98,7 +99,6 @@ export class SpectrogramVisualization {
 
 		try {
 			this.setGeneratingState(true);
-			this.updateStatus(STATUS_MESSAGES.GENERATING);
 
 			const settings = this.controls.getSettings();
 
@@ -245,14 +245,19 @@ export class SpectrogramVisualization {
 			}
 
 			const blob = await response.blob();
-			console.log("Received spectrogram blob:", blob.size, "bytes, type:", blob.type);
-			
+			console.log(
+				"Received spectrogram blob:",
+				blob.size,
+				"bytes, type:",
+				blob.type,
+			);
+
 			// Revoke the old URL before creating a new one
 			if (this.currentSpectrogramUrl) {
 				URL.revokeObjectURL(this.currentSpectrogramUrl);
 				this.currentSpectrogramUrl = null;
 			}
-			
+
 			const renderResult = await this.renderer.renderFromImageBlob(blob);
 			console.log("Render result:", renderResult);
 
@@ -266,86 +271,6 @@ export class SpectrogramVisualization {
 			console.error("Error fetching spectrogram result:", error);
 			this.showError("Failed to fetch spectrogram result");
 			this.setGeneratingState(false);
-		}
-	}
-
-	/**
-	 * Check if there's a default spectrogram available for this capture
-	 */
-	async checkForDefaultSpectrogram() {
-		try {
-			this.updateStatus("Checking for existing spectrogram...");
-
-			// Check if there's a completed spectrogram for this capture
-			const response = await fetch(
-				`/api/v1/assets/captures/${this.captureUuid}/post_processing_status/`,
-				{
-					headers: {
-						"X-CSRFToken": this.getCSRFToken(),
-					},
-				},
-			);
-
-			if (response.ok) {
-				const data = await response.json();
-				const spectrogramData = data.post_processed_data?.find(
-					(item) =>
-						item.processing_type === "spectrogram" &&
-						item.processing_status === "completed",
-				);
-
-				if (spectrogramData) {
-					// Found a completed spectrogram, load it
-					this.updateStatus("Loading existing spectrogram...");
-					await this.loadExistingSpectrogram(spectrogramData.uuid);
-					return;
-				}
-			}
-
-			// No existing spectrogram found
-			this.updateStatus(STATUS_MESSAGES.READY);
-		} catch (error) {
-			console.error("Error checking for default spectrogram:", error);
-			this.updateStatus(STATUS_MESSAGES.READY);
-		}
-	}
-
-	/**
-	 * Load an existing spectrogram
-	 */
-	async loadExistingSpectrogram() {
-		try {
-			const response = await fetch(
-				`/api/v1/assets/captures/${this.captureUuid}/download_post_processed_data/?processing_type=spectrogram`,
-				{
-					headers: {
-						"X-CSRFToken": this.getCSRFToken(),
-					},
-				},
-			);
-
-			if (response.ok) {
-				const blob = await response.blob();
-				
-				// Revoke the old URL before creating a new one
-				if (this.currentSpectrogramUrl) {
-					URL.revokeObjectURL(this.currentSpectrogramUrl);
-					this.currentSpectrogramUrl = null;
-				}
-				
-				await this.renderer.renderFromImageBlob(blob);
-
-				this.updateStatus("");
-				this.showSaveButton(true);
-
-				// Store the result for saving
-				this.currentSpectrogramUrl = URL.createObjectURL(blob);
-			} else {
-				throw new Error("Failed to download existing spectrogram");
-			}
-		} catch (error) {
-			console.error("Error loading existing spectrogram:", error);
-			this.updateStatus("Failed to load spectrogram");
 		}
 	}
 
@@ -368,10 +293,16 @@ export class SpectrogramVisualization {
 
 		// Show/hide loading overlay
 		if (this.loadingOverlay) {
-			this.loadingOverlay.style.display = isGenerating ? "flex" : "none";
+			if (isGenerating) {
+				this.loadingOverlay.classList.remove("d-none");
+				this.loadingOverlay.style.display = "flex";
+			} else {
+				this.loadingOverlay.classList.add("d-none");
+				this.loadingOverlay.style.display = "none";
+			}
 		}
 
-		// Show/hide status message
+		// Hide status message during generation, show transparent overlay instead
 		if (this.statusMessage) {
 			this.statusMessage.style.display = isGenerating ? "none" : "block";
 		}
