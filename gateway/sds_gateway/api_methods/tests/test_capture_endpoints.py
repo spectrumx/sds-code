@@ -1176,14 +1176,14 @@ class CaptureTestCases(APITestCase):
 
     def test_list_captures_includes_shared_captures(self) -> None:
         """Test that list captures includes captures shared with the user."""
-        
+
         # Create another user
         other_user = User.objects.create(
             email="otheruser@example.com",
             password="testpassword",  # noqa: S106
             is_approved=True,
         )
-        
+
         # Create a capture owned by the other user
         shared_capture = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,
@@ -1192,7 +1192,7 @@ class CaptureTestCases(APITestCase):
             owner=other_user,
             top_level_dir="shared-dir",
         )
-        
+
         # Create a share permission for this capture using the factory
         UserSharePermissionFactory(
             owner=other_user,
@@ -1201,18 +1201,19 @@ class CaptureTestCases(APITestCase):
             item_uuid=shared_capture.uuid,
             is_enabled=True,
         )
-        
+
         # List captures - should include the shared capture
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
         # Should have the original captures plus the shared one
         expected_count = TOTAL_TEST_CAPTURES + 1
         assert data["count"] == expected_count, (
-            f"Expected {expected_count} captures (including shared), got {data['count']}"
+            f"Expected {expected_count} captures (including shared), "
+            f"got {data['count']}"
         )
-        
+
         # Verify the shared capture is in the results
         shared_capture_found = False
         for capture in data["results"]:
@@ -1221,19 +1222,19 @@ class CaptureTestCases(APITestCase):
                 assert capture["channel"] == "shared-channel"
                 assert capture["top_level_dir"] == "shared-dir"
                 break
-        
+
         assert shared_capture_found, "Shared capture not found in list results"
 
     def test_retrieve_shared_capture_200(self) -> None:
         """Test that retrieving a shared capture returns 200."""
-        
+
         # Create another user
         other_user = User.objects.create(
             email="otheruser@example.com",
             password="testpassword",  # noqa: S106
             is_approved=True,
         )
-        
+
         # Create a capture owned by the other user
         shared_capture = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,
@@ -1242,7 +1243,7 @@ class CaptureTestCases(APITestCase):
             owner=other_user,
             top_level_dir="shared-dir",
         )
-        
+
         # Create a share permission for this capture using the factory
         UserSharePermissionFactory(
             owner=other_user,
@@ -1251,11 +1252,11 @@ class CaptureTestCases(APITestCase):
             item_uuid=shared_capture.uuid,
             is_enabled=True,
         )
-        
+
         # Retrieve the shared capture
         response = self.client.get(self.detail_url(shared_capture.uuid))
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
         assert data["uuid"] == str(shared_capture.uuid)
         assert data["channel"] == "shared-channel"
@@ -1263,14 +1264,14 @@ class CaptureTestCases(APITestCase):
 
     def test_disabled_share_permission_blocks_access(self) -> None:
         """Test that disabled share permissions do not grant access."""
-        
+
         # Create another user
         other_user = User.objects.create(
             email="otheruser@example.com",
             password="testpassword",  # noqa: S106
             is_approved=True,
         )
-        
+
         # Create a capture owned by the other user
         shared_capture = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,
@@ -1279,7 +1280,7 @@ class CaptureTestCases(APITestCase):
             owner=other_user,
             top_level_dir="shared-dir",
         )
-        
+
         # Create a disabled share permission using the factory
         UserSharePermissionFactory(
             owner=other_user,
@@ -1288,19 +1289,20 @@ class CaptureTestCases(APITestCase):
             item_uuid=shared_capture.uuid,
             is_enabled=False,  # Disabled permission
         )
-        
+
         # Try to retrieve the capture - should be denied
         response = self.client.get(self.detail_url(shared_capture.uuid))
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        
+
         # List captures - should not include the capture
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_200_OK
-        
+
         data = response.json()
         # Should only have the original captures, not the shared one
         assert data["count"] == TOTAL_TEST_CAPTURES, (
-            f"Expected {TOTAL_TEST_CAPTURES} captures (excluding disabled shared), got {data['count']}"
+            f"Expected {TOTAL_TEST_CAPTURES} captures (excluding disabled shared), "
+            f"got {data['count']}"
         )
 
 

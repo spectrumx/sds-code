@@ -34,8 +34,8 @@ from sds_gateway.api_methods.serializers.file_serializers import (
 )
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
-from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
+from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 
 if TYPE_CHECKING:
     from django.http.request import QueryDict
@@ -231,29 +231,32 @@ class FileViewSet(ViewSet):
     )
     def list(self, request: Request) -> Response:
         """
-        Lists all files accessible to the user (owned + shared through captures/datasets). 
-        When `path` is passed, it filters all files matching that subdirectory. 
-        If `path` is an exact file path (directory + name) with multiple matches (versions), 
-        it will retrieve the most recent one that matches that path. Wildcards are not yet supported.
+        Lists all files accessible to the user (owned + shared via captures/datasets).
+        When `path` is passed, it filters all files matching that subdirectory.
+        If `path` is an exact file path (directory + name) with multiple matches,
+        it will retrieve the most recent one that matches that path.
+        Wildcards are not yet supported.
         """
         unsafe_path = request.GET.get("path", "/").strip()
         basename = Path(unsafe_path).name
 
         # Get all files and filter by access using the helper function
         all_files = File.objects.filter(is_deleted=False)
-        accessible_files = []
-        
-        for file_obj in all_files:
-            if user_has_access_to_file(request.user, file_obj):
-                accessible_files.append(file_obj.pk)
-        
+        accessible_files = [
+            file_obj.pk
+            for file_obj in all_files
+            if user_has_access_to_file(request.user, file_obj)
+        ]
+
         # Filter queryset to only include accessible files
         all_valid_user_files = File.objects.filter(pk__in=accessible_files)
 
         # If no specific path is requested (default "/"), return all accessible files
-        if unsafe_path == "/" or unsafe_path == "":
+        if unsafe_path in {"/", ""}:
             paginator = FilePagination()
-            paginated_files = paginator.paginate_queryset(all_valid_user_files, request=request)
+            paginated_files = paginator.paginate_queryset(
+                all_valid_user_files, request=request
+            )
             serializer = FileGetSerializer(paginated_files, many=True)
             return paginator.get_paginated_response(serializer.data)
 
@@ -478,7 +481,7 @@ class FileViewSet(ViewSet):
             pk=pk,
             is_deleted=False,
         )
-        
+
         # Check if user has access to the file
         if not user_has_access_to_file(request.user, target_file):
             return Response(

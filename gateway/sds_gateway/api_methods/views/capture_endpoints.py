@@ -50,12 +50,13 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.tasks import start_capture_post_processing
+from sds_gateway.api_methods.utils.asset_access_control import (
+    user_has_access_to_capture,
+)
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
-from sds_gateway.api_methods.models import ItemType
-from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_capture
 
 MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
 
@@ -880,7 +881,7 @@ class CaptureViewSet(viewsets.ViewSet):
             capture = get_object_or_404(
                 Capture,
                 pk=pk,
-                owner=request.user, 
+                owner=request.user,
                 is_deleted=False,
             )
 

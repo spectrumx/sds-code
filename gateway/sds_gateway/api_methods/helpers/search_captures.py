@@ -16,13 +16,15 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
+from sds_gateway.api_methods.utils.asset_access_control import (
+    user_has_access_to_capture,
+)
 from sds_gateway.api_methods.utils.metadata_schemas import base_index_fields
 from sds_gateway.api_methods.utils.metadata_schemas import (
     capture_index_mapping_by_type as md_props_by_type,
 )
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
-from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_capture
 from sds_gateway.users.models import User
 
 RangeValue = dict[str, int | float]
@@ -192,12 +194,12 @@ def get_capture_queryset(
     """Get the capture queryset based on the capture type."""
     # Get all captures and filter by access using the helper function
     all_captures = Capture.objects.filter(is_deleted=False)
-    accessible_captures = []
+    accessible_captures = [
+        capture.pk
+        for capture in all_captures
+        if user_has_access_to_capture(owner, capture)
+    ]
 
-    for capture in all_captures:
-        if user_has_access_to_capture(owner, capture):
-            accessible_captures.append(capture.pk)
-    
     # Filter queryset to only include accessible captures
     capture_queryset = Capture.objects.filter(pk__in=accessible_captures)
 
