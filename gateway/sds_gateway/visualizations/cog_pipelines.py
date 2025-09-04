@@ -117,7 +117,9 @@ def get_pipeline_config(pipeline_type: str) -> dict[str, Any]:
 
 # Cog functions (pipeline steps)
 @cog
-def setup_post_processing_cog(capture_uuid: str, processing_config: dict) -> None:
+def setup_post_processing_cog(
+    capture_uuid: str, processing_config: dict[str, dict[str, Any]]
+) -> None:
     """Setup post-processing for a capture.
 
     Args:
@@ -137,7 +139,8 @@ def setup_post_processing_cog(capture_uuid: str, processing_config: dict) -> Non
 
     try:
         logger.info(
-            f"Starting setup for capture {capture_uuid} with config: {processing_config}"
+            f"Starting setup for capture {capture_uuid} with config: "
+            f"{processing_config}"
         )
 
         # Get the capture with retry mechanism for transaction timing issues
@@ -183,7 +186,8 @@ def setup_post_processing_cog(capture_uuid: str, processing_config: dict) -> Non
 
         # Create PostProcessedData records for each processing type
         logger.info(
-            f"Creating PostProcessedData records for {len(processing_config)} processing types"
+            f"Creating PostProcessedData records for "
+            f"{len(processing_config)} processing types"
         )
         for processing_type, parameters in processing_config.items():
             logger.info(
@@ -199,34 +203,81 @@ def setup_post_processing_cog(capture_uuid: str, processing_config: dict) -> Non
         raise
 
 
+def _process_waterfall_json_data(capture, processed_data, temp_path):
+    """Process waterfall JSON data and return result."""
+    from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
+
+    capture_files = capture.files.filter(is_deleted=False)
+    reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
+
+    if not reconstructed_path:
+        error_msg = "Failed to reconstruct DigitalRF directory structure"
+        processed_data.mark_processing_failed(error_msg)
+        raise ValueError(error_msg)
+
+    waterfall_result = convert_drf_to_waterfall_json(
+        reconstructed_path,
+        capture.channel,
+    )
+
+    if waterfall_result["status"] != "success":
+        processed_data.mark_processing_failed(waterfall_result["message"])
+        raise ValueError(waterfall_result["message"])
+
+    return waterfall_result
+
+
+def _store_waterfall_json_file(capture_uuid, waterfall_result, processed_data):
+    """Store waterfall JSON file and return result."""
+    import json
+
+    from sds_gateway.visualizations.models import ProcessingType
+    from sds_gateway.visualizations.processing.utils import store_processed_data
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False
+    ) as temp_file:
+        json.dump(waterfall_result["json_data"], temp_file, indent=2)
+        temp_file_path = temp_file.name
+        logger.info(f"Created temporary JSON file at {temp_file_path}")
+
+    try:
+        new_filename = f"waterfall_{capture_uuid}.json"
+        store_result = store_processed_data(
+            capture_uuid,
+            ProcessingType.Waterfall.value,
+            temp_file_path,
+            new_filename,
+            waterfall_result["metadata"],
+        )
+
+        if store_result["status"] != "success":
+            processed_data.mark_processing_failed(store_result["message"])
+            raise ValueError(store_result["message"])  # noqa: TRY301
+
+        return store_result, temp_file_path  # noqa: TRY300
+    except Exception:
+        if temp_file_path:
+            Path(temp_file_path).unlink(missing_ok=True)
+        raise
+
+
 @cog
 def process_waterfall_data_cog(
     capture_uuid: str,
-    processing_types: list[str],
+    processing_config: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Process waterfall data for a capture.
 
     Args:
         capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run
+        processing_config: Dict with processing configurations
 
     Returns:
         Dict with status and processed data info
     """
-
-    # imports to run when the app is ready
-    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
-    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
-    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        reconstruct_drf_files,
-    )
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        store_processed_data,
-    )
-
-    # Check if waterfall processing is requested
-    if processing_types and ProcessingType.Waterfall.value not in processing_types:
+    processing_types = list(processing_config.keys()) if processing_config else []
+    if "waterfall" not in processing_types:
         logger.info(
             f"Skipping waterfall processing for capture {capture_uuid} - not requested"
         )
@@ -237,6 +288,10 @@ def process_waterfall_data_cog(
         }
 
     logger.info(f"Processing waterfall JSON data for capture {capture_uuid}")
+
+    from sds_gateway.api_methods.models import Capture
+    from sds_gateway.visualizations.models import PostProcessedData
+    from sds_gateway.visualizations.models import ProcessingType
 
     capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
@@ -252,79 +307,39 @@ def process_waterfall_data_cog(
         )
         raise ValueError(error_msg)
 
-    # Mark processing as started
     processed_data.mark_processing_started(pipeline_id="django_cog_pipeline")
 
-    # Use built-in temporary directory context manager
     with tempfile.TemporaryDirectory(prefix=f"waterfall_{capture_uuid}_") as temp_dir:
         temp_path = Path(temp_dir)
-
-        # Reconstruct the DigitalRF files for processing
-        capture_files = capture.files.filter(is_deleted=False)
-        reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
-
-        if not reconstructed_path:
-            error_msg = "Failed to reconstruct DigitalRF directory structure"
-            processed_data.mark_processing_failed(error_msg)
-            raise ValueError(error_msg)
-
-        # Process the waterfall data in JSON format
-        waterfall_result = convert_drf_to_waterfall_json(
-            reconstructed_path,
-            capture.channel,
-        )
-
-        if waterfall_result["status"] != "success":
-            processed_data.mark_processing_failed(waterfall_result["message"])
-            raise ValueError(waterfall_result["message"])
-
-        # Create a temporary JSON file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as temp_file:
-            json.dump(waterfall_result["json_data"], temp_file, indent=2)
-            temp_file_path = temp_file.name
-            logger.info(f"Created temporary JSON file at {temp_file_path}")
-
+        temp_file_path = None
         try:
-            # Store the JSON file
-            new_filename = f"waterfall_{capture_uuid}.json"
-
-            store_result = store_processed_data(
-                capture_uuid,
-                ProcessingType.Waterfall.value,
-                temp_file_path,
-                new_filename,
-                waterfall_result["metadata"],
+            waterfall_result = _process_waterfall_json_data(
+                capture, processed_data, temp_path
+            )
+            store_result, temp_file_path = _store_waterfall_json_file(
+                capture_uuid, waterfall_result, processed_data
             )
 
-            if store_result["status"] != "success":
-                processed_data.mark_processing_failed(store_result["message"])
-                raise ValueError(store_result["message"])
-
-            # Mark processing as completed
             processed_data.mark_processing_completed()
-
             logger.info(f"Completed waterfall processing for capture {capture_uuid}")
+
             return {
                 "status": "success",
                 "capture_uuid": capture_uuid,
-                "message": ("Waterfall JSON data processed and stored successfully"),
+                "message": "Waterfall JSON data processed and stored successfully",
                 "json_data": waterfall_result["json_data"],
                 "metadata": waterfall_result["metadata"],
                 "store_result": store_result,
             }
-
         finally:
-            # Clean up temporary file
-            if "temp_file_path" in locals():
+            if temp_file_path:
                 Path(temp_file_path).unlink(missing_ok=True)
                 logger.info(f"Cleaned up temporary file {temp_file_path}")
 
 
 @cog
 def process_spectrogram_data_cog(
-    capture_uuid: str, processing_config: dict
+    capture_uuid: str, processing_config: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
     """Process spectrogram data for a capture.
 
@@ -436,7 +451,6 @@ def process_spectrogram_data_cog(
         }
 
 
-# Custom error handler for COG tasks
 @cog_error_handler
 def visualization_error_handler(error, task_run=None):
     """
@@ -455,22 +469,32 @@ def visualization_error_handler(error, task_run=None):
         logger.error(f"Failed task: {task_run.task.name}")
         logger.error(f"Task run ID: {task_run.id}")
 
-        # Try to extract capture_uuid from task arguments
+        # Try to extract capture_uuid from pipeline run arguments
         try:
-            # Get the task arguments - they should contain capture_uuid
-            task_args = task_run.task.arguments_as_json or {}
-            capture_uuid = task_args.get("capture_uuid")
+            # Get the pipeline run arguments through the task run -> stage run ->
+            # pipeline run chain
+            pipeline_run = task_run.stage_run.pipeline_run
+            pipeline_args_raw = pipeline_run.arguments_as_json or {}
 
+            # Handle case where arguments_as_json might be a string
+            if isinstance(pipeline_args_raw, str):
+                pipeline_args = json.loads(pipeline_args_raw)
+            else:
+                pipeline_args = pipeline_args_raw
+
+            capture_uuid = pipeline_args.get("capture_uuid")
             if capture_uuid:
                 logger.info(
-                    f"Attempting to mark PostProcessedData records as failed for capture {capture_uuid}"
+                    f"Attempting to mark PostProcessedData records as failed for "
+                    f"capture {capture_uuid}"
                 )
 
                 # Import models here to avoid Django app registry issues
                 from sds_gateway.visualizations.models import PostProcessedData
                 from sds_gateway.visualizations.models import ProcessingStatus
 
-                # Find any PostProcessedData records for this capture that are still pending
+                # Find any PostProcessedData records for this capture that are still
+                # pending
                 failed_records = PostProcessedData.objects.filter(
                     capture__uuid=capture_uuid,
                     processing_status=ProcessingStatus.Pending.value,
@@ -480,13 +504,16 @@ def visualization_error_handler(error, task_run=None):
                     error_message = f"COG task '{task_run.task.name}' failed: {error}"
                     record.mark_processing_failed(error_message)
                     logger.info(
-                        f"Marked PostProcessedData record {record.uuid} as failed due to COG task failure"
+                        f"Marked PostProcessedData record {record.uuid} as failed "
+                        f"due to COG task failure"
                     )
 
             else:
-                logger.warning("Could not extract capture_uuid from task arguments")
+                logger.warning(
+                    "Could not extract capture_uuid from pipeline run arguments"
+                )
 
-        except Exception as cleanup_error:
+        except (ValueError, KeyError, AttributeError) as cleanup_error:
             logger.error(f"Failed to update PostProcessedData records: {cleanup_error}")
     else:
         logger.warning("No task_run object provided to error handler")
