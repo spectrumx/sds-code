@@ -22,6 +22,7 @@ from sds_gateway.api_methods.utils.metadata_schemas import (
 )
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_capture
 from sds_gateway.users.models import User
 
 RangeValue = dict[str, int | float]
@@ -189,8 +190,16 @@ def get_capture_queryset(
     capture_type: CaptureType | None,
 ) -> QuerySet[Capture]:
     """Get the capture queryset based on the capture type."""
-    # start with base queryset filtered by user and not deleted
-    capture_queryset = Capture.objects.filter(owner=owner, is_deleted=False)
+    # Get all captures and filter by access using the helper function
+    all_captures = Capture.objects.filter(is_deleted=False)
+    accessible_captures = []
+
+    for capture in all_captures:
+        if user_has_access_to_capture(owner, capture):
+            accessible_captures.append(capture.pk)
+    
+    # Filter queryset to only include accessible captures
+    capture_queryset = Capture.objects.filter(pk__in=accessible_captures)
 
     # filter by capture type if provided
     if capture_type:

@@ -35,6 +35,7 @@ from sds_gateway.api_methods.serializers.file_serializers import (
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
 
 if TYPE_CHECKING:
     from django.http.request import QueryDict
@@ -173,9 +174,15 @@ class FileViewSet(ViewSet):
         target_file = get_object_or_404(
             File,
             pk=pk,
-            owner=request.user,
             is_deleted=False,
         )
+
+        if not user_has_access_to_file(request.user, target_file):
+            return Response(
+                {"detail": "You do not have permission to access this file."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = FileGetSerializer(target_file, many=False)
         return Response(serializer.data)
 
@@ -224,10 +231,10 @@ class FileViewSet(ViewSet):
     )
     def list(self, request: Request) -> Response:
         """
-        Lists all files owned by the user. When `path` is passed, it filters all
-            files matching that subdirectory. If `path` is an exact file path
-            (directory + name) with multiple matches (versions), it will retrieve the
-            most recent one that matches that path. Wildcards are not yet supported.
+        Lists all files accessible to the user (owned + shared through captures/datasets). 
+        When `path` is passed, it filters all files matching that subdirectory. 
+        If `path` is an exact file path (directory + name) with multiple matches (versions), 
+        it will retrieve the most recent one that matches that path. Wildcards are not yet supported.
         """
         unsafe_path = request.GET.get("path", "/").strip()
         basename = Path(unsafe_path).name
@@ -243,17 +250,23 @@ class FileViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        all_valid_user_owned_files = File.objects.filter(
-            owner=request.user,
-            is_deleted=False,
-        )
+        # Get all files and filter by access using the helper function
+        all_files = File.objects.filter(is_deleted=False)
+        accessible_files = []
+        
+        for file_obj in all_files:
+            if user_has_access_to_file(request.user, file_obj):
+                accessible_files.append(file_obj.pk)
+        
+        # Filter queryset to only include accessible files
+        all_valid_user_files = File.objects.filter(pk__in=accessible_files)
 
         paginator = FilePagination()
 
         # if we could extract a basename, try an exact match first
         if basename:
             inferred_user_rel_path = user_rel_path.parent
-            exact_match_query = all_valid_user_owned_files.filter(
+            exact_match_query = all_valid_user_files.filter(
                 name=basename,
                 directory__in=[
                     str(inferred_user_rel_path),
@@ -280,7 +293,7 @@ class FileViewSet(ViewSet):
             )
 
         # try matching `directory`, ignoring `name`
-        files_matching_dir = all_valid_user_owned_files.filter(
+        files_matching_dir = all_valid_user_files.filter(
             directory__startswith=str(user_rel_path),
         )
 
@@ -301,13 +314,13 @@ class FileViewSet(ViewSet):
         paginated_files = paginator.paginate_queryset(latest_files, request=request)
         serializer = FileGetSerializer(paginated_files, many=True)
 
-        first_file = all_valid_user_owned_files.first()
+        first_file = all_valid_user_files.first()
         if first_file:
             log.debug(f"First file directory: {first_file.directory}")
             log.debug(f"First file name: {first_file.name}")
 
         log.debug(
-            f"Matched {latest_files.count()} / {all_valid_user_owned_files.count()} "
+            f"Matched {latest_files.count()} / {all_valid_user_files.count()} "
             f"user files for path {user_rel_path!s} - returning {len(serializer.data)}",
         )
 
@@ -455,9 +468,15 @@ class FileViewSet(ViewSet):
         target_file = get_object_or_404(
             File,
             pk=pk,
-            owner=request.user,
             is_deleted=False,
         )
+        
+        # Check if user has access to the file
+        if not user_has_access_to_file(request.user, target_file):
+            return Response(
+                {"detail": "You do not have permission to download this file."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         try:
             # Use the helper function to download the file

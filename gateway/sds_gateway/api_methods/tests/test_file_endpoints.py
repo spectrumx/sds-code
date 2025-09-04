@@ -17,9 +17,13 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.test import APITestCase
 
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.tests.factories import MockMinIOContext
+from sds_gateway.api_methods.tests.factories import UserSharePermissionFactory
 from sds_gateway.api_methods.tests.factories import create_file_with_minio_mock
 from sds_gateway.users.models import UserAPIKey
 
@@ -147,8 +151,8 @@ class FileTestCases(APITestCase):
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_retrieve_not_owned_file_404(self) -> None:
-        """A user should not see a file that they do not own."""
+    def test_retrieve_not_owned_file_403(self) -> None:
+        """A user should not see a file that they do not have access to."""
         user_mallory = User.objects.create(
             email="mallory@example.com",
             password="testpassword",  # noqa: S106
@@ -163,12 +167,12 @@ class FileTestCases(APITestCase):
         response = client.get(
             reverse("api:files-detail", args=[self.file.uuid]),
         )
-        assert response.status_code == status.HTTP_404_NOT_FOUND, (
-            f"Expected 404, got {response.status_code}"
+        assert response.status_code == status.HTTP_403_FORBIDDEN, (
+            f"Expected 403, got {response.status_code}"
         )
 
-    def test_retrieve_owned_file_200(self) -> None:
-        """A user should see a file that they own."""
+    def test_retrieve_accessible_file_200(self) -> None:
+        """A user should see a file that they have access to."""
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {self.key}")
         _file_created = self.file
@@ -179,8 +183,8 @@ class FileTestCases(APITestCase):
             f"Expected 200, got {response.status_code}"
         )
 
-    def test_retrieve_latest_file_not_owned_404(self) -> None:
-        """A user should not see the latest file that they do not own."""
+    def test_retrieve_latest_file_not_accessible_404(self) -> None:
+        """A user should not see files that they do not have access to."""
         user = User.objects.create(
             email="john-doe@example.com",
             password="testpassword",  # noqa: S106
@@ -199,7 +203,7 @@ class FileTestCases(APITestCase):
         results = response.data.get("results")
         assert len(results) == 0, f"Expected no files to be returned, got {results}"
 
-    def test_retrieve_latest_file_owned_200(self) -> None:
+    def test_retrieve_latest_file_accessible_200(self) -> None:
         """On multiple dir + name matches, the most recent should be returned."""
         # create a new file with the same directory and name as the original one
         new_contents_bytes = b"new file content"
@@ -243,7 +247,7 @@ class FileTestCases(APITestCase):
         )
         assert saved_contents == new_contents_bytes, (
             "Expected the content of the new file: "
-            f"{saved_contents} != {new_contents_bytes}"
+            f"{saved_contents!r} != {new_contents_bytes!r}"
         )
         assert new_file.uuid != self.file.uuid, (
             f"Expected a different file instance: {new_file.uuid} == {self.file.uuid}"
@@ -400,3 +404,166 @@ class FileTestCases(APITestCase):
 
         # Verify 404 response
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_download_file_no_access_403(self):
+        """Test that the download endpoint returns 403 for files without access."""
+        # Create another user
+        other_user = User.objects.create(
+            email="other@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+        
+        # Create a file owned by the other user
+        other_file = create_db_file(owner=other_user)
+        
+        # Try to download the file as the original user
+        download_url = reverse("api:files-download", args=[other_file.uuid])
+        response = self.client.get(download_url)
+        
+        # Verify 403 response
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_list_files_includes_shared_files(self) -> None:
+        """Test that list files includes files from shared captures/datasets."""
+        
+        # Create another user
+        other_user = User.objects.create(
+            email="other@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+        
+        # Create a capture owned by the other user
+        shared_capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="shared-channel",
+            index_name="test-index",
+            owner=other_user,
+            top_level_dir="/shared/capture",
+        )
+        
+        # Create a file associated with the shared capture
+        shared_file = create_db_file(
+            owner=other_user,
+            extras={"capture": shared_capture, "directory": "/shared/capture/shared-channel"}
+        )
+        
+        # Create a share permission for the capture using the factory
+        UserSharePermissionFactory(
+            owner=other_user,
+            shared_with=self.user,
+            item_type=ItemType.CAPTURE,
+            item_uuid=shared_capture.uuid,
+            is_enabled=True,
+        )
+        
+        # List files - should include the shared file
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        # Should have the original file plus the shared one
+        expected_count = 2  # Original file + shared file
+        assert data["count"] == expected_count, (
+            f"Expected {expected_count} files (including shared), got {data['count']}"
+        )
+        
+        # Verify the shared file is in the results
+        shared_file_found = False
+        for file_data in data["results"]:
+            if file_data["uuid"] == str(shared_file.uuid):
+                shared_file_found = True
+                break
+        
+        assert shared_file_found, "Shared file not found in list results"
+
+    def test_retrieve_shared_file_200(self) -> None:
+        """Test that retrieving a shared file returns 200."""
+        
+        # Create another user
+        other_user = User.objects.create(
+            email="other@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+        
+        # Create a capture owned by the other user
+        shared_capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="shared-channel",
+            index_name="test-index",
+            owner=other_user,
+            top_level_dir="/shared/capture",
+        )
+        
+        # Create a file associated with the shared capture
+        shared_file = create_db_file(
+            owner=other_user,
+            extras={"capture": shared_capture, "directory": "/shared/capture/shared-channel"}
+        )
+        
+        # Create a share permission for the capture using the factory
+        UserSharePermissionFactory(
+            owner=other_user,
+            shared_with=self.user,
+            item_type=ItemType.CAPTURE,
+            item_uuid=shared_capture.uuid,
+            is_enabled=True,
+        )
+        
+        # Retrieve the shared file
+        response = self.client.get(reverse("api:files-detail", args=[shared_file.uuid]))
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["uuid"] == str(shared_file.uuid)
+        assert data["directory"] == "/shared/capture/shared-channel"
+
+    def test_disabled_share_permission_blocks_file_access(self) -> None:
+        """Test that disabled share permissions do not grant file access."""
+        
+        # Create another user
+        other_user = User.objects.create(
+            email="other@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+        
+        # Create a capture owned by the other user
+        shared_capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="shared-channel",
+            index_name="test-index",
+            owner=other_user,
+            top_level_dir="/shared/capture",
+        )
+        
+        # Create a file associated with the shared capture
+        shared_file = create_db_file(
+            owner=other_user,
+            extras={"capture": shared_capture, "directory": "/shared/capture/shared-channel"}
+        )
+        
+        # Create a disabled share permission using the factory
+        UserSharePermissionFactory(
+            owner=other_user,
+            shared_with=self.user,
+            item_type=ItemType.CAPTURE,
+            item_uuid=shared_capture.uuid,
+            is_enabled=False,  # Disabled permission
+        )
+        
+        # Try to retrieve the file - should be denied
+        response = self.client.get(reverse("api:files-detail", args=[shared_file.uuid]))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        
+        # List files - should not include the shared file
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        # Should only have the original file, not the shared one
+        assert data["count"] == 1, (
+            f"Expected 1 file (excluding disabled shared), got {data['count']}"
+        )

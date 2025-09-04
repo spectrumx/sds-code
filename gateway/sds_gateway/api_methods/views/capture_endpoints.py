@@ -54,6 +54,8 @@ from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_capture
 
 MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
 
@@ -381,9 +383,15 @@ class CaptureViewSet(viewsets.ViewSet):
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=request.user,
             is_deleted=False,
         )
+
+        # Check if the user has access to the capture
+        if not user_has_access_to_capture(request.user, target_capture):
+            return Response(
+                {"detail": "You do not have permission to access this capture."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # Use composite capture serialization
         capture_data = serialize_capture_or_composite(
@@ -605,7 +613,7 @@ class CaptureViewSet(viewsets.ViewSet):
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=owner,
+            owner=owner,  # Require ownership for updates
             is_deleted=False,
         )
 
@@ -699,7 +707,7 @@ class CaptureViewSet(viewsets.ViewSet):
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=request.user,
+            owner=request.user,  # Require ownership for updates
             is_deleted=False,
         )
 
@@ -756,9 +764,10 @@ class CaptureViewSet(viewsets.ViewSet):
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=request.user,
+            owner=request.user,  # Require ownership for deletions
             is_deleted=False,
         )
+
         target_capture.soft_delete()
 
         # set these properties on OpenSearch document
@@ -871,9 +880,10 @@ class CaptureViewSet(viewsets.ViewSet):
             capture = get_object_or_404(
                 Capture,
                 pk=pk,
-                owner=request.user,
+                owner=request.user, 
                 is_deleted=False,
             )
+
             processing_type = request.query_params.get("processing_type")
 
             if not processing_type:
@@ -959,6 +969,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 owner=request.user,
                 is_deleted=False,
             )
+
             processing_type = request.query_params.get("processing_type")
 
             if not processing_type:
