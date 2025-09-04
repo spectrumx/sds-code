@@ -239,17 +239,6 @@ class FileViewSet(ViewSet):
         unsafe_path = request.GET.get("path", "/").strip()
         basename = Path(unsafe_path).name
 
-        user_rel_path = sanitize_path_rel_to_user(
-            unsafe_path=unsafe_path,
-            request=request,
-        )
-        log.debug(f"Listing for '{user_rel_path}'")
-        if user_rel_path is None:
-            return Response(
-                {"detail": "The provided path must be in the user's files directory."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         # Get all files and filter by access using the helper function
         all_files = File.objects.filter(is_deleted=False)
         accessible_files = []
@@ -260,6 +249,25 @@ class FileViewSet(ViewSet):
         
         # Filter queryset to only include accessible files
         all_valid_user_files = File.objects.filter(pk__in=accessible_files)
+
+        # If no specific path is requested (default "/"), return all accessible files
+        if unsafe_path == "/" or unsafe_path == "":
+            paginator = FilePagination()
+            paginated_files = paginator.paginate_queryset(all_valid_user_files, request=request)
+            serializer = FileGetSerializer(paginated_files, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        # For specific paths, use the existing path-based filtering logic
+        user_rel_path = sanitize_path_rel_to_user(
+            unsafe_path=unsafe_path,
+            request=request,
+        )
+        log.debug(f"Listing for '{user_rel_path}'")
+        if user_rel_path is None:
+            return Response(
+                {"detail": "The provided path must be in the user's files directory."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         paginator = FilePagination()
 

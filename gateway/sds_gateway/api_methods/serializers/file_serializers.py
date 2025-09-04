@@ -55,7 +55,9 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
         model = File
         fields = [
             "uuid",
+            "capture",
             "created_at",
+            "dataset",
             "directory",
             "expiration_date",
             "file",

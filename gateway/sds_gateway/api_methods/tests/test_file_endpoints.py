@@ -446,7 +446,7 @@ class FileTestCases(APITestCase):
         # Create a file associated with the shared capture
         shared_file = create_db_file(
             owner=other_user,
-            extras={"capture": shared_capture, "directory": "/shared/capture/shared-channel"}
+            extras={"capture": shared_capture.uuid, "directory": "/shared/capture/shared-channel"}
         )
         
         # Create a share permission for the capture using the factory
@@ -457,7 +457,7 @@ class FileTestCases(APITestCase):
             item_uuid=shared_capture.uuid,
             is_enabled=True,
         )
-        
+
         # List files - should include the shared file
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_200_OK
@@ -500,7 +500,7 @@ class FileTestCases(APITestCase):
         # Create a file associated with the shared capture
         shared_file = create_db_file(
             owner=other_user,
-            extras={"capture": shared_capture, "directory": "/shared/capture/shared-channel"}
+            extras={"capture": shared_capture.uuid, "directory": "/shared/capture/shared-channel"}
         )
         
         # Create a share permission for the capture using the factory
@@ -518,7 +518,7 @@ class FileTestCases(APITestCase):
         
         data = response.json()
         assert data["uuid"] == str(shared_file.uuid)
-        assert data["directory"] == "/shared/capture/shared-channel"
+        assert data["directory"] == f"/files/{other_user.email}/shared/capture/shared-channel"
 
     def test_disabled_share_permission_blocks_file_access(self) -> None:
         """Test that disabled share permissions do not grant file access."""
@@ -542,7 +542,7 @@ class FileTestCases(APITestCase):
         # Create a file associated with the shared capture
         shared_file = create_db_file(
             owner=other_user,
-            extras={"capture": shared_capture, "directory": "/shared/capture/shared-channel"}
+            extras={"capture": shared_capture.uuid, "directory": "/shared/capture/shared-channel"}
         )
         
         # Create a disabled share permission using the factory
