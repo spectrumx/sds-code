@@ -19,6 +19,8 @@ from factory.django import DjangoModelFactory
 
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.tests.factories import UserFactory
 
 
@@ -168,6 +170,50 @@ class FileFactory(DjangoModelFactory):
 
     class Meta:
         model = File
+
+
+class UserSharePermissionFactory(DjangoModelFactory):
+    """Factory for creating UserSharePermission instances for testing.
+
+    This factory creates realistic UserSharePermission objects that represent
+    sharing relationships between users and items (datasets, captures, files).
+
+    Attributes:
+        owner: User who owns the item being shared
+        shared_with: User who is being granted access
+        item_type: Type of item being shared (DATASET, CAPTURE)
+        item_uuid: UUID of the item being shared
+        is_enabled: Whether the permission is active
+        message: Optional message from the owner
+        is_deleted: Whether the permission is soft-deleted
+
+    Example:
+        # Create a basic share permission
+        permission = UserSharePermissionFactory()
+
+        # Create a share permission for a specific dataset
+        dataset = DatasetFactory()
+        user = UserFactory()
+        permission = UserSharePermissionFactory(
+            item_type=ItemType.DATASET,
+            item_uuid=dataset.uuid,
+            shared_with=user
+        )
+
+        # Create a disabled share permission
+        permission = UserSharePermissionFactory(is_enabled=False)
+    """
+
+    owner = Faker("subfactory", factory=UserFactory)
+    shared_with = Faker("subfactory", factory=UserFactory)
+    item_type = Faker("random_element", elements=[ItemType.DATASET, ItemType.CAPTURE])
+    item_uuid = Faker("uuid4")
+    is_enabled = True
+    message = Faker("sentence", nb_words=5)
+    is_deleted = False
+
+    class Meta:
+        model = UserSharePermission
 
 
 class MockMinIOContext:

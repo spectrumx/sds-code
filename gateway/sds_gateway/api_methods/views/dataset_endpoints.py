@@ -18,6 +18,7 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.views.file_endpoints import FilePagination
 
@@ -100,17 +101,7 @@ class DatasetViewSet(ViewSet):
             is_deleted=False,
         )
 
-        # Check if user is the owner or has share permissions
-        user_is_owner = target_dataset.owner == request.user
-        user_has_share_permission = UserSharePermission.objects.filter(
-            shared_with=request.user,
-            item_type=ItemType.DATASET,
-            item_uuid=target_dataset.uuid,
-            is_enabled=True,
-            is_deleted=False,
-        ).exists()
-
-        if not user_is_owner and not user_has_share_permission:
+        if not user_has_access_to_item(request.user, target_dataset.uuid, ItemType.DATASET):
             return Response(
                 {"detail": "You do not have permission to access this dataset."},
                 status=status.HTTP_403_FORBIDDEN,
