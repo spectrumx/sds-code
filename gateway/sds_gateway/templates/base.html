@@ -104,10 +104,20 @@
                                         <ul class="dropdown-menu dropdown-menu-end"
                                             aria-labelledby="navbarUserDropdown">
                                             <li>
-                                                <a class="dropdown-item" href="{% url 'users:share_group_list' %}">{% translate "Manage Groups" %}</a>
+                                                <a class="dropdown-item" href="{% url 'users:detail' pk=request.user.pk %}">
+                                                    <i class="bi bi-person-circle me-2"></i>{% translate "Profile" %}
+                                                </a>
                                             </li>
                                             <li>
-                                                <a class="dropdown-item" href="{% url 'account_logout' %}">{% translate "Logout" %}</a>
+                                                <a class="dropdown-item" href="{% url 'users:share_group_list' %}">
+                                                    <i class="bi bi-people me-2"></i>{% translate "Manage Groups" %}
+                                                </a>
+                                            </li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <a class="dropdown-item" href="{% url 'account_logout' %}">
+                                                    <i class="bi bi-box-arrow-right me-2"></i>{% translate "Logout" %}
+                                                </a>
                                             </li>
                                         </ul>
                                     </li>
@@ -167,3 +177,4 @@
         <script></script>
     </body>
 </html>
+

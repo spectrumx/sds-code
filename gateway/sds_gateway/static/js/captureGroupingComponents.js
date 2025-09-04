@@ -182,7 +182,16 @@ class FormHandler {
 					if (authorsField && authorsField.value) {
 						try {
 							const authors = JSON.parse(authorsField.value);
-							const authorsDisplay = authors.join(', ');
+							// Handle both old string format and new object format
+							const authorNames = authors.map(author => {
+								if (typeof author === 'string') {
+									return author;
+								} else if (author && author.name) {
+									return author.name;
+								}
+								return 'Unnamed Author';
+							});
+							const authorsDisplay = authorNames.join(', ');
 							document.querySelector("#step4 .dataset-authors").textContent = authorsDisplay;
 						} catch (e) {
 							document.querySelector("#step4 .dataset-authors").textContent = authorsField.value;
@@ -939,7 +948,7 @@ class SearchHandler {
 
 		if (data.results.length === 0) {
 			tbody.innerHTML =
-				'<tr><td colspan="6" class="text-center">No captures found</td></tr>';
+				'<tr><td colspan="7" class="text-center">No captures found</td></tr>';
 			return;
 		}
 
@@ -963,6 +972,7 @@ class SearchHandler {
 				<td>${capture.directory}</td>
 				<td>${capture.channel}</td>
 				<td>${capture.scan_group}</td>
+				<td>${capture.owner ? (capture.owner.name || capture.owner.email || '-') : '-'}</td>
 				<td>${new Date(capture.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
 			`;
 
