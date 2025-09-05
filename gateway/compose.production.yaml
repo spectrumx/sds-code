@@ -312,22 +312,11 @@ services:
         image: sds-gateway-prod-jupyter
         container_name: sds-gateway-prod-jupyter
         networks:
-            sds-network-prod:
-                aliases:
-                    - jupyterhub
+            - sds-network-prod
         volumes:
-            - source: ./compose/production/jupyter/jupyterhub_config.py
-              target: /srv/jupyterhub/jupyterhub_config.py
-              type: bind
-              read_only: true
-            - source: /var/run/docker.sock
-              target: /var/run/docker.sock
-              type: bind
-              read_only: false
-            - source: sds-gateway-prod-jupyter-data
-              target: /data
-              type: volume
-              read_only: false
+            - './compose/production/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
+            - '/var/run/docker.sock:/var/run/docker.sock:rw'
+            - 'sds-gateway-prod-jupyter-data:/data'
         userns_mode: 'host'  # needs to match UID of the host machine in order to access the Docker socket
         user: root  # docker socket requires root user
         ports:
@@ -345,8 +334,6 @@ services:
             DOCKER_JUPYTER_CONTAINER: jupyterhub
             # Ensure the network is created with the full name
             COMPOSE_PROJECT_NAME: sds-gateway-prod
-        depends_on:
-            - nginx
 
     # ===================
     # production services
