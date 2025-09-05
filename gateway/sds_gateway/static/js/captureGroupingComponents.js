@@ -40,6 +40,14 @@ class FormHandler {
 		this.initializeErrorContainer();
 		this.validateCurrentStep(); // Initial validation
 		this.updateNavigation(); // Initial navigation button display
+		
+		// In edit mode, remove the btn-group-disabled class to allow tab navigation
+		if (this.isEditMode) {
+			const stepTabsContainer = document.getElementById("stepTabs");
+			if (stepTabsContainer) {
+				stepTabsContainer.classList.remove("btn-group-disabled");
+			}
+		}
 
 		// Hide the submit button at the start unless on the last step
 		if (this.submitBtn && this.currentStep !== this.steps.length - 1) {
@@ -70,10 +78,16 @@ class FormHandler {
 
 		// Navigation buttons
 		if (this.prevBtn) {
-			this.prevBtn.addEventListener("click", () => this.navigateStep(-1));
+			this.prevBtn.addEventListener("click", (e) => {
+				e.stopPropagation();
+				this.navigateStep(-1);
+			});
 		}
 		if (this.nextBtn) {
-			this.nextBtn.addEventListener("click", () => this.navigateStep(1));
+			this.nextBtn.addEventListener("click", (e) => {
+				e.stopPropagation();
+				this.navigateStep(1);
+			});
 		}
 		if (this.submitBtn) {
 			this.submitBtn.addEventListener("click", (e) => this.handleSubmit(e));
@@ -82,9 +96,14 @@ class FormHandler {
 		// Step tab handlers
 		this.stepTabs.forEach((tab, index) => {
 			tab.addEventListener("click", () => {
-				if (index <= this.currentStep) {
+				// In edit mode, allow navigation to any tab
+				// In create mode, only allow navigation to current or previous tabs
+				if (this.isEditMode || index <= this.currentStep) {
 					this.currentStep = index;
 					this.updateNavigation();
+					if (this.onStepChange) {
+						this.onStepChange(this.currentStep);
+					}
 				}
 			});
 		});
@@ -165,10 +184,9 @@ class FormHandler {
 	async navigateStep(direction) {
 		if (direction < 0 || this.validateCurrentStep()) {
 			const nextStep = this.currentStep + direction;
-
 			// If moving to review step (step 4), update the review content
 			if (nextStep === 3) {
-				// Update form values in review step
+				// Update form values in review step - show current/new values
 				document.querySelector("#step4 .dataset-name").textContent =
 					this.nameField.value;
 				
@@ -201,176 +219,25 @@ class FormHandler {
 					}
 				}
 				
+				// Update status and description with current values
 				document.querySelector("#step4 .dataset-status").textContent =
 					this.statusField.options[this.statusField.selectedIndex].text;
 				document.querySelector("#step4 .dataset-description").textContent =
 					document.getElementById("id_description").value ||
 					"No description provided.";
-
-				// Update captures table
-				const capturesTableBody = document.querySelector(
-					"#step4 .captures-table tbody",
-				);
-
-				if (
-					capturesTableBody &&
-					this.selectedCaptures.size > 0 &&
-					this.capturesSearchHandler
-				) {
-					capturesTableBody.innerHTML = Array.from(this.selectedCaptures)
-						.map((captureId) => {
-							const data =
-								this.capturesSearchHandler.selectedCaptureDetails.get(
-									captureId,
-								) || {
-									type: "Unknown",
-									directory: "Unknown",
-									channel: "-",
-									scan_group: "-",
-									created_at: new Date().toISOString(),
-								};
-							return `
-							<tr>
-								<td>${data.type}</td>
-								<td>${data.directory}</td>
-								<td>${data.channel}</td>
-								<td>${data.scan_group}</td>
-								<td>${new Date(data.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
-								<td>
-									<button class="btn btn-sm btn-danger remove-capture" data-id="${captureId}">
-										Remove
-									</button>
-								</td>
-							</tr>
-						`;
-						})
-						.join("");
-
-					// Add event listeners for capture removal
-					const removeButtons =
-						capturesTableBody.querySelectorAll(".remove-capture");
-					for (const button of removeButtons) {
-						button.addEventListener("click", () => {
-							const captureId = button.dataset.id;
-							// Remove from selected captures
-							this.selectedCaptures.delete(captureId);
-							// Remove from capture details
-							if (this.capturesSearchHandler) {
-								this.capturesSearchHandler.selectedCaptureDetails.delete(
-									captureId,
-								);
-							}
-							// Update hidden field
-							this.updateHiddenFields();
-							// Update checkbox and row styling in captures table if visible
-							const checkbox = document.querySelector(
-								`input[name="captures"][value="${captureId}"]`,
-							);
-							if (checkbox) {
-								checkbox.checked = false;
-								const row = checkbox.closest("tr");
-								if (row) {
-									row.classList.remove("table-warning");
-								}
-							}
-							// Remove the row
-							button.closest("tr").remove();
-							// Update count
-							const capturesCount = this.selectedCaptures.size;
-							document.querySelector("#step4 .captures-count").textContent =
-								`${capturesCount} selected`;
-							// Show "No captures selected" if none left
-							if (capturesCount === 0) {
-								capturesTableBody.innerHTML =
-									"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
-							}
-							// Update the selected captures pane in step 2 if it exists
-							if (this.capturesSearchHandler) {
-								this.capturesSearchHandler.updateSelectedCapturesPane();
-							}
-						});
-					}
-				} else {
-					capturesTableBody.innerHTML =
-						"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
+				
+				// Handle dataset metadata changes display
+				if (window.updateReviewDatasetDisplay) {
+					window.updateReviewDatasetDisplay();
 				}
 
-				// Update files table
-				const filesTableBody = document.querySelector(
-					"#step4 .files-table tbody",
-				);
-				if (filesTableBody && this.selectedFiles.size > 0) {
-					filesTableBody.innerHTML = Array.from(this.selectedFiles)
-						.map(
-							(file) => `
-						<tr>
-							<td>${file.name}</td>
-							<td>${file.media_type || "Unknown"}</td>
-							<td>${file.relative_path}</td>
-							<td>${this.formatFileSize(file.size)}</td>
-							<td>
-								<button class="btn btn-sm btn-danger remove-file" data-id="${file.id}">
-									Remove
-								</button>
-							</td>
-						</tr>
-					`,
-						)
-						.join("");
-
-					// Add event listeners for file removal
-					const removeFileButtons =
-						filesTableBody.querySelectorAll(".remove-file");
-					for (const button of removeFileButtons) {
-						button.addEventListener("click", () => {
-							const fileId = button.dataset.id;
-							const fileToRemove = Array.from(this.selectedFiles).find(
-								(f) => f.id === fileId,
-							);
-							if (fileToRemove) {
-								// Remove from selected files
-								this.selectedFiles.delete(fileToRemove);
-								// Update SearchHandler's selectedFiles Map
-								if (this.filesSearchHandler) {
-									this.filesSearchHandler.selectedFiles.delete(fileId);
-									// Update the selected files list in SearchHandler
-									this.filesSearchHandler.updateSelectedFilesList();
-								}
-								// Update hidden field
-								this.updateHiddenFields();
-								// Update checkbox in file tree if visible
-								const checkbox = document.querySelector(
-									`input[name="files"][value="${fileId}"]`,
-								);
-								if (checkbox) {
-									checkbox.checked = false;
-								}
-								// Remove the row
-								button.closest("tr").remove();
-								// Update count
-								const filesCount = this.selectedFiles.size;
-								document.querySelector("#step4 .files-count").textContent =
-									`${filesCount} selected`;
-								// Show "No files selected" if none left
-								if (filesCount === 0) {
-									filesTableBody.innerHTML =
-										"<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
-								}
-							}
-						});
-					}
+				// In edit mode, show pending changes instead of selected items
+				if (this.isEditMode) {
+					this.updatePendingChangesTable();
 				} else {
-					filesTableBody.innerHTML =
-						"<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
+					this.updateSelectedItemsTable();
 				}
 
-				// Update selection counts
-				const capturesCount = this.selectedCaptures.size;
-				const filesCount = this.selectedFiles.size;
-				document.querySelector("#step4 .captures-count").textContent =
-					`${capturesCount} selected`;
-				document.querySelector("#step4 .files-count").textContent =
-					`${filesCount} selected`;
 			}
 
 			this.currentStep = nextStep;
@@ -393,6 +260,9 @@ class FormHandler {
 			);
 			if (index === this.currentStep) {
 				tab.classList.add("btn-primary", "active-tab");
+			} else if (this.isEditMode) {
+				// In edit mode, make all tabs look clickable
+				tab.classList.add("btn-outline-primary", "inactive-tab");
 			} else if (index > this.currentStep) {
 				tab.classList.add("btn-outline-primary", "inactive-tab");
 			} else {
@@ -409,6 +279,14 @@ class FormHandler {
 			}
 		});
 
+		// In edit mode, update pending changes table when on review step
+		if (this.isEditMode && this.currentStep === 3) {
+			// Use setTimeout to ensure DOM is updated
+			setTimeout(() => {
+				this.updatePendingChangesTable();
+			}, 100);
+		}
+
 		// Update navigation buttons
 		if (this.prevBtn) {
 			this.currentStep > 0 ? this.show(this.prevBtn) : this.hide(this.prevBtn);
@@ -416,6 +294,7 @@ class FormHandler {
 
 		// Update next/submit buttons and validate current step
 		const isValid = this.validateCurrentStep();
+		
 		if (this.nextBtn) {
 			const isLastStep = this.currentStep === this.steps.length - 1;
 			isLastStep ? this.hide(this.nextBtn) : this.show(this.nextBtn);
@@ -423,8 +302,12 @@ class FormHandler {
 		}
 		if (this.submitBtn) {
 			const isLastStep = this.currentStep === this.steps.length - 1;
-			isLastStep ? this.show(this.submitBtn) : this.hide(this.submitBtn);
-			this.submitBtn.disabled = !isValid;
+			if (isLastStep) {
+				this.show(this.submitBtn);
+				this.submitBtn.disabled = !isValid;
+			} else {
+				this.hide(this.submitBtn);
+			}
 		}
 	}
 
@@ -625,6 +508,296 @@ class FormHandler {
 			if (this.submitBtn.dataset.originalText) {
 				this.submitBtn.textContent = this.submitBtn.dataset.originalText;
 			}
+		}
+	}
+
+	updateSelectedItemsTable() {
+		// Update captures table
+		const capturesTableBody = document.querySelector(
+			"#step4 .captures-table tbody",
+		);
+
+		if (
+			capturesTableBody &&
+			this.selectedCaptures.size > 0 &&
+			this.capturesSearchHandler
+		) {
+			capturesTableBody.innerHTML = Array.from(this.selectedCaptures)
+				.map((captureId) => {
+					const data =
+						this.capturesSearchHandler.selectedCaptureDetails.get(
+							captureId,
+						) || {
+							type: "Unknown",
+							directory: "Unknown",
+							channel: "-",
+							scan_group: "-",
+							created_at: new Date().toISOString(),
+						};
+					return `
+					<tr>
+						<td>${data.type}</td>
+						<td>${data.directory}</td>
+						<td>${data.channel}</td>
+						<td>${data.scan_group}</td>
+						<td>${new Date(data.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
+						<td>
+							<button class="btn btn-sm btn-danger remove-capture" data-id="${captureId}">
+								Remove
+							</button>
+						</td>
+					</tr>
+				`;
+				})
+				.join("");
+
+			// Add event listeners for capture removal
+			const removeButtons =
+				capturesTableBody.querySelectorAll(".remove-capture");
+			for (const button of removeButtons) {
+				button.addEventListener("click", () => {
+					const captureId = button.dataset.id;
+					// Remove from selected captures
+					this.selectedCaptures.delete(captureId);
+					// Remove from capture details
+					if (this.capturesSearchHandler) {
+						this.capturesSearchHandler.selectedCaptureDetails.delete(
+							captureId,
+						);
+					}
+					// Update hidden field
+					this.updateHiddenFields();
+					// Update checkbox and row styling in captures table if visible
+					const checkbox = document.querySelector(
+						`input[name="captures"][value="${captureId}"]`,
+					);
+					if (checkbox) {
+						checkbox.checked = false;
+						const row = checkbox.closest("tr");
+						if (row) {
+							row.classList.remove("table-warning");
+						}
+					}
+					// Remove the row
+					button.closest("tr").remove();
+					// Update count
+					const capturesCount = this.selectedCaptures.size;
+					document.querySelector("#step4 .captures-count").textContent =
+						`${capturesCount} selected`;
+					// Show "No captures selected" if none left
+					if (capturesCount === 0) {
+						capturesTableBody.innerHTML =
+							"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
+					}
+					// Update the selected captures pane in step 2 if it exists
+					if (this.capturesSearchHandler) {
+						this.capturesSearchHandler.updateSelectedCapturesPane();
+					}
+				});
+			}
+		} else {
+			capturesTableBody.innerHTML =
+				"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
+		}
+
+		// Update files table
+		const filesTableBody = document.querySelector(
+			"#step4 .files-table tbody",
+		);
+
+		if (filesTableBody && this.selectedFiles.size > 0) {
+			filesTableBody.innerHTML = Array.from(this.selectedFiles)
+				.map(
+					(file) => `
+				<tr>
+					<td>${file.name}</td>
+					<td>${file.media_type || "Unknown"}</td>
+					<td>${file.relative_path}</td>
+					<td>${this.formatFileSize(file.size)}</td>
+					<td>
+						<button class="btn btn-sm btn-danger remove-file" data-id="${file.id}">
+							Remove
+						</button>
+					</td>
+				</tr>
+			`,
+				)
+				.join("");
+
+			// Add event listeners for file removal
+			const removeFileButtons =
+				filesTableBody.querySelectorAll(".remove-file");
+			for (const button of removeFileButtons) {
+				button.addEventListener("click", () => {
+					const fileId = button.dataset.id;
+					const fileToRemove = Array.from(this.selectedFiles).find(
+						(f) => f.id === fileId,
+					);
+					if (fileToRemove) {
+						// Remove from selected files
+						this.selectedFiles.delete(fileToRemove);
+						// Update SearchHandler's selectedFiles Map
+						if (this.filesSearchHandler) {
+							this.filesSearchHandler.selectedFiles.delete(fileId);
+							// Update the selected files list in SearchHandler
+							this.filesSearchHandler.updateSelectedFilesList();
+						}
+						// Update hidden field
+						this.updateHiddenFields();
+						// Update checkbox in file tree if visible
+						const checkbox = document.querySelector(
+							`input[name="files"][value="${fileId}"]`,
+						);
+						if (checkbox) {
+							checkbox.checked = false;
+						}
+						// Remove the row
+						button.closest("tr").remove();
+						// Update count
+						const filesCount = this.selectedFiles.size;
+						document.querySelector("#step4 .files-count").textContent =
+							`${filesCount} selected`;
+						// Show "No files selected" if none left
+						if (filesCount === 0) {
+							filesTableBody.innerHTML =
+								"<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
+						}
+					}
+				});
+			}
+		} else {
+			filesTableBody.innerHTML =
+				"<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
+		}
+		
+		// Update selection counts
+		const capturesCount = this.selectedCaptures.size;
+		const filesCount = this.selectedFiles.size;
+		document.querySelector("#step4 .captures-count").textContent =
+			`${capturesCount} selected`;
+		document.querySelector("#step4 .files-count").textContent =
+			`${filesCount} selected`;
+	}
+
+	// Update pending changes table for edit mode
+	updatePendingChangesTable() {
+		const pendingChangesTableBody = document.querySelector(
+			"#step4 .pending-changes-table tbody",
+		);
+		const pendingChangesCount = document.querySelector(
+			"#step4 .pending-changes-count",
+		);
+
+		if (!pendingChangesTableBody) {
+			return;
+		}
+
+		let changes = [];
+		let totalChanges = 0;
+
+		// Get changes from the DatasetEditingHandler (which is the formHandler in edit mode)
+		let editingHandler = null;
+		if (this.capturesSearchHandler && this.capturesSearchHandler.formHandler && this.capturesSearchHandler.formHandler.pendingCaptures) {
+			editingHandler = this.capturesSearchHandler.formHandler;
+		} else if (this.filesSearchHandler && this.filesSearchHandler.formHandler && this.filesSearchHandler.formHandler.pendingFiles) {
+			editingHandler = this.filesSearchHandler.formHandler;
+		}
+
+		if (editingHandler) {
+			// Get capture changes
+			if (editingHandler.pendingCaptures && editingHandler.pendingCaptures.size > 0) {
+				editingHandler.pendingCaptures.forEach((change, captureId) => {
+					const actionText = change.action === 'add' ? 'Add' : 'Remove';
+					const actionType = change.action === 'add' ? 'capture_add' : 'capture_remove';
+					
+					changes.push({
+						type: "Capture",
+						action: actionText,
+						name: `${change.data.type} (${change.data.directory})`,
+						details: `Channel: ${change.data.channel}, Scan Group: ${change.data.scan_group}`,
+						actionType: actionType,
+						id: captureId
+					});
+					totalChanges++;
+				});
+			}
+
+			// Get file changes
+			if (editingHandler.pendingFiles && editingHandler.pendingFiles.size > 0) {
+				editingHandler.pendingFiles.forEach((change, fileId) => {
+					const actionText = change.action === 'add' ? 'Add' : 'Remove';
+					const actionType = change.action === 'add' ? 'file_add' : 'file_remove';
+					
+					changes.push({
+						type: "File",
+						action: actionText,
+						name: change.data.name || `File ${fileId}`,
+						details: change.data.relative_path || "Will be modified in dataset",
+						actionType: actionType,
+						id: fileId
+					});
+					totalChanges++;
+				});
+			}
+		}
+
+		// Update the table
+		if (changes.length > 0) {
+			pendingChangesTableBody.innerHTML = changes.map(change => `
+				<tr>
+					<td>${change.type}</td>
+					<td><span class="badge bg-${change.action === 'Add' ? 'success' : change.action === 'Remove' ? 'danger' : 'warning'}">${change.action}</span></td>
+					<td>${change.name}</td>
+					<td>${change.details}</td>
+					<td>
+						<button type="button" class="btn btn-sm btn-outline-secondary cancel-change" data-action-type="${change.actionType}" data-id="${change.id || change.index}">
+							Cancel
+						</button>
+					</td>
+				</tr>
+			`).join("");
+
+			// Add event listeners for cancel buttons
+			const cancelButtons = pendingChangesTableBody.querySelectorAll(".cancel-change");
+			cancelButtons.forEach(button => {
+				button.addEventListener("click", (e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					
+					const actionType = button.dataset.actionType;
+					const id = button.dataset.id;
+					
+					// Get the editing handler
+					let editingHandler = null;
+					if (this.capturesSearchHandler && this.capturesSearchHandler.formHandler && this.capturesSearchHandler.formHandler.pendingCaptures) {
+						editingHandler = this.capturesSearchHandler.formHandler;
+					} else if (this.filesSearchHandler && this.filesSearchHandler.formHandler && this.filesSearchHandler.formHandler.pendingFiles) {
+						editingHandler = this.filesSearchHandler.formHandler;
+					}
+					
+					if (editingHandler) {
+						// Handle different types of cancellations
+						if (actionType === "capture_add" || actionType === "capture_remove") {
+							// Cancel capture change
+							editingHandler.cancelCaptureChange(id);
+						} else if (actionType === "file_add" || actionType === "file_remove") {
+							// Cancel file change
+							editingHandler.cancelFileChange(id);
+						}
+						
+						// Refresh the pending changes table
+						this.updatePendingChangesTable();
+					}
+				});
+			});
+		} else {
+			pendingChangesTableBody.innerHTML = 
+				"<tr><td colspan='5' class='text-center'>No pending changes</td></tr>";
+		}
+
+		// Update the count badge
+		if (pendingChangesCount) {
+			pendingChangesCount.textContent = `${totalChanges} change${totalChanges !== 1 ? 's' : ''}`;
 		}
 	}
 }
@@ -1246,8 +1419,6 @@ class SearchHandler {
 	}
 
 	updateSelectedFilesList() {
-		console.log('SearchHandler.updateSelectedFilesList called, selectedFiles size:', this.selectedFiles.size);
-		
 		// Update form handler's selectedFiles with current selection
 		if (this.formHandler) {
 			// Convert Map entries to array of file objects with IDs
@@ -1276,7 +1447,6 @@ class SearchHandler {
 		// Update selected files table if it exists
 		const selectedFilesTable = document.getElementById("selected-files-table");
 		const selectedFilesBody = selectedFilesTable?.querySelector("tbody");
-		console.log('SearchHandler: selectedFilesTable found:', !!selectedFilesTable, 'selectedFilesBody found:', !!selectedFilesBody);
 		if (selectedFilesBody) {
 			if (this.selectedFiles.size === 0) {
 				selectedFilesBody.innerHTML =
