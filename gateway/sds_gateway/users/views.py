@@ -107,7 +107,7 @@ user_detail_view = UserDetailView.as_view()
 
 class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView):  # pyright: ignore[reportMissingTypeArgument]
     model = User
-    fields = ["name", "orcid_id"]
+    fields = ["name"]
     success_message = _("Information successfully updated")
 
     def get_success_url(self):
@@ -585,7 +585,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 )
                 results['added'].extend(added_users)
                 results['errors'].extend(add_errors)
-            
             # Process permission changes
             for change in permission_changes:
                 change_result = self._process_permission_change(
@@ -595,7 +594,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     results['updated'].append(change_result['message'])
                 else:
                     results['errors'].append(change_result['error'])
-            
+
             # Process removals
             for removal in removals:
                 removal_result = self._process_removal(
@@ -605,7 +604,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     results['removed'].append(removal_result['message'])
                 else:
                     results['errors'].append(removal_result['error'])
-            
+
             # Send notifications if requested
             if results['added']:
                 self._notify_shared_users_if_requested(
@@ -702,7 +701,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         
         if not user_email or not new_permission:
             return {'success': False, 'error': 'Missing email or permission level'}
-        
         if new_permission == 'remove':
             return self._process_removal(request, item_uuid, item_type, user_email)
         
@@ -1310,14 +1308,13 @@ class GroupCapturesView(
         return super().get(request, *args, **kwargs)
 
     def search_captures(self, search_data, request) -> list[Capture]:
-        """Return captures based on user permissions for dataset editing."""
-        dataset_uuid = request.GET.get("dataset_uuid")
-        permission_level = None
-        
-        if dataset_uuid:
-            # Get user's permission level for this dataset
-            permission_level = get_user_permission_level(request.user, dataset_uuid, ItemType.DATASET)
-        
+        """Override to only return captures owned by the user for dataset creation."""
+        # Only get captures owned by the user (no shared captures)
+        queryset = Capture.objects.filter(
+            owner=request.user,
+            is_deleted=False,
+        )
+
         # Build a Q object for complex queries
         q_objects = Q()
 
@@ -1329,11 +1326,6 @@ class GroupCapturesView(
             q_objects &= Q(scan_group__icontains=search_data["scan_group"])
         if search_data.get("channel"):
             q_objects &= Q(channel__icontains=search_data["channel"])
-
-        queryset = Capture.objects.filter(
-            owner=request.user,
-            is_deleted=False,
-        )
 
         queryset = queryset.filter(q_objects).order_by("-created_at")
 
@@ -1379,9 +1371,6 @@ class GroupCapturesView(
                     "authors": json.dumps(existing_dataset.get_authors_display()),
                     "status": existing_dataset.status,
                 }
-            else:
-                # For new datasets, let the form handle authors initialization
-                initial_data = {}
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
         selected_files, selected_files_details = self._get_file_context(
@@ -1390,6 +1379,11 @@ class GroupCapturesView(
         selected_captures, selected_captures_details = self._get_capture_context(
             existing_dataset=existing_dataset
         )
+
+        logger.info(f"Selected captures: {selected_captures}")
+        logger.info(f"Selected captures details: {selected_captures_details}")
+        logger.info(f"Selected files: {selected_files}")
+        logger.info(f"Selected files details: {selected_files_details}")
 
         # Add to context
         context.update(
@@ -1416,7 +1410,6 @@ class GroupCapturesView(
                 "can_remove_assets": permission_level in ["owner", "co-owner"],
             }
         )
-        print(context)
         return context
 
     def get(self, request, *args, **kwargs):
@@ -1463,6 +1456,7 @@ class GroupCapturesView(
     def post(self, request, *args, **kwargs):
         """Handle dataset creation/update with selected captures and files."""
         try:
+            logger.debug(f"Request POST: {request.POST}")
             # Validate form and get selected items
             validation_result = self._validate_dataset_form(request)
             if validation_result:
@@ -1597,7 +1591,7 @@ class GroupCapturesView(
                         except json.JSONDecodeError:
                             # Fallback to direct authors if parsing fails
                             pass
-                    
+
                     dataset.authors = authors
                     dataset.status = dataset_form.cleaned_data["status"]
                     dataset.save()
@@ -1705,10 +1699,13 @@ class GroupCapturesView(
             else:
                 result.append(author)
         
-        # Add new authors
+        # Add new authors (only those that are beyond the original authors array)
         for i in changes.get('added', []):
-            if i < len(authors) and authors[i]:
-                result.append(authors[i])
+            if i >= len(authors) and i < len(authors) + len(changes.get('added', [])):
+                # This is a new author that was added beyond the original array
+                # We need to get it from the current authors array (which includes the new ones)
+                if i < len(authors):
+                    result.append(authors[i])
         
         return result
 
