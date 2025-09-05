@@ -865,7 +865,7 @@ class UserSharePermission(BaseModel):
         ).select_related("shared_with")
 
 
-class PostProcessedData(BaseModel):
+class DEPRECATEDPostProcessedData(BaseModel):
     """
     Generalized model to store post-processed data for captures.
 
@@ -933,7 +933,7 @@ class PostProcessedData(BaseModel):
     class Meta:
         unique_together = ["capture", "processing_type", "processing_parameters"]
         ordering = ["-created_at"]
-        verbose_name_plural = "Post processed data"
+        verbose_name_plural = "Post processed data (deprecated)"
         indexes = [
             models.Index(fields=["capture", "processing_type"]),
             models.Index(fields=["processing_status"]),
