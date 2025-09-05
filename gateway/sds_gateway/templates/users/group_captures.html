@@ -37,18 +37,18 @@
                     <div class="card-body" id="main-card-body">
                         <!-- Step Navigation -->
                         <div id="stepTabs-container">
-                            <div class="btn-group w-100 btn-group-disabled" role="group" id="stepTabs">
-                                <button class="btn btn-primary active-tab" id="step1-tab">
+                            <div class="btn-group w-100{% if not existing_dataset %} btn-group-disabled{% endif %}" role="group" id="stepTabs">
+                                <button type="button" class="btn btn-primary active-tab" id="step1-tab">
                                     <span class="step-number">1</span> Dataset Info
                                 </button>
-                                <button class="btn btn-outline-primary inactive-tab" id="step2-tab">
+                                <button type="button" class="btn btn-outline-primary inactive-tab" id="step2-tab">
                                     <span class="step-number">2</span> Select Captures
                                 </button>
-                                <button class="btn btn-outline-primary inactive-tab" id="step3-tab">
-                                    <span class="step-number">3</span> Select Files
+                                <button type="button" class="btn btn-outline-primary inactive-tab" id="step3-tab">
+                                    <span class="step-number">3</span> Select Artifact Files
                                 </button>
-                                <button class="btn btn-outline-primary inactive-tab" id="step4-tab">
-                                    <span class="step-number">4</span> Review and Create
+                                <button type="button" class="btn btn-outline-primary inactive-tab" id="step4-tab">
+                                    <span class="step-number">4</span> {% if existing_dataset %}Review and Update{% else %}Review and Create{% endif %}
                                 </button>
                             </div>
                         </div>
@@ -253,146 +253,75 @@
                     updateDatasetNameDisplay();
                 }
 
-                // Basic step navigation fallback
-                const nextBtn = document.getElementById('nextStep');
-                const prevBtn = document.getElementById('prevStep');
-                const submitBtn = document.getElementById('submitForm');
-                const stepTabs = document.querySelectorAll('#stepTabs button');
-                const tabPanes = document.querySelectorAll('.tab-pane');
+                // Initialize form handler immediately - no fallback needed
+                // Get initial selected captures and files
+                const initialCaptures = {{ selected_captures|safe }};
+                const initialFiles = {{ selected_files|safe }};
 
-                let currentStep = 0;
+                // Get initial capture details from Django context
+                const initialCaptureDetails = {{ selected_captures_details_json|safe }};
+                const initialFileDetails = {{ selected_files_details_json|safe }};
 
-                function showStep(stepIndex) {
-                    // Hide all tab panes
-                    tabPanes.forEach(pane => {
-                        pane.classList.remove('show', 'active');
+                {% if existing_dataset %}
+                    // Initialize dataset editing handler
+                    const editingHandler = new DatasetEditingHandler({
+                        datasetUuid: '{{ existing_dataset.uuid }}',
+                        permissionLevel: '{{ permission_level }}',
+                        canEditMetadata: {% if can_edit_metadata %}true{% else %}false{% endif %},
+                        canAddAssets: {% if can_add_assets %}true{% else %}false{% endif %},
+                        canRemoveAssets: {% if can_remove_assets %}true{% else %}false{% endif %},
+                        initialCaptures: initialCaptures,
+                        initialFiles: initialFiles,
                     });
+                {% endif %}
 
-                    // Remove active classes from tabs
-                    stepTabs.forEach(tab => {
-                        tab.classList.remove('btn-primary', 'active-tab');
-                        tab.classList.add('btn-outline-primary', 'inactive-tab');
-                    });
+                // Initialize form handler with initial values
+                const formHandler = new FormHandler({
+                    formId: 'datasetForm',
+                    steps: ['step1', 'step2', 'step3', 'step4'],
+                    initialCaptures: new Set(initialCaptures),
+                    initialFiles: new Set(initialFiles),
+                    initialCaptureDetails: initialCaptureDetails,
+                    isEditMode: {% if existing_dataset %}true{% else %}false{% endif %},
+                    onStepChange: (step) => {
+                        // Scroll card body to top
+                        document.getElementById('main-card-body').scrollTop = 0;
 
-                    // Show current step
-                    if (tabPanes[stepIndex]) {
-                        tabPanes[stepIndex].classList.add('show', 'active');
-                    }
-
-                    if (stepTabs[stepIndex]) {
-                        stepTabs[stepIndex].classList.remove('btn-outline-primary', 'inactive-tab');
-                        stepTabs[stepIndex].classList.add('btn-primary', 'active-tab');
-                    }
-
-                    // Update button visibility
-                    prevBtn.style.display = stepIndex === 0 ? 'none' : 'inline-block';
-                    nextBtn.style.display = stepIndex === tabPanes.length - 1 ? 'none' : 'inline-block';
-                    // Submit button should always be visible
-                    submitBtn.style.display = 'inline-block';
-                }
-
-                // Next button
-                nextBtn.addEventListener('click', () => {
-                    if (currentStep < tabPanes.length - 1) {
-                        currentStep++;
-                        showStep(currentStep);
-                    }
-                });
-
-                // Previous button
-                prevBtn.addEventListener('click', () => {
-                    if (currentStep > 0) {
-                        currentStep--;
-                        showStep(currentStep);
-                    }
-                });
-
-                // Tab click handlers
-                stepTabs.forEach((tab, index) => {
-                    tab.addEventListener('click', () => {
-                        currentStep = index;
-                        showStep(currentStep);
-                    });
-                });
-
-                // Initialize first step
-                showStep(0);
-
-                // Try to load webpack bundles for advanced functionality
-                const interval = setInterval(() => {
-                    if (window.SearchHandler && window.FormHandler) {
-                        clearInterval(interval);
-
-                        // Get initial selected captures and files
-                        const initialCaptures = {{ selected_captures|safe }};
-                        const initialFiles = {{ selected_files|safe }};
-
-                        // Get initial capture details from Django context
-                        const initialCaptureDetails = {{ selected_captures_details_json|safe }};
-                        const initialFileDetails = {{ selected_files_details_json|safe }};
-
-                        {% if existing_dataset %}
-                            // Initialize dataset editing handler
-                            const editingHandler = new DatasetEditingHandler({
-                                datasetUuid: '{{ existing_dataset.uuid }}',
-                                permissionLevel: '{{ permission_level }}',
-                                canEditMetadata: {% if can_edit_metadata %}true{% else %}false{% endif %},
-                                canAddAssets: {% if can_add_assets %}true{% else %}false{% endif %},
-                                canRemoveAssets: {% if can_remove_assets %}true{% else %}false{% endif %},
-                                initialCaptures: initialCaptures,
-                                initialFiles: initialFiles,
-                            });
-                        {% endif %}
-
-                        // Initialize form handler with initial values
-                        const formHandler = new FormHandler({
-                            formId: 'datasetForm',
-                            steps: ['step1', 'step2', 'step3', 'step4'],
-                            initialCaptures: new Set(initialCaptures),
-                            initialFiles: new Set(initialFiles),
-                            initialCaptureDetails: initialCaptureDetails,
-                            isEditMode: {% if existing_dataset %}true{% else %}false{% endif %},
-                            onStepChange: (step) => {
-                                // Scroll card body to top
-                                document.getElementById('main-card-body').scrollTop = 0;
-
-                                if (step === 1) {
-                                    if (!formHandler.capturesSearchHandler) {
-                                        formHandler.capturesSearchHandler = new SearchHandler({
-                                            searchFormId: 'captures-search-form',
-                                            searchButtonId: 'search-captures',
-                                            clearButtonId: 'clear-captures-search',
-                                            tableBodyId: 'captures-table-body',
-                                            paginationContainerId: 'captures-pagination',
-                                            type: 'captures',
-                                            formHandler: {% if existing_dataset %}editingHandler{% else %}formHandler{% endif %},
-                                            initialCaptureDetails: initialCaptureDetails
-                                        });
-                                        formHandler.capturesSearchHandler.initializeCapturesSearch();
-                                    }
-                                } else if (step === 2) {
-                                    if (!formHandler.filesSearchHandler) {
-                                        formHandler.filesSearchHandler = new SearchHandler({
-                                            searchFormId: 'files-search-form',
-                                            searchButtonId: 'search-files',
-                                            clearButtonId: 'clear-files-search',
-                                            tableBodyId: 'file-tree-table',
-                                            paginationContainerId: 'files-pagination',
-                                            type: 'files',
-                                            confirmFileSelectionId: 'confirm-file-selection',
-                                            formHandler: {% if existing_dataset %}editingHandler{% else %}formHandler{% endif %},
-                                            initialFileDetails: initialFileDetails
-                                        });
-                                        formHandler.filesSearchHandler.loadFileTree();
-                                    }
-                                }
+                        if (step === 1) {
+                            if (!formHandler.capturesSearchHandler) {
+                                formHandler.capturesSearchHandler = new SearchHandler({
+                                    searchFormId: 'captures-search-form',
+                                    searchButtonId: 'search-captures',
+                                    clearButtonId: 'clear-captures-search',
+                                    tableBodyId: 'captures-table-body',
+                                    paginationContainerId: 'captures-pagination',
+                                    type: 'captures',
+                                    formHandler: {% if existing_dataset %}editingHandler{% else %}formHandler{% endif %},
+                                    initialCaptureDetails: initialCaptureDetails
+                                });
+                                formHandler.capturesSearchHandler.initializeCapturesSearch();
                             }
-                        });
-                        
-                        // Initialize authors management after FormHandler is created
-                        initializeAuthorsManagement();
+                        } else if (step === 2) {
+                            if (!formHandler.filesSearchHandler) {
+                                formHandler.filesSearchHandler = new SearchHandler({
+                                    searchFormId: 'files-search-form',
+                                    searchButtonId: 'search-files',
+                                    clearButtonId: 'clear-files-search',
+                                    tableBodyId: 'file-tree-table',
+                                    paginationContainerId: 'files-pagination',
+                                    type: 'files',
+                                    confirmFileSelectionId: 'confirm-file-selection',
+                                    formHandler: {% if existing_dataset %}editingHandler{% else %}formHandler{% endif %},
+                                    initialFileDetails: initialFileDetails
+                                });
+                                formHandler.filesSearchHandler.loadFileTree();
+                            }
+                        }
                     }
-                }, 100);
+                });
+                
+                // Initialize authors management after FormHandler is created
+                initializeAuthorsManagement();
 
                 // Show the body after basic initialization
                 document.getElementById('body').classList.remove('d-none');
@@ -421,7 +350,22 @@
                     if (initialAuthors && initialAuthors.trim() !== '') {
                         authors = JSON.parse(initialAuthors);
                         if (isEditMode) {
-                            originalAuthors = [...authors]; // Keep a copy of original authors
+                            // In edit mode, get original authors from the dataset
+                            // The hidden field contains the current authors (including any new ones)
+                            // We need to get the original authors from the dataset context
+                            {% if existing_dataset %}
+                                const datasetAuthors = {{ existing_dataset.authors|safe }};
+                                originalAuthors = Array.isArray(datasetAuthors) ? datasetAuthors : [];
+                                // Convert to consistent format
+                                originalAuthors = originalAuthors.map(author => {
+                                    if (typeof author === 'string') {
+                                        return { name: author, orcid_id: '' };
+                                    }
+                                    return author;
+                                });
+                            {% else %}
+                                originalAuthors = [...authors]; // Keep a copy of original authors
+                            {% endif %}
                         }
                     }
                 } catch (e) {
@@ -468,6 +412,57 @@
                     removed: [],
                     modified: {} // index -> {old: string, new: string}
                 };
+
+                // In edit mode, detect initial changes by comparing current authors with original authors
+                if (isEditMode && originalAuthors.length > 0) {
+                    console.log('Original authors:', originalAuthors);
+                    console.log('Current authors:', authors);
+                    
+                    // Find new authors (authors in current list but not in original list)
+                    authors.forEach((author, index) => {
+                        const authorName = typeof author === 'string' ? author : author.name;
+                        const authorOrcid = typeof author === 'string' ? '' : author.orcid_id;
+                        
+                        // Check if this author exists in the original authors
+                        const existsInOriginal = originalAuthors.some(origAuthor => {
+                            const origName = typeof origAuthor === 'string' ? origAuthor : origAuthor.name;
+                            const origOrcid = typeof origAuthor === 'string' ? '' : origAuthor.orcid_id;
+                            return origName === authorName && origOrcid === authorOrcid;
+                        });
+                        
+                        if (!existsInOriginal) {
+                            console.log(`Author ${authorName} is new, adding to changes`);
+                            authorChanges.added.push(index);
+                        }
+                    });
+                    
+                    // Find removed authors (authors in original list but not in current list)
+                    originalAuthors.forEach((origAuthor, origIndex) => {
+                        const origName = typeof origAuthor === 'string' ? origAuthor : origAuthor.name;
+                        const origOrcid = typeof origAuthor === 'string' ? '' : origAuthor.orcid_id;
+                        
+                        // Check if this author exists in the current authors
+                        const existsInCurrent = authors.some(author => {
+                            const authorName = typeof author === 'string' ? author : author.name;
+                            const authorOrcid = typeof author === 'string' ? '' : author.orcid_id;
+                            return authorName === origName && authorOrcid === origOrcid;
+                        });
+                        
+                        if (!existsInCurrent) {
+                            console.log(`Author ${origName} was removed, adding to changes`);
+                            // Find the index in the current authors array (it might be different due to additions)
+                            const currentIndex = authors.findIndex(author => {
+                                const authorName = typeof author === 'string' ? author : author.name;
+                                return authorName === origName;
+                            });
+                            if (currentIndex >= 0) {
+                                authorChanges.removed.push(currentIndex);
+                            }
+                        }
+                    });
+                    
+                    console.log('Initial author changes detected:', authorChanges);
+                }
 
                 function updateAuthorsDisplay() {
                     authorsList.innerHTML = '';
@@ -811,6 +806,176 @@
                 // Make functions available globally for FormHandler
                 window.updateReviewAuthorsDisplay = updateReviewAuthorsDisplay;
                 window.getAuthorChanges = () => authorChanges;
+                
+                // Dataset metadata changes tracking
+                let datasetChanges = {
+                    name: { old: '', new: '', changed: false },
+                    status: { old: '', new: '', changed: false },
+                    description: { old: '', new: '', changed: false }
+                };
+                
+                // Get original values for edit mode
+                {% if existing_dataset %}
+                    datasetChanges.name.old = '{{ existing_dataset.name|escapejs }}';
+                    datasetChanges.status.old = '{{ existing_dataset.get_status_display|escapejs }}';
+                    datasetChanges.description.old = '{{ existing_dataset.description|default:""|escapejs }}';
+                {% endif %}
+                
+                // Function to update review page with dataset metadata changes
+                function updateReviewDatasetDisplay() {
+                    if (!isEditMode) {
+                        // In create mode, just show the current values
+                        return;
+                    }
+                    
+                    // Update name changes
+                    const nameChangeList = document.querySelector("#step4 .dataset-name-change-list");
+                    if (nameChangeList) {
+                        nameChangeList.innerHTML = '';
+                        if (datasetChanges.name.changed) {
+                            const li = document.createElement('li');
+                            li.style.color = '#d97706';
+                            li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Name: "${datasetChanges.name.old}" → "${datasetChanges.name.new}"`;
+                            nameChangeList.appendChild(li);
+                        }
+                    }
+                    
+                    // Update status changes
+                    const statusChangeList = document.querySelector("#step4 .dataset-status-change-list");
+                    if (statusChangeList) {
+                        statusChangeList.innerHTML = '';
+                        if (datasetChanges.status.changed) {
+                            const li = document.createElement('li');
+                            li.style.color = '#d97706';
+                            li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Status: "${datasetChanges.status.old}" → "${datasetChanges.status.new}"`;
+                            statusChangeList.appendChild(li);
+                        }
+                    }
+                    
+                    // Update description changes
+                    const descriptionChangeList = document.querySelector("#step4 .dataset-description-change-list");
+                    if (descriptionChangeList) {
+                        descriptionChangeList.innerHTML = '';
+                        if (datasetChanges.description.changed) {
+                            const li = document.createElement('li');
+                            li.style.color = '#d97706';
+                            const oldDesc = datasetChanges.description.old || 'No description provided.';
+                            const newDesc = datasetChanges.description.new || 'No description provided.';
+                            li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Description: "${oldDesc}" → "${newDesc}"`;
+                            descriptionChangeList.appendChild(li);
+                        }
+                    }
+                }
+                
+                // Track changes to dataset fields
+                function trackDatasetChanges() {
+                    const nameField = document.getElementById('id_name');
+                    const statusField = document.getElementById('id_status');
+                    const descriptionField = document.getElementById('id_description');
+                    
+                    if (nameField) {
+                        nameField.addEventListener('input', () => {
+                            datasetChanges.name.new = nameField.value;
+                            datasetChanges.name.changed = datasetChanges.name.new !== datasetChanges.name.old;
+                            updateReviewDatasetDisplay();
+                        });
+                    }
+                    
+                    if (statusField) {
+                        statusField.addEventListener('change', () => {
+                            const selectedOption = statusField.options[statusField.selectedIndex];
+                            datasetChanges.status.new = selectedOption ? selectedOption.text : '';
+                            datasetChanges.status.changed = datasetChanges.status.new !== datasetChanges.status.old;
+                            updateReviewDatasetDisplay();
+                        });
+                    }
+                    
+                    if (descriptionField) {
+                        descriptionField.addEventListener('input', () => {
+                            datasetChanges.description.new = descriptionField.value;
+                            datasetChanges.description.changed = datasetChanges.description.new !== datasetChanges.description.old;
+                            updateReviewDatasetDisplay();
+                        });
+                    }
+                }
+                
+                // Initialize dataset change tracking
+                trackDatasetChanges();
+                
+                // Initialize current values
+                const nameField = document.getElementById('id_name');
+                const statusField = document.getElementById('id_status');
+                const descriptionField = document.getElementById('id_description');
+                
+                if (nameField) {
+                    datasetChanges.name.new = nameField.value;
+                    datasetChanges.name.changed = datasetChanges.name.new !== datasetChanges.name.old;
+                }
+                
+                if (statusField) {
+                    const selectedOption = statusField.options[statusField.selectedIndex];
+                    datasetChanges.status.new = selectedOption ? selectedOption.text : '';
+                    datasetChanges.status.changed = datasetChanges.status.new !== datasetChanges.status.old;
+                }
+                
+                if (descriptionField) {
+                    datasetChanges.description.new = descriptionField.value;
+                    datasetChanges.description.changed = datasetChanges.description.new !== datasetChanges.description.old;
+                }
+                
+                // Make function available globally
+                window.updateReviewDatasetDisplay = updateReviewDatasetDisplay;
+                window.getDatasetChanges = () => datasetChanges;
+                
+                // Cancel functions for pending changes
+                window.cancelAuthorAddition = (index) => {
+                    if (authorChanges.added.includes(index)) {
+                        const removeIndex = authorChanges.added.indexOf(index);
+                        if (removeIndex > -1) {
+                            authorChanges.added.splice(removeIndex, 1);
+                        }
+                        // Remove the author from the authors array
+                        authors.splice(index, 1);
+                        updateAuthorsDisplay();
+                        if (window.updateReviewAuthorsDisplay) {
+                            window.updateReviewAuthorsDisplay();
+                        }
+                    }
+                };
+                
+                window.cancelAuthorRemoval = (index) => {
+                    if (authorChanges.removed.includes(index)) {
+                        const removeIndex = authorChanges.removed.indexOf(index);
+                        if (removeIndex > -1) {
+                            authorChanges.removed.splice(removeIndex, 1);
+                        }
+                        updateAuthorsDisplay();
+                        if (window.updateReviewAuthorsDisplay) {
+                            window.updateReviewAuthorsDisplay();
+                        }
+                    }
+                };
+                
+                window.cancelAuthorModification = (index, field) => {
+                    if (authorChanges.modified[index] && authorChanges.modified[index][field]) {
+                        delete authorChanges.modified[index][field];
+                        if (Object.keys(authorChanges.modified[index]).length === 0) {
+                            delete authorChanges.modified[index];
+                        }
+                        // Restore original value
+                        if (originalAuthors[index]) {
+                            const originalAuthor = originalAuthors[index];
+                            const originalValue = typeof originalAuthor === 'string' ? 
+                                (field === 'name' ? originalAuthor : '') : 
+                                (originalAuthor[field] || '');
+                            authors[index][field] = originalValue;
+                        }
+                        updateAuthorsDisplay();
+                        if (window.updateReviewAuthorsDisplay) {
+                            window.updateReviewAuthorsDisplay();
+                        }
+                    }
+                };
             }
 </script>
         {# djlint:on #}

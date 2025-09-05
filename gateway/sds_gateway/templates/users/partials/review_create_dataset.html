@@ -10,6 +10,7 @@
             <div class="mb-3">
                 <label class="fw-bold">Dataset Name</label>
                 <p class="mb-0 dataset-name"></p>
+                <ul class="mb-0 dataset-name-change-list"></ul>
             </div>
             <div class="mb-3">
                 <label class="fw-bold">Dataset Authors</label>
@@ -19,64 +20,94 @@
             <div class="mb-3">
                 <label class="fw-bold">Status</label>
                 <p class="mb-0 dataset-status"></p>
+                <ul class="mb-0 dataset-status-change-list"></ul>
             </div>
             <div class="mb-0">
                 <label class="fw-bold">Description</label>
                 <p class="mb-0 dataset-description"></p>
+                <ul class="mb-0 dataset-description-change-list"></ul>
             </div>
         </div>
     </div>
 </div>
 <div class="col-8 mb-4">
-    <!-- Selected Captures -->
-    <div class="card mb-4">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Selected Captures</h5>
-            <span class="badge bg-primary captures-count">0 selected</span>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 captures-table">
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Directory</th>
-                            <th>Channel</th>
-                            <th>Scan Group</th>
-                            <th>Created At</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Will be populated by JavaScript -->
-                    </tbody>
-                </table>
+    {% if existing_dataset %}
+        <!-- Pending Changes for Edit Mode -->
+        <div class="card mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Pending Changes</h5>
+                <span class="badge bg-warning pending-changes-count">0 changes</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 pending-changes-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Action</th>
+                                <th>Name</th>
+                                <th>Details</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
-    <!-- Selected Files -->
-    <div class="card">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Selected Files</h5>
-            <span class="badge bg-primary files-count">0 selected</span>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 files-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>Path</th>
-                            <th>Size</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Will be populated by JavaScript -->
-                    </tbody>
-                </table>
+    {% else %}
+        <!-- Selected Captures for Create Mode -->
+        <div class="card mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Selected Captures</h5>
+                <span class="badge bg-primary captures-count">0 selected</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 captures-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Directory</th>
+                                <th>Channel</th>
+                                <th>Scan Group</th>
+                                <th>Created At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
+        <!-- Selected Files for Create Mode -->
+        <div class="card">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Selected Files</h5>
+                <span class="badge bg-primary files-count">0 selected</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 files-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Path</th>
+                                <th>Size</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endif %}
 </div>
