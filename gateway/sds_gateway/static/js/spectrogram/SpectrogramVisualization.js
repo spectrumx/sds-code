@@ -118,6 +118,9 @@ export class SpectrogramVisualization {
 	 */
 	async createSpectrogramJob(settings) {
 		try {
+			const rendererDimensions = this.renderer?.getDisplayDimensions();
+			const dimensions = rendererDimensions || DEFAULT_IMAGE_DIMENSIONS;
+
 			const response = await fetch(
 				API_ENDPOINTS.createSpectrogram.replace(
 					"{capture_uuid}",
@@ -135,9 +138,7 @@ export class SpectrogramVisualization {
 						hop_size: settings.hopSize,
 						colormap: settings.colorMap,
 						timestamp: new Date().toISOString(),
-						dimensions: this.renderer
-							? this.renderer.getDisplayDimensions()
-							: DEFAULT_IMAGE_DIMENSIONS,
+						dimensions: dimensions,
 					}),
 				},
 			);
