@@ -11,8 +11,8 @@ from rest_framework.utils.serializer_helpers import ReturnList
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
 from sds_gateway.api_methods.models import File
-from sds_gateway.api_methods.models import PostProcessedData
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 
 
@@ -26,11 +26,13 @@ class FileCaptureListSerializer(serializers.ModelSerializer[File]):
         ]
 
 
-class PostProcessedDataSerializer(serializers.ModelSerializer[PostProcessedData]):
+class DEPRECATEDPostProcessedDataSerializer(
+    serializers.ModelSerializer[DEPRECATEDPostProcessedData]
+):
     """Serializer for PostProcessedData model."""
 
     class Meta:
-        model = PostProcessedData
+        model = DEPRECATEDPostProcessedData
         fields = [
             "uuid",
             "capture",
@@ -146,13 +148,13 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         """Get the display value for the capture type."""
         return capture.get_capture_type_display()
 
-    @extend_schema_field(PostProcessedDataSerializer(many=True))
+    @extend_schema_field(DEPRECATEDPostProcessedDataSerializer(many=True))
     def get_post_processed_data(self, obj: Capture) -> Any:
         """Get all post-processed data for this capture."""
         processed_data = obj.visualization_post_processed_data.all().order_by(
             "processing_type", "-created_at"
         )
-        return PostProcessedDataSerializer(processed_data, many=True).data
+        return DEPRECATEDPostProcessedDataSerializer(processed_data, many=True).data
 
     class Meta:
         model = Capture

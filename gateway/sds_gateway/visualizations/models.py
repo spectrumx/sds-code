@@ -119,7 +119,6 @@ class PostProcessedData(BaseModel):
     )
 
     class Meta:
-        unique_together = ["capture", "processing_type", "processing_parameters"]
         ordering = ["-created_at"]
         verbose_name_plural = "Post processed data"
         indexes = [
