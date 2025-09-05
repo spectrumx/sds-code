@@ -504,7 +504,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             owner=request_user,
             shared_with=user,
             is_deleted=False,
-            is_enabled=True,
         ).first()
 
 
@@ -760,6 +759,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             
             old_permission = share_permission.permission_level
             share_permission.permission_level = new_permission
+            share_permission.is_enabled = True  # Re-enable if it was disabled
             share_permission.save()
             
             return {
