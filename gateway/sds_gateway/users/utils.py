@@ -60,6 +60,12 @@ def serialize_composite_capture_for_display(capture: Capture) -> dict[str, Any]:
     # Use composite capture serialization to get proper details
     serialized_data = serialize_capture_or_composite(capture)
 
+    # Extract owner information
+    owner_data = serialized_data.get("owner", {})
+    owner_id = owner_data.get("id") if owner_data else None
+    owner_name = owner_data.get("name") if owner_data else None
+    owner_email = owner_data.get("email") if owner_data else None
+
     # Handle composite vs single capture display
     if serialized_data.get("is_multi_channel"):
         # This is a composite capture
@@ -78,6 +84,9 @@ def serialize_composite_capture_for_display(capture: Capture) -> dict[str, Any]:
             "captures_in_composite": uuid_list,
             "is_multi_channel": True,
             "channels": channel_objects,
+            "owner_id": owner_id,
+            "owner_name": owner_name or owner_email or "Unknown",
+            "owner": owner_data,
         }
 
     # This is a single capture
@@ -89,6 +98,9 @@ def serialize_composite_capture_for_display(capture: Capture) -> dict[str, Any]:
         "scan_group": serialized_data.get("scan_group", "") or "-",
         "created_at": serialized_data["created_at"],
         "is_multi_channel": False,
+        "owner_id": owner_id,
+        "owner_name": owner_name or owner_email or "Unknown",
+        "owner": owner_data,
     }
 
 

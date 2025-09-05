@@ -246,6 +246,13 @@ class FormSearchMixin:
                 "media_type": item.media_type,
                 "size": item.size,
                 "relative_path": relative_path,
+                "owner_id": item.owner.id if item.owner else None,
+                "owner_name": item.owner.name if item.owner and item.owner.name else (item.owner.email if item.owner else "Unknown"),
+                "owner": {
+                    "id": item.owner.id if item.owner else None,
+                    "name": item.owner.name if item.owner else None,
+                    "email": item.owner.email if item.owner else None,
+                } if item.owner else None,
             }
 
         # this should never happen

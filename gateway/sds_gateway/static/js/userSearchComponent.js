@@ -391,7 +391,6 @@ class UserSearchHandler {
 					document.body.classList.remove("modal-open");
 					document.body.style.overflow = "";
 					document.body.style.paddingRight = "";
-
 					// Clear selected users and pending changes
 					this.selectedUsersMap = {};
 					this.pendingRemovals.clear();
@@ -1127,7 +1126,7 @@ class UserSearchHandler {
 					this.initializeItemListEventListeners();
 
 					// Re-initialize modals and their handlers
-					this.initializeModals();
+					await this.initializeModals();
 				}
 			}
 		} catch (error) {
@@ -1137,11 +1136,14 @@ class UserSearchHandler {
 		}
 	}
 
-	initializeModals() {
+	async initializeModals() {
 		// Re-create UserSearchHandler for each share modal
-		for (const modal of document.querySelectorAll(".modal[data-item-uuid]")) {
+		const modals = document.querySelectorAll(".modal[data-item-uuid]");
+		
+		for (const modal of modals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
 			const itemType = modal.getAttribute("data-item-type");
+			
 			if (window.UserSearchHandler) {
 				const handler = new window.UserSearchHandler();
 				// Store the handler on the modal element
