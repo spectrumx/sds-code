@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import h5py
 import matplotlib as mpl
@@ -13,24 +14,8 @@ from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
 
 
-def generate_spectrogram_from_drf(
-    drf_path: Path, channel: str, processing_parameters: dict | None = None
-) -> dict:
-    """Generate a spectrogram from DigitalRF data.
-
-    Args:
-        drf_path: Path to the DigitalRF directory
-        channel: Channel name to process
-        processing_parameters: Dict containing spectrogram parameters
-            (fft_size, std_dev, hop_size, colormap)
-
-    Returns:
-        Dict with status and spectrogram data
-    """
-    logger.info(f"Generating spectrogram from DigitalRF data for channel {channel}")
-
-    # Initialize DigitalRF reader
-    reader = DigitalRFReader(str(drf_path))
+def _validate_channel_and_bounds(reader, channel):
+    """Validate channel exists and get sample bounds."""
     channels = reader.get_channels()
 
     if not channels:
@@ -54,8 +39,14 @@ def generate_spectrogram_from_drf(
     if start_sample is None or end_sample is None:
         error_msg = "Invalid sample bounds for channel"
         raise ValueError(error_msg)
-    total_samples = end_sample - start_sample
 
+    return start_sample, end_sample
+
+
+def _read_sample_rate_and_center_freq(
+    drf_path, channel, reader, start_sample, end_sample
+):
+    """Read sample rate and center frequency from metadata."""
     # Get metadata from DigitalRF properties
     drf_props_path = drf_path / channel / "drf_properties.h5"
     with h5py.File(drf_props_path, "r") as f:
@@ -76,53 +67,32 @@ def generate_spectrogram_from_drf(
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Could not read center frequency from metadata: {e}")
 
-    # Calculate frequency range
-    freq_span = sample_rate
-    min_frequency = center_freq - freq_span / 2
-    max_frequency = center_freq + freq_span / 2
+    return sample_rate, center_freq
 
-    # Spectrogram parameters - use passed parameters or defaults
-    if processing_parameters is None:
-        processing_parameters = {}
 
-    fft_size = processing_parameters.get("fft_size", 1024)
-    std_dev = processing_parameters.get("std_dev", 100)
-    hop_size = processing_parameters.get("hop_size", 500)
-    colormap = processing_parameters.get("colormap", "magma")
+def _generate_spectrogram_plot(
+    spectrogram, extent, center_freq, channel, colormap, dimensions
+):
+    """Generate the matplotlib plot for the spectrogram."""
+    # Create figure with requested dimensions or default
+    if dimensions and "width" in dimensions and "height" in dimensions:
+        # Convert pixels to inches (assuming 100 DPI for conversion)
+        width_inches = dimensions["width"] / 100.0
+        height_inches = dimensions["height"] / 100.0
+        logger.info(
+            f"Using requested dimensions: "
+            f"{dimensions['width']}x{dimensions['height']} pixels"
+            f"({width_inches:.1f}x{height_inches:.1f} inches)"
+        )
+    else:
+        # Use default dimensions
+        width_inches = 10.0
+        height_inches = 6.0
+        logger.info(
+            f"Using default dimensions: {width_inches:.1f}x{height_inches:.1f} inches"
+        )
 
-    logger.info(
-        f"Using spectrogram parameters: fft_size={fft_size}, "
-        f"std_dev={std_dev}, hop_size={hop_size}, colormap={colormap}"
-    )
-
-    # Generate spectrogram using matplotlib
-    try:
-        mpl.use("Agg")  # Use non-interactive backend
-    except ImportError as e:
-        error_msg = f"Required libraries for spectrogram generation not available: {e}"
-        raise
-
-    data_array = reader.read_vector(start_sample, total_samples, channel, 0)
-
-    # Create Gaussian window
-    gaussian_window = gaussian(fft_size, std=std_dev, sym=True)
-
-    # Create ShortTimeFFT object
-    short_time_fft = ShortTimeFFT(
-        gaussian_window,
-        hop=hop_size,
-        fs=sample_rate,
-        mfft=fft_size,
-        fft_mode="centered",
-    )
-
-    # Generate spectrogram
-    spectrogram = short_time_fft.spectrogram(data_array)
-
-    extent = short_time_fft.extent(total_samples)
-
-    # Create figure
-    figure, axes = plt.subplots(figsize=(10, 6))
+    figure, axes = plt.subplots(figsize=(width_inches, height_inches))
 
     # Set title
     title = f"Spectrogram - Channel {channel}"
@@ -153,6 +123,90 @@ def generate_spectrogram_from_drf(
     # Adjust layout
     figure.tight_layout()
 
+    return figure
+
+
+def generate_spectrogram_from_drf(
+    drf_path: Path, channel: str, processing_parameters: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Generate a spectrogram from DigitalRF data.
+
+    Args:
+        drf_path: Path to the DigitalRF directory
+        channel: Channel name to process
+        processing_parameters: Dict containing spectrogram parameters
+            (fft_size, std_dev, hop_size, colormap)
+
+    Returns:
+        Dict with status and spectrogram data
+    """
+    logger.info(f"Generating spectrogram from DigitalRF data for channel {channel}")
+
+    # Initialize DigitalRF reader
+    reader = DigitalRFReader(str(drf_path))
+
+    # Validate channel and get bounds
+    start_sample, end_sample = _validate_channel_and_bounds(reader, channel)
+    total_samples = end_sample - start_sample
+
+    # Read sample rate and center frequency
+    sample_rate, center_freq = _read_sample_rate_and_center_freq(
+        drf_path, channel, reader, start_sample, end_sample
+    )
+
+    # Calculate frequency range
+    freq_span = sample_rate
+    min_frequency = center_freq - freq_span / 2
+    max_frequency = center_freq + freq_span / 2
+
+    # Spectrogram parameters - use passed parameters or defaults
+    if processing_parameters is None:
+        processing_parameters = {}
+
+    fft_size = processing_parameters.get("fft_size", 1024)
+    std_dev = processing_parameters.get("std_dev", 100)
+    hop_size = processing_parameters.get("hop_size", 500)
+    colormap = processing_parameters.get("colormap", "magma")
+    dimensions = processing_parameters.get("dimensions", {})
+
+    logger.info(
+        f"Using spectrogram parameters: fft_size={fft_size}, "
+        f"std_dev={std_dev}, hop_size={hop_size}, colormap={colormap}, "
+        f"dimensions={dimensions}"
+    )
+
+    # Generate spectrogram using matplotlib
+    try:
+        mpl.use("Agg")  # Use non-interactive backend
+    except ImportError as e:
+        error_msg = f"Required libraries for spectrogram generation not available: {e}"
+        logger.error(error_msg)
+        raise
+
+    data_array = reader.read_vector(start_sample, total_samples, channel, 0)
+
+    # Create Gaussian window
+    gaussian_window = gaussian(fft_size, std=std_dev, sym=True)
+
+    # Create ShortTimeFFT object
+    short_time_fft = ShortTimeFFT(
+        gaussian_window,
+        hop=hop_size,
+        fs=sample_rate,
+        mfft=fft_size,
+        fft_mode="centered",
+    )
+
+    # Generate spectrogram
+    spectrogram = short_time_fft.spectrogram(data_array)
+
+    extent = short_time_fft.extent(total_samples)
+
+    # Generate the spectrogram plot
+    figure = _generate_spectrogram_plot(
+        spectrogram, extent, center_freq, channel, colormap, dimensions
+    )
+
     # Save to temporary file
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
         figure.savefig(tmp_file.name, dpi=150, bbox_inches="tight")
@@ -173,13 +227,8 @@ def generate_spectrogram_from_drf(
         "window_std_dev": std_dev,
         "hop_size": hop_size,
         "colormap": colormap,
+        "dimensions": dimensions,
         "channel": channel,
-        "processing_parameters": {
-            "fft_size": fft_size,
-            "std_dev": std_dev,
-            "hop_size": hop_size,
-            "colormap": colormap,
-        },
     }
 
     return {

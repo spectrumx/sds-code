@@ -1,5 +1,7 @@
 """API views for the visualizations app."""
 
+from typing import Any
+
 from django.conf import settings
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -113,6 +115,7 @@ class VisualizationViewSet(ViewSet):
         std_dev = request.data.get("std_dev", 100)
         hop_size = request.data.get("hop_size", 500)
         colormap = request.data.get("colormap", "magma")
+        dimensions = request.data.get("dimensions", None)
 
         # Validate parameters
         if not self._validate_spectrogram_params(fft_size, std_dev, hop_size, colormap):
@@ -130,6 +133,7 @@ class VisualizationViewSet(ViewSet):
                 "std_dev": std_dev,
                 "hop_size": hop_size,
                 "colormap": colormap,
+                "dimensions": dimensions,
             },
         ).first()
 
@@ -163,6 +167,7 @@ class VisualizationViewSet(ViewSet):
             "std_dev": std_dev,
             "hop_size": hop_size,
             "colormap": colormap,
+            "dimensions": dimensions,
         }
 
         spectrogram_data = PostProcessedData.objects.create(
@@ -173,7 +178,6 @@ class VisualizationViewSet(ViewSet):
             metadata={
                 "requested_by": str(request.user.uuid),
                 "requested_at": request.data.get("timestamp"),
-                "image_dimensions": request.data.get("dimensions", {}),
             },
         )
 
@@ -182,7 +186,8 @@ class VisualizationViewSet(ViewSet):
             # This will use the cog pipeline to generate the spectrogram
             self._start_spectrogram_processing(spectrogram_data, processing_params)
             log.info(
-                f"Started spectrogram processing for capture {capture.uuid}: {spectrogram_data.uuid}"
+                f"Started spectrogram processing for capture {capture.uuid}: "
+                f"{spectrogram_data.uuid}"
             )
             serializer = PostProcessedDataSerializer(spectrogram_data)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -408,7 +413,12 @@ class VisualizationViewSet(ViewSet):
             )
 
     def _validate_spectrogram_params(
-        self, fft_size: int, std_dev: int, hop_size: int, colormap: str
+        self,
+        fft_size: int,
+        std_dev: int,
+        hop_size: int,
+        colormap: str,
+        dimensions: dict[str, int] | None = None,
     ) -> bool:
         """
         Validate spectrogram parameters.
@@ -429,6 +439,13 @@ class VisualizationViewSet(ViewSet):
         if hop_size < self.MIN_HOP_SIZE or hop_size > self.MAX_HOP_SIZE:
             return False
 
+        # Validate dimensions
+        if dimensions and "width" in dimensions and "height" in dimensions:
+            if dimensions["width"] < 0:
+                return False
+            if dimensions["height"] < 0:
+                return False
+
         # Validate colormap
         valid_colormaps = [
             "magma",
@@ -445,7 +462,7 @@ class VisualizationViewSet(ViewSet):
         return colormap in valid_colormaps
 
     def _start_spectrogram_processing(
-        self, spectrogram_data: PostProcessedData, processing_params: dict
+        self, spectrogram_data: PostProcessedData, processing_params: dict[str, Any]
     ) -> None:
         """
         Start spectrogram processing using the cog pipeline.
@@ -465,6 +482,7 @@ class VisualizationViewSet(ViewSet):
                     "std_dev": processing_params["std_dev"],
                     "hop_size": processing_params["hop_size"],
                     "colormap": processing_params["colormap"],
+                    "dimensions": processing_params["dimensions"],
                 }
             }
             result = start_capture_post_processing.delay(
@@ -472,10 +490,13 @@ class VisualizationViewSet(ViewSet):
             )
 
             log.info(
-                f"Launched spectrogram processing task for {spectrogram_data.uuid}, task_id: {result.id}"
+                f"Launched spectrogram processing task for"
+                f"{spectrogram_data.uuid}, task_id: {result.id}"
             )
+
         except Exception as e:  # noqa: BLE001
-            log.error(f"Error starting spectrogram processing: {e}")
+            log.error(f"Could not launch spectrogram processing task: {e}")
+            # Mark as failed
             spectrogram_data.processing_status = ProcessingStatus.Failed.value
-            spectrogram_data.processing_error = str(e)
+            spectrogram_data.processing_error = f"Failed to launch task: {e}"
             spectrogram_data.save()
