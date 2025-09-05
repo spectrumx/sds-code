@@ -35,8 +35,8 @@ export const INPUT_RANGES = {
 	hopSize: { min: 100, max: 1000 },
 };
 
-// Canvas dimensions
-export const CANVAS_DIMENSIONS = {
+// Default image dimensions
+export const DEFAULT_IMAGE_DIMENSIONS = {
 	width: 800,
 	height: 400,
 };
