@@ -156,6 +156,9 @@ class FormHandler {
 	}
 
 	updateHiddenFields() {
+		// Sync native form checkboxes with JavaScript-managed selection
+		this.syncNativeFormCheckboxes();
+		
 		// Update hidden fields with current selections
 		if (this.selectedCapturesField) {
 			this.selectedCapturesField.value = Array.from(this.selectedCaptures).join(
@@ -167,6 +170,26 @@ class FormHandler {
 				.map((file) => file.id)
 				.join(",");
 		}
+	}
+	
+	syncNativeFormCheckboxes() {
+		// Sync captures checkboxes
+		const captureCheckboxes = document.querySelectorAll('input[name="captures"]');
+		captureCheckboxes.forEach(checkbox => {
+			const captureId = checkbox.value;
+			if (checkbox.checked && !this.selectedCaptures.has(captureId)) {
+				// Check if this capture can be selected (owned by current user)
+				const row = checkbox.closest('tr');
+				if (row && !row.classList.contains('readonly-row')) {
+					this.selectedCaptures.add(captureId);
+				} else {
+					// Uncheck if it can't be selected
+					checkbox.checked = false;
+				}
+			} else if (!checkbox.checked && this.selectedCaptures.has(captureId)) {
+				this.selectedCaptures.delete(captureId);
+			}
+		});
 	}
 
 	dataSetNameDisplay() {
@@ -339,6 +362,11 @@ class FormHandler {
 	}
 
 	validateDatasetInfo() {
+		// In edit mode, the dataset already has the required information, so it's always valid
+		if (this.isEditMode) {
+			return true;
+		}
+		
 		// Check if all required fields have non-empty values
 		const nameValue = this.nameField?.value.trim() || "";
 		const authorsValue = this.authorsField?.value.trim() || "";
@@ -373,6 +401,9 @@ class FormHandler {
 			// Set loading state
 			this.setSubmitButtonLoading(true);
 
+			// Sync native form checkboxes with JavaScript selection
+			this.syncNativeFormCheckboxes();
+			
 			// Update hidden fields one last time before submission
 			this.updateHiddenFields();
 
@@ -387,8 +418,8 @@ class FormHandler {
 			const formData = new FormData(this.form);
 			
 			// If this is an editing handler, add the pending changes
-			if (this.hasChanges && this.hasChanges()) {
-				const changes = this.getPendingChanges();
+			if (this.isEditMode && window.datasetEditingHandler) {
+				const changes = window.datasetEditingHandler.getPendingChanges();
 				
 				// Add captures changes
 				const capturesAdd = changes.captures
@@ -1121,7 +1152,7 @@ class SearchHandler {
 
 		if (data.results.length === 0) {
 			tbody.innerHTML =
-				'<tr><td colspan="7" class="text-center">No captures found</td></tr>';
+				'<tr><td colspan="8" class="text-center">No captures found</td></tr>';
 			return;
 		}
 
@@ -1137,9 +1168,15 @@ class SearchHandler {
 				row.classList.add("table-warning");
 			}
 
+			// Check if this is an existing capture (has owner_id) or a new capture being added
+			const isExistingCapture = capture.owner_id !== undefined;
+			const isOwnedByCurrentUser = capture.owner_id === this.formHandler?.currentUserId;
+			const canSelect = isOwnedByCurrentUser; // Only allow selection of captures owned by current user
+			const rowClass = !canSelect ? 'readonly-row' : '';
+			
 			row.innerHTML = `
 				<td>
-					<input type="checkbox" class="form-check-input" name="captures" value="${capture.id}" ${isSelected ? "checked" : ""} />
+					<input type="checkbox" class="form-check-input" name="captures" value="${capture.id}" ${isSelected ? "checked" : ""} ${!canSelect ? "disabled" : ""} />
 				</td>
 				<td>${capture.type}</td>
 				<td>${capture.directory}</td>
@@ -1148,6 +1185,10 @@ class SearchHandler {
 				<td>${capture.owner ? (capture.owner.name || capture.owner.email || '-') : '-'}</td>
 				<td>${new Date(capture.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
 			`;
+			
+			if (rowClass) {
+				row.classList.add(rowClass);
+			}
 
 			const handleSelection = (e) => {
 				const checkbox = row.querySelector('input[type="checkbox"]');
@@ -1166,6 +1207,8 @@ class SearchHandler {
 							channel: capture.channel,
 							scan_group: capture.scan_group,
 							created_at: capture.created_at,
+							owner_id: capture.owner_id,
+							owner_name: capture.owner?.name || capture.owner?.email || 'Unknown'
 						});
 					} else {
 						// Regular selection for creation
@@ -1178,9 +1221,16 @@ class SearchHandler {
 							channel: capture.channel,
 							scan_group: capture.scan_group,
 							created_at: capture.created_at,
+							owner_id: capture.owner_id,
+							owner_name: capture.owner?.name || capture.owner?.email || 'Unknown'
 						});
 						this.formHandler.updateHiddenFields();
 						this.updateSelectedCapturesPane();
+					}
+					
+					// Update current captures list if in edit mode
+					if (this.formHandler.updateCurrentCapturesList) {
+						this.formHandler.updateCurrentCapturesList();
 					}
 				} else {
 					if (this.formHandler.addCaptureToPending) {
@@ -1193,6 +1243,11 @@ class SearchHandler {
 						this.selectedCaptureDetails.delete(captureId);
 						this.formHandler.updateHiddenFields();
 						this.updateSelectedCapturesPane();
+					}
+					
+					// Update current captures list if in edit mode
+					if (this.formHandler.updateCurrentCapturesList) {
+						this.formHandler.updateCurrentCapturesList();
 					}
 				}
 			};
@@ -1450,23 +1505,35 @@ class SearchHandler {
 		if (selectedFilesBody) {
 			if (this.selectedFiles.size === 0) {
 				selectedFilesBody.innerHTML =
-					'<tr><td colspan="5" class="text-center">No files selected</td></tr>';
+					'<tr><td colspan="6" class="text-center">No files selected</td></tr>';
 			} else {
 				selectedFilesBody.innerHTML = Array.from(this.selectedFiles.entries())
 					.map(
-						([id, file]) => `
-					<tr data-file-id="${id}">
-						<td>${file.name}</td>
-						<td>${file.media_type}</td>
-						<td>${file.relative_path}</td>
-						<td>${this.formHandler.formatFileSize(file.size)}</td>
-						<td>
-							<button type="button" class="btn btn-sm btn-danger remove-selected-file" data-id="${id}">
-								Remove
-							</button>
-						</td>
-					</tr>
-				`,
+						([id, file]) => {
+							// Check if this is an existing file (has owner_id) or a new file being added
+							const isExistingFile = file.owner_id !== undefined;
+							const isOwnedByCurrentUser = file.owner_id === this.formHandler.currentUserId;
+							const canRemove = !isExistingFile || (isExistingFile && isOwnedByCurrentUser && this.formHandler.canRemoveAssets);
+							const rowClass = isExistingFile && !isOwnedByCurrentUser ? 'readonly-row' : '';
+							
+							return `
+						<tr data-file-id="${id}" class="${rowClass}">
+							<td>${file.name}</td>
+							<td>${file.media_type}</td>
+							<td>${file.relative_path}</td>
+							<td>${this.formHandler.formatFileSize(file.size)}</td>
+							<td>${file.owner_name || 'Unknown'}</td>
+							<td>
+								${canRemove ? 
+									`<button type="button" class="btn btn-sm btn-danger remove-selected-file" data-id="${id}">
+										Remove
+									</button>` : 
+									'<span class="text-muted">-</span>'
+								}
+							</td>
+						</tr>
+					`;
+						}
 					)
 					.join("");
 

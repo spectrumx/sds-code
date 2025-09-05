@@ -1573,17 +1573,10 @@ class ModalManager {
 			}
 
 			const captureData = await response.json();
-			console.log("Raw capture data:", captureData);
 
 			const files = captureData.files || [];
 			const filesCount = captureData.files_count || 0;
 			const totalSize = captureData.total_file_size || 0;
-
-			console.log("Files info:", {
-				filesCount,
-				totalSize,
-				numFiles: files.length,
-			});
 
 			// Update files section with simple summary
 			const filesSection = document.getElementById("files-section-placeholder");

@@ -11,6 +11,24 @@
           rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css"
           rel="stylesheet" />
+    <style>
+        .readonly-row {
+            background-color: #f8f9fa !important;
+            opacity: 0.8;
+        }
+        .readonly-row td {
+            color: #6c757d;
+        }
+        .readonly-row .badge {
+            opacity: 0.7;
+        }
+        .author-item {
+            transition: all 0.2s ease;
+        }
+        .author-item:hover {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
 {% endblock extra_css %}
 {% block content %}
     <body class="{% block bodyclass %} hero-white-page {% endblock bodyclass %} mb-4 page-body"
@@ -115,8 +133,24 @@
                                                             <input type="text" class="form-control" value="{{ existing_dataset.name }}" readonly>
                                                         </div>
                                                         <div class="form-group mt-4">
-                                                            <label class="form-label">Author</label>
-                                                            <input type="text" class="form-control" value="{{ existing_dataset.authors.0 }}" readonly>
+                                                            <label class="form-label">Authors</label>
+                                                            <div class="readonly-authors">
+                                                                {% for author in existing_dataset.authors %}
+                                                                    <div class="author-item mb-2 p-2 border rounded bg-light">
+                                                                        <div class="d-flex justify-content-between align-items-start">
+                                                                            <div class="flex-grow-1">
+                                                                                <strong>{{ author.name|default:"Unnamed Author" }}</strong>
+                                                                                {% if author.orcid_id %}
+                                                                                    <br><small class="text-muted">ORCID: <a href="https://orcid.org/{{ author.orcid_id }}" target="_blank" class="text-decoration-none">{{ author.orcid_id }}</a></small>
+                                                                                {% endif %}
+                                                                            </div>
+                                                                            <div>
+                                                                                {% if forloop.first %}<span class="badge bg-primary">Primary</span>{% endif %}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                {% endfor %}
+                                                            </div>
                                                         </div>
                                                         <div class="form-group mt-4">
                                                             <label class="form-label">Status</label>
@@ -264,14 +298,15 @@
 
                 {% if existing_dataset %}
                     // Initialize dataset editing handler
-                    const editingHandler = new DatasetEditingHandler({
+                    window.datasetEditingHandler = new DatasetEditingHandler({
                         datasetUuid: '{{ existing_dataset.uuid }}',
                         permissionLevel: '{{ permission_level }}',
                         canEditMetadata: {% if can_edit_metadata %}true{% else %}false{% endif %},
                         canAddAssets: {% if can_add_assets %}true{% else %}false{% endif %},
                         canRemoveAssets: {% if can_remove_assets %}true{% else %}false{% endif %},
-                        initialCaptures: initialCaptures,
-                        initialFiles: initialFiles,
+                        currentUserId: {{ request.user.id }},
+                        initialCaptures: Object.values(initialCaptureDetails),
+                        initialFiles: Object.values(initialFileDetails),
                     });
                 {% endif %}
 
@@ -280,7 +315,7 @@
                     formId: 'datasetForm',
                     steps: ['step1', 'step2', 'step3', 'step4'],
                     initialCaptures: new Set(initialCaptures),
-                    initialFiles: new Set(initialFiles),
+                    initialFiles: new Set(initialFiles.map(file => file.id)),
                     initialCaptureDetails: initialCaptureDetails,
                     isEditMode: {% if existing_dataset %}true{% else %}false{% endif %},
                     onStepChange: (step) => {
@@ -296,7 +331,7 @@
                                     tableBodyId: 'captures-table-body',
                                     paginationContainerId: 'captures-pagination',
                                     type: 'captures',
-                                    formHandler: {% if existing_dataset %}editingHandler{% else %}formHandler{% endif %},
+                                    formHandler: {% if existing_dataset %}window.datasetEditingHandler{% else %}formHandler{% endif %},
                                     initialCaptureDetails: initialCaptureDetails
                                 });
                                 formHandler.capturesSearchHandler.initializeCapturesSearch();
@@ -311,7 +346,7 @@
                                     paginationContainerId: 'files-pagination',
                                     type: 'files',
                                     confirmFileSelectionId: 'confirm-file-selection',
-                                    formHandler: {% if existing_dataset %}editingHandler{% else %}formHandler{% endif %},
+                                    formHandler: {% if existing_dataset %}window.datasetEditingHandler{% else %}formHandler{% endif %},
                                     initialFileDetails: initialFileDetails
                                 });
                                 formHandler.filesSearchHandler.loadFileTree();
@@ -333,10 +368,6 @@
                 const authorsList = authorsContainer?.querySelector('.authors-list');
                 const addAuthorBtn = document.getElementById('add-author-btn');
                 const authorsHiddenField = document.getElementById('id_authors');
-                console.log('Authors container:', authorsContainer);
-                console.log('Authors list:', authorsList);
-                console.log('Authors hidden field:', authorsHiddenField);
-                console.log('Authors hidden field value:', authorsHiddenField?.value);
                 if (!authorsContainer || !authorsList || !authorsHiddenField) return;
 
                 // Check if we're in edit mode
@@ -371,20 +402,19 @@
                 } catch (e) {
                     console.error('Error parsing initial authors:', e);
                 }
-                // If no authors, add the current user as the first author
-                if (authors.length === 0) {
-                    const currentUserName = '{{ request.user.name|default:request.user.email }}';
-                    const currentUserOrcid = '{{ request.user.orcid_id|default:"" }}';
-                    authors = [{
-                        name: currentUserName,
-                        orcid_id: currentUserOrcid
-                    }];
-                    if (isEditMode) {
-                        originalAuthors = [...authors];
+                // Convert legacy string authors to new format if needed
+                authors = authors.map(author => {
+                    if (typeof author === 'string') {
+                        return {
+                            name: author,
+                            orcid_id: ''
+                        };
                     }
-                } else {
-                    // Convert legacy string authors to new format if needed
-                    authors = authors.map(author => {
+                    return author;
+                });
+                
+                if (isEditMode) {
+                    originalAuthors = originalAuthors.map(author => {
                         if (typeof author === 'string') {
                             return {
                                 name: author,
@@ -393,17 +423,17 @@
                         }
                         return author;
                     });
-                    if (isEditMode) {
-                        originalAuthors = originalAuthors.map(author => {
-                            if (typeof author === 'string') {
-                                return {
-                                    name: author,
-                                    orcid_id: ''
-                                };
-                            }
-                            return author;
-                        });
-                    }
+                }
+                
+                // If no authors after conversion, add the current user as the first author
+                // (This should only happen in create mode, as edit mode should always have authors)
+                if (authors.length === 0 && !isEditMode) {
+                    const currentUserName = '{{ request.user.name|default:request.user.email }}';
+                    const currentUserOrcid = '{{ request.user.orcid_id|default:"" }}';
+                    authors = [{
+                        name: currentUserName,
+                        orcid_id: currentUserOrcid
+                    }];
                 }
 
                 // Track author changes for edit mode
@@ -415,8 +445,6 @@
 
                 // In edit mode, detect initial changes by comparing current authors with original authors
                 if (isEditMode && originalAuthors.length > 0) {
-                    console.log('Original authors:', originalAuthors);
-                    console.log('Current authors:', authors);
                     
                     // Find new authors (authors in current list but not in original list)
                     authors.forEach((author, index) => {
@@ -431,7 +459,6 @@
                         });
                         
                         if (!existsInOriginal) {
-                            console.log(`Author ${authorName} is new, adding to changes`);
                             authorChanges.added.push(index);
                         }
                     });
@@ -449,7 +476,6 @@
                         });
                         
                         if (!existsInCurrent) {
-                            console.log(`Author ${origName} was removed, adding to changes`);
                             // Find the index in the current authors array (it might be different due to additions)
                             const currentIndex = authors.findIndex(author => {
                                 const authorName = typeof author === 'string' ? author : author.name;
@@ -460,8 +486,6 @@
                             }
                         }
                     });
-                    
-                    console.log('Initial author changes detected:', authorChanges);
                 }
 
                 function updateAuthorsDisplay() {
@@ -485,11 +509,11 @@
                             <div class="position-relative">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <div class="flex-grow-1">
-                                        ${index === 0 ? '<span class="badge bg-primary">Primary</span>' : ''}
+                                        ${index === 0 ? '' : ''}
                                     </div>
                                     <div class="d-flex align-items-center gap-2">
                                         ${index === 0 ? 
-                                            '<i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>' : 
+                                            '<span class="badge bg-primary me-2">Primary</span><i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>' : 
                                             (isEditMode && isMarkedForRemoval ? 
                                                 `<button type="button" class="btn btn-sm btn-outline-success cancel-remove-author" data-index="${index}" title="Cancel removal"><i class="bi bi-arrow-counterclockwise"></i></button>` :
                                                 `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="Remove author"><i class="bi bi-trash"></i></button>`
@@ -722,16 +746,27 @@
                         // In create mode, just show the current authors
                         const authorsDisplay = document.querySelector("#step4 .dataset-authors");
                         if (authorsDisplay) {
-                            const authorNames = authors.map(author => {
-                                if (typeof author === 'string') return author;
-                                const name = author.name || 'Unnamed Author';
-                                const orcid = author.orcid_id;
-                                if (orcid) {
-                                    return `${name} (<a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a>)`;
-                                }
-                                return name;
+                            authorsDisplay.innerHTML = '';
+                            authors.forEach((author, index) => {
+                                const authorDiv = document.createElement('div');
+                                authorDiv.className = 'author-item mb-2 p-2 border rounded bg-light';
+                                
+                                const name = typeof author === 'string' ? author : author.name || 'Unnamed Author';
+                                const orcid = typeof author === 'string' ? '' : author.orcid_id || '';
+                                
+                                authorDiv.innerHTML = `
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <strong>${name}</strong>
+                                            ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
+                                        </div>
+                                        <div>
+                                            ${index === 0 ? '<span class="badge bg-primary">Primary</span>' : ''}
+                                        </div>
+                                    </div>
+                                `;
+                                authorsDisplay.appendChild(authorDiv);
                             });
-                            authorsDisplay.innerHTML = authorNames.join(', ');
                         }
                         return;
                     }
@@ -787,16 +822,27 @@
                     const currentAuthors = authors.filter((author, index) => !authorChanges.removed.includes(index));
                     const authorsDisplay = document.querySelector("#step4 .dataset-authors");
                     if (authorsDisplay) {
-                        const authorNames = currentAuthors.map(author => {
-                            if (typeof author === 'string') return author;
-                            const name = author.name || 'Unnamed Author';
-                            const orcid = author.orcid_id;
-                            if (orcid) {
-                                return `${name} (<a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a>)`;
-                            }
-                            return name;
+                        authorsDisplay.innerHTML = '';
+                        currentAuthors.forEach((author, index) => {
+                            const authorDiv = document.createElement('div');
+                            authorDiv.className = 'author-item mb-2 p-2 border rounded bg-light';
+                            
+                            const name = typeof author === 'string' ? author : author.name || 'Unnamed Author';
+                            const orcid = typeof author === 'string' ? '' : author.orcid_id || '';
+                            
+                            authorDiv.innerHTML = `
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <strong>${name}</strong>
+                                        ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
+                                    </div>
+                                    <div>
+                                        ${index === 0 ? '<span class="badge bg-primary">Primary</span>' : ''}
+                                    </div>
+                                </div>
+                            `;
+                            authorsDisplay.appendChild(authorDiv);
                         });
-                        authorsDisplay.innerHTML = authorNames.join(', ');
                     }
                 }
 

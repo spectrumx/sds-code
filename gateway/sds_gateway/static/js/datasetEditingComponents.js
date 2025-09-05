@@ -7,6 +7,7 @@ class DatasetEditingHandler {
         this.canEditMetadata = config.canEditMetadata;
         this.canAddAssets = config.canAddAssets;
         this.canRemoveAssets = config.canRemoveAssets;
+        this.currentUserId = config.currentUserId;
         
         // Current assets in dataset
         this.currentCaptures = new Map();
@@ -24,11 +25,11 @@ class DatasetEditingHandler {
         this.selectedCaptures = new Set();
         this.selectedFiles = new Set();
         
-        this.initializeEventListeners();
-        
         // Store initial data for later use when search handlers are ready
         this.initialCaptures = config.initialCaptures || [];
         this.initialFiles = config.initialFiles || [];
+
+        this.initializeEventListeners();
         
         // If no initial data, load from API
         if (!this.initialCaptures.length && !this.initialFiles.length) {
@@ -68,9 +69,27 @@ class DatasetEditingHandler {
     setSearchHandler(searchHandler, type) {
         if (type === "captures") {
             this.capturesSearchHandler = searchHandler;
+            // Defer population until SearchHandler is fully ready
+            Promise.resolve().then(() => {
+                this.populateSearchHandlerWithInitialData();
+            });
         } else if (type === "files") {
             this.filesSearchHandler = searchHandler;
             this.filesSearchHandler.updateSelectedFilesList();
+        }
+    }
+    
+    populateSearchHandlerWithInitialData() {
+        // Populate the SearchHandler with initial captures if available
+        if (this.capturesSearchHandler && 
+            this.capturesSearchHandler.selectedCaptures && 
+            this.capturesSearchHandler.selectedCaptureDetails &&
+            this.initialCaptures && 
+            this.initialCaptures.length > 0) {
+            this.initialCaptures.forEach(capture => {
+                this.capturesSearchHandler.selectedCaptures.add(capture.id.toString());
+                this.capturesSearchHandler.selectedCaptureDetails.set(capture.id.toString(), capture);
+            });
         }
     }
     
@@ -163,20 +182,24 @@ class DatasetEditingHandler {
     }
     
     populateFromInitialData(initialCaptures, initialFiles) {
-        // Populate current captures
+        // Populate current captures in the side panel table
         this.currentCaptures.clear();
         const currentCapturesList = document.getElementById('current-captures-list');
         const currentCapturesCount = document.querySelector('.current-captures-count');
-        
         if (initialCaptures && initialCaptures.length > 0) {
+            // Show all captures in the dataset, but only allow removal of user-owned ones
             currentCapturesList.innerHTML = initialCaptures.map(capture => {
                 this.currentCaptures.set(capture.id, capture);
+                const isOwnedByCurrentUser = capture.owner_id === this.currentUserId;
+                const canRemove = isOwnedByCurrentUser && this.canRemoveAssets;
+                const rowClass = !isOwnedByCurrentUser ? 'readonly-row' : '';
+                
                 return `
-                    <tr data-capture-id="${capture.id}" class="current-capture-row">
+                    <tr data-capture-id="${capture.id}" class="current-capture-row ${rowClass}">
                         <td>${capture.type}</td>
                         <td>${capture.directory}</td>
                         <td>${capture.owner_name}</td>
-                        ${this.canRemoveAssets ? `
+                        ${canRemove ? `
                             <td>
                                 <button class="btn btn-sm btn-danger mark-for-removal" 
                                         data-capture-id="${capture.id}"
@@ -184,7 +207,7 @@ class DatasetEditingHandler {
                                     Remove
                                 </button>
                             </td>
-                        ` : ''}
+                        ` : '<td><span class="text-muted">-</span></td>'}
                     </tr>
                 `;
             }).join('');
@@ -200,27 +223,37 @@ class DatasetEditingHandler {
             }
         }
         
-        // Use the existing SearchHandler to populate files
-        if (this.filesSearchHandler) {
-            console.log('DatasetEditingHandler: filesSearchHandler found, initialFiles:', initialFiles);
-            
-            if (initialFiles && initialFiles.length > 0) {
-                // Add files to current files map
-                initialFiles.forEach(file => {
-                    this.currentFiles.set(file.id, file);
+        // Use the existing SearchHandler to populate captures in the main table
+        // Note: SearchHandler might not be created yet, so we'll defer this until it's available
+        if (this.capturesSearchHandler && this.capturesSearchHandler.selectedCaptures) {
+            if (initialCaptures && initialCaptures.length > 0) {
+                // Add existing captures to the selected captures map
+                initialCaptures.forEach(capture => {
+                    this.capturesSearchHandler.selectedCaptures.add(capture.id.toString());
+                    this.capturesSearchHandler.selectedCaptureDetails.set(capture.id.toString(), capture);
                 });
-                
-                // Use the existing SearchHandler's updateSelectedFilesList method
-                this.filesSearchHandler.selectedFiles = new Map(initialFiles.map(file => [file.id, file]));
-            } else {
-                // Clear the selected files
-                this.filesSearchHandler.selectedFiles = new Map();
+            }
+        }
+        
+        // Populate current files in the file browser table
+        this.currentFiles.clear();
+        if (initialFiles && initialFiles.length > 0) {
+            initialFiles.forEach(file => {
+                this.currentFiles.set(file.id, file);
+            });
+        }
+        
+        // Use the existing SearchHandler to populate files for the file browser
+        if (this.filesSearchHandler) {
+            if (initialFiles && initialFiles.length > 0) {
+                // Add existing files to the selected files map
+                initialFiles.forEach(file => {
+                    this.filesSearchHandler.selectedFiles.set(file.id, file);
+                });
             }
             
             // Always call updateSelectedFilesList to show the current state
             this.filesSearchHandler.updateSelectedFilesList();
-        } else {
-            console.log('DatasetEditingHandler: filesSearchHandler not found');
         }
         
         // Add event listeners for remove buttons
@@ -278,7 +311,6 @@ class DatasetEditingHandler {
         
         // Visual feedback - grey out the row in the current captures table (edit mode)
         const row = document.querySelector(`#current-captures-list tr[data-capture-id="${captureId}"]`);
-        console.log('DatasetEditingHandler: row found:', !!row);
         if (row) {
             row.classList.add('marked-for-removal');
             row.style.opacity = '0.5';
@@ -344,6 +376,53 @@ class DatasetEditingHandler {
         this.updatePendingCapturesList();
     }
     
+    updateCurrentCapturesList() {
+        const currentCapturesList = document.getElementById('current-captures-list');
+        const currentCapturesCount = document.querySelector('.current-captures-count');
+        
+        if (!currentCapturesList) return;
+        
+        // Get all selected captures that are owned by the current user
+        const selectedCaptures = Array.from(this.capturesSearchHandler?.selectedCaptures || [])
+            .map(id => this.capturesSearchHandler?.selectedCaptureDetails.get(id))
+            .filter(capture => capture && capture.owner_id === this.currentUserId);
+        
+        if (selectedCaptures.length === 0) {
+            const colspan = this.canRemoveAssets ? 4 : 3;
+            currentCapturesList.innerHTML = `<tr><td colspan="${colspan}" class="text-center text-muted">No captures selected</td></tr>`;
+            if (currentCapturesCount) {
+                currentCapturesCount.textContent = '0';
+            }
+            return;
+        }
+        
+        currentCapturesList.innerHTML = selectedCaptures.map(capture => {
+            return `
+                <tr data-capture-id="${capture.id}" class="current-capture-row">
+                    <td>${capture.type}</td>
+                    <td>${capture.directory}</td>
+                    <td>${capture.owner_name || capture.owner?.name || 'Unknown'}</td>
+                    ${this.canRemoveAssets ? `
+                        <td>
+                            <button class="btn btn-sm btn-danger mark-for-removal" 
+                                    data-capture-id="${capture.id}"
+                                    data-capture-type="capture">
+                                Remove
+                            </button>
+                        </td>
+                    ` : ''}
+                </tr>
+            `;
+        }).join('');
+        
+        if (currentCapturesCount) {
+            currentCapturesCount.textContent = selectedCaptures.length;
+        }
+        
+        // Add event listeners for remove buttons
+        this.addRemoveButtonListeners();
+    }
+    
     addFileToPending(fileId, fileData) {
         // Check if already in current files
         if (this.currentFiles.has(fileId)) {
@@ -368,7 +447,10 @@ class DatasetEditingHandler {
         const pendingList = document.getElementById('pending-captures-list');
         const pendingCount = document.querySelector('.pending-changes-count');
         
-        if (this.pendingCaptures.size === 0) {
+        // Only show additions, not removals
+        const additions = Array.from(this.pendingCaptures.entries()).filter(([id, change]) => change.action === 'add');
+        
+        if (additions.length === 0) {
             pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No pending changes</td></tr>';
             if (pendingCount) {
                 pendingCount.textContent = '0';
@@ -376,14 +458,10 @@ class DatasetEditingHandler {
             return;
         }
         
-        pendingList.innerHTML = Array.from(this.pendingCaptures.entries()).map(([id, change]) => {
-            const actionBadge = change.action === 'add' 
-                ? '<span class="badge bg-success">Add</span>' 
-                : '<span class="badge bg-danger">Remove</span>';
-            
+        pendingList.innerHTML = additions.map(([id, change]) => {
             return `
                 <tr>
-                    <td>${actionBadge}</td>
+                    <td><span class="badge bg-success">Add</span></td>
                     <td>${change.data.type}</td>
                     <td>
                         <button class="btn btn-sm btn-secondary cancel-change" 
@@ -397,7 +475,7 @@ class DatasetEditingHandler {
         }).join('');
         
         if (pendingCount) {
-            pendingCount.textContent = this.pendingCaptures.size;
+            pendingCount.textContent = additions.length;
         }
         
         // Add event listeners for cancel buttons
@@ -408,7 +486,10 @@ class DatasetEditingHandler {
         const pendingList = document.getElementById('pending-files-list');
         const pendingCount = document.querySelector('.pending-files-changes-count');
         
-        if (this.pendingFiles.size === 0) {
+        // Only show additions, not removals
+        const additions = Array.from(this.pendingFiles.entries()).filter(([id, change]) => change.action === 'add');
+        
+        if (additions.length === 0) {
             pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No pending changes</td></tr>';
             if (pendingCount) {
                 pendingCount.textContent = '0';
@@ -416,14 +497,10 @@ class DatasetEditingHandler {
             return;
         }
         
-        pendingList.innerHTML = Array.from(this.pendingFiles.entries()).map(([id, change]) => {
-            const actionBadge = change.action === 'add' 
-                ? '<span class="badge bg-success">Add</span>' 
-                : '<span class="badge bg-danger">Remove</span>';
-            
+        pendingList.innerHTML = additions.map(([id, change]) => {
             return `
                 <tr>
-                    <td>${actionBadge}</td>
+                    <td><span class="badge bg-success">Add</span></td>
                     <td>${change.data.name}</td>
                     <td>
                         <button class="btn btn-sm btn-secondary cancel-change" 
@@ -437,7 +514,7 @@ class DatasetEditingHandler {
         }).join('');
         
         if (pendingCount) {
-            pendingCount.textContent = this.pendingFiles.size;
+            pendingCount.textContent = additions.length;
         }
         
         // Add event listeners for cancel buttons
