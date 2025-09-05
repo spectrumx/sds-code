@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{% static 'css/waterfall.css' %}" />
 {% endblock css %}
 {% block content %}
+    {% csrf_token %}
     <div class="container-fluid px-5 pt-4"
          data-capture-uuid="{{ capture.uuid }}">
         <div class="row">
@@ -122,6 +123,10 @@
                                     <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
+                                </div>
+                                <!-- Status Messages -->
+                                <div id="waterfallErrorDisplay" class="text-center p-4 d-none">
+                                    <p class="text-muted"></p>
                                 </div>
                                 <!-- Color Legend - positioned to sit in right margin area -->
                                 <div id="colorLegend" class="color-legend">

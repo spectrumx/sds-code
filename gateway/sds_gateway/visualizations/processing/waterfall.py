@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from typing import TypedDict
 
 import h5py
 import numpy as np
@@ -30,7 +31,7 @@ class WaterfallSliceParams:
     center_freq: float
 
 
-def _process_waterfall_slice(params: WaterfallSliceParams) -> dict | None:
+def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | None:
     """Process a single waterfall slice."""
     # Calculate sample range for this slice
     slice_start_sample = (
@@ -139,61 +140,91 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
         return None
 
 
-def convert_drf_to_waterfall_json(  # noqa: C901, PLR0915
-    drf_path: Path, channel: str, processing_type: str, max_slices: int | None = None
-) -> dict:
+class WaterfallJsonResult(TypedDict):
+    """Result of converting DigitalRF data to waterfall JSON format."""
+
+    status: str
+    message: str
+    json_data: list[dict[str, Any]]
+    metadata: dict[str, Any]
+
+
+def _validate_drf_channel(reader: DigitalRFReader, channel: str) -> None:
+    """Validate that the channel exists in the DigitalRF data."""
+    channels = reader.get_channels()
+    if not channels:
+        error_msg = "No channels found in DigitalRF data"
+        raise ValueError(error_msg)
+
+    if channel not in channels:
+        error_msg = (
+            f"Channel {channel} not found in DigitalRF data. "
+            f"Available channels: {channels}"
+        )
+        raise ValueError(error_msg)
+
+
+def _get_sample_bounds(reader: DigitalRFReader, channel: str) -> tuple[int, int]:
+    """Get and validate sample bounds for the channel."""
+    bounds = reader.get_bounds(channel)
+    if bounds is None:
+        error_msg = "Could not get sample bounds for channel"
+        raise ValueError(error_msg)
+
+    start_sample, end_sample = bounds
+    if start_sample is None or end_sample is None:
+        error_msg = "Invalid sample bounds for channel"
+        raise ValueError(error_msg)
+    return start_sample, end_sample
+
+
+def _get_sample_rate(drf_path: Path, channel: str) -> float:
+    """Extract sample rate from DigitalRF properties."""
+    drf_props_path = drf_path / channel / "drf_properties.h5"
+    with h5py.File(drf_props_path, "r") as f:
+        sample_rate_numerator = f.attrs.get("sample_rate_numerator")
+        sample_rate_denominator = f.attrs.get("sample_rate_denominator")
+        if sample_rate_numerator is None or sample_rate_denominator is None:
+            error_msg = "Sample rate information missing from DigitalRF properties"
+            raise ValueError(error_msg)
+        return float(sample_rate_numerator) / float(sample_rate_denominator)
+
+
+def _get_center_frequency(
+    reader: DigitalRFReader, start_sample: int, end_sample: int, channel: str
+) -> float:
+    """Get center frequency from metadata, defaulting to 0.0 if not available."""
+    center_freq = 0.0
+    try:
+        metadata_dict = reader.read_metadata(start_sample, end_sample, channel)
+        if metadata_dict and "center_freq" in metadata_dict:
+            center_freq = float(metadata_dict["center_freq"])
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Could not read center frequency from metadata: {e}")
+    return center_freq
+
+
+def convert_drf_to_waterfall_json(
+    drf_path: Path, channel: str, max_slices: int | None = None
+) -> WaterfallJsonResult:
     """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
+
     logger.info(
         f"Converting DigitalRF data to waterfall JSON format for channel {channel}"
     )
 
     try:
-        # Initialize DigitalRF reader
+        # Initialize DigitalRF reader and validate channel
         reader = DigitalRFReader(str(drf_path))
-        channels = reader.get_channels()
-
-        if not channels:
-            error_msg = "No channels found in DigitalRF data"
-            raise ValueError(error_msg)  # noqa: TRY301
-
-        if channel not in channels:
-            error_msg = (
-                f"Channel {channel} not found in DigitalRF data. "
-                f"Available channels: {channels}"
-            )
-            raise ValueError(error_msg)  # noqa: TRY301
+        _validate_drf_channel(reader, channel)
 
         # Get sample bounds
-        bounds = reader.get_bounds(channel)
-        if bounds is None:
-            error_msg = "Could not get sample bounds for channel"
-            raise ValueError(error_msg)  # noqa: TRY301
-
-        start_sample, end_sample = bounds
-        if start_sample is None or end_sample is None:
-            error_msg = "Invalid sample bounds for channel"
-            raise ValueError(error_msg)  # noqa: TRY301
+        start_sample, end_sample = _get_sample_bounds(reader, channel)
         total_samples = end_sample - start_sample
 
-        # Get metadata from DigitalRF properties
-        drf_props_path = drf_path / channel / "drf_properties.h5"
-        with h5py.File(drf_props_path, "r") as f:
-            sample_rate_numerator = f.attrs.get("sample_rate_numerator")
-            sample_rate_denominator = f.attrs.get("sample_rate_denominator")
-            if sample_rate_numerator is None or sample_rate_denominator is None:
-                error_msg = "Sample rate information missing from DigitalRF properties"
-                raise ValueError(error_msg)  # noqa: TRY301
-            sample_rate = float(sample_rate_numerator) / float(sample_rate_denominator)
-
-        # Get center frequency from metadata
-        center_freq = 0.0
-        try:
-            # Try to get center frequency from metadata
-            metadata_dict = reader.read_metadata(start_sample, end_sample, channel)
-            if metadata_dict and "center_freq" in metadata_dict:
-                center_freq = float(metadata_dict["center_freq"])
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"Could not read center frequency from metadata: {e}")
+        # Get metadata
+        sample_rate = _get_sample_rate(drf_path, channel)
+        center_freq = _get_center_frequency(reader, start_sample, end_sample, channel)
 
         # Calculate frequency range
         freq_span = sample_rate
@@ -252,12 +283,12 @@ def convert_drf_to_waterfall_json(  # noqa: C901, PLR0915
             "channel": channel,
         }
 
-        return {  # noqa: TRY300
-            "status": "success",
-            "message": "Waterfall data converted to JSON successfully",
-            "json_data": waterfall_data,
-            "metadata": metadata,
-        }
+        return WaterfallJsonResult(
+            status="success",
+            message="Waterfall data converted to JSON successfully",
+            json_data=waterfall_data,
+            metadata=metadata,
+        )
 
     except Exception as e:
         logger.exception(f"Error converting DigitalRF to waterfall JSON: {e}")

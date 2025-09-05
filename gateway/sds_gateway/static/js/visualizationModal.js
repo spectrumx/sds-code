@@ -364,7 +364,7 @@ class VisualizationModal {
 			"{capture_uuid}",
 			this.currentCaptureUuid,
 		);
-		window.open(url, "_blank");
+		window.location.href = url;
 
 		// Close the modal
 		const modal = bootstrap.Modal.getInstance(this.modal);

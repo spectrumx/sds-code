@@ -454,6 +454,270 @@ class VisualizationViewSet(ViewSet):
         ]
         return colormap in valid_colormaps
 
+    @extend_schema(
+        summary="Create waterfall visualization",
+        description="Generate a waterfall visualization from a capture",
+        parameters=[
+            OpenApiParameter(
+                name="capture_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the capture to generate waterfall from",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Waterfall generation started successfully",
+                response=PostProcessedDataSerializer,
+            ),
+            400: OpenApiResponse(description="Invalid request parameters"),
+            404: OpenApiResponse(description="Capture not found"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+    )
+    @action(detail=True, methods=["post"], url_path="create_waterfall")
+    def create_waterfall(self, request: Request, pk: str | None = None) -> Response:
+        """
+        Create a waterfall visualization for a capture.
+
+        Args:
+            request: The HTTP request
+            pk: UUID of the capture
+        Returns:
+            Response with processing job details
+        """
+        try:
+            # Get the capture
+            capture = get_object_or_404(
+                Capture, uuid=pk, owner=request.user, is_deleted=False
+            )
+
+            # Check if waterfall already exists
+            existing_waterfall = PostProcessedData.objects.filter(
+                capture=capture,
+                processing_type=ProcessingType.Waterfall.value,
+            ).first()
+
+            if existing_waterfall:
+                log.info(
+                    f"Existing waterfall found for capture {capture.uuid}: "
+                    f"{existing_waterfall.uuid}"
+                )
+                if (
+                    existing_waterfall.processing_status
+                    == ProcessingStatus.Completed.value
+                ):
+                    # Return existing completed waterfall
+                    serializer = PostProcessedDataSerializer(existing_waterfall)
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+                if (
+                    existing_waterfall.processing_status
+                    == ProcessingStatus.Processing.value
+                ):
+                    # Return processing status
+                    serializer = PostProcessedDataSerializer(existing_waterfall)
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+
+            log.info(
+                f"No existing waterfall found for capture {capture.uuid}."
+                " Creating new waterfall."
+            )
+
+            # Create new waterfall processing record
+            waterfall_data = PostProcessedData.objects.create(
+                capture=capture,
+                processing_type=ProcessingType.Waterfall.value,
+                processing_parameters={},
+                processing_status=ProcessingStatus.Pending.value,
+                metadata={},
+            )
+
+            # Start waterfall processing
+            # This will use the cog pipeline to generate the waterfall
+            self._start_waterfall_processing(waterfall_data)
+            log.info(
+                f"Started waterfall processing for capture {capture.uuid}: "
+                f"{waterfall_data.uuid}"
+            )
+            serializer = PostProcessedDataSerializer(waterfall_data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:  # noqa: BLE001
+            log.error(f"Error creating waterfall: {e}")
+            return Response(
+                {"error": "Failed to create waterfall"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        summary="Get waterfall status",
+        description="Get the status of a waterfall generation job",
+        parameters=[
+            OpenApiParameter(
+                name="capture_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the capture",
+            ),
+            OpenApiParameter(
+                name="job_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the processing job",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Processing job status",
+                response=PostProcessedDataSerializer,
+            ),
+            404: OpenApiResponse(description="Job not found"),
+        },
+    )
+    @action(detail=True, methods=["get"], url_path="waterfall_status")
+    def get_waterfall_status(self, request: Request, pk: str | None = None) -> Response:
+        """
+        Get the status of a waterfall generation job.
+        """
+        try:
+            job_id = request.query_params.get("job_id")
+            if not job_id:
+                return Response(
+                    {"error": "job_id parameter is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the processing job
+            processing_job = get_object_or_404(
+                PostProcessedData,
+                uuid=job_id,
+                capture__uuid=pk,
+                processing_type=ProcessingType.Waterfall.value,
+            )
+
+            serializer = PostProcessedDataSerializer(processing_job)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:  # noqa: BLE001
+            log.error(f"Error getting waterfall status: {e}")
+            return Response(
+                {"error": "Failed to get waterfall status"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        summary="Download waterfall result",
+        description="Download the generated waterfall data",
+        parameters=[
+            OpenApiParameter(
+                name="capture_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the capture",
+            ),
+            OpenApiParameter(
+                name="job_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the processing job",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Waterfall data file"),
+            404: OpenApiResponse(description="Result not found"),
+            400: OpenApiResponse(description="Processing not completed"),
+        },
+    )
+    @action(detail=True, methods=["get"], url_path="download_waterfall")
+    def download_waterfall(
+        self, request: Request, pk: str | None = None
+    ) -> Response | FileResponse:
+        """
+        Download the generated waterfall data.
+        """
+        try:
+            job_id = request.query_params.get("job_id")
+            if not job_id:
+                return Response(
+                    {"error": "job_id parameter is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the processing job
+            processing_job = get_object_or_404(
+                PostProcessedData,
+                uuid=job_id,
+                capture__uuid=pk,
+                processing_type=ProcessingType.Waterfall.value,
+            )
+
+            if processing_job.processing_status != ProcessingStatus.Completed.value:
+                return Response(
+                    {"error": "Waterfall processing not completed"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not processing_job.data_file:
+                return Response(
+                    {"error": "No waterfall file found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Return the file
+            file_response = FileResponse(
+                processing_job.data_file, content_type="application/json"
+            )
+            file_response["Content-Disposition"] = (
+                f'attachment; filename="waterfall_{pk}.json"'
+            )
+            return file_response  # noqa: TRY300
+
+        except Exception as e:  # noqa: BLE001
+            log.error(f"Error downloading waterfall: {e}")
+            return Response(
+                {"error": "Failed to download waterfall"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def _start_waterfall_processing(self, waterfall_data: PostProcessedData) -> None:
+        """
+        Start waterfall processing using the cog pipeline.
+        """
+        try:
+            # Mark as processing
+            waterfall_data.processing_status = ProcessingStatus.Processing.value
+            waterfall_data.save()
+
+            # Launch waterfall processing as a Celery task
+            try:
+                from sds_gateway.api_methods.tasks import start_capture_post_processing
+
+                # Launch the waterfall processing task with empty config
+                # The waterfall processing function uses hardcoded defaults
+                processing_config = {"waterfall": {}}
+
+                result = start_capture_post_processing.delay(  # type: ignore[attr-defined]
+                    str(waterfall_data.capture.uuid), processing_config
+                )
+
+                log.info(
+                    f"Launched waterfall processing task for"
+                    f"{waterfall_data.uuid}, task_id: {result.id}"
+                )
+
+            except Exception as e:  # noqa: BLE001
+                log.error(f"Could not launch waterfall processing task: {e}")
+                # Mark as failed
+                waterfall_data.processing_status = ProcessingStatus.Failed.value
+                waterfall_data.processing_error = f"Failed to launch task: {e}"
+                waterfall_data.save()
+
+        except Exception as e:  # noqa: BLE001
+            log.error(f"Error starting waterfall processing: {e}")
+            waterfall_data.processing_status = ProcessingStatus.Failed.value
+            waterfall_data.processing_error = str(e)
+            waterfall_data.save()
+
     def _start_spectrogram_processing(
         self, spectrogram_data: PostProcessedData, processing_params: dict[str, Any]
     ) -> None:
@@ -484,7 +748,7 @@ class VisualizationViewSet(ViewSet):
                     processing_config["spectrogram"]["dimensions"] = processing_params[
                         "dimensions"
                     ]
-                result = start_capture_post_processing.delay(
+                result = start_capture_post_processing.delay(  # type: ignore[attr-defined]
                     str(spectrogram_data.capture.uuid), processing_config
                 )
 
