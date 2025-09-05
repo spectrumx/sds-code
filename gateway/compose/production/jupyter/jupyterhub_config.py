@@ -19,7 +19,7 @@ c.DockerSpawner.use_internal_ip = True
 c.DockerSpawner.network_name = network_name
 
 # Simplify network configuration
-c.DockerSpawner.extra_host_config = {}  # Remove network_mode since we're using network_name
+c.DockerSpawner.extra_host_config = {}  # Remove network_mode
 
 # Remove network config from create_kwargs since we're using network_name
 c.DockerSpawner.extra_create_kwargs = {}
@@ -42,11 +42,16 @@ c.DockerSpawner.remove = False  # Set to False to avoid conflict with restart po
 c.DockerSpawner.debug = True
 
 # User containers will access hub by container name on the Docker network
-c.JupyterHub.hub_ip = "jupyterhub"
+c.JupyterHub.hub_ip = "0.0.0.0"  # Bind to all interfaces
 c.JupyterHub.hub_port = 8080
 
+# Configure hub URL for user containers to use hostname instead of container ID
+c.JupyterHub.hub_connect_url = "http://jupyterhub:8080"
+
 # Persist hub data on volume mounted inside container
-c.JupyterHub.cookie_secret_file = "/data/jupyterhub_cookie_secret"
+c.JupyterHub.cookie_secret_file = os.environ.get(
+    "JUPYTERHUB_COOKIE_SECRET_FILE", "/data/jupyterhub_cookie_secret"
+)
 
 # Database configuration - Use SQLite like SVI for simplicity
 c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
@@ -63,7 +68,7 @@ c.Authenticator.admin_users = {"admin"}  # Keep admin user(s)
 
 # Update Auth0 configuration
 c.Auth0OAuthenticator.oauth_callback_url = (
-    f'http://{os.environ.get("JUPYTERHUB_HOST", "localhost:8888")}/hub/oauth_callback'
+    f"http://{os.environ.get('JUPYTERHUB_HOST', 'localhost:8888')}/hub/oauth_callback"
 )
 c.Auth0OAuthenticator.client_id = os.environ.get("AUTH0_CLIENT_ID")
 c.Auth0OAuthenticator.client_secret = os.environ.get("AUTH0_CLIENT_SECRET")
@@ -86,7 +91,6 @@ c.Spawner.start_timeout = 60  # Increase startup timeout
 # Ensure environment variables are passed to the container
 c.DockerSpawner.environment = {
     "JUPYTER_ENABLE_LAB": "yes",
-    "GRANT_SUDO": "yes",
     "CHOWN_HOME": "yes",
 }
 

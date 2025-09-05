@@ -24,6 +24,9 @@ networks:
         driver: bridge
     sds-network-prod:
         external: true
+    # Simple network for JupyterHub and user containers
+    jupyter-net:
+        driver: bridge
 
 services:
     sds-gateway-prod-app:
@@ -308,11 +311,14 @@ services:
             dockerfile: ./compose/production/jupyter/Dockerfile
             args:
                 JUPYTERHUB_VERSION: latest
-        restart: always
+        restart: unless-stopped
         image: sds-gateway-prod-jupyter
         container_name: sds-gateway-prod-jupyter
         networks:
-            - sds-network-prod
+            jupyter-net:
+                aliases:
+                    - jupyterhub
+            sds-network-prod:  # Keep connection to main network for API access
         volumes:
             - './compose/production/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
             - '/var/run/docker.sock:/var/run/docker.sock:rw'
@@ -325,13 +331,10 @@ services:
             - ./.envs/production/jupyterhub.env
         environment:
             JUPYTERHUB_ADMIN: admin
-            JUPYTERHUB_HOST: sds-gateway.crc.nd.edu/notebook  # Update with your actual domain
-            DOCKER_NETWORK_NAME: sds-network-prod
+            JUPYTERHUB_HOST: sds.crc.nd.edu/notebook
+            DOCKER_NETWORK_NAME: gateway_jupyter-net
             DOCKER_NOTEBOOK_IMAGE: quay.io/jupyter/base-notebook:latest
             DOCKER_NOTEBOOK_DIR: /home/jovyan/work
-            # Add these environment variables for network configuration
-            HUB_IP: jupyterhub
-            DOCKER_JUPYTER_CONTAINER: jupyterhub
             # Ensure the network is created with the full name
             COMPOSE_PROJECT_NAME: sds-gateway-prod
 
