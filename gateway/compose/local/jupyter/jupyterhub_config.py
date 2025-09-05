@@ -6,8 +6,11 @@ c = get_config()  # noqa: F821
 
 # JupyterHub configuration
 c.JupyterHub.bind_url = "http://0.0.0.0:8000"
-c.JupyterHub.hub_ip = "jupyterhub"  # Container name for internal communication
+c.JupyterHub.hub_ip = "0.0.0.0"  # Bind to all interfaces
 c.JupyterHub.hub_port = 8080
+
+# Configure hub URL for user containers to use hostname instead of container ID
+c.JupyterHub.hub_connect_url = "http://jupyterhub:8080"
 
 # Security configuration - use standard paths
 c.JupyterHub.cookie_secret_file = os.environ.get(
@@ -70,39 +73,5 @@ c.Spawner.environment = {"JUPYTER_ENABLE_LAB": "yes"}
 
 # Mount host directories into user containers (now handled in main volumes config)
 
-# TODO: Choose one of the post_start_cmd options below
-
-# OPTION 1: Local script copying (requires volume mounts)
-# c.DockerSpawner.post_start_cmd = (
-#     "bash -c 'pip install spectrumx && "
-#     "mkdir -p /home/jovyan/work/scripts /home/jovyan/work/sample_scripts && "
-#     "if [ ! -f /home/jovyan/work/scripts/.initialized ]; then "
-#     "echo \"=== Loading scripts from local volumes ===\" && "
-#     "cp -r /srv/jupyter/scripts/* /home/jovyan/work/scripts/ 2>/dev/null || echo \"No local scripts found\" && "
-#     "cp -r /srv/jupyter/sample_scripts/* /home/jovyan/work/sample_scripts/ 2>/dev/null || echo \"No local sample_scripts found\" && "
-#     "touch /home/jovyan/work/scripts/.initialized && "
-#     "chmod -R 755 /home/jovyan/work/scripts && "
-#     "chmod -R 755 /home/jovyan/work/sample_scripts && "
-#     "echo \"=== Local script loading complete ===\"; fi'"
-# )
-
-# OPTION 2: GitHub script downloading (no volume mounts needed)
-# c.DockerSpawner.post_start_cmd = (
-#     "bash -c 'pip install spectrumx && "
-#     "mkdir -p /home/jovyan/work/scripts /home/jovyan/work/sample_scripts && "
-#     "if [ ! -f /home/jovyan/work/scripts/.initialized ]; then "
-#     "echo \"=== Loading scripts from GitHub ===\" && "
-#     "cd /home/jovyan/work && "
-#     "git clone https://github.com/your-org/sds-gateway-scripts.git temp_scripts || echo \"GitHub repo not found, skipping...\" && "
-#     "if [ -d temp_scripts ]; then "
-#     "cp -r temp_scripts/scripts/* /home/jovyan/work/scripts/ 2>/dev/null || echo \"No GitHub scripts directory found\" && "
-#     "cp -r temp_scripts/sample_scripts/* /home/jovyan/work/sample_scripts/ 2>/dev/null || echo \"No GitHub sample_scripts directory found\" && "
-#     "rm -rf temp_scripts; fi && "
-#     "touch /home/jovyan/work/scripts/.initialized && "
-#     "chmod -R 755 /home/jovyan/work/scripts && "
-#     "chmod -R 755 /home/jovyan/work/sample_scripts && "
-#     "echo \"=== GitHub script loading complete ===\"; fi'"
-# )
-
-# OPTION 3: Minimal setup - just install spectrumx
+# Minimal setup - just install spectrumx
 c.DockerSpawner.post_start_cmd = "pip install spectrumx"
