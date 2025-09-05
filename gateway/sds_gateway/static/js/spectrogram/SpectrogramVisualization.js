@@ -5,7 +5,12 @@
 
 import { SpectrogramControls } from "./SpectrogramControls.js";
 import { SpectrogramRenderer } from "./SpectrogramRenderer.js";
-import { API_ENDPOINTS, ERROR_MESSAGES, STATUS_MESSAGES } from "./constants.js";
+import {
+	API_ENDPOINTS,
+	DEFAULT_IMAGE_DIMENSIONS,
+	ERROR_MESSAGES,
+	STATUS_MESSAGES,
+} from "./constants.js";
 
 export class SpectrogramVisualization {
 	constructor(captureUuid) {
@@ -55,18 +60,18 @@ export class SpectrogramVisualization {
 		this.loadingOverlay = document.getElementById("loadingOverlay");
 		this.saveButton = document.getElementById("saveSpectrogramBtn");
 
-		// Wait for canvas to be available and initialize the renderer
+		// Wait for image element to be available and initialize the renderer
 		try {
-			const canvasReady = await this.renderer.waitForCanvas();
-			if (canvasReady) {
-				if (!this.renderer.initializeCanvas()) {
-					console.error("Failed to initialize spectrogram renderer canvas");
+			const imageReady = await this.renderer.waitForImageElement();
+			if (imageReady) {
+				if (!this.renderer.initializeImage()) {
+					console.error("Failed to initialize spectrogram renderer image");
 				}
 			} else {
-				console.error("Canvas element not found after waiting");
+				console.error("Image element not found after waiting");
 			}
 		} catch (error) {
-			console.error("Error during canvas initialization:", error);
+			console.error("Error during image initialization:", error);
 		}
 
 		// Set up control callbacks
@@ -84,9 +89,6 @@ export class SpectrogramVisualization {
 		if (this.saveButton) {
 			this.saveButton.addEventListener("click", () => this.saveSpectrogram());
 		}
-
-		// Window resize handler
-		window.addEventListener("resize", () => this.handleResize());
 	}
 
 	/**
@@ -133,10 +135,9 @@ export class SpectrogramVisualization {
 						hop_size: settings.hopSize,
 						colormap: settings.colorMap,
 						timestamp: new Date().toISOString(),
-						dimensions: {
-							width: window.innerWidth,
-							height: window.innerHeight,
-						},
+						dimensions: this.renderer
+							? this.renderer.getDisplayDimensions()
+							: DEFAULT_IMAGE_DIMENSIONS,
 					}),
 				},
 			);
@@ -364,16 +365,8 @@ export class SpectrogramVisualization {
 	showError(message) {
 		this.updateStatus(message);
 		if (this.renderer) {
-			this.renderer.clearCanvas();
+			this.renderer.clearImage();
 		}
-	}
-
-	/**
-	 * Handle window resize
-	 */
-	handleResize() {
-		// Could implement responsive canvas sizing here
-		console.log("Window resized, spectrogram visualization updated");
 	}
 
 	/**
@@ -390,9 +383,6 @@ export class SpectrogramVisualization {
 		if (this.renderer) {
 			this.renderer.destroy();
 		}
-
-		// Remove event listeners
-		window.removeEventListener("resize", () => this.handleResize());
 
 		// Clean up URL objects
 		if (this.currentSpectrogramUrl) {

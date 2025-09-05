@@ -1,5 +1,7 @@
 """API views for the visualizations app."""
 
+from typing import Any
+
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample
@@ -130,8 +132,9 @@ class VisualizationViewSet(ViewSet):
 
             if existing_spectrogram:
                 log.info(
-                    f"Existing spectrogram found for capture {capture.uuid}: {existing_spectrogram.uuid} "
-                    f"with parameters: {existing_spectrogram.processing_parameters}"
+                    f"Existing spectrogram found for capture {capture.uuid}: "
+                    f"{existing_spectrogram.uuid} with parameters: "
+                    f"{existing_spectrogram.processing_parameters}"
                 )
                 if (
                     existing_spectrogram.processing_status
@@ -149,7 +152,8 @@ class VisualizationViewSet(ViewSet):
                     return Response(serializer.data, status=status.HTTP_200_OK)
 
             log.info(
-                f"No existing spectrogram found for capture {capture.uuid} with these parameters. Creating new spectrogram."
+                f"No existing spectrogram found for capture {capture.uuid} with these "
+                f"parameters. Creating new spectrogram."
             )
 
             # Create new spectrogram processing record
@@ -159,6 +163,11 @@ class VisualizationViewSet(ViewSet):
                 "hop_size": hop_size,
                 "colormap": colormap,
             }
+
+            # Add dimensions to processing parameters if provided
+            dimensions = request.data.get("dimensions", {})
+            if dimensions:
+                processing_params["dimensions"] = dimensions
 
             spectrogram_data = PostProcessedData.objects.create(
                 capture=capture,
@@ -175,7 +184,8 @@ class VisualizationViewSet(ViewSet):
             # This will use the cog pipeline to generate the spectrogram
             self._start_spectrogram_processing(spectrogram_data, processing_params)
             log.info(
-                f"Started spectrogram processing for capture {capture.uuid}: {spectrogram_data.uuid}"
+                f"Started spectrogram processing for capture {capture.uuid}: "
+                f"{spectrogram_data.uuid}"
             )
             serializer = PostProcessedDataSerializer(spectrogram_data)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -445,7 +455,7 @@ class VisualizationViewSet(ViewSet):
         return colormap in valid_colormaps
 
     def _start_spectrogram_processing(
-        self, spectrogram_data: PostProcessedData, processing_params: dict
+        self, spectrogram_data: PostProcessedData, processing_params: dict[str, Any]
     ) -> None:
         """
         Start spectrogram processing using the cog pipeline.
@@ -468,12 +478,19 @@ class VisualizationViewSet(ViewSet):
                         "colormap": processing_params["colormap"],
                     }
                 }
+
+                # Add dimensions to processing config if provided
+                if "dimensions" in processing_params:
+                    processing_config["spectrogram"]["dimensions"] = processing_params[
+                        "dimensions"
+                    ]
                 result = start_capture_post_processing.delay(
                     str(spectrogram_data.capture.uuid), processing_config
                 )
 
                 log.info(
-                    f"Launched spectrogram processing task for {spectrogram_data.uuid}, task_id: {result.id}"
+                    f"Launched spectrogram processing task for"
+                    f"{spectrogram_data.uuid}, task_id: {result.id}"
                 )
 
             except Exception as e:  # noqa: BLE001
