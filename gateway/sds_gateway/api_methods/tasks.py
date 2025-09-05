@@ -624,7 +624,12 @@ def start_capture_post_processing(capture_uuid: str, processing_config: dict) ->
         capture_uuid: UUID of the capture to process
         processing_config: Dict with processing configurations, e.g.:
             {
-                "spectrogram": {"fft_size": 1024, "std_dev": 100, "hop_size": 500, "colormap": "magma"},
+                "spectrogram": {
+                    "fft_size": 1024,
+                    "std_dev": 100,
+                    "hop_size": 500,
+                    "colormap": "magma",
+                },
                 "waterfall": {...}
             }
     """
@@ -652,7 +657,8 @@ def start_capture_post_processing(capture_uuid: str, processing_config: dict) ->
         # Launch the visualization pipeline with processing config
         # Individual cogs will check if they should run based on processing_config
         logger.info(
-            f"Launching pipeline {pipeline_name} for capture {capture_uuid} with config: {processing_config}"
+            f"Launching pipeline {pipeline_name} for capture {capture_uuid} "
+            f"with config: {processing_config}"
         )
         try:
             pipeline.launch(
@@ -666,7 +672,8 @@ def start_capture_post_processing(capture_uuid: str, processing_config: dict) ->
         return {
             "status": "success",
             "message": (
-                f"Post-processing pipeline started for {len(processing_config)} processing types"
+                f"Post-processing pipeline started for "
+                f"{len(processing_config)} processing types"
             ),
             "capture_uuid": capture_uuid,
             "processing_config": processing_config,

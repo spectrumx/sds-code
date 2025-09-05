@@ -10,7 +10,7 @@ export class SpectrogramControls {
 		this.settings = { ...DEFAULT_SPECTROGRAM_SETTINGS };
 		this.onSettingsChange = null;
 		this.onGenerateClick = () => {
-			console.warn("Default callback; Generate callback not set")
+			console.warn("Default callback; Generate callback not set");
 		};
 		this.generateClickHandler = null; // Store reference to event handler
 		this.initializeControls();
@@ -38,7 +38,7 @@ export class SpectrogramControls {
 				stdDevInput: !!this.stdDevInput,
 				hopSizeInput: !!this.hopSizeInput,
 				colorMapSelect: !!this.colorMapSelect,
-				generateBtn: !!this.generateBtn
+				generateBtn: !!this.generateBtn,
 			});
 			return;
 		}
