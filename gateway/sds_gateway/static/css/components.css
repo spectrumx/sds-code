@@ -102,6 +102,17 @@
 	box-shadow: none;
 }
 
+.readonly-row {
+	background-color: #f8f9fa !important;
+	opacity: 0.8;
+}
+.readonly-row td {
+	color: #6c757d;
+}
+.readonly-row .badge {
+	opacity: 0.7;
+}
+
 /* Authors management styling */
 .author-item {
 	transition: all 0.2s ease;
