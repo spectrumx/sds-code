@@ -251,7 +251,7 @@ def store_processed_data(
     }
 
 
-def create_or_reset_processed_data(
+def create_or_reset_processed_data_obj(
     capture, processing_type: str, processing_parameters: dict[str, Any] | None = None
 ):
     """Create or reset a PostProcessedData record for a capture and processing type.

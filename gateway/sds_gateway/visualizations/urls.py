@@ -51,6 +51,33 @@ api_urlpatterns = [
         ),
         name="api_download_spectrogram",
     ),
+    path(
+        "api/<str:capture_uuid>/create_waterfall/",
+        VisualizationViewSet.as_view(
+            {
+                "post": "create_waterfall",
+            }
+        ),
+        name="api_create_waterfall",
+    ),
+    path(
+        "api/<str:capture_uuid>/waterfall_status/",
+        VisualizationViewSet.as_view(
+            {
+                "get": "get_waterfall_status",
+            }
+        ),
+        name="api_waterfall_status",
+    ),
+    path(
+        "api/<str:capture_uuid>/download_waterfall/",
+        VisualizationViewSet.as_view(
+            {
+                "get": "download_waterfall",
+            }
+        ),
+        name="api_download_waterfall",
+    ),
 ]
 
 
