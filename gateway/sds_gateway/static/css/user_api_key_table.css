@@ -1,129 +1,171 @@
 /* Custom table styles for user_api_key.html */
 
 #dynamic-table-container .user-api-key-table {
-	margin-bottom: 5rem !important;
-	width: 100% !important;
-	table-layout: fixed !important; /* Match dataset table approach */
+	margin-bottom: 5rem;
+	width: 100%;
+	table-layout: fixed; /* Match dataset table approach */
 }
 
 /* Override table-responsive overflow for API key table */
 #dynamic-table-container .table-responsive {
-	overflow-x: hidden !important; /* Prevent horizontal scrolling by default */
-	max-width: 100% !important;
+	overflow-x: hidden; /* Prevent horizontal scrolling by default */
+	max-width: 100%;
 }
 
 /* Ensure the table container doesn't overflow */
 #dynamic-table-container .table-container {
-	max-width: 100% !important;
-	overflow-x: hidden !important;
+	max-width: 100%;
+	overflow-x: hidden;
 }
 
 /* Match dataset table cell styling */
 #dynamic-table-container .user-api-key-table th,
 #dynamic-table-container .user-api-key-table td {
-	padding: 8px 12px !important;
-	line-height: 1.4 !important;
-	vertical-align: middle !important;
+	padding: 8px 12px;
+	line-height: 1.4;
+	vertical-align: middle;
 }
 
 #dynamic-table-container .user-api-key-table td {
-	white-space: normal !important;
-	overflow: hidden !important;
-	text-overflow: ellipsis !important;
+	white-space: normal;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /* Exception for Actions column - allow dropdown to overflow */
 #dynamic-table-container .user-api-key-table td:last-child {
-	overflow: visible !important;
+	overflow: visible;
 }
 
 /* Fix dropdown positioning for API key table - override the problematic fixed positioning */
 #dynamic-table-container .user-api-key-table .dropdown-menu {
-	position: absolute !important;
-	top: 100% !important;
-	right: 0 !important;
-	z-index: 1050 !important;
+	position: absolute;
+	top: 100%;
+	right: 0;
+	z-index: 1050;
 }
 
 /* Ensure dropdown container has proper positioning context */
 #dynamic-table-container .user-api-key-table .dropdown {
-	position: relative !important;
+	position: relative;
+}
+
+/* Ensure table cells allow dropdowns to overflow */
+#dynamic-table-container .user-api-key-table td {
+	overflow: visible;
+	position: relative;
+}
+
+/* Specific fix for the action column */
+#dynamic-table-container .user-api-key-table td.col-action {
+	overflow: visible;
+	position: relative;
+}
+
+/* Column width classes for more flexible styling */
+#dynamic-table-container .user-api-key-table th.col-prefix,
+#dynamic-table-container .user-api-key-table td.col-prefix {
+	width: 15%;
+}
+#dynamic-table-container .user-api-key-table th.col-name,
+#dynamic-table-container .user-api-key-table td.col-name {
+	width: 20%;
+}
+#dynamic-table-container .user-api-key-table th.col-description,
+#dynamic-table-container .user-api-key-table td.col-description {
+	width: 30%;
+}
+#dynamic-table-container .user-api-key-table th.col-created,
+#dynamic-table-container .user-api-key-table td.col-created {
+	width: 20%;
+}
+#dynamic-table-container .user-api-key-table th.col-expires,
+#dynamic-table-container .user-api-key-table td.col-expires {
+	width: 20%;
+}
+#dynamic-table-container .user-api-key-table th.col-revoked,
+#dynamic-table-container .user-api-key-table td.col-revoked {
+	width: 10%;
+}
+#dynamic-table-container .user-api-key-table th.col-action,
+#dynamic-table-container .user-api-key-table td.col-action {
+	width: 5%;
 }
 
 /* Column widths that add up to 100% - matching dataset table approach */
 #dynamic-table-container .user-api-key-table th:nth-child(1),
 #dynamic-table-container .user-api-key-table td:nth-child(1) {
-	width: 12% !important;
+	width: 12%;
 }
 
 #dynamic-table-container .user-api-key-table th:nth-child(2),
 #dynamic-table-container .user-api-key-table td:nth-child(2) {
-	width: 18% !important;
+	width: 18%;
 }
 
 #dynamic-table-container .user-api-key-table th:nth-child(3),
 #dynamic-table-container .user-api-key-table td:nth-child(3) {
-	width: 25% !important;
-	white-space: normal !important;
-	word-wrap: break-word !important;
+	width: 25%;
+	white-space: normal;
+	word-wrap: break-word;
 }
 
 #dynamic-table-container .user-api-key-table th:nth-child(4),
 #dynamic-table-container .user-api-key-table td:nth-child(4) {
-	width: 15% !important;
+	width: 15%;
 }
 
 #dynamic-table-container .user-api-key-table th:nth-child(5),
 #dynamic-table-container .user-api-key-table td:nth-child(5) {
-	width: 15% !important;
+	width: 15%;
 }
 
 #dynamic-table-container .user-api-key-table th:nth-child(6),
 #dynamic-table-container .user-api-key-table td:nth-child(6) {
-	width: 8% !important;
+	width: 8%;
 }
 
 #dynamic-table-container .user-api-key-table th:nth-child(7),
 #dynamic-table-container .user-api-key-table td:nth-child(7) {
-	width: 7% !important;
-	min-width: 60px !important;
+	width: 7%;
+	min-width: 60px;
 }
 
 /* Ensure buttons in table stay properly sized */
 #dynamic-table-container .user-api-key-table .btn-sm {
-	padding: 0.25rem 0.5rem !important;
-	margin: 0 2px !important;
+	padding: 0.25rem 0.5rem;
+	margin: 0 2px;
 }
 
 /* Responsive breakpoints for smaller screens */
 @media (max-width: 768px) {
 	#dynamic-table-container .user-api-key-table th:nth-child(1),
 	#dynamic-table-container .user-api-key-table td:nth-child(1) {
-		width: 15% !important;
+		width: 15%;
 	}
 	#dynamic-table-container .user-api-key-table th:nth-child(2),
 	#dynamic-table-container .user-api-key-table td:nth-child(2) {
-		width: 20% !important;
+		width: 20%;
 	}
 	#dynamic-table-container .user-api-key-table th:nth-child(3),
 	#dynamic-table-container .user-api-key-table td:nth-child(3) {
-		width: 30% !important;
+		width: 30%;
 	}
 	#dynamic-table-container .user-api-key-table th:nth-child(4),
 	#dynamic-table-container .user-api-key-table td:nth-child(4) {
-		width: 15% !important;
+		width: 15%;
 	}
 	#dynamic-table-container .user-api-key-table th:nth-child(5),
 	#dynamic-table-container .user-api-key-table td:nth-child(5) {
-		width: 10% !important;
+		width: 10%;
 	}
 	#dynamic-table-container .user-api-key-table th:nth-child(6),
 	#dynamic-table-container .user-api-key-table td:nth-child(6) {
-		width: 5% !important;
+		width: 5%;
 	}
 	#dynamic-table-container .user-api-key-table th:nth-child(7),
 	#dynamic-table-container .user-api-key-table td:nth-child(7) {
-		width: 5% !important;
+		width: 5%;
 	}
 }
 
@@ -131,70 +173,70 @@
 @media (max-width: 576px) {
 	/* Enable horizontal scrolling on very narrow screens */
 	#dynamic-table-container .table-responsive {
-		overflow-x: auto !important; /* Enable horizontal scroll */
+		overflow-x: auto; /* Enable horizontal scroll */
 		-webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 	}
 
 	/* Set minimum table width to ensure all columns are visible */
 	#dynamic-table-container .user-api-key-table {
-		min-width: 600px !important; /* Minimum width to show all columns */
-		width: 600px !important; /* Fixed width for mobile */
+		min-width: 600px; /* Minimum width to show all columns */
+		width: 600px; /* Fixed width for mobile */
 	}
 
 	/* Adjust column widths for mobile - ensure all content is readable */
 	#dynamic-table-container .user-api-key-table th:nth-child(1),
 	#dynamic-table-container .user-api-key-table td:nth-child(1) {
-		width: 80px !important; /* Fixed width for prefix */
-		min-width: 80px !important;
+		width: 80px; /* Fixed width for prefix */
+		min-width: 80px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(2),
 	#dynamic-table-container .user-api-key-table td:nth-child(2) {
-		width: 120px !important; /* Fixed width for name */
-		min-width: 120px !important;
+		width: 120px; /* Fixed width for name */
+		min-width: 120px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(3),
 	#dynamic-table-container .user-api-key-table td:nth-child(3) {
-		width: 150px !important; /* Fixed width for description */
-		min-width: 150px !important;
+		width: 150px; /* Fixed width for description */
+		min-width: 150px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(4),
 	#dynamic-table-container .user-api-key-table td:nth-child(4) {
-		width: 100px !important; /* Fixed width for created */
-		min-width: 100px !important;
+		width: 100px; /* Fixed width for created */
+		min-width: 100px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(5),
 	#dynamic-table-container .user-api-key-table td:nth-child(5) {
-		width: 100px !important; /* Fixed width for expires */
-		min-width: 100px !important;
+		width: 100px; /* Fixed width for expires */
+		min-width: 100px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(6),
 	#dynamic-table-container .user-api-key-table td:nth-child(6) {
-		width: 50px !important; /* Fixed width for revoked */
-		min-width: 50px !important;
+		width: 50px; /* Fixed width for revoked */
+		min-width: 50px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(7),
 	#dynamic-table-container .user-api-key-table td:nth-child(7) {
-		width: 50px !important; /* Fixed width for actions */
-		min-width: 50px !important;
+		width: 50px; /* Fixed width for actions */
+		min-width: 50px;
 	}
 
 	/* Ensure text doesn't wrap in mobile view for better readability */
 	#dynamic-table-container .user-api-key-table td {
-		white-space: nowrap !important;
-		overflow: hidden !important;
-		text-overflow: ellipsis !important;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	/* Allow description to wrap for better mobile experience */
 	#dynamic-table-container .user-api-key-table td:nth-child(3) {
-		white-space: normal !important;
-		word-wrap: break-word !important;
+		white-space: normal;
+		word-wrap: break-word;
 	}
 
 	/* Add visual indicator for horizontal scroll */
@@ -213,50 +255,50 @@
 /* Extra small screens - further optimize */
 @media (max-width: 480px) {
 	#dynamic-table-container .user-api-key-table {
-		min-width: 550px !important;
-		width: 550px !important;
+		min-width: 550px;
+		width: 550px;
 	}
 
 	/* Slightly reduce column widths for very small screens */
 	#dynamic-table-container .user-api-key-table th:nth-child(1),
 	#dynamic-table-container .user-api-key-table td:nth-child(1) {
-		width: 70px !important;
-		min-width: 70px !important;
+		width: 70px;
+		min-width: 70px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(2),
 	#dynamic-table-container .user-api-key-table td:nth-child(2) {
-		width: 100px !important;
-		min-width: 100px !important;
+		width: 100px;
+		min-width: 100px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(3),
 	#dynamic-table-container .user-api-key-table td:nth-child(3) {
-		width: 130px !important;
-		min-width: 130px !important;
+		width: 130px;
+		min-width: 130px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(4),
 	#dynamic-table-container .user-api-key-table td:nth-child(4) {
-		width: 90px !important;
-		min-width: 90px !important;
+		width: 90px;
+		min-width: 90px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(5),
 	#dynamic-table-container .user-api-key-table td:nth-child(5) {
-		width: 90px !important;
-		min-width: 90px !important;
+		width: 90px;
+		min-width: 90px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(6),
 	#dynamic-table-container .user-api-key-table td:nth-child(6) {
-		width: 40px !important;
-		min-width: 40px !important;
+		width: 40px;
+		min-width: 40px;
 	}
 
 	#dynamic-table-container .user-api-key-table th:nth-child(7),
 	#dynamic-table-container .user-api-key-table td:nth-child(7) {
-		width: 40px !important;
-		min-width: 40px !important;
+		width: 40px;
+		min-width: 40px;
 	}
 }

@@ -1,0 +1,29 @@
+Large File Download - Use SpectrumX SDK
+
+Your {{ item_type }} "{{ item_name }}" is too large for web download.
+
+RECOMMENDED SOLUTION:
+For large files like yours, we recommend using the SpectrumX Python SDK.
+The SDK provides better performance, resume capability, and progress tracking for large downloads.
+
+Error Details: {{ error_message }}
+
+INSTALL THE SDK:
+pip install spectrumx
+
+Or visit: https://pypi.org/project/spectrumx/
+
+SDK DOWNLOAD INSTRUCTIONS:
+
+Visit: {{ site_url }}/users/{% if item_type == 'dataset' %}dataset-list{% else %}file-list{% endif %}/
+
+REQUEST INFORMATION:
+{{ item_type|title }}: {{ item_name }}
+Requested at: {{ requested_at }}
+
+For more information and documentation, visit:
+https://github.com/spectrumx/sds-code/tree/master/sdk/docs
+
+---
+This is an automated message from the SpectrumX Data System.
+For SDK support, visit our documentation or contact our support team.

@@ -2,7 +2,7 @@
 
 ## `0.1.14` - 2025-09-xx
 
-## `0.1.13` - 2025-08-25
+## `0.1.13` - 2025-08-26
 
 + Features:
     + [**Added `download_dataset` method to client**](https://github.com/spectrumx/sds-code/pull/165): Users can now download datasets through the SDK by passing in a dataset UUID e.g. `sds_client.download_dataset(uuid=<dataset_uuid>, to_local_path=...)`.

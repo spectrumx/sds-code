@@ -19,5 +19,6 @@ Follow these steps to create a new `0.*.*` release of the SDK:
 + Commit freeze
     + [ ] Merge `$RELEASE_BRANCH` to `master`.
     + [ ] Create and push a new git tag for the release in the form `v$NEW_VERSION`.
-    + [ ] Publish package to PyPI with `make publish`.
+        + Pushing the tag will publish the package via GH actions. Otherwise, publish
+            the package to PyPI with `make publish` (you'll need a local PyPI token).
     + [ ] Announce release to stakeholders.
