@@ -1,10 +1,13 @@
 import datetime
 import json
 import logging
+import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 from typing import cast
 
+import h5py
 from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
@@ -21,21 +24,33 @@ from django.db.utils import IntegrityError
 from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
+from django.http import HttpResponseRedirect
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import TemplateView
 from django.views.generic import UpdateView
 from rest_framework import status
 
+from sds_gateway.api_methods.helpers.download_file import (
+    download_file as download_file_helper,
+)
+from sds_gateway.api_methods.helpers.file_helpers import (
+    check_file_contents_exist_helper,
+)
+from sds_gateway.api_methods.helpers.file_helpers import create_capture_helper_simple
+from sds_gateway.api_methods.helpers.file_helpers import upload_file_helper_simple
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
@@ -53,9 +68,16 @@ from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.users.files_utils import add_capture_files
+from sds_gateway.users.files_utils import add_root_items
+from sds_gateway.users.files_utils import add_shared_items
+from sds_gateway.users.files_utils import build_breadcrumbs
+from sds_gateway.users.files_utils import format_modified
+from sds_gateway.users.files_utils import make_dir_item
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
+from sds_gateway.users.h5_utils import summarize_h5_file
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FileTreeMixin
@@ -64,6 +86,7 @@ from sds_gateway.users.mixins import UserSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.utils import deduplicate_composite_captures
+from sds_gateway.users.utils import get_index_name_for_capture_type
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 
 # Constants
@@ -71,6 +94,16 @@ MAX_API_KEY_COUNT = 10
 
 # Add logger for debugging
 logger = logging.getLogger(__name__)
+
+
+def validate_uuid(uuid_string: str) -> bool:
+    """Validate if a string is a valid UUID."""
+    try:
+        uuid.UUID(uuid_string)
+    except (ValueError, TypeError):
+        return False
+    else:
+        return True
 
 
 def get_active_api_key_count(api_keys) -> int:
@@ -88,6 +121,23 @@ def get_active_api_key_count(api_keys) -> int:
         1
         for key in api_keys
         if not key.revoked and (not key.expiry_date or key.expiry_date >= now)
+    )
+
+
+def get_filtered_files_queryset(base_queryset: QuerySet[File]) -> QuerySet[File]:
+    """
+    Apply common file filtering to exclude system files and hidden files.
+
+    Args:
+        base_queryset: Base File queryset to filter
+
+    Returns:
+        QuerySet[File]: Filtered queryset excluding system files
+    """
+    return (
+        base_queryset.exclude(name__endswith=".DS_Store")
+        .exclude(name__startswith=".")
+        .exclude(name__in=[".DS_Store", "._.DS_Store", "Thumbs.db", "desktop.ini"])
     )
 
 
@@ -965,6 +1015,42 @@ class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[re
 user_file_detail_view = FileDetailView.as_view()
 
 
+class FileDownloadView(Auth0LoginRequiredMixin, View):
+    """Session-authenticated file download for the Users UI."""
+
+    def get(self, request: HttpRequest, uuid: str, *args, **kwargs) -> HttpResponse:
+        file_obj = get_object_or_404(File, uuid=uuid, is_deleted=False)
+
+        # Access control: owner or shared via capture/dataset
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        try:
+            content = download_file_helper(file_obj)
+        except Exception:
+            logger.exception("Error downloading file %s", file_obj.name)
+            return JsonResponse({"error": "Failed to download file"}, status=500)
+
+        response = HttpResponse(
+            content,
+            content_type=file_obj.media_type or "application/octet-stream",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{file_obj.name}"'
+        return response
+
+
 def _get_captures_for_template(
     captures: QuerySet[Capture],
     request: HttpRequest,
@@ -1042,6 +1128,119 @@ def _get_captures_for_template(
         enhanced_captures.append(capture_data)
 
     return enhanced_captures
+
+
+class FilesView(Auth0LoginRequiredMixin, View):
+    """Handle HTML requests for the files page."""
+
+    template_name = "users/files.html"
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+        """Handle HTML page requests for files page."""
+        # Get the current directory from query params
+        current_dir = request.GET.get("dir", "/")
+
+        # Debug logging
+        logger.debug("FilesView: current_dir=%s", current_dir)
+
+        # Initialize items list
+        items = []
+
+        if current_dir == "/":
+            # Root directory - show captures and datasets as folders
+            self._add_root_items(request, items)
+        elif current_dir.startswith("/captures/"):
+            # Inside a capture - show nested directories/files within the capture
+            parts = current_dir.strip("/").split("/")
+            capture_uuid = parts[1] if len(parts) > 1 else ""
+            # Subpath inside the capture (may be empty for the capture root)
+            subpath_start_index = 2
+            subpath = (
+                "/".join(parts[subpath_start_index:])
+                if len(parts) > subpath_start_index
+                else ""
+            )
+            self._add_capture_files(request, items, capture_uuid, subpath=subpath)
+
+        else:
+            # Unknown directory - go back to root
+            return HttpResponseRedirect("/users/files/")
+
+        # Build breadcrumb parts
+        breadcrumb_parts = self._build_breadcrumbs(current_dir, request.user.email)
+
+        # Debug logging
+        logger.debug(
+            "FilesView: context summary items=%d",
+            len(items),
+        )
+        logger.debug(
+            "FilesView: first items preview=%s",
+            items[:3] if items else "No items",
+        )
+
+        # Additional debugging for directory items
+        for i, item in enumerate(items):
+            if item.get("type") == "directory":
+                logger.debug("FilesView: directory item %d => %s", i, item)
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "items": items,
+                "current_dir": current_dir,
+                "breadcrumb_parts": breadcrumb_parts,
+                "user_email": request.user.email,
+            },
+        )
+
+    def _format_modified(self, dt):
+        """Return a consistent display string for modified timestamps."""
+        return format_modified(dt)
+
+    def _make_dir_item(self, **kwargs):
+        """Create a standardized directory item dict for the template."""
+        return make_dir_item(**kwargs)
+
+    def _make_file_item(
+        self,
+        *,
+        file_obj: File,
+        capture_uuid: str = "",
+        is_shared: bool = False,
+        shared_by: str = "",
+    ) -> dict:
+        """Create a standardized file item dict for the template."""
+        return {
+            "type": "file",
+            "name": file_obj.name,
+            "path": str(file_obj.uuid),
+            "uuid": str(file_obj.uuid),
+            "is_capture": False,
+            "is_shared": is_shared,
+            "capture_uuid": capture_uuid,
+            "modified_at": self._format_modified(getattr(file_obj, "updated_at", None)),
+            "shared_by": shared_by,
+        }
+
+    def _add_root_items(self, request, items):
+        """Add captures and datasets to the root directory."""
+        add_root_items(request, items)
+        # Add shared items
+        self._add_shared_items(request, items)
+
+    def _add_capture_files(self, request, items, capture_uuid, subpath: str = ""):
+        """Add nested directories/files within a specific capture."""
+        add_capture_files(request, items, capture_uuid, subpath)
+
+    def _add_shared_items(self, request, items):
+        """Add shared captures and datasets, avoiding N+1 lookups."""
+        add_shared_items(request, items)
+
+    def _build_breadcrumbs(self, current_dir, user_email: str):
+        """Build breadcrumb navigation with friendly names."""
+        return build_breadcrumbs(current_dir, user_email)
 
 
 class ListCapturesView(Auth0LoginRequiredMixin, View):
@@ -1180,20 +1379,31 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                 uuid__in=shared_permissions, is_deleted=False
             ).exclude(owner=request.user)
 
-            # Combine owned and shared captures
-            qs = owned_captures.union(shared_captures)
-
-            # Apply filters
-            qs = _apply_basic_filters(
-                qs=qs,
+            # Apply basic filters to both querysets before union
+            # (Django doesn't support filter() after union())
+            owned_captures = _apply_basic_filters(
+                qs=owned_captures,
                 search=params["search"],
                 date_start=params["date_start"],
                 date_end=params["date_end"],
                 cap_type=params["cap_type"],
             )
-            qs = _apply_frequency_filters(
-                qs=qs, min_freq=params["min_freq"], max_freq=params["max_freq"]
+
+            shared_captures = _apply_basic_filters(
+                qs=shared_captures,
+                search=params["search"],
+                date_start=params["date_start"],
+                date_end=params["date_end"],
+                cap_type=params["cap_type"],
             )
+
+            # Combine owned and shared captures after filtering
+            qs = owned_captures.union(shared_captures)
+
+            # Apply frequency filters by converting to list and back to queryset
+            # This is necessary because frequency filtering requires complex logic
+            if params["min_freq"] or params["max_freq"]:
+                qs = self._apply_frequency_filters_to_union(qs, params, logger)
 
             qs = _apply_sorting(
                 qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
@@ -1220,6 +1430,59 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
         except DatabaseError:
             logger.exception("Database error in captures API request")
             return JsonResponse({"error": "Database error occurred"}, status=500)
+
+    def _apply_frequency_filters_to_union(self, qs, params, logger):
+        """Apply frequency filters to a union queryset by converting to list."""
+        try:
+            # Convert union queryset to list and apply frequency filtering
+            all_captures = list(qs)
+            frequency_data = Capture.bulk_load_frequency_metadata(all_captures)
+
+            # Apply frequency filtering manually
+            filtered_uuids = []
+            min_freq_str = str(params["min_freq"]).strip() if params["min_freq"] else ""
+            max_freq_str = str(params["max_freq"]).strip() if params["max_freq"] else ""
+
+            if min_freq_str or max_freq_str:
+                try:
+                    min_freq_val = float(min_freq_str) if min_freq_str else None
+                except ValueError:
+                    min_freq_val = None
+
+                try:
+                    max_freq_val = float(max_freq_str) if max_freq_str else None
+                except ValueError:
+                    max_freq_val = None
+
+                if min_freq_val is not None or max_freq_val is not None:
+                    for capture in all_captures:
+                        capture_uuid = str(capture.uuid)
+                        freq_info = frequency_data.get(capture_uuid, {})
+                        center_freq_hz = freq_info.get("center_frequency")
+
+                        if center_freq_hz is None:
+                            continue  # Skip captures without frequency data
+
+                        center_freq_ghz = center_freq_hz / 1e9
+
+                        # Apply frequency range filter
+                        if min_freq_val is not None and center_freq_ghz < min_freq_val:
+                            continue  # Skip this capture
+                        if max_freq_val is not None and center_freq_ghz > max_freq_val:
+                            continue  # Skip this capture
+
+                        # Capture passed all filters
+                        filtered_uuids.append(capture.uuid)
+
+                    # Recreate queryset with filtered UUIDs
+                    qs = Capture.objects.filter(uuid__in=filtered_uuids)
+
+            return qs  # noqa: TRY300
+
+        except Exception:
+            logger.exception("Error applying frequency filters")
+            # Continue with unfiltered queryset on error
+            return qs
 
 
 user_capture_list_view = ListCapturesView.as_view()
@@ -1768,6 +2031,7 @@ def _apply_basic_filters(
             | Q(index_name__icontains=search)
             | Q(capture_type__icontains=search)
             | Q(uuid__icontains=search)
+            | Q(name__icontains=search)
         )
 
         # Then add any captures where the display value matches
@@ -2229,6 +2493,805 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 
 
 user_dataset_details_view = DatasetDetailsView.as_view()
+
+
+class FileContentView(Auth0LoginRequiredMixin, View):
+    """Serve small text content of a file for modal previews.
+
+    Supports rendering JSON as pretty-printed text. Enforces basic access
+    control: owners or users with access to the parent capture/dataset.
+    """
+
+    MAX_BYTES = 1024 * 1024  # 1 MiB safety limit for previews
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:  # noqa: C901, PLR0911
+        file_uuid = kwargs.get("uuid")
+        if not file_uuid:
+            return JsonResponse({"error": "File UUID required"}, status=400)
+
+        file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
+
+        # Access control: owner or shared via capture/dataset
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        try:
+            # Size guard
+            if file_obj.size and int(file_obj.size) > self.MAX_BYTES:
+                return JsonResponse({"error": "File too large to preview"}, status=413)
+
+            # Read content
+            file_obj.file.open("rb")
+            raw = file_obj.file.read(self.MAX_BYTES + 1)
+            file_obj.file.close()
+
+            if len(raw) > self.MAX_BYTES:
+                return JsonResponse({"error": "File too large to preview"}, status=413)
+
+            # Detect JSON by extension
+            name_lower = (file_obj.name or "").lower()
+            if name_lower.endswith(".json"):
+                try:
+                    parsed = json.loads(raw.decode("utf-8"))
+                    pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
+                    return HttpResponse(
+                        pretty, content_type="text/plain; charset=utf-8"
+                    )
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    # fall through to plain text rendering below
+                    pass
+
+            # Default: return UTF-8 text
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                # Replace undecodable bytes
+                text = raw.decode("utf-8", errors="replace")
+
+            return HttpResponse(text, content_type="text/plain; charset=utf-8")
+        except OSError:
+            logger.exception("Error reading file content for preview")
+            return JsonResponse({"error": "Error reading file"}, status=500)
+
+
+class FileH5InfoView(Auth0LoginRequiredMixin, View):
+    """Return a summarized structure for an HDF5 file as JSON for modal preview."""
+
+    H5_MAX_BYTES = 200 * 1024 * 1024  # 200 MiB cap for preview temp copy
+    MAX_PREVIEW_ELEMENTS = 10
+    MAX_CHILDREN_PER_GROUP = 200
+    MAX_RECURSION_DEPTH = 4
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:  # noqa: C901, PLR0911
+        file_uuid = kwargs.get("uuid")
+        if not file_uuid:
+            return JsonResponse({"error": "File UUID required"}, status=400)
+
+        file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
+
+        # Access control like content view
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        # Guard extension
+        name_lower = (file_obj.name or "").lower()
+        if not name_lower.endswith((".h5", ".hdf5")):
+            return JsonResponse({"error": "Not an HDF5 file"}, status=400)
+
+        # Size guard
+        try:
+            if file_obj.size and int(file_obj.size) > self.H5_MAX_BYTES:
+                return JsonResponse({"error": "File too large to preview"}, status=413)
+        except (TypeError, ValueError):
+            pass
+
+        # Copy to temp file (h5py requires a filename)
+        temp_file = tempfile.NamedTemporaryFile(  # noqa: SIM115 - needs real path; we manage cleanup
+            delete=False, suffix=".h5"
+        )
+        temp_path = temp_file.name
+        try:
+            bytes_written = 0
+            file_obj.file.open("rb")
+            for chunk in file_obj.file.chunks():
+                bytes_written += len(chunk)
+                if bytes_written > self.H5_MAX_BYTES:
+                    file_obj.file.close()
+                    temp_file.close()
+                    Path(temp_path).unlink(missing_ok=True)
+                    return JsonResponse(
+                        {"error": "File too large to preview"}, status=413
+                    )
+                temp_file.write(chunk)
+            file_obj.file.close()
+            temp_file.flush()
+            temp_file.close()
+
+            # Open and summarize using extracted utilities
+            with h5py.File(temp_path, "r") as h5:
+                sanitized = summarize_h5_file(
+                    h5,
+                    max_children_per_group=self.MAX_CHILDREN_PER_GROUP,
+                    max_recursion_depth=self.MAX_RECURSION_DEPTH,
+                    max_preview_elements=self.MAX_PREVIEW_ELEMENTS,
+                )
+            return JsonResponse(sanitized)
+        except OSError:
+            logger.exception("Error creating H5 preview")
+            return JsonResponse({"error": "Error reading HDF5 file"}, status=500)
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class UploadCaptureView(View):
+    def _process_file_uploads(
+        self,
+        request: HttpRequest,
+        upload_chunk_files: list[Any],
+        relative_paths: list[str],
+    ) -> tuple[int, list[str]]:
+        saved_files_count = 0
+        file_errors = []
+        skipped_files = []
+
+        for f, rel_path in zip(upload_chunk_files, relative_paths, strict=True):
+            path = Path(rel_path)
+            directory = "/" + str(path.parent) if path.parent != Path() else "/"
+            filename = path.name
+            file_size = f.size
+            content_type = getattr(f, "content_type", "application/octet-stream")
+
+            # Skip empty files (these are placeholders for skipped files)
+            if file_size == 0:
+                logger.info(
+                    "Skipping empty file: %s (likely a placeholder for skipped file)",
+                    filename,
+                )
+                continue
+
+            file_data = {
+                "owner": request.user.pk,
+                "name": filename,
+                "directory": directory,
+                "file": f,
+                "size": file_size,
+                "media_type": content_type,
+            }
+            responses, upload_errors = upload_file_helper_simple(request, file_data)
+
+            for response in responses:
+                if response.status_code in (
+                    status.HTTP_200_OK,
+                    status.HTTP_201_CREATED,
+                ):
+                    saved_files_count += 1
+                else:
+                    error_msg = f"Failed to upload {filename}: {response.data}"
+                    file_errors.append(error_msg)
+                    logger.error(error_msg)
+            file_errors.extend(upload_errors)
+        file_errors.extend(skipped_files)
+        return saved_files_count, file_errors
+
+    def _create_capture_with_endpoint_helper(
+        self,
+        request: HttpRequest,
+        capture_data: dict[str, Any],
+        all_relative_paths: list[str] | None = None,
+    ) -> tuple[str | None, str | None]:
+        """Create a single capture using prepared capture data.
+
+        Returns (capture_uuid, error) where capture_uuid is the created capture
+        UUID or None if creation failed, and error is the error message or None.
+        """
+        try:
+            # Set the index name based on capture type
+            capture_data["index_name"] = get_index_name_for_capture_type(
+                capture_data["capture_type"]
+            )
+
+            # Use the helper function to create the capture
+            responses, capture_errors = create_capture_helper_simple(
+                request, capture_data
+            )
+        except (ValueError, TypeError, AttributeError) as exc:
+            logger.exception("Data validation error creating capture")
+            return None, f"Data validation error: {exc}"
+        except (ConnectionError, TimeoutError) as exc:
+            logger.exception("Network error creating capture")
+            return None, f"Network error: {exc}"
+        else:
+            if responses:
+                # Capture created successfully
+                response = responses[0]
+                if hasattr(response, "data") and isinstance(response.data, dict):
+                    capture_data = response.data
+                    # Extract only the UUID since that's all we use
+                    capture_uuid = capture_data.get("uuid")
+                    return capture_uuid, None
+                logger.warning(
+                    "Unexpected response format: %s",
+                    response.data,
+                )
+                return (
+                    None,
+                    f"Unexpected response format: {response.data}",
+                )
+            # Capture creation failed
+            error_msg = capture_errors[0] if capture_errors else "Unknown error"
+            logger.error(
+                "Failed to create capture: %s",
+                error_msg,
+            )
+            return (
+                None,
+                f"Failed to create capture: {error_msg}",
+            )
+
+    def _calculate_top_level_dir(
+        self, relative_paths: list[str], all_relative_paths: list[str]
+    ) -> str:
+        """Calculate the top level directory from relative paths."""
+        if all_relative_paths and len(all_relative_paths) > 0:
+            # Use all_relative_paths when files are skipped
+            first_rel_path = all_relative_paths[0]
+        elif relative_paths and len(relative_paths) > 0:
+            # Use uploaded relative_paths for normal uploads
+            first_rel_path = relative_paths[0]
+        else:
+            first_rel_path = ""
+
+        if first_rel_path and "/" in first_rel_path:
+            return "/" + first_rel_path.split("/")[0]
+        if first_rel_path:
+            return "/"
+        return "/"
+
+    def check_rh_scan_group(self, scan_group: str) -> str | None:
+        """Check and validate RadioHound scan group.
+
+        Args:
+            scan_group: The scan group string to validate
+
+        Returns:
+            str: Error message if validation fails, None if valid
+        """
+        if scan_group and scan_group.strip():
+            # Validate UUID format if scan_group is provided
+            if not validate_uuid(scan_group.strip()):
+                return (
+                    f"Invalid scan group format. Must be a valid UUID, "
+                    f"got: {scan_group}"
+                )
+        return None
+
+    def _create_captures_by_type(
+        self,
+        request: HttpRequest,
+        channels: list[str],
+        capture_data: dict[str, Any],
+        scan_group: str,
+        all_relative_paths: list[str],
+    ) -> tuple[list[str], list[str]]:
+        """Create captures based on capture type.
+        For RadioHound: Creates a single capture with scan_group
+        For DigitalRF: Creates multiple captures, one for each channel
+        """
+        created_captures = []
+        errors = []
+
+        if capture_data["capture_type"] == CaptureType.RadioHound:
+            # For RadioHound, create a single capture with scan_group
+            scan_group_error = self.check_rh_scan_group(scan_group)
+            if scan_group_error:
+                return [], [scan_group_error]
+            if scan_group and scan_group.strip():
+                capture_data["scan_group"] = scan_group
+
+            created_capture, error = self._create_capture_with_endpoint_helper(
+                request, capture_data, all_relative_paths
+            )
+            if created_capture:
+                created_captures.append(created_capture)
+            if error:
+                errors.append(error)
+        else:
+            # For DigitalRF, create captures for each channel
+            for channel in channels:
+                # Add channel to capture data for this iteration
+                channel_capture_data = capture_data.copy()
+                channel_capture_data["channel"] = channel
+                created_capture, error = self._create_capture_with_endpoint_helper(
+                    request,
+                    channel_capture_data,
+                    all_relative_paths,
+                )
+                if created_capture:
+                    created_captures.append(created_capture)
+                if error:
+                    errors.append(error)
+
+        return created_captures, errors
+
+    def _parse_upload_request(
+        self, request: HttpRequest
+    ) -> tuple[list[Any], list[str], list[str], list[str], str, "CaptureType"]:
+        """Parse upload request parameters."""
+        upload_chunk_files = request.FILES.getlist("files")
+        relative_paths = request.POST.getlist("relative_paths")
+        all_relative_paths = request.POST.getlist("all_relative_paths")
+        channels_str = request.POST.get("channels", "")
+        channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
+        scan_group = request.POST.get("scan_group", "")
+        capture_type_str = request.POST.get(
+            "capture_type", "drf"
+        )  # Default to DigitalRF
+        # Convert string to CaptureType enum
+        capture_type = (
+            CaptureType.RadioHound
+            if capture_type_str == "rh"
+            else CaptureType.DigitalRF
+        )
+
+        # Handle text file uploads: if relative_paths is shorter than files,
+        # generate relative paths using just the filename
+        if len(relative_paths) < len(upload_chunk_files):
+            logger.info(
+                "Text file upload detected - generating relative paths for %d files",
+                len(upload_chunk_files),
+            )
+            relative_paths = [f.name for f in upload_chunk_files]
+            if not all_relative_paths:
+                all_relative_paths = relative_paths.copy()
+
+        return (
+            upload_chunk_files,
+            relative_paths,
+            all_relative_paths,
+            channels,
+            scan_group,
+            capture_type,
+        )
+
+    def _check_required_fields(
+        self, capture_type: "CaptureType", channels: list[str], scan_group: str
+    ) -> bool:
+        """Check if required fields are provided for capture creation."""
+        if capture_type == CaptureType.RadioHound:
+            # scan_group is optional for RadioHound captures
+            return True
+        return bool(channels)
+
+    def file_upload_status_mux(
+        self,
+        saved_files_count: int,
+        upload_chunk_files: list[Any],
+        file_errors: list[str],
+        *,
+        all_files_empty: bool,
+        has_required_fields: bool,
+    ) -> str:
+        """Determine the response status based on upload and capture creation
+        results.
+
+        Returns:
+            "success": All files successful OR All skipped + has required fields
+            "error": Some files successful OR All files failed OR All skipped +
+                missing fields
+        """
+
+        if all_files_empty:
+            # All files were skipped (empty)
+            return "success" if has_required_fields else "error"
+
+        if (
+            saved_files_count > 0
+            and saved_files_count == len(upload_chunk_files)
+            and not file_errors
+        ):
+            # All files successful
+            return "success"
+
+        # Some files successful OR All files failed
+        return "error"
+
+    def _build_file_capture_response_data(
+        self,
+        file_upload_status: str,
+        saved_files_count: int,
+        created_captures: list[str],
+        file_errors: list[str],
+        capture_errors: list[str],
+        *,
+        all_files_empty: bool = False,
+        has_required_fields: bool = False,
+    ) -> dict[str, Any]:
+        """Build the response data dictionary."""
+        response_data = {
+            "file_upload_status": file_upload_status,
+            "saved_files_count": saved_files_count,
+            "captures": created_captures,
+        }
+
+        # Add custom message when all files are skipped (regardless of capture creation)
+        if all_files_empty and has_required_fields and not file_errors:
+            response_data["message"] = "Upload skipped. All files exist on server"
+        elif all_files_empty and not has_required_fields:
+            # All files were skipped but missing required fields
+            response_data["message"] = (
+                "Upload skipped. All files exist on server, but missing required "
+                "fields for capture creation"
+            )
+        elif all_files_empty and file_errors:
+            # All files were skipped but there were errors
+            response_data["message"] = (
+                "Upload skipped. All files exist on server, but there were errors "
+                "during processing"
+            )
+        elif file_upload_status == "success" and created_captures:
+            # Successful upload with capture creation
+            response_data["message"] = (
+                f"Upload completed successfully! {saved_files_count} files uploaded "
+                f"and {len(created_captures)} capture(s) created."
+            )
+        elif file_upload_status == "success":
+            # Successful upload without capture creation
+            response_data["message"] = (
+                f"Upload completed successfully! {saved_files_count} files uploaded."
+            )
+
+        # Combine file upload errors and capture creation errors
+        all_errors = []
+        if file_errors:
+            all_errors.extend(file_errors)
+        if capture_errors:
+            all_errors.extend(capture_errors)
+        if all_errors:
+            response_data["errors"] = all_errors
+        return response_data
+
+    def _process_capture_creation(
+        self,
+        request: HttpRequest,
+        channels: list[str],
+        capture_type: "CaptureType",
+        scan_group: str,
+        all_relative_paths: list[str],
+        *,
+        has_required_fields: bool,
+    ) -> tuple[list[str], list[str]]:
+        """Handle capture creation logic."""
+        capture_errors = []
+        created_captures = []
+
+        if has_required_fields:
+            logger.info(
+                "Creating captures - has_required_fields: %s, capture_type: %s, "
+                "channels: %s, scan_group: %s",
+                has_required_fields,
+                capture_type,
+                channels,
+                scan_group,
+            )
+
+            # Calculate top_level_dir from relative paths
+            top_level_dir = self._calculate_top_level_dir(
+                all_relative_paths, all_relative_paths
+            )
+
+            # Prepare base capture data
+            capture_data = {
+                "capture_type": capture_type,
+                "top_level_dir": str(top_level_dir),
+            }
+
+            # Create captures based on type
+            created_captures, capture_errors = self._create_captures_by_type(
+                request, channels, capture_data, scan_group, all_relative_paths
+            )
+            if capture_errors:
+                logger.error("Capture creation errors: %s", capture_errors)
+        else:
+            created_captures = []
+            capture_errors = []
+
+        return created_captures, capture_errors
+
+    def _determine_upload_status(self, upload_chunk_files, all_relative_paths):
+        """Determine if all files were empty (skipped)."""
+        # If no files were sent (all skipped on frontend), consider them all empty
+        all_files_empty = (
+            all(f.size == 0 for f in upload_chunk_files) if upload_chunk_files else True
+        )
+
+        # Additional check: if no files were sent but we have all_relative_paths,
+        # this indicates all files were skipped on the frontend
+        if not upload_chunk_files and all_relative_paths:
+            all_files_empty = True
+
+        return all_files_empty
+
+    def _should_create_captures_for_request(self, request):
+        """Determine if captures should be created for this request."""
+        # Check if this is a chunked upload (skip capture creation for chunks)
+        is_chunk = request.POST.get("is_chunk", "false").lower() == "true"
+        chunk_number = request.POST.get("chunk_number", None)
+        total_chunks = request.POST.get("total_chunks", None)
+
+        # Determine if this is the last chunk or not a chunked upload
+        return (
+            not is_chunk
+            or chunk_number is None
+            or total_chunks is None
+            or (int(chunk_number) == int(total_chunks))
+        )
+
+    def _associate_files_with_dataset(self, request, saved_files_count, file_errors):
+        """Associate newly uploaded files with a dataset."""
+        dataset_uuid = request.POST.get("dataset_uuid")
+        try:
+            dataset = Dataset.objects.get(
+                uuid=dataset_uuid, owner=request.user, is_deleted=False
+            )
+
+            # Get the newly uploaded files by this user
+            newly_uploaded_files = get_filtered_files_queryset(
+                File.objects.filter(owner=request.user, is_deleted=False)
+            ).order_by("-created_at")[:saved_files_count]
+
+            # Associate files with the dataset
+            dataset.files.add(*newly_uploaded_files)
+
+            logger.info(
+                "Associated %d files with dataset %s (%s)",
+                len(newly_uploaded_files),
+                dataset.name,
+                dataset_uuid,
+            )
+        except Dataset.DoesNotExist:
+            logger.exception("Dataset not found or access denied: %s", dataset_uuid)
+            file_errors.append(f"Dataset not found: {dataset_uuid}")
+        except Exception as e:
+            # Catch any database or validation errors during file association
+            logger.exception(
+                "Failed to associate files with dataset %s",
+                dataset_uuid,
+            )
+            file_errors.append(f"Failed to associate files with dataset: {e!s}")
+
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
+        try:
+            (
+                upload_chunk_files,
+                relative_paths,
+                all_relative_paths,
+                channels,
+                scan_group,
+                capture_type,
+            ) = self._parse_upload_request(request)
+
+            saved_files_count, file_errors = self._process_file_uploads(
+                request, upload_chunk_files, relative_paths
+            )
+
+            # Determine upload status
+            all_files_empty = self._determine_upload_status(
+                upload_chunk_files, all_relative_paths
+            )
+
+            # Debug logging for request data
+            logger.info(
+                "Upload request - files count: %s, all_relative_paths count: %s, "
+                "all_files_empty: %s, capture_type: %s, channels: %s, scan_group: %s",
+                len(upload_chunk_files) if upload_chunk_files else 0,
+                len(all_relative_paths) if all_relative_paths else 0,
+                all_files_empty,
+                capture_type,
+                channels,
+                scan_group,
+            )
+
+            # Check if we have the required fields for capture creation
+            has_required_fields = self._check_required_fields(
+                capture_type, channels, scan_group
+            )
+
+            # Determine if captures should be created
+            should_create_captures = self._should_create_captures_for_request(request)
+
+            created_captures = []
+            capture_errors = []
+
+            # Only create captures if this is the last chunk AND there are no file
+            # upload errors
+            if should_create_captures and not file_errors:
+                # Handle capture creation
+                created_captures, capture_errors = self._process_capture_creation(
+                    request,
+                    channels,
+                    capture_type,
+                    scan_group,
+                    all_relative_paths,
+                    has_required_fields=has_required_fields,
+                )
+            elif should_create_captures and file_errors:
+                logger.info(
+                    "Skipping capture creation due to file upload errors: %s",
+                    file_errors,
+                )
+            else:
+                # Get chunk info for logging
+                chunk_number = request.POST.get("chunk_number", None)
+                total_chunks = request.POST.get("total_chunks", None)
+                logger.info(
+                    "Skipping capture creation for chunk %s of %s",
+                    chunk_number,
+                    total_chunks,
+                )
+
+            # Log file upload errors if they occurred
+            if file_errors and not all_files_empty:
+                logger.error(
+                    "File upload errors occurred. Errors: %s",
+                    file_errors,
+                )
+
+            # Determine file upload status for frontend display
+            file_upload_status = self.file_upload_status_mux(
+                saved_files_count,
+                upload_chunk_files,
+                file_errors,
+                all_files_empty=all_files_empty,
+                has_required_fields=has_required_fields,
+            )
+
+            file_capture_response_data = self._build_file_capture_response_data(
+                file_upload_status,
+                saved_files_count,
+                created_captures,
+                file_errors,
+                capture_errors,
+                all_files_empty=all_files_empty,
+                has_required_fields=has_required_fields,
+            )
+
+            # Handle dataset association for individual file uploads
+            if (
+                request.POST.get("dataset_uuid")
+                and saved_files_count > 0
+                and not has_required_fields
+            ):
+                self._associate_files_with_dataset(
+                    request, saved_files_count, file_errors
+                )
+
+            # Log file upload errors if they occurred
+            if file_errors and not all_files_empty:
+                logger.error(
+                    "File upload errors occurred. Errors: %s",
+                    file_errors,
+                )
+
+            return JsonResponse(file_capture_response_data)
+
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.warning(
+                "Data validation error in UploadCaptureView.post: %s", str(e)
+            )
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid request data",
+                    "error_code": "VALIDATION_ERROR",
+                    "message": f"Data validation error: {e!s}",
+                },
+                status=400,
+            )
+        except (ConnectionError, TimeoutError) as e:
+            logger.exception("Network error in UploadCaptureView.post")
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Network connection error",
+                    "error_code": "NETWORK_ERROR",
+                    "message": f"Network error: {e!s}",
+                },
+                status=503,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in UploadCaptureView.post")
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Internal server error",
+                    "error_code": "UNKNOWN_ERROR",
+                    "message": f"{e!s}",
+                },
+                status=500,
+            )
+
+
+user_upload_capture_view = UploadCaptureView.as_view()
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class CheckFileExistsView(View):
+    """View to check if a file exists based on path, name, and checksum."""
+
+    def post(self, request, *args, **kwargs):
+        """Check if a file exists using the provided path, name, and checksum."""
+        try:
+            # Get data from request
+            data = json.loads(request.body)
+            directory = data.get("directory", "")
+            filename = data.get("filename", "")
+            checksum = data.get("checksum", "")
+
+            # Validate required fields
+            if not all([directory, filename, checksum]):
+                return JsonResponse(
+                    {
+                        "error": (
+                            "Missing required fields: directory, filename, and "
+                            "checksum are required"
+                        )
+                    },
+                    status=400,
+                )
+
+            # Prepare data for check_file_contents_exist_helper
+            check_data = {
+                "directory": directory,
+                "name": filename,
+                "sum_blake3": checksum,
+            }
+
+            # Call the helper function
+            response = check_file_contents_exist_helper(request, check_data)
+
+            # Extract the response data
+            if hasattr(response, "data"):
+                response_data = response.data
+            else:
+                response_data = str(response)
+
+            # Return the result
+            return JsonResponse(
+                {
+                    "status_code": response.status_code,
+                    "data": response_data,
+                }
+            )
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+
+
+user_check_file_exists_view = CheckFileExistsView.as_view()
 
 
 class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
