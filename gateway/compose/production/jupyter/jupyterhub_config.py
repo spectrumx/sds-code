@@ -48,14 +48,8 @@ c.JupyterHub.hub_port = 8080
 # Persist hub data on volume mounted inside container
 c.JupyterHub.cookie_secret_file = "/data/jupyterhub_cookie_secret"
 
-# Database configuration - Keep PostgreSQL for Gateway
-db_user = os.environ.get("POSTGRES_USER", "spectrumx")
-db_password = os.environ.get("POSTGRES_PASSWORD", "your-specfic-password")
-db_host = os.environ.get("POSTGRES_HOST", "postgres")
-db_port = os.environ.get("POSTGRES_PORT", "5432")
-c.JupyterHub.db_url = (
-    f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/jupyterhub"
-)
+# Database configuration - Use SQLite like SVI for simplicity
+c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
 
 # Authenticate users with Auth0
 c.JupyterHub.authenticator_class = "oauthenticator.auth0.Auth0OAuthenticator"
@@ -65,7 +59,7 @@ c.Authenticator.auto_login = True
 c.Auth0OAuthenticator.allow_all = True
 c.Authenticator.allowed_users = set()
 # Remove explicit user restrictions
-c.Authenticator.admin_users = {os.environ.get("JUPYTERHUB_ADMIN", "admin")}
+c.Authenticator.admin_users = {"admin"}  # Keep admin user(s)
 
 # Update Auth0 configuration
 c.Auth0OAuthenticator.oauth_callback_url = (
