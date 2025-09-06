@@ -293,7 +293,7 @@ class CaptureViewSet(viewsets.ViewSet):
         )
         if not post_serializer.is_valid():
             errors = post_serializer.errors
-            log.error(f"Capture POST serializer errors: {errors}")
+            log.warning(f"Capture POST serializer errors: {errors}")
             return Response(
                 {"detail": errors},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -308,7 +308,7 @@ class CaptureViewSet(viewsets.ViewSet):
             msg = "One or more capture creation constraints violated:"
             for error in err.args[0].splitlines():
                 msg += f"\n\t{error}"
-            log.error(f"Constraint check failed: {msg}")
+            log.warning(f"Constraint check failed: {msg}")
             return Response(
                 {"detail": msg},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1028,11 +1028,22 @@ def _normalize_top_level_dir(top_level_dir: str) -> str:
         top_level_dir: The path to normalize
 
     Returns:
-        The normalized path with leading slash
+        The normalized path with leading slash and multiple slashes resolved
     """
+
+    # Ensure leading slash
     if not top_level_dir.startswith("/"):
-        return "/" + top_level_dir
-    return top_level_dir
+        normalized = "/" + top_level_dir
+    else:
+        normalized = top_level_dir
+
+    # Resolve multiple slashes using Path.resolve()
+    try:
+        resolved = Path(normalized).resolve(strict=False)
+        return str(resolved)
+    except (OSError, ValueError):
+        # Fallback to original behavior if Path.resolve() fails
+        return normalized
 
 
 def _check_capture_creation_constraints(
