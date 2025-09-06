@@ -231,21 +231,37 @@ class CapturePostSerializer(serializers.ModelSerializer[Capture]):
     def create(self, validated_data: dict[str, Any]) -> Capture:
         # set the owner to the request user
         validated_data["owner"] = self.context["request_user"]
-        validated_data["top_level_dir"] = normalize_top_level_dir(
-            validated_data["top_level_dir"],
-        )
+        try:
+            validated_data["top_level_dir"] = normalize_top_level_dir(
+                validated_data["top_level_dir"],
+            )
+        except ValueError as e:
+            raise serializers.ValidationError({"top_level_dir": str(e)}) from e
         return super().create(validated_data=validated_data)
 
     def update(self, instance: Capture, validated_data: dict[str, Any]) -> Capture:
-        validated_data["top_level_dir"] = normalize_top_level_dir(
-            validated_data["top_level_dir"],
-        )
+        try:
+            validated_data["top_level_dir"] = normalize_top_level_dir(
+                validated_data["top_level_dir"],
+            )
+        except ValueError as e:
+            raise serializers.ValidationError({"top_level_dir": str(e)}) from e
         return super().update(instance=instance, validated_data=validated_data)
 
 
 def normalize_top_level_dir(unknown_path: str) -> str:
     """Normalize the top level directory path."""
-    valid_path = str(unknown_path)
+    # Validate input parameter
+    if unknown_path is None:
+        error_msg = "top_level_dir cannot be None"
+        raise ValueError(error_msg)
+
+    valid_path = str(unknown_path).strip()
+
+    # Validate that path is not empty after stripping whitespace
+    if not valid_path:
+        error_msg = "top_level_dir cannot be empty or whitespace-only"
+        raise ValueError(error_msg)
 
     # top level dir must start with '/'
     if not valid_path.startswith("/"):

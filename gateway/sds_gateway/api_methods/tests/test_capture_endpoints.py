@@ -1295,8 +1295,8 @@ class CaptureTestCases(APITestCase):
         """
         Regression test for duplicate checking with whitespace paths.
 
-        This test ensures that duplicate checking handles edge cases like paths
-        with only whitespace correctly.
+        This test ensures that duplicate checking handles whitespace correctly
+        by stripping whitespace and detecting duplicates.
         """
         channel_whitespace_path = f"{self.channel_v0}_whitespace_path"
         base_path = "test-dir-whitespace"
@@ -1333,19 +1333,70 @@ class CaptureTestCases(APITestCase):
                     "top_level_dir": base_path,  # No leading space
                 },
             )
-            # This should either be detected as duplicate or succeed depending on
-            # how path sanitization handles whitespace
-            assert response2.status_code in [
-                status.HTTP_400_BAD_REQUEST,
-                status.HTTP_201_CREATED,
-            ], f"Unexpected status code: {response2.status_code}"
+            # With whitespace stripping, these should be detected as duplicates
+            assert response2.status_code == status.HTTP_400_BAD_REQUEST, (
+                f"Expected duplicate detection, got: {response2.status_code}"
+            )
+            response2_data = response2.json()
+            assert (
+                "channel and top level directory are already in use"
+                in response2_data["detail"]
+            ), f"Unexpected error message: {response2_data['detail']}"
 
-            if response2.status_code == status.HTTP_400_BAD_REQUEST:
-                response2_data = response2.json()
-                assert (
-                    "channel and top level directory are already in use"
-                    in response2_data["detail"]
-                ), f"Unexpected error message: {response2_data['detail']}"
+    def test_empty_path_validation(self) -> None:
+        """
+        Test that empty paths are properly validated and rejected.
+
+        This test ensures that empty or whitespace-only paths are rejected
+        with appropriate validation errors.
+        """
+        channel_empty_path = f"{self.channel_v0}_empty_path"
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata_v0,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture_v0.index_name,
+            ),
+        ):
+            # Test empty string
+            response1 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": channel_empty_path,
+                    "top_level_dir": "",  # Empty string
+                },
+            )
+            assert response1.status_code == status.HTTP_400_BAD_REQUEST, (
+                f"Expected validation error for empty path, "
+                f"got: {response1.status_code}"
+            )
+            response1_data = response1.json()
+            assert "top_level_dir cannot be empty" in str(response1_data), (
+                f"Expected empty path validation error, got: {response1_data}"
+            )
+
+            # Test whitespace-only string
+            response2 = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": f"{channel_empty_path}_2",
+                    "top_level_dir": "   ",  # Whitespace-only
+                },
+            )
+            assert response2.status_code == status.HTTP_400_BAD_REQUEST, (
+                f"Expected validation error for whitespace-only path, "
+                f"got: {response2.status_code}"
+            )
+            response2_data = response2.json()
+            assert "top_level_dir cannot be empty" in str(response2_data), (
+                f"Expected whitespace-only validation error, got: {response2_data}"
+            )
 
     def test_duplicate_check_multiple_slashes_regression(self) -> None:
         """
@@ -1389,24 +1440,17 @@ class CaptureTestCases(APITestCase):
                     "top_level_dir": f"//{base_path}",  # Double slash
                 },
             )
-            # This should either be detected as duplicate or fail validation
-            # The exact behavior depends on how normalization handles multiple slashes
-            assert response2.status_code in [
-                status.HTTP_400_BAD_REQUEST,
-                status.HTTP_201_CREATED,
-            ], f"Unexpected status code: {response2.status_code}"
-
-            if response2.status_code == status.HTTP_400_BAD_REQUEST:
-                response2_data = response2.json()
-                # Should either be duplicate error or validation error
-                assert any(
-                    phrase in response2_data["detail"]
-                    for phrase in [
-                        "channel and top level directory are already in use",
-                        "invalid",
-                        "normalize",
-                    ]
-                ), f"Unexpected error message: {response2_data['detail']}"
+            # Multiple slashes are now normalized by _normalize_top_level_dir(),
+            # so this should be detected as a duplicate since both paths resolve
+            # to the same value
+            assert response2.status_code == status.HTTP_400_BAD_REQUEST, (
+                f"Expected duplicate detection, got: {response2.status_code}"
+            )
+            response2_data = response2.json()
+            assert (
+                "channel and top level directory are already in use"
+                in response2_data["detail"]
+            ), f"Unexpected error message: {response2_data['detail']}"
 
     def test_list_captures_includes_shared_captures(self) -> None:
         """Test that list captures includes captures shared with the user."""
