@@ -34,6 +34,9 @@ from sds_gateway.api_methods.serializers.file_serializers import (
 )
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
+from sds_gateway.api_methods.utils.asset_access_control import (
+    get_accessible_files_queryset,
+)
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 
@@ -240,16 +243,8 @@ class FileViewSet(ViewSet):
         unsafe_path = request.GET.get("path", "/").strip()
         basename = Path(unsafe_path).name
 
-        # Get all files and filter by access using the helper function
-        all_files = File.objects.filter(is_deleted=False)
-        accessible_files = [
-            file_obj.pk
-            for file_obj in all_files
-            if user_has_access_to_file(request.user, file_obj)
-        ]
-
-        # Filter queryset to only include accessible files
-        all_valid_user_files = File.objects.filter(pk__in=accessible_files)
+        # Get files accessible to the user using database-level filtering
+        all_valid_user_files = get_accessible_files_queryset(request.user)
 
         # If no specific path is requested (default "/"), return all accessible files
         if unsafe_path in {"/", ""}:
