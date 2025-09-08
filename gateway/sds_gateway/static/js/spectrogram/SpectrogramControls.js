@@ -95,7 +95,9 @@ export class SpectrogramControls {
 		input.value = value;
 		this.showValidationError(
 			input,
-			`Value must be between ${INPUT_RANGES[input.id].min} and ${INPUT_RANGES[input.id].max}`,
+			`Value must be between ${INPUT_RANGES[input.id].min} and ${
+				INPUT_RANGES[input.id].max
+			}`,
 		);
 	}
 

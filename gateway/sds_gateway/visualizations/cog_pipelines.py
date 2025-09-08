@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from django.conf import settings
 from django_cog import cog
 from loguru import logger
 
@@ -180,7 +181,7 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
 
 
 @cog
-def process_waterfall_data_cog(
+def process_waterfall_data_cog(  # noqa: PLR0915
     capture_uuid: str,
     processing_types: list[str],
 ) -> dict[str, Any]:
@@ -341,6 +342,18 @@ def process_spectrogram_data_cog(
     Returns:
         Dict with status and processed data info
     """
+    # Check if spectrogram feature is enabled
+    if not settings.EXPERIMENTAL_SPECTROGRAM:
+        logger.info(
+            f"Skipping spectrogram processing for capture {capture_uuid} - "
+            f"experimental feature disabled"
+        )
+        return {
+            "status": "skipped",
+            "message": "Spectrogram feature is not enabled",
+            "capture_uuid": capture_uuid,
+        }
+
     # Check if spectrogram processing is requested
     if processing_types and "spectrogram" not in processing_types:
         logger.info(
