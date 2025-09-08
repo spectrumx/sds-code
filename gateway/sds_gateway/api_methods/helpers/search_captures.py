@@ -17,7 +17,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.utils.asset_access_control import (
-    user_has_access_to_capture,
+    get_accessible_captures_queryset,
 )
 from sds_gateway.api_methods.utils.metadata_schemas import base_index_fields
 from sds_gateway.api_methods.utils.metadata_schemas import (
@@ -192,16 +192,8 @@ def get_capture_queryset(
     capture_type: CaptureType | None,
 ) -> QuerySet[Capture]:
     """Get the capture queryset based on the capture type."""
-    # Get all captures and filter by access using the helper function
-    all_captures = Capture.objects.filter(is_deleted=False)
-    accessible_captures = [
-        capture.pk
-        for capture in all_captures
-        if user_has_access_to_capture(owner, capture)
-    ]
-
-    # Filter queryset to only include accessible captures
-    capture_queryset = Capture.objects.filter(pk__in=accessible_captures)
+    # Get captures accessible to the user using database-level filtering
+    capture_queryset = get_accessible_captures_queryset(owner)
 
     # filter by capture type if provided
     if capture_type:
@@ -272,9 +264,16 @@ def search_captures(
         # went wrong with the query they provided
         context_for_user = "Query error"
         info = err.info
-        root_causes: list[dict[str, str]] = info.get("error", {}).get("root_cause", [])
-        root_cause_reason: str = root_causes[0].get("reason", "") if root_causes else ""
-        reason = str(root_cause_reason) if root_cause_reason else str(info)
+        if isinstance(info, dict):
+            root_causes: list[dict[str, str]] = info.get("error", {}).get(
+                "root_cause", []
+            )
+            root_cause_reason: str = (
+                root_causes[0].get("reason", "") if root_causes else ""
+            )
+            reason = str(root_cause_reason) if root_cause_reason else str(info)
+        else:
+            reason = str(info)
         msg = f"{context_for_user}: {reason}"
         raise ValueError(msg) from err
     except os_exceptions.OpenSearchException as err:
