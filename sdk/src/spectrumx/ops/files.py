@@ -129,8 +129,16 @@ def is_valid_file(
         reasons.append("Not a file")
     elif file_path.stat().st_size == 0:
         reasons.append("Empty file, or could not read it")
+    # Check if file matches any disallowed glob patterns
+    matches_disallowed_glob = check_sds_ignore and any(
+        file_path.match(glob) for glob in DISALLOWED_GLOBS
+    )
+
     final_decision = (
-        file_path.is_file() and file_path.stat().st_size > 0 and is_valid_mime
+        file_path.is_file()
+        and file_path.stat().st_size > 0
+        and is_valid_mime
+        and not matches_disallowed_glob
     )
     return final_decision, reasons
 
