@@ -18,7 +18,6 @@ from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
-from .utils.metadata_schemas import infer_index_name
 from .utils.opensearch_client import get_opensearch_client
 
 log = logging.getLogger(__name__)
@@ -292,13 +291,6 @@ class Capture(BaseModel):
         if not self.name and self.top_level_dir:
             # Extract the last part of the path as the default name
             self.name = Path(self.top_level_dir).name or self.top_level_dir.strip("/")
-
-        # Set the index_name if not provided
-        if not self.index_name and self.capture_type:
-            # Convert string to CaptureType enum
-            capture_type_enum = CaptureType(self.capture_type)
-            self.index_name = infer_index_name(capture_type_enum)
-
         super().save(*args, **kwargs)
 
     @property
