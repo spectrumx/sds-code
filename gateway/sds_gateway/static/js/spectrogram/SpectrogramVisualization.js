@@ -174,7 +174,10 @@ export class SpectrogramVisualization {
 
 		try {
 			const response = await fetch(
-				`${API_ENDPOINTS.getSpectrogramStatus.replace("{capture_uuid}", this.captureUuid)}?job_id=${this.currentJobId}`,
+				`${API_ENDPOINTS.getSpectrogramStatus.replace(
+					"{capture_uuid}",
+					this.captureUuid,
+				)}?job_id=${this.currentJobId}`,
 				{
 					headers: {
 						"X-CSRFToken": this.getCSRFToken(),
@@ -223,7 +226,10 @@ export class SpectrogramVisualization {
 	async fetchSpectrogramResult() {
 		try {
 			const response = await fetch(
-				`${API_ENDPOINTS.getSpectrogramResult.replace("{capture_uuid}", this.captureUuid)}?job_id=${this.currentJobId}`,
+				`${API_ENDPOINTS.getSpectrogramResult.replace(
+					"{capture_uuid}",
+					this.captureUuid,
+				)}?job_id=${this.currentJobId}`,
 				{
 					headers: {
 						"X-CSRFToken": this.getCSRFToken(),

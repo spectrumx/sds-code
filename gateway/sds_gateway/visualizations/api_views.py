@@ -1,5 +1,6 @@
 """API views for the visualizations app."""
 
+from django.conf import settings
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample
@@ -95,6 +96,11 @@ class VisualizationViewSet(ViewSet):
         Returns:
             Response with processing job details
         """
+        if not settings.EXPERIMENTAL_SPECTROGRAM:
+            return Response(
+                {"error": "Spectrogram feature is not enabled"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         try:
             # Get the capture
             capture = get_object_or_404(
@@ -208,6 +214,11 @@ class VisualizationViewSet(ViewSet):
         """
         Get the status of a spectrogram generation job.
         """
+        if not settings.EXPERIMENTAL_SPECTROGRAM:
+            return Response(
+                {"error": "Spectrogram feature is not enabled"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         try:
             job_id = request.query_params.get("job_id")
             if not job_id:
@@ -264,6 +275,11 @@ class VisualizationViewSet(ViewSet):
         """
         Download the generated spectrogram image.
         """
+        if not settings.EXPERIMENTAL_SPECTROGRAM:
+            return Response(
+                {"error": "Spectrogram feature is not enabled"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         try:
             job_id = request.query_params.get("job_id")
             if not job_id:
