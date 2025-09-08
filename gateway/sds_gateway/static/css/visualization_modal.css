@@ -49,6 +49,10 @@
 
 .visualization-option .visualization-select-btn {
 	transition: all 0.2s ease-in-out;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
 }
 
 .visualization-option .visualization-select-btn:hover:not(:disabled) {
@@ -68,6 +72,32 @@
 	font-size: 0.875rem;
 }
 
+/* Grid layout for visualization cards */
+.visualization-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 1rem;
+	justify-items: center;
+}
+
+.visualization-card {
+	width: 100%;
+	max-width: 400px;
+}
+
+/* Grid layout for processing status cards */
+.processing-status-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+	gap: 1rem;
+	justify-items: center;
+}
+
+.processing-status-card {
+	width: 100%;
+	max-width: 300px;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
 	.visualization-option .bi {
@@ -80,5 +110,15 @@
 
 	.visualization-option .card-text {
 		font-size: 0.9rem;
+	}
+
+	.visualization-grid {
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+	}
+
+	.processing-status-grid {
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
 	}
 }

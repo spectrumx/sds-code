@@ -10,6 +10,7 @@ from typing import Any
 import h5py
 import numpy as np
 from digital_rf import DigitalRFReader
+from django.conf import settings
 from loguru import logger
 
 
@@ -93,9 +94,7 @@ def _process_waterfall_slice(params: WaterfallSliceParams) -> dict | None:
 def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | None:
     """Reconstruct DigitalRF directory structure from SDS files."""
     # Import utilities here to avoid Django app registry issues
-    from django.conf import settings
-
-    from sds_gateway.api_methods.utils.minio_client import get_minio_client
+    from sds_gateway.api_methods.utils.minio_client import get_minio_client  # noqa: PLC0415
 
     logger.info("Reconstructing DigitalRF directory structure")
 

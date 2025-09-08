@@ -14,10 +14,10 @@
                         aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="row">
+                <div class="visualization-grid">
                     {% if visualization_compatibility %}
                         {% for viz_type, config in visualization_compatibility.items %}
-                            <div class="col-md-6 mb-3">
+                            <div class="visualization-card">
                                 <div class="card h-100 visualization-option"
                                      data-visualization="{{ viz_type }}">
                                     <div class="card-body text-center">

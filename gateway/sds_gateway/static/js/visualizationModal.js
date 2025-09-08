@@ -143,7 +143,9 @@ class VisualizationModal {
                         <i class="bi bi-exclamation-triangle text-warning display-4"></i>
                         <h5 class="mt-3">No Visualizations Available</h5>
                         <p class="mt-2 text-muted">
-                            This capture type (${this.currentCaptureType}) does not support any visualizations.
+                            This capture type (${
+															this.currentCaptureType
+														}) does not support any visualizations.
                         </p>
                         <div class="mt-3">
                             <small class="text-muted">
@@ -170,27 +172,37 @@ class VisualizationModal {
 	 */
 	createVisualizationOption(vizType, config) {
 		return `
-            <div class="col-md-6 mb-3">
+            <div class="visualization-card">
                 <div class="card h-100 visualization-option" data-visualization="${vizType}">
                     <div class="card-body text-center">
                         <div class="mb-3">
-                            <i class="bi ${config.icon} display-4 text-${config.color}"></i>
+                            <i class="bi ${config.icon} display-4 text-${
+															config.color
+														}"></i>
                         </div>
-                        <h5 class="card-title">${this.capitalizeFirst(vizType)}</h5>
+                        <h5 class="card-title">${this.capitalizeFirst(
+													vizType,
+												)}</h5>
                         <p class="card-text text-muted">
                             ${config.description}
                         </p>
                         <div class="supported-types">
                             <small class="text-muted">
-                                <strong>Supported:</strong> ${config.supported_capture_types.map((t) => t.toUpperCase()).join(", ")}
+                                <strong>Supported:</strong> ${config.supported_capture_types
+																	.map((t) => t.toUpperCase())
+																	.join(", ")}
                             </small>
                         </div>
                     </div>
                     <div class="card-footer bg-transparent">
                         <button type="button"
-                                class="btn btn-${config.color} w-100 visualization-select-btn"
+                                class="btn btn-${
+																	config.color
+																} w-100 visualization-select-btn"
                                 data-visualization="${vizType}">
-                            <i class="bi bi-arrow-right me-2"></i>Open ${this.capitalizeFirst(vizType)}
+                            <i class="bi bi-arrow-right me-2"></i>Open ${this.capitalizeFirst(
+															vizType,
+														)}
                         </button>
                     </div>
                 </div>
@@ -249,7 +261,7 @@ class VisualizationModal {
 			return;
 		}
 
-		let html = '<div class="row">';
+		let html = '<div class="processing-status-grid">';
 		let hasCompatibleStatus = false;
 
 		// Only show processing status for visualization types compatible with current capture type
@@ -282,10 +294,10 @@ class VisualizationModal {
 	/**
 	 * Create a status card for a visualization type
 	 */
-	createStatusCard(type, data, title) {
+	createStatusCard(_type, data, title) {
 		if (!data) {
 			return `
-                <div class="col-md-6">
+                <div class="processing-status-card">
                     <div class="card border-secondary">
                         <div class="card-body p-3">
                             <h6 class="card-title">${title}</h6>
@@ -326,7 +338,7 @@ class VisualizationModal {
 		}
 
 		return `
-            <div class="col-md-6">
+            <div class="processing-status-card">
                 <div class="card">
                     <div class="card-body p-3">
                         <h6 class="card-title">${title}</h6>

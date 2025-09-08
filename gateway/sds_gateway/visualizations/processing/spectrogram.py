@@ -13,7 +13,7 @@ from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
 
 
-def generate_spectrogram_from_drf(
+def generate_spectrogram_from_drf(  # noqa: C901, PLR0915
     drf_path: Path, channel: str, processing_type: str
 ) -> dict:
     """Generate a spectrogram from DigitalRF data.
