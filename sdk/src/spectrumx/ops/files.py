@@ -129,18 +129,10 @@ def is_valid_file(
         reasons.append("Not a file")
     elif file_path.stat().st_size == 0:
         reasons.append("Empty file, or could not read it")
-    # Check if file matches any disallowed glob patterns
-    matches_disallowed_glob = check_sds_ignore and any(
-        file_path.match(glob) for glob in DISALLOWED_GLOBS
-    )
+    # Determine if file is valid based on whether any reasons were found
+    is_valid = len(reasons) == 0
 
-    final_decision = (
-        file_path.is_file()
-        and file_path.stat().st_size > 0
-        and is_valid_mime
-        and not matches_disallowed_glob
-    )
-    return final_decision, reasons
+    return is_valid, reasons
 
 
 def get_valid_files(local_path: Path, *, warn_skipped: bool = False) -> Generator[File]:
@@ -220,18 +212,3 @@ def generate_random_files(num_files: int) -> list[File]:
 
 
 DISALLOWED_GLOBS = _load_undesired_globs()
-
-
-def main() -> None:
-    for pattern in DISALLOWED_GLOBS:
-        log.error(pattern)
-    invalid_files = [Path("/this/is/a/test/index.html.tmp")]
-
-    for file_case in invalid_files:
-        is_valid, reasons = is_valid_file(file_case)
-        log.warning(is_valid)
-        log.warning(reasons)
-
-
-if __name__ == "__main__":
-    main()
