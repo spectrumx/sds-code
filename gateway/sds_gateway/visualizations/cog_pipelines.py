@@ -351,6 +351,9 @@ def process_spectrogram_data_cog(
     from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
         reconstruct_drf_files,
     )
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        store_processed_data,
+    )
 
     # Check if spectrogram feature is enabled
     if not settings.EXPERIMENTAL_SPECTROGRAM:
