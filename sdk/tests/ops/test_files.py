@@ -16,6 +16,7 @@ from spectrumx import Client
 from spectrumx.api.sds_files import delete_file
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.ops.files import get_file_permissions
+from spectrumx.ops.files import is_valid_file
 
 from tests.conftest import get_content_check_endpoint
 from tests.conftest import get_files_endpoint
@@ -395,3 +396,165 @@ def test_delete_file_dry_run(client: Client) -> None:
     # ASSERT
     assert result is True  # deletion always succeeds in dry run mode
     assert len(responses.calls) == 0
+
+
+class TestIsValidFile:
+    """Test cases for the is_valid_file function."""
+
+    def test_valid_text_file(self, temp_file_with_text_contents: Path) -> None:
+        """Test that a valid text file passes validation."""
+        is_valid, reasons = is_valid_file(temp_file_with_text_contents)
+        assert is_valid is True, (
+            f"Valid text file should pass validation. Reasons: {reasons}"
+        )
+        assert reasons == [], "No reasons should be given for valid files"
+
+    def test_valid_json_file(self, tmp_path: Path) -> None:
+        """Test that a valid JSON file passes validation."""
+        json_file = tmp_path / "test.json"
+        json_file.write_text('{"test": "data"}')
+
+        is_valid, reasons = is_valid_file(json_file)
+        assert is_valid is True, (
+            f"Valid JSON file should pass validation. Reasons: {reasons}"
+        )
+        assert reasons == [], "No reasons should be given for valid files"
+
+    def test_valid_image_file(self, tmp_path: Path) -> None:
+        """Test that a valid image file passes validation."""
+        # Create a minimal PNG file (1x1 pixel)
+        png_data = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\tpHYs\x00\x00\x0b\x13\x00\x00"
+            b"\x0b\x13\x01\x00\x9a\x9c\x18\x00\x00\x00\nIDATx\x9cc```\x00\x00\x00\x04"
+            b"\x00\x01\xdd\x8d\xb4\x1c\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        png_file = tmp_path / "test.png"
+        png_file.write_bytes(png_data)
+
+        is_valid, reasons = is_valid_file(png_file)
+        assert is_valid is True, (
+            f"Valid PNG file should pass validation. Reasons: {reasons}"
+        )
+        assert reasons == [], "No reasons should be given for valid files"
+
+    def test_empty_file(self, tmp_path: Path) -> None:
+        """Test that an empty file fails validation."""
+        empty_file = tmp_path / "empty.txt"
+        empty_file.touch()
+
+        is_valid, reasons = is_valid_file(empty_file)
+        assert is_valid is False, "Empty file should fail validation"
+        assert "Empty file, or could not read it" in reasons
+
+    def test_nonexistent_file(self, tmp_path: Path) -> None:
+        """Test that a nonexistent file fails validation."""
+        nonexistent_file = tmp_path / "nonexistent.txt"
+
+        is_valid, reasons = is_valid_file(nonexistent_file)
+        assert is_valid is False, "Nonexistent file should fail validation"
+        assert "Not a file" in reasons
+
+    def test_directory_instead_of_file(self, tmp_path: Path) -> None:
+        """Test that a directory fails validation."""
+        test_dir = tmp_path / "test_dir"
+        test_dir.mkdir()
+
+        is_valid, reasons = is_valid_file(test_dir)
+        assert is_valid is False, "Directory should fail validation"
+        assert "Not a file" in reasons
+
+    def test_disallowed_executable_file(self, tmp_path: Path) -> None:
+        """Test that executable files with disallowed MIME types fail validation."""
+        # Create a file that would be detected as an executable
+        exe_file = tmp_path / "test.exe"
+        exe_file.write_bytes(b"MZ\x90\x00")  # DOS header
+
+        is_valid, reasons = is_valid_file(exe_file)
+        assert is_valid is False, "Executable file should fail validation"
+        assert any("Invalid MIME type" in reason for reason in reasons)
+
+    def test_disallowed_msi_file(self, tmp_path: Path) -> None:
+        """Test that MSI files fail validation."""
+        msi_file = tmp_path / "test.msi"
+        msi_file.write_bytes(b"\xd0\xcf\x11\xe0")  # MSI header
+
+        is_valid, reasons = is_valid_file(msi_file)
+        assert is_valid is False, "MSI file should fail validation"
+        assert any("Invalid MIME type" in reason for reason in reasons)
+
+    def test_disallowed_com_file(self, tmp_path: Path) -> None:
+        """Test that COM files fail validation."""
+        com_file = tmp_path / "test.com"
+        com_file.write_bytes(b"\xeb\xfe")  # Simple COM program
+
+        is_valid, reasons = is_valid_file(com_file)
+        assert is_valid is False, "COM file should fail validation"
+        assert any("Invalid MIME type" in reason for reason in reasons)
+
+    def test_disallowed_glob_patterns(self, tmp_path: Path) -> None:
+        """Test that files matching disallowed glob patterns fail validation."""
+        # Test various disallowed patterns (from .sds-ignore file)
+        disallowed_files = [
+            "test.tmp",
+            "index.html.tmp",
+            "data.json.tmp",
+            "backup.log",
+            "app.log",
+            "test.tmp.backup",
+        ]
+
+        for filename in disallowed_files:
+            test_file = tmp_path / filename
+            test_file.write_text("test content")
+
+            is_valid, reasons = is_valid_file(test_file)
+            assert is_valid is False, (
+                f"File {filename} should fail validation due to glob pattern"
+            )
+            assert any("undesired glob patterns" in reason for reason in reasons), (
+                f"No glob pattern reason found for {filename}"
+            )
+
+    def test_multiple_validation_failures(self, tmp_path: Path) -> None:
+        """Test that multiple validation failures are all reported."""
+        # Create a file that fails multiple checks
+        bad_file = tmp_path / "test.exe.tmp"  # Both disallowed MIME and glob
+        bad_file.touch()  # Empty file
+
+        is_valid, reasons = is_valid_file(bad_file)
+        assert is_valid is False, "File with multiple issues should fail validation"
+
+        # Should have multiple reasons
+        min_reasons = 2
+        assert len(reasons) >= min_reasons, f"Expected multiple reasons, got: {reasons}"
+
+        # Check for specific reasons
+        reason_text = " ".join(reasons)
+        assert "Empty file" in reason_text or "Invalid MIME type" in reason_text
+        assert "undesired glob patterns" in reason_text
+
+    def test_check_sds_ignore_disabled(self, tmp_path: Path) -> None:
+        """Test that disabling SDS ignore check allows glob-patterned files."""
+        tmp_file = tmp_path / "test.tmp"
+        tmp_file.write_text("test content")
+
+        # With SDS ignore check disabled, should pass
+        is_valid, reasons = is_valid_file(tmp_file, check_sds_ignore=False)
+        assert is_valid is True, (
+            f"File should pass when SDS ignore is disabled. Reasons: {reasons}"
+        )
+        assert reasons == [], "No reasons should be given when SDS ignore is disabled"
+
+    def test_large_valid_file(self, tmp_path: Path) -> None:
+        """Test that a large valid file passes validation."""
+        large_file = tmp_path / "large.txt"
+        # Create a 1MB file
+        content = "A" * 1024 * 1024
+        large_file.write_text(content)
+
+        is_valid, reasons = is_valid_file(large_file)
+        assert is_valid is True, (
+            f"Large valid file should pass validation. Reasons: {reasons}"
+        )
+        assert reasons == [], "No reasons should be given for valid files"
