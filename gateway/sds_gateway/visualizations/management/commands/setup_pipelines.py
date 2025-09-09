@@ -11,6 +11,7 @@ from django_cog.models import Stage
 from django_cog.models import Task
 
 from sds_gateway.visualizations.cog_pipelines import PIPELINE_CONFIGS
+from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
 
 
 class Command(BaseCommand):
@@ -174,8 +175,6 @@ class Command(BaseCommand):
         config = config_func()
 
         # Check if pipeline already exists (including versioned pipelines)
-        from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
-
         existing_pipeline = get_latest_pipeline_by_base_name(config["pipeline_name"])
         if existing_pipeline:
             pipeline = existing_pipeline

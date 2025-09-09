@@ -65,6 +65,7 @@ from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
+from sds_gateway.visualizations.config import get_visualization_compatibility
 
 # Constants
 MAX_API_KEY_COUNT = 10
@@ -919,8 +920,6 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
             files_page = paginator.page(1)
 
         # Get visualization compatibility data
-        from sds_gateway.visualizations import get_visualization_compatibility
-
         visualization_compatibility = get_visualization_compatibility()
 
         return render(
@@ -1128,8 +1127,6 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         page_obj.object_list = _get_captures_for_template(page_obj, request)
 
         # Get visualization compatibility data
-        from sds_gateway.visualizations.config import get_visualization_compatibility
-
         visualization_compatibility = get_visualization_compatibility()
 
         return render(

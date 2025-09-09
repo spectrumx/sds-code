@@ -17,7 +17,9 @@ from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.tasks import start_capture_post_processing
 
+from .config import get_available_visualizations
 from .models import PostProcessedData
 from .models import ProcessingStatus
 from .models import ProcessingType
@@ -392,9 +394,6 @@ class VisualizationViewSet(ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Import the compatibility function
-            from .config import get_available_visualizations
-
             available_visualizations = get_available_visualizations(capture_type)
 
             return Response(
@@ -462,8 +461,6 @@ class VisualizationViewSet(ViewSet):
 
             # Launch spectrogram processing as a Celery task
             try:
-                from sds_gateway.api_methods.tasks import start_capture_post_processing
-
                 # Launch the spectrogram processing task
                 result = start_capture_post_processing.delay(
                     str(spectrogram_data.capture.uuid), ["spectrogram"]

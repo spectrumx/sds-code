@@ -1,12 +1,21 @@
 """Django-cog pipeline configurations for visualization processing."""
 
+import json
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 from django.conf import settings
 from django_cog import cog
 from loguru import logger
+
+from sds_gateway.visualizations.processing.spectrogram import (
+    generate_spectrogram_from_drf,
+)
+from sds_gateway.visualizations.processing.waterfall import (
+    convert_drf_to_waterfall_json,
+)
 
 
 # Pipeline configuration functions for Django admin setup
@@ -119,11 +128,13 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
     Returns:
         None
     """
+
+    # imports to run when the app is ready
+    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
+    from sds_gateway.api_methods.models import CaptureType  # noqa: PLC0415
+
     try:
         logger.info(f"Starting setup for capture {capture_uuid}")
-
-        # Import models here to avoid Django app registry issues
-        from sds_gateway.api_methods.models import Capture
 
         # Get the capture with retry mechanism for transaction timing issues
         capture: Capture | None = None
@@ -140,7 +151,6 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
                         f"Capture {capture_uuid} not found on attempt {attempt + 1}, "
                         f"retrying in {retry_delay} seconds..."
                     )
-                    import time
 
                     time.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
@@ -158,9 +168,6 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
         )
 
         # Validate capture type
-        # Import here to avoid Django app registry issues
-        from sds_gateway.api_methods.models import CaptureType
-
         if capture.capture_type != CaptureType.DigitalRF:
             error_msg = f"Capture {capture_uuid} is not a DigitalRF capture"
             raise ValueError(error_msg)  # noqa: TRY301
@@ -194,6 +201,18 @@ def process_waterfall_data_cog(  # noqa: PLR0915
     Returns:
         Dict with status and processed data info
     """
+
+    # imports to run when the app is ready
+    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
+    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
+    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        reconstruct_drf_files,
+    )
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        store_processed_data,
+    )
+
     # Check if waterfall processing is requested
     if processing_types and "waterfall" not in processing_types:
         logger.info(
@@ -208,11 +227,6 @@ def process_waterfall_data_cog(  # noqa: PLR0915
     logger.info(f"Processing waterfall JSON data for capture {capture_uuid}")
 
     try:
-        # Import models here to avoid Django app registry issues
-        from sds_gateway.api_methods.models import Capture
-        from sds_gateway.visualizations.models import PostProcessedData
-        from sds_gateway.visualizations.models import ProcessingType
-
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
         # Get the processed data record and mark processing as started
@@ -238,10 +252,6 @@ def process_waterfall_data_cog(  # noqa: PLR0915
 
             try:
                 # Reconstruct the DigitalRF files for processing
-                from sds_gateway.visualizations.processing.utils import (
-                    reconstruct_drf_files,
-                )
-
                 capture_files = capture.files.filter(is_deleted=False)
                 reconstructed_path = reconstruct_drf_files(
                     capture, capture_files, temp_path
@@ -253,10 +263,6 @@ def process_waterfall_data_cog(  # noqa: PLR0915
                     raise ValueError(error_msg)  # noqa: TRY301
 
                 # Process the waterfall data in JSON format
-                from sds_gateway.visualizations.processing.waterfall import (
-                    convert_drf_to_waterfall_json,
-                )
-
                 waterfall_result = convert_drf_to_waterfall_json(
                     reconstructed_path,
                     capture.channel,
@@ -268,8 +274,6 @@ def process_waterfall_data_cog(  # noqa: PLR0915
                     raise ValueError(waterfall_result["message"])  # noqa: TRY301
 
                 # Create a temporary JSON file
-                import json
-
                 with tempfile.NamedTemporaryFile(
                     mode="w", suffix=".json", delete=False
                 ) as temp_file:
@@ -280,9 +284,6 @@ def process_waterfall_data_cog(  # noqa: PLR0915
                 try:
                     # Store the JSON file
                     new_filename = f"waterfall_{capture_uuid}.json"
-                    from sds_gateway.visualizations.processing.utils import (
-                        store_processed_data,
-                    )
 
                     store_result = store_processed_data(
                         capture_uuid,
@@ -342,6 +343,15 @@ def process_spectrogram_data_cog(
     Returns:
         Dict with status and processed data info
     """
+
+    # imports to run when the app is ready
+    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
+    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
+    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        reconstruct_drf_files,
+    )
+
     # Check if spectrogram feature is enabled
     if not settings.EXPERIMENTAL_SPECTROGRAM:
         logger.info(
@@ -369,11 +379,6 @@ def process_spectrogram_data_cog(
     logger.info(f"Processing spectrogram data for capture {capture_uuid}")
 
     try:
-        # Import models here to avoid Django app registry issues
-        from sds_gateway.api_methods.models import Capture
-        from sds_gateway.visualizations.models import PostProcessedData
-        from sds_gateway.visualizations.models import ProcessingType
-
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
         # Get the processed data record and mark processing as started
@@ -399,9 +404,6 @@ def process_spectrogram_data_cog(
 
             try:
                 # Reconstruct the DigitalRF files for processing
-                from sds_gateway.visualizations.processing.utils import (
-                    reconstruct_drf_files,
-                )
 
                 capture_files = capture.files.filter(is_deleted=False)
                 reconstructed_path = reconstruct_drf_files(
@@ -414,10 +416,6 @@ def process_spectrogram_data_cog(
                     raise ValueError(error_msg)  # noqa: TRY301
 
                 # Generate spectrogram
-                from sds_gateway.visualizations.processing.spectrogram import (
-                    generate_spectrogram_from_drf,
-                )
-
                 spectrogram_result = generate_spectrogram_from_drf(
                     reconstructed_path,
                     capture.channel,
@@ -429,10 +427,6 @@ def process_spectrogram_data_cog(
                     raise ValueError(spectrogram_result["message"])  # noqa: TRY301
 
                 # Store the spectrogram image
-                from sds_gateway.visualizations.processing.utils import (
-                    store_processed_data,
-                )
-
                 store_result = store_processed_data(
                     capture_uuid,
                     ProcessingType.Spectrogram.value,
@@ -480,9 +474,10 @@ def _create_or_reset_processed_data(capture, processing_type: str):
     Returns:
         PostProcessedData: The created or reset record
     """
-    # Import models here to avoid Django app registry issues
-    from sds_gateway.visualizations.models import PostProcessedData
-    from sds_gateway.visualizations.models import ProcessingStatus
+
+    # imports to run when app is ready
+    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
+    from sds_gateway.visualizations.models import ProcessingStatus  # noqa: PLC0415
 
     # Try to get existing record
     processed_data, newly_created = PostProcessedData.objects.get_or_create(

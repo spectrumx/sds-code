@@ -13,6 +13,8 @@ from digital_rf import DigitalRFReader
 from django.conf import settings
 from loguru import logger
 
+from sds_gateway.api_methods.utils.minio_client import get_minio_client
+
 
 @dataclass
 class WaterfallSliceParams:
@@ -31,7 +33,7 @@ class WaterfallSliceParams:
     center_freq: float
 
 
-def _process_waterfall_slice(params: WaterfallSliceParams) -> dict | None:
+def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | None:
     """Process a single waterfall slice."""
     # Calculate sample range for this slice
     slice_start_sample = (
@@ -94,7 +96,6 @@ def _process_waterfall_slice(params: WaterfallSliceParams) -> dict | None:
 def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | None:
     """Reconstruct DigitalRF directory structure from SDS files."""
     # Import utilities here to avoid Django app registry issues
-    from sds_gateway.api_methods.utils.minio_client import get_minio_client  # noqa: PLC0415
 
     logger.info("Reconstructing DigitalRF directory structure")
 
@@ -140,7 +141,7 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
 
 def convert_drf_to_waterfall_json(  # noqa: C901, PLR0915
     drf_path: Path, channel: str, processing_type: str, max_slices: int | None = None
-) -> dict:
+) -> dict[str, Any]:
     """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
     logger.info(
         f"Converting DigitalRF data to waterfall JSON format for channel {channel}"

@@ -2,7 +2,11 @@
 Visualization configuration and compatibility rules.
 """
 
+from typing import Any
+
 from django.conf import settings
+
+from sds_gateway.api_methods.models import CaptureType
 
 
 def get_visualization_compatibility():
@@ -12,8 +16,6 @@ def get_visualization_compatibility():
     Returns:
         Dict of visualization compatibility rules
     """
-    # Lazy import to avoid circular import issues
-    from sds_gateway.api_methods.models import CaptureType
 
     compatibility = {
         "waterfall": {
@@ -40,7 +42,7 @@ def get_visualization_compatibility():
     return compatibility
 
 
-def get_available_visualizations(capture_type: str) -> dict:
+def get_available_visualizations(capture_type: str) -> dict[str, Any]:
     """
     Get available visualizations for a given capture type.
 
