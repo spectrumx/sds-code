@@ -113,9 +113,9 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
             file_path = Path(
                 f"{capture_dir}/{file_obj.directory}/{file_obj.name}"
             ).resolve()
-            assert file_path.is_relative_to(temp_path), (
-                f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
-            )
+            assert file_path.is_relative_to(
+                temp_path
+            ), f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Download the file from MinIO
@@ -204,13 +204,155 @@ def _get_center_frequency(
     return center_freq
 
 
-def convert_drf_to_waterfall_json(
-    drf_path: Path, channel: str, max_slices: int | None = None
+def convert_drf_to_waterfall_lowres_json(
+    drf_path: Path, channel: str
 ) -> WaterfallJsonResult:
-    """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
+    """Convert DigitalRF data to low-resolution waterfall JSON format for overview.
+
+    This reuses the existing waterfall processing logic but with different parameters
+    to create a compact overview suitable for navigation.
+    """
 
     logger.info(
-        f"Converting DigitalRF data to waterfall JSON format for channel {channel}"
+        f"Converting DigitalRF data to low-resolution waterfall JSON format "
+        f"for channel {channel}"
+    )
+
+    try:
+        # Reuse existing waterfall processing with overview-specific parameters
+        overview_height = 200  # Fixed height for overview
+        fft_size = 256  # Smaller FFT for overview
+        samples_per_slice = 1024  # Same as regular waterfall
+
+        # Get the regular waterfall result first with smaller FFT size
+        regular_result = convert_drf_to_waterfall_json(
+            drf_path, channel, fft_size=fft_size, samples_per_slice=samples_per_slice
+        )
+
+        if regular_result["status"] != "success":
+            return regular_result
+
+        regular_data = regular_result["json_data"]
+        metadata = regular_result["metadata"]
+
+        # Calculate how many slices to combine for overview
+        total_slices = len(regular_data)
+        slices_per_overview_row = max(1, total_slices // overview_height)
+
+        logger.info(
+            f"Creating overview from {total_slices} slices, combining "
+            f"{slices_per_overview_row} slices per overview row"
+        )
+
+        # Group slices into overview rows
+        overview_rows = []
+        for i, slice_data in enumerate(regular_data):
+            overview_row_idx = i // slices_per_overview_row
+
+            if overview_row_idx >= len(overview_rows):
+                overview_rows.append(
+                    {"data": [], "timestamps": [], "slice_indices": []}
+                )
+
+            overview_rows[overview_row_idx]["data"].append(slice_data["data"])
+            overview_rows[overview_row_idx]["timestamps"].append(
+                slice_data["timestamp"]
+            )
+            overview_rows[overview_row_idx]["slice_indices"].append(i)
+
+        # Create overview data by averaging slices in each row
+        overview_data = []
+        for row in overview_rows:
+            if not row["data"]:
+                continue
+
+            # Parse and average the data for this row
+            parsed_data = []
+            for data_str in row["data"]:
+                try:
+                    binary_string = base64.b64decode(data_str)
+                    bytes_array = np.frombuffer(binary_string, dtype=np.uint8)
+                    float_array = np.frombuffer(bytes_array, dtype=np.float32)
+                    parsed_data.append(float_array)
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"Failed to parse data for overview: {e}")
+                    continue
+
+            if parsed_data:
+                # Average the power spectra for this row
+                avg_data = np.mean(parsed_data, axis=0)
+
+                # Convert back to base64
+                data_bytes = avg_data.astype(np.float32).tobytes()
+                data_string = base64.b64encode(data_bytes).decode("utf-8")
+
+                # Use the first timestamp for this row
+                timestamp = row["timestamps"][0] if row["timestamps"] else ""
+
+                overview_slice = {
+                    "data": data_string,
+                    "data_type": "float32",
+                    "timestamp": timestamp,
+                    "min_frequency": metadata["min_frequency"],
+                    "max_frequency": metadata["max_frequency"],
+                    "num_samples": metadata["samples_per_slice"] * len(row["data"]),
+                    "sample_rate": metadata["sample_rate"],
+                    "center_frequency": metadata["center_frequency"],
+                    "custom_fields": {
+                        "channel_name": channel,
+                        "overview_row": len(overview_data),
+                        "slices_combined": len(row["data"]),
+                        "slice_indices": row["slice_indices"],
+                        "fft_size": fft_size,
+                    },
+                }
+                overview_data.append(overview_slice)
+
+        # Update metadata for overview
+        overview_metadata = metadata.copy()
+        overview_metadata.update(
+            {
+                "overview_rows": len(overview_data),
+                "slices_per_overview_row": slices_per_overview_row,
+                "fft_size": fft_size,
+                "processing_type": "overview",
+            }
+        )
+
+        return WaterfallJsonResult(
+            status="success",
+            message="Low-resolution waterfall data converted to JSON successfully",
+            json_data=overview_data,
+            metadata=overview_metadata,
+        )
+
+    except Exception as e:
+        logger.exception(
+            f"Error converting DigitalRF to low-resolution waterfall JSON: {e}"
+        )
+        raise
+
+
+def convert_drf_to_waterfall_json(
+    drf_path: Path,
+    channel: str,
+    max_slices: int | None = None,
+    fft_size: int = 1024,
+    samples_per_slice: int = 1024,
+) -> WaterfallJsonResult:
+    """Convert DigitalRF data to waterfall JSON format similar to SVI implementation.
+
+    Args:
+        drf_path: Path to DigitalRF data directory
+        channel: Channel name to process
+        max_slices: Maximum number of slices to process (None for all)
+        fft_size: FFT size for processing (default: 1024)
+        samples_per_slice: Number of samples per slice (default: 1024)
+    """
+
+    logger.info(
+        f"Converting DigitalRF data to waterfall JSON format for channel {channel} "
+        f"with FFT size {fft_size} and {samples_per_slice} samples per slice"
     )
 
     try:
@@ -231,10 +373,6 @@ def convert_drf_to_waterfall_json(
         min_frequency = center_freq - freq_span / 2
         max_frequency = center_freq + freq_span / 2
 
-        # Processing parameters
-        fft_size = 1024  # Default, could be configurable
-        samples_per_slice = 1024  # Default, could be configurable
-
         # Calculate total slices and limit to max_slices
         total_slices = total_samples // samples_per_slice
         slices_to_process = (
@@ -243,7 +381,7 @@ def convert_drf_to_waterfall_json(
 
         logger.info(
             f"Processing {slices_to_process} slices with "
-            f"{samples_per_slice} samples per slice"
+            f"{samples_per_slice} samples per slice and FFT size {fft_size}"
         )
 
         # Process slices and create JSON data

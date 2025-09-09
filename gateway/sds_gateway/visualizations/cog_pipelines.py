@@ -69,6 +69,19 @@ def get_visualization_pipeline_config() -> dict[str, Any]:
                 ],
             },
             {
+                "name": "waterfall_lowres_stage",
+                "description": "Process low-resolution waterfall data for overview",
+                "depends_on": ["setup_stage"],
+                "tasks": [
+                    {
+                        "name": "process_waterfall_lowres",
+                        "cog": "process_waterfall_lowres_data_cog",
+                        "args": {},
+                        "description": "Process low-resolution waterfall data",
+                    }
+                ],
+            },
+            {
                 "name": "spectrogram_stage",
                 "description": "Process spectrogram data (downloads, processes, and "
                 "stores)",
@@ -160,9 +173,9 @@ def setup_post_processing_cog(
                     raise ValueError(error_msg) from None
 
         # At this point, capture should not be None due to the retry logic above
-        assert capture is not None, (
-            f"Capture {capture_uuid} should have been found by now"
-        )
+        assert (
+            capture is not None
+        ), f"Capture {capture_uuid} should have been found by now"
 
         # Validate capture type
         # Import here to avoid Django app registry issues
@@ -192,6 +205,38 @@ def setup_post_processing_cog(
     except Exception as e:
         logger.error(f"Setup failed for capture {capture_uuid}: {e}")
         raise
+
+
+def _process_waterfall_lowres_json_data(capture, processed_data_obj, temp_path):
+    """Process low-resolution waterfall JSON data and return result."""
+    from sds_gateway.visualizations.processing.waterfall import (
+        convert_drf_to_waterfall_lowres_json,
+    )
+    from sds_gateway.visualizations.processing.waterfall import reconstruct_drf_files
+
+    # Get capture files
+    capture_files = capture.capture_files.filter(is_deleted=False)
+    if not capture_files.exists():
+        error_msg = f"No capture files found for capture {capture.uuid}"
+        raise ValueError(error_msg)
+
+    # Reconstruct DigitalRF files
+    drf_path = reconstruct_drf_files(capture, capture_files, temp_path)
+    if not drf_path:
+        error_msg = f"Failed to reconstruct DigitalRF files for capture {capture.uuid}"
+        raise ValueError(error_msg)
+
+    # Get channel name from capture
+    channel = capture.channel or "0"  # Default to channel 0 if not specified
+
+    # Process the data
+    waterfall_result = convert_drf_to_waterfall_lowres_json(drf_path, channel)
+
+    if waterfall_result["status"] != "success":
+        processed_data_obj.mark_processing_failed(waterfall_result["message"])
+        raise ValueError(waterfall_result["message"])
+
+    return waterfall_result
 
 
 def _process_waterfall_json_data(capture, processed_data_obj, temp_path):
@@ -257,6 +302,93 @@ def _store_waterfall_json_file(capture_uuid, waterfall_result, processed_data_ob
 
 
 @cog
+def process_waterfall_lowres_data_cog(
+    capture_uuid: str,
+    processing_config: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Process low-resolution waterfall data for a capture overview.
+
+    Args:
+        capture_uuid: UUID of the capture to process
+        processing_config: Dict with processing configurations
+
+    Returns:
+        Dict with status and processed data info
+    """
+    processing_types = list(processing_config.keys()) if processing_config else []
+    if "waterfall_lowres" not in processing_types:
+        logger.info(
+            f"Skipping low-res waterfall processing for capture {capture_uuid} - not requested"
+        )
+        return {
+            "status": "skipped",
+            "message": "Low-res waterfall processing not requested",
+            "capture_uuid": capture_uuid,
+        }
+
+    logger.info(f"Processing low-res waterfall JSON data for capture {capture_uuid}")
+
+    try:
+        from sds_gateway.api_methods.models import Capture
+        from sds_gateway.visualizations.models import PostProcessedData
+        from sds_gateway.visualizations.models import ProcessingType
+
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+        processed_data_obj = PostProcessedData.objects.filter(
+            capture=capture, processing_type=ProcessingType.WaterfallLowRes.value
+        ).first()
+
+        if not processed_data_obj:
+            error_msg = f"No processed data record found for {ProcessingType.WaterfallLowRes.value}"
+            raise ValueError(error_msg)  # noqa: TRY301
+
+        processed_data_obj.mark_processing_started(pipeline_id="django_cog_pipeline")
+
+        with tempfile.TemporaryDirectory(
+            prefix=f"waterfall_lowres_{capture_uuid}_"
+        ) as temp_dir:
+            temp_path = Path(temp_dir)
+            temp_file_path = None
+            try:
+                waterfall_result = _process_waterfall_lowres_json_data(
+                    capture, processed_data_obj, temp_path
+                )
+                store_result, temp_file_path = _store_waterfall_json_file(
+                    capture_uuid, waterfall_result, processed_data_obj
+                )
+
+                processed_data_obj.mark_processing_completed()
+                logger.info(
+                    f"Completed low-res waterfall processing for capture {capture_uuid}"
+                )
+
+                return {
+                    "status": "success",
+                    "capture_uuid": capture_uuid,
+                    "message": "Low-res waterfall JSON data processed and stored successfully",
+                    "json_data": waterfall_result["json_data"],
+                    "metadata": waterfall_result["metadata"],
+                    "store_result": store_result,
+                }
+            except Exception as e:
+                processed_data_obj.mark_processing_failed(f"Processing failed: {e!s}")
+                raise
+            finally:
+                if temp_file_path:
+                    Path(temp_file_path).unlink(missing_ok=True)
+                    logger.info(f"Cleaned up temporary file {temp_file_path}")
+
+    except Exception as e:
+        logger.error(
+            f"Low-res waterfall processing failed for capture {capture_uuid}: {e}"
+        )
+        return {
+            "status": "error",
+            "capture_uuid": capture_uuid,
+            "message": f"Low-res waterfall processing failed: {e!s}",
+        }
+
+
 def process_waterfall_data_cog(
     capture_uuid: str,
     processing_config: dict[str, dict[str, Any]],

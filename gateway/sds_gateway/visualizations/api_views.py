@@ -679,6 +679,57 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @action(detail=True, methods=["get"], url_path="download_waterfall_lowres")
+    def download_waterfall_lowres(
+        self, request: Request, pk: str | None = None
+    ) -> Response | FileResponse:
+        """
+        Download the generated low-resolution waterfall data for overview.
+        """
+        try:
+            job_id = request.query_params.get("job_id")
+            if not job_id:
+                return Response(
+                    {"error": "job_id parameter is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the processing job
+            processing_job = get_object_or_404(
+                PostProcessedData,
+                uuid=job_id,
+                capture__uuid=pk,
+                processing_type=ProcessingType.WaterfallLowRes.value,
+            )
+
+            if processing_job.processing_status != ProcessingStatus.Completed.value:
+                return Response(
+                    {"error": "Low-res waterfall processing not completed"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not processing_job.data_file:
+                return Response(
+                    {"error": "No low-res waterfall file found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Return the file
+            file_response = FileResponse(
+                processing_job.data_file, content_type="application/json"
+            )
+            file_response["Content-Disposition"] = (
+                f'attachment; filename="waterfall_lowres_{pk}.json"'
+            )
+            return file_response  # noqa: TRY300
+
+        except Exception as e:  # noqa: BLE001
+            log.error(f"Error downloading low-res waterfall: {e}")
+            return Response(
+                {"error": "Failed to download low-res waterfall"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
     def _start_waterfall_processing(self, waterfall_data: PostProcessedData) -> None:
         """
         Start waterfall processing using the cog pipeline.
@@ -694,7 +745,7 @@ class VisualizationViewSet(ViewSet):
 
                 # Launch the waterfall processing task with empty config
                 # The waterfall processing function uses hardcoded defaults
-                processing_config = {"waterfall": {}}
+                processing_config = {"waterfall": {}, "waterfall_lowres": {}}
 
                 result = start_capture_post_processing.delay(  # type: ignore[attr-defined]
                     str(waterfall_data.capture.uuid), processing_config

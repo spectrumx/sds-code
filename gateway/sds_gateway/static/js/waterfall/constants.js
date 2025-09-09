@@ -31,6 +31,8 @@ export const API_ENDPOINTS = {
 	getWaterfallStatus: "/api/v1/visualizations/{capture_uuid}/waterfall_status/",
 	getWaterfallResult:
 		"/api/v1/visualizations/{capture_uuid}/download_waterfall/",
+	getWaterfallLowResResult:
+		"/api/v1/visualizations/{capture_uuid}/download_waterfall_lowres/",
 };
 
 // Status messages

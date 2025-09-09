@@ -9,6 +9,7 @@ import {
 	ERROR_MESSAGES,
 	STATUS_MESSAGES,
 } from "./constants.js";
+import { WaterfallBase } from "./WaterfallBase.js";
 
 class WaterfallVisualization {
 	constructor(captureUuid) {
@@ -18,6 +19,7 @@ class WaterfallVisualization {
 		this.waterfallRenderer = null;
 		this.periodogramChart = null;
 		this.controls = null;
+		this.overview = null;
 
 		// Data state
 		this.waterfallData = [];
@@ -61,6 +63,9 @@ class WaterfallVisualization {
 
 			// Load initial data
 			await this.loadWaterfallData();
+
+			// Load overview data
+			await this.loadOverviewData();
 
 			// Set up event listeners for component communication
 			this.setupComponentEventListeners();
@@ -110,6 +115,10 @@ class WaterfallVisualization {
 			},
 		);
 		this.controls.setupEventListeners();
+
+		// Initialize overview
+		this.overview = new WaterfallOverview("waterfallOverviewCanvas");
+		this.overview.initialize();
 	}
 
 	/**
@@ -143,11 +152,20 @@ class WaterfallVisualization {
 			this.colorMap = colorMap;
 
 			this.waterfallRenderer.setColorMap(colorMap);
+			if (this.overview) {
+				this.overview.updateColorMap(colorMap);
+			}
 
 			this.updateColorLegend();
 
 			// Re-render waterfall with new color map
 			this.renderWaterfall();
+		});
+
+		// Listen for overview row click events
+		document.addEventListener("overview:rowClicked", (event) => {
+			const { rowIndex } = event.detail;
+			this.navigateToOverviewRow(rowIndex);
 		});
 	}
 
@@ -394,6 +412,55 @@ class WaterfallVisualization {
 	}
 
 	/**
+	 * Load overview data from the SDS API
+	 */
+	async loadOverviewData() {
+		if (!this.overview) return;
+
+		try {
+			const success = await this.overview.loadOverviewData(this.captureUuid);
+			if (!success) {
+				console.log("Overview data not available, skipping overview");
+			}
+		} catch (error) {
+			console.error("Failed to load overview data:", error);
+		}
+	}
+
+	/**
+	 * Navigate to a specific row in the overview
+	 */
+	navigateToOverviewRow(rowIndex) {
+		if (!this.overview || !this.overview.overviewData) return;
+
+		const row = this.overview.overviewData[rowIndex];
+		if (!row || !row.custom_fields) return;
+
+		const sliceIndices = row.custom_fields.slice_indices || [];
+		if (sliceIndices.length === 0) return;
+
+		// Navigate to the first slice in this overview row
+		const targetSliceIndex = sliceIndices[0];
+
+		// Update visualization state
+		this.currentSliceIndex = targetSliceIndex;
+		this.waterfallRenderer.setCurrentSliceIndex(targetSliceIndex);
+
+		// Update controls UI
+		this.controls.setCurrentSliceIndex(targetSliceIndex);
+
+		// Update window to show this slice
+		const windowStart = Math.max(0, targetSliceIndex - Math.floor(this.waterfallRenderer.WATERFALL_WINDOW_SIZE / 2));
+		this.waterfallWindowStart = windowStart;
+		this.waterfallRenderer.setWaterfallWindowStart(windowStart);
+
+		// Re-render everything
+		this.renderWaterfall();
+		this.renderPeriodogram();
+		this.updateSliceHighlights();
+	}
+
+	/**
 	 * Load waterfall data from the SDS API
 	 */
 	async loadWaterfallData() {
@@ -445,7 +512,7 @@ class WaterfallVisualization {
 			// Parse all waterfall data once and cache it
 			this.parsedWaterfallData = this.waterfallData.map((slice) => ({
 				...slice,
-				data: this.parseWaterfallData(slice.data),
+				data: WaterfallBase.parseWaterfallData(slice.data),
 			}));
 
 			// Calculate power bounds from all data
@@ -623,7 +690,7 @@ class WaterfallVisualization {
 			// Parse all waterfall data once and cache it
 			this.parsedWaterfallData = this.waterfallData.map((slice) => ({
 				...slice,
-				data: this.parseWaterfallData(slice.data),
+				data: WaterfallBase.parseWaterfallData(slice.data),
 			}));
 
 			// Calculate power bounds from all data
@@ -678,24 +745,6 @@ class WaterfallVisualization {
 		return token ? token.value : "";
 	}
 
-	/**
-	 * Parse base64 waterfall data
-	 */
-	parseWaterfallData(base64Data) {
-		try {
-			const binaryString = atob(base64Data);
-			const bytes = new Uint8Array(binaryString.length);
-			for (let i = 0; i < binaryString.length; i++) {
-				bytes[i] = binaryString.charCodeAt(i);
-			}
-
-			const floatArray = new Float32Array(bytes.buffer);
-			return Array.from(floatArray);
-		} catch (error) {
-			console.error("Failed to parse waterfall data:", error);
-			return null;
-		}
-	}
 
 	/**
 	 * Calculate power bounds from all waterfall data
@@ -708,34 +757,15 @@ class WaterfallVisualization {
 			return;
 		}
 
-		let globalMin = Number.POSITIVE_INFINITY;
-		let globalMax = Number.NEGATIVE_INFINITY;
+		// Extract data arrays for bounds calculation
+		const dataArrays = this.parsedWaterfallData
+			.filter(slice => slice.data && slice.data.length > 0)
+			.map(slice => slice.data);
 
-		// Iterate through all parsed slices to find global min/max
-		for (const slice of this.parsedWaterfallData) {
-			if (slice.data && slice.data.length > 0) {
-				const sliceMin = Math.min(...slice.data);
-				const sliceMax = Math.max(...slice.data);
-
-				globalMin = Math.min(globalMin, sliceMin);
-				globalMax = Math.max(globalMax, sliceMax);
-			}
-		}
-
-		// If we found valid data, use it; otherwise fall back to defaults
-		if (
-			globalMin !== Number.POSITIVE_INFINITY &&
-			globalMax !== Number.NEGATIVE_INFINITY
-		) {
-			// Add a small margin (5%) to the bounds for better visualization
-			const margin = (globalMax - globalMin) * 0.05;
-			this.scaleMin = globalMin - margin;
-			this.scaleMax = globalMax + margin;
-		} else {
-			// Fallback to default bounds
-			this.scaleMin = -130;
-			this.scaleMax = 0;
-		}
+		// Use base class method to calculate bounds
+		const bounds = WaterfallBase.calculatePowerBounds(dataArrays);
+		this.scaleMin = bounds.min;
+		this.scaleMax = bounds.max;
 	}
 
 	/**
@@ -873,6 +903,9 @@ class WaterfallVisualization {
 		}
 		if (this.controls) {
 			this.controls.destroy();
+		}
+		if (this.overview) {
+			this.overview.destroy();
 		}
 
 		// Remove event listeners
