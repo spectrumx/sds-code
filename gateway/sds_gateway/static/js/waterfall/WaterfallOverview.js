@@ -3,8 +3,8 @@
  * Displays a compact overview of the entire waterfall dataset
  */
 
-import { DEFAULT_COLOR_MAP } from "./constants.js";
 import { WaterfallBase } from "./WaterfallBase.js";
+import { DEFAULT_COLOR_MAP } from "./constants.js";
 
 class WaterfallOverview {
 	constructor(canvasId) {
@@ -72,31 +72,35 @@ class WaterfallOverview {
 		try {
 			// First check if low-res waterfall data is available
 			const statusResponse = await fetch(
-				`/api/latest/assets/captures/${captureUuid}/post_processing_status/`
+				`/api/latest/assets/captures/${captureUuid}/post_processing_status/`,
 			);
 			if (!statusResponse.ok) {
-				throw new Error(`Failed to get post-processing status: ${statusResponse.status}`);
+				throw new Error(
+					`Failed to get post-processing status: ${statusResponse.status}`,
+				);
 			}
 
 			const statusData = await statusResponse.json();
-			const lowresData = statusData.post_processed_data.find(
+			const lowResData = statusData.post_processed_data.find(
 				(data) =>
-					data.processing_type === "waterfall_lowres" &&
-					data.processing_status === "completed"
+					data.processing_type === "waterfall_low_res" &&
+					data.processing_status === "completed",
 			);
 
-			if (!lowresData) {
+			if (!lowResData) {
 				console.log("No low-res waterfall data found");
 				return false;
 			}
 
 			// Get the low-res waterfall data
 			const dataResponse = await fetch(
-				`/api/latest/assets/captures/${captureUuid}/download_post_processed_data/?processing_type=waterfall_lowres`
+				`/api/latest/assets/captures/${captureUuid}/download_post_processed_data/?processing_type=waterfall_low_res`,
 			);
 
 			if (!dataResponse.ok) {
-				throw new Error(`Failed to download low-res waterfall data: ${dataResponse.status}`);
+				throw new Error(
+					`Failed to download low-res waterfall data: ${dataResponse.status}`,
+				);
 			}
 
 			const overviewJson = await dataResponse.json();
@@ -158,7 +162,7 @@ class WaterfallOverview {
 		this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
 
 		// Calculate row height
-		const plotHeight = this.canvasHeight - (this.margin * 2);
+		const plotHeight = this.canvasHeight - this.margin * 2;
 		const rowHeight = plotHeight / this.totalRows;
 
 		// Render each row
@@ -170,7 +174,7 @@ class WaterfallOverview {
 			if (!parsedData || parsedData.length === 0) continue;
 
 			// Calculate row position
-			const y = this.margin + (i * rowHeight);
+			const y = this.margin + i * rowHeight;
 
 			// Render the row as a horizontal line
 			this.renderRow(parsedData, y, rowHeight);
@@ -181,19 +185,28 @@ class WaterfallOverview {
 	 * Render a single row of data
 	 */
 	renderRow(data, y, rowHeight) {
-		const plotWidth = this.canvasWidth - (this.margin * 2);
+		const plotWidth = this.canvasWidth - this.margin * 2;
 
 		// Create gradient for this row
 		const gradient = this.ctx.createLinearGradient(
-			this.margin, y,
-			this.margin + plotWidth, y
+			this.margin,
+			y,
+			this.margin + plotWidth,
+			y,
 		);
 
 		// Add color stops based on data values
 		for (let i = 0; i < data.length; i++) {
 			const value = data[i];
-			const normalizedValue = WaterfallBase.normalizeValue(value, this.scaleMin, this.scaleMax);
-			const color = WaterfallBase.getColorForValue(normalizedValue, this.colorMap);
+			const normalizedValue = WaterfallBase.normalizeValue(
+				value,
+				this.scaleMin,
+				this.scaleMax,
+			);
+			const color = WaterfallBase.getColorForValue(
+				normalizedValue,
+				this.colorMap,
+			);
 			const offset = i / (data.length - 1);
 			gradient.addColorStop(offset, color);
 		}
@@ -202,7 +215,6 @@ class WaterfallOverview {
 		this.ctx.fillStyle = gradient;
 		this.ctx.fillRect(this.margin, y, plotWidth, rowHeight);
 	}
-
 
 	/**
 	 * Handle canvas mouse move for hover effects
@@ -214,7 +226,7 @@ class WaterfallOverview {
 		const y = event.clientY - rect.top;
 
 		// Calculate which row is being hovered
-		const plotHeight = this.canvasHeight - (this.margin * 2);
+		const plotHeight = this.canvasHeight - this.margin * 2;
 		const rowHeight = plotHeight / this.totalRows;
 		const adjustedY = y - this.margin;
 
@@ -250,7 +262,7 @@ class WaterfallOverview {
 		if (this.hoveredRow !== null) {
 			// Emit event for main waterfall to navigate to this row
 			const clickEvent = new CustomEvent("overview:rowClicked", {
-				detail: { rowIndex: this.hoveredRow }
+				detail: { rowIndex: this.hoveredRow },
 			});
 			document.dispatchEvent(clickEvent);
 		}
@@ -267,9 +279,9 @@ class WaterfallOverview {
 		const sliceElement = this.tooltip.querySelector(".tooltip-slice");
 
 		if (timeElement && sliceElement) {
-		// Format timestamp
-		const timestamp = row.timestamp || "Unknown time";
-		const formattedTime = WaterfallBase.formatTimestamp(timestamp);
+			// Format timestamp
+			const timestamp = row.timestamp || "Unknown time";
+			const formattedTime = WaterfallBase.formatTimestamp(timestamp);
 
 			// Get slice information
 			const sliceInfo = row.custom_fields || {};
@@ -283,7 +295,7 @@ class WaterfallOverview {
 			const rect = this.canvas.getBoundingClientRect();
 			const tooltipRect = this.tooltip.getBoundingClientRect();
 
-			let left = event.clientX - rect.left - (tooltipRect.width / 2);
+			let left = event.clientX - rect.left - tooltipRect.width / 2;
 			let top = event.clientY - rect.top - tooltipRect.height - 10;
 
 			// Adjust if tooltip would go off screen
@@ -310,7 +322,6 @@ class WaterfallOverview {
 		}
 	}
 
-
 	/**
 	 * Update color map
 	 */
@@ -325,7 +336,10 @@ class WaterfallOverview {
 	destroy() {
 		if (this.canvas) {
 			this.canvas.removeEventListener("mousemove", this.handleCanvasMouseMove);
-			this.canvas.removeEventListener("mouseleave", this.handleCanvasMouseLeave);
+			this.canvas.removeEventListener(
+				"mouseleave",
+				this.handleCanvasMouseLeave,
+			);
 			this.canvas.removeEventListener("click", this.handleCanvasClick);
 		}
 

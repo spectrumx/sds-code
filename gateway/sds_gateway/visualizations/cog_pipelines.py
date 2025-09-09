@@ -69,13 +69,13 @@ def get_visualization_pipeline_config() -> dict[str, Any]:
                 ],
             },
             {
-                "name": "waterfall_lowres_stage",
+                "name": "waterfall_low_res_stage",
                 "description": "Process low-resolution waterfall data for overview",
                 "depends_on": ["setup_stage"],
                 "tasks": [
                     {
-                        "name": "process_waterfall_lowres",
-                        "cog": "process_waterfall_lowres_data_cog",
+                        "name": "process_waterfall_low_res",
+                        "cog": "process_waterfall_low_res_data_cog",
                         "args": {},
                         "description": "Process low-resolution waterfall data",
                     }
@@ -173,9 +173,9 @@ def setup_post_processing_cog(
                     raise ValueError(error_msg) from None
 
         # At this point, capture should not be None due to the retry logic above
-        assert (
-            capture is not None
-        ), f"Capture {capture_uuid} should have been found by now"
+        assert capture is not None, (
+            f"Capture {capture_uuid} should have been found by now"
+        )
 
         # Validate capture type
         # Import here to avoid Django app registry issues
@@ -207,10 +207,10 @@ def setup_post_processing_cog(
         raise
 
 
-def _process_waterfall_lowres_json_data(capture, processed_data_obj, temp_path):
+def _process_waterfall_low_res_json_data(capture, processed_data_obj, temp_path):
     """Process low-resolution waterfall JSON data and return result."""
     from sds_gateway.visualizations.processing.waterfall import (
-        convert_drf_to_waterfall_lowres_json,
+        convert_drf_to_waterfall_low_res_json,
     )
     from sds_gateway.visualizations.processing.waterfall import reconstruct_drf_files
 
@@ -230,7 +230,7 @@ def _process_waterfall_lowres_json_data(capture, processed_data_obj, temp_path):
     channel = capture.channel or "0"  # Default to channel 0 if not specified
 
     # Process the data
-    waterfall_result = convert_drf_to_waterfall_lowres_json(drf_path, channel)
+    waterfall_result = convert_drf_to_waterfall_low_res_json(drf_path, channel)
 
     if waterfall_result["status"] != "success":
         processed_data_obj.mark_processing_failed(waterfall_result["message"])
@@ -302,7 +302,7 @@ def _store_waterfall_json_file(capture_uuid, waterfall_result, processed_data_ob
 
 
 @cog
-def process_waterfall_lowres_data_cog(
+def process_waterfall_low_res_data_cog(
     capture_uuid: str,
     processing_config: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
@@ -316,7 +316,7 @@ def process_waterfall_lowres_data_cog(
         Dict with status and processed data info
     """
     processing_types = list(processing_config.keys()) if processing_config else []
-    if "waterfall_lowres" not in processing_types:
+    if "waterfall_low_res" not in processing_types:
         logger.info(
             f"Skipping low-res waterfall processing for capture {capture_uuid} - not requested"
         )
@@ -345,12 +345,12 @@ def process_waterfall_lowres_data_cog(
         processed_data_obj.mark_processing_started(pipeline_id="django_cog_pipeline")
 
         with tempfile.TemporaryDirectory(
-            prefix=f"waterfall_lowres_{capture_uuid}_"
+            prefix=f"waterfall_low_res_{capture_uuid}_"
         ) as temp_dir:
             temp_path = Path(temp_dir)
             temp_file_path = None
             try:
-                waterfall_result = _process_waterfall_lowres_json_data(
+                waterfall_result = _process_waterfall_low_res_json_data(
                     capture, processed_data_obj, temp_path
                 )
                 store_result, temp_file_path = _store_waterfall_json_file(

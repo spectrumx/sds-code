@@ -57,7 +57,6 @@ class ProcessingType(StrEnum):
     """The type of post-processing."""
 
     Waterfall = "waterfall"
-    WaterfallLowRes = "waterfall_lowres"
     Spectrogram = "spectrogram"
 
     def get_pipeline_name(self) -> str:

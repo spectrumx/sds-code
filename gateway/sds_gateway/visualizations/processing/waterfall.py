@@ -113,9 +113,9 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
             file_path = Path(
                 f"{capture_dir}/{file_obj.directory}/{file_obj.name}"
             ).resolve()
-            assert file_path.is_relative_to(
-                temp_path
-            ), f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
+            assert file_path.is_relative_to(temp_path), (
+                f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
+            )
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Download the file from MinIO
@@ -204,7 +204,7 @@ def _get_center_frequency(
     return center_freq
 
 
-def convert_drf_to_waterfall_lowres_json(
+def convert_drf_to_waterfall_low_res_json(
     drf_path: Path, channel: str
 ) -> WaterfallJsonResult:
     """Convert DigitalRF data to low-resolution waterfall JSON format for overview.

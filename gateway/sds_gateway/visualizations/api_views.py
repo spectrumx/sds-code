@@ -679,8 +679,8 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=["get"], url_path="download_waterfall_lowres")
-    def download_waterfall_lowres(
+    @action(detail=True, methods=["get"], url_path="download_waterfall_low_res")
+    def download_waterfall_low_res(
         self, request: Request, pk: str | None = None
     ) -> Response | FileResponse:
         """
@@ -719,7 +719,7 @@ class VisualizationViewSet(ViewSet):
                 processing_job.data_file, content_type="application/json"
             )
             file_response["Content-Disposition"] = (
-                f'attachment; filename="waterfall_lowres_{pk}.json"'
+                f'attachment; filename="waterfall_low_res_{pk}.json"'
             )
             return file_response  # noqa: TRY300
 
@@ -745,7 +745,7 @@ class VisualizationViewSet(ViewSet):
 
                 # Launch the waterfall processing task with empty config
                 # The waterfall processing function uses hardcoded defaults
-                processing_config = {"waterfall": {}, "waterfall_lowres": {}}
+                processing_config = {"waterfall": {}, "waterfall_low_res": {}}
 
                 result = start_capture_post_processing.delay(  # type: ignore[attr-defined]
                     str(waterfall_data.capture.uuid), processing_config

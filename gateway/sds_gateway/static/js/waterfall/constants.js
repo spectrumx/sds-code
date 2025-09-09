@@ -32,7 +32,7 @@ export const API_ENDPOINTS = {
 	getWaterfallResult:
 		"/api/v1/visualizations/{capture_uuid}/download_waterfall/",
 	getWaterfallLowResResult:
-		"/api/v1/visualizations/{capture_uuid}/download_waterfall_lowres/",
+		"/api/v1/visualizations/{capture_uuid}/download_waterfall_low_res/",
 };
 
 // Status messages
