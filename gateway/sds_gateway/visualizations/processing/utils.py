@@ -1,18 +1,21 @@
 """Shared utilities for visualization processing."""
 
 import datetime
+import os
 from pathlib import Path
+from typing import Any
 
+from django.conf import settings
 from loguru import logger
+
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.utils.minio_client import get_minio_client
+from sds_gateway.visualizations.models import PostProcessedData
+from sds_gateway.visualizations.models import ProcessingStatus
 
 
 def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | None:
     """Reconstruct DigitalRF directory structure from SDS files."""
-    # Import utilities here to avoid Django app registry issues
-    from django.conf import settings
-
-    from sds_gateway.api_methods.utils.minio_client import get_minio_client
-
     logger.info("Reconstructing DigitalRF directory structure")
 
     try:
@@ -40,9 +43,6 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
                 file_path=str(file_path),
             )
 
-        # Find the DigitalRF root directory (parent of the channel directory)
-        import os
-
         for root, _dirs, files in os.walk(capture_dir):
             if "drf_properties.h5" in files:
                 # The DigitalRF root is the parent of the channel directory
@@ -62,8 +62,8 @@ def store_processed_data(
     processing_type: str,
     curr_file_path: str,
     new_filename: str,
-    metadata: dict | None = None,
-) -> dict:
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Store processed data back to SDS storage as a file.
 
@@ -77,9 +77,6 @@ def store_processed_data(
     Returns:
         dict: Storage result
     """
-    # Import models here to avoid Django app registry issues
-    from sds_gateway.api_methods.models import Capture
-    from sds_gateway.visualizations.models import PostProcessedData
 
     logger.info(f"Storing {processing_type} file for capture {capture_uuid}")
 
@@ -136,9 +133,6 @@ def _create_or_reset_processed_data(capture, processing_type: str):
     Returns:
         PostProcessedData: The created or reset record
     """
-    # Import models here to avoid Django app registry issues
-    from sds_gateway.visualizations.models import PostProcessedData
-    from sds_gateway.visualizations.models import ProcessingStatus
 
     # Try to get existing record
     processed_data, newly_created = PostProcessedData.objects.get_or_create(
