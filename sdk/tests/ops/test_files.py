@@ -513,21 +513,22 @@ class TestIsValidFile:
             test_file = tmp_path / filename
             test_file.write_text("test content")
 
-            # Check if this filename would actually match any of the disallowed patterns
+            # Verify that this filename matches the expected pattern
             matches_pattern = any(test_file.match(glob) for glob in disallowed_globs)
-            if matches_pattern:
-                is_valid, reasons = is_valid_file(test_file)
-                assert is_valid is False, (
-                    f"File {filename} should fail validation due to glob pattern "
-                    f"{expected_pattern}"
-                )
-                assert any("undesired glob patterns" in reason for reason in reasons), (
-                    f"No glob pattern reason found for {filename}"
-                )
-            else:
-                # If the pattern doesn't match, skip this test case
-                # This can happen if the .sds-ignore file changes
-                continue
+            assert matches_pattern, (
+                f"File {filename} should match pattern {expected_pattern} "
+                f"from .sds-ignore. Available patterns: {disallowed_globs}"
+            )
+
+            # Test that the file fails validation due to the glob pattern
+            is_valid, reasons = is_valid_file(test_file)
+            assert is_valid is False, (
+                f"File {filename} should fail validation due to glob pattern "
+                f"{expected_pattern}"
+            )
+            assert any("undesired glob patterns" in reason for reason in reasons), (
+                f"No glob pattern reason found for {filename}"
+            )
 
     def test_multiple_validation_failures(self, tmp_path: Path) -> None:
         """Test that multiple validation failures are all reported."""
