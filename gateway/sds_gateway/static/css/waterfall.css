@@ -348,10 +348,135 @@
 	}
 }
 
+/* Waterfall Overview Styles */
+.waterfall-overview-container {
+	width: 140px;
+	flex-shrink: 0;
+	margin-left: 10px;
+	background: #f8f9fa;
+	border: 1px solid #dee2e6;
+	border-radius: 0.25rem;
+	padding: 0.5rem;
+	position: relative;
+}
+
+.waterfall-overview-header {
+	text-align: center;
+	margin-bottom: 0.5rem;
+	padding-bottom: 0.5rem;
+	border-bottom: 1px solid #dee2e6;
+}
+
+.waterfall-overview-header h6 {
+	margin: 0;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: #495057;
+}
+
+.waterfall-overview-header small {
+	font-size: 0.75rem;
+	color: #6c757d;
+}
+
+#waterfallOverview {
+	position: relative;
+	height: 400px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+#waterfallOverviewCanvas {
+	border: 1px solid #dee2e6;
+	border-radius: 0.25rem;
+	cursor: crosshair;
+	background: #fff;
+	/* Hidden by default until data is loaded */
+	display: none;
+}
+
+.overview-tooltip {
+	position: absolute;
+	background: rgba(0, 0, 0, 0.9);
+	color: white;
+	padding: 0.5rem;
+	border-radius: 0.25rem;
+	font-size: 0.75rem;
+	pointer-events: none;
+	z-index: 1001;
+	white-space: nowrap;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.tooltip-content {
+	text-align: center;
+}
+
+.tooltip-time {
+	font-weight: 600;
+	margin-bottom: 0.25rem;
+}
+
+.tooltip-slice {
+	color: #ccc;
+	font-size: 0.7rem;
+}
+
+/* Overview canvas hover effects */
+#waterfallOverviewCanvas:hover {
+	border-color: #0d6efd;
+	box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Responsive overview */
+@media (max-width: 1200px) {
+	.waterfall-overview-container {
+		width: 120px;
+		margin-left: 8px;
+		padding: 0.4rem;
+	}
+
+	#waterfallOverviewCanvas {
+		width: 100px !important;
+		height: 300px !important;
+	}
+
+	#waterfallOverview {
+		height: 300px;
+	}
+}
+
+@media (max-width: 768px) {
+	.waterfall-overview-container {
+		width: 100px;
+		margin-left: 5px;
+		padding: 0.3rem;
+	}
+
+	.waterfall-overview-header h6 {
+		font-size: 0.8rem;
+	}
+
+	.waterfall-overview-header small {
+		font-size: 0.7rem;
+	}
+
+	#waterfallOverviewCanvas {
+		width: 80px !important;
+		height: 250px !important;
+	}
+
+	#waterfallOverview {
+		height: 250px;
+	}
+}
+
 /* Print styles */
 @media print {
 	.btn-group,
-	.control-panel {
+	.control-panel,
+	.waterfall-overview-container {
 		display: none !important;
 	}
 }

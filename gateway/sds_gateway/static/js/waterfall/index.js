@@ -7,9 +7,11 @@
 import "./constants.js";
 
 // Import all waterfall components in dependency order
+import "./WaterfallBase.js";
 import "./WaterfallRenderer.js";
 import "./PeriodogramChart.js";
 import "./WaterfallControls.js";
+import "./WaterfallOverview.js";
 import "./WaterfallVisualization.js";
 
 // Auto-initialize when DOM is ready

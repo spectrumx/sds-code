@@ -77,6 +77,15 @@ api_urlpatterns = [
         ),
         name="api_download_waterfall",
     ),
+    path(
+        "api/<str:capture_uuid>/download_waterfall_low_res/",
+        VisualizationViewSet.as_view(
+            {
+                "get": "download_waterfall_low_res",
+            }
+        ),
+        name="api_download_waterfall_low_res",
+    ),
 ]
 
 urlpatterns = template_urlpatterns + api_urlpatterns

@@ -106,41 +106,60 @@
                             <div id="periodogramChart"></div>
                         </div>
                         <!-- Waterfall Plot -->
-                        <div>
-                            <!-- Scroll indicator above -->
-                            <div class="text-center mb-0 scroll-indicator-container"
-                                 id="scrollIndicatorAbove">
-                                <div class="scroll-indicator up"
-                                     title="More recent scans above"
-                                     id="scrollUpBtn">
-                                    <div class="scroll-arrow up"></div>
-                                </div>
-                            </div>
-                            <div id="waterfallPlot">
-                                <canvas id="waterfallCanvas" width="800" height="400"></canvas>
-                                <canvas id="waterfallOverlayCanvas" width="800" height="400"></canvas>
-                                <div id="loadingOverlay" class="loading-overlay">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
+                        <div class="d-flex">
+                            <!-- Main Waterfall Plot -->
+                            <div class="flex-grow-1">
+                                <!-- Scroll indicator above -->
+                                <div class="text-center mb-0 scroll-indicator-container"
+                                     id="scrollIndicatorAbove">
+                                    <div class="scroll-indicator up"
+                                         title="More recent scans above"
+                                         id="scrollUpBtn">
+                                        <div class="scroll-arrow up"></div>
                                     </div>
                                 </div>
-                                <!-- Status Messages -->
-                                <div id="waterfallErrorDisplay" class="text-center p-4 d-none">
-                                    <p class="text-muted"></p>
+                                <div id="waterfallPlot">
+                                    <canvas id="waterfallCanvas" width="800" height="400"></canvas>
+                                    <canvas id="waterfallOverlayCanvas" width="800" height="400"></canvas>
+                                    <div id="loadingOverlay" class="loading-overlay">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                    <!-- Status Messages -->
+                                    <div id="waterfallErrorDisplay" class="text-center p-4 d-none">
+                                        <p class="text-muted"></p>
+                                    </div>
+                                    <!-- Color Legend - positioned to sit in right margin area -->
+                                    <div id="colorLegend" class="color-legend">
+                                        <div class="legend-gradient"></div>
+                                        <div class="legend-labels"></div>
+                                    </div>
                                 </div>
-                                <!-- Color Legend - positioned to sit in right margin area -->
-                                <div id="colorLegend" class="color-legend">
-                                    <div class="legend-gradient"></div>
-                                    <div class="legend-labels"></div>
+                                <!-- Scroll indicator below -->
+                                <div class="text-center mt-1 scroll-indicator-container"
+                                     id="scrollIndicatorBelow">
+                                    <div class="scroll-indicator down"
+                                         title="Older scans below"
+                                         id="scrollDownBtn">
+                                        <div class="scroll-arrow down"></div>
+                                    </div>
                                 </div>
                             </div>
-                            <!-- Scroll indicator below -->
-                            <div class="text-center mt-1 scroll-indicator-container"
-                                 id="scrollIndicatorBelow">
-                                <div class="scroll-indicator down"
-                                     title="Older scans below"
-                                     id="scrollDownBtn">
-                                    <div class="scroll-arrow down"></div>
+                            <!-- Waterfall Overview -->
+                            <div class="waterfall-overview-container">
+                                <div class="waterfall-overview-header">
+                                    <h6 class="mb-1">Overview</h6>
+                                    <small class="text-muted">Hover for time</small>
+                                </div>
+                                <div id="waterfallOverview">
+                                    <canvas id="waterfallOverviewCanvas" width="120" height="400"></canvas>
+                                    <div id="overviewTooltip" class="overview-tooltip d-none">
+                                        <div class="tooltip-content">
+                                            <div class="tooltip-time"></div>
+                                            <div class="tooltip-slice"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
