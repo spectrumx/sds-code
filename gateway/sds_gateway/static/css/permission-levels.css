@@ -236,6 +236,21 @@
     text-overflow: ellipsis;
 }
 
+.bg-contributor {
+    background-color: var(--spectrumx-contributor-color);
+    color: white;
+}
+
+.bg-co-owner {
+    background-color: var(--spectrumx-co-owner-color);
+    color: white;
+}
+
+.bg-viewer {
+    background-color: var(--spectrumx-viewer-color);
+    color: white;
+}
+
 /* Badge animation for permission changes */
 .permission-badge {
     transition: all 0.3s ease;
@@ -244,31 +259,6 @@
 .permission-badge.updating {
     opacity: 0.7;
     transform: scale(0.95);
-}
-
-/* Enhanced badge styles for the share modal */
-.permission-badge.bg-info {
-    background-color: #e3f2fd !important;
-    color: #1976d2 !important;
-    border: 1px solid #bbdefb;
-}
-
-.permission-badge.bg-warning {
-    background-color: #fff3e0 !important;
-    color: #f57c00 !important;
-    border: 1px solid #ffcc02;
-}
-
-.permission-badge.bg-success {
-    background-color: #e8f5e8 !important;
-    color: #2e7d32 !important;
-    border: 1px solid #c8e6c9;
-}
-
-.permission-badge.bg-secondary {
-    background-color: #f5f5f5 !important;
-    color: #6c757d !important;
-    border: 1px solid #dee2e6;
 }
 
 /* Google Drive-style access level dropdown */

@@ -17,9 +17,11 @@
         <h5 class="mb-0">
             Select Files for Dataset: "<span class="dataset-name-display">Untitled Dataset</span>"
         </h5>
-        <button type="button"
-                class="btn btn-danger"
-                id="remove-all-selected-files-button">Remove All</button>
+        {% if can_remove_assets %}
+            <button type="button"
+                    class="btn btn-danger"
+                    id="remove-all-selected-files-button">Remove All</button>
+        {% endif %}
     </div>
     <div class="card-body">
         <!-- Selected Files Table -->
