@@ -13,6 +13,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import ValidationError
 from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
@@ -103,75 +104,73 @@ class VisualizationViewSet(ViewSet):
                 {"error": "Spectrogram feature is not enabled"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        try:
-            # Get the capture
-            capture = get_object_or_404(
-                Capture, uuid=capture_uuid, owner=request.user, is_deleted=False
+        # Get the capture
+        capture = get_object_or_404(
+            Capture, uuid=capture_uuid, owner=request.user, is_deleted=False
+        )
+
+        # Validate request data
+        fft_size = request.data.get("fft_size", 1024)
+        std_dev = request.data.get("std_dev", 100)
+        hop_size = request.data.get("hop_size", 500)
+        colormap = request.data.get("colormap", "magma")
+
+        # Validate parameters
+        if not self._validate_spectrogram_params(fft_size, std_dev, hop_size, colormap):
+            return Response(
+                {"error": "Invalid spectrogram parameters"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-            # Validate request data
-            fft_size = request.data.get("fft_size", 1024)
-            std_dev = request.data.get("std_dev", 100)
-            hop_size = request.data.get("hop_size", 500)
-            colormap = request.data.get("colormap", "magma")
-
-            # Validate parameters
-            if not self._validate_spectrogram_params(
-                fft_size, std_dev, hop_size, colormap
-            ):
-                return Response(
-                    {"error": "Invalid spectrogram parameters"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Check if spectrogram already exists with same parameters
-            existing_spectrogram = PostProcessedData.objects.filter(
-                capture=capture,
-                processing_type=ProcessingType.Spectrogram.value,
-                processing_parameters={
-                    "fft_size": fft_size,
-                    "std_dev": std_dev,
-                    "hop_size": hop_size,
-                    "colormap": colormap,
-                },
-            ).first()
-
-            if existing_spectrogram:
-                if (
-                    existing_spectrogram.processing_status
-                    == ProcessingStatus.Completed.value
-                ):
-                    # Return existing completed spectrogram
-                    serializer = PostProcessedDataSerializer(existing_spectrogram)
-                    return Response(serializer.data, status=status.HTTP_200_OK)
-                if (
-                    existing_spectrogram.processing_status
-                    == ProcessingStatus.Processing.value
-                ):
-                    # Return processing status
-                    serializer = PostProcessedDataSerializer(existing_spectrogram)
-                    return Response(serializer.data, status=status.HTTP_200_OK)
-
-            # Create new spectrogram processing record
-            processing_params = {
+        # Check if spectrogram already exists with same parameters
+        existing_spectrogram = PostProcessedData.objects.filter(
+            capture=capture,
+            processing_type=ProcessingType.Spectrogram.value,
+            processing_parameters={
                 "fft_size": fft_size,
                 "std_dev": std_dev,
                 "hop_size": hop_size,
                 "colormap": colormap,
-            }
+            },
+        ).first()
 
-            spectrogram_data = PostProcessedData.objects.create(
-                capture=capture,
-                processing_type=ProcessingType.Spectrogram.value,
-                processing_parameters=processing_params,
-                processing_status=ProcessingStatus.Pending.value,
-                metadata={
-                    "requested_by": str(request.user.uuid),
-                    "requested_at": request.data.get("timestamp"),
-                    "image_dimensions": request.data.get("dimensions", {}),
-                },
-            )
+        if existing_spectrogram:
+            if (
+                existing_spectrogram.processing_status
+                == ProcessingStatus.Completed.value
+            ):
+                # Return existing completed spectrogram
+                serializer = PostProcessedDataSerializer(existing_spectrogram)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            if (
+                existing_spectrogram.processing_status
+                == ProcessingStatus.Processing.value
+            ):
+                # Return processing status
+                serializer = PostProcessedDataSerializer(existing_spectrogram)
+                return Response(serializer.data, status=status.HTTP_200_OK)
 
+        # Create new spectrogram processing record
+        processing_params = {
+            "fft_size": fft_size,
+            "std_dev": std_dev,
+            "hop_size": hop_size,
+            "colormap": colormap,
+        }
+
+        spectrogram_data = PostProcessedData.objects.create(
+            capture=capture,
+            processing_type=ProcessingType.Spectrogram.value,
+            processing_parameters=processing_params,
+            processing_status=ProcessingStatus.Pending.value,
+            metadata={
+                "requested_by": str(request.user.uuid),
+                "requested_at": request.data.get("timestamp"),
+                "image_dimensions": request.data.get("dimensions", {}),
+            },
+        )
+
+        try:
             # Start spectrogram processing
             # This will use the cog pipeline to generate the spectrogram
             self._start_spectrogram_processing(spectrogram_data)
@@ -221,14 +220,15 @@ class VisualizationViewSet(ViewSet):
                 {"error": "Spectrogram feature is not enabled"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        try:
-            job_id = request.query_params.get("job_id")
-            if not job_id:
-                return Response(
-                    {"error": "job_id parameter is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
 
+        job_id = request.query_params.get("job_id")
+        if not job_id:
+            return Response(
+                {"error": "job_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
             # Get the processing job
             processing_job = get_object_or_404(
                 PostProcessedData,
@@ -240,7 +240,7 @@ class VisualizationViewSet(ViewSet):
             serializer = PostProcessedDataSerializer(processing_job)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        except Exception as e:  # noqa: BLE001
+        except ValidationError as e:
             log.error(f"Error getting spectrogram status: {e}")
             return Response(
                 {"error": "Failed to get spectrogram status"},
@@ -282,49 +282,40 @@ class VisualizationViewSet(ViewSet):
                 {"error": "Spectrogram feature is not enabled"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        try:
-            job_id = request.query_params.get("job_id")
-            if not job_id:
-                return Response(
-                    {"error": "job_id parameter is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
 
-            # Get the processing job
-            processing_job = get_object_or_404(
-                PostProcessedData,
-                uuid=job_id,
-                capture__uuid=capture_uuid,
-                processing_type=ProcessingType.Spectrogram.value,
-            )
-
-            if processing_job.processing_status != ProcessingStatus.Completed.value:
-                return Response(
-                    {"error": "Spectrogram processing not completed"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            if not processing_job.data_file:
-                return Response(
-                    {"error": "No spectrogram file found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            # Return the file
-            file_response = FileResponse(
-                processing_job.data_file, content_type="image/png"
-            )
-            file_response["Content-Disposition"] = (
-                f'attachment; filename="spectrogram_{capture_uuid}.png"'
-            )
-            return file_response  # noqa: TRY300
-
-        except Exception as e:  # noqa: BLE001
-            log.error(f"Error downloading spectrogram: {e}")
+        job_id = request.query_params.get("job_id")
+        if not job_id:
             return Response(
-                {"error": "Failed to download spectrogram"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": "job_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Get the processing job
+        processing_job = get_object_or_404(
+            PostProcessedData,
+            uuid=job_id,
+            capture__uuid=capture_uuid,
+            processing_type=ProcessingType.Spectrogram.value,
+        )
+
+        if processing_job.processing_status != ProcessingStatus.Completed.value:
+            return Response(
+                {"error": "Spectrogram processing not completed"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not processing_job.data_file:
+            return Response(
+                {"error": "No spectrogram file found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Return the file
+        file_response = FileResponse(processing_job.data_file, content_type="image/png")
+        file_response["Content-Disposition"] = (
+            f'attachment; filename="spectrogram_{capture_uuid}.png"'
+        )
+        return file_response
 
     @extend_schema(
         parameters=[
@@ -460,24 +451,14 @@ class VisualizationViewSet(ViewSet):
             spectrogram_data.save()
 
             # Launch spectrogram processing as a Celery task
-            try:
-                # Launch the spectrogram processing task
-                result = start_capture_post_processing.delay(
-                    str(spectrogram_data.capture.uuid), ["spectrogram"]
-                )
+            result = start_capture_post_processing.delay(
+                str(spectrogram_data.capture.uuid), ["spectrogram"]
+            )
 
-                log.info(
-                    f"Launched spectrogram processing task for "
-                    f"{spectrogram_data.uuid}, task_id: {result.id}"
-                )
-
-            except Exception as e:  # noqa: BLE001
-                log.error(f"Could not launch spectrogram processing task: {e}")
-                # Mark as failed
-                spectrogram_data.processing_status = ProcessingStatus.Failed.value
-                spectrogram_data.processing_error = f"Failed to launch task: {e}"
-                spectrogram_data.save()
-
+            log.info(
+                f"Launched spectrogram processing task for "
+                f"{spectrogram_data.uuid}, task_id: {result.id}"
+            )
         except Exception as e:  # noqa: BLE001
             log.error(f"Error starting spectrogram processing: {e}")
             spectrogram_data.processing_status = ProcessingStatus.Failed.value

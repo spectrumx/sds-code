@@ -40,6 +40,7 @@ from sds_gateway.api_methods.helpers.search_captures import get_composite_captur
 from sds_gateway.api_methods.helpers.search_captures import search_captures
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
@@ -208,9 +209,9 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             # Use the Celery task for post-processing to ensure proper async execution
             # Launch the visualization processing task asynchronously
-            processing_types = ["waterfall"]
+            processing_types = [ProcessingType.Waterfall.value]
             if settings.EXPERIMENTAL_SPECTROGRAM:
-                processing_types.append("spectrogram")
+                processing_types.append(ProcessingType.Spectrogram.value)
 
             result = start_capture_post_processing.delay(
                 str(capture.uuid), processing_types
