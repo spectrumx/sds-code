@@ -1,7 +1,6 @@
 """Tests for visualization views."""
 
-import unittest
-
+import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -130,8 +129,8 @@ class WaterfallVisualizationViewTestCases(TestCase):
         assert capture.is_deleted is False
 
 
-@unittest.skipIf(
-    not settings.EXPERIMENTAL_SPECTROGRAM, "Spectrogram feature is not enabled"
+@pytest.mark.skipif(
+    not settings.EXPERIMENTAL_SPECTROGRAM, reason="Spectrogram feature is not enabled"
 )
 class SpectrogramVisualizationViewTestCases(TestCase):
     """Test cases for SpectrogramVisualizationView."""

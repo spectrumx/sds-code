@@ -21,6 +21,7 @@ class WaterfallVisualizationView(LoginRequiredMixin, TemplateView):
 
         # Get the capture from the URL parameter
         capture_uuid = self.kwargs.get("capture_uuid")
+        # TODO: Allow visualization of shared captures
         capture = get_object_or_404(
             Capture, uuid=capture_uuid, owner=self.request.user, is_deleted=False
         )
@@ -48,6 +49,7 @@ class SpectrogramVisualizationView(LoginRequiredMixin, TemplateView):
 
         # Get the capture from the URL parameter
         capture_uuid = self.kwargs.get("capture_uuid")
+        # TODO: Allow visualization of shared captures
         capture = get_object_or_404(
             Capture, uuid=capture_uuid, owner=self.request.user, is_deleted=False
         )

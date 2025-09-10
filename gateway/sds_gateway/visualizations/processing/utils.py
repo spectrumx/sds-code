@@ -49,7 +49,7 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | Non
                 drf_root = Path(root).parent
                 logger.info(f"Found DigitalRF root at: {drf_root}")
                 return drf_root
-        logger.error("Could not find DigitalRF properties file")
+        logger.warning("Could not find DigitalRF properties file")
         return None  # noqa: TRY300
 
     except Exception as e:  # noqa: BLE001
@@ -80,47 +80,42 @@ def store_processed_data(
 
     logger.info(f"Storing {processing_type} file for capture {capture_uuid}")
 
-    try:
-        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+    capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
-        # Get the processed data record
-        processed_data = PostProcessedData.objects.filter(
-            capture=capture,
-            processing_type=processing_type,
-        ).first()
+    # Get the processed data record
+    processed_data = PostProcessedData.objects.filter(
+        capture=capture,
+        processing_type=processing_type,
+    ).first()
 
-        if not processed_data:
-            error_msg = f"No processed data record found for {processing_type}"
-            raise ValueError(error_msg)  # noqa: TRY301
+    if not processed_data:
+        error_msg = f"No processed data record found for {processing_type}"
+        raise ValueError(error_msg)
 
-        # Store the file
-        processed_data.set_processed_data_file(curr_file_path, new_filename)
+    # Store the file
+    processed_data.set_processed_data_file(curr_file_path, new_filename)
 
-        # Update metadata if provided
-        if metadata:
-            processed_data.metadata.update(metadata)
+    # Update metadata if provided
+    if metadata:
+        processed_data.metadata.update(metadata)
 
-        # Add storage metadata
-        processed_data.metadata.update(
-            {
-                "stored_at": datetime.datetime.now(datetime.UTC).isoformat(),
-                "data_format": "file",
-                "file_size": processed_data.data_file.size,
-            }
-        )
-        processed_data.save()
-
-        logger.info(f"Stored file {new_filename} for {processing_type} data")
-
-        return {  # noqa: TRY300
-            "status": "success",
-            "message": f"{processing_type} file stored successfully",
-            "file_name": new_filename,
+    # Add storage metadata
+    processed_data.metadata.update(
+        {
+            "stored_at": datetime.datetime.now(datetime.UTC).isoformat(),
+            "data_format": "file",
+            "file_size": processed_data.data_file.size,
         }
+    )
+    processed_data.save()
 
-    except Exception as e:
-        logger.exception(f"Error storing {processing_type} file: {e}")
-        raise
+    logger.info(f"Stored file {new_filename} for {processing_type} data")
+
+    return {
+        "status": "success",
+        "message": f"{processing_type} file stored successfully",
+        "file_name": new_filename,
+    }
 
 
 def _create_or_reset_processed_data(capture, processing_type: str):
