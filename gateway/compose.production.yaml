@@ -311,6 +311,11 @@ services:
             dockerfile: ./compose/production/jupyter/Dockerfile
             args:
                 JUPYTERHUB_VERSION: latest
+                # Dynamic UID/GID configuration from environment variables
+                # These should be set in .envs/production/jupyterhub.env
+                NB_UID: ${NB_UID}        # User ID for jupyter user in container
+                NB_GID: ${NB_GID}        # Group ID for jupyter user group
+                DOCKER_GID: ${DOCKER_GID} # Group ID for docker group access
         restart: unless-stopped
         image: sds-gateway-prod-jupyter
         container_name: sds-gateway-prod-jupyter
@@ -321,10 +326,18 @@ services:
             sds-network-prod:  # Keep connection to main network for API access
         volumes:
             - './compose/production/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
-            - '/var/run/docker.sock:/var/run/docker.sock:rw'
-            - 'sds-gateway-prod-jupyter-data:/data'
+            - '/var/run/docker.sock:/var/run/docker.sock:rw'  # Docker socket for container management
+            - 'sds-gateway-prod-jupyter-data:/data'  # Persistent data for JupyterHub
         userns_mode: 'host'  # needs to match UID of the host machine in order to access the Docker socket
-        user: root  # docker socket requires root user
+        user: "${NB_UID}:${DOCKER_GID}"  # Dynamic user:group from environment variables
+        security_opt:
+            - no-new-privileges:true
+        cap_drop:
+            - ALL
+        cap_add:
+            # Required capabilities for JupyterHub user container management
+            - SETUID  # Allow changing effective user ID for container operations
+            - SETGID  # Allow changing effective group ID for container operations
         ports:
             - '18888:8000'
         env_file:
