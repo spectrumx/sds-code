@@ -34,6 +34,10 @@ from sds_gateway.api_methods.serializers.file_serializers import (
 )
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
+from sds_gateway.api_methods.utils.asset_access_control import (
+    get_accessible_files_queryset,
+)
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 
 if TYPE_CHECKING:
@@ -173,9 +177,15 @@ class FileViewSet(ViewSet):
         target_file = get_object_or_404(
             File,
             pk=pk,
-            owner=request.user,
             is_deleted=False,
         )
+
+        if not user_has_access_to_file(request.user, target_file):
+            return Response(
+                {"detail": "You do not have permission to access this file."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = FileGetSerializer(target_file, many=False)
         return Response(serializer.data)
 
@@ -224,14 +234,28 @@ class FileViewSet(ViewSet):
     )
     def list(self, request: Request) -> Response:
         """
-        Lists all files owned by the user. When `path` is passed, it filters all
-            files matching that subdirectory. If `path` is an exact file path
-            (directory + name) with multiple matches (versions), it will retrieve the
-            most recent one that matches that path. Wildcards are not yet supported.
+        Lists all files accessible to the user (owned + shared via captures/datasets).
+        When `path` is passed, it filters all files matching that subdirectory.
+        If `path` is an exact file path (directory + name) with multiple matches,
+        it will retrieve the most recent one that matches that path.
+        Wildcards are not yet supported.
         """
         unsafe_path = request.GET.get("path", "/").strip()
         basename = Path(unsafe_path).name
 
+        # Get files accessible to the user using database-level filtering
+        all_valid_user_files = get_accessible_files_queryset(request.user)
+
+        # If no specific path is requested (default "/"), return all accessible files
+        if unsafe_path in {"/", ""}:
+            paginator = FilePagination()
+            paginated_files = paginator.paginate_queryset(
+                all_valid_user_files, request=request
+            )
+            serializer = FileGetSerializer(paginated_files, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        # For specific paths, use the existing path-based filtering logic
         user_rel_path = sanitize_path_rel_to_user(
             unsafe_path=unsafe_path,
             request=request,
@@ -243,17 +267,12 @@ class FileViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        all_valid_user_owned_files = File.objects.filter(
-            owner=request.user,
-            is_deleted=False,
-        )
-
         paginator = FilePagination()
 
         # if we could extract a basename, try an exact match first
         if basename:
             inferred_user_rel_path = user_rel_path.parent
-            exact_match_query = all_valid_user_owned_files.filter(
+            exact_match_query = all_valid_user_files.filter(
                 name=basename,
                 directory__in=[
                     str(inferred_user_rel_path),
@@ -280,7 +299,7 @@ class FileViewSet(ViewSet):
             )
 
         # try matching `directory`, ignoring `name`
-        files_matching_dir = all_valid_user_owned_files.filter(
+        files_matching_dir = all_valid_user_files.filter(
             directory__startswith=str(user_rel_path),
         )
 
@@ -301,13 +320,13 @@ class FileViewSet(ViewSet):
         paginated_files = paginator.paginate_queryset(latest_files, request=request)
         serializer = FileGetSerializer(paginated_files, many=True)
 
-        first_file = all_valid_user_owned_files.first()
+        first_file = all_valid_user_files.first()
         if first_file:
             log.debug(f"First file directory: {first_file.directory}")
             log.debug(f"First file name: {first_file.name}")
 
         log.debug(
-            f"Matched {latest_files.count()} / {all_valid_user_owned_files.count()} "
+            f"Matched {latest_files.count()} / {all_valid_user_files.count()} "
             f"user files for path {user_rel_path!s} - returning {len(serializer.data)}",
         )
 
@@ -455,9 +474,15 @@ class FileViewSet(ViewSet):
         target_file = get_object_or_404(
             File,
             pk=pk,
-            owner=request.user,
             is_deleted=False,
         )
+
+        # Check if user has access to the file
+        if not user_has_access_to_file(request.user, target_file):
+            return Response(
+                {"detail": "You do not have permission to download this file."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         try:
             # Use the helper function to download the file

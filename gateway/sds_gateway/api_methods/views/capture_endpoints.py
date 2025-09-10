@@ -50,6 +50,9 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.tasks import start_capture_post_processing
+from sds_gateway.api_methods.utils.asset_access_control import (
+    user_has_access_to_capture,
+)
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
@@ -249,10 +252,10 @@ class CaptureViewSet(viewsets.ViewSet):
         drf_channel = request.data.get("channel", None)
         rh_scan_group = request.data.get("scan_group", None)
         capture_type = request.data.get("capture_type", None)
-        log.debug("POST request to create capture:")
-        log.debug(f"\tcapture_type: '{capture_type}' {type(capture_type)}")
-        log.debug(f"\tchannel: '{drf_channel}' {type(drf_channel)}")
-        log.debug(f"\tscan_group: '{rh_scan_group}' {type(rh_scan_group)}")
+        log.debug(
+            f"Creating capture: type={capture_type}, channel={drf_channel}, "
+            f"scan_group={rh_scan_group}"
+        )
 
         if capture_type is None:
             return Response(
@@ -300,17 +303,20 @@ class CaptureViewSet(viewsets.ViewSet):
         # check capture creation constraints and form error message to end-user
         try:
             _check_capture_creation_constraints(capture_candidate, owner=requester)
+            log.info("Constraint check passed, proceeding with capture creation")
         except ValueError as err:
             msg = "One or more capture creation constraints violated:"
             for error in err.args[0].splitlines():
                 msg += f"\n\t{error}"
-            log.info(msg)
+            log.warning(f"Constraint check failed: {msg}")
             return Response(
                 {"detail": msg},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        log.info(f"Saving capture to database: {capture_candidate.get('uuid', 'N/A')}")
         capture = post_serializer.save()
+        log.info(f"Capture {capture.uuid} created and ingest started")
 
         try:
             self.ingest_capture(
@@ -381,9 +387,15 @@ class CaptureViewSet(viewsets.ViewSet):
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=request.user,
             is_deleted=False,
         )
+
+        # Check if the user has access to the capture
+        if not user_has_access_to_capture(request.user, target_capture):
+            return Response(
+                {"detail": "You do not have permission to access this capture."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # Use composite capture serialization
         capture_data = serialize_capture_or_composite(
@@ -605,7 +617,7 @@ class CaptureViewSet(viewsets.ViewSet):
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=owner,
+            owner=owner,  # Require ownership for updates
             is_deleted=False,
         )
 
@@ -699,7 +711,7 @@ class CaptureViewSet(viewsets.ViewSet):
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=request.user,
+            owner=request.user,  # Require ownership for updates
             is_deleted=False,
         )
 
@@ -756,9 +768,10 @@ class CaptureViewSet(viewsets.ViewSet):
         target_capture = get_object_or_404(
             Capture,
             pk=pk,
-            owner=request.user,
+            owner=request.user,  # Require ownership for deletions
             is_deleted=False,
         )
+
         target_capture.soft_delete()
 
         # set these properties on OpenSearch document
@@ -874,6 +887,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 owner=request.user,
                 is_deleted=False,
             )
+
             processing_type = request.query_params.get("processing_type")
 
             if not processing_type:
@@ -959,6 +973,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 owner=request.user,
                 is_deleted=False,
             )
+
             processing_type = request.query_params.get("processing_type")
 
             if not processing_type:
@@ -1004,6 +1019,31 @@ class CaptureViewSet(viewsets.ViewSet):
                 {"error": "Capture not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+
+def _normalize_top_level_dir(top_level_dir: str) -> str:
+    """Normalize the top_level_dir to match the database format.
+
+    Args:
+        top_level_dir: The path to normalize
+
+    Returns:
+        The normalized path with leading slash and multiple slashes resolved
+    """
+
+    # Ensure leading slash
+    if not top_level_dir.startswith("/"):
+        normalized = "/" + top_level_dir
+    else:
+        normalized = top_level_dir
+
+    # Resolve multiple slashes using Path.resolve()
+    try:
+        resolved = Path(normalized).resolve(strict=False)
+        return str(resolved)
+    except (OSError, ValueError):
+        # Fallback to original behavior if Path.resolve() fails
+        return normalized
 
 
 def _check_capture_creation_constraints(
@@ -1053,13 +1093,18 @@ def _check_capture_creation_constraints(
     # CONSTRAINT: DigitalRF captures must have unique channel and top_level_dir
     if capture_type == CaptureType.DigitalRF:
         channel = capture_candidate.get("channel")
+
+        # Normalize the top_level_dir to match the database format
+        normalized_top_level_dir = _normalize_top_level_dir(top_level_dir)
+
         cap_qs: QuerySet[Capture] = Capture.objects.filter(
             channel=channel,
-            top_level_dir=top_level_dir,
+            top_level_dir=normalized_top_level_dir,
             capture_type=CaptureType.DigitalRF,
             is_deleted=False,
             owner=owner,
         )
+
         if not channel:
             log.error(
                 "No channel provided for DigitalRF capture. This missing "
@@ -1068,17 +1113,23 @@ def _check_capture_creation_constraints(
         elif cap_qs.exists():
             conflicting_capture = cap_qs.first()
             assert conflicting_capture is not None, "QuerySet should not be empty here."
+            log.warning(
+                f"CONSTRAINT VIOLATION: Found conflicting capture "
+                f"{conflicting_capture.uuid} for channel '{channel}' "
+                f"and top_level_dir '{top_level_dir}'"
+            )
             _errors.update(
                 {
-                    "drf_unique_channel_and_tld": "This channel and top level "
-                    "directory are already in use by "
-                    f"another capture: {conflicting_capture.pk}",
+                    "drf_unique_channel_and_tld": (
+                        "This channel and top level directory are already in use by "
+                        f"another capture: {conflicting_capture.pk}"
+                    ),
                 },
             )
         else:
-            log.debug(
-                "No `channel` and `top_level_dir` conflicts for current user's "
-                "DigitalRF captures.",
+            log.info(
+                f"DigitalRF constraints passed: channel={channel}, "
+                f"path={normalized_top_level_dir}"
             )
 
     # CONSTRAINT: RadioHound captures must have unique scan group
@@ -1099,8 +1150,10 @@ def _check_capture_creation_constraints(
             assert conflicting_capture is not None, "QuerySet should not be empty here."
             _errors.update(
                 {
-                    "rh_unique_scan_group": f"This scan group is already in use by "
-                    f"another capture: {conflicting_capture.pk}",
+                    "rh_unique_scan_group": (
+                        f"This scan group is already in use by "
+                        f"another capture: {conflicting_capture.pk}"
+                    ),
                 },
             )
         else:
@@ -1112,5 +1165,4 @@ def _check_capture_creation_constraints(
         msg = "Capture creation constraints violated:"
         for rule, error in _errors.items():
             msg += f"\n\t{rule}: {error}"
-        log.warning(msg)  # error for user, warning on server
         raise ValueError(msg)
