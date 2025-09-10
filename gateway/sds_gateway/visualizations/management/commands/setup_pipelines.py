@@ -31,10 +31,10 @@ class Command(BaseCommand):
         parser.add_argument(
             "--strategy",
             type=str,
-            choices=["interactive", "skip-if-exists", "force", "smart-recreate"],
-            default="interactive",
+            choices=["abort-if-exists", "skip-if-exists", "force", "smart-recreate"],
+            default="abort-if-exists",
             help=(
-                "Strategy for handling existing pipelines: interactive (warn and "
+                "Strategy for handling existing pipelines: abort-if-exists (warn and "
                 "exit), skip-if-exists (silent skip), force (delete and recreate), "
                 "smart-recreate (intelligent updates)"
             ),
@@ -73,7 +73,7 @@ class Command(BaseCommand):
                 )
             )
             return None
-        if strategy == "interactive":
+        if strategy == "abort-if-exists":
             self.stdout.write(
                 self.style.WARNING(
                     f"Pipeline '{config['pipeline_name']}' already exists. "
