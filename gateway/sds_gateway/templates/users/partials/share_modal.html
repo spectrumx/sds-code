@@ -233,9 +233,9 @@
                                                         {% else %}
                                                             <!-- Show permission level as static badge for users who can't manage permissions -->
                                                             <span class="badge 
-                                                                {% if user.permission_level == 'viewer' %}bg-info
-                                                                {% elif user.permission_level == 'contributor' %}bg-warning
-                                                                {% elif user.permission_level == 'co-owner' %}bg-success
+                                                                {% if user.permission_level == 'viewer' %}bg-viewer
+                                                                {% elif user.permission_level == 'contributor' %}bg-contributor
+                                                                {% elif user.permission_level == 'co-owner' %}bg-co-owner
                                                                 {% else %}bg-secondary{% endif %}">
                                                                 {{ user.permission_level|title }}
                                                             </span>

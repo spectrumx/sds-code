@@ -301,11 +301,17 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 {"error": "Item UUID is required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Check if user has access to the item (either as owner or shared user)
+        if not can_user_access_item(request.user, item_uuid, item_type):
+            return JsonResponse(
+                {"error": f"{item_type.capitalize()} not found or access denied"}, status=404
+            )
+
         # Get the item to check existing shared users
         try:
             model_class = self.ITEM_MODELS[item_type]
-            # Verify the item exists and user owns it
-            model_class.objects.get(uuid=item_uuid, owner=request.user)
+            # Get the item (we know it exists and user has access)
+            item = model_class.objects.get(uuid=item_uuid)
 
             # Get exclusion lists for search
             excluded_user_ids, excluded_group_ids = self._get_exclusion_lists(
@@ -335,7 +341,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
-                owner=user,
                 is_deleted=False,
                 is_enabled=True,
             )
@@ -348,7 +353,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
-                owner=user,
                 is_deleted=False,
                 is_enabled=True,
             )
@@ -486,7 +490,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         return UserSharePermission.objects.filter(
             item_uuid=item_uuid,
             item_type=item_type,
-            owner=request_user,
             shared_with=user,
             is_deleted=False,
         ).first()
@@ -822,7 +825,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             group_permissions = UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
-                owner=request.user,
                 share_groups=group,
                 is_deleted=False,
                 is_enabled=True,
@@ -899,7 +901,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             group_permissions = UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
-                owner=request.user,
                 share_groups=group,
                 is_deleted=False,
                 is_enabled=True,
@@ -1101,13 +1102,12 @@ def _get_captures_for_template(
         capture_data["capture"] = capture
 
         # Add shared users data for share modal
-        if capture.owner == request.user:
+        if can_user_access_item(request.user, capture.uuid, ItemType.CAPTURE):
             # Get shared users and groups using the new model
             shared_permissions = (
                 UserSharePermission.objects.filter(
                     item_uuid=capture.uuid,
                     item_type=ItemType.CAPTURE,
-                    owner=request.user,
                     is_deleted=False,
                     is_enabled=True,
                 )
@@ -1523,12 +1523,14 @@ class GroupCapturesView(
             logger.debug(f"Request POST: {request.POST}")
             # Validate form and get selected items
             validation_result = self._validate_dataset_form(request)
+            logger.debug(f"Validation result: {validation_result}")
             if validation_result:
                 return validation_result
 
             dataset_uuid = request.GET.get("dataset_uuid")
-            
+            logger.debug(f"Dataset UUID in POST: {dataset_uuid}")
             if dataset_uuid:
+                logger.debug(f"Dataset UUID: {dataset_uuid}")
                 # Handle dataset editing
                 return self._handle_dataset_edit(request, dataset_uuid)
             else:
@@ -1544,17 +1546,10 @@ class GroupCapturesView(
 
     def _validate_dataset_form(self, request) -> JsonResponse | None:
         """Validate the dataset form and return error response if invalid."""
-        dataset_form = DatasetInfoForm(request.POST, user=request.user)
-        if not dataset_form.is_valid():
-            return JsonResponse(
-                {"success": False, "errors": dataset_form.errors},
-                status=400,
-            )
-
-        # Check if this is an edit operation
+        # Check if this is an edit operation first
         dataset_uuid = request.GET.get("dataset_uuid")
         if dataset_uuid:
-            # For editing, validate permissions
+            # For editing, validate permissions first
             permission_level = get_user_permission_level(request.user, dataset_uuid, ItemType.DATASET)
             if not permission_level:
                 return JsonResponse(
@@ -1562,15 +1557,24 @@ class GroupCapturesView(
                     status=403,
                 )
             
-            # Check if user can edit metadata
-            if not self.can_edit_metadata(permission_level):
-                return JsonResponse(
-                    {"success": False, "errors": {"non_field_errors": ["You don't have permission to edit this dataset."]}},
-                    status=403,
-                )
+            # Only validate form if user can edit metadata
+            if self.can_edit_metadata(permission_level):
+                dataset_form = DatasetInfoForm(request.POST, user=request.user)
+                if not dataset_form.is_valid():
+                    return JsonResponse(
+                        {"success": False, "errors": dataset_form.errors},
+                        status=400,
+                    )
+            # If user can't edit metadata, skip form validation
         else:
-            # For new dataset creation, user is always the owner
-            permission_level = "owner"
+            # For new dataset creation, always validate form
+            dataset_form = DatasetInfoForm(request.POST, user=request.user)
+            if not dataset_form.is_valid():
+                logger.debug(f"Dataset form is not valid: {dataset_form.errors}")
+                return JsonResponse(
+                    {"success": False, "errors": dataset_form.errors},
+                    status=400,
+                )
             
             # For creation, get selected captures and files from hidden fields
             selected_captures = request.POST.get("selected_captures", "").split(",")
@@ -1731,7 +1735,9 @@ class GroupCapturesView(
             # Add files
             for file_id in changes['files']['add']:
                 try:
+                    logger.debug(f"Adding file {file_id} to dataset {dataset.uuid}")
                     file_obj = File.objects.get(uuid=file_id, owner=user, is_deleted=False)
+                    logger.debug(f"File object: {file_obj}")
                     dataset.files.add(file_obj)
                 except File.DoesNotExist:
                     continue
@@ -2055,7 +2061,6 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             UserSharePermission.objects.filter(
                 item_uuid=dataset.uuid,
                 item_type=ItemType.DATASET,
-                owner=owner,
                 is_deleted=False,
                 is_enabled=True,
             )

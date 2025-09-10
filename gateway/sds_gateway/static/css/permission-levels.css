@@ -242,6 +242,21 @@
 	text-overflow: ellipsis;
 }
 
+.bg-contributor {
+    background-color: var(--spectrumx-contributor-color);
+    color: white;
+}
+
+.bg-co-owner {
+    background-color: var(--spectrumx-co-owner-color);
+    color: white;
+}
+
+.bg-viewer {
+    background-color: var(--spectrumx-viewer-color);
+    color: white;
+}
+
 /* Badge animation for permission changes */
 .permission-badge {
 	transition: all 0.3s ease;

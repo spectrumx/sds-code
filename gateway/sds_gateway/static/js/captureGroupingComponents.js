@@ -41,6 +41,11 @@ class FormHandler {
 		this.validateCurrentStep(); // Initial validation
 		this.updateNavigation(); // Initial navigation button display
 		
+		// Initialize review display if in edit mode
+		if (this.isEditMode && window.updateReviewDatasetDisplay) {
+			window.updateReviewDatasetDisplay();
+		}
+		
 		// In edit mode, remove the btn-group-disabled class to allow tab navigation
 		if (this.isEditMode) {
 			const stepTabsContainer = document.getElementById("stepTabs");
@@ -210,10 +215,17 @@ class FormHandler {
 			// If moving to review step (step 4), update the review content
 			if (nextStep === 3) {
 				// Update form values in review step - show current/new values
-				document.querySelector("#step4 .dataset-name").textContent =
-					this.nameField.value;
+				const nameDisplay = document.querySelector("#step4 .dataset-name");
+				if (nameDisplay) {
+					nameDisplay.textContent = this.nameField ? this.nameField.value : '';
+				}
 				
-				// Handle authors display
+				// Update the complete review display (includes dataset info and authors)
+				if (window.updateReviewDatasetDisplay) {
+					window.updateReviewDatasetDisplay();
+				}
+				
+				// Handle authors display (fallback if updateReviewDatasetDisplay doesn't exist)
 				if (window.updateReviewAuthorsDisplay) {
 					// Use the new function that handles edit mode changes
 					window.updateReviewAuthorsDisplay();
@@ -243,11 +255,20 @@ class FormHandler {
 				}
 				
 				// Update status and description with current values
-				document.querySelector("#step4 .dataset-status").textContent =
-					this.statusField.options[this.statusField.selectedIndex].text;
-				document.querySelector("#step4 .dataset-description").textContent =
-					document.getElementById("id_description").value ||
-					"No description provided.";
+				const statusDisplay = document.querySelector("#step4 .dataset-status");
+				if (statusDisplay) {
+					if (this.statusField && this.statusField.options && this.statusField.selectedIndex >= 0) {
+						statusDisplay.textContent = this.statusField.options[this.statusField.selectedIndex].text;
+					} else {
+						statusDisplay.textContent = '';
+					}
+				}
+				
+				const descriptionDisplay = document.querySelector("#step4 .dataset-description");
+				if (descriptionDisplay) {
+					const descriptionField = document.getElementById("id_description");
+					descriptionDisplay.textContent = descriptionField ? descriptionField.value : "No description provided.";
+				}
 				
 				// Handle dataset metadata changes display
 				if (window.updateReviewDatasetDisplay) {
@@ -415,7 +436,7 @@ class FormHandler {
 				errorContent.innerHTML = "";
 			}
 
-			const formData = new FormData(this.form);
+			const formData = new FormData(this.form)
 			
 			// If this is an editing handler, add the pending changes
 			if (this.isEditMode && window.datasetEditingHandler) {
@@ -823,7 +844,7 @@ class FormHandler {
 			});
 		} else {
 			pendingChangesTableBody.innerHTML = 
-				"<tr><td colspan='5' class='text-center'>No pending changes</td></tr>";
+				"<tr><td colspan='5' class='text-center'>No pending asset changes</td></tr>";
 		}
 
 		// Update the count badge
@@ -851,6 +872,7 @@ class SearchHandler {
 		);
 		this.currentTree = null;
 		this.formHandler = config.formHandler;
+		this.isEditMode = config.isEditMode || false; // Store isEditMode flag
 		this.currentFilters = {}; // Store current capture filters
 		this.selectedCaptureDetails = new Map(
 			Object.entries(config.initialCaptureDetails || {}),
@@ -931,7 +953,17 @@ class SearchHandler {
 		}
 		if (this.confirmFileSelection) {
 			this.confirmFileSelection.addEventListener("click", () => {
-				this.updateSelectedFilesList();
+				if (this.isEditMode) {
+					// In edit mode, add selected files to pending changes
+					if (window.datasetEditingHandler) {
+						for (const [fileId, fileData] of this.selectedFiles.entries()) {
+							window.datasetEditingHandler.addFileToPending(fileId, fileData);
+						}
+					}
+				} else {
+					// In create mode, update the selected files list
+					this.updateSelectedFilesList();
+				}
 				this.handleClear();
 			});
 		}
@@ -1474,8 +1506,8 @@ class SearchHandler {
 	}
 
 	updateSelectedFilesList() {
-		// Update form handler's selectedFiles with current selection
-		if (this.formHandler) {
+		// Update form handler's selectedFiles with current selection (create mode only)
+		if (this.formHandler && !this.isEditMode) {
 			// Convert Map entries to array of file objects with IDs
 			const fileList = Array.from(this.selectedFiles.entries()).map(
 				([id, file]) => ({ ...file, id: id }),
@@ -1499,10 +1531,11 @@ class SearchHandler {
 			removeAllButton.disabled = this.selectedFiles.size === 0;
 		}
 
-		// Update selected files table if it exists
-		const selectedFilesTable = document.getElementById("selected-files-table");
-		const selectedFilesBody = selectedFilesTable?.querySelector("tbody");
-		if (selectedFilesBody) {
+		// Update selected files table if it exists (only in create mode)
+		if (!this.isEditMode) {
+			const selectedFilesTable = document.getElementById("selected-files-table");
+			const selectedFilesBody = selectedFilesTable?.querySelector("tbody");
+			if (selectedFilesBody) {
 			if (this.selectedFiles.size === 0) {
 				selectedFilesBody.innerHTML =
 					'<tr><td colspan="6" class="text-center">No files selected</td></tr>';
@@ -1513,8 +1546,8 @@ class SearchHandler {
 							// Check if this is an existing file (has owner_id) or a new file being added
 							const isExistingFile = file.owner_id !== undefined;
 							const isOwnedByCurrentUser = file.owner_id === this.formHandler.currentUserId;
-							const canRemove = !isExistingFile || (isExistingFile && isOwnedByCurrentUser && this.formHandler.canRemoveAssets);
-							const rowClass = isExistingFile && !isOwnedByCurrentUser ? 'readonly-row' : '';
+							const canRemove = !isExistingFile || (isExistingFile && this.formHandler.canRemoveAssets);
+							const rowClass = !canRemove ? 'readonly-row' : '';
 							
 							return `
 						<tr data-file-id="${id}" class="${rowClass}">
@@ -1570,6 +1603,7 @@ class SearchHandler {
 					});
 				}
 			}
+		}
 		}
 
 		// Update count badge
@@ -1802,11 +1836,13 @@ class SearchHandler {
 				checkbox.addEventListener("change", (e) => {
 					e.stopPropagation(); // Prevent row click from firing
 					if (checkbox.checked) {
+						// Add to intermediate selection (both edit and create mode)
 						this.selectedFiles.set(file.id, {
 							...file,
 							relative_path: filePath,
 						});
 					} else {
+						// Remove from intermediate selection (both edit and create mode)
 						this.selectedFiles.delete(file.id);
 					}
 					this.updateSelectAllCheckboxState();
