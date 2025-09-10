@@ -299,6 +299,307 @@
                     });
                 {% endif %}
 
+                // Global variables for updateReviewDatasetDisplay function
+                let globalAuthors = [];
+                let globalOriginalAuthors = [];
+                let globalAuthorChanges = { added: [], removed: [], modified: [] };
+                let globalDatasetChanges = {
+                    name: { old: '', new: '', changed: false },
+                    status: { old: '', new: '', changed: false },
+                    description: { old: '', new: '', changed: false }
+                };
+                
+                // Get original values for edit mode
+                {% if existing_dataset %}
+                    globalDatasetChanges.name.old = '{{ existing_dataset.name|escapejs }}';
+                    globalDatasetChanges.status.old = '{{ existing_dataset.get_status_display|escapejs }}';
+                    globalDatasetChanges.description.old = '{{ existing_dataset.description|default:""|escapejs }}';
+                {% endif %}
+                
+                // Make updateReviewDatasetDisplay available globally BEFORE FormHandler initialization
+                window.updateReviewDatasetDisplay = function() {
+                    console.log('=== updateReviewDatasetDisplay called ===');
+                    console.log('can_edit_metadata:', {% if can_edit_metadata %}true{% else %}false{% endif %});
+                    
+                    // Update current values display
+                    const nameDisplay = document.querySelector("#step4 .dataset-name");
+                    const statusDisplay = document.querySelector("#step4 .dataset-status");
+                    const descriptionDisplay = document.querySelector("#step4 .dataset-description");
+                    
+                    if (nameDisplay) {
+                        let nameValue = '';
+                        {% if can_edit_metadata %}
+                            // Co-owner/owner: get value from editable form field
+                            const nameField = document.getElementById('id_name');
+                            nameValue = nameField ? nameField.value : '';
+                        {% else %}
+                            // Contributor: get value from readonly input or template
+                            const readonlyNameInput = document.querySelector('input[value="{{ existing_dataset.name|escapejs }}"]');
+                            if (readonlyNameInput) {
+                                nameValue = readonlyNameInput.value;
+                            } else {
+                                nameValue = '{{ existing_dataset.name|escapejs }}';
+                            }
+                        {% endif %}
+                        nameDisplay.textContent = nameValue;
+                    }
+                    
+                    if (statusDisplay) {
+                        let statusValue = '';
+                        {% if can_edit_metadata %}
+                            // Co-owner/owner: get value from editable form field
+                            const statusField = document.getElementById('id_status');
+                            if (statusField) {
+                                const selectedOption = statusField.options[statusField.selectedIndex];
+                                statusValue = selectedOption ? selectedOption.text : '';
+                            }
+                        {% else %}
+                            // Contributor: get value from readonly input or template
+                            const readonlyStatusInput = document.querySelector('input[value="{{ existing_dataset.get_status_display|escapejs }}"]');
+                            if (readonlyStatusInput) {
+                                statusValue = readonlyStatusInput.value;
+                            } else {
+                                statusValue = '{{ existing_dataset.get_status_display|escapejs }}';
+                            }
+                        {% endif %}
+                        statusDisplay.textContent = statusValue;
+                    }
+                    
+                    if (descriptionDisplay) {
+                        let descriptionValue = '';
+                        {% if can_edit_metadata %}
+                            // Co-owner/owner: get value from editable form field
+                            const descriptionField = document.getElementById('id_description');
+                            descriptionValue = descriptionField ? descriptionField.value : '';
+                        {% else %}
+                            // Contributor: get value from readonly input or template
+                            const readonlyDescriptionInput = document.querySelector('input[value="{{ existing_dataset.description|escapejs }}"]');
+                            if (readonlyDescriptionInput) {
+                                descriptionValue = readonlyDescriptionInput.value;
+                            } else {
+                                descriptionValue = '{{ existing_dataset.description|escapejs }}';
+                            }
+                        {% endif %}
+                        descriptionDisplay.textContent = descriptionValue || 'No description provided.';
+                    }
+                    
+                    // Update authors display
+                    {% if not existing_dataset %}
+                        // In create mode, just show the current authors (no change tracking)
+                        const authorsDisplay = document.querySelector("#step4 .dataset-authors");
+                        if (authorsDisplay) {
+                            authorsDisplay.innerHTML = '';
+                            globalAuthors.forEach((author, index) => {
+                                const authorDiv = document.createElement('div');
+                                authorDiv.className = 'author-item mb-2 p-2 border rounded bg-light';
+                                
+                                const name = typeof author === 'string' ? author : author.name || 'Unnamed Author';
+                                const orcid = typeof author === 'string' ? '' : author.orcid_id || '';
+                                
+                                authorDiv.innerHTML = `
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <strong>${name}</strong>
+                                            ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
+                                        </div>
+                                        <div>
+                                            ${index === 0 ? '<span class="badge bg-primary">Primary</span>' : ''}
+                                        </div>
+                                    </div>
+                                `;
+                                authorsDisplay.appendChild(authorDiv);
+                            });
+                        }
+                        return;
+                    {% endif %}
+                    
+                    {% if existing_dataset %}
+                        // In edit mode, show changes in the change list
+                        const changeList = document.querySelector("#step4 .dataset-authors-change-list");
+                        if (changeList) {
+                            changeList.innerHTML = '';
+                            
+                            // Show added authors
+                            if (globalAuthorChanges.added.length > 0) {
+                                const addedDiv = document.createElement('div');
+                                addedDiv.className = 'mb-2';
+                                addedDiv.innerHTML = '<strong class="text-success">Added Authors:</strong>';
+                                changeList.appendChild(addedDiv);
+                                
+                                globalAuthorChanges.added.forEach(index => {
+                                    if (globalAuthors[index]) {
+                                        const authorDiv = document.createElement('div');
+                                        authorDiv.className = 'author-item mb-1 p-2 border rounded bg-light border-success';
+                                        
+                                        const name = typeof globalAuthors[index] === 'string' ? globalAuthors[index] : globalAuthors[index].name || 'Unnamed Author';
+                                        const orcid = typeof globalAuthors[index] === 'string' ? '' : globalAuthors[index].orcid_id || '';
+                                        
+                                        authorDiv.innerHTML = `
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <strong>${name}</strong>
+                                                    ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
+                                                </div>
+                                                <div>
+                                                    <span class="badge bg-success">Added</span>
+                                                </div>
+                                            </div>
+                                        `;
+                                        changeList.appendChild(authorDiv);
+                                    }
+                                });
+                            }
+                            
+                            // Show removed authors
+                            if (globalAuthorChanges.removed.length > 0) {
+                                const removedDiv = document.createElement('div');
+                                removedDiv.className = 'mb-2';
+                                removedDiv.innerHTML = '<strong class="text-danger">Removed Authors:</strong>';
+                                changeList.appendChild(removedDiv);
+                                
+                                globalAuthorChanges.removed.forEach(index => {
+                                    if (globalOriginalAuthors[index]) {
+                                        const authorDiv = document.createElement('div');
+                                        authorDiv.className = 'author-item mb-1 p-2 border rounded bg-light border-danger';
+                                        
+                                        const name = typeof globalOriginalAuthors[index] === 'string' ? globalOriginalAuthors[index] : globalOriginalAuthors[index].name || 'Unnamed Author';
+                                        const orcid = typeof globalOriginalAuthors[index] === 'string' ? '' : globalOriginalAuthors[index].orcid_id || '';
+                                        
+                                        authorDiv.innerHTML = `
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <strong>${name}</strong>
+                                                    ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
+                                                </div>
+                                                <div>
+                                                    <span class="badge bg-danger">Removed</span>
+                                                </div>
+                                            </div>
+                                        `;
+                                        changeList.appendChild(authorDiv);
+                                    }
+                                });
+                            }
+                            
+                            // Show modified authors
+                            if (globalAuthorChanges.modified.length > 0) {
+                                const modifiedDiv = document.createElement('div');
+                                modifiedDiv.className = 'mb-2';
+                                modifiedDiv.innerHTML = '<strong class="text-warning">Modified Authors:</strong>';
+                                changeList.appendChild(modifiedDiv);
+                                
+                                globalAuthorChanges.modified.forEach(index => {
+                                    if (globalAuthors[index] && globalOriginalAuthors[index]) {
+                                        const authorDiv = document.createElement('div');
+                                        authorDiv.className = 'author-item mb-1 p-2 border rounded bg-light border-warning';
+                                        
+                                        const name = typeof globalAuthors[index] === 'string' ? globalAuthors[index] : globalAuthors[index].name || 'Unnamed Author';
+                                        const orcid = typeof globalAuthors[index] === 'string' ? '' : globalAuthors[index].orcid_id || '';
+                                        
+                                        authorDiv.innerHTML = `
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <strong>${name}</strong>
+                                                    ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
+                                                </div>
+                                                <div>
+                                                    <span class="badge bg-warning">Modified</span>
+                                                </div>
+                                            </div>
+                                        `;
+                                        changeList.appendChild(authorDiv);
+                                    }
+                                });
+                            }
+                            
+                            // Show current authors (unchanged)
+                            const currentAuthorsDisplay = document.querySelector("#step4 .dataset-authors-current");
+                            if (currentAuthorsDisplay) {
+                                currentAuthorsDisplay.innerHTML = '';
+                                
+                                // Show authors that are not in any change category
+                                const allChangedIndices = new Set([
+                                    ...globalAuthorChanges.added,
+                                    ...globalAuthorChanges.removed,
+                                    ...globalAuthorChanges.modified
+                                ]);
+                                
+                                globalAuthors.forEach((author, index) => {
+                                    if (!allChangedIndices.has(index)) {
+                                        const authorDiv = document.createElement('div');
+                                        authorDiv.className = 'author-item mb-2 p-2 border rounded bg-light';
+                                        
+                                        const name = typeof author === 'string' ? author : author.name || 'Unnamed Author';
+                                        const orcid = typeof author === 'string' ? '' : author.orcid_id || '';
+                                        
+                                        authorDiv.innerHTML = `
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <strong>${name}</strong>
+                                                    ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
+                                                </div>
+                                                <div>
+                                                    ${index === 0 ? '<span class="badge bg-primary">Primary</span>' : ''}
+                                                </div>
+                                            </div>
+                                        `;
+                                        currentAuthorsDisplay.appendChild(authorDiv);
+                                    }
+                                });
+                            }
+                        }
+                        
+                        // Update dataset changes display
+                        const datasetChangesList = document.querySelector("#step4 .dataset-changes-list");
+                        if (datasetChangesList) {
+                            datasetChangesList.innerHTML = '';
+                            
+                            // Show name changes
+                            if (globalDatasetChanges.name.changed) {
+                                const nameChangeList = document.querySelector("#step4 .dataset-name-change-list");
+                                if (nameChangeList) {
+                                    nameChangeList.innerHTML = '';
+                                    const li = document.createElement('li');
+                                    li.className = 'list-group-item d-flex align-items-center';
+                                    li.style.color = '#d97706';
+                                    li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Name: "${globalDatasetChanges.name.old}" → "${globalDatasetChanges.name.new}"`;
+                                    nameChangeList.appendChild(li);
+                                }
+                            }
+                            
+                            // Show status changes
+                            if (globalDatasetChanges.status.changed) {
+                                const statusChangeList = document.querySelector("#step4 .dataset-status-change-list");
+                                if (statusChangeList) {
+                                    statusChangeList.innerHTML = '';
+                                    const li = document.createElement('li');
+                                    li.className = 'list-group-item d-flex align-items-center';
+                                    li.style.color = '#d97706';
+                                    li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Status: "${globalDatasetChanges.status.old}" → "${globalDatasetChanges.status.new}"`;
+                                    statusChangeList.appendChild(li);
+                                }
+                            }
+                            
+                            // Show description changes
+                            if (globalDatasetChanges.description.changed) {
+                                const descriptionChangeList = document.querySelector("#step4 .dataset-description-change-list");
+                                if (descriptionChangeList) {
+                                    descriptionChangeList.innerHTML = '';
+                                    const li = document.createElement('li');
+                                    li.className = 'list-group-item d-flex align-items-center';
+                                    li.style.color = '#d97706';
+                                    const oldDesc = globalDatasetChanges.description.old || 'No description provided.';
+                                    const newDesc = globalDatasetChanges.description.new || 'No description provided.';
+                                    li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Description: "${oldDesc}" → "${newDesc}"`;
+                                    descriptionChangeList.appendChild(li);
+                                }
+                            }
+                        }
+                    {% endif %}
+                    
+                    console.log('Dataset info and authors updated');
+                };
+
                 // Initialize form handler with initial values
                 const formHandler = new FormHandler({
                     formId: 'datasetForm',
@@ -321,6 +622,7 @@
                                     paginationContainerId: 'captures-pagination',
                                     type: 'captures',
                                     formHandler: {% if existing_dataset %}window.datasetEditingHandler{% else %}formHandler{% endif %},
+                                    isEditMode: {% if existing_dataset %}true{% else %}false{% endif %},
                                     initialCaptureDetails: initialCaptureDetails
                                 });
                                 formHandler.capturesSearchHandler.initializeCapturesSearch();
@@ -336,9 +638,17 @@
                                     type: 'files',
                                     confirmFileSelectionId: 'confirm-file-selection',
                                     formHandler: {% if existing_dataset %}window.datasetEditingHandler{% else %}formHandler{% endif %},
+                                    isEditMode: {% if existing_dataset %}true{% else %}false{% endif %},
                                     initialFileDetails: initialFileDetails
                                 });
                                 formHandler.filesSearchHandler.loadFileTree();
+                            }
+                        } else if (step === 3) {
+                            console.log('Navigating to step 4');
+                            console.log('window.updateReviewDatasetDisplay:', window.updateReviewDatasetDisplay);
+                            // Update review display when navigating to step 4
+                            if (window.updateReviewDatasetDisplay) {
+                                window.updateReviewDatasetDisplay();
                             }
                         }
                     }
@@ -425,11 +735,12 @@
                     }];
                 }
 
-                // Track author changes for edit mode
+                // Track author changes ONLY for edit mode
+                // In create mode, changes are applied immediately - no pending lists
                 let authorChanges = {
-                    added: [],
-                    removed: [],
-                    modified: {} // index -> {old: string, new: string}
+                    added: [],    // Only used in edit mode
+                    removed: [],  // Only used in edit mode  
+                    modified: {}  // Only used in edit mode: index -> {old: string, new: string}
                 };
 
                 // In edit mode, detect initial changes by comparing current authors with original authors
@@ -478,17 +789,24 @@
                 }
 
                 function updateAuthorsDisplay() {
+                    // Clear the entire authors list
                     authorsList.innerHTML = '';
+                    
+                    console.log('Updating authors display. Authors count:', authors.length, 'Mode:', isEditMode ? 'edit' : 'create');
+                    
+                    // Rebuild the display from the current authors array
                     authors.forEach((author, index) => {
                         const authorDiv = document.createElement('div');
                         authorDiv.className = 'author-item mb-3 p-3 border rounded';
                         
-                        // Check if this author is marked for removal in edit mode
+                        // In create mode, never mark authors for removal - they are completely removed
+                        // In edit mode, check if this author is marked for removal
                         const isMarkedForRemoval = isEditMode && authorChanges.removed.includes(index);
                         
-                        // Apply visual styling for marked authors
+                        // Apply visual styling for marked authors (only in edit mode)
                         if (isMarkedForRemoval) {
                             authorDiv.classList.add('marked-for-removal');
+                            authorDiv.classList.add('border-danger');
                         }
                         
                         const authorName = typeof author === 'string' ? author : author.name || '';
@@ -504,8 +822,8 @@
                                         ${index === 0 ? 
                                             '<span class="badge bg-primary">Primary</span><i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>' : 
                                             (isEditMode && isMarkedForRemoval ? 
-                                                `<button type="button" class="btn btn-sm btn-outline-success cancel-remove-author" data-index="${index}" title="Cancel removal"><i class="bi bi-arrow-counterclockwise"></i></button>` :
-                                                `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="Remove author"><i class="bi bi-trash"></i></button>`
+                                                `<button type="button" class="btn btn-sm btn-outline-secondary cancel-remove-author" data-index="${index}" title="Cancel removal"><i class="bi bi-arrow-counterclockwise"></i></button>` :
+                                                `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="${isEditMode ? 'Mark for removal' : 'Remove author'}"><i class="bi bi-trash"></i></button>`
                                             )
                                         }
                                     </div>
@@ -556,11 +874,14 @@
                     });
                     
                     if (isEditMode) {
-                        // Mark as added in edit mode
+                        // In edit mode, track as added for change management
+                        // Note: If this newly added author is later removed, it will be completely deleted
+                        // rather than marked for removal (see removeAuthor function)
                         if (!authorChanges.added.includes(newIndex)) {
                             authorChanges.added.push(newIndex);
                         }
                     }
+                    // In create mode, no tracking needed - just add to the array
                     
                     updateAuthorsDisplay();
                     
@@ -571,32 +892,88 @@
                     }
                     
                     // Update review display
-                    if (window.updateReviewAuthorsDisplay) {
-                        window.updateReviewAuthorsDisplay();
+                    if (window.updateReviewDatasetDisplay) {
+                        window.updateReviewDatasetDisplay();
                     }
                 }
 
                 function removeAuthor(index) {
                     if (index > 0) { // Don't remove the primary author
                         if (isEditMode) {
-                            // In edit mode, mark for removal instead of actually removing
-                            if (!authorChanges.removed.includes(index)) {
-                                authorChanges.removed.push(index);
+                            // In edit mode, check if this is a newly added author
+                            const isNewlyAdded = authorChanges.added.includes(index);
+                            
+                            if (isNewlyAdded) {
+                                // If it's a newly added author, completely remove it (no pending state)
+                                // Remove from the authors array
+                                authors.splice(index, 1);
+                                
+                                // Remove from the added list
+                                const addIndex = authorChanges.added.indexOf(index);
+                                if (addIndex > -1) {
+                                    authorChanges.added.splice(addIndex, 1);
+                                }
+                                
+                                // Adjust indices in the added list for authors that come after this one
+                                authorChanges.added = authorChanges.added.map(addedIndex => 
+                                    addedIndex > index ? addedIndex - 1 : addedIndex
+                                );
+                                
+                                // Adjust indices in the removed list for authors that come after this one
+                                authorChanges.removed = authorChanges.removed.map(removedIndex => 
+                                    removedIndex > index ? removedIndex - 1 : removedIndex
+                                );
+                                
+                                // Adjust indices in the modified list for authors that come after this one
+                                const newModified = {};
+                                Object.entries(authorChanges.modified).forEach(([modifiedIndex, changes]) => {
+                                    const numIndex = parseInt(modifiedIndex);
+                                    if (numIndex > index) {
+                                        newModified[numIndex - 1] = changes;
+                                    } else if (numIndex < index) {
+                                        newModified[numIndex] = changes;
+                                    }
+                                    // Skip the current index (it's being removed)
+                                });
+                                authorChanges.modified = newModified;
+                                
+                                console.log('Removed newly added author at index:', index);
+                            } else {
+                                // For existing authors, mark for removal instead of actually removing
+                                if (!authorChanges.removed.includes(index)) {
+                                    authorChanges.removed.push(index);
+                                }
+                                console.log('Marked existing author for removal at index:', index);
                             }
+                            
                             updateAuthorsDisplay();
                             
                             // Update review display
-                            if (window.updateReviewAuthorsDisplay) {
-                                window.updateReviewAuthorsDisplay();
+                            if (window.updateReviewDatasetDisplay) {
+                                window.updateReviewDatasetDisplay();
                             }
                         } else {
-                            // In create mode, remove immediately
+                            // In create mode, completely remove the author immediately
+                            // No pending lists or change tracking - just remove from the array
+                            // This will cause the author entry to disappear from the UI
                             authors.splice(index, 1);
+                            
+                            // Clear any potential tracking data (shouldn't exist in create mode, but be safe)
+                            if (authorChanges.removed.includes(index)) {
+                                const removeIndex = authorChanges.removed.indexOf(index);
+                                authorChanges.removed.splice(removeIndex, 1);
+                            }
+                            if (authorChanges.added.includes(index)) {
+                                const addIndex = authorChanges.added.indexOf(index);
+                                authorChanges.added.splice(addIndex, 1);
+                            }
+                            
+                            // Immediately update the display - the author entry will disappear
                             updateAuthorsDisplay();
                             
                             // Update review display
-                            if (window.updateReviewAuthorsDisplay) {
-                                window.updateReviewAuthorsDisplay();
+                            if (window.updateReviewDatasetDisplay) {
+                                window.updateReviewDatasetDisplay();
                             }
                         }
                     } else {
@@ -614,8 +991,8 @@
                         updateAuthorsDisplay();
                         
                         // Update review display
-                        if (window.updateReviewAuthorsDisplay) {
-                            window.updateReviewAuthorsDisplay();
+                        if (window.updateReviewDatasetDisplay) {
+                            window.updateReviewDatasetDisplay();
                         }
                     }
                 }
@@ -709,8 +1086,8 @@
                         }
                         
                         // Update review display if we're on the review step
-                        if (window.updateReviewAuthorsDisplay) {
-                            window.updateReviewAuthorsDisplay();
+                        if (window.updateReviewDatasetDisplay) {
+                            window.updateReviewDatasetDisplay();
                         }
                     }
                 });
@@ -721,126 +1098,22 @@
                     const cancelButton = e.target.closest('.cancel-remove-author');
                     
                     if (removeButton) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         const index = parseInt(removeButton.dataset.index);
+                        console.log('Remove button clicked for index:', index, 'in mode:', isEditMode ? 'edit' : 'create');
                         removeAuthor(index);
                     } else if (cancelButton) {
+                        e.preventDefault();
+                        e.stopPropagation();
                         const index = parseInt(cancelButton.dataset.index);
                         cancelAuthorRemoval(index);
                     }
                 });
 
-                // Function to update review page with author changes
-                function updateReviewAuthorsDisplay() {
-                    if (!isEditMode) {
-                        // In create mode, just show the current authors
-                        const authorsDisplay = document.querySelector("#step4 .dataset-authors");
-                        if (authorsDisplay) {
-                            authorsDisplay.innerHTML = '';
-                            authors.forEach((author, index) => {
-                                const authorDiv = document.createElement('div');
-                                authorDiv.className = 'author-item mb-2 p-2 border rounded bg-light';
-                                
-                                const name = typeof author === 'string' ? author : author.name || 'Unnamed Author';
-                                const orcid = typeof author === 'string' ? '' : author.orcid_id || '';
-                                
-                                authorDiv.innerHTML = `
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div class="flex-grow-1">
-                                            <strong>${name}</strong>
-                                            ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
-                                        </div>
-                                        <div>
-                                            ${index === 0 ? '<span class="badge bg-primary">Primary</span>' : ''}
-                                        </div>
-                                    </div>
-                                `;
-                                authorsDisplay.appendChild(authorDiv);
-                            });
-                        }
-                        return;
-                    }
-                    
-                    // In edit mode, show changes in the change list
-                    const changeList = document.querySelector("#step4 .dataset-authors-change-list");
-                    if (!changeList) return;
-                    
-                    changeList.innerHTML = '';
-                    
-                    // Show added authors
-                    authorChanges.added.forEach(index => {
-                        if (authors[index]) {
-                            const author = authors[index];
-                            const authorName = typeof author === 'string' ? author : author.name || 'Unnamed Author';
-                            const authorOrcid = typeof author === 'string' ? '' : author.orcid_id || '';
-                            const orcidDisplay = authorOrcid ? ` (<a href="https://orcid.org/${authorOrcid}" target="_blank" class="text-decoration-none">${authorOrcid}</a>)` : '';
-                            
-                            const li = document.createElement('li');
-                            li.className = 'text-success';
-                            li.innerHTML = `<i class="bi bi-plus-circle me-1"></i>Add: ${authorName}${orcidDisplay}`;
-                            changeList.appendChild(li);
-                        }
-                    });
-                    
-                    // Show removed authors
-                    authorChanges.removed.forEach(index => {
-                        if (originalAuthors[index]) {
-                            const author = originalAuthors[index];
-                            const authorName = typeof author === 'string' ? author : author.name || 'Unnamed Author';
-                            const authorOrcid = typeof author === 'string' ? '' : author.orcid_id || '';
-                            const orcidDisplay = authorOrcid ? ` (<a href="https://orcid.org/${authorOrcid}" target="_blank" class="text-decoration-none">${authorOrcid}</a>)` : '';
-                            
-                            const li = document.createElement('li');
-                            li.className = 'text-danger';
-                            li.innerHTML = `<i class="bi bi-dash-circle me-1"></i>Remove: ${authorName}${orcidDisplay}`;
-                            changeList.appendChild(li);
-                        }
-                    });
-                    
-                    // Show modified authors
-                    Object.entries(authorChanges.modified).forEach(([index, changes]) => {
-                        Object.entries(changes).forEach(([field, change]) => {
-                            const li = document.createElement('li');
-                            li.style.color = '#d97706';
-                            const fieldLabel = field === 'name' ? 'Name' : 'ORCID ID';
-                            li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change ${fieldLabel}: "${change.old}" → "${change.new}"`;
-                            changeList.appendChild(li);
-                        });
-                    });
-                    
-                    // Show current authors (excluding marked for removal)
-                    const currentAuthors = authors.filter((author, index) => !authorChanges.removed.includes(index));
-                    const authorsDisplay = document.querySelector("#step4 .dataset-authors");
-                    if (authorsDisplay) {
-                        authorsDisplay.innerHTML = '';
-                        currentAuthors.forEach((author, index) => {
-                            const authorDiv = document.createElement('div');
-                            authorDiv.className = 'author-item mb-2 p-2 border rounded bg-light';
-                            
-                            const name = typeof author === 'string' ? author : author.name || 'Unnamed Author';
-                            const orcid = typeof author === 'string' ? '' : author.orcid_id || '';
-                            
-                            authorDiv.innerHTML = `
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <strong>${name}</strong>
-                                        ${orcid ? `<br><small class="text-muted">ORCID: <a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a></small>` : ''}
-                                    </div>
-                                    <div>
-                                        ${index === 0 ? '<span class="badge bg-primary">Primary</span>' : ''}
-                                    </div>
-                                </div>
-                            `;
-                            authorsDisplay.appendChild(authorDiv);
-                        });
-                    }
-                }
 
                 // Initial display
                 updateAuthorsDisplay();
-                
-                // Make functions available globally for FormHandler
-                window.updateReviewAuthorsDisplay = updateReviewAuthorsDisplay;
-                window.getAuthorChanges = () => authorChanges;
                 
                 // Dataset metadata changes tracking
                 let datasetChanges = {
@@ -849,58 +1122,21 @@
                     description: { old: '', new: '', changed: false }
                 };
                 
+                // Populate global variables for updateReviewDatasetDisplay
+                globalAuthors = authors;
+                globalOriginalAuthors = originalAuthors;
+                globalAuthorChanges = authorChanges;
+                globalDatasetChanges = datasetChanges;
+                
+                window.getAuthorChanges = () => authorChanges;
+                console.log('Global variables populated for updateReviewDatasetDisplay');
+                
                 // Get original values for edit mode
                 {% if existing_dataset %}
                     datasetChanges.name.old = '{{ existing_dataset.name|escapejs }}';
                     datasetChanges.status.old = '{{ existing_dataset.get_status_display|escapejs }}';
                     datasetChanges.description.old = '{{ existing_dataset.description|default:""|escapejs }}';
                 {% endif %}
-                
-                // Function to update review page with dataset metadata changes
-                function updateReviewDatasetDisplay() {
-                    if (!isEditMode) {
-                        // In create mode, just show the current values
-                        return;
-                    }
-                    
-                    // Update name changes
-                    const nameChangeList = document.querySelector("#step4 .dataset-name-change-list");
-                    if (nameChangeList) {
-                        nameChangeList.innerHTML = '';
-                        if (datasetChanges.name.changed) {
-                            const li = document.createElement('li');
-                            li.style.color = '#d97706';
-                            li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Name: "${datasetChanges.name.old}" → "${datasetChanges.name.new}"`;
-                            nameChangeList.appendChild(li);
-                        }
-                    }
-                    
-                    // Update status changes
-                    const statusChangeList = document.querySelector("#step4 .dataset-status-change-list");
-                    if (statusChangeList) {
-                        statusChangeList.innerHTML = '';
-                        if (datasetChanges.status.changed) {
-                            const li = document.createElement('li');
-                            li.style.color = '#d97706';
-                            li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Status: "${datasetChanges.status.old}" → "${datasetChanges.status.new}"`;
-                            statusChangeList.appendChild(li);
-                        }
-                    }
-                    
-                    // Update description changes
-                    const descriptionChangeList = document.querySelector("#step4 .dataset-description-change-list");
-                    if (descriptionChangeList) {
-                        descriptionChangeList.innerHTML = '';
-                        if (datasetChanges.description.changed) {
-                            const li = document.createElement('li');
-                            li.style.color = '#d97706';
-                            const oldDesc = datasetChanges.description.old || 'No description provided.';
-                            const newDesc = datasetChanges.description.new || 'No description provided.';
-                            li.innerHTML = `<i class="bi bi-pencil me-1"></i>Change Description: "${oldDesc}" → "${newDesc}"`;
-                            descriptionChangeList.appendChild(li);
-                        }
-                    }
-                }
                 
                 // Track changes to dataset fields
                 function trackDatasetChanges() {
@@ -912,7 +1148,7 @@
                         nameField.addEventListener('input', () => {
                             datasetChanges.name.new = nameField.value;
                             datasetChanges.name.changed = datasetChanges.name.new !== datasetChanges.name.old;
-                            updateReviewDatasetDisplay();
+                            window.updateReviewDatasetDisplay();
                         });
                     }
                     
@@ -921,7 +1157,7 @@
                             const selectedOption = statusField.options[statusField.selectedIndex];
                             datasetChanges.status.new = selectedOption ? selectedOption.text : '';
                             datasetChanges.status.changed = datasetChanges.status.new !== datasetChanges.status.old;
-                            updateReviewDatasetDisplay();
+                            window.updateReviewDatasetDisplay();
                         });
                     }
                     
@@ -929,7 +1165,7 @@
                         descriptionField.addEventListener('input', () => {
                             datasetChanges.description.new = descriptionField.value;
                             datasetChanges.description.changed = datasetChanges.description.new !== datasetChanges.description.old;
-                            updateReviewDatasetDisplay();
+                            window.updateReviewDatasetDisplay();
                         });
                     }
                 }
@@ -958,9 +1194,11 @@
                     datasetChanges.description.changed = datasetChanges.description.new !== datasetChanges.description.old;
                 }
                 
-                // Make function available globally
-                window.updateReviewDatasetDisplay = updateReviewDatasetDisplay;
+                // Make function available globally (already assigned above)
                 window.getDatasetChanges = () => datasetChanges;
+                
+                // Initialize the review display with current values
+                updateReviewDatasetDisplay();
                 
                 // Cancel functions for pending changes
                 window.cancelAuthorAddition = (index) => {
@@ -972,8 +1210,8 @@
                         // Remove the author from the authors array
                         authors.splice(index, 1);
                         updateAuthorsDisplay();
-                        if (window.updateReviewAuthorsDisplay) {
-                            window.updateReviewAuthorsDisplay();
+                        if (window.updateReviewDatasetDisplay) {
+                            window.updateReviewDatasetDisplay();
                         }
                     }
                 };
@@ -985,8 +1223,8 @@
                             authorChanges.removed.splice(removeIndex, 1);
                         }
                         updateAuthorsDisplay();
-                        if (window.updateReviewAuthorsDisplay) {
-                            window.updateReviewAuthorsDisplay();
+                        if (window.updateReviewDatasetDisplay) {
+                            window.updateReviewDatasetDisplay();
                         }
                     }
                 };
@@ -1006,8 +1244,8 @@
                             authors[index][field] = originalValue;
                         }
                         updateAuthorsDisplay();
-                        if (window.updateReviewAuthorsDisplay) {
-                            window.updateReviewAuthorsDisplay();
+                        if (window.updateReviewDatasetDisplay) {
+                            window.updateReviewDatasetDisplay();
                         }
                     }
                 };
