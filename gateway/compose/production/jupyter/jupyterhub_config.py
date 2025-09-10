@@ -18,8 +18,7 @@ network_name = os.environ["DOCKER_NETWORK_NAME"]
 c.DockerSpawner.use_internal_ip = True
 c.DockerSpawner.network_name = network_name
 
-# Simplify network configuration
-c.DockerSpawner.extra_host_config = {}  # Remove network_mode
+# Network configuration will be handled by network_name setting
 
 # Remove network config from create_kwargs since we're using network_name
 c.DockerSpawner.extra_create_kwargs = {}
@@ -47,11 +46,6 @@ c.JupyterHub.hub_port = 8080
 
 # Configure hub URL for user containers to use hostname instead of container ID
 c.JupyterHub.hub_connect_url = "http://jupyterhub:8080"
-
-# Persist hub data on volume mounted inside container
-c.JupyterHub.cookie_secret_file = os.environ.get(
-    "JUPYTERHUB_COOKIE_SECRET_FILE", "/data/jupyterhub_cookie_secret"
-)
 
 # Database configuration - Use SQLite like SVI for simplicity
 c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
@@ -94,11 +88,41 @@ c.DockerSpawner.environment = {
     "CHOWN_HOME": "yes",
 }
 
-# Add container configuration for better stability
+# Container configuration moved to resource limits section below
+
+# Security configuration - use standard paths
+c.JupyterHub.cookie_secret_file = os.environ.get(
+    "JUPYTERHUB_COOKIE_SECRET_FILE", "/data/jupyterhub_cookie_secret"
+)
+
+# Configure proxy PID file to use writable directory
+c.ConfigurableHTTPProxy.pid_file = "/data/jupyterhub-proxy.pid"
+
+# Resource limits and cleanup
+c.JupyterHub.concurrent_spawn_limit = 50  # Max 50 concurrent users
+
+# Container resource limits per user
 c.DockerSpawner.extra_host_config = {
     "restart_policy": {"Name": "unless-stopped"},
-    "mem_limit": "2g",  # Set memory limit
+    "mem_limit": "2g",  # 2GB RAM per user container
 }
+
+# Container lifecycle management
+c.DockerSpawner.remove_containers = True
+c.DockerSpawner.remove_volumes = False
+
+# Timeout settings for better resource management
+c.Spawner.http_timeout = 60
+c.Spawner.start_timeout = 60
+c.Spawner.stop_timeout = 30
 
 # Replace with a proper shell command that handles errors
 c.DockerSpawner.post_start_cmd = "pip install ipywidgets spectrumx"
+
+# Additional settings for production
+c.JupyterHub.active_server_limit = 50  # Max active servers
+c.JupyterHub.cleanup_servers = True  # Clean up stopped servers
+c.JupyterHub.cleanup_proxy = True  # Clean up proxy routes
+
+# Logging for monitoring
+c.JupyterHub.log_level = "INFO"  # Reduce from DEBUG for production
