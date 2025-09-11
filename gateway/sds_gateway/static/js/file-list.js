@@ -47,6 +47,9 @@ class FileListController {
 
 		// Initialize dropdowns for any existing static dropdowns
 		this.initializeDropdowns();
+
+		// Convert any static timestamps to local timezone
+		this.convertStaticTimestamps();
 	}
 
 	/**
@@ -494,6 +497,25 @@ class FileListController {
 	}
 
 	/**
+	 * Convert static timestamps in the table to local timezone
+	 */
+	convertStaticTimestamps() {
+		const timestampElements = document.querySelectorAll("[data-timestamp]");
+
+		for (const element of timestampElements) {
+			const timestamp = element.getAttribute("data-timestamp");
+
+			if (timestamp && timestamp.trim() !== "") {
+				const formattedTime = ComponentUtils.formatDateLocal(timestamp);
+				element.innerHTML = formattedTime;
+			} else {
+				element.innerHTML =
+					'<div>-</div><small class="text-muted">No date</small>';
+			}
+		}
+	}
+
+	/**
 	 * Initialize dropdowns with body container for proper positioning
 	 */
 	initializeDropdowns() {
@@ -572,6 +594,9 @@ class FileListCapturesTableManager extends CapturesTableManager {
 
 		// Initialize dropdowns with body container after table is updated
 		this.initializeDropdowns();
+
+		// Convert static timestamps to local timezone
+		this.convertStaticTimestamps();
 	}
 
 	/**
@@ -673,7 +698,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					</a>
 				</td>
 				<td>${channelDisplay}</td>
-				<td>${ComponentUtils.formatDate(capture.created_at)}</td>
+				<td>${ComponentUtils.formatDateLocal(capture.created_at)}</td>
 				<td>${typeDisplay}</td>
 				<td>${authorDisplay}</td>
 				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>

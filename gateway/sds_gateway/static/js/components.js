@@ -91,6 +91,114 @@ const ComponentUtils = {
 			return "";
 		}
 	},
+
+	/**
+	 * Formats date for display in user's local timezone consistently
+	 * @param {string} dateString - ISO date string
+	 * @returns {string} Formatted date in user's timezone with HTML structure
+	 */
+	formatDateLocal(dateString) {
+		if (!dateString) {
+			return "<div>-</div>";
+		}
+
+		let date;
+
+		// Try to parse the date string
+		if (typeof dateString === "string") {
+			// Handle different date formats
+			if (dateString.includes("T")) {
+				// ISO format: 2023-12-25T14:30:45.123Z
+				date = new Date(dateString);
+			} else if (dateString.includes("/") && dateString.includes(":")) {
+				// Already formatted: 12/25/2023 2:30:45 PM
+				date = new Date(dateString);
+			} else {
+				// Try to parse as-is
+				date = new Date(dateString);
+			}
+		} else {
+			date = new Date(dateString);
+		}
+
+		if (!date || Number.isNaN(date.getTime())) {
+			return "<div>-</div>";
+		}
+
+		// Format in user's local timezone
+		const month = String(date.getMonth() + 1).padStart(2, "0");
+		const day = String(date.getDate()).padStart(2, "0");
+		const year = date.getFullYear();
+		const hours = date.getHours();
+		const minutes = String(date.getMinutes()).padStart(2, "0");
+		const seconds = String(date.getSeconds()).padStart(2, "0");
+		const ampm = hours >= 12 ? "PM" : "AM";
+		const displayHours = hours % 12 || 12;
+
+		// Get timezone abbreviation
+		const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		const timezoneAbbr = this.getTimezoneAbbreviation(date, timezone);
+
+		return `<div>${month}/${day}/${year}</div><small class="text-muted">${displayHours}:${minutes}:${seconds} ${ampm} ${timezoneAbbr}</small>`;
+	},
+
+	/**
+	 * Formats date for display in user's local timezone (simple version)
+	 * @param {string} dateString - ISO date string
+	 * @returns {string} Formatted date in user's timezone
+	 */
+	formatDateLocalSimple(dateString) {
+		if (!dateString) return "N/A";
+
+		try {
+			const date = new Date(dateString);
+			if (date.toString() === "Invalid Date") {
+				return "N/A";
+			}
+
+			// Format in user's local timezone
+			const month = String(date.getMonth() + 1).padStart(2, "0");
+			const day = String(date.getDate()).padStart(2, "0");
+			const year = date.getFullYear();
+			const hours = date.getHours();
+			const minutes = String(date.getMinutes()).padStart(2, "0");
+			const seconds = String(date.getSeconds()).padStart(2, "0");
+			const ampm = hours >= 12 ? "PM" : "AM";
+			const displayHours = hours % 12 || 12;
+
+			// Get timezone abbreviation
+			const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+			const timezoneAbbr = this.getTimezoneAbbreviation(date, timezone);
+
+			return `${month}/${day}/${year} ${displayHours}:${minutes}:${seconds} ${ampm} ${timezoneAbbr}`;
+		} catch (e) {
+			return "N/A";
+		}
+	},
+
+	/**
+	 * Gets timezone abbreviation for a given date and timezone
+	 * @param {Date} date - Date object
+	 * @param {string} timezone - Timezone string
+	 * @returns {string} Timezone abbreviation
+	 */
+	getTimezoneAbbreviation(date, timezone) {
+		try {
+			// Use Intl.DateTimeFormat to get timezone abbreviation
+			const formatter = new Intl.DateTimeFormat("en-US", {
+				timeZone: timezone,
+				timeZoneName: "short",
+			});
+
+			const parts = formatter.formatToParts(date);
+			const timeZonePart = parts.find((part) => part.type === "timeZoneName");
+
+			return timeZonePart ? timeZonePart.value : timezone;
+		} catch (e) {
+			// Fallback to timezone string if abbreviation can't be determined
+			return timezone;
+		}
+	},
 };
 
 /**
@@ -537,7 +645,7 @@ class CapturesTableManager extends TableManager {
                     </a>
                 </td>
                 <td>${channelDisplay}</td>
-                <td class="text-nowrap">${ComponentUtils.formatDate(capture.created_at)}</td>
+                <td class="text-nowrap">${ComponentUtils.formatDateLocal(capture.created_at)}</td>
                 <td>${typeDisplay}</td>
                 <td>${capture.files_count || "0"}</td>
                 <td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
@@ -1074,7 +1182,7 @@ class ModalManager {
 								<span class="fw-medium text-muted">Created At:</span>
 								<br>
 								<small class="text-muted">
-									${data.createdAt && data.createdAt !== "None" ? `${new Date(data.createdAt).toLocaleString()} UTC` : "N/A"}
+									${data.createdAt && data.createdAt !== "None" ? ComponentUtils.formatDateLocalSimple(data.createdAt) : "N/A"}
 								</small>
 							</p>
 						</div>
@@ -1083,7 +1191,7 @@ class ModalManager {
 								<span class="fw-medium text-muted">Updated At:</span>
 								<br>
 								<small class="text-muted">
-									${data.updatedAt && data.updatedAt !== "None" ? `${new Date(data.updatedAt).toLocaleString()} UTC` : "N/A"}
+									${data.updatedAt && data.updatedAt !== "None" ? ComponentUtils.formatDateLocalSimple(data.updatedAt) : "N/A"}
 								</small>
 							</p>
 						</div>
@@ -1650,13 +1758,13 @@ class ModalManager {
 
 		if (file.created_at) {
 			metadata.push(
-				`<strong>Created:</strong> ${new Date(file.created_at).toLocaleString()}`,
+				`<strong>Created:</strong> ${ComponentUtils.formatDateLocalSimple(file.created_at)}`,
 			);
 		}
 
 		if (file.updated_at) {
 			metadata.push(
-				`<strong>Updated:</strong> ${new Date(file.updated_at).toLocaleString()}`,
+				`<strong>Updated:</strong> ${ComponentUtils.formatDateLocalSimple(file.updated_at)}`,
 			);
 		}
 

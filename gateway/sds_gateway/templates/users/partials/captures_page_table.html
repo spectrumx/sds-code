@@ -83,10 +83,11 @@
                             </td>
                             <td headers="top-level-dir-header">{{ cap.top_level_dir|default:"-" }}</td>
                             <td headers="type-header">{{ cap.capture_type_display }}</td>
-                            <td headers="created-header" class="text-nowrap">
-                                {% if cap.formatted_created_at %}
-                                    <div>{{ cap.formatted_created_at|split:" ,0" }}</div>
-                                    <small class="text-muted">{{ cap.formatted_created_at|split:" ,1" }}</small>
+                            <td headers="created-header"
+                                class="text-nowrap"
+                                data-timestamp="{{ cap.created_at }}">
+                                {% if cap.created_at %}
+                                    <div class="timestamp-display">Loading...</div>
                                 {% else %}
                                     <div>-</div>
                                     <small class="text-muted">No date</small>

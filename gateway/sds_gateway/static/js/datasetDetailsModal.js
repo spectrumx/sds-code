@@ -136,10 +136,10 @@ class DatasetDetailsModal {
 
 		// Format dates
 		const createdDate = dataset.created_at
-			? new Date(dataset.created_at).toLocaleString()
+			? ComponentUtils.formatDateLocalSimple(dataset.created_at)
 			: "N/A";
 		const updatedDate = dataset.updated_at
-			? new Date(dataset.updated_at).toLocaleString()
+			? ComponentUtils.formatDateLocalSimple(dataset.updated_at)
 			: "N/A";
 
 		document.querySelector(".dataset-details-created").textContent =
