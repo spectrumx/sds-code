@@ -318,14 +318,11 @@ class FileViewSet(ViewSet):
         paginated_files = paginator.paginate_queryset(latest_files, request=request)
         serializer = FileGetSerializer(paginated_files, many=True)
 
-<<<<<<< HEAD
         first_file = all_valid_user_files.first()
         if first_file:
             log.debug(f"First file directory: {first_file.directory}")
             log.debug(f"First file name: {first_file.name}")
 
-=======
->>>>>>> c185208 (Upload captures: comprehensive update with all changes)
         log.debug(
             f"Matched {latest_files.count()} / {all_valid_user_files.count()} "
             f"user files for path {user_rel_path!s} - returning {len(serializer.data)}",
