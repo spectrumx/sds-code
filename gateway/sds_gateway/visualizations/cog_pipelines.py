@@ -133,6 +133,9 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
     from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
     from sds_gateway.api_methods.models import CaptureType  # noqa: PLC0415
     from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        create_or_reset_processed_data,
+    )
 
     try:
         logger.info(f"Starting setup for capture {capture_uuid}")
@@ -180,7 +183,7 @@ def setup_post_processing_cog(capture_uuid: str, processing_types: list[str]) ->
 
         # Create PostProcessedData records for each processing type
         for processing_type in processing_types:
-            _create_or_reset_processed_data(capture, ProcessingType(processing_type))
+            create_or_reset_processed_data(capture, ProcessingType(processing_type))
 
         logger.info(f"Completed setup for capture {capture_uuid}")
     except Exception as e:
@@ -207,11 +210,11 @@ def process_waterfall_data_cog(
     from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
     from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
     from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
-    from sds_gateway.visualizations.processing.utils import (
-        reconstruct_drf_files,  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        reconstruct_drf_files,
     )
-    from sds_gateway.visualizations.processing.utils import (
-        store_processed_data,  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        store_processed_data,
     )
 
     # Check if waterfall processing is requested
@@ -341,11 +344,11 @@ def process_spectrogram_data_cog(
     from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
     from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
     from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
-    from sds_gateway.visualizations.processing.utils import (
-        reconstruct_drf_files,  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        reconstruct_drf_files,
     )
-    from sds_gateway.visualizations.processing.utils import (
-        store_processed_data,  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        store_processed_data,
     )
 
     # Check if spectrogram feature is enabled
@@ -448,44 +451,3 @@ def process_spectrogram_data_cog(
             # Mark processing as failed
             processed_data.mark_processing_failed(f"Processing failed: {e!s}")
             raise
-
-
-# Helper functions
-def _create_or_reset_processed_data(capture, processing_type):
-    """Create or reset a PostProcessedData record for a capture and processing type.
-
-    Args:
-        capture: The capture to create processed data for
-        processing_type: Type of processing (waterfall, spectrogram, etc.)
-
-    Returns:
-        PostProcessedData: The created or reset record
-    """
-
-    # imports to run when app is ready
-    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
-    from sds_gateway.visualizations.models import ProcessingStatus  # noqa: PLC0415
-
-    # Try to get existing record
-    processed_data, newly_created = PostProcessedData.objects.get_or_create(
-        capture=capture,
-        processing_type=processing_type,
-        processing_parameters={},  # Default empty parameters
-        defaults={
-            "processing_status": ProcessingStatus.Pending.value,
-            "metadata": {},
-        },
-    )
-
-    if not newly_created:
-        # Reset existing record
-        processed_data.processing_status = ProcessingStatus.Pending.value
-        processed_data.processing_error = ""
-        processed_data.processed_at = None
-        processed_data.pipeline_id = ""
-        processed_data.metadata = {}
-        if processed_data.data_file:
-            processed_data.data_file.delete(save=False)
-        processed_data.save()
-
-    return processed_data

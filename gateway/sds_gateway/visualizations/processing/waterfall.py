@@ -2,7 +2,6 @@
 
 import base64
 import datetime
-import os
 import time
 from pathlib import Path
 from typing import Any
@@ -10,15 +9,12 @@ from typing import Any
 import h5py
 import numpy as np
 from digital_rf import DigitalRFReader
-from django.conf import settings
 from loguru import logger
 from pydantic import BaseModel
 from pydantic import Field
 from pydantic import computed_field
 from pydantic import field_validator
 from pydantic import model_validator
-
-from sds_gateway.api_methods.utils.minio_client import get_minio_client
 
 
 class WaterfallSliceParams(BaseModel):
@@ -211,52 +207,6 @@ def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | N
             "slice_index": params.slice_idx,
         },
     }
-
-
-def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | None:
-    """Reconstruct DigitalRF directory structure from SDS files."""
-    # Import utilities here to avoid Django app registry issues
-
-    logger.info("Reconstructing DigitalRF directory structure")
-
-    try:
-        minio_client = get_minio_client()
-
-        # Create the capture directory structure
-        capture_dir = temp_path / str(capture.uuid)
-        capture_dir.mkdir(parents=True, exist_ok=True)
-
-        # Download and place files in the correct structure
-        for file_obj in capture_files:
-            # Create the directory structure
-            file_path = Path(
-                f"{capture_dir}/{file_obj.directory}/{file_obj.name}"
-            ).resolve()
-            assert file_path.is_relative_to(temp_path), (
-                f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
-            )
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Download the file from MinIO
-            minio_client.fget_object(
-                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
-                object_name=file_obj.file.name,
-                file_path=str(file_path),
-            )
-
-        # Find the DigitalRF root directory (parent of the channel directory)
-        for root, _dirs, files in os.walk(capture_dir):
-            if "drf_properties.h5" in files:
-                # The DigitalRF root is the parent of the channel directory
-                drf_root = Path(root).parent
-                logger.info(f"Found DigitalRF root at: {drf_root}")
-                return drf_root
-        logger.warning("Could not find DigitalRF properties file")
-        return None  # noqa: TRY300
-
-    except Exception as e:  # noqa: BLE001
-        logger.exception(f"Error reconstructing DigitalRF files: {e}")
-        return None
 
 
 def convert_drf_to_waterfall_json(
