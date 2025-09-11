@@ -8,9 +8,7 @@
                 <div class="card-header">
                     <h5 class="mb-0">Add New Files</h5>
                 </div>
-                <div class="card-body p-4">
-                    {% include "users/partials/file_browser.html" %}
-                </div>
+                <div class="card-body p-4">{% include "users/partials/file_browser.html" %}</div>
             </div>
         {% else %}
             <div class="card">
@@ -23,7 +21,6 @@
             </div>
         {% endif %}
     </div>
-    
     <!-- Side Panel (4 columns) -->
     <div class="col-md-4">
         <!-- Pending Changes -->
@@ -45,7 +42,9 @@
                             </tr>
                         </thead>
                         <tbody id="pending-files-list">
-                            <tr><td colspan="3" class="text-center text-muted">No pending file changes</td></tr>
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">No pending file changes</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
