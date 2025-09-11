@@ -183,11 +183,6 @@ textarea:focus-visible {
 	display: block;
 }
 
-/* Ensure dropdowns appended to body appear above all content */
-body > .dropdown-menu {
-	z-index: 9999 !important;
-}
-
 /* Make table rows clickable */
 [data-bs-toggle="modal"] {
 	cursor: pointer;
@@ -928,7 +923,7 @@ input[type="number"].form-control-sm {
 
 /* Exception for Actions column - allow dropdown to overflow */
 #dynamic-table-container .table td:last-child {
-	overflow: visible !important;
+	overflow: visible;
 }
 
 #dynamic-table-container .table th:nth-child(1),
@@ -973,20 +968,6 @@ input[type="number"].form-control-sm {
 	display: flex;
 	gap: 0.5rem;
 	justify-content: flex-start;
-}
-
-/* Override table-responsive overflow for datasets table */
-#dynamic-table-container .table-responsive {
-	overflow-x: hidden;
-	overflow-y: visible !important;
-	max-width: 100%;
-}
-
-/* Ensure the table container doesn't overflow */
-#dynamic-table-container .table-container {
-	max-width: 100%;
-	overflow-x: hidden;
-	overflow-y: visible !important;
 }
 
 /* Custom Modal Styles */
