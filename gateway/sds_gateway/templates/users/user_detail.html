@@ -22,9 +22,7 @@
                                 <div class="col-sm-3">
                                     <strong>Name:</strong>
                                 </div>
-                                <div class="col-sm-9">
-                                    {{ object.name|default:"Not provided" }}
-                                </div>
+                                <div class="col-sm-9">{{ object.name|default:"Not provided" }}</div>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-sm-3">
@@ -41,7 +39,9 @@
                                 </div>
                                 <div class="col-sm-9">
                                     {% if object.orcid_id %}
-                                        <a href="https://orcid.org/{{ object.orcid_id }}" target="_blank" rel="noopener noreferrer">
+                                        <a href="https://orcid.org/{{ object.orcid_id }}"
+                                           target="_blank"
+                                           rel="noopener noreferrer">
                                             {{ object.orcid_id }}
                                             <i class="bi bi-box-arrow-up-right ms-1"></i>
                                         </a>

@@ -2,7 +2,6 @@
 
 import json
 import logging
-from typing import Any
 
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
@@ -58,7 +57,9 @@ class Command(BaseCommand):
         if dataset_ids:
             datasets = Dataset.objects.filter(uuid__in=dataset_ids)
             if not datasets.exists():
-                raise CommandError(f"No datasets found with the provided UUIDs: {dataset_ids}")
+                raise CommandError(
+                    f"No datasets found with the provided UUIDs: {dataset_ids}"
+                )
         else:
             datasets = Dataset.objects.all()
 
@@ -76,7 +77,9 @@ class Command(BaseCommand):
         # Process datasets in batches
         for i in range(0, total_datasets, batch_size):
             batch = datasets[i : i + batch_size]
-            self.stdout.write(f"Processing batch {i//batch_size + 1} ({len(batch)} datasets)")
+            self.stdout.write(
+                f"Processing batch {i // batch_size + 1} ({len(batch)} datasets)"
+            )
 
             for dataset in batch:
                 try:

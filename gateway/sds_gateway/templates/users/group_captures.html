@@ -37,18 +37,31 @@
                     <div class="card-body" id="main-card-body">
                         <!-- Step Navigation -->
                         <div id="stepTabs-container">
-                            <div class="btn-group w-100{% if not existing_dataset %} btn-group-disabled{% endif %}" role="group" id="stepTabs">
+                            <div class="btn-group w-100{% if not existing_dataset %} btn-group-disabled{% endif %}"
+                                 role="group"
+                                 id="stepTabs">
                                 <button type="button" class="btn btn-primary active-tab" id="step1-tab">
                                     <span class="step-number">1</span> Dataset Info
                                 </button>
-                                <button type="button" class="btn btn-outline-primary inactive-tab" id="step2-tab">
+                                <button type="button"
+                                        class="btn btn-outline-primary inactive-tab"
+                                        id="step2-tab">
                                     <span class="step-number">2</span> Select Captures
                                 </button>
-                                <button type="button" class="btn btn-outline-primary inactive-tab" id="step3-tab">
+                                <button type="button"
+                                        class="btn btn-outline-primary inactive-tab"
+                                        id="step3-tab">
                                     <span class="step-number">3</span> Select Artifact Files
                                 </button>
-                                <button type="button" class="btn btn-outline-primary inactive-tab" id="step4-tab">
-                                    <span class="step-number">4</span> {% if existing_dataset %}Review and Update{% else %}Review and Create{% endif %}
+                                <button type="button"
+                                        class="btn btn-outline-primary inactive-tab"
+                                        id="step4-tab">
+                                    <span class="step-number">4</span>
+                                    {% if existing_dataset %}
+                                        Review and Update
+                                    {% else %}
+                                        Review and Create
+                                    {% endif %}
                                 </button>
                             </div>
                         </div>
@@ -95,11 +108,17 @@
                                                     {% else %}
                                                         <div class="form-group mt-4">
                                                             <label class="form-label">Dataset Name</label>
-                                                            <input type="text" class="form-control" value="{{ existing_dataset.name }}" readonly>
+                                                            <input type="text"
+                                                                   class="form-control"
+                                                                   value="{{ existing_dataset.name }}"
+                                                                   readonly />
                                                         </div>
                                                         <div class="form-group mt-4">
                                                             <label class="form-label">Status</label>
-                                                            <input type="text" class="form-control" value="{{ existing_dataset.get_status_display }}" readonly>
+                                                            <input type="text"
+                                                                   class="form-control"
+                                                                   value="{{ existing_dataset.get_status_display }}"
+                                                                   readonly />
                                                         </div>
                                                     {% endif %}
                                                 </div>
@@ -133,7 +152,9 @@
                                                                 <div class="authors-list">
                                                                     <!-- Authors will be dynamically added here -->
                                                                 </div>
-                                                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-author-btn">
+                                                                <button type="button"
+                                                                        class="btn btn-sm btn-outline-primary mt-2"
+                                                                        id="add-author-btn">
                                                                     <i class="bi bi-plus"></i> Add Author
                                                                 </button>
                                                             </div>
@@ -149,7 +170,10 @@
                                                                             <div class="flex-grow-1">
                                                                                 <strong>{{ author.name|default:"Unnamed Author" }}</strong>
                                                                                 {% if author.orcid_id %}
-                                                                                    <br><small class="text-muted">ORCID: <a href="https://orcid.org/{{ author.orcid_id }}" target="_blank" class="text-decoration-none">{{ author.orcid_id }}</a></small>
+                                                                                    <br />
+                                                                                    <small class="text-muted">ORCID: <a href="https://orcid.org/{{ author.orcid_id }}"
+    target="_blank"
+    class="text-decoration-none">{{ author.orcid_id }}</a></small>
                                                                                 {% endif %}
                                                                             </div>
                                                                             <div>
@@ -167,7 +191,6 @@
                                                 <span class="text-danger">*</span> Required fields
                                             </div>
                                         </div>
-                                        
                                     </div>
                                 </div>
                                 <!-- Step 2: Captures Selection -->
@@ -197,7 +220,9 @@
                                                                 <div class="col-12 d-flex gap-2">
                                                                     <button type="button"
                                                                             class="btn btn-primary btn-sm btn-fixed-width"
-                                                                            id="search-captures">Search Captures</button>
+                                                                            id="search-captures">
+                                                                        Search Captures
+                                                                    </button>
                                                                     <button type="button"
                                                                             class="btn btn-secondary btn-sm btn-fixed-width"
                                                                             id="clear-captures-search">Clear</button>
@@ -308,24 +333,24 @@
                     status: { old: '', new: '', changed: false },
                     description: { old: '', new: '', changed: false }
                 };
-                
+
                 // Get original values for edit mode
                 {% if existing_dataset %}
                     globalDatasetChanges.name.old = '{{ existing_dataset.name|escapejs }}';
                     globalDatasetChanges.status.old = '{{ existing_dataset.get_status_display|escapejs }}';
                     globalDatasetChanges.description.old = '{{ existing_dataset.description|default:""|escapejs }}';
                 {% endif %}
-                
+
                 // Make updateReviewDatasetDisplay available globally BEFORE FormHandler initialization
                 window.updateReviewDatasetDisplay = function() {
                     console.log('=== updateReviewDatasetDisplay called ===');
                     console.log('can_edit_metadata:', {% if can_edit_metadata %}true{% else %}false{% endif %});
-                    
+
                     // Update current values display
                     const nameDisplay = document.querySelector("#step4 .dataset-name");
                     const statusDisplay = document.querySelector("#step4 .dataset-status");
                     const descriptionDisplay = document.querySelector("#step4 .dataset-description");
-                    
+
                     if (nameDisplay) {
                         let nameValue = '';
                         {% if can_edit_metadata %}
@@ -343,7 +368,7 @@
                         {% endif %}
                         nameDisplay.textContent = nameValue;
                     }
-                    
+
                     if (statusDisplay) {
                         let statusValue = '';
                         {% if can_edit_metadata %}
@@ -364,7 +389,7 @@
                         {% endif %}
                         statusDisplay.textContent = statusValue;
                     }
-                    
+
                     if (descriptionDisplay) {
                         let descriptionValue = '';
                         {% if can_edit_metadata %}
@@ -382,7 +407,7 @@
                         {% endif %}
                         descriptionDisplay.textContent = descriptionValue || 'No description provided.';
                     }
-                    
+
                     // Update authors display
                     {% if not existing_dataset %}
                         // In create mode, just show the current authors (no change tracking)
@@ -392,10 +417,10 @@
                             globalAuthors.forEach((author, index) => {
                                 const authorDiv = document.createElement('div');
                                 authorDiv.className = 'author-item mb-2 p-2 border rounded bg-light';
-                                
+
                                 const name = typeof author === 'string' ? author : author.name || 'Unnamed Author';
                                 const orcid = typeof author === 'string' ? '' : author.orcid_id || '';
-                                
+
                                 authorDiv.innerHTML = `
                                     <div class="d-flex justify-content-between align-items-start">
                                         <div class="flex-grow-1">
@@ -412,28 +437,28 @@
                         }
                         return;
                     {% endif %}
-                    
+
                     {% if existing_dataset %}
                         // In edit mode, show changes in the change list
                         const changeList = document.querySelector("#step4 .dataset-authors-change-list");
                         if (changeList) {
                             changeList.innerHTML = '';
-                            
+
                             // Show added authors
                             if (globalAuthorChanges.added.length > 0) {
                                 const addedDiv = document.createElement('div');
                                 addedDiv.className = 'mb-2';
                                 addedDiv.innerHTML = '<strong class="text-success">Added Authors:</strong>';
                                 changeList.appendChild(addedDiv);
-                                
+
                                 globalAuthorChanges.added.forEach(index => {
                                     if (globalAuthors[index]) {
                                         const authorDiv = document.createElement('div');
                                         authorDiv.className = 'author-item mb-1 p-2 border rounded bg-light border-success';
-                                        
+
                                         const name = typeof globalAuthors[index] === 'string' ? globalAuthors[index] : globalAuthors[index].name || 'Unnamed Author';
                                         const orcid = typeof globalAuthors[index] === 'string' ? '' : globalAuthors[index].orcid_id || '';
-                                        
+
                                         authorDiv.innerHTML = `
                                             <div class="d-flex justify-content-between align-items-start">
                                                 <div class="flex-grow-1">
@@ -449,22 +474,22 @@
                                     }
                                 });
                             }
-                            
+
                             // Show removed authors
                             if (globalAuthorChanges.removed.length > 0) {
                                 const removedDiv = document.createElement('div');
                                 removedDiv.className = 'mb-2';
                                 removedDiv.innerHTML = '<strong class="text-danger">Removed Authors:</strong>';
                                 changeList.appendChild(removedDiv);
-                                
+
                                 globalAuthorChanges.removed.forEach(index => {
                                     if (globalOriginalAuthors[index]) {
                                         const authorDiv = document.createElement('div');
                                         authorDiv.className = 'author-item mb-1 p-2 border rounded bg-light border-danger';
-                                        
+
                                         const name = typeof globalOriginalAuthors[index] === 'string' ? globalOriginalAuthors[index] : globalOriginalAuthors[index].name || 'Unnamed Author';
                                         const orcid = typeof globalOriginalAuthors[index] === 'string' ? '' : globalOriginalAuthors[index].orcid_id || '';
-                                        
+
                                         authorDiv.innerHTML = `
                                             <div class="d-flex justify-content-between align-items-start">
                                                 <div class="flex-grow-1">
@@ -480,22 +505,22 @@
                                     }
                                 });
                             }
-                            
+
                             // Show modified authors
                             if (globalAuthorChanges.modified.length > 0) {
                                 const modifiedDiv = document.createElement('div');
                                 modifiedDiv.className = 'mb-2';
                                 modifiedDiv.innerHTML = '<strong class="text-warning">Modified Authors:</strong>';
                                 changeList.appendChild(modifiedDiv);
-                                
+
                                 globalAuthorChanges.modified.forEach(index => {
                                     if (globalAuthors[index] && globalOriginalAuthors[index]) {
                                         const authorDiv = document.createElement('div');
                                         authorDiv.className = 'author-item mb-1 p-2 border rounded bg-light border-warning';
-                                        
+
                                         const name = typeof globalAuthors[index] === 'string' ? globalAuthors[index] : globalAuthors[index].name || 'Unnamed Author';
                                         const orcid = typeof globalAuthors[index] === 'string' ? '' : globalAuthors[index].orcid_id || '';
-                                        
+
                                         authorDiv.innerHTML = `
                                             <div class="d-flex justify-content-between align-items-start">
                                                 <div class="flex-grow-1">
@@ -511,27 +536,27 @@
                                     }
                                 });
                             }
-                            
+
                             // Show current authors (unchanged)
                             const currentAuthorsDisplay = document.querySelector("#step4 .dataset-authors-current");
                             if (currentAuthorsDisplay) {
                                 currentAuthorsDisplay.innerHTML = '';
-                                
+
                                 // Show authors that are not in any change category
                                 const allChangedIndices = new Set([
                                     ...globalAuthorChanges.added,
                                     ...globalAuthorChanges.removed,
                                     ...globalAuthorChanges.modified
                                 ]);
-                                
+
                                 globalAuthors.forEach((author, index) => {
                                     if (!allChangedIndices.has(index)) {
                                         const authorDiv = document.createElement('div');
                                         authorDiv.className = 'author-item mb-2 p-2 border rounded bg-light';
-                                        
+
                                         const name = typeof author === 'string' ? author : author.name || 'Unnamed Author';
                                         const orcid = typeof author === 'string' ? '' : author.orcid_id || '';
-                                        
+
                                         authorDiv.innerHTML = `
                                             <div class="d-flex justify-content-between align-items-start">
                                                 <div class="flex-grow-1">
@@ -548,12 +573,12 @@
                                 });
                             }
                         }
-                        
+
                         // Update dataset changes display
                         const datasetChangesList = document.querySelector("#step4 .dataset-changes-list");
                         if (datasetChangesList) {
                             datasetChangesList.innerHTML = '';
-                            
+
                             // Show name changes
                             if (globalDatasetChanges.name.changed) {
                                 const nameChangeList = document.querySelector("#step4 .dataset-name-change-list");
@@ -566,7 +591,7 @@
                                     nameChangeList.appendChild(li);
                                 }
                             }
-                            
+
                             // Show status changes
                             if (globalDatasetChanges.status.changed) {
                                 const statusChangeList = document.querySelector("#step4 .dataset-status-change-list");
@@ -579,7 +604,7 @@
                                     statusChangeList.appendChild(li);
                                 }
                             }
-                            
+
                             // Show description changes
                             if (globalDatasetChanges.description.changed) {
                                 const descriptionChangeList = document.querySelector("#step4 .dataset-description-change-list");
@@ -596,7 +621,7 @@
                             }
                         }
                     {% endif %}
-                    
+
                     console.log('Dataset info and authors updated');
                 };
 
@@ -653,7 +678,7 @@
                         }
                     }
                 });
-                
+
                 // Initialize authors management after FormHandler is created
                 initializeAuthorsManagement();
 
@@ -671,7 +696,7 @@
 
                 // Check if we're in edit mode
                 const isEditMode = {% if existing_dataset %}true{% else %}false{% endif %};
-                
+
                 // Get initial authors from the hidden field
                 let authors = [];
                 let originalAuthors = []; // Store original authors for edit mode
@@ -711,7 +736,7 @@
                     }
                     return author;
                 });
-                
+
                 if (isEditMode) {
                     originalAuthors = originalAuthors.map(author => {
                         if (typeof author === 'string') {
@@ -723,7 +748,7 @@
                         return author;
                     });
                 }
-                
+
                 // If no authors after conversion, add the current user as the first author
                 // (This should only happen in create mode, as edit mode should always have authors)
                 if (authors.length === 0 && !isEditMode) {
@@ -739,42 +764,42 @@
                 // In create mode, changes are applied immediately - no pending lists
                 let authorChanges = {
                     added: [],    // Only used in edit mode
-                    removed: [],  // Only used in edit mode  
+                    removed: [],  // Only used in edit mode
                     modified: {}  // Only used in edit mode: index -> {old: string, new: string}
                 };
 
                 // In edit mode, detect initial changes by comparing current authors with original authors
                 if (isEditMode && originalAuthors.length > 0) {
-                    
+
                     // Find new authors (authors in current list but not in original list)
                     authors.forEach((author, index) => {
                         const authorName = typeof author === 'string' ? author : author.name;
                         const authorOrcid = typeof author === 'string' ? '' : author.orcid_id;
-                        
+
                         // Check if this author exists in the original authors
                         const existsInOriginal = originalAuthors.some(origAuthor => {
                             const origName = typeof origAuthor === 'string' ? origAuthor : origAuthor.name;
                             const origOrcid = typeof origAuthor === 'string' ? '' : origAuthor.orcid_id;
                             return origName === authorName && origOrcid === authorOrcid;
                         });
-                        
+
                         if (!existsInOriginal) {
                             authorChanges.added.push(index);
                         }
                     });
-                    
+
                     // Find removed authors (authors in original list but not in current list)
                     originalAuthors.forEach((origAuthor, origIndex) => {
                         const origName = typeof origAuthor === 'string' ? origAuthor : origAuthor.name;
                         const origOrcid = typeof origAuthor === 'string' ? '' : origAuthor.orcid_id;
-                        
+
                         // Check if this author exists in the current authors
                         const existsInCurrent = authors.some(author => {
                             const authorName = typeof author === 'string' ? author : author.name;
                             const authorOrcid = typeof author === 'string' ? '' : author.orcid_id;
                             return authorName === origName && authorOrcid === origOrcid;
                         });
-                        
+
                         if (!existsInCurrent) {
                             // Find the index in the current authors array (it might be different due to additions)
                             const currentIndex = authors.findIndex(author => {
@@ -791,27 +816,27 @@
                 function updateAuthorsDisplay() {
                     // Clear the entire authors list
                     authorsList.innerHTML = '';
-                    
+
                     console.log('Updating authors display. Authors count:', authors.length, 'Mode:', isEditMode ? 'edit' : 'create');
-                    
+
                     // Rebuild the display from the current authors array
                     authors.forEach((author, index) => {
                         const authorDiv = document.createElement('div');
                         authorDiv.className = 'author-item mb-3 p-3 border rounded';
-                        
+
                         // In create mode, never mark authors for removal - they are completely removed
                         // In edit mode, check if this author is marked for removal
                         const isMarkedForRemoval = isEditMode && authorChanges.removed.includes(index);
-                        
+
                         // Apply visual styling for marked authors (only in edit mode)
                         if (isMarkedForRemoval) {
                             authorDiv.classList.add('marked-for-removal');
                             authorDiv.classList.add('border-danger');
                         }
-                        
+
                         const authorName = typeof author === 'string' ? author : author.name || '';
                         const authorOrcid = typeof author === 'string' ? '' : author.orcid_id || '';
-                        
+
                         authorDiv.innerHTML = `
                             <div class="position-relative">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -819,9 +844,9 @@
                                         <!-- Empty space for alignment -->
                                     </div>
                                     <div class="d-flex align-items-center gap-2">
-                                        ${index === 0 ? 
-                                            '<span class="badge bg-primary">Primary</span><i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>' : 
-                                            (isEditMode && isMarkedForRemoval ? 
+                                        ${index === 0 ?
+                                            '<span class="badge bg-primary">Primary</span><i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>' :
+                                            (isEditMode && isMarkedForRemoval ?
                                                 `<button type="button" class="btn btn-sm btn-outline-secondary cancel-remove-author" data-index="${index}" title="Cancel removal"><i class="bi bi-arrow-counterclockwise"></i></button>` :
                                                 `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="${isEditMode ? 'Mark for removal' : 'Remove author'}"><i class="bi bi-trash"></i></button>`
                                             )
@@ -831,9 +856,9 @@
                                 <div class="row g-2">
                                     <div class="col-6">
                                         <label class="form-label small">Author Name</label>
-                                        <input type="text" 
-                                               class="form-control author-name-input" 
-                                               value="${authorName}" 
+                                        <input type="text"
+                                               class="form-control author-name-input"
+                                               value="${authorName}"
                                                placeholder="Enter full name"
                                                ${index === 0 ? 'readonly' : ''}
                                                ${isMarkedForRemoval ? 'disabled' : ''}
@@ -842,9 +867,9 @@
                                     </div>
                                     <div class="col-6">
                                         <label class="form-label small">ORCID ID</label>
-                                        <input type="text" 
-                                               class="form-control author-orcid-input" 
-                                               value="${authorOrcid}" 
+                                        <input type="text"
+                                               class="form-control author-orcid-input"
+                                               value="${authorOrcid}"
                                                placeholder="0000-0000-0000-0000"
                                                ${index === 0 ? 'readonly' : ''}
                                                ${isMarkedForRemoval ? 'disabled' : ''}
@@ -872,7 +897,7 @@
                         name: '',
                         orcid_id: ''
                     });
-                    
+
                     if (isEditMode) {
                         // In edit mode, track as added for change management
                         // Note: If this newly added author is later removed, it will be completely deleted
@@ -882,15 +907,15 @@
                         }
                     }
                     // In create mode, no tracking needed - just add to the array
-                    
+
                     updateAuthorsDisplay();
-                    
+
                     // Focus on the new name input
                     const newInput = authorsList.querySelector(`input[data-index="${newIndex}"][data-field="name"]`);
                     if (newInput) {
                         newInput.focus();
                     }
-                    
+
                     // Update review display
                     if (window.updateReviewDatasetDisplay) {
                         window.updateReviewDatasetDisplay();
@@ -902,28 +927,28 @@
                         if (isEditMode) {
                             // In edit mode, check if this is a newly added author
                             const isNewlyAdded = authorChanges.added.includes(index);
-                            
+
                             if (isNewlyAdded) {
                                 // If it's a newly added author, completely remove it (no pending state)
                                 // Remove from the authors array
                                 authors.splice(index, 1);
-                                
+
                                 // Remove from the added list
                                 const addIndex = authorChanges.added.indexOf(index);
                                 if (addIndex > -1) {
                                     authorChanges.added.splice(addIndex, 1);
                                 }
-                                
+
                                 // Adjust indices in the added list for authors that come after this one
-                                authorChanges.added = authorChanges.added.map(addedIndex => 
+                                authorChanges.added = authorChanges.added.map(addedIndex =>
                                     addedIndex > index ? addedIndex - 1 : addedIndex
                                 );
-                                
+
                                 // Adjust indices in the removed list for authors that come after this one
-                                authorChanges.removed = authorChanges.removed.map(removedIndex => 
+                                authorChanges.removed = authorChanges.removed.map(removedIndex =>
                                     removedIndex > index ? removedIndex - 1 : removedIndex
                                 );
-                                
+
                                 // Adjust indices in the modified list for authors that come after this one
                                 const newModified = {};
                                 Object.entries(authorChanges.modified).forEach(([modifiedIndex, changes]) => {
@@ -936,7 +961,7 @@
                                     // Skip the current index (it's being removed)
                                 });
                                 authorChanges.modified = newModified;
-                                
+
                                 console.log('Removed newly added author at index:', index);
                             } else {
                                 // For existing authors, mark for removal instead of actually removing
@@ -945,9 +970,9 @@
                                 }
                                 console.log('Marked existing author for removal at index:', index);
                             }
-                            
+
                             updateAuthorsDisplay();
-                            
+
                             // Update review display
                             if (window.updateReviewDatasetDisplay) {
                                 window.updateReviewDatasetDisplay();
@@ -957,7 +982,7 @@
                             // No pending lists or change tracking - just remove from the array
                             // This will cause the author entry to disappear from the UI
                             authors.splice(index, 1);
-                            
+
                             // Clear any potential tracking data (shouldn't exist in create mode, but be safe)
                             if (authorChanges.removed.includes(index)) {
                                 const removeIndex = authorChanges.removed.indexOf(index);
@@ -967,10 +992,10 @@
                                 const addIndex = authorChanges.added.indexOf(index);
                                 authorChanges.added.splice(addIndex, 1);
                             }
-                            
+
                             // Immediately update the display - the author entry will disappear
                             updateAuthorsDisplay();
-                            
+
                             // Update review display
                             if (window.updateReviewDatasetDisplay) {
                                 window.updateReviewDatasetDisplay();
@@ -989,7 +1014,7 @@
                             authorChanges.removed.splice(removeIndex, 1);
                         }
                         updateAuthorsDisplay();
-                        
+
                         // Update review display
                         if (window.updateReviewDatasetDisplay) {
                             window.updateReviewDatasetDisplay();
@@ -1000,23 +1025,23 @@
                 function showNotification(message, type = 'info') {
                     const errorContainer = document.getElementById('formErrors');
                     const errorContent = errorContainer?.querySelector('.error-content');
-                    
+
                     if (errorContainer && errorContent) {
                         // Change alert type based on message type
                         errorContainer.className = `alert alert-${type === 'warning' ? 'warning' : 'danger'} bg-${type === 'warning' ? 'warning' : 'danger'}-subtle text-${type === 'warning' ? 'warning' : 'danger'} mb-4 form-error-container`;
-                        
+
                         // Update icon based on type
                         const icon = errorContainer.querySelector('i');
                         if (icon) {
                             icon.className = `bi bi-${type === 'warning' ? 'exclamation-triangle' : 'exclamation-triangle'}-fill me-2`;
                         }
-                        
+
                         errorContent.innerHTML = `<ul class="mb-0 list-unstyled"><li>${message}</li></ul>`;
-                        
+
                         // Show the notification
                         errorContainer.classList.remove('d-none');
                         errorContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        
+
                         // Auto-hide after 5 seconds
                         setTimeout(() => {
                             errorContainer.classList.add('d-none');
@@ -1034,7 +1059,7 @@
                     if (e.target.classList.contains('author-name-input') || e.target.classList.contains('author-orcid-input')) {
                         const index = parseInt(e.target.dataset.index);
                         const field = e.target.dataset.field;
-                        
+
                         // Ensure author object exists
                         if (!authors[index] || typeof authors[index] === 'string') {
                             authors[index] = {
@@ -1042,17 +1067,17 @@
                                 orcid_id: ''
                             };
                         }
-                        
+
                         const oldValue = authors[index][field];
                         authors[index][field] = e.target.value;
-                        
+
                         // Track modifications in edit mode
                         if (isEditMode && index < originalAuthors.length) {
                             const originalAuthor = originalAuthors[index];
-                            const originalValue = typeof originalAuthor === 'string' ? 
-                                (field === 'name' ? originalAuthor : '') : 
+                            const originalValue = typeof originalAuthor === 'string' ?
+                                (field === 'name' ? originalAuthor : '') :
                                 (originalAuthor[field] || '');
-                            
+
                             if (e.target.value !== originalValue) {
                                 if (!authorChanges.modified[index]) {
                                     authorChanges.modified[index] = {};
@@ -1070,21 +1095,21 @@
                                 }
                             }
                         }
-                        
+
                         // Only update display if we need to remove empty authors
                         let needsUpdate = false;
                         if (index > 0 && !authors[index].name.trim() && !authors[index].orcid_id.trim()) {
                             authors.splice(index, 1);
                             needsUpdate = true;
                         }
-                        
+
                         authorsHiddenField.value = JSON.stringify(authors);
-                        
+
                         // Only call updateAuthorsDisplay if we actually removed an author
                         if (needsUpdate) {
                             updateAuthorsDisplay();
                         }
-                        
+
                         // Update review display if we're on the review step
                         if (window.updateReviewDatasetDisplay) {
                             window.updateReviewDatasetDisplay();
@@ -1096,7 +1121,7 @@
                 authorsList.addEventListener('click', (e) => {
                     const removeButton = e.target.closest('.remove-author');
                     const cancelButton = e.target.closest('.cancel-remove-author');
-                    
+
                     if (removeButton) {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1114,36 +1139,36 @@
 
                 // Initial display
                 updateAuthorsDisplay();
-                
+
                 // Dataset metadata changes tracking
                 let datasetChanges = {
                     name: { old: '', new: '', changed: false },
                     status: { old: '', new: '', changed: false },
                     description: { old: '', new: '', changed: false }
                 };
-                
+
                 // Populate global variables for updateReviewDatasetDisplay
                 globalAuthors = authors;
                 globalOriginalAuthors = originalAuthors;
                 globalAuthorChanges = authorChanges;
                 globalDatasetChanges = datasetChanges;
-                
+
                 window.getAuthorChanges = () => authorChanges;
                 console.log('Global variables populated for updateReviewDatasetDisplay');
-                
+
                 // Get original values for edit mode
                 {% if existing_dataset %}
                     datasetChanges.name.old = '{{ existing_dataset.name|escapejs }}';
                     datasetChanges.status.old = '{{ existing_dataset.get_status_display|escapejs }}';
                     datasetChanges.description.old = '{{ existing_dataset.description|default:""|escapejs }}';
                 {% endif %}
-                
+
                 // Track changes to dataset fields
                 function trackDatasetChanges() {
                     const nameField = document.getElementById('id_name');
                     const statusField = document.getElementById('id_status');
                     const descriptionField = document.getElementById('id_description');
-                    
+
                     if (nameField) {
                         nameField.addEventListener('input', () => {
                             datasetChanges.name.new = nameField.value;
@@ -1151,7 +1176,7 @@
                             window.updateReviewDatasetDisplay();
                         });
                     }
-                    
+
                     if (statusField) {
                         statusField.addEventListener('change', () => {
                             const selectedOption = statusField.options[statusField.selectedIndex];
@@ -1160,7 +1185,7 @@
                             window.updateReviewDatasetDisplay();
                         });
                     }
-                    
+
                     if (descriptionField) {
                         descriptionField.addEventListener('input', () => {
                             datasetChanges.description.new = descriptionField.value;
@@ -1169,37 +1194,37 @@
                         });
                     }
                 }
-                
+
                 // Initialize dataset change tracking
                 trackDatasetChanges();
-                
+
                 // Initialize current values
                 const nameField = document.getElementById('id_name');
                 const statusField = document.getElementById('id_status');
                 const descriptionField = document.getElementById('id_description');
-                
+
                 if (nameField) {
                     datasetChanges.name.new = nameField.value;
                     datasetChanges.name.changed = datasetChanges.name.new !== datasetChanges.name.old;
                 }
-                
+
                 if (statusField) {
                     const selectedOption = statusField.options[statusField.selectedIndex];
                     datasetChanges.status.new = selectedOption ? selectedOption.text : '';
                     datasetChanges.status.changed = datasetChanges.status.new !== datasetChanges.status.old;
                 }
-                
+
                 if (descriptionField) {
                     datasetChanges.description.new = descriptionField.value;
                     datasetChanges.description.changed = datasetChanges.description.new !== datasetChanges.description.old;
                 }
-                
+
                 // Make function available globally (already assigned above)
                 window.getDatasetChanges = () => datasetChanges;
-                
+
                 // Initialize the review display with current values
                 updateReviewDatasetDisplay();
-                
+
                 // Cancel functions for pending changes
                 window.cancelAuthorAddition = (index) => {
                     if (authorChanges.added.includes(index)) {
@@ -1215,7 +1240,7 @@
                         }
                     }
                 };
-                
+
                 window.cancelAuthorRemoval = (index) => {
                     if (authorChanges.removed.includes(index)) {
                         const removeIndex = authorChanges.removed.indexOf(index);
@@ -1228,7 +1253,7 @@
                         }
                     }
                 };
-                
+
                 window.cancelAuthorModification = (index, field) => {
                     if (authorChanges.modified[index] && authorChanges.modified[index][field]) {
                         delete authorChanges.modified[index][field];
@@ -1238,8 +1263,8 @@
                         // Restore original value
                         if (originalAuthors[index]) {
                             const originalAuthor = originalAuthors[index];
-                            const originalValue = typeof originalAuthor === 'string' ? 
-                                (field === 'name' ? originalAuthor : '') : 
+                            const originalValue = typeof originalAuthor === 'string' ?
+                                (field === 'name' ? originalAuthor : '') :
                                 (originalAuthor[field] || '');
                             authors[index][field] = originalValue;
                         }
