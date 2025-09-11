@@ -118,7 +118,7 @@ def store_processed_data(
     }
 
 
-def _create_or_reset_processed_data(capture, processing_type: str):
+def create_or_reset_processed_data(capture, processing_type: str):
     """Create or reset a PostProcessedData record for a capture and processing type.
 
     Args:
