@@ -112,29 +112,31 @@ class VisualizationModal {
 			".visualization-option",
 		);
 
+		let visibleCount = 0;
+
 		for (const card of visualizationCards) {
 			const vizType = card.dataset.visualization;
 			const config = this.visualizationCompatibility[vizType];
 
 			if (config?.supported_capture_types.includes(this.currentCaptureType)) {
 				// Show this visualization option
-				card.style.display = "block";
+				card.classList.remove("d-none");
+				card.classList.add("d-block");
 				const button = card.querySelector(".visualization-select-btn");
 				if (button) {
 					button.disabled = false;
 					button.classList.remove("disabled");
 				}
+				visibleCount++;
 			} else {
 				// Hide this visualization option
-				card.style.display = "none";
+				card.classList.remove("d-block");
+				card.classList.add("d-none");
 			}
 		}
 
 		// Check if any visualizations are available
-		const visibleCards = this.modal.querySelectorAll(
-			'.visualization-option[style*="display: block"]',
-		);
-		if (visibleCards.length === 0) {
+		if (visibleCount === 0) {
 			// Show no visualizations available message
 			const modalBody = this.modal.querySelector(".modal-body .row");
 			modalBody.innerHTML = `
