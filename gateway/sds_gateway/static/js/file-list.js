@@ -673,7 +673,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					</a>
 				</td>
 				<td>${channelDisplay}</td>
-				<td class="text-nowrap">${ComponentUtils.formatDate(capture.created_at)}</td>
+				<td>${ComponentUtils.formatDate(capture.created_at)}</td>
 				<td>${typeDisplay}</td>
 				<td>${authorDisplay}</td>
 				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>

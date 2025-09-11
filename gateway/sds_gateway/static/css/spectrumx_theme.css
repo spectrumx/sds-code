@@ -698,81 +698,25 @@ th.sortable:hover .sort-icon {
 
 /* Captures table layout optimization */
 .captures-table-fixed {
-	table-layout: fixed;
 	width: 100%;
-	max-width: 100%;
 }
 
-.captures-table-fixed th:nth-child(1),
-.captures-table-fixed td:nth-child(1) {
-	width: 35%;
-	min-width: 200px;
-	max-width: none;
-	overflow: visible;
-	text-overflow: clip;
+/* Allow natural text fitting like datasets table */
+.captures-table-fixed th,
+.captures-table-fixed td {
 	white-space: normal;
-	word-break: break-word;
 	word-wrap: break-word;
 }
 
-/* Override any Bootstrap or other CSS that might be adding ellipsis */
-.captures-table-fixed td:nth-child(1) * {
-	overflow: visible;
-	text-overflow: clip;
-	white-space: normal;
-}
-
-.captures-table-fixed th:nth-child(2),
-.captures-table-fixed td:nth-child(2) {
-	width: 12%;
-	min-width: 60px;
-}
-
-.captures-table-fixed th:nth-child(3),
-.captures-table-fixed td:nth-child(3) {
-	width: 15%;
-	min-width: 80px;
-}
-
-.captures-table-fixed th:nth-child(4),
-.captures-table-fixed td:nth-child(4) {
-	width: 10%;
-	min-width: 50px;
-}
-
-.captures-table-fixed th:nth-child(5),
-.captures-table-fixed td:nth-child(5) {
-	width: 10%;
-	min-width: 50px;
-}
-
-.captures-table-fixed th:nth-child(6),
-.captures-table-fixed td:nth-child(6) {
-	width: 18%;
-	min-width: 80px;
-}
-
-.captures-table-fixed th:nth-child(7),
-.captures-table-fixed td:nth-child(7) {
-	width: 14%;
-	min-width: 120px;
-}
-
-.captures-table-fixed th:nth-child(8),
-.captures-table-fixed td:nth-child(8) {
-	width: 16%;
-	min-width: 120px;
-}
-
-/* Additional override for table headers to prevent wrapping */
+/* Basic table styling */
 .captures-table-fixed th {
-	white-space: nowrap;
 	padding: 8px 12px;
 	font-size: 14px;
 }
 
 .captures-table-fixed td {
 	padding: 8px 12px;
+	vertical-align: middle;
 }
 
 /* Bootstrap badge overrides to use SpectrumX theme colors */
