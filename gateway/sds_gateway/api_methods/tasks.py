@@ -21,7 +21,6 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
-from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import ZipFileStatus
 from sds_gateway.api_methods.models import user_has_access_to_item
@@ -614,9 +613,7 @@ def notify_shared_users(
 
 
 @shared_task
-def start_capture_post_processing(
-    capture_uuid: str, processing_types: list[str] | None = None
-) -> dict:
+def start_capture_post_processing(capture_uuid: str, processing_config: dict) -> dict:
     """
     Start post-processing pipeline for a DigitalRF capture.
 
@@ -625,44 +622,61 @@ def start_capture_post_processing(
 
     Args:
         capture_uuid: UUID of the capture to process
-        processing_types: List of processing types to run (waterfall, spectrogram, etc.)
+        processing_config: Dict with processing configurations, e.g.:
+            {
+                "spectrogram": {
+                    "fft_size": 1024,
+                    "std_dev": 100,
+                    "hop_size": 500,
+                    "colormap": "magma",
+                },
+                "waterfall": {...}
+            }
     """
     logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
 
     try:
-        # Set default processing types if not specified
-        if not processing_types:
-            processing_types = [ProcessingType.Waterfall.value]
+        # Validate processing config
+        if not processing_config:
+            error_msg = "No processing config specified"
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Get the appropriate pipeline from the database
-        from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
+        from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
 
-        # For now, we only support waterfall processing
-        if "waterfall" in processing_types:
-            pipeline_name = ProcessingType.Waterfall.get_pipeline_name()
-            pipeline = get_latest_pipeline_by_base_name(pipeline_name)
-            if not pipeline:
-                error_msg = (
-                    f"No {pipeline_name} pipeline found. Please run setup_pipelines."
-                )
-                raise ValueError(error_msg)  # noqa: TRY301
-
-            # Launch the pipeline with runtime arguments
-            # Setup and validation will be handled by the setup stage in the pipeline
-            pipeline.launch(
-                capture_uuid=capture_uuid, processing_types=processing_types
+        # Always use the visualization pipeline - individual cogs will check if they
+        # should run
+        pipeline_name = "visualization_processing"
+        pipeline = get_latest_pipeline_by_base_name(pipeline_name)
+        if not pipeline:
+            error_msg = (
+                f"No {pipeline_name} pipeline found. Please run setup_pipelines."
             )
-        else:
-            error_msg = f"Unsupported processing types: {processing_types}"
             raise ValueError(error_msg)  # noqa: TRY301
+
+        # Launch the visualization pipeline with processing config
+        # Individual cogs will check if they should run based on processing_config
+        logger.info(
+            f"Launching pipeline {pipeline_name} for capture {capture_uuid} "
+            f"with config: {processing_config}"
+        )
+        try:
+            pipeline.launch(
+                capture_uuid=capture_uuid, processing_config=processing_config
+            )
+            logger.info(f"Pipeline launched successfully for capture {capture_uuid}")
+        except Exception as e:
+            logger.error(f"Pipeline launch failed for capture {capture_uuid}: {e}")
+            raise
 
         return {
             "status": "success",
             "message": (
-                f"Post-processing pipeline started for {len(processing_types)} types"
+                f"Post-processing pipeline started for "
+                f"{len(processing_config)} processing types"
             ),
             "capture_uuid": capture_uuid,
-            "processing_types": processing_types,
+            "processing_config": processing_config,
         }
 
     except Capture.DoesNotExist:

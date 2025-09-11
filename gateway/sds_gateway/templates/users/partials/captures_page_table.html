@@ -138,11 +138,10 @@
                                         </li>
                                         {% if cap.capture_type == 'drf' %}
                                             <li>
-                                                <hr class="dropdown-divider" />
-                                            </li>
-                                            <li>
-                                                <a class="dropdown-item"
-                                                   href="{% url 'visualizations:waterfall' cap.uuid %}">Visualize</a>
+                                                <button class="dropdown-item visualization-trigger-btn"
+                                                        type="button"
+                                                        data-capture-uuid="{{ cap.uuid }}"
+                                                        data-capture-type="{{ cap.capture_type }}">Visualize</button>
                                             </li>
                                         {% endif %}
                                     </ul>

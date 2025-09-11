@@ -41,7 +41,7 @@ class UserSharePermissionAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissi
     ordering = ("-updated_at",)
 
 
-@admin.register(models.PostProcessedData)
+@admin.register(models.DEPRECATEDPostProcessedData)
 class PostProcessedDataAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     list_display = (
         "processing_type",

@@ -18,6 +18,8 @@
 	border: none;
 	cursor: crosshair;
 	position: relative;
+	/* Hidden by default until data is loaded */
+	display: none;
 }
 
 .control-panel {
@@ -45,6 +47,22 @@
 	/* Add padding to align with waterfall plot margins */
 	padding-right: var(--plots-right-margin, 80px);
 	padding-left: var(--plots-left-margin, 85px);
+	/* Hidden by default until data is loaded */
+	display: none;
+}
+
+#waterfallErrorDisplay {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 5;
+}
+
+#waterfallErrorDisplay p {
+	margin: 0;
+	font-size: 1.1rem;
+	color: #6c757d;
 }
 
 #waterfallPlot {
@@ -61,6 +79,8 @@
 	left: 0;
 	pointer-events: none;
 	z-index: 1;
+	/* Hidden by default until data is loaded */
+	display: none;
 }
 
 #loadingOverlay {
@@ -163,7 +183,7 @@
 	font-size: 0.75rem;
 	max-width: var(--plots-right-margin, 80px);
 	z-index: 10;
-	display: flex;
+	display: none; /* Hidden by default until data is loaded */
 	flex-direction: row;
 	align-items: stretch;
 }

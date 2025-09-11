@@ -1,4 +1,4 @@
-"""Management command to set up django-cog pipelines."""
+"""Management command to set up django-cog visualization pipelines."""
 
 import datetime
 import json
@@ -6,25 +6,25 @@ import json
 from django.core.management.base import BaseCommand
 from django_cog.models import CeleryQueue
 from django_cog.models import Cog
+from django_cog.models import CogErrorHandler
 from django_cog.models import Pipeline
 from django_cog.models import Stage
 from django_cog.models import Task
 
-from sds_gateway.api_methods.cog_pipelines import PIPELINE_CONFIGS
-from sds_gateway.api_methods.models import get_latest_pipeline_by_base_name
+from sds_gateway.visualizations.cog_pipelines import PIPELINE_CONFIGS
 
 
 class Command(BaseCommand):
-    """Set up django-cog pipelines for post-processing."""
+    """Set up django-cog pipelines for visualization processing."""
 
-    help = "Set up django-cog pipelines for post-processing"
+    help = "Set up django-cog pipelines for visualization processing"
 
     def add_arguments(self, parser):
         """Add command arguments."""
         parser.add_argument(
             "--pipeline-type",
             type=str,
-            choices=["waterfall", "all"],
+            choices=["visualization", "all"],
             default="all",
             help="Type of pipeline to set up",
         )
@@ -143,12 +143,25 @@ class Command(BaseCommand):
                     queue_name="celery"
                 )
 
+                # Get or create the error handler from config
+                error_handler_name = config.get("error_handler")
+                error_handler_cog = None
+                if error_handler_name:
+                    error_handler_cog = CogErrorHandler.objects.filter(
+                        name=error_handler_name
+                    ).first()
+                    if not error_handler_cog:
+                        error_handler_cog = CogErrorHandler.objects.create(
+                            name=error_handler_name
+                        )
+
                 Task.objects.create(
                     stage=stage,
                     name=task_config["name"],
                     cog=cog,
                     arguments_as_json=json.dumps(task_config["args"]),
                     queue=default_queue,
+                    error_handler=error_handler_cog,
                 )
 
         return stage_objects
@@ -175,6 +188,8 @@ class Command(BaseCommand):
         config = config_func()
 
         # Check if pipeline already exists (including versioned pipelines)
+        from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
+
         existing_pipeline = get_latest_pipeline_by_base_name(config["pipeline_name"])
         if existing_pipeline:
             pipeline = existing_pipeline
