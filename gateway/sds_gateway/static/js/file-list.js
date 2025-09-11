@@ -44,6 +44,9 @@ class FileListController {
 		// Initial setup
 		this.updateSortIcons();
 		this.tableManager.attachRowClickHandlers();
+
+		// Initialize dropdowns for any existing static dropdowns
+		this.initializeDropdowns();
 	}
 
 	/**
@@ -489,6 +492,47 @@ class FileListController {
 			console.error("Error initializing frequency slider:", error);
 		}
 	}
+
+	/**
+	 * Initialize dropdowns with body container for proper positioning
+	 */
+	initializeDropdowns() {
+		const dropdownButtons = document.querySelectorAll(".btn-icon-dropdown");
+
+		if (dropdownButtons.length === 0) {
+			return;
+		}
+
+		dropdownButtons.forEach((toggle, index) => {
+			// Check if dropdown is already initialized
+			if (toggle._dropdown) {
+				return;
+			}
+
+			const dropdown = new bootstrap.Dropdown(toggle, {
+				container: "body",
+				boundary: "viewport",
+				popperConfig: {
+					modifiers: [
+						{
+							name: "preventOverflow",
+							options: {
+								boundary: "viewport",
+							},
+						},
+					],
+				},
+			});
+
+			// Manually move dropdown to body when shown
+			toggle.addEventListener("show.bs.dropdown", () => {
+				const dropdownMenu = toggle.nextElementSibling;
+				if (dropdownMenu?.classList.contains("dropdown-menu")) {
+					document.body.appendChild(dropdownMenu);
+				}
+			});
+		});
+	}
 }
 
 /**
@@ -525,6 +569,9 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			.map((capture, index) => this.renderRow(capture, index))
 			.join("");
 		tbody.innerHTML = tableHTML;
+
+		// Initialize dropdowns with body container after table is updated
+		this.initializeDropdowns();
 	}
 
 	/**
@@ -636,7 +683,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 						<button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center mx-auto"
 								type="button"
 								data-bs-toggle="dropdown"
-								data-bs-popper="static"
+								data-bs-boundary="viewport"
 								aria-expanded="false"
 								aria-label="Actions for capture ${nameDisplay}"
 								style="width: 32px; height: 32px; padding: 0;">
