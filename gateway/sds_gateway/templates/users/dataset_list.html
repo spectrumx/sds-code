@@ -34,24 +34,21 @@
                     <div class="table-container">
                         <div class="table-responsive">
                             {% if not page_obj %}
-                                <table class="table table-striped table-hover">
+                                <table class="table table-striped table-hover datasets-table-fixed">
                                     <caption class="visually-hidden">Your datasets list</caption>
                                     <thead>
                                         <tr>
-                                            <th scope="col" class="sortable w-25" data-sort="name">
+                                            <th scope="col" class="sortable w-20" data-sort="name">
                                                 Dataset Name <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-auto">Description</th>
-                                            <th scope="col" class="sortable w-25" data-sort="authors">
+                                            <th scope="col" class="w-40">Description</th>
+                                            <th scope="col" class="sortable w-15" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="sortable w-15" data-sort="status">
-                                                Status <i class="bi bi-caret-down-fill sort-icon"></i>
-                                            </th>
-                                            <th scope="col" class="sortable w-25" data-sort="created_at">
+                                            <th scope="col" class="sortable w-15" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-auto">Actions</th>
+                                            <th scope="col" class="w-10">Actions</th>
                                         </tr>
                                     </thead>
                                 </table>
@@ -62,24 +59,21 @@
                                     </p>
                                 </div>
                             {% else %}
-                                <table class="table table-striped table-hover">
+                                <table class="table table-striped table-hover datasets-table-fixed">
                                     <caption class="visually-hidden">Your datasets list</caption>
                                     <thead>
                                         <tr>
-                                            <th scope="col" class="sortable w-25" data-sort="name">
+                                            <th scope="col" class="sortable w-20" data-sort="name">
                                                 Dataset Name <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-auto">Description</th>
-                                            <th scope="col" class="sortable w-25" data-sort="authors">
+                                            <th scope="col" class="w-40">Description</th>
+                                            <th scope="col" class="sortable w-15" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="sortable w-15" data-sort="status">
-                                                Status <i class="bi bi-caret-down-fill sort-icon"></i>
-                                            </th>
-                                            <th scope="col" class="sortable w-25" data-sort="created_at">
+                                            <th scope="col" class="sortable w-15" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-auto">Actions</th>
+                                            <th scope="col" class="w-10">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -120,7 +114,7 @@
                                                         <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
                                                                 type="button"
                                                                 data-bs-toggle="dropdown"
-                                                                data-bs-popper="static"
+                                                                data-bs-boundary="viewport"
                                                                 aria-expanded="false"
                                                                 aria-label="Actions for {{ dataset.name }}">
                                                             <i class="bi bi-three-dots-vertical"></i>
@@ -243,6 +237,30 @@
     <script src="{% static 'js/datasetDetailsModal.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize dropdowns with body container
+            document.querySelectorAll('.btn-icon-dropdown').forEach(function(toggle) {
+                const dropdown = new bootstrap.Dropdown(toggle, {
+                    container: 'body',
+                    boundary: 'viewport',
+                    popperConfig: {
+                        modifiers: [{
+                            name: 'preventOverflow',
+                            options: {
+                                boundary: 'viewport'
+                            }
+                        }]
+                    }
+                });
+
+                // Manually move dropdown to body when shown
+                toggle.addEventListener('show.bs.dropdown', function() {
+                    const dropdownMenu = toggle.nextElementSibling;
+                    if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
+                        document.body.appendChild(dropdownMenu);
+                    }
+                });
+            });
+
             // Create a UserSearchHandler for each share modal
             document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
                 const itemUuid = modal.getAttribute('data-item-uuid');
