@@ -43,7 +43,6 @@
             </div>
         {% endif %}
     </div>
-    
     <!-- Side Panel (4 columns) -->
     <div class="col-md-4">
         <!-- Current Captures in Dataset -->
@@ -62,19 +61,19 @@
                                 <th>Type</th>
                                 <th>Directory</th>
                                 <th>Owner</th>
-                                {% if can_remove_assets %}
-                                    <th>Actions</th>
-                                {% endif %}
+                                {% if can_remove_assets %}<th>Actions</th>{% endif %}
                             </tr>
                         </thead>
                         <tbody id="current-captures-list">
-                            <tr><td colspan="{% if can_remove_assets %}4{% else %}3{% endif %}" class="text-center text-muted">No captures in dataset</td></tr>
+                            <tr>
+                                <td colspan="{% if can_remove_assets %}4{% else %}3{% endif %}"
+                                    class="text-center text-muted">No captures in dataset</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
-        
         <!-- Pending Changes -->
         <div class="card">
             <div class="card-header">
@@ -94,7 +93,9 @@
                             </tr>
                         </thead>
                         <tbody id="pending-captures-list">
-                            <tr><td colspan="3" class="text-center text-muted">No pending capture changes</td></tr>
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">No pending capture changes</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

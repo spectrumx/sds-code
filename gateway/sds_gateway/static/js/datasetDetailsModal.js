@@ -121,18 +121,18 @@ class DatasetDetailsModal {
 		// Format authors with ORCID links
 		const authorElement = document.querySelector(".dataset-details-author");
 		if (dataset.authors && Array.isArray(dataset.authors)) {
-			const authorNames = dataset.authors.map(author => {
-				if (typeof author === 'string') {
+			const authorNames = dataset.authors.map((author) => {
+				if (typeof author === "string") {
 					return author;
 				}
-				const name = author.name || 'Unnamed Author';
+				const name = author.name || "Unnamed Author";
 				const orcid = author.orcid_id;
 				if (orcid) {
 					return `${name} (<a href="https://orcid.org/${orcid}" target="_blank" class="text-decoration-none">${orcid}</a>)`;
 				}
 				return name;
 			});
-			authorElement.innerHTML = authorNames.join(', ');
+			authorElement.innerHTML = authorNames.join(", ");
 		} else if (dataset.authors) {
 			// Handle legacy string format
 			authorElement.textContent = dataset.authors;

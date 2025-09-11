@@ -14,7 +14,6 @@ from django.conf import settings
 from django.db import models
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
-from django.db.models.signals import post_delete
 from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
@@ -679,13 +678,13 @@ class Dataset(BaseModel):
                 return authors_data
             except (json.JSONDecodeError, TypeError):
                 return [{"name": self.authors, "orcid_id": ""}]
-        
+
         # Handle case where authors is already a list
         if isinstance(self.authors, list):
             if self.authors and isinstance(self.authors[0], str):
                 return [{"name": author, "orcid_id": ""} for author in self.authors]
             return self.authors
-        
+
         return self.authors
 
 

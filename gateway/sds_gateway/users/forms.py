@@ -1,5 +1,5 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
@@ -111,10 +111,9 @@ class DatasetInfoForm(forms.Form):
         if user and is_authors_empty:
             # Set initial authors as JSON string with the user as the first author
             # Use new object format with name and orcid_id
-            initial_authors = [{
-                "name": user.name or user.email,
-                "orcid_id": user.orcid_id or ""
-            }]
+            initial_authors = [
+                {"name": user.name or user.email, "orcid_id": user.orcid_id or ""}
+            ]
             self.fields["authors"].initial = json.dumps(initial_authors)
 
     def clean_name(self):
@@ -132,10 +131,10 @@ class DatasetInfoForm(forms.Form):
             authors = json.loads(authors_json)
             if not isinstance(authors, list):
                 raise ValidationError("Authors must be a list")
-            
+
             if not authors:
                 raise ValidationError("At least one author is required")
-            
+
             # Validate each author name
             cleaned_authors = []
             for author in authors:
@@ -146,26 +145,29 @@ class DatasetInfoForm(forms.Form):
                     if not author_name:
                         continue
                     if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
-                        raise ValidationError(f"Author name '{author_name}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters.")
-                    cleaned_authors.append({
-                        "name": author_name,
-                        "orcid_id": ""
-                    })
+                        raise ValidationError(
+                            f"Author name '{author_name}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
+                        )
+                    cleaned_authors.append({"name": author_name, "orcid_id": ""})
                 elif isinstance(author, dict):
                     # Handle new object format
                     author_name = author.get("name", "").strip()
                     if not author_name:
                         continue
                     if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
-                        raise ValidationError(f"Author name '{author_name}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters.")
-                    cleaned_authors.append({
-                        "name": author_name,
-                        "orcid_id": author.get("orcid_id", "").strip()
-                    })
-            
+                        raise ValidationError(
+                            f"Author name '{author_name}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
+                        )
+                    cleaned_authors.append(
+                        {
+                            "name": author_name,
+                            "orcid_id": author.get("orcid_id", "").strip(),
+                        }
+                    )
+
             if not cleaned_authors:
                 raise ValidationError("At least one valid author is required")
-            
+
             return json.dumps(cleaned_authors)
         except json.JSONDecodeError:
             raise ValidationError("Invalid authors format")

@@ -1139,11 +1139,11 @@ class UserSearchHandler {
 	async initializeModals() {
 		// Re-create UserSearchHandler for each share modal
 		const modals = document.querySelectorAll(".modal[data-item-uuid]");
-		
+
 		for (const modal of modals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
 			const itemType = modal.getAttribute("data-item-type");
-			
+
 			if (window.UserSearchHandler) {
 				const handler = new window.UserSearchHandler();
 				// Store the handler on the modal element

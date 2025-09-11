@@ -114,15 +114,15 @@
                                                         {% for author in dataset.authors %}
                                                             {% if forloop.counter <= 2 %}
                                                                 {% if author.name %}
-                                                                    {{ author.name }}{% if forloop.counter == 1 and dataset.authors|length > 1 %}, {% endif %}
+                                                                    {{ author.name }}
+                                                                    {% if forloop.counter == 1 and dataset.authors|length > 1 %},{% endif %}
                                                                 {% else %}
-                                                                    {{ author }}{% if forloop.counter == 1 and dataset.authors|length > 1 %}, {% endif %}
+                                                                    {{ author }}
+                                                                    {% if forloop.counter == 1 and dataset.authors|length > 1 %},{% endif %}
                                                                 {% endif %}
                                                             {% endif %}
                                                         {% endfor %}
-                                                        {% if dataset.authors|length > 2 %}
-                                                            <span class="text-muted">...</span>
-                                                        {% endif %}
+                                                        {% if dataset.authors|length > 2 %}<span class="text-muted">...</span>{% endif %}
                                                     {% else %}
                                                         -
                                                     {% endif %}
