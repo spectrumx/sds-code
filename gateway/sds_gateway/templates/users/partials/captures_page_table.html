@@ -1,4 +1,5 @@
 {% load custom_filters %}
+{% load tz %}
 
 <!-- Add Bootstrap Icons for actions dropdown -->
 <link rel="stylesheet"
@@ -83,15 +84,15 @@
                             </td>
                             <td headers="top-level-dir-header">{{ cap.top_level_dir|default:"-" }}</td>
                             <td headers="type-header">{{ cap.capture_type_display }}</td>
-                            <td headers="created-header"
-                                class="text-nowrap"
-                                data-timestamp="{{ cap.created_at }}">
+                            <td headers="created-header" class="text-nowrap">
                                 {% if cap.created_at %}
-                                    <div class="timestamp-display">Loading...</div>
-                                {% else %}
-                                    <div>-</div>
-                                    <small class="text-muted">No date</small>
-                                {% endif %}
+                                    {% localtime on %}
+                                        <span class="bg-transparent pe-2">{{ cap.created_at|parse_iso_datetime|date:"Y:m:d" }}</span>
+                                        <span class="text-muted bg-transparent">{{ cap.created_at|parse_iso_datetime|date:"H:i:s T" }}</span>
+                                    {% endlocaltime %}
+                                 {% else %}
+                                     -
+                                 {% endif %}
                             </td>
                             <td headers="actions-header" class="text-center">
                                 <div class="dropdown">

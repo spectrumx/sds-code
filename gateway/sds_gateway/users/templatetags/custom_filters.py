@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django import template
 
 register = template.Library()
@@ -58,3 +60,35 @@ def split(value, args):
             return value
     else:
         return value.split(args)
+
+
+@register.filter
+def parse_iso_datetime(value):
+    """
+    Parse an ISO datetime string and return a datetime object for Django's date filters.
+    Usage: {{ value|parse_iso_datetime|date:"M j, Y" }}
+    """
+    if not value:
+        return value
+
+    # If it's already a datetime object, return it
+    if hasattr(value, "year"):
+        return value
+
+    # If it's a string, try to parse it
+    if isinstance(value, str):
+        try:
+            # Handle ISO format with timezone info
+            if "T" in value and ("+" in value or value.endswith("Z")):
+                # Parse ISO format: 2025-09-11T15:11:50.447024-04:00
+                # Handle Z suffix by replacing with +00:00 for fromisoformat
+                iso_value = (
+                    value.replace("Z", "+00:00") if value.endswith("Z") else value
+                )
+                return datetime.fromisoformat(iso_value)
+            # Try parsing as regular datetime string
+            return datetime.fromisoformat(value)
+        except (ValueError, TypeError):
+            return value
+
+    return value
