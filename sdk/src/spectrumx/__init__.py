@@ -28,7 +28,11 @@ try:
 except ImportError:
     pass
 
-__version__ = importlib.metadata.version(LIB_NAME)
+try:
+    __version__ = importlib.metadata.version(LIB_NAME)
+except importlib.metadata.PackageNotFoundError:
+    # Fallback for development environment where package is not installed
+    __version__ = "0.1.13-dev"
 
 # -------------------
 # experimental features
