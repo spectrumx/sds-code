@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import QuerySet
 from django.http import FileResponse
@@ -209,9 +208,10 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             # Use the Celery task for post-processing to ensure proper async execution
             # Launch the visualization processing task asynchronously
-            processing_types = [ProcessingType.Waterfall.value]
-            if settings.EXPERIMENTAL_SPECTROGRAM:
-                processing_types.append(ProcessingType.Spectrogram.value)
+            processing_types = [
+                ProcessingType.Waterfall.value,
+                ProcessingType.Spectrogram.value,
+            ]
 
             result = start_capture_post_processing.delay(
                 str(capture.uuid), processing_types

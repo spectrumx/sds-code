@@ -34,11 +34,6 @@ BASE_DIR: Path = Path(__file__).resolve(strict=True).parent.parent.parent
 
 API_VERSION: str = env.str("API_VERSION", default="v1")
 
-# EXPERIMENTAL FEATURES
-# ------------------------------------------------------------------------------
-# Feature flags for experimental functionality
-EXPERIMENTAL_SPECTROGRAM: bool = env.bool("EXPERIMENTAL_SPECTROGRAM", default=False)
-
 OPENSEARCH_HOST: str = env.str("OPENSEARCH_HOST", default="localhost")
 OPENSEARCH_PORT: str = env.str("OPENSEARCH_PORT", default="9200")
 OPENSEARCH_USER: str = env.str("OPENSEARCH_USER", default="django")

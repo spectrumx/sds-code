@@ -4,8 +4,6 @@ Visualization configuration and compatibility rules.
 
 from typing import Any
 
-from django.conf import settings
-
 from sds_gateway.api_methods.models import CaptureType
 
 
@@ -16,8 +14,7 @@ def get_visualization_compatibility():
     Returns:
         Dict of visualization compatibility rules
     """
-
-    compatibility = {
+    return {
         "waterfall": {
             "supported_capture_types": [CaptureType.DigitalRF.value],
             "description": (
@@ -27,19 +24,14 @@ def get_visualization_compatibility():
             "color": "primary",
             "url_pattern": "/visualizations/waterfall/{capture_uuid}/",
         },
-    }
-
-    # Add spectrogram only if experimental feature is enabled
-    if settings.EXPERIMENTAL_SPECTROGRAM:
-        compatibility["spectrogram"] = {
+        "spectrogram": {
             "supported_capture_types": [CaptureType.DigitalRF.value],
             "description": "Visualize signal strength across frequency and time",
             "icon": "bi-graph-up",
             "color": "success",
             "url_pattern": "/visualizations/spectrogram/{capture_uuid}/",
-        }
-
-    return compatibility
+        },
+    }
 
 
 def get_available_visualizations(capture_type: str) -> dict[str, Any]:

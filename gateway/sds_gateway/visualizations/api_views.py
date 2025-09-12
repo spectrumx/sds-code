@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from django.conf import settings
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample
@@ -100,11 +99,6 @@ class VisualizationViewSet(ViewSet):
         Returns:
             Response with processing job details
         """
-        if not settings.EXPERIMENTAL_SPECTROGRAM:
-            return Response(
-                {"error": "Spectrogram feature is not enabled"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
         # Get the capture
         capture = get_object_or_404(
             Capture, uuid=pk, owner=request.user, is_deleted=False
@@ -139,7 +133,8 @@ class VisualizationViewSet(ViewSet):
 
         if existing_spectrogram:
             log.info(
-                f"Existing spectrogram found for capture {capture.uuid}: {existing_spectrogram.uuid} "
+                f"Existing spectrogram found for capture {capture.uuid}: "
+                f"{existing_spectrogram.uuid} "
                 f"with parameters: {existing_spectrogram.processing_parameters}"
             )
             if (
@@ -158,7 +153,8 @@ class VisualizationViewSet(ViewSet):
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
         log.info(
-            f"No existing spectrogram found for capture {capture.uuid} with these parameters. Creating new spectrogram."
+            f"No existing spectrogram found for capture {capture.uuid} "
+            f"with these parameters. Creating new spectrogram."
         )
 
         # Create new spectrogram processing record
@@ -231,12 +227,6 @@ class VisualizationViewSet(ViewSet):
         """
         Get the status of a spectrogram generation job.
         """
-        if not settings.EXPERIMENTAL_SPECTROGRAM:
-            return Response(
-                {"error": "Spectrogram feature is not enabled"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         job_id = request.query_params.get("job_id")
         if not job_id:
             return Response(
@@ -473,7 +463,9 @@ class VisualizationViewSet(ViewSet):
             spectrogram_data.save()
 
             # Launch spectrogram processing as a Celery task
-            from sds_gateway.api_methods.tasks import start_capture_post_processing
+            from sds_gateway.api_methods.tasks import (  # noqa: PLC0415
+                start_capture_post_processing,
+            )
 
             # Launch the spectrogram processing task
             processing_config = {

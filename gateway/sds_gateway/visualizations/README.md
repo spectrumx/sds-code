@@ -1,6 +1,6 @@
 # Visualizations App
 
-The visualizations app provides signal processing and visualization capabilities for SDS (Spectrum Data System) captures. It currently supports generating waterfall displays from DigitalRF capture data.
+The visualizations app provides signal processing and visualization capabilities for SDS (Spectrum Data System) captures. It currently supports generating waterfall and spectrogram displays from DigitalRF capture data.
 
 ## Overview
 
@@ -16,11 +16,10 @@ This Django app handles post-processing of RF capture data to create interactive
    - Supports DigitalRF capture format
    - Available via web interface and API
 
-2. **Spectrogram Visualization** (Under development)
+2. **Spectrogram Visualization**
    - 2D frequency vs. time visualization
    - Configurable FFT parameters, window functions, and colormaps
    - Supports DigitalRF capture format
-   - Requires `EXPERIMENTAL_SPECTROGRAM` setting to be enabled
 
 ### Processing Types
 
