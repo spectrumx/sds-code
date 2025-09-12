@@ -2,6 +2,7 @@
 
 {% load static %}
 {% load custom_filters %}
+{% load tz %}
 
 {% block bodyclass %}
     hero-white-page
@@ -41,11 +42,11 @@
                                             <th scope="col" class="sortable w-20" data-sort="name">
                                                 Dataset Name <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-40">Description</th>
+                                            <th scope="col" class="w-35">Description</th>
                                             <th scope="col" class="sortable w-15" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="sortable w-15" data-sort="created_at">
+                                            <th scope="col" class="sortable w-20" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="w-10">Actions</th>
@@ -63,14 +64,14 @@
                                     <caption class="visually-hidden">Your datasets list</caption>
                                     <thead>
                                         <tr>
-                                            <th scope="col" class="sortable w-20" data-sort="name">
+                                            <th scope="col" class="sortable w-15" data-sort="name">
                                                 Dataset Name <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="w-40">Description</th>
-                                            <th scope="col" class="sortable w-15" data-sort="authors">
+                                            <th scope="col" class="w-35">Description</th>
+                                            <th scope="col" class="sortable w-10" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="sortable w-15" data-sort="created_at">
+                                            <th scope="col" class="sortable w-20" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="w-10">Actions</th>
@@ -108,127 +109,137 @@
                                                 </td>
                                                 <td class="text-break">{{ dataset.description|truncatechars:80 }}</td>
                                                 <td class="text-break">{{ dataset.authors }}</td>
-                                                <td class="text-nowrap">{{ dataset.created_at }}</td>
-                                                <td class="text-end">
-                                                    <div class="dropdown">
-                                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
-                                                                type="button"
-                                                                data-bs-toggle="dropdown"
-                                                                data-bs-boundary="viewport"
-                                                                aria-expanded="false"
-                                                                aria-label="Actions for {{ dataset.name }}">
-                                                            <i class="bi bi-three-dots-vertical"></i>
-                                                        </button>
-                                                        <ul class="dropdown-menu">
-                                                            {% if dataset.is_owner %}
-                                                                <li>
-                                                                    <button class="dropdown-item"
-                                                                            type="button"
-                                                                            onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
-                                                                        <i class="bi bi-pencil me-2"></i>Edit
-                                                                    </button>
-                                                                </li>
-                                                                <li>
-                                                                    <button class="dropdown-item"
-                                                                            type="button"
-                                                                            data-bs-toggle="modal"
-                                                                            data-bs-target="#share-modal-{{ dataset.uuid }}">
-                                                                        <i class="bi bi-share me-2"></i>Share
-                                                                    </button>
-                                                                </li>
-                                                            {% endif %}
+                                                <td class="text-nowrap">
+                                                    {% if dataset.created_at %}
+                                                        <!-- Actual display -->
+                                                        {% localtime on %}
+                                                        <span class="bg-transparent pe-2">{{ dataset.created_at|parse_iso_datetime|date:"Y:m:d" }}</span>
+                                                        <span class="text-muted bg-transparent">{{ dataset.created_at|parse_iso_datetime|date:"H:i:s T" }}</span>
+                                                    {% endlocaltime %}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                <div class="dropdown">
+                                                    <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                            type="button"
+                                                            data-bs-toggle="dropdown"
+                                                            data-bs-boundary="viewport"
+                                                            aria-expanded="false"
+                                                            aria-label="Actions for {{ dataset.name }}">
+                                                        <i class="bi bi-three-dots-vertical"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        {% if dataset.is_owner %}
                                                             <li>
                                                                 <button class="dropdown-item"
                                                                         type="button"
-                                                                        onclick="showWebDownloadModal('{{ dataset.uuid }}', '{{ dataset.name }}')">
-                                                                    <i class="bi bi-download me-2"></i>Web Download
+                                                                        onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
+                                                                    <i class="bi bi-pencil me-2"></i>Edit
                                                                 </button>
                                                             </li>
                                                             <li>
                                                                 <button class="dropdown-item"
                                                                         type="button"
-                                                                        onclick="showSDKDownloadModal('{{ dataset.uuid }}')">
-                                                                    <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
+                                                                        data-bs-toggle="modal"
+                                                                        data-bs-target="#share-modal-{{ dataset.uuid }}">
+                                                                    <i class="bi bi-share me-2"></i>Share
                                                                 </button>
                                                             </li>
-                                                        </ul>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <!-- Pagination - Updated to match search.html style -->
-                    {% if page_obj.object_list %}
-                        <nav aria-label="Dataset pagination">
-                            <ul class="pagination justify-content-center" id="pagination-controls">
-                                {% if page_obj.paginator.num_pages > 1 %}
-                                    {% if page_obj.has_previous %}
-                                        <li class="page-item">
-                                            <a class="page-link"
-                                               href="?page={{ page_obj.previous_page_number }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}"
-                                               aria-label="Previous">
-                                                <span aria-hidden="true">«</span>
-                                            </a>
-                                        </li>
-                                    {% else %}
-                                        <li class="page-item disabled">
-                                            <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
-                                                <span aria-hidden="true">«</span>
-                                            </a>
-                                        </li>
-                                    {% endif %}
-                                    {% for num in page_obj.paginator.page_range %}
-                                        {% if page_obj.number == num %}
-                                            <li class="page-item active" aria-current="page">
-                                                <span class="page-link">{{ num }}</span>
-                                            </li>
-                                        {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
-                                            <li class="page-item">
-                                                <a class="page-link"
-                                                   href="?page={{ num }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}">{{ num }}</a>
-                                            </li>
-                                        {% endif %}
+                                                        {% endif %}
+                                                        <li>
+                                                            <button class="dropdown-item"
+                                                                    type="button"
+                                                                    onclick="showWebDownloadModal('{{ dataset.uuid }}', '{{ dataset.name }}')">
+                                                                <i class="bi bi-download me-2"></i>Web Download
+                                                            </button>
+                                                        </li>
+                                                        <li>
+                                                            <button class="dropdown-item"
+                                                                    type="button"
+                                                                    onclick="showSDKDownloadModal('{{ dataset.uuid }}')">
+                                                                <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
+                                                            </button>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     {% endfor %}
-                                    {% if page_obj.has_next %}
+                                </tbody>
+                            </table>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Pagination - Updated to match search.html style -->
+                {% if page_obj.object_list %}
+                    <nav aria-label="Dataset pagination">
+                        <ul class="pagination justify-content-center" id="pagination-controls">
+                            {% if page_obj.paginator.num_pages > 1 %}
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           href="?page={{ page_obj.previous_page_number }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}"
+                                           aria-label="Previous">
+                                            <span aria-hidden="true">«</span>
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                                            <span aria-hidden="true">«</span>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                {% for num in page_obj.paginator.page_range %}
+                                    {% if page_obj.number == num %}
+                                        <li class="page-item active" aria-current="page">
+                                            <span class="page-link">{{ num }}</span>
+                                        </li>
+                                    {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
                                         <li class="page-item">
                                             <a class="page-link"
-                                               href="?page={{ page_obj.next_page_number }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}"
-                                               aria-label="Next">
-                                                <span aria-hidden="true">»</span>
-                                            </a>
-                                        </li>
-                                    {% else %}
-                                        <li class="page-item disabled">
-                                            <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
-                                                <span aria-hidden="true">»</span>
-                                            </a>
+                                               href="?page={{ num }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}">{{ num }}</a>
                                         </li>
                                     {% endif %}
+                                {% endfor %}
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           href="?page={{ page_obj.next_page_number }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}"
+                                           aria-label="Next">
+                                            <span aria-hidden="true">»</span>
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                                            <span aria-hidden="true">»</span>
+                                        </a>
+                                    </li>
                                 {% endif %}
-                            </ul>
-                        </nav>
-                    {% endif %}
-                </div>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
             </div>
         </div>
     </div>
-    <!-- Modals to reveal on click -->
-    {% include "users/partials/web_download_modal.html" %}
-    {% include "users/partials/dataset_details_modal.html" %}
-    {% for dataset in page_obj %}
-        {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
-        {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
-    {% endfor %}
-    <!-- Toast container for notifications -->
-    <div aria-live="polite"
-         aria-atomic="true"
-         class="position-fixed top-0 end-0 p-3 toast-container">
-        <div id="toast-container"></div>
-    </div>
+</div>
+<!-- Modals to reveal on click -->
+{% include "users/partials/web_download_modal.html" %}
+{% include "users/partials/dataset_details_modal.html" %}
+{% for dataset in page_obj %}
+    {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
+    {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
+{% endfor %}
+<!-- Toast container for notifications -->
+<div aria-live="polite"
+     aria-atomic="true"
+     class="position-fixed top-0 end-0 p-3 toast-container">
+    <div id="toast-container"></div>
+</div>
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
