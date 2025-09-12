@@ -163,20 +163,35 @@ class CaptureAPI:
                 )
                 for _ in range(num_captures)
             ]
-        captures_raw = self.gateway.list_captures(capture_type=capture_type)
-        captures_list_raw, has_more = _extract_page_from_payload(captures_raw)
-        if has_more:
-            log.warning("Not all capture results may be listed. ")
-            # TODO: request more pages if needed
+        
         captures: list[Capture] = []
-        for captures_raw in captures_list_raw:
-            try:
-                capture = Capture.model_validate(captures_raw)
-                captures.append(capture)
-            except pydantic.ValidationError as err:
-                log_user_warning(f"Validation error loading capture: {captures_raw}")
-                log.exception(err)
-                continue
+        page = 1
+        page_size = 30  # Default page size
+        
+        while True:
+            captures_raw = self.gateway.list_captures(
+                capture_type=capture_type, page=page, page_size=page_size
+            )
+            captures_list_raw, has_more = _extract_page_from_payload(captures_raw)
+            
+            # Process captures from this page
+            for capture_raw in captures_list_raw:
+                try:
+                    capture = Capture.model_validate(capture_raw)
+                    captures.append(capture)
+                except pydantic.ValidationError as err:
+                    log_user_warning(f"Validation error loading capture: {capture_raw}")
+                    log.exception(err)
+                    continue
+            
+            # Check if we need to fetch more pages
+            if not has_more:
+                break
+                
+            page += 1
+            if self.verbose:
+                log.debug(f"Fetching page {page} of captures")
+        
         if self.verbose:
             log.debug(f"Listing {len(captures)} captures")
         return captures
@@ -340,7 +355,7 @@ def _extract_page_from_payload(
 
     # check if we need to request more pages
     has_more: bool | None
-    if "next" not in ret_captures_list:
+    if "next" not in captures_object:
         has_more = None
     else:
         next_url: str = captures_object["next"]
