@@ -172,7 +172,7 @@ class VisualizationViewSet(ViewSet):
             processing_parameters=processing_params,
             processing_status=ProcessingStatus.Pending.value,
             metadata={
-                "requested_by": str(request.user.uuid),
+                "requested_by": str(request.user.id),
                 "requested_at": request.data.get("timestamp"),
             },
         )
