@@ -113,8 +113,10 @@
                                                     {% if dataset.created_at %}
                                                         <!-- Actual display -->
                                                         {% localtime on %}
-                                                        <span class="bg-transparent pe-2">{{ dataset.created_at|parse_iso_datetime|date:"Y:m:d" }}</span>
-                                                        <span class="text-muted bg-transparent">{{ dataset.created_at|parse_iso_datetime|date:"H:i:s T" }}</span>
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <span class="bg-transparent pe-2">{{ dataset.created_at|parse_iso_datetime|date:"Y:m:d" }}</span>
+                                                            <span class="text-muted bg-transparent">{{ dataset.created_at|parse_iso_datetime|date:"H:i:s T" }}</span>
+                                                        </div>
                                                     {% endlocaltime %}
                                                 {% else %}
                                                     -
@@ -172,58 +174,58 @@
                         {% endif %}
                     </div>
                 </div>
-                <!-- Pagination - Updated to match search.html style -->
-                {% if page_obj.object_list %}
-                    <nav aria-label="Dataset pagination">
-                        <ul class="pagination justify-content-center" id="pagination-controls">
-                            {% if page_obj.paginator.num_pages > 1 %}
-                                {% if page_obj.has_previous %}
-                                    <li class="page-item">
-                                        <a class="page-link"
-                                           href="?page={{ page_obj.previous_page_number }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}"
-                                           aria-label="Previous">
-                                            <span aria-hidden="true">«</span>
-                                        </a>
-                                    </li>
-                                {% else %}
-                                    <li class="page-item disabled">
-                                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
-                                            <span aria-hidden="true">«</span>
-                                        </a>
-                                    </li>
-                                {% endif %}
-                                {% for num in page_obj.paginator.page_range %}
-                                    {% if page_obj.number == num %}
-                                        <li class="page-item active" aria-current="page">
-                                            <span class="page-link">{{ num }}</span>
-                                        </li>
-                                    {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
-                                        <li class="page-item">
-                                            <a class="page-link"
-                                               href="?page={{ num }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}">{{ num }}</a>
-                                        </li>
-                                    {% endif %}
-                                {% endfor %}
-                                {% if page_obj.has_next %}
-                                    <li class="page-item">
-                                        <a class="page-link"
-                                           href="?page={{ page_obj.next_page_number }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}"
-                                           aria-label="Next">
-                                            <span aria-hidden="true">»</span>
-                                        </a>
-                                    </li>
-                                {% else %}
-                                    <li class="page-item disabled">
-                                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
-                                            <span aria-hidden="true">»</span>
-                                        </a>
-                                    </li>
-                                {% endif %}
-                            {% endif %}
-                        </ul>
-                    </nav>
-                {% endif %}
             </div>
+            <!-- Pagination - Updated to match search.html style -->
+            {% if page_obj.object_list %}
+                <nav aria-label="Dataset pagination">
+                    <ul class="pagination justify-content-center" id="pagination-controls">
+                        {% if page_obj.paginator.num_pages > 1 %}
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?page={{ page_obj.previous_page_number }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}"
+                                       aria-label="Previous">
+                                        <span aria-hidden="true">«</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                                        <span aria-hidden="true">«</span>
+                                    </a>
+                                </li>
+                            {% endif %}
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active" aria-current="page">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link"
+                                           href="?page={{ num }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?page={{ page_obj.next_page_number }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}"
+                                       aria-label="Next">
+                                        <span aria-hidden="true">»</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                                        <span aria-hidden="true">»</span>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
         </div>
     </div>
 </div>
