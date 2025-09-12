@@ -8,6 +8,7 @@ from typing import Any
 
 from django_cog import cog
 from django_cog import cog_error_handler
+from django_cog import defaultCogErrorHandler
 from loguru import logger
 
 from sds_gateway.visualizations.processing.waterfall import (
@@ -205,7 +206,9 @@ def setup_post_processing_cog(
 
 def _process_waterfall_json_data(capture, processed_data, temp_path):
     """Process waterfall JSON data and return result."""
-    from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        reconstruct_drf_files,
+    )
 
     capture_files = capture.files.filter(is_deleted=False)
     reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
@@ -229,10 +232,10 @@ def _process_waterfall_json_data(capture, processed_data, temp_path):
 
 def _store_waterfall_json_file(capture_uuid, waterfall_result, processed_data):
     """Store waterfall JSON file and return result."""
-    import json
-
-    from sds_gateway.visualizations.models import ProcessingType
-    from sds_gateway.visualizations.processing.utils import store_processed_data
+    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        store_processed_data,
+    )
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".json", delete=False
@@ -289,9 +292,9 @@ def process_waterfall_data_cog(
 
     logger.info(f"Processing waterfall JSON data for capture {capture_uuid}")
 
-    from sds_gateway.api_methods.models import Capture
-    from sds_gateway.visualizations.models import PostProcessedData
-    from sds_gateway.visualizations.models import ProcessingType
+    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
+    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
+    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
 
     capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
@@ -398,7 +401,9 @@ def process_spectrogram_data_cog(
         temp_path = Path(temp_dir)
 
         # Reconstruct the DigitalRF files for processing
-        from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
+        from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+            reconstruct_drf_files,
+        )
 
         capture_files = capture.files.filter(is_deleted=False)
         reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
@@ -409,7 +414,7 @@ def process_spectrogram_data_cog(
             raise ValueError(error_msg)
 
         # Generate spectrogram
-        from sds_gateway.visualizations.processing.spectrogram import (
+        from sds_gateway.visualizations.processing.spectrogram import (  # noqa: PLC0415
             generate_spectrogram_from_drf,
         )
 
@@ -424,7 +429,9 @@ def process_spectrogram_data_cog(
             raise ValueError(spectrogram_result["message"])
 
         # Store the spectrogram image
-        from sds_gateway.visualizations.processing.utils import store_processed_data
+        from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+            store_processed_data,
+        )
 
         store_result = store_processed_data(
             capture_uuid,
@@ -490,8 +497,12 @@ def visualization_error_handler(error, task_run=None):
                 )
 
                 # Import models here to avoid Django app registry issues
-                from sds_gateway.visualizations.models import PostProcessedData
-                from sds_gateway.visualizations.models import ProcessingStatus
+                from sds_gateway.visualizations.models import (  # noqa: PLC0415
+                    PostProcessedData,
+                )
+                from sds_gateway.visualizations.models import (  # noqa: PLC0415
+                    ProcessingStatus,
+                )
 
                 # Find any PostProcessedData records for this capture that are still
                 # pending
@@ -517,3 +528,6 @@ def visualization_error_handler(error, task_run=None):
             logger.error(f"Failed to update PostProcessedData records: {cleanup_error}")
     else:
         logger.warning("No task_run object provided to error handler")
+
+    # Run the default error handler as well
+    defaultCogErrorHandler(error, task_run)

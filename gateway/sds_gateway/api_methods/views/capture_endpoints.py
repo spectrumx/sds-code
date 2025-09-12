@@ -208,13 +208,13 @@ class CaptureViewSet(viewsets.ViewSet):
         try:
             # Use the Celery task for post-processing to ensure proper async execution
             # Launch the visualization processing task asynchronously
-            processing_types = [
-                ProcessingType.Waterfall.value,
-                ProcessingType.Spectrogram.value,
-            ]
+            processing_config = {
+                ProcessingType.Waterfall.value: {},
+                ProcessingType.Spectrogram.value: {},
+            }
 
             result = start_capture_post_processing.delay(
-                str(capture.uuid), processing_types
+                str(capture.uuid), processing_config
             )
             log.info(
                 f"Launched visualization processing task for capture {capture.uuid}, "
