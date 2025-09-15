@@ -4,70 +4,14 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import h5py
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from digital_rf import DigitalRFReader
 from loguru import logger
 from scipy.signal import ShortTimeFFT
 from scipy.signal.windows import gaussian
 
-
-def _validate_channel_and_bounds(reader, channel):
-    """Validate channel exists and get sample bounds."""
-    channels = reader.get_channels()
-
-    if not channels:
-        error_msg = "No channels found in DigitalRF data"
-        raise ValueError(error_msg)
-
-    if channel not in channels:
-        error_msg = (
-            f"Channel {channel} not found in DigitalRF data. "
-            f"Available channels: {channels}"
-        )
-        raise ValueError(error_msg)
-
-    # Get sample bounds
-    bounds = reader.get_bounds(channel)
-    if bounds is None:
-        error_msg = "Could not get sample bounds for channel"
-        raise ValueError(error_msg)
-
-    start_sample, end_sample = bounds
-    if start_sample is None or end_sample is None:
-        error_msg = "Invalid sample bounds for channel"
-        raise ValueError(error_msg)
-
-    return start_sample, end_sample
-
-
-def _read_sample_rate_and_center_freq(
-    drf_path, channel, reader, start_sample, end_sample
-):
-    """Read sample rate and center frequency from metadata."""
-    # Get metadata from DigitalRF properties
-    drf_props_path = drf_path / channel / "drf_properties.h5"
-    with h5py.File(drf_props_path, "r") as f:
-        sample_rate_numerator = f.attrs.get("sample_rate_numerator")
-        sample_rate_denominator = f.attrs.get("sample_rate_denominator")
-        if sample_rate_numerator is None or sample_rate_denominator is None:
-            error_msg = "Sample rate information missing from DigitalRF properties"
-            raise ValueError(error_msg)
-        sample_rate = float(sample_rate_numerator) / float(sample_rate_denominator)
-
-    # Get center frequency from metadata
-    center_freq = 0.0
-    try:
-        # Try to get center frequency from metadata
-        metadata_dict = reader.read_metadata(start_sample, end_sample, channel)
-        if metadata_dict and "center_freq" in metadata_dict:
-            center_freq = float(metadata_dict["center_freq"])
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Could not read center frequency from metadata: {e}")
-
-    return sample_rate, center_freq
+from .utils import validate_digitalrf_data
 
 
 def _generate_spectrogram_plot(
@@ -142,23 +86,6 @@ def generate_spectrogram_from_drf(
     """
     logger.info(f"Generating spectrogram from DigitalRF data for channel {channel}")
 
-    # Initialize DigitalRF reader
-    reader = DigitalRFReader(str(drf_path))
-
-    # Validate channel and get bounds
-    start_sample, end_sample = _validate_channel_and_bounds(reader, channel)
-    total_samples = end_sample - start_sample
-
-    # Read sample rate and center frequency
-    sample_rate, center_freq = _read_sample_rate_and_center_freq(
-        drf_path, channel, reader, start_sample, end_sample
-    )
-
-    # Calculate frequency range
-    freq_span = sample_rate
-    min_frequency = center_freq - freq_span / 2
-    max_frequency = center_freq + freq_span / 2
-
     # Spectrogram parameters - use passed parameters or defaults
     if processing_parameters is None:
         processing_parameters = {}
@@ -169,8 +96,18 @@ def generate_spectrogram_from_drf(
     colormap = processing_parameters.get("colormap", "magma")
     dimensions = processing_parameters.get("dimensions", {})
 
+    # Validate DigitalRF data and get validated parameters
+    params = validate_digitalrf_data(drf_path, channel, fft_size)
+
+    # Extract values from validated parameters
+    reader = params.reader
+    start_sample = params.start_sample
+    total_samples = params.total_samples
+    sample_rate = params.sample_rate
+    center_freq = params.center_freq
+
     logger.info(
-        f"Using spectrogram parameters: fft_size={fft_size}, "
+        f"Using spectrogram parameters: fft_size={params.fft_size}, "
         f"std_dev={std_dev}, hop_size={hop_size}, colormap={colormap}, "
         f"dimensions={dimensions}"
     )
@@ -186,14 +123,14 @@ def generate_spectrogram_from_drf(
     data_array = reader.read_vector(start_sample, total_samples, channel, 0)
 
     # Create Gaussian window
-    gaussian_window = gaussian(fft_size, std=std_dev, sym=True)
+    gaussian_window = gaussian(params.fft_size, std=std_dev, sym=True)
 
     # Create ShortTimeFFT object
     short_time_fft = ShortTimeFFT(
         gaussian_window,
         hop=hop_size,
         fs=sample_rate,
-        mfft=fft_size,
+        mfft=params.fft_size,
         fft_mode="centered",
     )
 
@@ -217,18 +154,18 @@ def generate_spectrogram_from_drf(
 
     # Create metadata
     metadata = {
-        "center_frequency": center_freq,
-        "sample_rate": sample_rate,
-        "min_frequency": min_frequency,
-        "max_frequency": max_frequency,
-        "total_samples": total_samples,
-        "samples_processed": total_samples,
-        "fft_size": fft_size,
+        "center_frequency": params.center_freq,
+        "sample_rate": params.sample_rate,
+        "min_frequency": params.min_frequency,
+        "max_frequency": params.max_frequency,
+        "total_samples": params.total_samples,
+        "samples_processed": params.total_samples,
+        "fft_size": params.fft_size,
         "window_std_dev": std_dev,
         "hop_size": hop_size,
         "colormap": colormap,
         "dimensions": dimensions,
-        "channel": channel,
+        "channel": params.channel,
     }
 
     return {
