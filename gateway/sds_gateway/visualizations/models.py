@@ -7,7 +7,6 @@ from enum import StrEnum
 from pathlib import Path
 
 from django.db import models
-from django_cog.models import Pipeline
 
 
 class ProcessingType(StrEnum):
@@ -176,6 +175,7 @@ def get_latest_pipeline_by_base_name(base_name: str):
         - If "waterfall_processing_20241220_143052" exists: returns that pipeline
         - If multiple versioned pipelines exist: returns the most recent one
     """
+    from django_cog.models import Pipeline  # noqa: PLC0415
 
     # Look for timestamped pipelines with this base name (primary method)
     # Use string pattern for Django regex filter, not compiled pattern

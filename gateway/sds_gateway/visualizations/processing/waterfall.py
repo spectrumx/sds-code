@@ -6,78 +6,20 @@ import time
 from pathlib import Path
 from typing import Any
 
-import h5py
 import numpy as np
-from digital_rf import DigitalRFReader
 from loguru import logger
-from pydantic import BaseModel
 from pydantic import Field
 from pydantic import computed_field
-from pydantic import field_validator
-from pydantic import model_validator
+
+from .utils import DigitalRFParams
+from .utils import validate_digitalrf_data
 
 
-class WaterfallSliceParams(BaseModel):
+class WaterfallSliceParams(DigitalRFParams):
     """Parameters for processing a waterfall slice with validation."""
 
-    reader: Any = Field(exclude=True)  # Exclude from serialization
-    channel: str = Field(min_length=1, description="Channel name")
     slice_idx: int = Field(ge=0, description="Slice index")
-    start_sample: int = Field(ge=0, description="Start sample index")
     samples_per_slice: int = Field(gt=0, description="Number of samples per slice")
-    end_sample: int = Field(gt=0, description="End sample index")
-    fft_size: int = Field(gt=0, description="FFT size")
-    center_freq: float = Field(description="Center frequency in Hz")
-    sample_rate_numerator: int = Field(gt=0, description="Sample rate numerator")
-    sample_rate_denominator: int = Field(gt=0, description="Sample rate denominator")
-
-    @field_validator("end_sample")
-    @classmethod
-    def validate_end_sample(cls, v, info):
-        """Validate that end_sample is greater than start_sample."""
-        if "start_sample" in info.data and v <= info.data["start_sample"]:
-            msg = "end_sample must be greater than start_sample"
-            raise ValueError(msg)
-        return v
-
-    @model_validator(mode="after")
-    def validate_channel_exists(self):
-        """Validate that the channel exists in the DigitalRF data."""
-        channels = self.reader.get_channels()
-        if not channels:
-            msg = "No channels found in DigitalRF data"
-            raise ValueError(msg)
-        if self.channel not in channels:
-            msg = (
-                f"Channel {self.channel} not found in DigitalRF data. "
-                f"Available channels: {channels}"
-            )
-            raise ValueError(msg)
-        return self
-
-    @computed_field
-    @property
-    def sample_rate(self) -> float:
-        """Calculate sample rate from numerator and denominator."""
-        return float(self.sample_rate_numerator) / float(self.sample_rate_denominator)
-
-    @computed_field
-    @property
-    def min_frequency(self) -> float:
-        """Calculate minimum frequency."""
-        return self.center_freq - self.sample_rate / 2
-
-    @computed_field
-    @property
-    def max_frequency(self) -> float:
-        """Calculate maximum frequency."""
-        return self.center_freq + self.sample_rate / 2
-
-    @computed_field
-    @property
-    def total_samples(self) -> int:
-        """Calculate total number of samples."""
-        return self.end_sample - self.start_sample
 
     @computed_field
     @property
@@ -99,16 +41,15 @@ class WaterfallSliceParams(BaseModel):
             self.slice_start_sample / self.sample_rate, tz=datetime.UTC
         ).isoformat()
 
-    class Config:
-        arbitrary_types_allowed = True  # Allow DigitalRFReader type
 
-
-def validate_digitalrf_data(drf_path: Path, channel: str) -> WaterfallSliceParams:
+def validate_waterfall_data(
+    drf_path: Path, channel: str, fft_size: int = 1024
+) -> WaterfallSliceParams:
     """
     Load DigitalRF data and return WaterfallSliceParams with validated attributes.
 
     This function loads DigitalRF data and creates a validated WaterfallSliceParams
-    instance. Pydantic handles all validation logic declaratively.
+    instance for waterfall processing.
 
     Args:
         drf_path: Path to DigitalRF data directory
@@ -120,49 +61,21 @@ def validate_digitalrf_data(drf_path: Path, channel: str) -> WaterfallSliceParam
     Raises:
         ValidationError: If DigitalRF data is invalid or missing required information
     """
-    # Initialize DigitalRF reader
-    reader = DigitalRFReader(str(drf_path))
+    # Get base DigitalRF parameters
+    base_params = validate_digitalrf_data(drf_path, channel, fft_size)
 
-    # Get sample bounds - let this fail naturally if invalid
-    bounds = reader.get_bounds(channel)
-    if bounds is None:
-        msg = "Could not get sample bounds for channel"
-        raise ValueError(msg)
-    start_sample, end_sample = bounds
-    if start_sample is None or end_sample is None:
-        msg = "Invalid sample bounds for channel"
-        raise ValueError(msg)
-
-    # Get metadata from DigitalRF properties
-    drf_props_path = drf_path / channel / "drf_properties.h5"
-    with h5py.File(drf_props_path, "r") as f:
-        sample_rate_numerator = f.attrs.get("sample_rate_numerator")
-        sample_rate_denominator = f.attrs.get("sample_rate_denominator")
-        if sample_rate_numerator is None or sample_rate_denominator is None:
-            msg = "Sample rate information missing from DigitalRF properties"
-            raise ValueError(msg)
-
-    # Get center frequency from metadata (optional)
-    center_freq = 0.0
-    try:
-        metadata_dict = reader.read_metadata(start_sample, end_sample, channel)
-        if metadata_dict and "center_freq" in metadata_dict:
-            center_freq = float(metadata_dict["center_freq"])
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Could not read center frequency from metadata: {e}")
-
-    # Create WaterfallSliceParams
+    # Create WaterfallSliceParams with waterfall-specific defaults
     return WaterfallSliceParams(
-        reader=reader,
-        channel=channel,
+        reader=base_params.reader,
+        channel=base_params.channel,
         slice_idx=0,  # Will be updated per slice
-        start_sample=start_sample,
+        start_sample=base_params.start_sample,
         samples_per_slice=1024,
-        end_sample=end_sample,
-        fft_size=1024,
-        center_freq=center_freq,
-        sample_rate_numerator=sample_rate_numerator,
-        sample_rate_denominator=sample_rate_denominator,
+        end_sample=base_params.end_sample,
+        fft_size=fft_size,
+        center_freq=base_params.center_freq,
+        sample_rate_numerator=base_params.sample_rate_numerator,
+        sample_rate_denominator=base_params.sample_rate_denominator,
     )
 
 
@@ -217,12 +130,12 @@ def convert_drf_to_waterfall_json(
         f"Converting DigitalRF data to waterfall JSON format for channel {channel}"
     )
 
-    # Validate DigitalRF data and get base parameters
-    base_params = validate_digitalrf_data(drf_path, channel)
-
     # Processing parameters (could be configurable)
-    fft_size = 1024
     samples_per_slice = 1024
+    fft_size = 1024
+
+    # Validate DigitalRF data and get base parameters
+    base_params = validate_waterfall_data(drf_path, channel, fft_size)
 
     # Calculate total slices and limit to max_slices
     total_slices = base_params.total_samples // samples_per_slice
@@ -245,7 +158,7 @@ def convert_drf_to_waterfall_json(
             update={
                 "slice_idx": slice_idx,
                 "samples_per_slice": samples_per_slice,
-                "fft_size": fft_size,
+                "fft_size": base_params.fft_size,
             }
         )
         waterfall_file = _process_waterfall_slice(slice_params)
@@ -266,7 +179,7 @@ def convert_drf_to_waterfall_json(
         "max_frequency": base_params.max_frequency,
         "total_slices": total_slices,
         "slices_processed": len(waterfall_data),
-        "fft_size": fft_size,
+        "fft_size": base_params.fft_size,
         "samples_per_slice": samples_per_slice,
         "channel": channel,
     }
