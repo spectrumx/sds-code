@@ -113,12 +113,7 @@ def generate_spectrogram_from_drf(
     )
 
     # Generate spectrogram using matplotlib
-    try:
-        mpl.use("Agg")  # Use non-interactive backend
-    except ImportError as e:
-        error_msg = f"Required libraries for spectrogram generation not available: {e}"
-        logger.error(error_msg)
-        raise
+    mpl.use("Agg")  # Use non-interactive backend
 
     data_array = reader.read_vector(start_sample, total_samples, channel, 0)
 
