@@ -110,12 +110,12 @@
                                                 <td class="text-break">{{ dataset.description|truncatechars:80 }}</td>
                                                 <td class="text-break">{{ dataset.authors }}</td>
                                                 <td class="text-nowrap">
-                                                    {% if dataset.created_at %}
+                                                    {% if dataset.dataset.created_at %}
                                                         <!-- Actual display -->
                                                         {% localtime on %}
                                                         <div class="d-flex align-items-center gap-2">
-                                                            <span class="bg-transparent pe-2">{{ dataset.created_at|parse_iso_datetime|date:"Y:m:d" }}</span>
-                                                            <span class="text-muted bg-transparent">{{ dataset.created_at|parse_iso_datetime|date:"H:i:s T" }}</span>
+                                                            <span class="bg-transparent pe-2">{{ dataset.dataset.created_at|date:"Y:m:d" }}</span>
+                                                            <span class="text-muted bg-transparent">{{ dataset.dataset.created_at|date:"H:i:s T" }}</span>
                                                         </div>
                                                     {% endlocaltime %}
                                                 {% else %}

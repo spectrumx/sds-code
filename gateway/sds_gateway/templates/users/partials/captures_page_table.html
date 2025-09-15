@@ -85,129 +85,131 @@
                             <td headers="top-level-dir-header">{{ cap.top_level_dir|default:"-" }}</td>
                             <td headers="type-header">{{ cap.capture_type_display }}</td>
                             <td headers="created-header" class="text-nowrap">
-                                {% if cap.created_at %}
+                                {% if cap.capture.created_at %}
                                     {% localtime on %}
-                                        <span class="bg-transparent pe-2">{{ cap.created_at|parse_iso_datetime|date:"Y:m:d" }}</span>
-                                        <span class="text-muted bg-transparent">{{ cap.created_at|parse_iso_datetime|date:"H:i:s T" }}</span>
-                                    {% endlocaltime %}
-                                 {% else %}
-                                     -
-                                 {% endif %}
-                            </td>
-                            <td headers="actions-header" class="text-center">
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center mx-auto"
-                                            type="button"
-                                            data-bs-toggle="dropdown"
-                                            data-bs-boundary="viewport"
-                                            aria-expanded="false"
-                                            aria-label="Actions for capture {{ cap.name|default:cap.uuid }}">
-                                        <i class="bi bi-three-dots-vertical"></i>
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        {% if cap.is_owner %}
-                                            <li>
-                                                <button class="dropdown-item capture-details-btn"
-                                                        type="button"
-                                                        data-uuid="{{ cap.uuid }}"
-                                                        data-name="{{ cap.name|default:'' }}"
-                                                        data-channel="{% if cap.is_multi_channel %}{% for channel in cap.channels %}{{ channel.channel }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ cap.channel }}{% endif %}"
-                                                        data-scan-group="{{ cap.scan_group }}"
-                                                        data-capture-type="{{ cap.capture_type }}"
-                                                        data-top-level-dir="{{ cap.top_level_dir }}"
-                                                        data-owner="{{ cap.owner }}"
-                                                        data-origin="{{ cap.origin }}"
-                                                        data-dataset="{{ cap.dataset }}"
-                                                        data-created-at="{{ cap.created_at }}"
-                                                        data-updated-at="{{ cap.updated_at }}"
-                                                        data-is-public="{{ cap.is_public }}"
-                                                        data-center-frequency-ghz="{{ cap.center_frequency_ghz }}"
-                                                        data-is-multi-channel="{{ cap.is_multi_channel|yesno:'True,False' }}"
-                                                        data-channels="{{ cap.channels|safe }}">Edit</button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item"
-                                                        type="button"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#share-modal-{{ cap.uuid }}">Share</button>
-                                            </li>
-                                        {% endif %}
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="bg-transparent pe-2">{{ cap.capture.created_at|date:"Y:m:d" }}</span>
+                                        <span class="text-muted bg-transparent">{{ cap.capture.created_at|date:"H:i:s T" }}</span>
+                                    </div>
+                                {% endlocaltime %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td headers="actions-header" class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center mx-auto"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-boundary="viewport"
+                                        aria-expanded="false"
+                                        aria-label="Actions for capture {{ cap.name|default:cap.uuid }}">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    {% if cap.is_owner %}
                                         <li>
-                                            <button class="dropdown-item download-capture-btn"
+                                            <button class="dropdown-item capture-details-btn"
+                                                    type="button"
+                                                    data-uuid="{{ cap.uuid }}"
+                                                    data-name="{{ cap.name|default:'' }}"
+                                                    data-channel="{% if cap.is_multi_channel %}{% for channel in cap.channels %}{{ channel.channel }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ cap.channel }}{% endif %}"
+                                                    data-scan-group="{{ cap.scan_group }}"
+                                                    data-capture-type="{{ cap.capture_type }}"
+                                                    data-top-level-dir="{{ cap.top_level_dir }}"
+                                                    data-owner="{{ cap.owner }}"
+                                                    data-origin="{{ cap.origin }}"
+                                                    data-dataset="{{ cap.dataset }}"
+                                                    data-created-at="{{ cap.created_at }}"
+                                                    data-updated-at="{{ cap.updated_at }}"
+                                                    data-is-public="{{ cap.is_public }}"
+                                                    data-center-frequency-ghz="{{ cap.center_frequency_ghz }}"
+                                                    data-is-multi-channel="{{ cap.is_multi_channel|yesno:'True,False' }}"
+                                                    data-channels="{{ cap.channels|safe }}">Edit</button>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item"
+                                                    type="button"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#share-modal-{{ cap.uuid }}">Share</button>
+                                        </li>
+                                    {% endif %}
+                                    <li>
+                                        <button class="dropdown-item download-capture-btn"
+                                                type="button"
+                                                data-capture-uuid="{{ cap.uuid }}"
+                                                data-capture-name="{{ cap.name|default:'' }}">Download</button>
+                                    </li>
+                                    {% if cap.capture_type == 'drf' %}
+                                        <li>
+                                            <hr class="dropdown-divider" />
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item visualization-trigger-btn"
                                                     type="button"
                                                     data-capture-uuid="{{ cap.uuid }}"
-                                                    data-capture-name="{{ cap.name|default:'' }}">Download</button>
+                                                    data-capture-type="{{ cap.capture_type }}">
+                                                <i class="bi bi-graph-up me-2"></i>Visualize
+                                            </button>
                                         </li>
-                                        {% if cap.capture_type == 'drf' %}
-                                            <li>
-                                                <hr class="dropdown-divider" />
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item visualization-trigger-btn"
-                                                        type="button"
-                                                        data-capture-uuid="{{ cap.uuid }}"
-                                                        data-capture-type="{{ cap.capture_type }}">
-                                                    <i class="bi bi-graph-up me-2"></i>Visualize
-                                                </button>
-                                            </li>
-                                        {% endif %}
-                                    </ul>
-                                </div>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-4">
-                            <em>No captures found matching your search criteria.</em>
+                                    {% endif %}
+                                </ul>
+                            </div>
                         </td>
                     </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
-    <!-- Pagination -->
-    {% if captures and captures.paginator.num_pages > 1 %}
-        <nav aria-label="Search results pagination" class="mt-4">
-            <ul class="pagination justify-content-center" id="pagination-controls">
-                <!-- Previous button -->
-                <li class="page-item {% if not captures.has_previous %}disabled{% endif %}">
-                    <a class="page-link"
-                       href="{% if captures.has_previous %}?page={{ captures.previous_page_number }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}{% else %}#{% endif %}"
-                       aria-label="Go to previous page"
-                       {% if not captures.has_previous %}aria-disabled="true" tabindex="-1"{% endif %}>
-                        <span aria-hidden="true">«</span>
-                        <span class="visually-hidden">Previous</span>
-                    </a>
-                </li>
-                <!-- Page numbers -->
-                {% for num in captures.paginator.page_range %}
-                    <li class="page-item {% if num == captures.number %}active{% endif %}">
-                        {% if num == captures.number %}
-                            <a class="page-link"
-                               href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
-                               aria-label="Go to page {{ num }}"
-                               aria-current="page">{{ num }}</a>
-                        {% else %}
-                            <a class="page-link"
-                               href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
-                               aria-label="Go to page {{ num }}">{{ num }}</a>
-                        {% endif %}
-                    </li>
                 {% endfor %}
-                <!-- Next button -->
-                <li class="page-item {% if not captures.has_next %}disabled{% endif %}">
-                    <a class="page-link"
-                       href="{% if captures.has_next %}?page={{ captures.next_page_number }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}{% else %}#{% endif %}"
-                       aria-label="Go to next page"
-                       {% if not captures.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>
-                        <span aria-hidden="true">»</span>
-                        <span class="visually-hidden">Next</span>
-                    </a>
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        <em>No captures found matching your search criteria.</em>
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+<!-- Pagination -->
+{% if captures and captures.paginator.num_pages > 1 %}
+    <nav aria-label="Search results pagination" class="mt-4">
+        <ul class="pagination justify-content-center" id="pagination-controls">
+            <!-- Previous button -->
+            <li class="page-item {% if not captures.has_previous %}disabled{% endif %}">
+                <a class="page-link"
+                   href="{% if captures.has_previous %}?page={{ captures.previous_page_number }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}{% else %}#{% endif %}"
+                   aria-label="Go to previous page"
+                   {% if not captures.has_previous %}aria-disabled="true" tabindex="-1"{% endif %}>
+                    <span aria-hidden="true">«</span>
+                    <span class="visually-hidden">Previous</span>
+                </a>
+            </li>
+            <!-- Page numbers -->
+            {% for num in captures.paginator.page_range %}
+                <li class="page-item {% if num == captures.number %}active{% endif %}">
+                    {% if num == captures.number %}
+                        <a class="page-link"
+                           href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
+                           aria-label="Go to page {{ num }}"
+                           aria-current="page">{{ num }}</a>
+                    {% else %}
+                        <a class="page-link"
+                           href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
+                           aria-label="Go to page {{ num }}">{{ num }}</a>
+                    {% endif %}
                 </li>
-            </ul>
-        </nav>
-    {% endif %}
+            {% endfor %}
+            <!-- Next button -->
+            <li class="page-item {% if not captures.has_next %}disabled{% endif %}">
+                <a class="page-link"
+                   href="{% if captures.has_next %}?page={{ captures.next_page_number }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}{% else %}#{% endif %}"
+                   aria-label="Go to next page"
+                   {% if not captures.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>
+                    <span aria-hidden="true">»</span>
+                    <span class="visually-hidden">Next</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+{% endif %}
 </div>
 <!-- Download Confirmation Modal -->
 <div class="custom-modal"

@@ -673,8 +673,8 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					</a>
 				</td>
 				<td>${channelDisplay}</td>
-				<td>
-					 {{ capture.created_at }}
+				<td class="text-nowrap">
+					${this.formatCaptureDate(capture.capture?.created_at || capture.created_at)}
 				</td>
 				<td>${typeDisplay}</td>
 				<td>${authorDisplay}</td>
@@ -728,6 +728,44 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				</td>
 			</tr>
 		`;
+	}
+
+	/**
+	 * Format capture date for display in the same style as dataset table
+	 * @param {string} dateString - ISO date string
+	 * @returns {string} Formatted date HTML
+	 */
+	formatCaptureDate(dateString) {
+		if (!dateString) {
+			return "-";
+		}
+
+		try {
+			const date = new Date(dateString);
+			if (Number.isNaN(date.getTime())) {
+				return "-";
+			}
+
+			// Format date as Y:m:d (same as template format)
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, "0");
+			const day = String(date.getDate()).padStart(2, "0");
+			const dateFormatted = `${year}:${month}:${day}`;
+
+			// Format time as H:i:s T (same as template format)
+			const hours = String(date.getHours()).padStart(2, "0");
+			const minutes = String(date.getMinutes()).padStart(2, "0");
+			const seconds = String(date.getSeconds()).padStart(2, "0");
+			const timezone = date
+				.toLocaleTimeString("en-US", { timeZoneName: "short" })
+				.split(" ")[1];
+			const timeFormatted = `${hours}:${minutes}:${seconds} ${timezone}`;
+
+			return `<span class="bg-transparent pe-2">${dateFormatted}</span><span class="text-muted bg-transparent">${timeFormatted}</span>`;
+		} catch (error) {
+			console.error("Error formatting capture date:", error);
+			return "-";
+		}
 	}
 }
 
