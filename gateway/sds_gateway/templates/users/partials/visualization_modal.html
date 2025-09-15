@@ -3,7 +3,8 @@
      id="visualization-modal"
      tabindex="-1"
      role="dialog"
-     aria-labelledby="visualization-modal-label">
+     aria-labelledby="visualization-modal-label"
+     data-current-capture-type="">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -17,9 +18,10 @@
                 <div class="visualization-grid">
                     {% if visualization_compatibility %}
                         {% for viz_type, config in visualization_compatibility.items %}
-                            <div class="visualization-card">
-                                <div class="card h-100 visualization-option"
-                                     data-visualization="{{ viz_type }}">
+                            <div class="visualization-card visualization-option"
+                                 data-visualization="{{ viz_type }}"
+                                 data-supported-types="{% for capture_type in config.supported_capture_types %}{{ capture_type }}{% if not forloop.last %},{% endif %}{% endfor %}">
+                                <div class="card h-100">
                                     <div class="card-body text-center">
                                         <div class="mb-3">
                                             <i class="bi {{ config.icon }} display-4 text-{{ config.color }}"></i>
@@ -55,6 +57,31 @@
                             </div>
                         </div>
                     {% endif %}
+                </div>
+                <!-- No visualizations message -->
+                <div class="no-visualizations-message d-none">
+                    <div class="col-12">
+                        <div class="text-center py-4">
+                            <i class="bi bi-exclamation-triangle text-warning display-4"></i>
+                            <h5 class="mt-3">No Visualizations Available</h5>
+                            <p class="mt-2 text-muted">This capture type does not support any visualizations.</p>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <strong>Available visualizations by capture type:</strong>
+                                    <br />
+                                    {% for viz_type, config in visualization_compatibility.items %}
+                                        <div class="mt-2">
+                                            <strong>{{ viz_type|title }}:</strong>
+                                            {% for capture_type in config.supported_capture_types %}
+                                                {{ capture_type|upper }}
+                                                {% if not forloop.last %},{% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% endfor %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <!-- Processing Status -->
                 <div class="mt-4">

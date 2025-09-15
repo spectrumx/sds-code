@@ -22,6 +22,9 @@ class VisualizationModal {
 		this.currentCaptureUuid = captureUuid;
 		this.currentCaptureType = captureType;
 
+		// Set the capture type on the modal for CSS-based filtering
+		this.modal.setAttribute("data-current-capture-type", captureType);
+
 		// Filter visualizations based on current capture type
 		this.filterVisualizationOptions();
 		this.loadProcessingStatus();
@@ -105,7 +108,7 @@ class VisualizationModal {
 	 * Filter visualization options based on current capture type (works with Django-rendered content)
 	 */
 	filterVisualizationOptions() {
-		if (!this.visualizationCompatibility || !this.currentCaptureType) return;
+		if (!this.currentCaptureType) return;
 
 		// Get all visualization option cards
 		const visualizationCards = this.modal.querySelectorAll(
@@ -115,10 +118,12 @@ class VisualizationModal {
 		let visibleCount = 0;
 
 		for (const card of visualizationCards) {
-			const vizType = card.dataset.visualization;
-			const config = this.visualizationCompatibility[vizType];
+			const supportedTypes = card.dataset.supportedTypes;
+			const isSupported = supportedTypes
+				?.split(",")
+				.includes(this.currentCaptureType);
 
-			if (config?.supported_capture_types.includes(this.currentCaptureType)) {
+			if (isSupported) {
 				// Show this visualization option
 				card.classList.remove("d-none");
 				card.classList.add("d-block");
@@ -135,81 +140,21 @@ class VisualizationModal {
 			}
 		}
 
-		// Check if any visualizations are available
-		if (visibleCount === 0) {
-			// Show no visualizations available message
-			const modalBody = this.modal.querySelector(".modal-body .row");
-			modalBody.innerHTML = `
-                <div class="col-12">
-                    <div class="text-center py-4">
-                        <i class="bi bi-exclamation-triangle text-warning display-4"></i>
-                        <h5 class="mt-3">No Visualizations Available</h5>
-                        <p class="mt-2 text-muted">
-                            This capture type (${
-															this.currentCaptureType
-														}) does not support any visualizations.
-                        </p>
-                        <div class="mt-3">
-                            <small class="text-muted">
-                                <strong>Supported capture types:</strong><br>
-                                ${Object.values(this.visualizationCompatibility)
-																	.map((config) =>
-																		config.supported_capture_types.join(", "),
-																	)
-																	.filter(
-																		(types, index, arr) =>
-																			arr.indexOf(types) === index,
-																	)
-																	.join(", ")}
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            `;
-		}
+		// Show/hide the no visualizations message
+		this.toggleNoVisualizationsMessage(visibleCount === 0);
 	}
 
 	/**
-	 * Create HTML for a visualization option
+	 * Show or hide the no visualizations available message
 	 */
-	createVisualizationOption(vizType, config) {
-		return `
-            <div class="visualization-card">
-                <div class="card h-100 visualization-option" data-visualization="${vizType}">
-                    <div class="card-body text-center">
-                        <div class="mb-3">
-                            <i class="bi ${config.icon} display-4 text-${
-															config.color
-														}"></i>
-                        </div>
-                        <h5 class="card-title">${this.capitalizeFirst(
-													vizType,
-												)}</h5>
-                        <p class="card-text text-muted">
-                            ${config.description}
-                        </p>
-                        <div class="supported-types">
-                            <small class="text-muted">
-                                <strong>Supported:</strong> ${config.supported_capture_types
-																	.map((t) => t.toUpperCase())
-																	.join(", ")}
-                            </small>
-                        </div>
-                    </div>
-                    <div class="card-footer bg-transparent">
-                        <button type="button"
-                                class="btn btn-${
-																	config.color
-																} w-100 visualization-select-btn"
-                                data-visualization="${vizType}">
-                            <i class="bi bi-arrow-right me-2"></i>Open ${this.capitalizeFirst(
-															vizType,
-														)}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
+	toggleNoVisualizationsMessage(show) {
+		const noVizMessage = this.modal.querySelector(".no-visualizations-message");
+
+		if (show) {
+			noVizMessage.classList.remove("d-none");
+		} else if (noVizMessage) {
+			noVizMessage.classList.add("d-none");
+		}
 	}
 
 	/**
