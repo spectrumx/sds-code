@@ -9,10 +9,7 @@ export class SpectrogramControls {
 	constructor() {
 		this.settings = { ...DEFAULT_SPECTROGRAM_SETTINGS };
 		this.onSettingsChange = null;
-		this.onGenerateClick = () => {
-			console.warn("Default callback; Generate callback not set")
-		};
-		this.generateClickHandler = null; // Store reference to event handler
+		this.onGenerateClick = null;
 		this.initializeControls();
 	}
 
@@ -38,7 +35,7 @@ export class SpectrogramControls {
 				stdDevInput: !!this.stdDevInput,
 				hopSizeInput: !!this.hopSizeInput,
 				colorMapSelect: !!this.colorMapSelect,
-				generateBtn: !!this.generateBtn
+				generateBtn: !!this.generateBtn,
 			});
 			return;
 		}
@@ -171,13 +168,10 @@ export class SpectrogramControls {
 	 * Set callback for generate button clicks
 	 */
 	setGenerateCallback(callback) {
-		if (this.generateClickHandler) {
-			this.generateBtn.removeEventListener("click", this.generateClickHandler);
+		if (this.onGenerateClick) {
+			this.generateBtn.removeEventListener("click", this.onGenerateClick);
 		}
-		this.generateClickHandler = () => {
-			callback();
-		};
-		this.generateBtn.addEventListener("click", this.generateClickHandler);
+		this.generateBtn.addEventListener("click", callback);
 		this.onGenerateClick = callback;
 	}
 
@@ -196,8 +190,7 @@ export class SpectrogramControls {
 	setGenerateButtonState(enabled) {
 		this.generateBtn.disabled = !enabled;
 		if (enabled) {
-			this.generateBtn.innerHTML =
-				'<i class="bi bi-play-fill"></i> Generate Spectrogram';
+			this.generateBtn.innerHTML = '<i class="bi bi-play-fill"></i> Generate';
 		} else {
 			this.generateBtn.innerHTML =
 				'<span class="spinner-border spinner-border-sm me-2" role="status"></span>Generating...';
@@ -217,8 +210,9 @@ export class SpectrogramControls {
 	 * Clean up event listeners
 	 */
 	destroy() {
-		if (this.generateBtn && this.generateClickHandler) {
-			this.generateBtn.removeEventListener("click", this.generateClickHandler);
+		if (this.generateBtn && this.onGenerateClick) {
+			this.generateBtn.removeEventListener("click", this.onGenerateClick);
+			this.onGenerateClick = null;
 		}
 	}
 }

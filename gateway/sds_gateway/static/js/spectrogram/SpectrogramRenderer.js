@@ -28,7 +28,7 @@ export class SpectrogramRenderer {
 	clearImage() {
 		if (!this.imageElement) return;
 
-		this.imageElement.style.display = "none";
+		this.imageElement.classList.add("d-none");
 		this.imageElement.src = "";
 
 		if (this.currentImageUrl) {
@@ -54,7 +54,7 @@ export class SpectrogramRenderer {
 
 			return new Promise((resolve, reject) => {
 				this.imageElement.onload = () => {
-					this.imageElement.style.display = "block";
+					this.imageElement.classList.remove("d-none");
 					resolve(true);
 				};
 
@@ -109,22 +109,6 @@ export class SpectrogramRenderer {
 			console.error("Error exporting image:", error);
 			return null;
 		}
-	}
-
-	/**
-	 * Wait for image element to be available in DOM
-	 */
-	async waitForImageElement(timeout = 5000) {
-		const startTime = Date.now();
-
-		while (
-			!document.getElementById(this.imageId) &&
-			Date.now() - startTime < timeout
-		) {
-			await new Promise((resolve) => setTimeout(resolve, 100));
-		}
-
-		return !!document.getElementById(this.imageId);
 	}
 
 	/**

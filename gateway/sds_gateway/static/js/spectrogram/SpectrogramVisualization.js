@@ -60,23 +60,13 @@ export class SpectrogramVisualization {
 		this.loadingOverlay = document.getElementById("loadingOverlay");
 		this.saveButton = document.getElementById("saveSpectrogramBtn");
 
-		// Wait for image element to be available and initialize the renderer
-		try {
-			const imageReady = await this.renderer.waitForImageElement();
-			if (imageReady) {
-				if (!this.renderer.initializeImage()) {
-					console.error("Failed to initialize spectrogram renderer image");
-				}
-			} else {
-				console.error("Image element not found after waiting");
-			}
-		} catch (error) {
-			console.error("Error during image initialization:", error);
+		// Initialize the renderer
+		if (!this.renderer.initializeImage()) {
+			console.error("Failed to initialize spectrogram renderer image");
 		}
 
 		// Set up control callbacks
 		this.controls.setGenerateCallback(() => {
-			console.log("New callback; Generate button clicked");
 			this.generateSpectrogram();
 		});
 	}
@@ -247,12 +237,6 @@ export class SpectrogramVisualization {
 			}
 
 			const blob = await response.blob();
-			console.log(
-				"Received spectrogram blob:",
-				blob.size,
-				"bytes, type:",
-				blob.type,
-			);
 
 			// Revoke the old URL before creating a new one
 			if (this.currentSpectrogramUrl) {
@@ -261,11 +245,15 @@ export class SpectrogramVisualization {
 			}
 
 			const renderResult = await this.renderer.renderFromImageBlob(blob);
-			console.log("Render result:", renderResult);
 
 			this.setGeneratingState(false);
-			this.updateStatus(STATUS_MESSAGES.SUCCESS);
-			this.showSaveButton(true);
+
+			if (renderResult) {
+				this.updateStatus(STATUS_MESSAGES.SUCCESS);
+				this.showSaveButton(true);
+			} else {
+				this.showError("Failed to render spectrogram");
+			}
 
 			// Store the result for saving
 			this.currentSpectrogramUrl = URL.createObjectURL(blob);
