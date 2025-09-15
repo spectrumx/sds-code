@@ -297,10 +297,8 @@ export class SpectrogramVisualization {
 		if (this.loadingOverlay) {
 			if (isGenerating) {
 				this.loadingOverlay.classList.remove("d-none");
-				this.loadingOverlay.style.display = "flex";
 			} else {
 				this.loadingOverlay.classList.add("d-none");
-				this.loadingOverlay.style.display = "none";
 			}
 		}
 
