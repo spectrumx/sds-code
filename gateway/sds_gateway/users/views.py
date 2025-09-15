@@ -988,6 +988,9 @@ def _get_captures_for_template(
         )
         capture_data["owner_email"] = capture.owner.email if capture.owner.email else ""
 
+        # Add the original model instance for template use
+        capture_data["capture"] = capture
+
         # Add shared users data for share modal
         if capture.owner == request.user:
             # Get shared users and groups using the new model
@@ -1655,6 +1658,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         """Prepare owned datasets with shared user information."""
         result = []
         for dataset in datasets:
+            # Use serializer for API fields, but keep the original model for template
             dataset_data = DatasetGetSerializer(dataset).data
             shared_users = self._get_shared_users_for_dataset(dataset, user)
 
@@ -1665,6 +1669,8 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "is_shared_with_me": False,
                     "owner_name": dataset.owner.name or "Owner",
                     "owner_email": dataset.owner.email or "",
+                    # Add the original model instance for template use
+                    "dataset": dataset,
                 }
             )
             result.append(dataset_data)
@@ -1684,6 +1690,8 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "is_shared_with_me": True,
                     "owner_name": dataset.owner.name or "Owner",
                     "owner_email": dataset.owner.email or "",
+                    # Add the original model instance for template use
+                    "dataset": dataset,
                 }
             )
             result.append(dataset_data)

@@ -538,7 +538,7 @@ class CapturesTableManager extends TableManager {
                 </td>
                 <td>${channelDisplay}</td>
                 <td class="text-nowrap">
-                    ${this.formatCaptureDate(capture.created_at)}
+                    ${this.formatCaptureDate(capture.capture?.created_at || capture.created_at)}
                 </td>
                 <td>${typeDisplay}</td>
                 <td>${capture.files_count || "0"}</td>
