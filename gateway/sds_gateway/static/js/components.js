@@ -73,6 +73,44 @@ const ComponentUtils = {
 	},
 
 	/**
+	 * Format date for modal display in the same style as dataset table
+	 * @param {string} dateString - ISO date string
+	 * @returns {string} Formatted date HTML
+	 */
+	formatDateForModal(dateString) {
+		if (!dateString || dateString === "None") {
+			return "N/A";
+		}
+
+		try {
+			const date = new Date(dateString);
+			if (Number.isNaN(date.getTime())) {
+				return "N/A";
+			}
+
+			// Format date as YYYY-MM-DD
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, "0");
+			const day = String(date.getDate()).padStart(2, "0");
+			const dateFormatted = `${year}-${month}-${day}`;
+
+			// Format time as HH:MM:SS T
+			const hours = String(date.getHours()).padStart(2, "0");
+			const minutes = String(date.getMinutes()).padStart(2, "0");
+			const seconds = String(date.getSeconds()).padStart(2, "0");
+			const timezone = date
+				.toLocaleTimeString("en-US", { timeZoneName: "short" })
+				.split(" ")[1];
+			const timeFormatted = `${hours}:${minutes}:${seconds} ${timezone}`;
+
+			return `<span class="bg-transparent pe-2">${dateFormatted}</span><span class="text-muted bg-transparent">${timeFormatted}</span>`;
+		} catch (error) {
+			console.error("Error formatting capture date:", error);
+			return "N/A";
+		}
+	},
+
+	/**
 	 * Formats date for display (simple version)
 	 * @param {string} dateString - ISO date string
 	 * @returns {string} Formatted date
@@ -538,7 +576,7 @@ class CapturesTableManager extends TableManager {
                 </td>
                 <td>${channelDisplay}</td>
                 <td class="text-nowrap">
-                    ${this.formatCaptureDate(capture.capture?.created_at || capture.created_at)}
+                    ${ComponentUtils.formatDateForModal(capture.capture?.created_at || capture.created_at)}
                 </td>
                 <td>${typeDisplay}</td>
                 <td>${capture.files_count || "0"}</td>
@@ -1076,7 +1114,7 @@ class ModalManager {
 								<span class="fw-medium text-muted">Created At:</span>
 								<br>
 								<small class="text-muted">
-									${this.formatCaptureDate(data.createdAt)}
+									${ComponentUtils.formatDateForModal(data.createdAt)}
 								</small>
 							</p>
 						</div>
@@ -1085,7 +1123,7 @@ class ModalManager {
 								<span class="fw-medium text-muted">Updated At:</span>
 								<br>
 								<small class="text-muted">
-									${this.formatCaptureDate(data.updatedAt)}
+									${ComponentUtils.formatDateForModal(data.updatedAt)}
 								</small>
 							</p>
 						</div>
@@ -1811,44 +1849,6 @@ class ModalManager {
 			}
 		} else {
 			fileMetadataSection.style.display = "none";
-		}
-	}
-
-	/**
-	 * Format capture date for display in the same style as dataset table
-	 * @param {string} dateString - ISO date string
-	 * @returns {string} Formatted date HTML
-	 */
-	formatCaptureDate(dateString) {
-		if (!dateString || dateString === "None") {
-			return "N/A";
-		}
-
-		try {
-			const date = new Date(dateString);
-			if (Number.isNaN(date.getTime())) {
-				return "N/A";
-			}
-
-			// Format date as YYYY:MM:DD
-			const year = date.getFullYear();
-			const month = String(date.getMonth() + 1).padStart(2, "0");
-			const day = String(date.getDate()).padStart(2, "0");
-			const dateFormatted = `${year}:${month}:${day}`;
-
-			// Format time as HH:MM:SS T
-			const hours = String(date.getHours()).padStart(2, "0");
-			const minutes = String(date.getMinutes()).padStart(2, "0");
-			const seconds = String(date.getSeconds()).padStart(2, "0");
-			const timezone = date
-				.toLocaleTimeString("en-US", { timeZoneName: "short" })
-				.split(" ")[1];
-			const timeFormatted = `${hours}:${minutes}:${seconds} ${timezone}`;
-
-			return `<span class="bg-transparent pe-2">${dateFormatted}</span><span class="text-muted bg-transparent">${timeFormatted}</span>`;
-		} catch (error) {
-			console.error("Error formatting capture date:", error);
-			return "N/A";
 		}
 	}
 }

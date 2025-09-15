@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 
 {% load static %}
-{% load custom_filters %}
 {% load tz %}
 
 {% block css %}
@@ -80,8 +79,8 @@
                                                 <td class="text-nowrap">
                                                     {% if key.created %}
                                                         {% localtime on %}
-                                                        <span class="bg-transparent pe-2">{{ key.created|parse_iso_datetime|date:"Y:m:d" }}</span>
-                                                        <span class="text-muted bg-transparent">{{ key.created|parse_iso_datetime|date:"H:i:s T" }}</span>
+                                                        <span class="bg-transparent pe-2">{{ key.created|date:"Y-m-d" }}</span>
+                                                        <span class="text-muted bg-transparent">{{ key.created|date:"H:i:s T" }}</span>
                                                     {% endlocaltime %}
                                                 {% else %}
                                                     -
@@ -90,8 +89,8 @@
                                             <td class="text-nowrap">
                                                 {% if key.expiry_date %}
                                                     {% localtime on %}
-                                                    <span class="bg-transparent pe-2">{{ key.expiry_date|parse_iso_datetime|date:"Y:m:d" }}</span>
-                                                    <span class="text-muted bg-transparent">{{ key.expiry_date|parse_iso_datetime|date:"H:i:s T" }}</span>
+                                                    <span class="bg-transparent pe-2">{{ key.expiry_date|date:"Y-m-d" }}</span>
+                                                    <span class="text-muted bg-transparent">{{ key.expiry_date|date:"H:i:s T" }}</span>
                                                 {% endlocaltime %}
                                             {% else %}
                                                 Does not expire
