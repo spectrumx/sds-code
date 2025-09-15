@@ -135,8 +135,12 @@ class DatasetDetailsModal {
 		}
 
 		// Format dates in the same style as the table
-		const createdDate = this.formatDateForModal(dataset.created_at);
-		const updatedDate = this.formatDateForModal(dataset.updated_at);
+		const createdDate = window.ComponentUtils.formatDateForModal(
+			dataset.created_at,
+		);
+		const updatedDate = window.ComponentUtils.formatDateForModal(
+			dataset.updated_at,
+		);
 
 		document.querySelector(".dataset-details-created").innerHTML = createdDate;
 		document.querySelector(".dataset-details-updated").innerHTML = updatedDate;
@@ -553,44 +557,6 @@ class DatasetDetailsModal {
 	getCSRFToken() {
 		const token = document.querySelector("[name=csrfmiddlewaretoken]");
 		return token ? token.value : "";
-	}
-
-	/**
-	 * Format date for modal display in the same style as dataset table
-	 * @param {string} dateString - ISO date string
-	 * @returns {string} Formatted date HTML
-	 */
-	formatDateForModal(dateString) {
-		if (!dateString || dateString === "N/A") {
-			return "N/A";
-		}
-
-		try {
-			const date = new Date(dateString);
-			if (Number.isNaN(date.getTime())) {
-				return "N/A";
-			}
-
-			// Format date as Y:m:d (same as template format)
-			const year = date.getFullYear();
-			const month = String(date.getMonth() + 1).padStart(2, "0");
-			const day = String(date.getDate()).padStart(2, "0");
-			const dateFormatted = `${year}:${month}:${day}`;
-
-			// Format time as H:i:s T (same as template format)
-			const hours = String(date.getHours()).padStart(2, "0");
-			const minutes = String(date.getMinutes()).padStart(2, "0");
-			const seconds = String(date.getSeconds()).padStart(2, "0");
-			const timezone = date
-				.toLocaleTimeString("en-US", { timeZoneName: "short" })
-				.split(" ")[1];
-			const timeFormatted = `${hours}:${minutes}:${seconds} ${timezone}`;
-
-			return `<span class="bg-transparent pe-2">${dateFormatted}</span><span class="text-muted bg-transparent">${timeFormatted}</span>`;
-		} catch (error) {
-			console.error("Error formatting date:", error);
-			return "N/A";
-		}
 	}
 }
 

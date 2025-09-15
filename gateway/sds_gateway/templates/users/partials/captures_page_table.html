@@ -88,7 +88,7 @@
                                 {% if cap.capture.created_at %}
                                     {% localtime on %}
                                     <div class="d-flex align-items-center gap-2">
-                                        <span class="bg-transparent pe-2">{{ cap.capture.created_at|date:"Y:m:d" }}</span>
+                                        <span class="bg-transparent pe-2">{{ cap.capture.created_at|date:"Y-m-d" }}</span>
                                         <span class="text-muted bg-transparent">{{ cap.capture.created_at|date:"H:i:s T" }}</span>
                                     </div>
                                 {% endlocaltime %}
