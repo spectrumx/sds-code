@@ -539,7 +539,11 @@ class WaterfallVisualization {
 	showLoading(show) {
 		const overlay = document.getElementById("loadingOverlay");
 		if (overlay) {
-			overlay.style.display = show ? "flex" : "none";
+			if (show) {
+				overlay.classList.remove("d-none");
+			} else {
+				overlay.classList.add("d-none");
+			}
 		}
 	}
 

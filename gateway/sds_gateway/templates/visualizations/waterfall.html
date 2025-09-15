@@ -104,6 +104,11 @@
                         <div>
                             <div id="periodogramChart"></div>
                         </div>
+                        <div id="loadingOverlay" class="loading-overlay d-none">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
                         <!-- Waterfall Plot -->
                         <div>
                             <!-- Scroll indicator above -->
@@ -118,11 +123,6 @@
                             <div id="waterfallPlot">
                                 <canvas id="waterfallCanvas" width="800" height="400"></canvas>
                                 <canvas id="waterfallOverlayCanvas" width="800" height="400"></canvas>
-                                <div id="loadingOverlay" class="loading-overlay">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </div>
                                 <!-- Color Legend - positioned to sit in right margin area -->
                                 <div id="colorLegend" class="color-legend">
                                     <div class="legend-gradient"></div>
