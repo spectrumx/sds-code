@@ -279,9 +279,8 @@
                                             <div class="flex-grow-1">
                                                 <div class="progress progress-bar-custom">
                                                     <div id="checkingProgressBar"
-                                                         class="progress-bar"
-                                                         role="progressbar"
-                                                         class="progress-bar progress-bar-width-0"></div>
+                                                         class="progress-bar progress-bar-width-0"
+                                                         role="progressbar"></div>
                                                 </div>
                                             </div>
                                             <small class="ms-2 text-muted" id="checkingProgressText">0%</small>
@@ -808,6 +807,9 @@
 
                 const response = await fetch("{% url 'users:upload_capture' %}", {
                     method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
                     body: skippedFormData,
                     signal: abortController.signal
                 });
@@ -822,24 +824,15 @@
                 let tempChunkSize = 0;
                 let tempChunkFiles = 0; // Track number of files in current chunk (mirrors currentChunk.length)
 
-                console.log('=== CHUNK CALCULATION DEBUG ===');
-                console.log('Files to upload:', filesToUpload.length);
-                console.log('Chunk size limit:', (chunkSizeBytes / (1024 * 1024)).toFixed(1), 'MB');
 
                 for (let i = 0; i < filesToUpload.length; i++) {
                     const file = filesToUpload[i];
                     const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-                    console.log(`\nFile ${i + 1}: ${file.name}`);
-                    console.log(`  Size: ${fileSizeMB} MB`);
-                    console.log(`  Current tempChunkSize: ${(tempChunkSize / (1024 * 1024)).toFixed(2)} MB`);
-                    console.log(`  Current tempChunkFiles: ${tempChunkFiles}`);
 
                     // Check if this file would exceed the chunk limit (mirrors upload logic exactly)
                     if (tempChunkSize + file.size > chunkSizeBytes && tempChunkFiles > 0) {
                         // Current chunk would exceed size limit, start new chunk
                         const wouldBeSize = ((tempChunkSize + file.size) / (1024 * 1024)).toFixed(2);
-                        console.log(`  -> CHUNK FULL: ${wouldBeSize} MB > ${(chunkSizeBytes / (1024 * 1024)).toFixed(1)} MB`);
-                        console.log(`  -> Creating new chunk. Total chunks: ${totalChunks + 1}`);
                         totalChunks++;
                         tempChunkSize = 0;
                         tempChunkFiles = 0;
@@ -848,8 +841,6 @@
                     // Now add the file to the current chunk
                     if (file.size > chunkSizeBytes) {
                         // Large file gets its own chunk
-                        console.log(`  -> LARGE FILE: ${fileSizeMB} MB > ${(chunkSizeBytes / (1024 * 1024)).toFixed(1)} MB`);
-                        console.log(`  -> Creating new chunk. Total chunks: ${totalChunks + 1}`);
                         totalChunks++;
                         tempChunkSize = 0;
                         tempChunkFiles = 0;
@@ -857,18 +848,13 @@
                         // Add to current chunk
                         tempChunkSize += file.size;
                         tempChunkFiles++;
-                        console.log(`  -> ADDING TO CHUNK: New tempChunkSize: ${(tempChunkSize / (1024 * 1024)).toFixed(2)} MB, Files: ${tempChunkFiles}`);
                     }
                 }
 
                 // Add final chunk if there are remaining files
                 if (tempChunkSize > 0) {
-                    console.log(`\n-> FINAL CHUNK: ${(tempChunkSize / (1024 * 1024)).toFixed(2)} MB remaining`);
-                    console.log(`-> Creating final chunk. Total chunks: ${totalChunks + 1}`);
                     totalChunks++;
                 }
-
-                console.log(`\n=== FINAL RESULT: ${totalChunks} total chunks ===`);
                 return totalChunks;
             }
 
@@ -917,24 +903,15 @@
                     // Calculate total chunks first
                     const totalChunks = calculateTotalChunks(filesToUpload, CHUNK_SIZE_BYTES);
 
-                    console.log('=== ACTUAL CHUNK UPLOAD DEBUG ===');
-                    console.log('Starting upload with calculated total chunks:', totalChunks);
 
                     // Now upload files in chunks
                     for (let i = 0; i < filesToUpload.length; i++) {
                         const file = filesToUpload[i];
                         const filePath = relativePathsToUpload[i];
 
-                        console.log(`\nProcessing file ${i + 1}/${filesToUpload.length}: ${file.name}`);
-                        console.log(`  File size: ${(file.size / (1024 * 1024)).toFixed(2)} MB`);
-                        console.log(`  Current chunk size: ${(currentChunkSize / (1024 * 1024)).toFixed(2)} MB`);
-                        console.log(`  Current chunk number: ${chunkNumber}`);
-                        console.log(`  Files in current chunk: ${currentChunk.length}`);
 
                         // Check if this file would exceed the 50MB limit
                         if (currentChunkSize + file.size > CHUNK_SIZE_BYTES && currentChunk.length > 0) {
-                            console.log(`  -> CHUNK FULL: Would exceed ${(CHUNK_SIZE_BYTES / (1024 * 1024)).toFixed(1)} MB limit`);
-                            console.log(`  -> Uploading chunk ${chunkNumber}/${totalChunks}`);
                             // Upload current chunk before adding this file
                             await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, false, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES);
 
@@ -943,7 +920,6 @@
                             currentChunkPaths = [];
                             currentChunkSize = 0;
                             chunkNumber++;
-                            console.log(`  -> Reset for next chunk. New chunk number: ${chunkNumber}`);
                         }
 
                         // Add file to current chunk
@@ -951,11 +927,9 @@
                         currentChunkPaths.push(filePath);
                         currentChunkSize += file.size;
                         filesProcessed++;
-                        console.log(`  -> Added to chunk. New chunk size: ${(currentChunkSize / (1024 * 1024)).toFixed(2)} MB`);
 
                         // Check if this is the last file
                         if (i === filesToUpload.length - 1) {
-                            console.log(`  -> LAST FILE: Uploading final chunk ${chunkNumber}/${totalChunks}`);
                             // Upload final chunk
                             await uploadChunk(currentChunk, currentChunkPaths, chunkNumber, totalChunks, filesProcessed, true, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES);
                         }
@@ -988,21 +962,12 @@
                 // Clear the reference since upload completed
                 currentAbortController = null;
 
-                // Debug logging for final results
-                console.log('Final upload results:', allResults);
 
                 return allResults;
             }
 
             // Helper function to upload a chunk
             async function uploadChunk(chunk, chunkPaths, chunkNum, totalChunks, filesProcessed, isFinalChunk, allResults, allRelativePaths, totalFiles, CHUNK_SIZE_BYTES) {
-                console.log(`Uploading chunk ${chunkNum}/${totalChunks}:`, {
-                    chunkSize: chunk.length,
-                    chunkPaths: chunkPaths,
-                    filesProcessed: filesProcessed,
-                    isFinalChunk: isFinalChunk,
-                    chunkFiles: chunk.map(f => f.webkitRelativePath || f.name)
-                });
                 // Get progress elements locally
                 const progressBar = document.getElementById('checkingProgressBar');
                 const progressText = document.getElementById('checkingProgressText');
@@ -1069,17 +1034,6 @@
                 const calculated_timeout = total_chunk_size_bytes / MIN_AVG_UPLOAD_RATE * 1000;
                 const timeout = Math.max(calculated_timeout, MIN_TIMEOUT_MS); // Use at least 30 seconds
 
-                // Debug logging for timeout calculation
-                console.log(`Chunk ${chunkNum} timeout calculation:`, {
-                    total_chunk_size_bytes: total_chunk_size_bytes,
-                    total_chunk_size_mb: (total_chunk_size_bytes / (1024 * 1024)).toFixed(2),
-                    min_upload_rate_kbps: MIN_AVG_UPLOAD_RATE / 1024,
-                    calculated_timeout_ms: calculated_timeout,
-                    calculated_timeout_minutes: (calculated_timeout / (1000 * 60)).toFixed(2),
-                    final_timeout_ms: timeout,
-                    final_timeout_minutes: (timeout / (1000 * 60)).toFixed(2),
-                    using_minimum: calculated_timeout < MIN_TIMEOUT_MS
-                });
 
                 const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -1089,6 +1043,9 @@
                 try {
                     response = await fetch("{% url 'users:upload_capture' %}", {
                         method: 'POST',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
                         body: chunkFormData,
                         signal: controller.signal
                     });
@@ -1101,15 +1058,6 @@
 
                     chunkResult = await response.json();
 
-                    // Debug logging for large files
-                    if (chunk.length === 1 && chunk[0].size > CHUNK_SIZE_BYTES) {
-                        console.log('Large file upload result:', {
-                            isFinalChunk,
-                            chunkResult,
-                            captures: chunkResult.captures,
-                            message: chunkResult.message
-                        });
-                    }
 
                 } catch (error) {
                     clearTimeout(timeoutId);
@@ -1125,15 +1073,7 @@
                 }
                 // Collect captures from the final chunk
                 if (chunkResult.captures && isFinalChunk) {
-                    console.log(`Chunk ${chunkNum} (final): Collecting captures:`, {
-                        chunkCaptures: chunkResult.captures,
-                        allResultsCapturesBefore: allResults.captures,
-                        isFinalChunk: isFinalChunk
-                    });
                     allResults.captures = allResults.captures.concat(chunkResult.captures);
-                    console.log(`Chunk ${chunkNum} (final): allResults.captures after:`, allResults.captures);
-                } else if (chunkResult.captures && !isFinalChunk) {
-                    console.log(`Chunk ${chunkNum} (non-final): Skipping captures (not final chunk):`, chunkResult.captures);
                 }
                 // Also collect any message from the final chunk
                 if (chunkResult.message && isFinalChunk) {
@@ -1218,18 +1158,6 @@
                     }
                 }
 
-                // Debug logging for file structure
-                console.log('Files to upload structure:', {
-                    totalFiles: filesToUpload.length,
-                    skippedFiles: skippedFilesCount,
-                    totalSelectedFiles: files.length,
-                    files: filesToUpload.map(f => ({
-                        name: f.name,
-                        path: f.webkitRelativePath || f.name,
-                        size: f.size,
-                        sizeMB: (f.size / (1024 * 1024)).toFixed(2)
-                    }))
-                });
 
                 // Upload files in chunks
                 try {
@@ -1238,11 +1166,6 @@
                     // Clear the reference since upload completed
                     currentAbortController = null;
 
-                    // Debug logging for final results
-                    console.log('Final upload results:', {
-                        ...uploadResults,
-                        capturesLength: uploadResults.captures ? uploadResults.captures.length : 0
-                    });
 
                     // Show results
                     showUploadResults(uploadResults, uploadResults.saved_files_count, files.length, skippedFilesCount);
@@ -1333,16 +1256,6 @@
 
             // Function to show upload results
             function showUploadResults(result, uploadedCount, totalCount, skippedCount = 0) {
-                // Debug logging
-                console.log('showUploadResults called with:', {
-                    result,
-                    uploadedCount,
-                    totalCount,
-                    hasMessage: !!result.message,
-                    message: result.message,
-                    captures: result.captures,
-                    capturesLength: result.captures ? result.captures.length : 0
-                });
 
                 // Check if page was refreshed during upload
                 if (!uploadInProgress && result.file_upload_status === 'error') {
@@ -1376,18 +1289,9 @@
                     }
 
                     if (result.captures && result.captures.length > 0) {
-                        console.log('Displaying captures in modal:', {
-                            captures: result.captures,
-                            capturesLength: result.captures.length
-                        });
                         let uuids = result.captures.map(uuid => `<li>${uuid}</li>`).join('');
                         msg += `<br />Created capture UUID(s):<ul>${uuids}</ul>`;
-                    } else {
-                        console.log('No captures to display:', {
-                            hasCaptures: !!result.captures,
-                            capturesLength: result.captures ? result.captures.length : 0
-                        });
-                    }
+                    } else {}
                     if (result.errors && result.errors.length > 0) {
                         let errs = result.errors.map(e => `<li>${e}</li>`).join('');
                         msg += `<br /><b>Errors:</b><ul>${errs}</ul>`;

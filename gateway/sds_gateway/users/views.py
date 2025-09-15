@@ -28,10 +28,8 @@ from django.shortcuts import redirect
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views import View
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import TemplateView
@@ -2702,8 +2700,12 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 user_share_group_list_view = ShareGroupListView.as_view()
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class UploadCaptureView(View):
+class UploadCaptureView(Auth0LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        """Handle GET request to ensure CSRF token is available."""
+
+        return JsonResponse({"csrf_token": request.META.get("CSRF_COOKIE", "")})
+
     def _process_file_uploads(
         self,
         request: HttpRequest,
@@ -2713,6 +2715,20 @@ class UploadCaptureView(View):
         saved_files_count = 0
         file_errors = []
         skipped_files = []
+
+        # Validate that both lists have the same length before processing
+        if len(upload_chunk_files) != len(relative_paths):
+            logger.error(
+                "upload_chunk_files and relative_paths have different lengths: "
+                "%d vs %d",
+                len(upload_chunk_files),
+                len(relative_paths),
+            )
+            file_errors.append(
+                "Internal error: mismatched file and path counts. "
+                "Please contact support."
+            )
+            return 0, file_errors
 
         for f, rel_path in zip(upload_chunk_files, relative_paths, strict=True):
             path = Path(rel_path)
@@ -2904,12 +2920,12 @@ class UploadCaptureView(View):
         channels = [ch.strip() for ch in channels_str.split(",") if ch.strip()]
         scan_group = request.POST.get("scan_group", "")
         capture_type_str = request.POST.get(
-            "capture_type", "drf"
+            "capture_type", CaptureType.DigitalRF.value
         )  # Default to DigitalRF
         # Convert string to CaptureType enum
         capture_type = (
             CaptureType.RadioHound
-            if capture_type_str == "rh"
+            if capture_type_str == CaptureType.RadioHound.value
             else CaptureType.DigitalRF
         )
 
@@ -3227,9 +3243,13 @@ class UploadCaptureView(View):
 user_upload_capture_view = UploadCaptureView.as_view()
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class CheckFileExistsView(View):
+class CheckFileExistsView(Auth0LoginRequiredMixin, View):
     """View to check if a file exists based on path, name, and checksum."""
+
+    def get(self, request, *args, **kwargs):
+        """Handle GET request to ensure CSRF token is available."""
+
+        return JsonResponse({"csrf_token": request.META.get("CSRF_COOKIE", "")})
 
     def post(self, request, *args, **kwargs):
         """Check if a file exists using the provided path, name, and checksum."""

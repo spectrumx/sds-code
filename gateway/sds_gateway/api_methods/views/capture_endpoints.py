@@ -283,7 +283,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             ), None
 
-        if capture_type == "drf" and not drf_channel:
+        if capture_type == CaptureType.DigitalRF.value and not drf_channel:
             return Response(
                 {"detail": "The `channel` field is required for DigitalRF captures."},
                 status=status.HTTP_400_BAD_REQUEST,

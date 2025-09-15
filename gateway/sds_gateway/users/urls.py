@@ -3,11 +3,11 @@ from django.urls import path
 from .api.views import GetAPIKeyView
 from .views import CheckFileExistsView
 from .views import ListCapturesView
+from .views import UploadCaptureView
 from .views import generate_api_key_form_view
 from .views import new_api_key_view
 from .views import revoke_api_key_view
 from .views import user_api_key_view
-from .views import UploadCaptureView
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
