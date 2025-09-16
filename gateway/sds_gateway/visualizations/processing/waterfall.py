@@ -14,6 +14,9 @@ from pydantic import computed_field
 from .utils import DigitalRFParams
 from .utils import validate_digitalrf_data
 
+SAMPLES_PER_SLICE = 1024
+FFT_SIZE = 1024
+
 
 class WaterfallSliceParams(DigitalRFParams):
     """Parameters for processing a waterfall slice with validation."""
@@ -43,7 +46,7 @@ class WaterfallSliceParams(DigitalRFParams):
 
 
 def validate_waterfall_data(
-    drf_path: Path, channel: str, fft_size: int = 1024
+    drf_path: Path, channel: str, fft_size: int = FFT_SIZE
 ) -> WaterfallSliceParams:
     """
     Load DigitalRF data and return WaterfallSliceParams with validated attributes.
@@ -70,7 +73,7 @@ def validate_waterfall_data(
         channel=base_params.channel,
         slice_idx=0,  # Will be updated per slice
         start_sample=base_params.start_sample,
-        samples_per_slice=1024,
+        samples_per_slice=SAMPLES_PER_SLICE,
         end_sample=base_params.end_sample,
         fft_size=fft_size,
         center_freq=base_params.center_freq,
@@ -130,22 +133,18 @@ def convert_drf_to_waterfall_json(
         f"Converting DigitalRF data to waterfall JSON format for channel {channel}"
     )
 
-    # Processing parameters (could be configurable)
-    samples_per_slice = 1024
-    fft_size = 1024
-
     # Validate DigitalRF data and get base parameters
-    base_params = validate_waterfall_data(drf_path, channel, fft_size)
+    base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
 
     # Calculate total slices and limit to max_slices
-    total_slices = base_params.total_samples // samples_per_slice
+    total_slices = base_params.total_samples // SAMPLES_PER_SLICE
     slices_to_process = (
         min(total_slices, max_slices) if max_slices is not None else total_slices
     )
 
     logger.info(
         f"Processing {slices_to_process} slices with "
-        f"{samples_per_slice} samples per slice"
+        f"{SAMPLES_PER_SLICE} samples per slice"
     )
 
     # Process slices and create JSON data
@@ -157,7 +156,7 @@ def convert_drf_to_waterfall_json(
         slice_params = base_params.model_copy(
             update={
                 "slice_idx": slice_idx,
-                "samples_per_slice": samples_per_slice,
+                "samples_per_slice": SAMPLES_PER_SLICE,
                 "fft_size": base_params.fft_size,
             }
         )
@@ -180,7 +179,7 @@ def convert_drf_to_waterfall_json(
         "total_slices": total_slices,
         "slices_processed": len(waterfall_data),
         "fft_size": base_params.fft_size,
-        "samples_per_slice": samples_per_slice,
+        "samples_per_slice": SAMPLES_PER_SLICE,
         "channel": channel,
     }
 

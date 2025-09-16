@@ -431,9 +431,9 @@ class VisualizationViewSet(ViewSet):
 
         # Validate dimensions
         if dimensions and "width" in dimensions and "height" in dimensions:
-            if dimensions["width"] < 0:
+            if dimensions["width"] <= 0:
                 return False
-            if dimensions["height"] < 0:
+            if dimensions["height"] <= 0:
                 return False
 
         # Validate colormap
@@ -462,7 +462,6 @@ class VisualizationViewSet(ViewSet):
             spectrogram_data.processing_status = ProcessingStatus.Processing.value
             spectrogram_data.save()
 
-            # Launch spectrogram processing as a Celery task
             from sds_gateway.api_methods.tasks import (  # noqa: PLC0415
                 start_capture_post_processing,
             )
@@ -482,7 +481,7 @@ class VisualizationViewSet(ViewSet):
             )
 
             log.info(
-                f"Launched spectrogram processing task for"
+                f"Launched spectrogram processing task for "
                 f"{spectrogram_data.uuid}, task_id: {result.id}"
             )
 

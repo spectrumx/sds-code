@@ -276,6 +276,8 @@ def create_or_reset_processed_data(
     processed_data = PostProcessedData.objects.filter(
         capture=capture,
         processing_type=processing_type,
+        processing_parameters=processing_parameters or {},
+        processing_status=ProcessingStatus.Pending.value,
     ).first()
 
     if not processed_data:
