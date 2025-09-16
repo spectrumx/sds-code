@@ -34,9 +34,6 @@ c.DockerSpawner.notebook_dir = notebook_dir
 # notebook directory in the container
 c.DockerSpawner.volumes = {"jupyterhub-user-{username}": notebook_dir}
 
-# Remove conflicting container removal settings
-c.DockerSpawner.remove = False  # Set to False to avoid conflict with restart policy
-
 # For debugging arguments passed to spawned containers
 c.DockerSpawner.debug = True
 
@@ -53,12 +50,36 @@ c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
 # Authenticate users with Auth0
 c.JupyterHub.authenticator_class = "oauthenticator.auth0.Auth0OAuthenticator"
 
-# Enable automatic user creation and allow all users
-c.Authenticator.auto_login = True
-c.Auth0OAuthenticator.allow_all = True
-c.Authenticator.allowed_users = set()
-# Remove explicit user restrictions
-c.Authenticator.admin_users = {"admin"}  # Keep admin user(s)
+# OAuth Authentication Configuration
+c.Authenticator.auto_login = False  # Require explicit login
+c.Auth0OAuthenticator.allow_all = False  # Restrict access to allowed users/groups
+
+# Configure user access control
+allowed_users = os.environ.get("JUPYTERHUB_ALLOWED_USERS", "").split(",")
+allowed_groups = os.environ.get("JUPYTERHUB_ALLOWED_GROUPS", "").split(",")
+
+# Set allowed users if specified
+if allowed_users and allowed_users[0]:
+    c.Authenticator.allowed_users = {
+        user.strip() for user in allowed_users if user.strip()
+    }
+
+# Set allowed groups if specified (Auth0 groups)
+if allowed_groups and allowed_groups[0]:
+    c.Auth0OAuthenticator.allowed_groups = {
+        group.strip() for group in allowed_groups if group.strip()
+    }
+
+# If neither users nor groups are specified, allow all (NOT recommended for production)
+if not (allowed_users and allowed_users[0]) and not (
+    allowed_groups and allowed_groups[0]
+):
+    c.Auth0OAuthenticator.allow_all = True
+    c.Authenticator.allowed_users = set()
+
+# Configure admin users
+admin_users = os.environ.get("JUPYTERHUB_ADMIN_USERS", "admin").split(",")
+c.Authenticator.admin_users = {user.strip() for user in admin_users if user.strip()}
 
 # Update Auth0 configuration
 c.Auth0OAuthenticator.oauth_callback_url = (
@@ -74,8 +95,8 @@ c.Auth0OAuthenticator.scope = ["openid", "email", "profile"]
 # Set username from email in Auth0 response
 c.Auth0OAuthenticator.username_key = "email"
 
-# Enable debug logging
-c.JupyterHub.log_level = "DEBUG"
+# Production logging - use INFO level for security
+c.JupyterHub.log_level = "INFO"
 c.Authenticator.enable_auth_state = True
 
 # Increase timeout for server startup
@@ -105,16 +126,16 @@ c.JupyterHub.concurrent_spawn_limit = 50  # Max 50 concurrent users
 c.DockerSpawner.extra_host_config = {
     "restart_policy": {"Name": "unless-stopped"},
     "mem_limit": "2g",  # 2GB RAM per user container
+    "stop_timeout": 30,  # 30 seconds to stop container
 }
 
 # Container lifecycle management
-c.DockerSpawner.remove_containers = True
+c.DockerSpawner.remove_containers = False
 c.DockerSpawner.remove_volumes = False
 
-# Timeout settings for better resource management
-c.Spawner.http_timeout = 60
-c.Spawner.start_timeout = 60
-c.Spawner.stop_timeout = 30
+# Basic JupyterLab configuration
+c.Spawner.default_url = "/lab"  # Start with JupyterLab
+c.Spawner.cmd = ["jupyter-labhub"]  # Use JupyterLab
 
 # Replace with a proper shell command that handles errors
 c.DockerSpawner.post_start_cmd = "pip install ipywidgets spectrumx"
@@ -124,5 +145,5 @@ c.JupyterHub.active_server_limit = 50  # Max active servers
 c.JupyterHub.cleanup_servers = True  # Clean up stopped servers
 c.JupyterHub.cleanup_proxy = True  # Clean up proxy routes
 
-# Logging for monitoring
-c.JupyterHub.log_level = "INFO"  # Reduce from DEBUG for production
+# Container cleanup settings
+c.Spawner.cleanup_on_exit = True  # Clean up containers on exit

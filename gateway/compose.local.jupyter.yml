@@ -251,6 +251,10 @@ services:
             dockerfile: ./compose/local/jupyter/Dockerfile
             args:
                 JUPYTERHUB_VERSION: latest
+                # Dynamic UID/GID configuration from environment variables
+                NB_UID: ${NB_UID:-1000}        # User ID for jupyter user in container
+                NB_GID: ${NB_GID:-100}         # Group ID for jupyter user group
+                DOCKER_GID: ${DOCKER_GID:-103} # Group ID for docker group access
         restart: unless-stopped
         image: sds-gateway-local-jupyter
         container_name: sds-gateway-local-jupyter
@@ -263,11 +267,14 @@ services:
             - './compose/local/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
             - './compose/local/jupyter/sample_scripts:/srv/jupyter/sample_scripts:ro'
             - './scripts:/srv/jupyter/scripts:ro'
-            - '/var/run/docker.sock:/var/run/docker.sock:rw'
             - 'sds-gateway-local-jupyter-data:/data'
-        user: "0:0"  # temporarily use root for local testing only
+            - '/var/run/docker.sock:/var/run/docker.sock:rw'  # Mount Docker socket
+        privileged: true  # Give container privileged access for Docker operations
+        # Run as non-root user with host user namespace for Docker socket access
+        user: "${NB_UID:-1000}:${DOCKER_GID:-103}"
+        userns_mode: 'host'
         ports:
-            - '8888:8000'
+            - '${JUPYTERHUB_PORT:-8888}:8000'
         env_file:
             - ./.envs/local/jupyterhub.env
         environment:

@@ -3,33 +3,43 @@
 ARG JUPYTERHUB_VERSION
 FROM quay.io/jupyterhub/jupyterhub:$JUPYTERHUB_VERSION
 
-# Create non-root user with daemon group access (for macOS Docker Desktop)
-RUN useradd -m -u 1000 -g daemon -s /bin/bash jupyter && \
-    usermod -aG daemon jupyter
+# Build arguments with defaults
+ARG NB_UID=1000
+ARG NB_GID=100
+ARG DOCKER_GID=103
 
-# Create admin user for JupyterHub
-RUN useradd -m -u 1001 -g daemon -s /bin/bash admin && \
-    usermod -aG daemon admin
-
-# Install Docker client
+# Install packages and create users in one layer
 RUN apt-get update && \
-    apt-get install -y docker.io && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y docker.io sudo curl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    (groupadd -g ${DOCKER_GID} docker || groupmod -g ${DOCKER_GID} docker) && \
+    useradd -m -u ${NB_UID} -g ${DOCKER_GID} -s /bin/bash jupyter && \
+    usermod -aG ${NB_GID} jupyter && \
+    useradd -m -u 1001 -g ${NB_GID} -s /bin/bash admin && \
+    usermod -aG ${NB_GID} admin && \
+    echo "jupyter ALL=(ALL) NOPASSWD: /bin/chown, /bin/chmod" >> /etc/sudoers
 
-# Install Python packages from requirements.txt
+# Install Python packages
 COPY ./compose/local/jupyter/requirements.txt /tmp/requirements.txt
 RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Create data directory with proper ownership
-RUN mkdir -p /data && chown -R jupyter:daemon /data && \
-    mkdir -p /home/jupyter/work && \
-    mkdir -p /home/jupyter/.local/share/jupyter/runtime && \
-    chown -R jupyter:daemon /home/jupyter && \
-    chmod -R 755 /home/jupyter && \
-    chmod 777 /home/jupyter/.local/share/jupyter/runtime
+# Setup directories, permissions, and cookie secret
+RUN mkdir -p /data /home/jupyter/work /home/jupyter/.local/share/jupyter/runtime && \
+    chown -R jupyter:${DOCKER_GID} /data /home/jupyter && \
+    chmod -R 755 /home/jupyter /data && \
+    python3 -c "import secrets; open('/data/jupyterhub_cookie_secret', 'w').write(secrets.token_hex(32))" && \
+    chown jupyter:${DOCKER_GID} /data/jupyterhub_cookie_secret && \
+    chmod 600 /data/jupyterhub_cookie_secret
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+[ -d "/data" ] && sudo chown -R jupyter:${DOCKER_GID} /data\n\
+[ -S "/var/run/docker.sock" ] && sudo chown root:${DOCKER_GID} /var/run/docker.sock && sudo chmod 660 /var/run/docker.sock\n\
+exec jupyterhub -f /srv/jupyterhub/jupyterhub_config.py' > /start-jupyterhub.sh && \
+    chmod +x /start-jupyterhub.sh
 
 # Switch to non-root user
 USER jupyter
 
-CMD ["jupyterhub", "-f", "/srv/jupyterhub/jupyterhub_config.py"]
+CMD ["/start-jupyterhub.sh"]
