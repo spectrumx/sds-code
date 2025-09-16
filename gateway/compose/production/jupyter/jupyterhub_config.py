@@ -20,8 +20,11 @@ c.DockerSpawner.network_name = network_name
 
 # Network configuration will be handled by network_name setting
 
-# Remove network config from create_kwargs since we're using network_name
-c.DockerSpawner.extra_create_kwargs = {}
+# User configuration for containers - use the default jovyan user
+# The base notebook image uses jovyan (UID 1000, GID 100)
+c.DockerSpawner.extra_create_kwargs = {
+    "user": "1000:100"  # Use the default jovyan user from the image
+}
 
 # Explicitly set notebook directory because we'll be mounting a volume to it.
 # Most `jupyter/docker-stacks` *-notebook images run the Notebook server as
@@ -116,6 +119,10 @@ c.Spawner.start_timeout = 60  # Increase startup timeout
 c.DockerSpawner.environment = {
     "JUPYTER_ENABLE_LAB": "yes",
     "CHOWN_HOME": "yes",
+    "NB_UID": "1000",
+    "NB_GID": "100",
+    "CHOWN_HOME_OPTS": "-R",
+    "JUPYTERHUB_API_URL": "http://jupyterhub:8080/hub/api",
 }
 
 # Container configuration moved to resource limits section below
