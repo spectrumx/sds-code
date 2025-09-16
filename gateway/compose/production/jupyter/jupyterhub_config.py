@@ -34,8 +34,8 @@ c.DockerSpawner.notebook_dir = notebook_dir
 # notebook directory in the container
 c.DockerSpawner.volumes = {"jupyterhub-user-{username}": notebook_dir}
 
-# For debugging arguments passed to spawned containers
-c.DockerSpawner.debug = True
+# For debugging arguments passed to spawned containers (disabled in production)
+c.DockerSpawner.debug = False
 
 # User containers will access hub by container name on the Docker network
 c.JupyterHub.hub_ip = "0.0.0.0"  # Bind to all interfaces
@@ -70,10 +70,19 @@ if allowed_groups and allowed_groups[0]:
         group.strip() for group in allowed_groups if group.strip()
     }
 
-# If neither users nor groups are specified, allow all (NOT recommended for production)
+# Security check: Require explicit user/group restrictions in production
 if not (allowed_users and allowed_users[0]) and not (
     allowed_groups and allowed_groups[0]
 ):
+    # In production, we should always have explicit access control
+    # This is a safety fallback that should be avoided
+    import warnings
+    warnings.warn(
+        "WARNING: No user/group restrictions configured! "
+        "This allows all Auth0 users. Set JUPYTERHUB_ALLOWED_USERS or "
+        "JUPYTERHUB_ALLOWED_GROUPS for production security.",
+        UserWarning
+    )
     c.Auth0OAuthenticator.allow_all = True
     c.Authenticator.allowed_users = set()
 
@@ -83,7 +92,7 @@ c.Authenticator.admin_users = {user.strip() for user in admin_users if user.stri
 
 # Update Auth0 configuration
 c.Auth0OAuthenticator.oauth_callback_url = (
-    f"http://{os.environ.get('JUPYTERHUB_HOST', 'localhost:8888')}/hub/oauth_callback"
+    f"https://{os.environ.get('JUPYTERHUB_HOST', 'localhost:8888')}/hub/oauth_callback"
 )
 c.Auth0OAuthenticator.client_id = os.environ.get("AUTH0_CLIENT_ID")
 c.Auth0OAuthenticator.client_secret = os.environ.get("AUTH0_CLIENT_SECRET")
