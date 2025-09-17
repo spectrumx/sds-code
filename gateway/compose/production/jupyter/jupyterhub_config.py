@@ -73,21 +73,17 @@ if allowed_groups and allowed_groups[0]:
         group.strip() for group in allowed_groups if group.strip()
     }
 
-# Security check: Require explicit user/group restrictions in production
+# Security: Require explicit user/group restrictions in production
+# If no restrictions are configured, authentication will fail
 if not (allowed_users and allowed_users[0]) and not (
     allowed_groups and allowed_groups[0]
 ):
-    # In production, we should always have explicit access control
-    # This is a safety fallback that should be avoided
-    import warnings
-    warnings.warn(
-        "WARNING: No user/group restrictions configured! "
-        "This allows all Auth0 users. Set JUPYTERHUB_ALLOWED_USERS or "
-        "JUPYTERHUB_ALLOWED_GROUPS for production security.",
-        UserWarning
+    error_msg = (
+        "SECURITY ERROR: No user/group restrictions configured! "
+        "Set JUPYTERHUB_ALLOWED_USERS or JUPYTERHUB_ALLOWED_GROUPS "
+        "for production security. This prevents unauthorized access."
     )
-    c.Auth0OAuthenticator.allow_all = True
-    c.Authenticator.allowed_users = set()
+    raise ValueError(error_msg)
 
 # Configure admin users
 admin_users = os.environ.get("JUPYTERHUB_ADMIN_USERS", "admin").split(",")
