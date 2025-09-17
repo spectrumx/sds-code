@@ -793,22 +793,22 @@ class WaterfallVisualization {
 	hideVisualizationComponents() {
 		// Hide waterfall canvas
 		if (this.canvas) {
-			this.canvas.style.display = "none";
+			this.canvas.classList.add("d-none");
 		}
 		if (this.overlayCanvas) {
-			this.overlayCanvas.style.display = "none";
+			this.overlayCanvas.classList.add("d-none");
 		}
 
 		// Hide periodogram chart
 		const periodogramContainer = document.getElementById("periodogramChart");
 		if (periodogramContainer) {
-			periodogramContainer.style.display = "none";
+			periodogramContainer.classList.add("d-none");
 		}
 
 		// Hide color legend
 		const colorLegend = document.getElementById("colorLegend");
 		if (colorLegend) {
-			colorLegend.style.display = "none";
+			colorLegend.classList.add("d-none");
 		}
 	}
 
@@ -822,7 +822,7 @@ class WaterfallVisualization {
 			if (errorText) {
 				errorText.textContent = message;
 			}
-			errorDisplay.style.display = "block";
+			errorDisplay.classList.remove("d-none");
 		}
 	}
 
@@ -832,7 +832,7 @@ class WaterfallVisualization {
 	hideErrorDisplay() {
 		const errorDisplay = document.getElementById("waterfallErrorDisplay");
 		if (errorDisplay) {
-			errorDisplay.style.display = "none";
+			errorDisplay.classList.add("d-none");
 		}
 	}
 
@@ -842,22 +842,22 @@ class WaterfallVisualization {
 	showVisualizationComponents() {
 		// Show waterfall canvas
 		if (this.canvas) {
-			this.canvas.style.display = "block";
+			this.canvas.classList.remove("d-none");
 		}
 		if (this.overlayCanvas) {
-			this.overlayCanvas.style.display = "block";
+			this.overlayCanvas.classList.remove("d-none");
 		}
 
 		// Show periodogram chart
 		const periodogramContainer = document.getElementById("periodogramChart");
 		if (periodogramContainer) {
-			periodogramContainer.style.display = "block";
+			periodogramContainer.classList.remove("d-none");
 		}
 
 		// Show color legend
 		const colorLegend = document.getElementById("colorLegend");
 		if (colorLegend) {
-			colorLegend.style.display = "flex";
+			colorLegend.classList.remove("d-none");
 		}
 	}
 
