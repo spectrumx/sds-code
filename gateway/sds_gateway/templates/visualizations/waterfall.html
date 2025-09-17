@@ -103,7 +103,7 @@
                     <div class="card-body p-0">
                         <!-- Periodogram Chart -->
                         <div>
-                            <div id="periodogramChart"></div>
+                            <div id="periodogramChart" class="d-none"></div>
                         </div>
                         <div id="loadingOverlay" class="loading-overlay d-none">
                             <div class="spinner-border text-primary" role="status">
@@ -122,14 +122,14 @@
                                 </div>
                             </div>
                             <div id="waterfallPlot">
-                                <canvas id="waterfallCanvas" width="800" height="400"></canvas>
-                                <canvas id="waterfallOverlayCanvas" width="800" height="400"></canvas>
+                                <canvas id="waterfallCanvas" class="d-none" width="800" height="400"></canvas>
+                                <canvas id="waterfallOverlayCanvas" class="d-none" width="800" height="400"></canvas>
                                 <!-- Status Messages -->
                                 <div id="waterfallErrorDisplay" class="text-center p-4 d-none">
                                     <p class="text-muted"></p>
                                 </div>
                                 <!-- Color Legend - positioned to sit in right margin area -->
-                                <div id="colorLegend" class="color-legend">
+                                <div id="colorLegend" class="color-legend d-none">
                                     <div class="legend-gradient"></div>
                                     <div class="legend-labels"></div>
                                 </div>
