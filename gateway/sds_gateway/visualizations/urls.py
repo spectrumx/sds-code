@@ -5,8 +5,7 @@ from .views import WaterfallVisualizationView
 
 app_name = "visualizations"
 
-# Template view URLs (for displaying visualizations)
-template_urlpatterns = [
+urlpatterns = [
     path(
         "waterfall/<str:capture_uuid>/",
         WaterfallVisualizationView.as_view(),
@@ -18,5 +17,3 @@ template_urlpatterns = [
         name="spectrogram",
     ),
 ]
-
-urlpatterns = template_urlpatterns
