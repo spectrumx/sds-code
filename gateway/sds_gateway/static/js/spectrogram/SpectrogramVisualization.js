@@ -6,10 +6,12 @@
 import { SpectrogramControls } from "./SpectrogramControls.js";
 import { SpectrogramRenderer } from "./SpectrogramRenderer.js";
 import {
-	API_ENDPOINTS,
 	DEFAULT_IMAGE_DIMENSIONS,
 	ERROR_MESSAGES,
 	STATUS_MESSAGES,
+	get_create_spectrogram_endpoint,
+	get_spectrogram_result_endpoint,
+	get_spectrogram_status_endpoint,
 } from "./constants.js";
 
 export class SpectrogramVisualization {
@@ -112,10 +114,7 @@ export class SpectrogramVisualization {
 			const dimensions = rendererDimensions || DEFAULT_IMAGE_DIMENSIONS;
 
 			const response = await fetch(
-				API_ENDPOINTS.createSpectrogram.replace(
-					"{capture_uuid}",
-					this.captureUuid,
-				),
+				get_create_spectrogram_endpoint(this.captureUuid),
 				{
 					method: "POST",
 					headers: {
@@ -169,10 +168,7 @@ export class SpectrogramVisualization {
 
 		try {
 			const response = await fetch(
-				`${API_ENDPOINTS.getSpectrogramStatus.replace(
-					"{capture_uuid}",
-					this.captureUuid,
-				)}?job_id=${this.currentJobId}`,
+				get_spectrogram_status_endpoint(this.captureUuid, this.currentJobId),
 				{
 					headers: {
 						"X-CSRFToken": this.getCSRFToken(),
@@ -221,10 +217,7 @@ export class SpectrogramVisualization {
 	async fetchSpectrogramResult() {
 		try {
 			const response = await fetch(
-				`${API_ENDPOINTS.getSpectrogramResult.replace(
-					"{capture_uuid}",
-					this.captureUuid,
-				)}?job_id=${this.currentJobId}`,
+				get_spectrogram_result_endpoint(this.captureUuid, this.currentJobId),
 				{
 					headers: {
 						"X-CSRFToken": this.getCSRFToken(),
