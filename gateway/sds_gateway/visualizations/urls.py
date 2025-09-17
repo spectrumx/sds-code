@@ -1,6 +1,5 @@
 from django.urls import path
 
-from .api_views import VisualizationViewSet
 from .views import SpectrogramVisualizationView
 from .views import WaterfallVisualizationView
 
@@ -20,65 +19,4 @@ template_urlpatterns = [
     ),
 ]
 
-
-# API view URLs (for programmatic access)
-api_urlpatterns = [
-    path(
-        "api/",
-        VisualizationViewSet.as_view(
-            {
-                "get": "get_visualization_compatibility",
-            }
-        ),
-        name="api_compatibility",
-    ),
-    path(
-        "api/<str:capture_uuid>/",
-        VisualizationViewSet.as_view(
-            {
-                "post": "create_spectrogram",
-                "get": "get_spectrogram_status",
-            }
-        ),
-        name="api_spectrogram",
-    ),
-    path(
-        "api/<str:capture_uuid>/download/",
-        VisualizationViewSet.as_view(
-            {
-                "get": "download_spectrogram",
-            }
-        ),
-        name="api_download_spectrogram",
-    ),
-    path(
-        "api/<str:capture_uuid>/create_waterfall/",
-        VisualizationViewSet.as_view(
-            {
-                "post": "create_waterfall",
-            }
-        ),
-        name="api_create_waterfall",
-    ),
-    path(
-        "api/<str:capture_uuid>/waterfall_status/",
-        VisualizationViewSet.as_view(
-            {
-                "get": "get_waterfall_status",
-            }
-        ),
-        name="api_waterfall_status",
-    ),
-    path(
-        "api/<str:capture_uuid>/download_waterfall/",
-        VisualizationViewSet.as_view(
-            {
-                "get": "download_waterfall",
-            }
-        ),
-        name="api_download_waterfall",
-    ),
-]
-
-
-urlpatterns = template_urlpatterns + api_urlpatterns
+urlpatterns = template_urlpatterns
