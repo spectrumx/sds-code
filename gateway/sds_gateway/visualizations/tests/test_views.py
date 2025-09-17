@@ -426,3 +426,358 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         assert capture.channel == self.capture.channel
         assert capture.owner == self.user
         assert capture.is_deleted is False
+
+    def test_create_spectrogram_api_requires_authentication(self) -> None:
+        """Test that create_spectrogram API requires authentication."""
+        create_spectrogram_url = reverse(
+            "api:visualizations-create-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+        response = self.client.post(create_spectrogram_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_create_spectrogram_api_authenticated_user_success(self) -> None:
+        """Test that authenticated users can create spectrogram processing via API."""
+        self.client.force_login(self.user)
+
+        create_spectrogram_url = reverse(
+            "api:visualizations-create-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        with patch(
+            "sds_gateway.visualizations.api_views.VisualizationViewSet._start_spectrogram_processing"
+        ) as mock_start_processing:
+            response = self.client.post(
+                create_spectrogram_url,
+                {
+                    "fft_size": 1024,
+                    "std_dev": 100,
+                    "hop_size": 500,
+                    "colormap": "magma",
+                },
+            )
+
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert "uuid" in data
+            assert data["processing_type"] == ProcessingType.Spectrogram.value
+            assert data["processing_status"] == ProcessingStatus.Pending.value
+            assert data["capture"] == str(self.capture.uuid)
+
+            # Verify PostProcessedData was created
+            spectrogram_data = PostProcessedData.objects.get(uuid=data["uuid"])
+            assert spectrogram_data.capture == self.capture
+            assert spectrogram_data.processing_type == ProcessingType.Spectrogram.value
+            assert spectrogram_data.processing_status == ProcessingStatus.Pending.value
+
+            # Verify processing was started
+            mock_start_processing.assert_called_once()
+
+    def test_create_spectrogram_api_capture_not_found(self) -> None:
+        """Test that non-existent capture returns 404 for API."""
+        self.client.force_login(self.user)
+
+        fake_uuid = "00000000-0000-0000-0000-000000000000"
+        fake_url = reverse(
+            "api:visualizations-create-spectrogram",
+            kwargs={"pk": fake_uuid},
+        )
+
+        response = self.client.post(fake_url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_create_spectrogram_api_capture_not_owned(self) -> None:
+        """Test that users cannot create spectrogram for others' captures via API."""
+        other_user = User.objects.create(
+            email="otheruser@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+
+        self.client.force_login(other_user)
+
+        create_spectrogram_url = reverse(
+            "api:visualizations-create-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.post(create_spectrogram_url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_create_spectrogram_api_existing_completed(self) -> None:
+        """Test that existing completed spectrogram is returned via API."""
+        self.client.force_login(self.user)
+
+        # Create existing completed spectrogram
+        existing_spectrogram = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Spectrogram.value,
+            processing_parameters={
+                "fft_size": 1024,
+                "std_dev": 100,
+                "hop_size": 500,
+                "colormap": "magma",
+            },
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={},
+        )
+
+        create_spectrogram_url = reverse(
+            "api:visualizations-create-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.post(
+            create_spectrogram_url,
+            {
+                "fft_size": 1024,
+                "std_dev": 100,
+                "hop_size": 500,
+                "colormap": "magma",
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["uuid"] == str(existing_spectrogram.uuid)
+        assert data["processing_status"] == ProcessingStatus.Completed.value
+
+    def test_create_spectrogram_api_invalid_parameters(self) -> None:
+        """Test that invalid spectrogram parameters return 400."""
+        self.client.force_login(self.user)
+
+        create_spectrogram_url = reverse(
+            "api:visualizations-create-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        # Test invalid FFT size (not power of 2)
+        response = self.client.post(
+            create_spectrogram_url,
+            {
+                "fft_size": 1000,  # Not a power of 2
+                "std_dev": 100,
+                "hop_size": 500,
+                "colormap": "magma",
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        # Test invalid colormap
+        response = self.client.post(
+            create_spectrogram_url,
+            {
+                "fft_size": 1024,
+                "std_dev": 100,
+                "hop_size": 500,
+                "colormap": "invalid_colormap",
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_get_spectrogram_status_api_requires_authentication(self) -> None:
+        """Test that get_spectrogram_status API requires authentication."""
+        get_spectrogram_status_url = reverse(
+            "api:visualizations-get-spectrogram-status",
+            kwargs={"pk": self.capture.uuid},
+        )
+        response = self.client.get(get_spectrogram_status_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_get_spectrogram_status_api_missing_job_id(self) -> None:
+        """Test that missing job_id parameter returns 400 for API."""
+        self.client.force_login(self.user)
+
+        get_spectrogram_status_url = reverse(
+            "api:visualizations-get-spectrogram-status",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.get(get_spectrogram_status_url)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        data = response.json()
+        assert "error" in data
+        assert "job_id parameter is required" in data["error"]
+
+    def test_get_spectrogram_status_api_success(self) -> None:
+        """Test successful spectrogram status retrieval via API."""
+        self.client.force_login(self.user)
+
+        # Create spectrogram processing job
+        spectrogram_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Spectrogram.value,
+            processing_parameters={
+                "fft_size": 1024,
+                "std_dev": 100,
+                "hop_size": 500,
+                "colormap": "magma",
+            },
+            processing_status=ProcessingStatus.Processing.value,
+            metadata={},
+        )
+
+        get_spectrogram_status_url = reverse(
+            "api:visualizations-get-spectrogram-status",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.get(
+            get_spectrogram_status_url, {"job_id": str(spectrogram_data.uuid)}
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["uuid"] == str(spectrogram_data.uuid)
+        assert data["processing_status"] == ProcessingStatus.Processing.value
+        assert data["capture"] == str(self.capture.uuid)
+
+    def test_get_spectrogram_status_api_job_not_found(self) -> None:
+        """Test that non-existent job returns 404."""
+        self.client.force_login(self.user)
+
+        fake_job_id = "00000000-0000-0000-0000-000000000000"
+        get_spectrogram_status_url = reverse(
+            "api:visualizations-get-spectrogram-status",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.get(get_spectrogram_status_url, {"job_id": fake_job_id})
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_download_spectrogram_api_requires_authentication(self) -> None:
+        """Test that download_spectrogram API requires authentication."""
+        download_spectrogram_url = reverse(
+            "api:visualizations-download-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+        response = self.client.get(download_spectrogram_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_download_spectrogram_api_missing_job_id(self) -> None:
+        """Test that missing job_id parameter returns 400 for API."""
+        self.client.force_login(self.user)
+
+        download_spectrogram_url = reverse(
+            "api:visualizations-download-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.get(download_spectrogram_url)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        data = response.json()
+        assert "error" in data
+        assert "job_id parameter is required" in data["error"]
+
+    def test_download_spectrogram_api_processing_not_completed(self) -> None:
+        """Test that incomplete processing returns 400."""
+        self.client.force_login(self.user)
+
+        # Create spectrogram processing job that's still processing
+        spectrogram_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Spectrogram.value,
+            processing_parameters={
+                "fft_size": 1024,
+                "std_dev": 100,
+                "hop_size": 500,
+                "colormap": "magma",
+            },
+            processing_status=ProcessingStatus.Processing.value,
+            metadata={},
+        )
+
+        download_spectrogram_url = reverse(
+            "api:visualizations-download-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.get(
+            download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert "error" in data
+        assert "Spectrogram processing not completed" in data["error"]
+
+    def test_download_spectrogram_api_no_file(self) -> None:
+        """Test that missing data file returns 404."""
+        self.client.force_login(self.user)
+
+        # Create completed spectrogram without data file
+        spectrogram_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Spectrogram.value,
+            processing_parameters={
+                "fft_size": 1024,
+                "std_dev": 100,
+                "hop_size": 500,
+                "colormap": "magma",
+            },
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={},
+        )
+
+        download_spectrogram_url = reverse(
+            "api:visualizations-download-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.get(
+            download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        data = response.json()
+        assert "error" in data
+        assert "No spectrogram file found" in data["error"]
+
+    def test_download_spectrogram_api_success(self) -> None:
+        """Test successful spectrogram download via API."""
+        self.client.force_login(self.user)
+
+        # Create test file content (PNG image)
+        test_content = b"fake_png_content"
+        test_file = SimpleUploadedFile(
+            "spectrogram_test.png",
+            test_content,
+            content_type="image/png",
+        )
+
+        # Create completed spectrogram with data file
+        spectrogram_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Spectrogram.value,
+            processing_parameters={
+                "fft_size": 1024,
+                "std_dev": 100,
+                "hop_size": 500,
+                "colormap": "magma",
+            },
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={},
+            data_file=test_file,
+        )
+
+        download_spectrogram_url = reverse(
+            "api:visualizations-download-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        response = self.client.get(
+            download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.get("Content-Type") == "image/png"
+        assert "attachment" in response.get("Content-Disposition", "")
+        content_disposition = response.get("Content-Disposition", "")
+        assert f"spectrogram_{self.capture.uuid}.png" in content_disposition
+
+        # Verify file content
+        content = b"".join(response.streaming_content)
+        assert content == test_content
