@@ -244,10 +244,6 @@
             # Controls PLR0913
             max-args = 9
 
-        [tool.ruff.lint.per-file-ignores]
-            "gateway/sds_gateway/users/views.py" = ["PLC0415"]
-            "gateway/sds_gateway/api_methods/utils/metadata_schemas.py" = ["PLC0415"]
-
     [tool.ruff.format]
         indent-style              = "space"
         line-ending               = "auto"

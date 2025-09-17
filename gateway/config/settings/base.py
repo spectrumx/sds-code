@@ -507,16 +507,3 @@ SDS_NEW_USERS_APPROVED_ON_CREATION: bool = env.bool(
     "SDS_NEW_USERS_APPROVED_ON_CREATION",
     default=False,
 )
-
-# File upload limits
-# ------------------------------------------------------------------------------
-# Maximum number of files that can be uploaded at once
-DATA_UPLOAD_MAX_NUMBER_FILES: int = env.int(
-    "DATA_UPLOAD_MAX_NUMBER_FILES", default=1000
-)
-
-# Maximum memory size for file uploads (default: 2.5MB, increased to 100MB)
-DATA_UPLOAD_MAX_MEMORY_SIZE: int = env.int(
-    "DATA_UPLOAD_MAX_MEMORY_SIZE",
-    default=104857600,  # 100MB
-)

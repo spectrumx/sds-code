@@ -488,7 +488,7 @@ class TestGroupSharingIntegrity:
 
         # Try to delete the owner - should raise ProtectedError
         with pytest.raises(
-            Exception, match=r".*protected.*"
+            Exception, match=".*protected.*"
         ):  # Django raises ProtectedError
             owner.delete()
 

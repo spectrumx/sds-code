@@ -1,12 +1,11 @@
+# ruff: noqa: E501
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/digital-rf/README.md
 # the mapping below is used for drf capture metadata parsing in extract_drf_metadata.py
 
 import logging
-from typing import TYPE_CHECKING
 from typing import Any
 
-if TYPE_CHECKING:
-    from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import CaptureType
 
 log = logging.getLogger(__name__)
 
@@ -86,18 +85,15 @@ drf_capture_metadata_schema = {
         },
         "init_utc_timestamp": {
             "type": int,
-            "description": "UTC timestamp of each restart of the recorder; needed if "
-            "leap seconds correction applied.",
+            "description": "UTC timestamp of each restart of the recorder; needed if leap seconds correction applied.",
         },
         "computer_time": {
             "type": int,
-            "description": "Computer time at creation of "
-            "individual RF file (unix time).",
+            "description": "Computer time at creation of individual RF file (unix time).",
         },
         "uuid_str": {
             "type": str,
-            "description": "UUID of the capture; set independently "
-            "at each restart of the recorder.",
+            "description": "UUID of the capture; set independently at each restart of the recorder.",
         },
         "center_freq": {
             "type": int,
@@ -105,8 +101,7 @@ drf_capture_metadata_schema = {
         },
         "center_frequencies": {
             "type": list[float],
-            "description": "The center frequencies (one per subchannel) "
-            "of the capture.",
+            "description": "The center frequencies (one per subchannel) of the capture.",
         },
         "span": {
             "type": int,
@@ -362,8 +357,10 @@ base_index_fields = [
     "capture_props",
 ]
 
-# This will be populated at runtime to avoid circular imports
-capture_index_mapping_by_type = {}
+capture_index_mapping_by_type: dict[CaptureType, dict[str, dict[str, Any]]] = {
+    CaptureType.DigitalRF: drf_capture_index_mapping,
+    CaptureType.RadioHound: rh_capture_index_mapping,
+}
 
 base_properties = {
     "channel": {"type": "keyword"},
@@ -390,20 +387,9 @@ search_properties = {
 
 
 def get_mapping_by_capture_type(
-    capture_type: Any,
+    capture_type: CaptureType,
 ) -> dict[str, str | dict[str, Any]]:
     """Get the mapping for a given capture type."""
-    # Local import to avoid circular dependency
-    from sds_gateway.api_methods.models import CaptureType
-
-    # Initialize mapping if not already done
-    if not capture_index_mapping_by_type:
-        capture_index_mapping_by_type.update(
-            {
-                CaptureType.DigitalRF: drf_capture_index_mapping,
-                CaptureType.RadioHound: rh_capture_index_mapping,
-            }
-        )
 
     return {
         "properties": {
@@ -420,17 +406,14 @@ def get_mapping_by_capture_type(
     }
 
 
-def infer_index_name(capture_type: "CaptureType") -> str:
+def infer_index_name(capture_type: CaptureType) -> str:
     """Infer the index name for a given capture."""
-    # Local import to avoid circular dependency
-    from sds_gateway.api_methods.models import CaptureType
-
-    # Handle enum inputs (strings match fine against StrEnum)
+    # Populate index_name based on capture type
     match capture_type:
         case CaptureType.DigitalRF:
-            return f"captures-{capture_type.value}"
+            return f"captures-{CaptureType.DigitalRF}"
         case CaptureType.RadioHound:
-            return f"captures-{capture_type.value}"
+            return f"captures-{CaptureType.RadioHound}"
         case _:
             msg = f"Invalid capture type: {capture_type}"
             log.error(msg)

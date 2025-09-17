@@ -260,6 +260,7 @@ class FileViewSet(ViewSet):
             unsafe_path=unsafe_path,
             request=request,
         )
+        log.debug(f"Listing for '{user_rel_path}'")
         if user_rel_path is None:
             return Response(
                 {"detail": "The provided path must be in the user's files directory."},
@@ -291,6 +292,7 @@ class FileViewSet(ViewSet):
 
                 # despite being a single result, we return it paginated for consistency
                 return paginator.get_paginated_response(serializer.data)
+
             log.debug(
                 "No exact match found for "
                 f"{inferred_user_rel_path!s} and name {basename}",
