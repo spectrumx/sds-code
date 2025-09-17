@@ -149,7 +149,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     @extend_schema_field(PostProcessedDataSerializer(many=True))
     def get_post_processed_data(self, obj: Capture) -> Any:
         """Get all post-processed data for this capture."""
-        processed_data = obj.post_processed_data.all().order_by(
+        processed_data = obj.visualization_post_processed_data.all().order_by(
             "processing_type", "-created_at"
         )
         return PostProcessedDataSerializer(processed_data, many=True).data

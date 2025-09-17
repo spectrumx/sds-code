@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import QuerySet
 from django.http import FileResponse
@@ -39,12 +40,10 @@ from sds_gateway.api_methods.helpers.search_captures import get_composite_captur
 from sds_gateway.api_methods.helpers.search_captures import search_captures
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
-)
-from sds_gateway.api_methods.serializers.capture_serializers import (
-    PostProcessedDataSerializer,
 )
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
@@ -57,6 +56,7 @@ from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
+from sds_gateway.visualizations.serializers import PostProcessedDataSerializer
 
 MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
 
@@ -202,22 +202,29 @@ class CaptureViewSet(viewsets.ViewSet):
         if capture.capture_type != CaptureType.DigitalRF:
             return
 
-        log.info(f"Triggering post-processing for DigitalRF capture: {capture.uuid}")
+        log.info(
+            f"Triggering visualization processing for DigitalRF capture: {capture.uuid}"
+        )
 
         try:
             # Use the Celery task for post-processing to ensure proper async execution
-            # Launch the post-processing task asynchronously
+            # Launch the visualization processing task asynchronously
+            processing_types = [ProcessingType.Waterfall.value]
+            if settings.EXPERIMENTAL_SPECTROGRAM:
+                processing_types.append(ProcessingType.Spectrogram.value)
+
             result = start_capture_post_processing.delay(
-                str(capture.uuid), ["waterfall"]
+                str(capture.uuid), processing_types
             )
             log.info(
-                f"Launched post-processing task for capture {capture.uuid}, "
+                f"Launched visualization processing task for capture {capture.uuid}, "
                 f"task_id: {result.id}"
             )
 
         except Exception as e:  # noqa: BLE001
             log.error(
-                f"Failed to launch post-processing task for capture {capture.uuid}: {e}"
+                f"Failed to launch visualization processing task for capture "
+                f"{capture.uuid}: {e}"
             )
 
     @extend_schema(
@@ -835,7 +842,7 @@ class CaptureViewSet(viewsets.ViewSet):
             )
 
             # Get all post-processed data for this capture
-            processed_data = capture.post_processed_data.all().order_by(
+            processed_data = capture.visualization_post_processed_data.all().order_by(
                 "processing_type", "-created_at"
             )
 
@@ -899,7 +906,7 @@ class CaptureViewSet(viewsets.ViewSet):
             # Get the most recent post-processed data for this capture and
             # processing type
             processed_data = (
-                capture.post_processed_data.filter(
+                capture.visualization_post_processed_data.filter(
                     processing_type=processing_type,
                     processing_status="completed",
                 )
@@ -985,7 +992,7 @@ class CaptureViewSet(viewsets.ViewSet):
             # Get the most recent post-processed data for this capture and
             # processing type
             processed_data = (
-                capture.post_processed_data.filter(
+                capture.visualization_post_processed_data.filter(
                     processing_type=processing_type,
                     processing_status="completed",
                 )

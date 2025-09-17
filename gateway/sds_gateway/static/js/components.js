@@ -1314,10 +1314,15 @@ class ModalManager {
 		if (captureData.captureType === "drf") {
 			visualizeBtn.classList.remove("d-none");
 
-			// Set up click handler
+			// Set up click handler to open visualization modal
 			visualizeBtn.onclick = () => {
-				// Navigate to visualization page
-				window.location.href = `/visualizations/waterfall/${captureData.uuid}/`;
+				// Use the VisualizationModal instance to open with capture data
+				if (window.visualizationModalInstance) {
+					window.visualizationModalInstance.openWithCaptureData(
+						captureData.uuid,
+						captureData.captureType,
+					);
+				}
 			};
 		} else {
 			visualizeBtn.classList.add("d-none");
@@ -1919,3 +1924,30 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Global event listener for visualization trigger buttons
+document.addEventListener("DOMContentLoaded", () => {
+	// Initialize VisualizationModal instance if available
+	if (window.VisualizationModal) {
+		window.visualizationModalInstance = new window.VisualizationModal();
+	}
+
+	// Handle clicks on visualization trigger buttons
+	document.addEventListener("click", (e) => {
+		if (e.target.closest(".visualization-trigger-btn")) {
+			const button = e.target.closest(".visualization-trigger-btn");
+			const captureUuid = button.getAttribute("data-capture-uuid");
+			const captureType = button.getAttribute("data-capture-type");
+
+			if (captureUuid && captureType) {
+				// Use the VisualizationModal instance to open with capture data
+				if (window.visualizationModalInstance) {
+					window.visualizationModalInstance.openWithCaptureData(
+						captureUuid,
+						captureType,
+					);
+				}
+			}
+		}
+	});
+});

@@ -3,7 +3,6 @@
 import datetime
 import json
 import logging
-import re
 import uuid
 from enum import StrEnum
 from pathlib import Path
@@ -18,7 +17,6 @@ from django.db.models import QuerySet
 from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
-from django_cog.models import Pipeline
 
 from .utils.opensearch_client import get_opensearch_client
 
@@ -1238,50 +1236,6 @@ def get_shared_items_for_user(user, item_type=None):
         QuerySet: UserSharePermission objects for items shared with the user
     """
     return UserSharePermission.get_shared_items_for_user(user, item_type)
-
-
-def get_latest_pipeline_by_base_name(base_name: str):
-    """
-    Get the latest pipeline by base name, handling timestamped pipelines from smart
-    recreation.
-
-    Args:
-        base_name: The base name of the pipeline (e.g.,
-        ProcessingType.Waterfall.get_pipeline_name())
-
-    Returns:
-        Pipeline: The most recent pipeline with this base name, or None if not found
-
-    Example:
-        - If "waterfall_processing_20241220_143052" exists: returns that pipeline
-        - If multiple versioned pipelines exist: returns the most recent one
-    """
-    # Look for timestamped pipelines with this base name (primary method)
-    # Use string pattern for Django regex filter, not compiled pattern
-    pattern_string = f"^{re.escape(base_name)}_\\d{{8}}_\\d{{6}}$"
-
-    versioned_pipelines = Pipeline.objects.filter(
-        name__regex=pattern_string, enabled=True
-    ).order_by("-created_date")
-
-    if versioned_pipelines.exists():
-        return versioned_pipelines.first()
-
-    # Fallback: try exact match (for backward compatibility)
-    try:
-        return Pipeline.objects.get(name=base_name, enabled=True)
-    except Pipeline.DoesNotExist:
-        pass
-
-    # Final fallback: try partial match
-    partial_matches = Pipeline.objects.filter(
-        name__startswith=base_name, enabled=True
-    ).order_by("-created_date")
-
-    if partial_matches.exists():
-        return partial_matches.first()
-
-    return None
 
 
 @receiver(post_save, sender=Capture)

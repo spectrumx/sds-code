@@ -105,17 +105,25 @@ For the local deploy:
     # follow the prompts to set the username/email and password
     ```
 
-5. Access the web interface:
+5. Initialize OpenSearch indices
+
+    ```bash
+    docker exec -it sds-gateway-local-app python manage.py init_indices
+    ```
+
+    This also tests the connection between the application and the OpenSearch instance.
+
+6. Access the web interface:
 
     Open the web interface at [localhost:8000](http://localhost:8000). You can create regular users by signing up there.
 
     You can sign in with the superuser credentials at [localhost:8000/admin](http://localhost:8000/admin) to access the admin interface.
 
-6. Create the MinIO bucket:
+7. Create the MinIO bucket:
 
     Go to [localhost:9001](http://localhost:9001) and create a bucket named `spectrumx` with the credentials set in `minio.env`. Optionally apply a storage quota to this bucket (you can modify it later if needed).
 
-7. Run the test suite:
+8. Run the test suite:
 
     For a local deploy:
 
