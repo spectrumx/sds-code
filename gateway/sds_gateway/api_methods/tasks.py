@@ -758,7 +758,7 @@ def _process_item_files(
         # Get available space for logging
         media_root = Path(settings.MEDIA_ROOT)
         try:
-            total, used, free = shutil.disk_usage(media_root)
+            _total, _used, free = shutil.disk_usage(media_root)
             available_space = free - DISK_SPACE_BUFFER
         except (OSError, ValueError):
             available_space = 0

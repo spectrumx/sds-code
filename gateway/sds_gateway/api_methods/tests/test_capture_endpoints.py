@@ -1594,7 +1594,7 @@ class OpenSearchErrorTestCases(APITestCase):
             password="testpassword",  # noqa: S106
             is_approved=True,
         )
-        api_key, key = UserAPIKey.objects.create_key(
+        _api_key, key = UserAPIKey.objects.create_key(
             name="test-key",
             user=self.user,
         )

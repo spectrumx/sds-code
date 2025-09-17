@@ -31,21 +31,21 @@ repos:
     #   biome-format    Format the committed files
     #   biome-lint      Lint and apply safe fixes to the committed files
     - repo: https://github.com/biomejs/pre-commit
-      rev: v2.2.2
+      rev: v2.2.4
       hooks:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.0.0"]
 
     # automatically upgrades Django code to migrates patterns and avoid deprecation warnings
     - repo: https://github.com/adamchainz/django-upgrade
-      rev: "1.27.0"
+      rev: "1.28.0"
       hooks:
           - id: django-upgrade
             args: ["--target-version", "4.2"]
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.12.11
+      rev: v0.13.0
       hooks:
           # linter
           - id: ruff # runs ruff check --force-exclude
