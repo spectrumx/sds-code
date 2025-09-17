@@ -105,14 +105,24 @@ class VisualizationViewSet(ViewSet):
         )
 
         # Validate request data
-        fft_size = request.data.get("fft_size", 1024)
-        std_dev = request.data.get("std_dev", 100)
-        hop_size = request.data.get("hop_size", 500)
-        colormap = request.data.get("colormap", "magma")
-        dimensions = request.data.get("dimensions", None)
+        fft_size_raw = request.data.get("fft_size") or 1024
+        std_dev_raw = request.data.get("std_dev") or 100
+        hop_size_raw = request.data.get("hop_size") or 500
+        colormap_raw = request.data.get("colormap") or "magma"
+        dimensions_raw = request.data.get("dimensions") or None
+
+        fft_size = fft_size_raw[0] if isinstance(fft_size_raw, list) else fft_size_raw
+        std_dev = std_dev_raw[0] if isinstance(std_dev_raw, list) else std_dev_raw
+        hop_size = hop_size_raw[0] if isinstance(hop_size_raw, list) else hop_size_raw
+        colormap = colormap_raw[0] if isinstance(colormap_raw, list) else colormap_raw
+        dimensions = (
+            dimensions_raw[0] if isinstance(dimensions_raw, list) else dimensions_raw
+        )
 
         # Validate parameters
-        if not self._validate_spectrogram_params(fft_size, std_dev, hop_size, colormap):
+        if not self._validate_spectrogram_params(
+            fft_size, std_dev, hop_size, colormap, dimensions
+        ):
             return Response(
                 {"error": "Invalid spectrogram parameters"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -234,15 +244,15 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        try:
-            # Get the processing job
-            processing_job = get_object_or_404(
-                PostProcessedData,
-                uuid=job_id,
-                capture__uuid=pk,
-                processing_type=ProcessingType.Spectrogram.value,
-            )
+        # Get the processing job
+        processing_job = get_object_or_404(
+            PostProcessedData,
+            uuid=job_id,
+            capture__uuid=pk,
+            processing_type=ProcessingType.Spectrogram.value,
+        )
 
+        try:
             serializer = PostProcessedDataSerializer(processing_job)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -385,6 +395,9 @@ class VisualizationViewSet(ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            if isinstance(capture_type, list):
+                capture_type = capture_type[0]
+
             available_visualizations = get_available_visualizations(capture_type)
 
             return Response(
@@ -483,12 +496,12 @@ class VisualizationViewSet(ViewSet):
         Returns:
             Response with processing job details
         """
-        try:
-            # Get the capture
-            capture = get_object_or_404(
-                Capture, uuid=pk, owner=request.user, is_deleted=False
-            )
+        # Get the capture
+        capture = get_object_or_404(
+            Capture, uuid=pk, owner=request.user, is_deleted=False
+        )
 
+        try:
             # Check if waterfall already exists
             existing_waterfall = PostProcessedData.objects.filter(
                 capture=capture,
@@ -576,22 +589,22 @@ class VisualizationViewSet(ViewSet):
         """
         Get the status of a waterfall generation job.
         """
-        try:
-            job_id = request.query_params.get("job_id")
-            if not job_id:
-                return Response(
-                    {"error": "job_id parameter is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Get the processing job
-            processing_job = get_object_or_404(
-                PostProcessedData,
-                uuid=job_id,
-                capture__uuid=pk,
-                processing_type=ProcessingType.Waterfall.value,
+        job_id = request.query_params.get("job_id")
+        if not job_id:
+            return Response(
+                {"error": "job_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Get the processing job
+        processing_job = get_object_or_404(
+            PostProcessedData,
+            uuid=job_id,
+            capture__uuid=pk,
+            processing_type=ProcessingType.Waterfall.value,
+        )
+
+        try:
             serializer = PostProcessedDataSerializer(processing_job)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -632,22 +645,22 @@ class VisualizationViewSet(ViewSet):
         """
         Download the generated waterfall data.
         """
-        try:
-            job_id = request.query_params.get("job_id")
-            if not job_id:
-                return Response(
-                    {"error": "job_id parameter is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Get the processing job
-            processing_job = get_object_or_404(
-                PostProcessedData,
-                uuid=job_id,
-                capture__uuid=pk,
-                processing_type=ProcessingType.Waterfall.value,
+        job_id = request.query_params.get("job_id")
+        if not job_id:
+            return Response(
+                {"error": "job_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Get the processing job
+        processing_job = get_object_or_404(
+            PostProcessedData,
+            uuid=job_id,
+            capture__uuid=pk,
+            processing_type=ProcessingType.Waterfall.value,
+        )
+
+        try:
             if processing_job.processing_status != ProcessingStatus.Completed.value:
                 return Response(
                     {"error": "Waterfall processing not completed"},
@@ -685,35 +698,28 @@ class VisualizationViewSet(ViewSet):
             waterfall_data.processing_status = ProcessingStatus.Processing.value
             waterfall_data.save()
 
+            from sds_gateway.api_methods.tasks import (  # noqa: PLC0415
+                start_capture_post_processing,
+            )
+
             # Launch waterfall processing as a Celery task
-            try:
-                from sds_gateway.api_methods.tasks import start_capture_post_processing
+            processing_config = {"waterfall": {}}
 
-                # Launch the waterfall processing task with empty config
-                # The waterfall processing function uses hardcoded defaults
-                processing_config = {"waterfall": {}}
+            result = start_capture_post_processing.delay(  # type: ignore[attr-defined]
+                str(waterfall_data.capture.uuid), processing_config
+            )
 
-                result = start_capture_post_processing.delay(  # type: ignore[attr-defined]
-                    str(waterfall_data.capture.uuid), processing_config
-                )
+            log.info(
+                f"Launched waterfall processing task for"
+                f"{waterfall_data.uuid}, task_id: {result.id}"
+            )
 
-                log.info(
-                    f"Launched waterfall processing task for"
-                    f"{waterfall_data.uuid}, task_id: {result.id}"
-                )
-
-            except Exception as e:  # noqa: BLE001
-                log.error(f"Could not launch waterfall processing task: {e}")
-                # Mark as failed
-                waterfall_data.processing_status = ProcessingStatus.Failed.value
-                waterfall_data.processing_error = f"Failed to launch task: {e}"
-                waterfall_data.save()
-
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             log.error(f"Error starting waterfall processing: {e}")
             waterfall_data.processing_status = ProcessingStatus.Failed.value
             waterfall_data.processing_error = str(e)
             waterfall_data.save()
+            raise
 
     def _start_spectrogram_processing(
         self, spectrogram_data: PostProcessedData, processing_params: dict[str, Any]
