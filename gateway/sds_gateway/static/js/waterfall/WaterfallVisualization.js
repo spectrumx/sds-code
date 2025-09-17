@@ -4,10 +4,12 @@
  */
 
 import {
-	API_ENDPOINTS,
 	DEFAULT_COLOR_MAP,
 	ERROR_MESSAGES,
 	STATUS_MESSAGES,
+	get_create_waterfall_endpoint,
+	get_waterfall_result_endpoint,
+	get_waterfall_status_endpoint,
 } from "./constants.js";
 
 class WaterfallVisualization {
@@ -420,9 +422,6 @@ class WaterfallVisualization {
 
 			if (!waterfallData) {
 				// No waterfall data available, trigger processing
-				console.log(
-					"No waterfall data found, triggering waterfall processing...",
-				);
 				await this.triggerWaterfallProcessing();
 				return;
 			}
@@ -484,15 +483,15 @@ class WaterfallVisualization {
 	 * Trigger waterfall processing when data is not available
 	 */
 	async triggerWaterfallProcessing() {
+		// Check if we are already generating
 		if (this.isGenerating) {
 			return;
 		}
 
 		try {
 			this.setGeneratingState(true);
-			this.updateStatus(STATUS_MESSAGES.GENERATING);
 
-			// Create waterfall processing job (no parameters needed)
+			// Create waterfall processing job
 			await this.createWaterfallJob();
 		} catch (error) {
 			console.error("Error triggering waterfall processing:", error);
@@ -507,10 +506,7 @@ class WaterfallVisualization {
 	async createWaterfallJob() {
 		try {
 			const response = await fetch(
-				API_ENDPOINTS.createWaterfall.replace(
-					"{capture_uuid}",
-					this.captureUuid,
-				),
+				get_create_waterfall_endpoint(this.captureUuid),
 				{
 					method: "POST",
 					headers: {
@@ -555,7 +551,7 @@ class WaterfallVisualization {
 
 		try {
 			const response = await fetch(
-				`${API_ENDPOINTS.getWaterfallStatus.replace("{capture_uuid}", this.captureUuid)}?job_id=${this.currentJobId}`,
+				get_waterfall_status_endpoint(this.captureUuid, this.currentJobId),
 				{
 					headers: {
 						"X-CSRFToken": this.getCSRFToken(),
@@ -602,7 +598,7 @@ class WaterfallVisualization {
 	async fetchWaterfallResult() {
 		try {
 			const response = await fetch(
-				`${API_ENDPOINTS.getWaterfallResult.replace("{capture_uuid}", this.captureUuid)}?job_id=${this.currentJobId}`,
+				get_waterfall_result_endpoint(this.captureUuid, this.currentJobId),
 				{
 					headers: {
 						"X-CSRFToken": this.getCSRFToken(),
@@ -615,7 +611,6 @@ class WaterfallVisualization {
 			}
 
 			const waterfallJson = await response.json();
-			console.log("Received waterfall data:", waterfallJson.length, "slices");
 
 			this.waterfallData = waterfallJson;
 			this.totalSlices = waterfallJson.length;
@@ -630,7 +625,6 @@ class WaterfallVisualization {
 			this.calculatePowerBounds();
 
 			this.setGeneratingState(false);
-			this.updateStatus(STATUS_MESSAGES.SUCCESS);
 
 			this.controls.setTotalSlices(this.totalSlices);
 			this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
@@ -654,20 +648,6 @@ class WaterfallVisualization {
 
 		// Show/hide loading overlay
 		this.showLoading(isGenerating);
-
-		// Update status message during generation
-		if (isGenerating) {
-			this.updateStatus(STATUS_MESSAGES.GENERATING);
-		}
-	}
-
-	/**
-	 * Update status message
-	 */
-	updateStatus(message) {
-		// Only show status messages during normal operation (not errors)
-		// Errors are handled by showError() method
-		console.log("Status:", message);
 	}
 
 	/**

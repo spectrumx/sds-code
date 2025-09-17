@@ -26,22 +26,18 @@ export const WATERFALL_BOTTOM_MARGIN = 5;
 export const WATERFALL_WINDOW_SIZE = 100;
 
 // API endpoints
-export const API_ENDPOINTS = {
-	createWaterfall: "/api/v1/visualizations/{capture_uuid}/create_waterfall/",
-	getWaterfallStatus: "/api/v1/visualizations/{capture_uuid}/waterfall_status/",
-	getWaterfallResult:
-		"/api/v1/visualizations/{capture_uuid}/download_waterfall/",
+export const get_create_waterfall_endpoint = (capture_uuid) => {
+	return `/api/v1/visualizations/${capture_uuid}/create_waterfall/`;
 };
 
-// Status messages
-export const STATUS_MESSAGES = {
-	GENERATING: "Generating waterfall...",
-	SUCCESS: "",
-	ERROR: "Failed to generate waterfall",
-	LOADING: "Loading...",
+export const get_waterfall_status_endpoint = (capture_uuid, job_id) => {
+	return `/api/v1/visualizations/${capture_uuid}/waterfall_status/?job_id=${job_id}`;
 };
 
-// Error messages
+export const get_waterfall_result_endpoint = (capture_uuid, job_id) => {
+	return `/api/v1/visualizations/${capture_uuid}/download_waterfall/?job_id=${job_id}`;
+};
+
 export const ERROR_MESSAGES = {
 	NO_CAPTURE: "No capture data found",
 	API_ERROR: "API request failed",
