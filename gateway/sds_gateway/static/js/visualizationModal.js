@@ -125,16 +125,9 @@ class VisualizationModal {
 			if (isSupported) {
 				// Show this visualization option
 				card.classList.remove("d-none");
-				card.classList.add("d-block");
-				const button = card.querySelector(".visualization-select-btn");
-				if (button) {
-					button.disabled = false;
-					button.classList.remove("disabled");
-				}
 				visibleCount++;
 			} else {
 				// Hide this visualization option
-				card.classList.remove("d-block");
 				card.classList.add("d-none");
 			}
 		}
