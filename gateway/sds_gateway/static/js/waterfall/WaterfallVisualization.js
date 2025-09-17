@@ -6,7 +6,6 @@
 import {
 	DEFAULT_COLOR_MAP,
 	ERROR_MESSAGES,
-	STATUS_MESSAGES,
 	get_create_waterfall_endpoint,
 	get_waterfall_result_endpoint,
 	get_waterfall_status_endpoint,
