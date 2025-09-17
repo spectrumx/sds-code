@@ -94,7 +94,7 @@ def generate_spectrogram_from_drf(
     std_dev = processing_parameters.get("std_dev", 100)
     hop_size = processing_parameters.get("hop_size", 500)
     colormap = processing_parameters.get("colormap", "magma")
-    dimensions = processing_parameters.get("dimensions", {})
+    dimensions = processing_parameters.get("dimensions")
 
     # Validate DigitalRF data and get validated parameters
     params = validate_digitalrf_data(drf_path, channel, fft_size)

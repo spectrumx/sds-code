@@ -111,9 +111,13 @@ class VisualizationViewSet(ViewSet):
         colormap_raw = request.data.get("colormap") or "magma"
         dimensions_raw = request.data.get("dimensions") or None
 
-        fft_size = fft_size_raw[0] if isinstance(fft_size_raw, list) else fft_size_raw
-        std_dev = std_dev_raw[0] if isinstance(std_dev_raw, list) else std_dev_raw
-        hop_size = hop_size_raw[0] if isinstance(hop_size_raw, list) else hop_size_raw
+        fft_size = int(
+            fft_size_raw[0] if isinstance(fft_size_raw, list) else fft_size_raw
+        )
+        std_dev = int(std_dev_raw[0] if isinstance(std_dev_raw, list) else std_dev_raw)
+        hop_size = int(
+            hop_size_raw[0] if isinstance(hop_size_raw, list) else hop_size_raw
+        )
         colormap = colormap_raw[0] if isinstance(colormap_raw, list) else colormap_raw
         dimensions = (
             dimensions_raw[0] if isinstance(dimensions_raw, list) else dimensions_raw
@@ -129,16 +133,19 @@ class VisualizationViewSet(ViewSet):
             )
 
         # Check if spectrogram already exists with same parameters
+        processing_params = {
+            "fft_size": fft_size,
+            "std_dev": std_dev,
+            "hop_size": hop_size,
+            "colormap": colormap,
+        }
+        if dimensions is not None:
+            processing_params["dimensions"] = dimensions
+
         existing_spectrogram = PostProcessedData.objects.filter(
             capture=capture,
             processing_type=ProcessingType.Spectrogram.value,
-            processing_parameters={
-                "fft_size": fft_size,
-                "std_dev": std_dev,
-                "hop_size": hop_size,
-                "colormap": colormap,
-                "dimensions": dimensions,
-            },
+            processing_parameters=processing_params,
         ).first()
 
         if existing_spectrogram:
@@ -168,14 +175,6 @@ class VisualizationViewSet(ViewSet):
         )
 
         # Create new spectrogram processing record
-        processing_params = {
-            "fft_size": fft_size,
-            "std_dev": std_dev,
-            "hop_size": hop_size,
-            "colormap": colormap,
-            "dimensions": dimensions,
-        }
-
         spectrogram_data = PostProcessedData.objects.create(
             capture=capture,
             processing_type=ProcessingType.Spectrogram.value,
