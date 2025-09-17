@@ -129,7 +129,6 @@ def convert_drf_to_waterfall_json(
     drf_path: Path, channel: str, max_slices: int | None = None
 ) -> dict[str, Any]:
     """Convert DigitalRF data to waterfall JSON format similar to SVI implementation."""
-
     logger.info(
         f"Converting DigitalRF data to waterfall JSON format for channel {channel}"
     )
