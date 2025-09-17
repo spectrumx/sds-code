@@ -18,7 +18,7 @@
                 <div class="visualization-grid">
                     {% if visualization_compatibility %}
                         {% for viz_type, config in visualization_compatibility.items %}
-                            <div class="visualization-card visualization-option"
+                            <div class="visualization-option"
                                  data-visualization="{{ viz_type }}"
                                  data-supported-types="{% for capture_type in config.supported_capture_types %}{{ capture_type }}{% if not forloop.last %},{% endif %}{% endfor %}">
                                 <div class="card h-100">
