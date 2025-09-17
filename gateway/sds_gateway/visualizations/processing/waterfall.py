@@ -158,7 +158,8 @@ def convert_drf_to_waterfall_json(
                 "slice_idx": slice_idx,
                 "samples_per_slice": SAMPLES_PER_SLICE,
                 "fft_size": base_params.fft_size,
-            }
+            },
+            deep=True,
         )
         waterfall_file = _process_waterfall_slice(slice_params)
         if waterfall_file:
