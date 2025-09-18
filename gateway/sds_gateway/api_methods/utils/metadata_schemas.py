@@ -1,4 +1,3 @@
-# ruff: noqa: E501
 # for full schema definition, see https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/metadata-formats/digital-rf/README.md
 # the mapping below is used for drf capture metadata parsing in extract_drf_metadata.py
 
@@ -87,15 +86,18 @@ drf_capture_metadata_schema = {
         },
         "init_utc_timestamp": {
             "type": int,
-            "description": "UTC timestamp of each restart of the recorder; needed if leap seconds correction applied.",
+            "description": "UTC timestamp of each restart of the recorder; needed if "
+            "leap seconds correction applied.",
         },
         "computer_time": {
             "type": int,
-            "description": "Computer time at creation of individual RF file (unix time).",
+            "description": "Computer time at creation of "
+            "individual RF file (unix time).",
         },
         "uuid_str": {
             "type": str,
-            "description": "UUID of the capture; set independently at each restart of the recorder.",
+            "description": "UUID of the capture; set independently "
+            "at each restart of the recorder.",
         },
         "center_freq": {
             "type": int,
@@ -103,7 +105,8 @@ drf_capture_metadata_schema = {
         },
         "center_frequencies": {
             "type": list[float],
-            "description": "The center frequencies (one per subchannel) of the capture.",
+            "description": "The center frequencies (one per subchannel) "
+            "of the capture.",
         },
         "span": {
             "type": int,

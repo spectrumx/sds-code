@@ -1,4 +1,5 @@
 import json
+import re
 import tempfile
 import uuid
 from pathlib import Path
@@ -1074,14 +1075,24 @@ def _normalize_top_level_dir(top_level_dir: str) -> str:
         top_level_dir: The path to normalize
 
     Returns:
-        The normalized path with leading slash and multiple slashes resolved
+        The normalized path with leading slash, whitespace stripped, and multiple
+        slashes resolved
     """
+    # Strip whitespace from the input
+    normalized = top_level_dir.strip()
+
+    # Check for empty string after stripping
+    if not normalized:
+        msg = "top_level_dir cannot be empty"
+        raise ValueError(msg)
 
     # Ensure leading slash
-    if not top_level_dir.startswith("/"):
-        normalized = "/" + top_level_dir
-    else:
-        normalized = top_level_dir
+    if not normalized.startswith("/"):
+        normalized = "/" + normalized
+
+    # Resolve multiple consecutive slashes by replacing them with single slashes
+    # but preserve the leading slash
+    normalized = re.sub(r"/+", "/", normalized)
 
     # Resolve multiple slashes using Path.resolve()
     try:
