@@ -88,7 +88,7 @@ class FileListController {
 			loadingIndicatorId: "loading-indicator",
 			tableContainerSelector: ".table-responsive",
 			resultsCountId: "results-count",
-			modalHandler: this.modalManager,
+			modalHandler: this.modalManager, // Use components.js modal system
 		});
 
 		this.searchManager = new SearchManager({

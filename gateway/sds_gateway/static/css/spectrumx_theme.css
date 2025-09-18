@@ -21,6 +21,12 @@
 	--spectrumx-co-owner-bg: #fef3c7;
 	--spectrumx-co-owner-border: #d97706;
 
+	/* Owner (Purple) */
+	--spectrumx-owner-color: #7924c9;
+	--spectrumx-owner-hover-color: #510d8c;
+	--spectrumx-owner-bg: #ddcfff;
+	--spectrumx-owner-border: #7924c9;
+
 	/* Remove/Danger (Red) */
 	--spectrumx-remove-color: #dc2626;
 	--spectrumx-remove-hover-color: #b91c1c;
@@ -821,6 +827,19 @@ th.sortable:hover .sort-icon {
 
 .badge.bg-primary:hover {
 	background-color: #004b80;
+}
+
+/* Make permission badges match dropdown button size */
+.badge.access-level-badge {
+	padding: 0.25rem 0.5rem;
+	font-size: 0.875rem;
+	font-weight: 400;
+	border-radius: 0.375rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	min-height: 32px;
+	line-height: 1.4;
 }
 
 /* Selected captures/files badges */

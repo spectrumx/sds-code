@@ -53,8 +53,11 @@ test:
 	@echo "Validating templates"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py validate_templates
 
-	@echo "Running tests"
+	@echo "Running Python tests"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest $(ARGS)
+
+	@echo "Running JavaScript tests"
+	@cd sds_gateway/static/js/tests && node test-runner.js
 
 	@# Django's test runner: obsolete, subset of pytest tests, left as reference.
 	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0

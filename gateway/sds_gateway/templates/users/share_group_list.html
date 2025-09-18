@@ -89,7 +89,7 @@
                                                             <li>
                                                                 <button type="button"
                                                                         class="dropdown-item"
-                                                                        onclick="deleteGroup('{{ group.uuid }}', '{{ group.name }}')">
+                                                                        onclick="window.shareGroupManager.deleteGroup('{{ group.uuid }}', '{{ group.name }}')">
                                                                     <i class="bi bi-trash me-1"></i>{% translate "Delete" %}
                                                                 </button>
                                                             </li>
@@ -202,7 +202,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary btn-sm">
+                            <button type="submit" class="btn btn-primary btn-sm" id="add-members-btn" disabled>
                                 <i class="bi bi-person-plus me-1"></i>{% translate "Add Members" %}
                             </button>
                         </form>
@@ -291,12 +291,17 @@
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
-    <script src="{% static 'js/userSearchComponent.js' %}"></script>
-    <script src="{% static 'js/shareGroupManager.js' %}"></script>
+    <!-- Share components -->
+    <script src="{% static 'js/share/ShareGroupManager.js' %}"></script>
+    <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
+    
     <script>
         // Initialize share group manager when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
-            initializeShareGroupManager();
+            // Initialize the share group manager
+            window.shareGroupManager = new ShareGroupManager({
+                apiEndpoint: "/users/share-groups/",
+            });
         });
     </script>
 {% endblock javascript %}
