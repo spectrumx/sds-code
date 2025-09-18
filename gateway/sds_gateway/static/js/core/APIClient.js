@@ -7,7 +7,7 @@ class APIClient {
 	 * Get CSRF token from various sources
 	 * @returns {string} CSRF token
 	 */
-	static getCSRFToken() {
+	getCSRFToken() {
 		// Try meta tag first (most reliable)
 		const metaToken = document.querySelector('meta[name="csrf-token"]');
 		if (metaToken) {
@@ -21,7 +21,7 @@ class APIClient {
 		}
 
 		// Last resort: try cookie
-		const cookieToken = APIClient.getCookie("csrftoken");
+		const cookieToken = this.getCookie("csrftoken");
 		if (cookieToken) {
 			return cookieToken;
 		}
@@ -35,7 +35,7 @@ class APIClient {
 	 * @param {string} name - Cookie name
 	 * @returns {string|null} Cookie value
 	 */
-	static getCookie(name) {
+	getCookie(name) {
 		let cookieValue = null;
 		if (document.cookie && document.cookie !== "") {
 			const cookies = document.cookie.split(";");
@@ -57,7 +57,7 @@ class APIClient {
 	 * @param {Object} loadingState - Loading state management object
 	 * @returns {Promise<Object>} Response data
 	 */
-	static async request(url, options = {}, loadingState = null) {
+	async request(url, options = {}, loadingState = null) {
 		// Set loading state
 		if (loadingState) {
 			loadingState.setLoading(true);
@@ -71,7 +71,7 @@ class APIClient {
 
 		// Add CSRF token for non-GET requests
 		if (options.method && options.method !== "GET") {
-			headers["X-CSRFToken"] = APIClient.getCSRFToken();
+			headers["X-CSRFToken"] = this.getCSRFToken();
 		}
 
 		try {
@@ -117,7 +117,7 @@ class APIClient {
 	 * @param {Object} loadingState - Loading state management
 	 * @returns {Promise<Object>} Response data
 	 */
-	static async get(url, params = {}, loadingState = null) {
+	async get(url, params = {}, loadingState = null) {
 		const urlObj = new URL(url, window.location.origin);
 		for (const [key, value] of Object.entries(params)) {
 			if (value !== null && value !== undefined) {
@@ -139,7 +139,7 @@ class APIClient {
 	 * @param {Object} loadingState - Loading state management
 	 * @returns {Promise<Object>} Response data
 	 */
-	static async post(url, data = {}, loadingState = null) {
+	async post(url, data = {}, loadingState = null) {
 		const formData = new FormData();
 		for (const [key, value] of Object.entries(data)) {
 			if (value !== null && value !== undefined) {
@@ -164,7 +164,7 @@ class APIClient {
 	 * @param {Object} loadingState - Loading state management
 	 * @returns {Promise<Object>} Response data
 	 */
-	static async patch(url, data = {}, loadingState = null) {
+	async patch(url, data = {}, loadingState = null) {
 		const formData = new FormData();
 		for (const [key, value] of Object.entries(data)) {
 			if (value !== null && value !== undefined) {
@@ -189,7 +189,7 @@ class APIClient {
 	 * @param {Object} loadingState - Loading state management
 	 * @returns {Promise<Object>} Response data
 	 */
-	static async put(url, data = {}, loadingState = null) {
+	async put(url, data = {}, loadingState = null) {
 		const formData = new FormData();
 		for (const [key, value] of Object.entries(data)) {
 			if (value !== null && value !== undefined) {
@@ -259,7 +259,7 @@ class ListRefreshManager {
 	 * @param {Object} options - Options for data extraction
 	 * @returns {Promise<Object>} Refreshed data and HTML
 	 */
-	static async refreshList(url, options = {}) {
+	async refreshList(url, options = {}) {
 		const {
 			extractData = true,
 			updateTable = true,
@@ -270,13 +270,14 @@ class ListRefreshManager {
 		} = options;
 
 		// Fetch fresh HTML
-		const html = await APIClient.get(url);
+		const apiClient = new APIClient();
+		const html = await apiClient.get(url);
 
 		const result = { html };
 
 		// Extract data if requested
 		if (extractData) {
-			result.data = ListRefreshManager.extractDataFromHTML(html, {
+			result.data = this.extractDataFromHTML(html, {
 				modalSelector,
 				extractSharedUsers: true,
 			});
@@ -284,7 +285,7 @@ class ListRefreshManager {
 
 		// Update table if requested
 		if (updateTable) {
-			ListRefreshManager.updateTableContent(html, {
+			this.updateTableContent(html, {
 				tableSelector,
 				mainSelector,
 			});
@@ -299,7 +300,7 @@ class ListRefreshManager {
 	 * @param {Object} options - Extraction options
 	 * @returns {Object} Extracted data
 	 */
-	static extractDataFromHTML(html, options = {}) {
+	extractDataFromHTML(html, options = {}) {
 		const {
 			modalSelector = ".modal[data-item-uuid][data-item-type]",
 			extractSharedUsers = true,
@@ -323,10 +324,7 @@ class ListRefreshManager {
 
 			// Extract shared users if requested
 			if (extractSharedUsers) {
-				const sharedUsers = ListRefreshManager.extractSharedUsersFromModal(
-					modal,
-					itemUuid,
-				);
+				const sharedUsers = this.extractSharedUsersFromModal(modal, itemUuid);
 				item.shared_users = sharedUsers;
 				item.owner_name = sharedUsers.find((u) => u.isOwner)?.name || "Owner";
 				item.owner_email = sharedUsers.find((u) => u.isOwner)?.email || "";
@@ -344,7 +342,7 @@ class ListRefreshManager {
 	 * @param {string} itemUuid - Item UUID
 	 * @returns {Array} Array of shared users
 	 */
-	static extractSharedUsersFromModal(modal, itemUuid) {
+	extractSharedUsersFromModal(modal, itemUuid) {
 		const usersWithAccessSection = modal.querySelector(
 			`#users-with-access-section-${itemUuid}`,
 		);
@@ -385,7 +383,7 @@ class ListRefreshManager {
 	 * @param {string} html - Fresh HTML
 	 * @param {Object} options - Update options
 	 */
-	static updateTableContent(html, options = {}) {
+	updateTableContent(html, options = {}) {
 		const { tableSelector = ".table-and-pagination", mainSelector = "main" } =
 			options;
 
@@ -411,7 +409,7 @@ class ListRefreshManager {
 	 * @param {Array} items - Items with shared users data
 	 * @param {Function} updateCallback - Callback to update individual modal
 	 */
-	static updateModalsWithData(items, updateCallback) {
+	updateModalsWithData(items, updateCallback) {
 		for (const item of items) {
 			const modal = document.getElementById(`share-modal-${item.uuid}`);
 			if (modal && updateCallback) {
@@ -421,8 +419,8 @@ class ListRefreshManager {
 	}
 }
 
-// Make classes available globally
-window.APIClient = APIClient;
+// Create instances and make them available globally
+window.APIClient = new APIClient();
 window.APIError = APIError;
 window.LoadingStateManager = LoadingStateManager;
-window.ListRefreshManager = ListRefreshManager;
+window.ListRefreshManager = new ListRefreshManager();

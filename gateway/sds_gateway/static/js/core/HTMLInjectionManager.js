@@ -8,7 +8,7 @@ class HTMLInjectionManager {
 	 * @param {string} text - Text to escape
 	 * @returns {string} Escaped HTML
 	 */
-	static escapeHtml(text) {
+	escapeHtml(text) {
 		if (!text) return "";
 		const div = document.createElement("div");
 		div.textContent = text;
@@ -23,7 +23,7 @@ class HTMLInjectionManager {
 	 * @param {boolean} options.escape - Whether to escape HTML (default: true)
 	 * @param {string} options.method - Injection method: 'innerHTML', 'append', 'prepend' (default: 'innerHTML')
 	 */
-	static injectHTML(container, htmlString, options = {}) {
+	injectHTML(container, htmlString, options = {}) {
 		const { escapeHtml = true, method = "innerHTML" } = options;
 
 		const element =
@@ -36,9 +36,7 @@ class HTMLInjectionManager {
 			return;
 		}
 
-		const safeHtml = escapeHtml
-			? HTMLInjectionManager.escapeHtml(htmlString)
-			: htmlString;
+		const safeHtml = escapeHtml ? this.escapeHtml(htmlString) : htmlString;
 
 		switch (method) {
 			case "innerHTML":
@@ -62,7 +60,7 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options for data processing
 	 * @returns {string} Safe HTML string
 	 */
-	static createTableRow(data, template, options = {}) {
+	createTableRow(data, template, options = {}) {
 		const { escapeHtml = true, dateFormat = "en-US" } = options;
 
 		// Process data for safe injection
@@ -77,7 +75,7 @@ class HTMLInjectionManager {
 					year: "numeric",
 				});
 			} else if (typeof value === "string" && escapeHtml) {
-				processedData[key] = HTMLInjectionManager.escapeHtml(value);
+				processedData[key] = this.escapeHtml(value);
 			} else {
 				processedData[key] = value;
 			}
@@ -100,8 +98,8 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options for data processing
 	 * @returns {string} Safe HTML string
 	 */
-	static createModalContent(data, template, options = {}) {
-		return HTMLInjectionManager.createTableRow(data, template, options);
+	createModalContent(data, template, options = {}) {
+		return this.createTableRow(data, template, options);
 	}
 
 	/**
@@ -110,7 +108,7 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options
 	 * @returns {string} Safe HTML string
 	 */
-	static createUserChip(user, options = {}) {
+	createUserChip(user, options = {}) {
 		const {
 			showPermissionSelect = true,
 			showRemoveButton = true,
@@ -118,12 +116,12 @@ class HTMLInjectionManager {
 		} = options;
 
 		const isGroup = user.email?.startsWith("group:");
-		const displayName = HTMLInjectionManager.escapeHtml(
+		const displayName = this.escapeHtml(
 			isGroup ? user.name : user.name || user.email,
 		);
 		const displayEmail = isGroup
 			? `Group • ${user.member_count || 0} members`
-			: HTMLInjectionManager.escapeHtml(user.email);
+			: this.escapeHtml(user.email);
 		const icon = isGroup ? "bi-people-fill" : "bi-person-fill";
 
 		let permissionSelect = "";
@@ -135,7 +133,7 @@ class HTMLInjectionManager {
 				)
 				.join("");
 			permissionSelect = `
-				<select class="form-select permission-select" data-user-email="${HTMLInjectionManager.escapeHtml(user.email)}">
+				<select class="form-select permission-select" data-user-email="${this.escapeHtml(user.email)}">
 					${options}
 				</select>
 			`;
@@ -166,32 +164,32 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options
 	 * @returns {string} Safe HTML string
 	 */
-	static createErrorMessage(errors, options = {}) {
+	createErrorMessage(errors, options = {}) {
 		const { showFieldNames = true } = options;
 
 		let errorHtml = '<ul class="mb-0 list-unstyled">';
 
 		if (Array.isArray(errors)) {
 			for (const error of errors) {
-				errorHtml += `<li>${HTMLInjectionManager.escapeHtml(error)}</li>`;
+				errorHtml += `<li>${this.escapeHtml(error)}</li>`;
 			}
 		} else if (typeof errors === "object" && errors !== null) {
 			for (const [field, messages] of Object.entries(errors)) {
 				const fieldName =
 					showFieldNames && field !== "non_field_errors"
-						? `<strong>${HTMLInjectionManager.escapeHtml(field)}:</strong> `
+						? `<strong>${this.escapeHtml(field)}:</strong> `
 						: "";
 
 				if (Array.isArray(messages)) {
 					for (const message of messages) {
-						errorHtml += `<li>${fieldName}${HTMLInjectionManager.escapeHtml(message)}</li>`;
+						errorHtml += `<li>${fieldName}${this.escapeHtml(message)}</li>`;
 					}
 				} else if (typeof messages === "string") {
-					errorHtml += `<li>${fieldName}${HTMLInjectionManager.escapeHtml(messages)}</li>`;
+					errorHtml += `<li>${fieldName}${this.escapeHtml(messages)}</li>`;
 				}
 			}
 		} else if (typeof errors === "string") {
-			errorHtml += `<li>${HTMLInjectionManager.escapeHtml(errors)}</li>`;
+			errorHtml += `<li>${this.escapeHtml(errors)}</li>`;
 		}
 
 		errorHtml += "</ul>";
@@ -204,7 +202,7 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options
 	 * @returns {string} HTML string
 	 */
-	static createLoadingSpinner(text = "Loading...", options = {}) {
+	createLoadingSpinner(text = "Loading...", options = {}) {
 		const { size = "sm", color = "" } = options;
 		const sizeClass = size === "sm" ? "spinner-border-sm" : "";
 		const colorClass = color ? `text-${color}` : "";
@@ -219,11 +217,11 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options
 	 * @returns {string} HTML string
 	 */
-	static createBadge(text, type = "primary", options = {}) {
+	createBadge(text, type = "primary", options = {}) {
 		const { size = "", customClass = "" } = options;
 		const sizeClass = size ? `badge-${size}` : "";
 
-		return `<span class="badge bg-${type} ${sizeClass} ${customClass}">${HTMLInjectionManager.escapeHtml(text)}</span>`;
+		return `<span class="badge bg-${type} ${sizeClass} ${customClass}">${this.escapeHtml(text)}</span>`;
 	}
 
 	/**
@@ -232,7 +230,7 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options
 	 * @returns {string} HTML string
 	 */
-	static createButton(text, options = {}) {
+	createButton(text, options = {}) {
 		const {
 			type = "button",
 			variant = "primary",
@@ -247,19 +245,15 @@ class HTMLInjectionManager {
 		const sizeClass = size ? `btn-${size}` : "";
 		const disabledAttr = disabled ? "disabled" : "";
 		const iconHtml = icon ? `<i class="bi ${icon} me-1"></i>` : "";
-		const loadingHtml = loading
-			? HTMLInjectionManager.createLoadingSpinner()
-			: "";
+		const loadingHtml = loading ? this.createLoadingSpinner() : "";
 
 		const attrs = Object.entries(attributes)
-			.map(
-				([key, value]) => `${key}="${HTMLInjectionManager.escapeHtml(value)}"`,
-			)
+			.map(([key, value]) => `${key}="${this.escapeHtml(value)}"`)
 			.join(" ");
 
 		return `
 			<button type="${type}" class="btn btn-${variant} ${sizeClass} ${customClass}" ${disabledAttr} ${attrs}>
-				${loadingHtml}${iconHtml}${HTMLInjectionManager.escapeHtml(text)}
+				${loadingHtml}${iconHtml}${this.escapeHtml(text)}
 			</button>
 		`;
 	}
@@ -270,7 +264,7 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options
 	 * @returns {string} HTML string
 	 */
-	static createPagination(pagination, options = {}) {
+	createPagination(pagination, options = {}) {
 		const { showArrows = true, maxPages = 5 } = options;
 
 		if (pagination.num_pages <= 1) return "";
@@ -323,7 +317,7 @@ class HTMLInjectionManager {
 	 * @param {Object} options - Options
 	 * @returns {string} HTML string
 	 */
-	static createNotification(message, type = "info", options = {}) {
+	createNotification(message, type = "info", options = {}) {
 		const {
 			dismissible = true,
 			icon = true,
@@ -351,7 +345,7 @@ class HTMLInjectionManager {
 					${iconClass ? `<i class="bi ${iconClass} me-2"></i>` : ""}
 					<div class="error-content">
 						<ul class="mb-0 list-unstyled">
-							<li>${HTMLInjectionManager.escapeHtml(message)}</li>
+							<li>${this.escapeHtml(message)}</li>
 						</ul>
 					</div>
 				</div>
@@ -366,7 +360,7 @@ class HTMLInjectionManager {
 	 * @param {string} type - Notification type
 	 * @param {Object} options - Options
 	 */
-	static showNotification(message, type = "info", options = {}) {
+	showNotification(message, type = "info", options = {}) {
 		const {
 			containerId = "formErrors",
 			autoHide = true,
@@ -383,11 +377,7 @@ class HTMLInjectionManager {
 			return;
 		}
 
-		const notificationHtml = HTMLInjectionManager.createNotification(
-			message,
-			type,
-			options,
-		);
+		const notificationHtml = this.createNotification(message, type, options);
 
 		if (replace) {
 			// Replace existing content
@@ -408,7 +398,7 @@ class HTMLInjectionManager {
 		// Auto-hide if requested
 		if (autoHide) {
 			setTimeout(() => {
-				HTMLInjectionManager.hideNotification(containerId);
+				this.hideNotification(containerId);
 			}, autoHideDelay);
 		}
 	}
@@ -417,7 +407,7 @@ class HTMLInjectionManager {
 	 * Hide notification
 	 * @param {string} containerId - Container ID
 	 */
-	static hideNotification(containerId = "formErrors") {
+	hideNotification(containerId = "formErrors") {
 		const container = document.getElementById(containerId);
 		if (container) {
 			container.classList.add("d-none");
@@ -428,7 +418,7 @@ class HTMLInjectionManager {
 	 * Clear all notifications
 	 * @param {string} containerId - Container ID
 	 */
-	static clearNotifications(containerId = "formErrors") {
+	clearNotifications(containerId = "formErrors") {
 		const container = document.getElementById(containerId);
 		if (container) {
 			container.innerHTML = "";
@@ -441,7 +431,7 @@ class HTMLInjectionManager {
 	 * @param {string} message - Toast message
 	 * @param {string} type - Toast type (success, error, warning, info)
 	 */
-	static showAlert(message, type = "success") {
+	showAlert(message, type = "success") {
 		const toastContainer = document.getElementById("toast-container");
 		if (!toastContainer) return;
 
@@ -458,13 +448,13 @@ class HTMLInjectionManager {
 		const toastHtml = `
 			<div id="${toastId}" class="toast align-items-center ${bgClass}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3500">
 				<div class="d-flex">
-					<div class="toast-body">${HTMLInjectionManager.escapeHtml(message)}</div>
+					<div class="toast-body">${this.escapeHtml(message)}</div>
 					<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
 				</div>
 			</div>
 		`;
 
-		HTMLInjectionManager.injectHTML(toastContainer, toastHtml, {
+		window.HTMLInjectionManager.injectHTML(toastContainer, toastHtml, {
 			escape: false,
 		});
 		const toastElem = document.getElementById(toastId);
@@ -474,8 +464,10 @@ class HTMLInjectionManager {
 	}
 }
 
-// Make class available globally
-window.HTMLInjectionManager = HTMLInjectionManager;
+// Create instance and make it available globally
+window.HTMLInjectionManager = new HTMLInjectionManager();
 
 // Make showAlert available as a global function
-window.showAlert = HTMLInjectionManager.showAlert;
+window.showAlert = window.HTMLInjectionManager.showAlert.bind(
+	window.HTMLInjectionManager,
+);

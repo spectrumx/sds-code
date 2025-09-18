@@ -9,7 +9,7 @@ from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
 
-from ..models import UserSharePermission
+from sds_gateway.api_methods.models import UserSharePermission
 
 
 def require_permission(permission_check_func):

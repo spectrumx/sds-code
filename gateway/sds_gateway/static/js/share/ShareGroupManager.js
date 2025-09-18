@@ -107,9 +107,9 @@ class ShareGroupManager {
 		} catch (error) {
 			// Extract specific error message from the response
 			let errorMessage = "An error occurred while creating the group.";
-			if (error.data && error.data.error) {
+			if (error.data?.error) {
 				errorMessage = error.data.error;
-			} else if (error.message && error.message.includes("400")) {
+			} else if (error.message?.includes("400")) {
 				errorMessage =
 					"Bad request - please check the form data and try again.";
 			}
@@ -195,7 +195,7 @@ class ShareGroupManager {
 		} catch (error) {
 			// Extract specific error message from the response
 			let errorMessage = "An error occurred while adding members.";
-			if (error.data && error.data.error) {
+			if (error.data?.error) {
 				errorMessage = error.data.error;
 			}
 
@@ -335,7 +335,7 @@ class ShareGroupManager {
 			} catch (error) {
 				// Extract specific error message from the response
 				let errorMessage = "An error occurred while removing members.";
-				if (error.data && error.data.error) {
+				if (error.data?.error) {
 					errorMessage = error.data.error;
 				}
 
@@ -401,7 +401,7 @@ class ShareGroupManager {
 		} catch (error) {
 			// Extract specific error message from the response
 			let errorMessage = "An error occurred while deleting the group.";
-			if (error.data && error.data.error) {
+			if (error.data?.error) {
 				errorMessage = error.data.error;
 			}
 
