@@ -320,7 +320,7 @@ class AssetSearchHandler {
 			// Always add the search_captures parameter
 			searchParams.append("search_captures", "true");
 
-			const data = await APIClient.request(
+			const data = await window.APIClient.request(
 				`${this.config.apiEndpoint}?${searchParams.toString()}`,
 				{
 					headers: {
@@ -345,7 +345,7 @@ class AssetSearchHandler {
 	async fetchFiles(params = {}) {
 		try {
 			const searchParams = new URLSearchParams(params);
-			const data = await APIClient.request(
+			const data = await window.APIClient.request(
 				`${this.config.apiEndpoint}?${searchParams.toString()}&search_files=true`,
 				{
 					headers: {
@@ -613,7 +613,7 @@ class AssetSearchHandler {
 				"true",
 			);
 
-			const data = await APIClient.request(
+			const data = await window.APIClient.request(
 				`${this.config.apiEndpoint}?${params.toString()}`,
 				{
 					headers: {

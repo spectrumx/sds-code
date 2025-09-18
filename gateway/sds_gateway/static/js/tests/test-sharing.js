@@ -57,21 +57,24 @@ global.HTMLInjectionManager = {
 	},
 };
 
-class PermissionsManager {
-	constructor(config) {
-		this.userPermissionLevel = config.userPermissionLevel;
-		this.isOwner = config.isOwner;
-	}
+// Import the actual PermissionsManager
+const fs = require("node:fs");
+const path = require("node:path");
 
-	canShare() {
-		return this.isOwner || this.userPermissionLevel === "co-owner";
-	}
+// Read and evaluate the PermissionsManager.js file
+const permissionsManagerPath = path.join(
+	__dirname,
+	"../core/PermissionsManager.js",
+);
+const permissionsManagerCode = fs.readFileSync(permissionsManagerPath, "utf8");
 
-	canDownload() {
-		return true; // All users can download
-	}
-}
+// Execute the PermissionsManager code in our context
+// biome-ignore lint/security/noGlobalEval: <explanation>
+// Loading trusted test code in controlled environment
+eval(permissionsManagerCode);
 
+// The PermissionsManager class is now available via window.PermissionsManager
+const PermissionsManager = global.window.PermissionsManager;
 global.PermissionsManager = PermissionsManager;
 
 // Test suite for ShareActionManager

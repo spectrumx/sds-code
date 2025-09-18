@@ -119,11 +119,11 @@ class DownloadActionManager {
 				// Show loading state
 				const originalContent = button.innerHTML;
 				button.innerHTML =
-					HTMLInjectionManager.createLoadingSpinner("Processing...");
+					window.HTMLInjectionManager.createLoadingSpinner("Processing...");
 				button.disabled = true;
 
 				try {
-					const response = await APIClient.post(
+					const response = await window.APIClient.post(
 						`/users/download-item/dataset/${datasetUuid}/`,
 						{},
 					);

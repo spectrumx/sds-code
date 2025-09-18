@@ -240,7 +240,7 @@ class ShareActionManager {
 		}
 
 		try {
-			const response = await APIClient.post(
+			const response = await window.APIClient.post(
 				`/users/share-item/${this.itemType}/${this.itemUuid}/`,
 				formData,
 			);
@@ -287,7 +287,7 @@ class ShareActionManager {
 
 		try {
 			this.currentRequest = new AbortController();
-			const users = await APIClient.get(
+			const users = await window.APIClient.get(
 				`/users/share-item/${this.itemType}/${this.itemUuid}/`,
 				{ q: query, limit: 10 },
 				null, // No loading state for search
@@ -329,10 +329,10 @@ class ShareActionManager {
 
 					return `
 					<div class="list-group-item"
-						 data-user-id="${HTMLInjectionManager.escapeHtml(user.url || "")}"
-						 data-user-name="${HTMLInjectionManager.escapeHtml(user.name)}"
-						 data-user-email="${HTMLInjectionManager.escapeHtml(user.email)}"
-						 data-user-type="${HTMLInjectionManager.escapeHtml(user.type || "user")}"
+						 data-user-id="${window.HTMLInjectionManager.escapeHtml(user.url || "")}"
+						 data-user-name="${window.HTMLInjectionManager.escapeHtml(user.name)}"
+						 data-user-email="${window.HTMLInjectionManager.escapeHtml(user.email)}"
+						 data-user-type="${window.HTMLInjectionManager.escapeHtml(user.type || "user")}"
 						 data-member-count="${user.member_count || 0}">
 						<div class="user-search-item">
 							<div class="user-name">
@@ -346,7 +346,9 @@ class ShareActionManager {
 				})
 				.join("");
 
-			HTMLInjectionManager.injectHTML(listGroup, items, { escape: false });
+			window.HTMLInjectionManager.injectHTML(listGroup, items, {
+				escape: false,
+			});
 		}
 
 		this.showDropdown(dropdown);
@@ -370,9 +372,9 @@ class ShareActionManager {
 	 * @returns {string} Highlighted text
 	 */
 	highlightMatch(text, query) {
-		if (!query) return HTMLInjectionManager.escapeHtml(text);
+		if (!query) return window.HTMLInjectionManager.escapeHtml(text);
 		const regex = new RegExp(`(${query})`, "gi");
-		return HTMLInjectionManager.escapeHtml(text).replace(
+		return window.HTMLInjectionManager.escapeHtml(text).replace(
 			regex,
 			"<mark>$1</mark>",
 		);
@@ -481,7 +483,7 @@ class ShareActionManager {
 			const groupUuid = group.email.replace("group:", "");
 
 			// Make API call to check if user is in the group
-			const data = await APIClient.get("/users/share-groups/", {
+			const data = await window.APIClient.get("/users/share-groups/", {
 				group_uuid: groupUuid,
 			});
 
@@ -564,13 +566,15 @@ class ShareActionManager {
 
 		chipContainer.innerHTML = "";
 		for (const user of this.selectedUsersMap[inputId]) {
-			const chip = HTMLInjectionManager.createUserChip(user, {
+			const chip = window.HTMLInjectionManager.createUserChip(user, {
 				showPermissionSelect: true,
 				showRemoveButton: true,
 				permissionLevels: ["viewer", "contributor", "co-owner"],
 			});
 
-			HTMLInjectionManager.injectHTML(chipContainer, chip, { escape: false });
+			window.HTMLInjectionManager.injectHTML(chipContainer, chip, {
+				escape: false,
+			});
 
 			// Add click handler for removal
 			const removeBtn = chipContainer

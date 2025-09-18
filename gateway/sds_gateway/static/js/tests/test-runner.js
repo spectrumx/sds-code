@@ -155,6 +155,15 @@ class TestRunner {
 			);
 		}
 
+		try {
+			const ShareModalRefreshTest = require("./test-share-modal-refresh.js");
+			const shareModalRefreshTests = new ShareModalRefreshTest();
+			shareModalRefreshTests.setupTests();
+			this.addTestSuite("Share Modal Refresh", shareModalRefreshTests);
+		} catch (error) {
+			console.warn("Could not load share modal refresh tests:", error.message);
+		}
+
 		// Run all tests
 		return await this.runAllTests();
 	}
