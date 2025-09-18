@@ -125,11 +125,7 @@ class APIClient {
 			}
 		}
 
-		return APIClient.request(
-			urlObj.toString(),
-			{ method: "GET" },
-			loadingState,
-		);
+		return this.request(urlObj.toString(), { method: "GET" }, loadingState);
 	}
 
 	/**
@@ -147,7 +143,7 @@ class APIClient {
 			}
 		}
 
-		return APIClient.request(
+		return this.request(
 			url,
 			{
 				method: "POST",
@@ -172,7 +168,7 @@ class APIClient {
 			}
 		}
 
-		return APIClient.request(
+		return this.request(
 			url,
 			{
 				method: "PATCH",
@@ -197,7 +193,7 @@ class APIClient {
 			}
 		}
 
-		return APIClient.request(
+		return this.request(
 			url,
 			{
 				method: "PUT",

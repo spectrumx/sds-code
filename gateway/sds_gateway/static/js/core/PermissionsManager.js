@@ -37,10 +37,7 @@ class PermissionsManager {
 	 */
 	canEditMetadata() {
 		if (this.isOwner || this.userPermissionLevel === "co-owner") return true;
-		return (
-			this.datasetPermissions.canEditMetadata ||
-			this.userPermissionLevel === "contributor"
-		);
+		return this.datasetPermissions.canEditMetadata;
 	}
 
 	/**

@@ -252,7 +252,7 @@ class DatasetEditingHandler {
 						(this.permissions.canRemoveAsset(capture) && isOwnedByCurrentUser);
 					const rowClass = !canRemoveThisCapture ? "readonly-row" : "";
 
-					return HTMLInjectionManager.createTableRow(
+					return window.HTMLInjectionManager.createTableRow(
 						capture,
 						`
 					<tr data-capture-id="${capture.id}" class="current-capture-row ${rowClass}">
@@ -279,7 +279,7 @@ class DatasetEditingHandler {
 				})
 				.join("");
 
-			HTMLInjectionManager.injectHTML(currentCapturesList, rows, {
+			window.HTMLInjectionManager.injectHTML(currentCapturesList, rows, {
 				escape: false,
 			});
 
@@ -287,7 +287,7 @@ class DatasetEditingHandler {
 				currentCapturesCount.textContent = captures.length;
 			}
 		} else {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				currentCapturesList,
 				'<tr><td colspan="4" class="text-center text-muted">No captures in dataset</td></tr>',
 				{ escape: false },
@@ -325,7 +325,7 @@ class DatasetEditingHandler {
 						(this.permissions.canRemoveAsset(file) && isOwnedByCurrentUser);
 					const rowClass = !canRemoveThisFile ? "readonly-row" : "";
 
-					return HTMLInjectionManager.createTableRow(
+					return window.HTMLInjectionManager.createTableRow(
 						file,
 						`
 					<tr data-file-id="${file.id}" class="current-file-row ${rowClass}">
@@ -354,7 +354,7 @@ class DatasetEditingHandler {
 				})
 				.join("");
 
-			HTMLInjectionManager.injectHTML(selectedFilesBody, rows, {
+			window.HTMLInjectionManager.injectHTML(selectedFilesBody, rows, {
 				escape: false,
 			});
 
@@ -363,7 +363,7 @@ class DatasetEditingHandler {
 				selectedFilesDisplay.value = `${files.length} file(s) selected`;
 			}
 		} else {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				selectedFilesBody,
 				'<tr><td colspan="6" class="text-center text-muted">No files in dataset</td></tr>',
 				{ escape: false },
@@ -381,7 +381,7 @@ class DatasetEditingHandler {
 		if (!this.datasetUuid) return;
 
 		try {
-			const data = await APIClient.get(
+			const data = await window.APIClient.get(
 				`/users/dataset-details/?dataset_uuid=${this.datasetUuid}`,
 			);
 			this.populateFromInitialData(data.captures || [], data.files || []);
@@ -589,7 +589,7 @@ class DatasetEditingHandler {
 		const allChanges = Array.from(this.pendingCaptures.entries());
 
 		if (allChanges.length === 0) {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				pendingList,
 				'<tr><td colspan="3" class="text-center text-muted">No pending capture changes</td></tr>',
 				{ escape: false },
@@ -608,7 +608,7 @@ class DatasetEditingHandler {
 				return `
 				<tr>
 					<td><span class="badge ${badgeClass}">${badgeText}</span></td>
-					<td>${HTMLInjectionManager.escapeHtml(change.data.type)}</td>
+					<td>${window.HTMLInjectionManager.escapeHtml(change.data.type)}</td>
 					<td>
 						<button class="btn btn-sm btn-secondary cancel-change"
 								data-capture-id="${id}"
@@ -621,7 +621,9 @@ class DatasetEditingHandler {
 			})
 			.join("");
 
-		HTMLInjectionManager.injectHTML(pendingList, rows, { escape: false });
+		window.HTMLInjectionManager.injectHTML(pendingList, rows, {
+			escape: false,
+		});
 
 		if (pendingCount) {
 			pendingCount.textContent = allChanges.length;
@@ -641,7 +643,7 @@ class DatasetEditingHandler {
 		const allChanges = Array.from(this.pendingFiles.entries());
 
 		if (allChanges.length === 0) {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				pendingList,
 				'<tr><td colspan="3" class="text-center text-muted">No pending file changes</td></tr>',
 				{ escape: false },
@@ -660,7 +662,7 @@ class DatasetEditingHandler {
 				return `
 				<tr>
 					<td><span class="badge ${badgeClass}">${badgeText}</span></td>
-					<td>${HTMLInjectionManager.escapeHtml(change.data.name)}</td>
+					<td>${window.HTMLInjectionManager.escapeHtml(change.data.name)}</td>
 					<td>
 						<button class="btn btn-sm btn-secondary cancel-change"
 								data-file-id="${id}"
@@ -673,7 +675,9 @@ class DatasetEditingHandler {
 			})
 			.join("");
 
-		HTMLInjectionManager.injectHTML(pendingList, rows, { escape: false });
+		window.HTMLInjectionManager.injectHTML(pendingList, rows, {
+			escape: false,
+		});
 
 		if (pendingCount) {
 			pendingCount.textContent = allChanges.length;
@@ -1071,7 +1075,7 @@ class DatasetEditingHandler {
 		window.updateDatasetAuthors = (authorsField) =>
 			this.updateDatasetAuthors(authorsField);
 		window.formatAuthors = (authors) => this.formatAuthors(authors);
-		window.escapeHtml = (text) => HTMLInjectionManager.escapeHtml(text);
+		window.escapeHtml = (text) => window.HTMLInjectionManager.escapeHtml(text);
 
 		const authorsContainer = document.getElementById("authors-container");
 		const authorsList = authorsContainer?.querySelector(".authors-list");
@@ -1218,7 +1222,7 @@ class DatasetEditingHandler {
 								<label class="form-label small">Author Name</label>
 								<input type="text"
 									   class="form-control author-name-input"
-									   value="${HTMLInjectionManager.escapeHtml(authorName)}"
+									   value="${window.HTMLInjectionManager.escapeHtml(authorName)}"
 									   placeholder="Enter full name"
 									   ${index === 0 ? "readonly" : ""}
 									   ${isMarkedForRemoval ? "disabled" : ""}
@@ -1229,7 +1233,7 @@ class DatasetEditingHandler {
 								<label class="form-label small">ORCID ID</label>
 								<input type="text"
 									   class="form-control author-orcid-input"
-									   value="${HTMLInjectionManager.escapeHtml(authorOrcid)}"
+									   value="${window.HTMLInjectionManager.escapeHtml(authorOrcid)}"
 									   placeholder="0000-0000-0000-0000"
 									   ${index === 0 ? "readonly" : ""}
 									   ${isMarkedForRemoval ? "disabled" : ""}
@@ -1370,7 +1374,7 @@ class DatasetEditingHandler {
 		 * Show notification using HTMLInjectionManager
 		 */
 		this.showNotification = (message, type = "info") => {
-			HTMLInjectionManager.showNotification(message, type, {
+			window.HTMLInjectionManager.showNotification(message, type, {
 				containerId: "formErrors",
 				autoHide: true,
 				autoHideDelay: 5000,
@@ -1556,7 +1560,7 @@ class DatasetEditingHandler {
 			const originalAuthors =
 				window.datasetModeManager?.originalDatasetData?.authors || [];
 			const originalAuthorNames = this.formatAuthors(originalAuthors);
-			authorsElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(originalAuthorNames)}</span>`;
+			authorsElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalAuthorNames)}</span>`;
 			return;
 		}
 
@@ -1573,7 +1577,7 @@ class DatasetEditingHandler {
 			// Format original authors for display
 			const originalAuthorNames = this.formatAuthors(originalAuthors);
 			// Always show original value in black
-			authorsElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(originalAuthorNames)}</span>`;
+			authorsElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalAuthorNames)}</span>`;
 
 			// Calculate changes using DOM-based IDs
 			const changes = this.calculateAuthorChanges(
@@ -1591,19 +1595,19 @@ class DatasetEditingHandler {
 						if (change.type === "add") {
 							return `<li class="text-success">
 							<i class="bi bi-plus-circle me-1"></i>
-							Add: <span class="text-success">${HTMLInjectionManager.escapeHtml(change.name)}</span>
+							Add: <span class="text-success">${window.HTMLInjectionManager.escapeHtml(change.name)}</span>
 						</li>`;
 						}
 						if (change.type === "remove") {
 							return `<li class="text-danger">
 						<i class="bi bi-dash-circle me-1"></i>
-						Remove: <span class="text-danger">${HTMLInjectionManager.escapeHtml(change.name)}</span>
+						Remove: <span class="text-danger">${window.HTMLInjectionManager.escapeHtml(change.name)}</span>
 					</li>`;
 						}
 						if (change.type === "change") {
 							return `<li class="text-warning">
 							<i class="bi bi-pencil me-1"></i>
-							Change Name: "${HTMLInjectionManager.escapeHtml(change.oldName)}" → <span class="text-warning">"${HTMLInjectionManager.escapeHtml(change.newName)}"</span>
+							Change Name: "${window.HTMLInjectionManager.escapeHtml(change.oldName)}" → <span class="text-warning">"${window.HTMLInjectionManager.escapeHtml(change.newName)}"</span>
 						</li>`;
 						}
 					})

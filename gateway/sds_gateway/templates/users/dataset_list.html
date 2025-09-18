@@ -258,6 +258,7 @@
 </div>
 {% endblock content %}
 {% block javascript %}
+    {# djlint:off #}
     {{ block.super }}
     <!-- Action components -->
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
@@ -293,11 +294,7 @@
                 pageType: 'dataset-list',
                 permissions: {
                     userPermissionLevel: 'owner', // User is always owner of their own datasets
-                    currentUserId: {
-                        {
-                            request.user.id
-                        }
-                    },
+                    currentUserId: {{ request.user.id|default: "null"}},
                     isOwner: true,
                     datasetPermissions: {
                         canEditMetadata: true,
@@ -334,5 +331,6 @@
             });
 
         });
-    </script>
+</script>
+    {# djlint:on #}
 {% endblock javascript %}
