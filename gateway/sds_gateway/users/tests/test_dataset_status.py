@@ -36,7 +36,7 @@ class TestDatasetStatus(TestCase):
         dataset = Dataset.objects.create(
             name="Test Dataset",
             description="A test dataset",
-            authors=["Test Author"],
+            authors=[{"name": "Test Author", "orcid_id": ""}],
             owner=self.user,
         )
         assert dataset.status == DatasetStatus.DRAFT
@@ -63,7 +63,7 @@ class TestDatasetStatus(TestCase):
         form_data = {
             "name": "Test Dataset",
             "description": "A test dataset",
-            "author": "Test Author",
+            "authors": '[{"name": "Test Author", "orcid_id": ""}]',
             "status": "final",
         }
         form = DatasetInfoForm(data=form_data, user=self.user)
@@ -75,7 +75,7 @@ class TestDatasetStatus(TestCase):
         dataset = Dataset.objects.create(
             name="Test Dataset",
             description="A test dataset",
-            authors=["Test Author"],
+            authors=[{"name": "Test Author", "orcid_id": ""}],
             status=DatasetStatus.FINAL,
             owner=self.user,
         )
@@ -86,7 +86,7 @@ class TestDatasetStatus(TestCase):
         dataset = Dataset.objects.create(
             name="Test Dataset",
             description="A test dataset",
-            authors=["Test Author"],
+            authors=[{"name": "Test Author", "orcid_id": ""}],
             status=DatasetStatus.DRAFT,
             owner=self.user,
         )

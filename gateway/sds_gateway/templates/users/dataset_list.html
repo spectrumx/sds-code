@@ -259,14 +259,12 @@
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
-    <script src="{% static 'js/components.js' %}"></script>
-    <script src="{% static 'js/dataset-list.js' %}"></script>
-    <script src="{% static 'js/userSearchComponent.js' %}"></script>
-    <script src="{% static 'js/datasetDetailsModal.js' %}"></script>
-    <script src="{% static 'js/permission-levels.js' %}"></script>
+    <!-- Action components -->
+    <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize dropdowns with body container
             document.querySelectorAll('.btn-icon-dropdown').forEach(function(toggle) {
                 const dropdown = new bootstrap.Dropdown(toggle, {
                     container: 'body',
@@ -289,32 +287,29 @@
                     }
                 });
             });
-
-            // Create a UserSearchHandler for each share modal
-            document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
-                const itemUuid = modal.getAttribute('data-item-uuid');
-                const itemType = modal.getAttribute('data-item-type');
-                if (window.UserSearchHandler) {
-                    const handler = new window.UserSearchHandler();
-                    // Store the handler on the modal element
-                    modal.userSearchHandler = handler;
+        
+            // Initialize PageLifecycleManager for dataset list page
+            const pageConfig = {
+                pageType: 'dataset-list',
+                permissions: {
+                    userPermissionLevel: 'owner', // User is always owner of their own datasets
+                    currentUserId: {{ request.user.id }},
+                    isOwner: true,
+                    datasetPermissions: {
+                        canEditMetadata: true,
+                        canAddAssets: true,
+                        canRemoveAnyAssets: true,
+                        canRemoveOwnAssets: true,
+                        canShare: true,
+                        canDownload: true,
+                        canDelete: true
+                    }
                 }
+            };
 
-                // On modal show, set the item info and call init()
-                modal.addEventListener('show.bs.modal', function() {
-                    if (modal.userSearchHandler) {
-                        modal.userSearchHandler.setItemInfo(itemUuid, itemType);
-                        modal.userSearchHandler.init();
-                    }
-                });
-
-                // On modal hide, reset all selections and entered data
-                modal.addEventListener('hidden.bs.modal', function() {
-                    if (modal.userSearchHandler) {
-                        modal.userSearchHandler.resetAll();
-                    }
-                });
-            });
+            // Initialize the page lifecycle manager
+            // This will automatically handle all modal initialization including share modals
+            window.pageLifecycleManager = new PageLifecycleManager(pageConfig);
 
             // Check for dataset download alert messages only
             const downloadAlert = sessionStorage.getItem('datasetDownloadAlert');
