@@ -5,6 +5,7 @@ This document provides detailed information about the action-specific JavaScript
 ## Overview
 
 The actions components provide specialized functionality for specific user actions:
+
 - **ShareActionManager**: Handles all sharing-related functionality
 - **DownloadActionManager**: Manages download operations
 - **DetailsActionManager**: Handles details modal functionality
@@ -46,56 +47,69 @@ const shareManager = new ShareActionManager({
 #### Methods
 
 ##### `handleShareItem()`
+
 Handles the share item action.
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 await shareManager.handleShareItem();
 ```
 
 ##### `searchUsers(query, dropdown)`
+
 Searches for users and groups.
 
 **Parameters:**
+
 - `query` (string): Search query
 - `dropdown` (Element): Dropdown element to populate
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 await shareManager.searchUsers('john', dropdownElement);
 ```
 
 ##### `selectUser(item, input)`
+
 Selects a user from search results.
 
 **Parameters:**
+
 - `item` (Element): Selected item element
 - `input` (Element): Search input element
 
 **Example:**
+
 ```javascript
 shareManager.selectUser(selectedItem, searchInput);
 ```
 
 ##### `renderChips(input)`
+
 Renders user chips for selected users.
 
 **Parameters:**
+
 - `input` (Element): Search input element
 
 **Example:**
+
 ```javascript
 shareManager.renderChips(searchInput);
 ```
 
 ##### `clearSelections()`
+
 Clears all selections and pending changes.
 
 **Example:**
+
 ```javascript
 shareManager.clearSelections();
 ```
@@ -125,6 +139,7 @@ selectedUsersMap[inputId] = [
 #### Permission Levels
 
 Supported permission levels:
+
 - `viewer`: Can only view and download
 - `contributor`: Can add their own assets and edit metadata
 - `co-owner`: Can edit metadata, add/remove assets, and share
@@ -186,9 +201,11 @@ const downloadManager = new DownloadActionManager({
 #### Methods
 
 ##### `handleDatasetDownload(datasetUuid, datasetName, button)`
+
 Handles dataset download.
 
 **Parameters:**
+
 - `datasetUuid` (string): Dataset UUID
 - `datasetName` (string): Dataset name
 - `button` (Element): Download button element
@@ -196,14 +213,17 @@ Handles dataset download.
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 await downloadManager.handleDatasetDownload('dataset-uuid', 'My Dataset', buttonElement);
 ```
 
 ##### `handleCaptureDownload(captureUuid, captureName, button)`
+
 Handles capture download.
 
 **Parameters:**
+
 - `captureUuid` (string): Capture UUID
 - `captureName` (string): Capture name
 - `button` (Element): Download button element
@@ -211,48 +231,58 @@ Handles capture download.
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 await downloadManager.handleCaptureDownload('capture-uuid', 'My Capture', buttonElement);
 ```
 
 ##### `getDownloadStatus(itemUuid, itemType)`
+
 Gets download status for an item.
 
 **Parameters:**
+
 - `itemUuid` (string): Item UUID
 - `itemType` (string): Item type ('dataset' or 'capture')
 
 **Returns:** `Promise<Object>` - Download status
 
 **Example:**
+
 ```javascript
 const status = await downloadManager.getDownloadStatus('dataset-uuid', 'dataset');
 console.log('Download status:', status);
 ```
 
 ##### `cancelDownload(itemUuid, itemType)`
+
 Cancels a download request.
 
 **Parameters:**
+
 - `itemUuid` (string): Item UUID
 - `itemType` (string): Item type ('dataset' or 'capture')
 
 **Returns:** `Promise<Object>` - Cancellation result
 
 **Example:**
+
 ```javascript
 const result = await downloadManager.cancelDownload('dataset-uuid', 'dataset');
 ```
 
 ##### `getDownloadHistory(options)`
+
 Gets download history for the user.
 
 **Parameters:**
+
 - `options` (Object): Filtering options
 
 **Returns:** `Promise<Array>` - Download history
 
 **Example:**
+
 ```javascript
 const history = await downloadManager.getDownloadHistory({
     limit: 10,
@@ -261,25 +291,31 @@ const history = await downloadManager.getDownloadHistory({
 ```
 
 ##### `initializeDownloadButtonsForContainer(container)`
+
 Initializes download buttons for dynamically loaded content.
 
 **Parameters:**
+
 - `container` (Element): Container element to search within
 
 **Example:**
+
 ```javascript
 downloadManager.initializeDownloadButtonsForContainer(document.getElementById('content'));
 ```
 
 ##### `canDownloadItem(item)`
+
 Checks if user can download specific item.
 
 **Parameters:**
+
 - `item` (Object): Item object
 
 **Returns:** `boolean` - Whether user can download
 
 **Example:**
+
 ```javascript
 const canDownload = downloadManager.canDownloadItem(datasetItem);
 if (canDownload) {
@@ -314,7 +350,7 @@ document.addEventListener('click', async (e) => {
     if (e.target.classList.contains('download-dataset-btn')) {
         const datasetUuid = e.target.getAttribute('data-dataset-uuid');
         const datasetName = e.target.getAttribute('data-dataset-name');
-        
+
         try {
             await downloadManager.handleDatasetDownload(datasetUuid, datasetName, e.target);
         } catch (error) {
@@ -363,38 +399,47 @@ const detailsManager = new DetailsActionManager({
 #### Methods
 
 ##### `handleDatasetDetails(datasetUuid)`
+
 Handles dataset details display.
 
 **Parameters:**
+
 - `datasetUuid` (string): Dataset UUID
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 await detailsManager.handleDatasetDetails('dataset-uuid');
 ```
 
 ##### `handleCaptureDetails(captureUuid)`
+
 Handles capture details display.
 
 **Parameters:**
+
 - `captureUuid` (string): Capture UUID
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 await detailsManager.handleCaptureDetails('capture-uuid');
 ```
 
 ##### `populateDatasetDetailsModal(datasetData)`
+
 Populates dataset details modal with data.
 
 **Parameters:**
+
 - `datasetData` (Object): Dataset data
 
 **Example:**
+
 ```javascript
 detailsManager.populateDatasetDetailsModal({
     name: 'My Dataset',
@@ -407,12 +452,15 @@ detailsManager.populateDatasetDetailsModal({
 ```
 
 ##### `populateCaptureDetailsModal(captureData)`
+
 Populates capture details modal with data.
 
 **Parameters:**
+
 - `captureData` (Object): Capture data
 
 **Example:**
+
 ```javascript
 detailsManager.populateCaptureDetailsModal({
     name: 'My Capture',
@@ -425,57 +473,72 @@ detailsManager.populateCaptureDetailsModal({
 ```
 
 ##### `openModal(modalId)`
+
 Opens a modal.
 
 **Parameters:**
+
 - `modalId` (string): Modal ID
 
 **Example:**
+
 ```javascript
 detailsManager.openModal('datasetDetailsModal');
 ```
 
 ##### `closeModal(modalId)`
+
 Closes a modal.
 
 **Parameters:**
+
 - `modalId` (string): Modal ID
 
 **Example:**
+
 ```javascript
 detailsManager.closeModal('datasetDetailsModal');
 ```
 
 ##### `showModalLoading(modalId)`
+
 Shows loading state in modal.
 
 **Parameters:**
+
 - `modalId` (string): Modal ID
 
 **Example:**
+
 ```javascript
 detailsManager.showModalLoading('datasetDetailsModal');
 ```
 
 ##### `showModalError(modalId, message)`
+
 Shows error in modal.
 
 **Parameters:**
+
 - `modalId` (string): Modal ID
 - `message` (string): Error message
 
 **Example:**
+
 ```javascript
 detailsManager.showModalError('datasetDetailsModal', 'Failed to load dataset details');
 ```
 
 ##### `initializeDetailsButtonsForContainer(container)`
+
 Initializes details buttons for dynamically loaded content.
 
 **Parameters:**
+
 - `container` (Element): Container element to search within
 
 **Example:**
+
 ```javascript
 detailsManager.initializeDetailsButtonsForContainer(document.getElementById('content'));
 ```
@@ -556,7 +619,7 @@ const detailsManager = new DetailsActionManager({
 document.addEventListener('click', async (e) => {
     if (e.target.classList.contains('dataset-details-btn')) {
         const datasetUuid = e.target.getAttribute('data-dataset-uuid');
-        
+
         try {
             await detailsManager.handleDatasetDetails(datasetUuid);
         } catch (error) {
@@ -569,7 +632,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('click', async (e) => {
     if (e.target.classList.contains('capture-details-btn')) {
         const captureUuid = e.target.getAttribute('data-capture-uuid');
-        
+
         try {
             await detailsManager.handleCaptureDetails(captureUuid);
         } catch (error) {
@@ -595,16 +658,16 @@ All action managers integrate with the PageLifecycleManager for coordinated init
 initializeCoreManagers() {
     // Initialize permissions manager
     this.permissions = new PermissionsManager(this.config.permissions);
-    
+
     // Initialize action managers
     this.downloadActionManager = new DownloadActionManager({
         permissions: this.permissions
     });
-    
+
     this.detailsActionManager = new DetailsActionManager({
         permissions: this.permissions
     });
-    
+
     // Initialize share managers for specific items
     this.initializeShareManagers();
 }
@@ -616,21 +679,21 @@ initializeCoreManagers() {
 // Initialize share managers for each item
 initializeDatasetModals() {
     const datasetModals = document.querySelectorAll(".modal[data-item-type='dataset']");
-    
-    datasetModals.forEach((modal) => {
+
+     for ( modal of datasetModals) {
         const itemUuid = modal.getAttribute("data-item-uuid");
-        
+
         if (itemUuid && this.permissions) {
             const shareManager = new ShareActionManager({
                 itemUuid: itemUuid,
                 itemType: 'dataset',
                 permissions: this.permissions
             });
-            
+
             this.managers.push(shareManager);
             modal.shareActionManager = shareManager;
         }
-    });
+    }
 }
 ```
 
@@ -711,12 +774,12 @@ class ShareActionManager {
     cleanup() {
         // Clear selections
         this.clearSelections();
-        
+
         // Cancel pending requests
         if (this.currentRequest) {
             this.currentRequest.abort();
         }
-        
+
         // Clear timeouts
         if (this.searchTimeout) {
             clearTimeout(this.searchTimeout);

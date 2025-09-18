@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
+from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
@@ -315,7 +316,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         try:
             model_class = self.ITEM_MODELS[item_type]
             # Get the item (we know it exists and user has access)
-            item = model_class.objects.get(uuid=item_uuid)
 
             # Get exclusion lists for search
             excluded_user_ids, excluded_group_ids = self._get_exclusion_lists(
@@ -549,7 +549,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         **kwargs: Any,
     ) -> HttpResponse:
         """
-        Unified endpoint for sharing operations: adding users, updating permissions, and removing users.
+        Unified endpoint for sharing operations: adding users, updating permissions,
+        and removing users.
 
         Args:
             request: The HTTP request object
@@ -621,7 +622,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
             # Build response message
             messages = []
-            logger.debug(f"Results: {results}")
+            logger.debug("Results: %s", results)
             if results["added"]:
                 if len(results["added"]) == 1:
                     messages.append(f"Added {results['added'][0]}")
@@ -635,36 +636,47 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 else:
                     messages.append(f"Removed {len(results['removed'])} user(s)")
             if results["errors"]:
-                messages.append(f"An error occurred: {", ".join(results['errors'])}")
+                messages.append(f"An error occurred: {', '.join(results['errors'])}")
 
             success_message = "; ".join(messages) if messages else "No changes made"
-            
+
             # Return appropriate status codes for different error types
             if results["errors"]:
                 first_error = results["errors"][0]
-                
+
                 # Check for authorization errors (403)
-                if any(auth_phrase in first_error.lower() for auth_phrase in [
-                    "don't own it", "not found or you don't own", "access denied"
-                ]):
+                if any(
+                    auth_phrase in first_error.lower()
+                    for auth_phrase in [
+                        "don't own it",
+                        "not found or you don't own",
+                        "access denied",
+                    ]
+                ):
                     status_code = 403
                 # Check for validation errors (400)
-                elif any(validation_phrase in first_error.lower() for validation_phrase in [
-                    "already shared", "is not shared", "invalid permission level", 
-                    "not found", "missing email"
-                ]):
+                elif any(
+                    validation_phrase in first_error.lower()
+                    for validation_phrase in [
+                        "already shared",
+                        "is not shared",
+                        "invalid permission level",
+                        "not found",
+                        "missing email",
+                    ]
+                ):
                     status_code = 400
                 else:
                     # Default to 400 for other errors
                     status_code = 400
-                    
+
                 return JsonResponse(
                     {
                         "success": False,
                         "error": first_error,
                         "details": results,
                     },
-                    status=status_code
+                    status=status_code,
                 )
 
             return JsonResponse(
@@ -677,7 +689,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
         except (ValueError, json.JSONDecodeError) as e:
             return JsonResponse({"error": str(e)}, status=400)
-        except Exception as e:
+        except (PermissionError, ValidationError) as e:
             return JsonResponse({"error": f"An error occurred: {e!s}"}, status=500)
 
     def _parse_new_users(self, request: HttpRequest) -> dict:
@@ -699,12 +711,16 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                         raise ValueError(
                             f"Invalid permission level '{perm_level}' for user {email}"
                         )
-            except json.JSONDecodeError:
-                raise ValueError("Invalid user_permissions format")
+            except json.JSONDecodeError as e:
+                raise ValueError("Invalid user_permissions format") from e
 
         # Parse user emails and their permissions
         users = {}
-        identifiers = [id.strip() for id in user_emails_str.split(",") if id.strip()]
+        identifiers = [
+            identifier.strip()
+            for identifier in user_emails_str.split(",")
+            if identifier.strip()
+        ]
 
         for identifier in identifiers:
             permission = user_permissions.get(identifier, "viewer")
@@ -725,8 +741,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 {"user_email": email, **change_data}
                 for email, change_data in changes_list
             ]
-        except json.JSONDecodeError:
-            raise ValueError("Invalid permission_changes format")
+        except json.JSONDecodeError as e:
+            raise ValueError("Invalid permission_changes format") from e
 
     def _parse_removals(self, request: HttpRequest) -> list[str]:
         """Parse user removals from the request."""
@@ -736,8 +752,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
         try:
             return json.loads(remove_users_json)
-        except json.JSONDecodeError:
-            raise ValueError("Invalid remove_users format")
+        except json.JSONDecodeError as e:
+            raise ValueError("Invalid remove_users format") from e
 
     def _process_permission_change(
         self, request: HttpRequest, item_uuid: str, item_type: ItemType, change: dict
@@ -1392,12 +1408,12 @@ class GroupCapturesView(
                         unsafe_path="/",
                         request=self.request,
                     )
-                    
+
                     form = FileSearchForm(request.GET, user=self.request.user)
                     if form.is_valid():
                         files = self.search_files(form.cleaned_data, request)
                         tree_data = self._get_directory_tree(files, str(base_dir))
-                        
+
                         return JsonResponse(
                             {
                                 "tree": tree_data,
@@ -1481,7 +1497,9 @@ class GroupCapturesView(
         else:
             initial_data = {}
             if existing_dataset:
-                authors_json = self._set_authors_el_ids(existing_dataset.get_authors_display())
+                authors_json = self._set_authors_el_ids(
+                    existing_dataset.get_authors_display()
+                )
 
                 initial_data = {
                     "name": existing_dataset.name,
@@ -1497,7 +1515,6 @@ class GroupCapturesView(
         selected_captures, selected_captures_details = self._get_capture_context(
             existing_dataset=existing_dataset
         )
-
 
         # Add to context
         context.update(
@@ -1527,7 +1544,6 @@ class GroupCapturesView(
         )
         return context
 
-
     def post(self, request, *args, **kwargs):
         """Handle dataset creation/update with selected captures and files."""
         try:
@@ -1554,13 +1570,13 @@ class GroupCapturesView(
         """Validate the dataset form and return error response if invalid."""
         # Check if this is an edit operation first
         dataset_uuid = request.GET.get("dataset_uuid")
-        
+
         if dataset_uuid:
             # For editing, validate permissions first
             permission_level = get_user_permission_level(
                 request.user, dataset_uuid, ItemType.DATASET
             )
-            
+
             if not permission_level:
                 return JsonResponse(
                     {
@@ -1572,7 +1588,7 @@ class GroupCapturesView(
 
             # Only validate form if user can edit metadata
             can_edit = self.can_edit_metadata(permission_level)
-            
+
             if can_edit:
                 dataset_form = DatasetInfoForm(request.POST, user=request.user)
                 if not dataset_form.is_valid():
@@ -1654,7 +1670,7 @@ class GroupCapturesView(
             permission_level = get_user_permission_level(
                 request.user, dataset_uuid, ItemType.DATASET
             )
-            
+
             if not permission_level:
                 return JsonResponse(
                     {
@@ -1726,11 +1742,15 @@ class GroupCapturesView(
 
         if captures_add:
             changes["captures"]["add"] = [
-                id.strip() for id in captures_add.split(",") if id.strip()
+                capture_id.strip()
+                for capture_id in captures_add.split(",")
+                if capture_id.strip()
             ]
         if captures_remove:
             changes["captures"]["remove"] = [
-                id.strip() for id in captures_remove.split(",") if id.strip()
+                capture_id.strip()
+                for capture_id in captures_remove.split(",")
+                if capture_id.strip()
             ]
 
         # Parse files changes
@@ -1739,11 +1759,13 @@ class GroupCapturesView(
 
         if files_add:
             changes["files"]["add"] = [
-                id.strip() for id in files_add.split(",") if id.strip()
+                file_id.strip() for file_id in files_add.split(",") if file_id.strip()
             ]
         if files_remove:
             changes["files"]["remove"] = [
-                id.strip() for id in files_remove.split(",") if id.strip()
+                file_id.strip()
+                for file_id in files_remove.split(",")
+                if file_id.strip()
             ]
 
         return changes
@@ -2155,7 +2177,8 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "permission_level": perm.permission_level,
                     "owner": group.owner.name,
                     "owner_email": group.owner.email,
-                    "is_group_owner": group.owner == current_user,  # Check if the current user owns the group
+                    "is_group_owner": group.owner
+                    == current_user,  # Check if the current user owns the group
                 }
             group_permissions[group_uuid]["members"].append(
                 {

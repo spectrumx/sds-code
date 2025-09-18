@@ -5,9 +5,11 @@ This directory contains components for handling search functionality across the 
 ## Components
 
 ### AssetSearchHandler.js
+
 Handles search functionality for captures and files in dataset creation/editing workflows.
 
 **Key Features:**
+
 - Search captures with filters (directory, type, scan group, channel)
 - Search files with filters (name, directory, extension)
 - File tree rendering with expandable directories
@@ -16,6 +18,7 @@ Handles search functionality for captures and files in dataset creation/editing 
 - Integration with form handlers
 
 **Usage:**
+
 ```javascript
 // Initialize asset search handler
 const assetSearchHandler = new AssetSearchHandler({
@@ -33,6 +36,7 @@ const assetSearchHandler = new AssetSearchHandler({
 ## Integration
 
 Both components integrate with the core components:
+
 - **APIClient**: For all API communications
 - **HTMLInjectionManager**: For safe DOM manipulation
 - Form handlers for state management

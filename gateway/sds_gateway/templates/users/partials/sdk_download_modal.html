@@ -161,7 +161,7 @@ except Exception as e:
         // Copy to clipboard functionality
         const copyButtons = document.querySelectorAll('.copy-btn');
 
-        copyButtons.forEach(button => {
+        for (const button of copyButtons) {
             button.addEventListener('click', function() {
                 const targetId = this.getAttribute('data-clipboard-target');
                 const codeElement = document.querySelector(targetId);
@@ -183,36 +183,36 @@ except Exception as e:
             });
         });
 
-        function showCopySuccess(button) {
-            const originalText = button.innerHTML;
-            button.innerHTML = '<i class="bi bi-check"></i> Copied!';
-            button.classList.add('copied');
+    function showCopySuccess(button) {
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        button.classList.add('copied');
 
-            setTimeout(() => {
-                button.innerHTML = originalText;
-                button.classList.remove('copied');
-            }, 2000);
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.classList.remove('copied');
+        }, 2000);
+    }
+
+    function fallbackCopyTextToClipboard(text, button) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            document.execCommand('copy');
+            showCopySuccess(button);
+        } catch (err) {
+            console.error('Fallback: Oops, unable to copy', err);
         }
 
-        function fallbackCopyTextToClipboard(text, button) {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-999999px';
-            textArea.style.top = '-999999px';
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-
-            try {
-                document.execCommand('copy');
-                showCopySuccess(button);
-            } catch (err) {
-                console.error('Fallback: Oops, unable to copy', err);
-            }
-
-            document.body.removeChild(textArea);
-        }
+        document.body.removeChild(textArea);
+    }
     });
 
     // Function to show SDK download modal

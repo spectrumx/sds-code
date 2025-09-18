@@ -21,7 +21,7 @@ class APIClient {
 		}
 
 		// Last resort: try cookie
-		const cookieToken = this.getCookie("csrftoken");
+		const cookieToken = APIClient.getCookie("csrftoken");
 		if (cookieToken) {
 			return cookieToken;
 		}
@@ -71,7 +71,7 @@ class APIClient {
 
 		// Add CSRF token for non-GET requests
 		if (options.method && options.method !== "GET") {
-			headers["X-CSRFToken"] = this.getCSRFToken();
+			headers["X-CSRFToken"] = APIClient.getCSRFToken();
 		}
 
 		try {
@@ -86,17 +86,16 @@ class APIClient {
 				throw new APIError(
 					`HTTP ${response.status}: ${response.statusText}`,
 					response.status,
-					errorData
+					errorData,
 				);
 			}
 
 			// Parse response
 			const contentType = response.headers.get("content-type");
-			if (contentType && contentType.includes("application/json")) {
+			if (contentType?.includes("application/json")) {
 				return await response.json();
-			} else {
-				return await response.text();
 			}
+			return await response.text();
 		} catch (error) {
 			// Handle network errors
 			if (error instanceof APIError) {
@@ -120,13 +119,17 @@ class APIClient {
 	 */
 	static async get(url, params = {}, loadingState = null) {
 		const urlObj = new URL(url, window.location.origin);
-		Object.entries(params).forEach(([key, value]) => {
+		for (const [key, value] of Object.entries(params)) {
 			if (value !== null && value !== undefined) {
 				urlObj.searchParams.append(key, value);
 			}
-		});
+		}
 
-		return this.request(urlObj.toString(), { method: "GET" }, loadingState);
+		return APIClient.request(
+			urlObj.toString(),
+			{ method: "GET" },
+			loadingState,
+		);
 	}
 
 	/**
@@ -138,16 +141,20 @@ class APIClient {
 	 */
 	static async post(url, data = {}, loadingState = null) {
 		const formData = new FormData();
-		Object.entries(data).forEach(([key, value]) => {
+		for (const [key, value] of Object.entries(data)) {
 			if (value !== null && value !== undefined) {
 				formData.append(key, value);
 			}
-		});
+		}
 
-		return this.request(url, {
-			method: "POST",
-			body: formData,
-		}, loadingState);
+		return APIClient.request(
+			url,
+			{
+				method: "POST",
+				body: formData,
+			},
+			loadingState,
+		);
 	}
 
 	/**
@@ -159,16 +166,20 @@ class APIClient {
 	 */
 	static async patch(url, data = {}, loadingState = null) {
 		const formData = new FormData();
-		Object.entries(data).forEach(([key, value]) => {
+		for (const [key, value] of Object.entries(data)) {
 			if (value !== null && value !== undefined) {
 				formData.append(key, value);
 			}
-		});
+		}
 
-		return this.request(url, {
-			method: "PATCH",
-			body: formData,
-		}, loadingState);
+		return APIClient.request(
+			url,
+			{
+				method: "PATCH",
+				body: formData,
+			},
+			loadingState,
+		);
 	}
 
 	/**
@@ -180,16 +191,20 @@ class APIClient {
 	 */
 	static async put(url, data = {}, loadingState = null) {
 		const formData = new FormData();
-		Object.entries(data).forEach(([key, value]) => {
+		for (const [key, value] of Object.entries(data)) {
 			if (value !== null && value !== undefined) {
 				formData.append(key, value);
 			}
-		});
+		}
 
-		return this.request(url, {
-			method: "PUT",
-			body: formData,
-		}, loadingState);
+		return APIClient.request(
+			url,
+			{
+				method: "PUT",
+				body: formData,
+			},
+			loadingState,
+		);
 	}
 }
 
@@ -217,14 +232,15 @@ class LoadingStateManager {
 
 	setLoading(loading) {
 		if (this.isLoading === loading) return;
-		
+
 		this.isLoading = loading;
-		
+
 		if (!this.element) return;
 
 		if (loading) {
 			this.element.disabled = true;
-			this.element.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading...';
+			this.element.innerHTML =
+				'<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading...';
 		} else {
 			this.element.disabled = false;
 			this.element.innerHTML = this.originalContent;
@@ -248,9 +264,9 @@ class ListRefreshManager {
 			extractData = true,
 			updateTable = true,
 			updateModals = true,
-			modalSelector = '.modal[data-item-uuid][data-item-type]',
-			tableSelector = '.table-and-pagination',
-			mainSelector = 'main'
+			modalSelector = ".modal[data-item-uuid][data-item-type]",
+			tableSelector = ".table-and-pagination",
+			mainSelector = "main",
 		} = options;
 
 		// Fetch fresh HTML
@@ -260,15 +276,18 @@ class ListRefreshManager {
 
 		// Extract data if requested
 		if (extractData) {
-			result.data = this.extractDataFromHTML(html, {
+			result.data = ListRefreshManager.extractDataFromHTML(html, {
 				modalSelector,
-				extractSharedUsers: true
+				extractSharedUsers: true,
 			});
 		}
 
 		// Update table if requested
 		if (updateTable) {
-			this.updateTableContent(html, { tableSelector, mainSelector });
+			ListRefreshManager.updateTableContent(html, {
+				tableSelector,
+				mainSelector,
+			});
 		}
 
 		return result;
@@ -282,37 +301,40 @@ class ListRefreshManager {
 	 */
 	static extractDataFromHTML(html, options = {}) {
 		const {
-			modalSelector = '.modal[data-item-uuid][data-item-type]',
-			extractSharedUsers = true
+			modalSelector = ".modal[data-item-uuid][data-item-type]",
+			extractSharedUsers = true,
 		} = options;
-		
+
 		const tempDiv = document.createElement("div");
 		tempDiv.innerHTML = html;
-		
+
 		// Find all modals in the fresh HTML
 		const modals = tempDiv.querySelectorAll(modalSelector);
 		const items = [];
-		
-		modals.forEach(modal => {
-			const itemUuid = modal.getAttribute('data-item-uuid');
-			const itemType = modal.getAttribute('data-item-type');
-			
+
+		for (const modal of modals) {
+			const itemUuid = modal.getAttribute("data-item-uuid");
+			const itemType = modal.getAttribute("data-item-type");
+
 			const item = {
 				uuid: itemUuid,
-				item_type: itemType
+				item_type: itemType,
 			};
 
 			// Extract shared users if requested
 			if (extractSharedUsers) {
-				const sharedUsers = this.extractSharedUsersFromModal(modal, itemUuid);
+				const sharedUsers = ListRefreshManager.extractSharedUsersFromModal(
+					modal,
+					itemUuid,
+				);
 				item.shared_users = sharedUsers;
-				item.owner_name = sharedUsers.find(u => u.isOwner)?.name || 'Owner';
-				item.owner_email = sharedUsers.find(u => u.isOwner)?.email || '';
+				item.owner_name = sharedUsers.find((u) => u.isOwner)?.name || "Owner";
+				item.owner_email = sharedUsers.find((u) => u.isOwner)?.email || "";
 			}
-			
+
 			items.push(item);
-		});
-		
+		}
+
 		return { results: items };
 	}
 
@@ -323,33 +345,38 @@ class ListRefreshManager {
 	 * @returns {Array} Array of shared users
 	 */
 	static extractSharedUsersFromModal(modal, itemUuid) {
-		const usersWithAccessSection = modal.querySelector(`#users-with-access-section-${itemUuid}`);
+		const usersWithAccessSection = modal.querySelector(
+			`#users-with-access-section-${itemUuid}`,
+		);
 		const sharedUsers = [];
-		
+
 		if (usersWithAccessSection) {
-			const userRows = usersWithAccessSection.querySelectorAll('tbody tr');
-			
-			userRows.forEach((row, index) => {
-				const nameElement = row.querySelector('h5');
-				const emailElement = row.querySelector('small.text-muted');
+			const userRows = usersWithAccessSection.querySelectorAll("tbody tr");
+
+			for (const [index, row] of userRows.entries()) {
+				const nameElement = row.querySelector("h5");
+				const emailElement = row.querySelector("small.text-muted");
 				// Only select the permission dropdown, not the member count badge
-				const permissionElement = row.querySelector('.access-level-dropdown');
-				
+				const permissionElement = row.querySelector(".access-level-dropdown");
+
 				if (nameElement && emailElement) {
 					const user = {
 						index: index,
 						name: nameElement.textContent.trim(),
 						email: emailElement.textContent.trim(),
-						permission_level: permissionElement ? 
-						permissionElement.textContent.trim().toLowerCase() : 'viewer',
+						permission_level: permissionElement
+							? permissionElement.textContent.trim().toLowerCase()
+							: "viewer",
 						isOwner: index === 0,
-						type: nameElement.querySelector('.bi-people-fill') ? 'group' : 'user'
+						type: nameElement.querySelector(".bi-people-fill")
+							? "group"
+							: "user",
 					};
 					sharedUsers.push(user);
 				}
-			});
+			}
 		}
-		
+
 		return sharedUsers;
 	}
 
@@ -359,10 +386,8 @@ class ListRefreshManager {
 	 * @param {Object} options - Update options
 	 */
 	static updateTableContent(html, options = {}) {
-		const {
-			tableSelector = '.table-and-pagination',
-			mainSelector = 'main'
-		} = options;
+		const { tableSelector = ".table-and-pagination", mainSelector = "main" } =
+			options;
 
 		const tempDiv = document.createElement("div");
 		tempDiv.innerHTML = html;
@@ -370,11 +395,11 @@ class ListRefreshManager {
 		// Update only the table content
 		const mainContent = document.querySelector(mainSelector);
 		const newMainContent = tempDiv.querySelector(mainSelector);
-		
+
 		if (mainContent && newMainContent) {
 			const tableContainer = mainContent.querySelector(tableSelector);
 			const newTableContainer = newMainContent.querySelector(tableSelector);
-			
+
 			if (tableContainer && newTableContainer) {
 				tableContainer.innerHTML = newTableContainer.innerHTML;
 			}
@@ -387,13 +412,12 @@ class ListRefreshManager {
 	 * @param {Function} updateCallback - Callback to update individual modal
 	 */
 	static updateModalsWithData(items, updateCallback) {
-		
-		items.forEach(item => {
+		for (const item of items) {
 			const modal = document.getElementById(`share-modal-${item.uuid}`);
 			if (modal && updateCallback) {
 				updateCallback(modal, item);
 			}
-		});
+		}
 	}
 }
 

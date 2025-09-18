@@ -9,8 +9,14 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.utils.permissions import (
+    check_asset_ownership_permission,
+)
 
 User = get_user_model()
+
+# Test constants
+TEST_PASSWORD = "testpass123"
 
 
 class UserSharePermissionTestCase(TestCase):
@@ -19,18 +25,18 @@ class UserSharePermissionTestCase(TestCase):
     def setUp(self):
         """Set up test data."""
         self.owner = User.objects.create_user(
-            email="owner@example.com", password="testpass123", name="Dataset Owner"
+            email="owner@example.com", password=TEST_PASSWORD, name="Dataset Owner"
         )
         self.viewer = User.objects.create_user(
-            email="viewer@example.com", password="testpass123", name="Dataset Viewer"
+            email="viewer@example.com", password=TEST_PASSWORD, name="Dataset Viewer"
         )
         self.contributor = User.objects.create_user(
             email="contributor@example.com",
-            password="testpass123",
+            password=TEST_PASSWORD,
             name="Dataset Contributor",
         )
         self.co_owner = User.objects.create_user(
-            email="coowner@example.com", password="testpass123", name="Dataset Co-Owner"
+            email="coowner@example.com", password=TEST_PASSWORD, name="Dataset Co-Owner"
         )
 
         self.dataset = Dataset.objects.create(
@@ -228,7 +234,8 @@ class UserSharePermissionTestCase(TestCase):
             permission_level="co-owner",
         )
 
-        # Get authors - should only include the owner since authors must be explicitly added
+        # Get authors - should only include the owner since authors must be
+        # explicitly added
         authors = UserSharePermission.get_dataset_authors(self.dataset.uuid)
 
         # Should have only 1 author: owner
@@ -246,9 +253,6 @@ class UserSharePermissionTestCase(TestCase):
 
     def test_asset_ownership_permission(self):
         """Test asset ownership permission checking."""
-        from sds_gateway.api_methods.utils.permissions import (
-            check_asset_ownership_permission,
-        )
 
         # Set up permissions
         UserSharePermission.objects.create(

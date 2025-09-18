@@ -10,12 +10,15 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
 
+from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.api.views import UserViewSet
 from sds_gateway.users.models import User
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
+from sds_gateway.users.views import _get_captures_for_template
 
 # Test constants
 TEST_PASSWORD = "testpass123"  # noqa: S105
@@ -378,7 +381,6 @@ class TestShareItemView:
         )
 
         # Create a share group
-        from sds_gateway.api_methods.models import ShareGroup
 
         share_group = ShareGroup.objects.create(name="Test Group", owner=owner)
         share_group.members.add(user_to_share_with, user2)
@@ -453,7 +455,6 @@ class TestShareItemView:
         )
 
         # Create a capture
-        from sds_gateway.api_methods.models import Capture
 
         capture = Capture.objects.create(
             uuid=uuid.uuid4(),
@@ -465,13 +466,11 @@ class TestShareItemView:
         )
 
         # Create a share group
-        from sds_gateway.api_methods.models import ShareGroup
 
         share_group = ShareGroup.objects.create(name="Test Group", owner=owner)
         share_group.members.add(user_to_share_with, user2)
 
         # Share the capture with the group
-        from sds_gateway.api_methods.models import ItemType
 
         update_or_create_user_group_share_permissions(
             request_user=owner,
@@ -504,7 +503,6 @@ class TestShareItemView:
         # by checking that the capture has the right shared_users structure
 
         # Get the capture data using the same function the view uses
-        from sds_gateway.users.views import _get_captures_for_template
 
         captures_data = _get_captures_for_template([capture], response.wsgi_request)
 

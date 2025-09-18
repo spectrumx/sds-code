@@ -5,6 +5,7 @@ This document provides detailed information about the core JavaScript components
 ## Overview
 
 The core components provide essential functionality that is used throughout the application:
+
 - **APIClient**: Centralized API communication
 - **HTMLInjectionManager**: Safe DOM manipulation
 - **PermissionsManager**: Permission checking and access control
@@ -29,19 +30,23 @@ The APIClient provides a centralized, consistent interface for all API communica
 #### Static Methods
 
 ##### `getCSRFToken()`
+
 Retrieves the CSRF token from various sources (meta tag, input field, or cookie).
 
 **Returns:** `string` - CSRF token
 
 **Example:**
+
 ```javascript
 const token = APIClient.getCSRFToken();
 ```
 
 ##### `request(url, options, loadingState)`
+
 Makes a generic API request with consistent error handling.
 
 **Parameters:**
+
 - `url` (string): Request URL
 - `options` (Object): Fetch options
 - `loadingState` (LoadingStateManager): Optional loading state manager
@@ -49,6 +54,7 @@ Makes a generic API request with consistent error handling.
 **Returns:** `Promise<Object>` - Response data
 
 **Example:**
+
 ```javascript
 const data = await APIClient.request('/api/endpoint', {
     method: 'POST',
@@ -57,9 +63,11 @@ const data = await APIClient.request('/api/endpoint', {
 ```
 
 ##### `get(url, params, loadingState)`
+
 Makes a GET request with query parameters.
 
 **Parameters:**
+
 - `url` (string): Request URL
 - `params` (Object): Query parameters
 - `loadingState` (LoadingStateManager): Optional loading state manager
@@ -67,14 +75,17 @@ Makes a GET request with query parameters.
 **Returns:** `Promise<Object>` - Response data
 
 **Example:**
+
 ```javascript
 const data = await APIClient.get('/api/users', { page: 1, limit: 10 });
 ```
 
 ##### `post(url, data, loadingState)`
+
 Makes a POST request with form data.
 
 **Parameters:**
+
 - `url` (string): Request URL
 - `data` (Object): Request data
 - `loadingState` (LoadingStateManager): Optional loading state manager
@@ -82,6 +93,7 @@ Makes a POST request with form data.
 **Returns:** `Promise<Object>` - Response data
 
 **Example:**
+
 ```javascript
 const result = await APIClient.post('/api/datasets', {
     name: 'My Dataset',
@@ -90,9 +102,11 @@ const result = await APIClient.post('/api/datasets', {
 ```
 
 ##### `patch(url, data, loadingState)`
+
 Makes a PATCH request for partial updates.
 
 **Parameters:**
+
 - `url` (string): Request URL
 - `data` (Object): Request data
 - `loadingState` (LoadingStateManager): Optional loading state manager
@@ -100,6 +114,7 @@ Makes a PATCH request for partial updates.
 **Returns:** `Promise<Object>` - Response data
 
 **Example:**
+
 ```javascript
 const result = await APIClient.patch('/api/datasets/123', {
     name: 'Updated Name'
@@ -107,9 +122,11 @@ const result = await APIClient.patch('/api/datasets/123', {
 ```
 
 ##### `put(url, data, loadingState)`
+
 Makes a PUT request for full updates.
 
 **Parameters:**
+
 - `url` (string): Request URL
 - `data` (Object): Request data
 - `loadingState` (LoadingStateManager): Optional loading state manager
@@ -121,11 +138,13 @@ Makes a PUT request for full updates.
 Custom error class for API-related errors.
 
 **Properties:**
+
 - `message` (string): Error message
 - `status` (number): HTTP status code
 - `data` (Object): Additional error data
 
 **Example:**
+
 ```javascript
 try {
     const data = await APIClient.get('/api/endpoint');
@@ -142,14 +161,17 @@ try {
 Manages loading states for UI elements.
 
 **Constructor:**
+
 ```javascript
 const loadingState = new LoadingStateManager(buttonElement);
 ```
 
 **Methods:**
+
 - `setLoading(loading)`: Sets the loading state
 
 **Example:**
+
 ```javascript
 const button = document.getElementById('submit-btn');
 const loadingState = new LoadingStateManager(button);
@@ -181,54 +203,63 @@ Provides safe DOM manipulation with XSS protection and consistent HTML generatio
 #### Static Methods
 
 ##### `escapeHtml(text)`
+
 Escapes HTML characters to prevent XSS attacks.
 
 **Parameters:**
+
 - `text` (string): Text to escape
 
 **Returns:** `string` - Escaped HTML
 
 **Example:**
+
 ```javascript
 const safeText = HTMLInjectionManager.escapeHtml('<script>alert("xss")</script>');
 // Returns: &lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;
 ```
 
 ##### `injectHTML(container, htmlString, options)`
+
 Safely injects HTML into a container element.
 
 **Parameters:**
+
 - `container` (Element|string): Container element or selector
 - `htmlString` (string): HTML string to inject
 - `options` (Object): Injection options
-  - `escape` (boolean): Whether to escape HTML (default: true)
-  - `method` (string): Injection method - 'innerHTML', 'append', 'prepend' (default: 'innerHTML')
+    - `escape` (boolean): Whether to escape HTML (default: true)
+    - `method` (string): Injection method - 'innerHTML', 'append', 'prepend' (default: 'innerHTML')
 
 **Example:**
+
 ```javascript
 // Safe injection with escaping
 HTMLInjectionManager.injectHTML('#content', '<div>User input</div>', { escape: true });
 
 // Append without escaping (for trusted content)
-HTMLInjectionManager.injectHTML('#content', '<div>Trusted content</div>', { 
-    escape: false, 
-    method: 'append' 
+HTMLInjectionManager.injectHTML('#content', '<div>Trusted content</div>', {
+    escape: false,
+    method: 'append'
 });
 ```
 
 ##### `createTableRow(data, template, options)`
+
 Creates a table row with safe data processing.
 
 **Parameters:**
+
 - `data` (Object): Row data
 - `template` (string): HTML template with placeholders
 - `options` (Object): Processing options
-  - `escape` (boolean): Whether to escape data (default: true)
-  - `dateFormat` (string): Date format for date fields (default: "en-US")
+    - `escape` (boolean): Whether to escape data (default: true)
+    - `dateFormat` (string): Date format for date fields (default: "en-US")
 
 **Returns:** `string` - Safe HTML string
 
 **Example:**
+
 ```javascript
 const data = { name: 'John Doe', email: 'john@example.com', created_at: new Date() };
 const template = '<tr><td>{{name}}</td><td>{{email}}</td><td>{{created_at}}</td></tr>';
@@ -236,18 +267,21 @@ const row = HTMLInjectionManager.createTableRow(data, template);
 ```
 
 ##### `createUserChip(user, options)`
+
 Creates a user chip HTML element.
 
 **Parameters:**
+
 - `user` (Object): User data
 - `options` (Object): Chip options
-  - `showPermissionSelect` (boolean): Show permission dropdown (default: true)
-  - `showRemoveButton` (boolean): Show remove button (default: true)
-  - `permissionLevels` (Array): Available permission levels
+    - `showPermissionSelect` (boolean): Show permission dropdown (default: true)
+    - `showRemoveButton` (boolean): Show remove button (default: true)
+    - `permissionLevels` (Array): Available permission levels
 
 **Returns:** `string` - User chip HTML
 
 **Example:**
+
 ```javascript
 const user = {
     name: 'John Doe',
@@ -264,16 +298,19 @@ const chip = HTMLInjectionManager.createUserChip(user, {
 ```
 
 ##### `createErrorMessage(errors, options)`
+
 Creates formatted error message HTML.
 
 **Parameters:**
+
 - `errors` (Object|Array|string): Error data
 - `options` (Object): Formatting options
-  - `showFieldNames` (boolean): Show field names (default: true)
+    - `showFieldNames` (boolean): Show field names (default: true)
 
 **Returns:** `string` - Error message HTML
 
 **Example:**
+
 ```javascript
 const errors = {
     name: ['This field is required'],
@@ -284,59 +321,68 @@ const errorHtml = HTMLInjectionManager.createErrorMessage(errors);
 ```
 
 ##### `createLoadingSpinner(text, options)`
+
 Creates loading spinner HTML.
 
 **Parameters:**
+
 - `text` (string): Loading text (default: "Loading...")
 - `options` (Object): Spinner options
-  - `size` (string): Spinner size - 'sm', 'lg' (default: 'sm')
-  - `color` (string): Spinner color (default: '')
+    - `size` (string): Spinner size - 'sm', 'lg' (default: 'sm')
+    - `color` (string): Spinner color (default: '')
 
 **Returns:** `string` - Loading spinner HTML
 
 **Example:**
+
 ```javascript
-const spinner = HTMLInjectionManager.createLoadingSpinner('Processing...', { 
-    size: 'lg', 
-    color: 'primary' 
+const spinner = HTMLInjectionManager.createLoadingSpinner('Processing...', {
+    size: 'lg',
+    color: 'primary'
 });
 ```
 
 ##### `createBadge(text, type, options)`
+
 Creates badge HTML.
 
 **Parameters:**
+
 - `text` (string): Badge text
 - `type` (string): Badge type - 'success', 'danger', 'warning', 'info', 'primary', 'secondary' (default: 'primary')
 - `options` (Object): Badge options
-  - `size` (string): Badge size (default: '')
-  - `customClass` (string): Custom CSS class (default: '')
+    - `size` (string): Badge size (default: '')
+    - `customClass` (string): Custom CSS class (default: '')
 
 **Returns:** `string` - Badge HTML
 
 **Example:**
+
 ```javascript
 const badge = HTMLInjectionManager.createBadge('Active', 'success', { size: 'sm' });
 ```
 
 ##### `createButton(text, options)`
+
 Creates button HTML.
 
 **Parameters:**
+
 - `text` (string): Button text
 - `options` (Object): Button options
-  - `type` (string): Button type (default: 'button')
-  - `variant` (string): Button variant (default: 'primary')
-  - `size` (string): Button size (default: '')
-  - `disabled` (boolean): Whether button is disabled (default: false)
-  - `icon` (string): Icon class (default: '')
-  - `loading` (boolean): Whether button is loading (default: false)
-  - `customClass` (string): Custom CSS class (default: '')
-  - `attributes` (Object): Additional HTML attributes
+    - `type` (string): Button type (default: 'button')
+    - `variant` (string): Button variant (default: 'primary')
+    - `size` (string): Button size (default: '')
+    - `disabled` (boolean): Whether button is disabled (default: false)
+    - `icon` (string): Icon class (default: '')
+    - `loading` (boolean): Whether button is loading (default: false)
+    - `customClass` (string): Custom CSS class (default: '')
+    - `attributes` (Object): Additional HTML attributes
 
 **Returns:** `string` - Button HTML
 
 **Example:**
+
 ```javascript
 const button = HTMLInjectionManager.createButton('Save', {
     variant: 'success',
@@ -347,17 +393,20 @@ const button = HTMLInjectionManager.createButton('Save', {
 ```
 
 ##### `createPagination(pagination, options)`
+
 Creates pagination HTML.
 
 **Parameters:**
+
 - `pagination` (Object): Pagination data
 - `options` (Object): Pagination options
-  - `showArrows` (boolean): Show previous/next arrows (default: true)
-  - `maxPages` (number): Maximum pages to show (default: 5)
+    - `showArrows` (boolean): Show previous/next arrows (default: true)
+    - `maxPages` (number): Maximum pages to show (default: 5)
 
 **Returns:** `string` - Pagination HTML
 
 **Example:**
+
 ```javascript
 const pagination = {
     number: 2,
@@ -403,11 +452,13 @@ const permissions = new PermissionsManager({
 #### Permission Check Methods
 
 ##### `canEditMetadata()`
+
 Checks if user can edit dataset metadata.
 
 **Returns:** `boolean`
 
 **Example:**
+
 ```javascript
 if (permissions.canEditMetadata()) {
     // Enable metadata editing
@@ -415,47 +466,57 @@ if (permissions.canEditMetadata()) {
 ```
 
 ##### `canAddAssets()`
+
 Checks if user can add assets to dataset.
 
 **Returns:** `boolean`
 
 ##### `canRemoveAnyAssets()`
+
 Checks if user can remove any assets from dataset (owner/co-owner level).
 
 ##### `canRemoveOwnAssets()`
+
 Checks if user can remove their own assets from dataset (contributor level).
 
 **Returns:** `boolean`
 
 ##### `canShare()`
+
 Checks if user can share dataset.
 
 **Returns:** `boolean`
 
 ##### `canDownload()`
+
 Checks if user can download dataset.
 
 **Returns:** `boolean`
 
 ##### `canDelete()`
+
 Checks if user can delete dataset.
 
 **Returns:** `boolean`
 
 ##### `canView()`
+
 Checks if user can view dataset.
 
 **Returns:** `boolean`
 
 ##### `canEditAsset(asset)`
+
 Checks if user can edit specific asset.
 
 **Parameters:**
+
 - `asset` (Object): Asset object with owner_id
 
 **Returns:** `boolean`
 
 **Example:**
+
 ```javascript
 const asset = { owner_id: 123, name: 'test.h5' };
 if (permissions.canEditAsset(asset)) {
@@ -464,17 +525,21 @@ if (permissions.canEditAsset(asset)) {
 ```
 
 ##### `canRemoveAsset(asset)`
+
 Checks if user can remove specific asset.
 
 **Parameters:**
+
 - `asset` (Object): Asset object with owner_id
 
 **Returns:** `boolean`
 
 ##### `canAddAsset(asset)`
+
 Checks if user can add specific asset.
 
 **Parameters:**
+
 - `asset` (Object): Asset object with owner_id
 
 **Returns:** `boolean`
@@ -482,58 +547,71 @@ Checks if user can add specific asset.
 #### Utility Methods
 
 ##### `getPermissionDisplayName(level)`
+
 Gets display name for permission level.
 
 **Parameters:**
+
 - `level` (string): Permission level
 
 **Returns:** `string` - Display name
 
 **Example:**
+
 ```javascript
 const displayName = PermissionsManager.getPermissionDisplayName('co-owner');
 // Returns: 'Co-Owner'
 ```
 
 ##### `getPermissionDescription(level)`
+
 Gets description for permission level.
 
 **Parameters:**
+
 - `level` (string): Permission level
 
 **Returns:** `string` - Description
 
 ##### `getPermissionIcon(level)`
+
 Gets icon class for permission level.
 
 **Parameters:**
+
 - `level` (string): Permission level
 
 **Returns:** `string` - Icon class
 
 ##### `getPermissionBadgeClass(level)`
+
 Gets badge class for permission level.
 
 **Parameters:**
+
 - `level` (string): Permission level
 
 **Returns:** `string` - Badge class
 
 ##### `isHigherPermission(level1, level2)`
+
 Compares permission levels.
 
 **Parameters:**
+
 - `level1` (string): First permission level
 - `level2` (string): Second permission level
 
 **Returns:** `boolean` - Whether level1 is higher than level2
 
 ##### `getAvailablePermissionLevels()`
+
 Gets all available permission levels.
 
 **Returns:** `Array<Object>` - Array of permission level objects
 
 **Example:**
+
 ```javascript
 const levels = PermissionsManager.getAvailablePermissionLevels();
 // Returns: [
@@ -546,11 +624,13 @@ const levels = PermissionsManager.getAvailablePermissionLevels();
 #### Instance Methods
 
 ##### `getPermissionSummary()`
+
 Gets comprehensive permission summary.
 
 **Returns:** `Object` - Permission summary
 
 **Example:**
+
 ```javascript
 const summary = permissions.getPermissionSummary();
 // Returns: {
@@ -575,12 +655,15 @@ const summary = permissions.getPermissionSummary();
 ```
 
 ##### `updateDatasetPermissions(newPermissions)`
+
 Updates dataset-specific permissions.
 
 **Parameters:**
+
 - `newPermissions` (Object): New permissions object
 
 **Example:**
+
 ```javascript
 permissions.updateDatasetPermissions({
     canEditMetadata: false,
@@ -589,27 +672,33 @@ permissions.updateDatasetPermissions({
 ```
 
 ##### `hasAnyPermission(permissionNames)`
+
 Checks if user has any of the specified permissions.
 
 **Parameters:**
-- `permissionNames` (Array<string>): Array of permission names
+
+- `permissionNames` (Array&lt;string&gt;): Array of permission names
 
 **Returns:** `boolean`
 
 **Example:**
+
 ```javascript
 const hasPermission = permissions.hasAnyPermission(['canEditMetadata', 'canShare']);
 ```
 
 ##### `hasAllPermissions(permissionNames)`
+
 Checks if user has all of the specified permissions.
 
 **Parameters:**
-- `permissionNames` (Array<string>): Array of permission names
+
+- `permissionNames` (Array&lt;string&gt;): Array of permission names
 
 **Returns:** `boolean`
 
 **Example:**
+
 ```javascript
 const hasAllPermissions = permissions.hasAllPermissions(['canEditMetadata', 'canAddAssets']);
 ```
@@ -658,44 +747,55 @@ const lifecycleManager = new PageLifecycleManager({
 #### Methods
 
 ##### `getManager(type)`
+
 Gets a specific manager by type.
 
 **Parameters:**
+
 - `type` (string): Manager type - 'permissions', 'datasetMode', 'shareAction', 'downloadAction', 'detailsAction', or class name
 
 **Returns:** `Object|null` - Manager instance or null
 
 **Example:**
+
 ```javascript
 const permissions = lifecycleManager.getManager('permissions');
 const datasetManager = lifecycleManager.getManager('datasetMode');
 ```
 
 ##### `addManager(manager)`
+
 Adds a custom manager to the lifecycle.
 
 **Parameters:**
+
 - `manager` (Object): Manager instance
 
 **Example:**
+
 ```javascript
 const customManager = new CustomManager(config);
 lifecycleManager.addManager(customManager);
 ```
 
 ##### `removeManager(manager)`
+
 Removes a manager from the lifecycle.
 
 **Parameters:**
+
 - `manager` (Object): Manager instance to remove
 
 ##### `updateConfig(newConfig)`
+
 Updates the configuration.
 
 **Parameters:**
+
 - `newConfig` (Object): New configuration object
 
 **Example:**
+
 ```javascript
 lifecycleManager.updateConfig({
     permissions: {
@@ -705,29 +805,35 @@ lifecycleManager.updateConfig({
 ```
 
 ##### `refresh()`
+
 Refreshes all page components.
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 await lifecycleManager.refresh();
 ```
 
 ##### `cleanup()`
+
 Cleans up all managers and resources.
 
 **Example:**
+
 ```javascript
 lifecycleManager.cleanup();
 ```
 
 ##### `getStatus()`
+
 Gets current page status.
 
 **Returns:** `Object` - Status information
 
 **Example:**
+
 ```javascript
 const status = lifecycleManager.getStatus();
 // Returns: {
@@ -739,23 +845,28 @@ const status = lifecycleManager.getStatus();
 ```
 
 ##### `isManagerInitialized(type)`
+
 Checks if a manager is initialized.
 
 **Parameters:**
+
 - `type` (string): Manager type
 
 **Returns:** `boolean`
 
 ##### `waitForManager(type, timeout)`
+
 Waits for a manager to be initialized.
 
 **Parameters:**
+
 - `type` (string): Manager type
 - `timeout` (number): Timeout in milliseconds (default: 5000)
 
 **Returns:** `Promise<Object>` - Manager instance
 
 **Example:**
+
 ```javascript
 try {
     const manager = await lifecycleManager.waitForManager('datasetMode', 3000);
@@ -819,7 +930,7 @@ try {
         name: 'New Dataset',
         description: 'Dataset description'
     }, loadingState);
-    
+
     console.log('Dataset created:', result);
 } catch (error) {
     if (error instanceof APIError) {
@@ -951,7 +1062,7 @@ class CustomManager {
     constructor(config) {
         this.setupEventListeners();
     }
-    
+
     cleanup() {
         // Remove event listeners
         // Clear references

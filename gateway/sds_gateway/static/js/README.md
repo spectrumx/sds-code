@@ -8,7 +8,7 @@ The JavaScript codebase has been refactored into a modular, maintainable archite
 
 ## Directory Structure
 
-```
+```text
 static/js/
 ├── core/                           # Core utilities and managers
 │   ├── APIClient.js               # Centralized API communication
@@ -28,7 +28,6 @@ static/js/
 │   └── UserShareManager.js        # User sharing functionality
 ├── search/                         # Search functionality
 │   ├── AssetSearchHandler.js      # Asset search (captures/files)
-│   └── UserSearchHandler.js       # User search functionality
 ├── tests/                          # Test suites
 │   ├── test-permissions.js        # Permission manager tests
 │   ├── test-sharing.js            # Sharing functionality tests
@@ -44,6 +43,7 @@ static/js/
 Centralized API communication with consistent error handling, CSRF token management, and loading states.
 
 **Key Features:**
+
 - Automatic CSRF token handling
 - Consistent error handling with custom APIError class
 - Loading state management
@@ -51,6 +51,7 @@ Centralized API communication with consistent error handling, CSRF token managem
 - FormData serialization
 
 **Usage:**
+
 ```javascript
 // GET request
 const data = await APIClient.get('/api/endpoint', { param: 'value' });
@@ -65,6 +66,7 @@ const result = await APIClient.post('/api/endpoint', { data: 'value' }, loadingS
 Safe DOM manipulation with XSS protection and consistent HTML generation.
 
 **Key Features:**
+
 - HTML escaping to prevent XSS attacks
 - Safe HTML injection methods
 - Template-based content generation
@@ -73,6 +75,7 @@ Safe DOM manipulation with XSS protection and consistent HTML generation.
 - Loading spinner generation
 
 **Usage:**
+
 ```javascript
 // Safe HTML injection
 HTMLInjectionManager.injectHTML(container, htmlString, { escape: true });
@@ -92,12 +95,14 @@ const row = HTMLInjectionManager.createTableRow(data, template, options);
 Centralized permission checking and user access control.
 
 **Key Features:**
+
 - Permission level hierarchy (owner > co-owner > contributor > viewer)
 - Asset ownership validation
 - Permission display utilities
 - Dynamic permission updates
 
 **Usage:**
+
 ```javascript
 const permissions = new PermissionsManager({
     userPermissionLevel: 'contributor',
@@ -121,6 +126,7 @@ const summary = permissions.getPermissionSummary();
 Manages page initialization, component lifecycle, and cleanup.
 
 **Key Features:**
+
 - Automatic component initialization
 - Page-specific manager setup
 - Event listener management
@@ -128,6 +134,7 @@ Manages page initialization, component lifecycle, and cleanup.
 - Manager coordination
 
 **Usage:**
+
 ```javascript
 const lifecycleManager = new PageLifecycleManager({
     pageType: 'dataset-edit',
@@ -146,6 +153,7 @@ const datasetManager = lifecycleManager.getManager('datasetMode');
 Handles the dataset creation workflow with step-by-step validation.
 
 **Key Features:**
+
 - Multi-step form navigation
 - Step validation
 - Asset selection management
@@ -153,6 +161,7 @@ Handles the dataset creation workflow with step-by-step validation.
 - Review step generation
 
 **Usage:**
+
 ```javascript
 const creationHandler = new DatasetCreationHandler({
     formId: 'dataset-form',
@@ -166,6 +175,7 @@ const creationHandler = new DatasetCreationHandler({
 Manages dataset editing with pending changes tracking.
 
 **Key Features:**
+
 - Pending changes management
 - Asset addition/removal tracking
 - Visual change indicators
@@ -173,6 +183,7 @@ Manages dataset editing with pending changes tracking.
 - Current vs pending state management
 
 **Usage:**
+
 ```javascript
 const editingHandler = new DatasetEditingHandler({
     datasetUuid: 'uuid',
@@ -196,12 +207,14 @@ if (editingHandler.hasChanges()) {
 Manages the distinction between creation and editing modes.
 
 **Key Features:**
+
 - Mode detection (create vs edit)
 - Handler delegation
 - UI state management
 - Permission-based UI updates
 
 **Usage:**
+
 ```javascript
 const modeManager = new DatasetModeManager({
     datasetUuid: null, // null for create mode
@@ -222,6 +235,7 @@ if (modeManager.isInEditMode()) {
 Handles all sharing-related functionality.
 
 **Key Features:**
+
 - User/group search and selection
 - Permission level management
 - Pending changes tracking
@@ -229,6 +243,7 @@ Handles all sharing-related functionality.
 - Modal management
 
 **Usage:**
+
 ```javascript
 const shareManager = new ShareActionManager({
     itemUuid: 'dataset-uuid',
@@ -245,12 +260,14 @@ await shareManager.handleShareItem();
 Manages download functionality with permission checking.
 
 **Key Features:**
+
 - Permission-based download access
 - Download request handling
 - Status tracking
 - Error handling
 
 **Usage:**
+
 ```javascript
 const downloadManager = new DownloadActionManager({
     permissions: permissionsManager
@@ -265,12 +282,14 @@ await downloadManager.handleDatasetDownload(uuid, name, button);
 Handles details modal functionality.
 
 **Key Features:**
+
 - Modal content population
 - Data formatting
 - Permission-based action buttons
 - Error handling
 
 **Usage:**
+
 ```javascript
 const detailsManager = new DetailsActionManager({
     permissions: permissionsManager
@@ -287,6 +306,7 @@ await detailsManager.handleDatasetDetails(uuid);
 Handles all share group operations including creating, managing members, and deleting groups.
 
 **Key Features:**
+
 - Create new share groups
 - Add/remove members from groups
 - Delete groups with confirmation
@@ -294,6 +314,7 @@ Handles all share group operations including creating, managing members, and del
 - Integration with UserSearchHandler for member management
 
 **Usage:**
+
 ```javascript
 const shareGroupManager = new ShareGroupManager({
     apiEndpoint: window.location.href
@@ -308,6 +329,7 @@ shareGroupManager.initializeEventListeners();
 Handles share_modal.html functionality for sharing items with users and groups.
 
 **Key Features:**
+
 - User and group search functionality
 - Permission level management (viewer, contributor, co-owner)
 - Pending changes tracking
@@ -315,6 +337,7 @@ Handles share_modal.html functionality for sharing items with users and groups.
 - Integration with core components
 
 **Usage:**
+
 ```javascript
 const userShareManager = new UserShareManager({
     apiEndpoint: '/users/share-item'
@@ -332,6 +355,7 @@ userShareManager.init();
 Handles search functionality for captures and files in dataset creation/editing workflows.
 
 **Key Features:**
+
 - Search captures with filters (directory, type, scan group, channel)
 - Search files with filters (name, directory, extension)
 - File tree rendering with expandable directories
@@ -339,6 +363,7 @@ Handles search functionality for captures and files in dataset creation/editing 
 - Pagination support
 
 **Usage:**
+
 ```javascript
 const assetSearchHandler = new AssetSearchHandler({
     searchFormId: 'captures-search-form',
@@ -366,6 +391,7 @@ The test suite includes comprehensive tests for all major components:
 ### Running Tests
 
 **In Browser:**
+
 ```javascript
 // Tests run automatically when page loads
 // Or manually:
@@ -374,6 +400,7 @@ await runner.runInBrowser();
 ```
 
 **In Node.js:**
+
 ```bash
 node test-runner.js
 ```
@@ -417,7 +444,7 @@ class NewActionManager {
         this.permissions = config.permissions;
         this.initializeEventListeners();
     }
-    
+
     // Implement action-specific methods
 }
 ```
@@ -432,7 +459,7 @@ class NewActionManager {
 // In PermissionsManager.js
 canNewAction() {
     if (this.isOwner) return true;
-    return this.datasetPermissions.canNewAction || 
+    return this.datasetPermissions.canNewAction ||
            this.userPermissionLevel === "co-owner";
 }
 ```
@@ -518,6 +545,7 @@ class MyManager {
 ### Backward Compatibility
 
 The new architecture maintains backward compatibility by:
+
 - Preserving global function names where possible
 - Providing fallback implementations
 - Maintaining existing API contracts
@@ -530,7 +558,6 @@ The new architecture maintains backward compatibility by:
 2. **Event listeners not working**: Check for duplicate listener attachment
 3. **API calls failing**: Verify CSRF token and endpoint URLs
 4. **DOM manipulation errors**: Use HTMLInjectionManager for safe operations
-
 
 ## Contributing
 

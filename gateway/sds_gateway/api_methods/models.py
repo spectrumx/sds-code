@@ -657,8 +657,6 @@ class Dataset(BaseModel):
 
     def update_authors_field(self):
         """Update the authors field based on current permissions."""
-        from .models import UserSharePermission
-
         authors_data = UserSharePermission.get_dataset_authors(self.uuid)
         author_names = [author["name"] for author in authors_data]
 
@@ -676,18 +674,24 @@ class Dataset(BaseModel):
                 authors_data = json.loads(self.authors)
                 # Convert legacy string authors to new format if needed
                 if authors_data and isinstance(authors_data[0], str):
-                    return [{"name": author, "orcid_id": ""} for author in authors_data]
-                return authors_data
+                    result = [
+                        {"name": author, "orcid_id": ""} for author in authors_data
+                    ]
+                else:
+                    result = authors_data
             except (json.JSONDecodeError, TypeError):
-                return [{"name": self.authors, "orcid_id": ""}]
+                result = [{"name": self.authors, "orcid_id": ""}]
 
         # Handle case where authors is already a list
-        if isinstance(self.authors, list):
+        elif isinstance(self.authors, list):
             if self.authors and isinstance(self.authors[0], str):
-                return [{"name": author, "orcid_id": ""} for author in self.authors]
-            return self.authors
+                result = [{"name": author, "orcid_id": ""} for author in self.authors]
+            else:
+                result = self.authors
+        else:
+            result = self.authors
 
-        return self.authors
+        return result
 
 
 class TemporaryZipFile(BaseModel):
@@ -911,7 +915,8 @@ class UserSharePermission(BaseModel):
             item_type: Type of item (e.g., "dataset", "capture")
 
         Returns:
-            str: Permission level ("owner", "co-owner", "contributor", "viewer", or None if no access)
+            str: Permission level ("owner", "co-owner", "contributor", "viewer",
+                or None if no access)
         """
         # Check if user is the owner
         item_models = {
@@ -1406,28 +1411,3 @@ def handle_share_group_soft_delete(sender, instance: ShareGroup, **kwargs) -> No
             # Update the enabled status based on remaining groups
             permission.update_enabled_status()
             permission.save()
-
-
-# Removed automatic author updates - authors must be explicitly added
-# @receiver(post_save, sender=UserSharePermission)
-# def handle_usersharepermission_change(sender, instance: UserSharePermission, **kwargs) -> None:
-#     """
-#     Handle changes to UserSharePermission by updating dataset authors field.
-#     """
-#     if instance.item_type == ItemType.DATASET and instance.is_enabled:
-#         # Update the authors field for the dataset
-#         dataset = Dataset.objects.filter(uuid=instance.item_uuid, is_deleted=False).first()
-#         if dataset:
-#             dataset.update_authors_field()
-
-
-# @receiver(post_delete, sender=UserSharePermission)
-# def handle_usersharepermission_delete(sender, instance: UserSharePermission, **kwargs) -> None:
-#     """
-#     Handle deletion of UserSharePermission by updating dataset authors field.
-#     """
-#     if instance.item_type == ItemType.DATASET:
-#         # Update the authors field for the dataset
-#         dataset = Dataset.objects.filter(uuid=instance.item_uuid, is_deleted=False).first()
-#         if dataset:
-#             dataset.update_authors_field()

@@ -12,17 +12,17 @@ class PageLifecycleManager {
 		this.managers = [];
 		this.initialized = false;
 		this.config = config;
-		
+
 		// Core managers
 		this.permissions = null;
 		this.datasetModeManager = null;
 		this.shareActionManager = null;
 		this.downloadActionManager = null;
 		this.detailsActionManager = null;
-		
+
 		// Initialize when DOM is ready
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', () => this.initialize());
+		if (document.readyState === "loading") {
+			document.addEventListener("DOMContentLoaded", () => this.initialize());
 		} else {
 			this.initialize();
 		}
@@ -40,13 +40,13 @@ class PageLifecycleManager {
 		try {
 			// Initialize core managers first
 			this.initializeCoreManagers();
-			
+
 			// Initialize page-specific managers
 			this.initializePageSpecificManagers();
-			
+
 			// Initialize global event listeners
 			this.initializeGlobalEventListeners();
-			
+
 			// Mark as initialized
 			this.initialized = true;
 		} catch (error) {
@@ -67,7 +67,7 @@ class PageLifecycleManager {
 		// Initialize download action manager
 		if (this.permissions) {
 			this.downloadActionManager = new DownloadActionManager({
-				permissions: this.permissions
+				permissions: this.permissions,
 			});
 			this.managers.push(this.downloadActionManager);
 		}
@@ -75,7 +75,7 @@ class PageLifecycleManager {
 		// Initialize details action manager
 		if (this.permissions) {
 			this.detailsActionManager = new DetailsActionManager({
-				permissions: this.permissions
+				permissions: this.permissions,
 			});
 			this.managers.push(this.detailsActionManager);
 		}
@@ -86,16 +86,16 @@ class PageLifecycleManager {
 	 */
 	initializePageSpecificManagers() {
 		switch (this.pageType) {
-			case 'dataset-create':
+			case "dataset-create":
 				this.initializeDatasetCreatePage();
 				break;
-			case 'dataset-edit':
+			case "dataset-edit":
 				this.initializeDatasetEditPage();
 				break;
-			case 'dataset-list':
+			case "dataset-list":
 				this.initializeDatasetListPage();
 				break;
-			case 'capture-list':
+			case "capture-list":
 				this.initializeCaptureListPage();
 				break;
 			default:
@@ -113,7 +113,7 @@ class PageLifecycleManager {
 			userPermissionLevel: this.config.permissions?.userPermissionLevel,
 			currentUserId: this.config.permissions?.currentUserId,
 			isOwner: this.config.permissions?.isOwner,
-			datasetPermissions: this.config.permissions?.datasetPermissions
+			datasetPermissions: this.config.permissions?.datasetPermissions,
 		});
 		this.managers.push(this.datasetModeManager);
 
@@ -131,7 +131,7 @@ class PageLifecycleManager {
 			userPermissionLevel: this.config.permissions?.userPermissionLevel,
 			currentUserId: this.config.permissions?.currentUserId,
 			isOwner: this.config.permissions?.isOwner,
-			datasetPermissions: this.config.permissions?.datasetPermissions
+			datasetPermissions: this.config.permissions?.datasetPermissions,
 		});
 		this.managers.push(this.datasetModeManager);
 
@@ -142,8 +142,8 @@ class PageLifecycleManager {
 		if (this.config.dataset?.datasetUuid) {
 			this.shareActionManager = new ShareActionManager({
 				itemUuid: this.config.dataset.datasetUuid,
-				itemType: 'dataset',
-				permissions: this.permissions
+				itemType: "dataset",
+				permissions: this.permissions,
 			});
 			this.managers.push(this.shareActionManager);
 		}
@@ -155,10 +155,10 @@ class PageLifecycleManager {
 	initializeDatasetListPage() {
 		// Initialize sort functionality
 		this.initializeSortFunctionality();
-		
+
 		// Initialize pagination
 		this.initializePagination();
-		
+
 		// Initialize modals for each dataset
 		this.initializeDatasetModals();
 	}
@@ -169,10 +169,10 @@ class PageLifecycleManager {
 	initializeCaptureListPage() {
 		// Initialize sort functionality
 		this.initializeSortFunctionality();
-		
+
 		// Initialize pagination
 		this.initializePagination();
-		
+
 		// Initialize modals for each capture
 		this.initializeCaptureModals();
 	}
@@ -217,14 +217,14 @@ class PageLifecycleManager {
 	 */
 	initializeSortFunctionality() {
 		const sortableHeaders = document.querySelectorAll("th.sortable");
-		
-		sortableHeaders.forEach((header) => {
+
+		for (const header of sortableHeaders) {
 			// Prevent duplicate event listener attachment
 			if (header.dataset.sortSetup === "true") {
-				return;
+				continue;
 			}
 			header.dataset.sortSetup = "true";
-			
+
 			header.style.cursor = "pointer";
 			header.addEventListener("click", () => {
 				const sortField = header.getAttribute("data-sort");
@@ -247,22 +247,24 @@ class PageLifecycleManager {
 				// Navigate to sorted results
 				window.location.search = urlParams.toString();
 			});
-		});
+		}
 	}
 
 	/**
 	 * Initialize pagination
 	 */
 	initializePagination() {
-		const paginationLinks = document.querySelectorAll(".pagination a.page-link");
-		
-		paginationLinks.forEach((link) => {
+		const paginationLinks = document.querySelectorAll(
+			".pagination a.page-link",
+		);
+
+		for (const link of paginationLinks) {
 			// Prevent duplicate event listener attachment
 			if (link.dataset.paginationSetup === "true") {
-				return;
+				continue;
 			}
 			link.dataset.paginationSetup = "true";
-			
+
 			link.addEventListener("click", (e) => {
 				e.preventDefault();
 				const page = link.getAttribute("data-page");
@@ -272,55 +274,59 @@ class PageLifecycleManager {
 					window.location.search = urlParams.toString();
 				}
 			});
-		});
+		}
 	}
 
 	/**
 	 * Initialize dataset modals
 	 */
 	initializeDatasetModals() {
-		const datasetModals = document.querySelectorAll(".modal[data-item-type='dataset']");
-		
-		datasetModals.forEach((modal) => {
+		const datasetModals = document.querySelectorAll(
+			".modal[data-item-type='dataset']",
+		);
+
+		for (const modal of datasetModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
-			
+
 			// Initialize share action manager for this dataset
 			if (itemUuid && this.permissions) {
 				const shareManager = new ShareActionManager({
 					itemUuid: itemUuid,
-					itemType: 'dataset',
-					permissions: this.permissions
+					itemType: "dataset",
+					permissions: this.permissions,
 				});
 				this.managers.push(shareManager);
-				
+
 				// Store reference on modal
 				modal.shareActionManager = shareManager;
 			}
-		});
+		}
 	}
 
 	/**
 	 * Initialize capture modals
 	 */
 	initializeCaptureModals() {
-		const captureModals = document.querySelectorAll(".modal[data-item-type='capture']");
-		
-		captureModals.forEach((modal) => {
+		const captureModals = document.querySelectorAll(
+			".modal[data-item-type='capture']",
+		);
+
+		for (const modal of captureModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
-			
+
 			// Initialize share action manager for this capture
 			if (itemUuid && this.permissions) {
 				const shareManager = new ShareActionManager({
 					itemUuid: itemUuid,
-					itemType: 'capture',
-					permissions: this.permissions
+					itemType: "capture",
+					permissions: this.permissions,
 				});
 				this.managers.push(shareManager);
-				
+
 				// Store reference on modal
 				modal.shareActionManager = shareManager;
 			}
-		});
+		}
 	}
 
 	/**
@@ -340,18 +346,20 @@ class PageLifecycleManager {
 	 */
 	getManager(type) {
 		switch (type) {
-			case 'permissions':
+			case "permissions":
 				return this.permissions;
-			case 'datasetMode':
+			case "datasetMode":
 				return this.datasetModeManager;
-			case 'shareAction':
+			case "shareAction":
 				return this.shareActionManager;
-			case 'downloadAction':
+			case "downloadAction":
 				return this.downloadActionManager;
-			case 'detailsAction':
+			case "detailsAction":
 				return this.detailsActionManager;
 			default:
-				return this.managers.find(manager => manager.constructor.name === type);
+				return this.managers.find(
+					(manager) => manager.constructor.name === type,
+				);
 		}
 	}
 
@@ -380,7 +388,7 @@ class PageLifecycleManager {
 	 */
 	updateConfig(newConfig) {
 		this.config = { ...this.config, ...newConfig };
-		
+
 		// Update permissions if provided
 		if (newConfig.permissions && this.permissions) {
 			this.permissions.updateDatasetPermissions(newConfig.permissions);
@@ -394,12 +402,11 @@ class PageLifecycleManager {
 		try {
 			// Clean up existing managers
 			this.cleanup();
-			
+
 			// Reinitialize
 			this.initialized = false;
 			this.managers = [];
 			await this.initialize();
-			
 		} catch (error) {
 			console.error("Error refreshing page components:", error);
 		}
@@ -410,15 +417,15 @@ class PageLifecycleManager {
 	 */
 	cleanup() {
 		// Cleanup all managers
-		this.managers.forEach(manager => {
-			if (manager.cleanup && typeof manager.cleanup === 'function') {
+		for (const manager of this.managers) {
+			if (manager.cleanup && typeof manager.cleanup === "function") {
 				try {
 					manager.cleanup();
 				} catch (error) {
 					console.error("Error cleaning up manager:", error);
 				}
 			}
-		});
+		}
 
 		// Clear manager references
 		this.managers = [];
@@ -461,7 +468,7 @@ class PageLifecycleManager {
 			initialized: this.initialized,
 			pageType: this.pageType,
 			managersCount: this.managers.length,
-			managers: this.managers.map(manager => manager.constructor.name)
+			managers: this.managers.map((manager) => manager.constructor.name),
 		};
 	}
 
@@ -483,18 +490,20 @@ class PageLifecycleManager {
 	async waitForManager(type, timeout = 5000) {
 		return new Promise((resolve, reject) => {
 			const startTime = Date.now();
-			
+
 			const checkManager = () => {
 				const manager = this.getManager(type);
 				if (manager) {
 					resolve(manager);
 				} else if (Date.now() - startTime > timeout) {
-					reject(new Error(`Manager ${type} not initialized within ${timeout}ms`));
+					reject(
+						new Error(`Manager ${type} not initialized within ${timeout}ms`),
+					);
 				} else {
 					setTimeout(checkManager, 100);
 				}
 			};
-			
+
 			checkManager();
 		});
 	}

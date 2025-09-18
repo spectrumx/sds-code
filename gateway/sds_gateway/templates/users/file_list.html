@@ -256,7 +256,6 @@
     <!-- Action components -->
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
-    
     <!-- Page-specific components -->
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
@@ -343,67 +342,36 @@
                 }
             }
 
-            // Initialize PageLifecycleManager for capture list page (download manager only)
-            document.addEventListener('DOMContentLoaded', function() {
-                const pageConfig = {
-                    pageType: 'capture-list-minimal', // Custom page type for minimal managers
-                    permissions: {
-                        userPermissionLevel: 'owner',
-                        currentUserId: {{ request.user.id }},
-                        isOwner: true,
-                        capturePermissions: {
-                            canEditMetadata: false, // Only owners can edit metadata (determined per-capture)
-                            canAddAssets: false,
-                            canRemoveAnyAssets: false,
-                            canRemoveOwnAssets: false,
-                            canShare: true, // Allow sharing for capture owners (determined per-capture)
-                            canDownload: true, // Allow downloads for all users (shared and owners)
-                            canDelete: false
+        // Initialize PageLifecycleManager for capture list page (download manager only)
+        document.addEventListener('DOMContentLoaded', function() {
+            const pageConfig = {
+                pageType: 'capture-list-minimal', // Custom page type for minimal managers
+                permissions: {
+                    userPermissionLevel: 'owner',
+                    currentUserId: {
+                        {
+                            request.user.id
                         }
+                    },
+                    isOwner: true,
+                    capturePermissions: {
+                        canEditMetadata: false, // Only owners can edit metadata (determined per-capture)
+                        canAddAssets: false,
+                        canRemoveAnyAssets: false,
+                        canRemoveOwnAssets: false,
+                        canShare: true, // Allow sharing for capture owners (determined per-capture)
+                        canDownload: true, // Allow downloads for all users (shared and owners)
+                        canDelete: false
                     }
-                };
-
-                // Initialize managers for captures
-                const permissionsManager = new PermissionsManager(pageConfig.permissions);
-                
-                // Initialize download manager
-                const downloadManager = new DownloadActionManager({
-                    permissions: permissionsManager
-                });
-                window.currentDownloadManager = downloadManager;
-                
-                // Initialize share action managers for each capture modal
-                document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
-                    const itemUuid = modal.getAttribute('data-item-uuid');
-                    const itemType = modal.getAttribute('data-item-type');
-                    
-                    if (window.ShareActionManager && itemUuid && itemType === 'capture') {
-                        const shareManager = new ShareActionManager({
-                            itemUuid: itemUuid,
-                            itemType: itemType,
-                            permissions: permissionsManager
-                        });
-                        // Store the handler on the modal element
-                        modal.shareActionManager = shareManager;
-                    }
-
-                    // Reset selections when modal is hidden
-                    modal.addEventListener('hidden.bs.modal', function() {
-                        if (modal.shareActionManager) {
-                            modal.shareActionManager.clearSelections();
-                        }
-                    });
-                });
-
-                // Check for download alert messages
-                const downloadAlert = sessionStorage.getItem('captureDownloadAlert');
-                if (downloadAlert) {
-                    const alertData = JSON.parse(downloadAlert);
-                    if (window.showAlert) {
-                        window.showAlert(alertData.message, alertData.type);
-                    }
-                    sessionStorage.removeItem('captureDownloadAlert');
                 }
+            };
+
+            // Initialize managers for captures
+            const permissionsManager = new PermissionsManager(pageConfig.permissions);
+
+            // Initialize download manager
+            const downloadManager = new DownloadActionManager({
+                permissions: permissionsManager
             });
 
             // Initialize visualization modal
@@ -411,11 +379,38 @@
                 new window.VisualizationModal();
             }
 
+            window.currentDownloadManager = downloadManager;
+
+            // Initialize share action managers for each capture modal
+            for (const modal of document.querySelectorAll('.modal[data-item-uuid]')) {
+                const itemUuid = modal.getAttribute('data-item-uuid');
+                const itemType = modal.getAttribute('data-item-type');
+
+                if (window.ShareActionManager && itemUuid && itemType === 'capture') {
+                    const shareManager = new ShareActionManager({
+                        itemUuid: itemUuid,
+                        itemType: itemType,
+                        permissions: permissionsManager
+                    });
+                    // Store the handler on the modal element
+                    modal.shareActionManager = shareManager;
+                }
+
+                // Reset selections when modal is hidden
+                modal.addEventListener('hidden.bs.modal', function() {
+                    if (modal.shareActionManager) {
+                        modal.shareActionManager.clearSelections();
+                    }
+                });
+            }
+
             // Check for download alert messages
             const downloadAlert = sessionStorage.getItem('captureDownloadAlert');
             if (downloadAlert) {
                 const alertData = JSON.parse(downloadAlert);
-                showAlert(alertData.message, alertData.type);
+                if (window.showAlert) {
+                    window.showAlert(alertData.message, alertData.type);
+                }
                 sessionStorage.removeItem('captureDownloadAlert');
             }
         });
