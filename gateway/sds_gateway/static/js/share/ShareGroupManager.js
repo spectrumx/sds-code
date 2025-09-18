@@ -70,7 +70,7 @@ class ShareGroupManager {
 		formData.append("name", groupName);
 
 		try {
-			const response = await APIClient.request(this.config.apiEndpoint, {
+			const response = await window.APIClient.request(this.config.apiEndpoint, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/x-www-form-urlencoded",
@@ -154,7 +154,7 @@ class ShareGroupManager {
 		formData.append("user_emails", userEmails);
 
 		try {
-			const response = await APIClient.request(this.config.apiEndpoint, {
+			const response = await window.APIClient.request(this.config.apiEndpoint, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/x-www-form-urlencoded",
@@ -295,13 +295,16 @@ class ShareGroupManager {
 			);
 
 			try {
-				const response = await APIClient.request(this.config.apiEndpoint, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/x-www-form-urlencoded",
+				const response = await window.APIClient.request(
+					this.config.apiEndpoint,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/x-www-form-urlencoded",
+						},
+						body: formData,
 					},
-					body: formData,
-				});
+				);
 
 				if (response.success) {
 					// Show success message in toast
@@ -377,7 +380,7 @@ class ShareGroupManager {
 		formData.append("group_uuid", this.pendingDeleteGroupUuid);
 
 		try {
-			const response = await APIClient.request(this.config.apiEndpoint, {
+			const response = await window.APIClient.request(this.config.apiEndpoint, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/x-www-form-urlencoded",
@@ -441,12 +444,12 @@ class ShareGroupManager {
 				</td>
 			</tr>
 		`;
-		HTMLInjectionManager.injectHTML(membersList, loadingHtml, {
+		window.HTMLInjectionManager.injectHTML(membersList, loadingHtml, {
 			escape: false,
 		});
 
 		try {
-			const response = await APIClient.request(
+			const response = await window.APIClient.request(
 				`${this.config.apiEndpoint}?group_uuid=${this.currentGroupUuid}`,
 				{
 					headers: {
@@ -473,7 +476,7 @@ class ShareGroupManager {
 							</td>
 						</tr>
 					`;
-					HTMLInjectionManager.injectHTML(membersList, emptyHtml, {
+					window.HTMLInjectionManager.injectHTML(membersList, emptyHtml, {
 						escape: false,
 					});
 				} else {
@@ -508,7 +511,7 @@ class ShareGroupManager {
 						)
 						.join("");
 
-					HTMLInjectionManager.injectHTML(membersList, memberHtml, {
+					window.HTMLInjectionManager.injectHTML(membersList, memberHtml, {
 						escape: false,
 					});
 
@@ -531,7 +534,7 @@ class ShareGroupManager {
 						<p class="mb-0">Error loading members</p>
 					</div>
 				`;
-				HTMLInjectionManager.injectHTML(membersList, errorHtml, {
+				window.HTMLInjectionManager.injectHTML(membersList, errorHtml, {
 					escape: false,
 				});
 			}
@@ -542,7 +545,7 @@ class ShareGroupManager {
 					<p class="mb-0">Error loading members</p>
 				</div>
 			`;
-			HTMLInjectionManager.injectHTML(membersList, errorHtml, {
+			window.HTMLInjectionManager.injectHTML(membersList, errorHtml, {
 				escape: false,
 			});
 		}
@@ -562,7 +565,7 @@ class ShareGroupManager {
 		formData.append("group_uuid", this.currentGroupUuid);
 
 		try {
-			const response = await APIClient.request(this.config.apiEndpoint, {
+			const response = await window.APIClient.request(this.config.apiEndpoint, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/x-www-form-urlencoded",
@@ -704,9 +707,13 @@ class ShareGroupManager {
 						</div>
 					</div>
 				`;
-				HTMLInjectionManager.injectHTML(sharedAssetsSection, sharedAssetsHtml, {
-					escape: false,
-				});
+				window.HTMLInjectionManager.injectHTML(
+					sharedAssetsSection,
+					sharedAssetsHtml,
+					{
+						escape: false,
+					},
+				);
 				sharedAssetsSection.classList.remove("d-none");
 			} else {
 				const noAssetsHtml = `
@@ -720,9 +727,13 @@ class ShareGroupManager {
 						</div>
 					</div>
 				`;
-				HTMLInjectionManager.injectHTML(sharedAssetsSection, noAssetsHtml, {
-					escape: false,
-				});
+				window.HTMLInjectionManager.injectHTML(
+					sharedAssetsSection,
+					noAssetsHtml,
+					{
+						escape: false,
+					},
+				);
 				sharedAssetsSection.classList.remove("d-none");
 			}
 		}
@@ -795,7 +806,7 @@ class ShareGroupManager {
 				try {
 					this.shareGroupUserSearchHandler.currentRequest =
 						new AbortController();
-					const response = await APIClient.get(
+					const response = await window.APIClient.get(
 						`${this.config.apiEndpoint}?q=${encodeURIComponent(query)}&group_uuid=${this.currentGroupUuid}`,
 						{},
 						null, // No loading state for search
@@ -836,8 +847,8 @@ class ShareGroupManager {
 
 							return `
 							<div class="list-group-item"
-								 data-user-name="${HTMLInjectionManager.escapeHtml(user.name)}"
-								 data-user-email="${HTMLInjectionManager.escapeHtml(user.email)}">
+								 data-user-name="${window.HTMLInjectionManager.escapeHtml(user.name)}"
+								 data-user-email="${window.HTMLInjectionManager.escapeHtml(user.email)}">
 								<div class="user-search-item">
 									<div class="user-name">
 										<i class="bi ${icon} me-2"></i>
@@ -850,7 +861,9 @@ class ShareGroupManager {
 						})
 						.join("");
 
-					HTMLInjectionManager.injectHTML(listGroup, items, { escape: false });
+					window.HTMLInjectionManager.injectHTML(listGroup, items, {
+						escape: false,
+					});
 				}
 
 				this.showDropdown(dropdown);
@@ -984,9 +997,9 @@ class ShareGroupManager {
 	 * @returns {string} Highlighted text
 	 */
 	highlightMatch(text, query) {
-		if (!query) return HTMLInjectionManager.escapeHtml(text);
+		if (!query) return window.HTMLInjectionManager.escapeHtml(text);
 		const regex = new RegExp(`(${query})`, "gi");
-		return HTMLInjectionManager.escapeHtml(text).replace(
+		return window.HTMLInjectionManager.escapeHtml(text).replace(
 			regex,
 			"<mark>$1</mark>",
 		);
@@ -1479,7 +1492,9 @@ class ShareGroupManager {
 			</td>
 		`;
 
-		HTMLInjectionManager.injectHTML(newRow, newRowHtml, { escape: false });
+		window.HTMLInjectionManager.injectHTML(newRow, newRowHtml, {
+			escape: false,
+		});
 
 		// Add the new row to the table
 		tableBody.appendChild(newRow);

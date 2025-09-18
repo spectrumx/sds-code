@@ -74,70 +74,24 @@ global.HTMLInjectionManager = {
 	createLoadingSpinner: (text) => `<span class="spinner">${text}</span>`,
 };
 
-// Simple PermissionsManager mock for testing
-class PermissionsManager {
-	constructor(config) {
-		this.userPermissionLevel = config.userPermissionLevel;
-		this.isOwner = config.isOwner;
-		this.currentUserId = config.currentUserId;
-		this.datasetPermissions = config.datasetPermissions || {};
-	}
+// Import the actual PermissionsManager
+const fs = require("node:fs");
+const path = require("node:path");
 
-	canEditMetadata() {
-		return (
-			this.isOwner ||
-			["co-owner", "contributor"].includes(this.userPermissionLevel)
-		);
-	}
+// Read and evaluate the PermissionsManager.js file
+const permissionsManagerPath = path.join(
+	__dirname,
+	"../core/PermissionsManager.js",
+);
+const permissionsManagerCode = fs.readFileSync(permissionsManagerPath, "utf8");
 
-	canAddAssets() {
-		return (
-			this.isOwner ||
-			["co-owner", "contributor"].includes(this.userPermissionLevel)
-		);
-	}
+// Execute the PermissionsManager code in our context
+// biome-ignore lint/security/noGlobalEval: <explanation>
+// Loading trusted test code in controlled environment
+eval(permissionsManagerCode);
 
-	canRemoveOwnAssets() {
-		return (
-			this.isOwner ||
-			["co-owner", "contributor"].includes(this.userPermissionLevel)
-		);
-	}
-
-	canRemoveAnyAssets() {
-		return this.isOwner || this.userPermissionLevel === "co-owner";
-	}
-
-	canShare() {
-		return this.isOwner || this.userPermissionLevel === "co-owner";
-	}
-
-	canDownload() {
-		return true; // All users can download
-	}
-
-	canDelete() {
-		return this.isOwner || this.userPermissionLevel === "co-owner";
-	}
-
-	canView() {
-		return true; // All users can view
-	}
-
-	canAddAsset(asset) {
-		if (this.isOwner || this.userPermissionLevel === "co-owner") return true;
-		return (
-			asset.owner_id === this.currentUserId &&
-			this.userPermissionLevel === "contributor"
-		);
-	}
-
-	canRemoveAsset(asset) {
-		if (this.isOwner || this.userPermissionLevel === "co-owner") return true;
-		return false; // Contributors can't remove assets in this mock
-	}
-}
-
+// The PermissionsManager class is now available via window.PermissionsManager
+const PermissionsManager = global.window.PermissionsManager;
 global.PermissionsManager = PermissionsManager;
 
 // Test suite for Dataset Editing
@@ -609,8 +563,8 @@ datasetEditingTests.addTest(
 		});
 
 		datasetEditingTests.assert(
-			contributorPermissions.canEditMetadata(),
-			"Contributor should be able to edit metadata",
+			!contributorPermissions.canEditMetadata(),
+			"Contributor should NOT be able to edit metadata",
 		);
 		datasetEditingTests.assert(
 			contributorPermissions.canAddAssets(),
@@ -675,12 +629,12 @@ datasetEditingTests.addTest(
 
 		// Test asset removal permissions
 		datasetEditingTests.assert(
-			!permissions.canRemoveAsset(ownedAsset),
-			"Contributor should not be able to remove assets",
+			permissions.canRemoveAsset(ownedAsset),
+			"Contributor should be able to remove their own assets",
 		);
 		datasetEditingTests.assert(
 			!permissions.canRemoveAsset(otherAsset),
-			"Should not be able to remove other's asset",
+			"Contributor should not be able to remove other's assets",
 		);
 	},
 );

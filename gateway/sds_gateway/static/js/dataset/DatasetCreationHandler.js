@@ -55,6 +55,18 @@ class DatasetCreationHandler {
 	initializeEventListeners() {
 		// Initialize search handlers if they exist
 		if (window.AssetSearchHandler) {
+			this.capturesSearchHandler = new window.AssetSearchHandler({
+				searchFormId: "captures-search-form",
+				searchButtonId: "search-captures",
+				clearButtonId: "clear-captures-search",
+				tableBodyId: "captures-table-body",
+				paginationContainerId: "captures-pagination",
+				type: "captures",
+				formHandler: this,
+				isEditMode: false,
+				apiEndpoint: window.location.pathname,
+			});
+
 			this.filesSearchHandler = new window.AssetSearchHandler({
 				searchFormId: "files-search-form",
 				searchButtonId: "search-files",
@@ -67,6 +79,15 @@ class DatasetCreationHandler {
 				isEditMode: false,
 				apiEndpoint: window.location.pathname,
 			});
+
+			// Initialize captures search to show initial state
+			if (
+				this.capturesSearchHandler &&
+				typeof this.capturesSearchHandler.initializeCapturesSearch ===
+					"function"
+			) {
+				this.capturesSearchHandler.initializeCapturesSearch();
+			}
 		}
 
 		// Prevent form submission on enter key
@@ -91,10 +112,6 @@ class DatasetCreationHandler {
 				e.stopPropagation();
 				this.navigateStep(1);
 			});
-		}
-
-		if (this.submitBtn) {
-			this.submitBtn.addEventListener("click", (e) => this.handleSubmit(e));
 		}
 
 		// Step tab handlers
@@ -718,7 +735,7 @@ class DatasetCreationHandler {
 		const formData = new FormData(this.form);
 
 		try {
-			const response = await APIClient.request(this.form.action, {
+			const response = await window.APIClient.request(this.form.action, {
 				method: "POST",
 				body: formData,
 			});
@@ -745,13 +762,15 @@ class DatasetCreationHandler {
 
 		if (error instanceof APIError && error.data.errors) {
 			// Use HTMLInjectionManager to create error message HTML
-			errorMessage = HTMLInjectionManager.createErrorMessage(error.data.errors);
+			errorMessage = window.HTMLInjectionManager.createErrorMessage(
+				error.data.errors,
+			);
 		} else {
 			errorMessage = "An unexpected error occurred. Please try again.";
 		}
 
 		// Use the new notification system
-		HTMLInjectionManager.showNotification(errorMessage, "danger", {
+		window.HTMLInjectionManager.showNotification(errorMessage, "danger", {
 			containerId: "formErrors",
 			autoHide: false, // Don't auto-hide error messages
 			scrollTo: true,
@@ -765,7 +784,7 @@ class DatasetCreationHandler {
 	 * Clear form errors
 	 */
 	clearErrors() {
-		HTMLInjectionManager.clearNotifications("formErrors");
+		window.HTMLInjectionManager.clearNotifications("formErrors");
 	}
 
 	/**
@@ -779,7 +798,7 @@ class DatasetCreationHandler {
 			this.submitBtn.dataset.originalText = this.submitBtn.textContent;
 			this.submitBtn.disabled = true;
 			this.submitBtn.innerHTML =
-				HTMLInjectionManager.createLoadingSpinner("Creating...");
+				window.HTMLInjectionManager.createLoadingSpinner("Creating...");
 		} else {
 			this.submitBtn.disabled = false;
 			if (this.submitBtn.dataset.originalText) {
@@ -820,7 +839,7 @@ class DatasetCreationHandler {
 						created_at: new Date().toISOString(),
 					};
 
-					return HTMLInjectionManager.createTableRow(
+					return window.HTMLInjectionManager.createTableRow(
 						data,
 						`
 					<tr>
@@ -841,12 +860,12 @@ class DatasetCreationHandler {
 				})
 				.join("");
 
-			HTMLInjectionManager.injectHTML(capturesTableBody, rows, {
+			window.HTMLInjectionManager.injectHTML(capturesTableBody, rows, {
 				escape: false,
 			});
 			this.attachCaptureRemoveHandlers();
 		} else {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				capturesTableBody,
 				"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>",
 				{ escape: false },
@@ -878,7 +897,7 @@ class DatasetCreationHandler {
 						directory: "Unknown",
 					};
 
-					return HTMLInjectionManager.createTableRow(
+					return window.HTMLInjectionManager.createTableRow(
 						data,
 						`
 					<tr>
@@ -895,7 +914,7 @@ class DatasetCreationHandler {
 				})
 				.join("");
 
-			HTMLInjectionManager.injectHTML(selectedCapturesBody, rows, {
+			window.HTMLInjectionManager.injectHTML(selectedCapturesBody, rows, {
 				escape: false,
 			});
 
@@ -910,7 +929,7 @@ class DatasetCreationHandler {
 				});
 			}
 		} else {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				selectedCapturesBody,
 				"<tr><td colspan='3' class='text-center text-muted'>No captures selected</td></tr>",
 				{ escape: false },
@@ -934,7 +953,7 @@ class DatasetCreationHandler {
 		if (this.selectedFiles.size > 0) {
 			const rows = Array.from(this.selectedFiles)
 				.map((file) => {
-					return HTMLInjectionManager.createTableRow(
+					return window.HTMLInjectionManager.createTableRow(
 						file,
 						`
 					<tr>
@@ -953,10 +972,12 @@ class DatasetCreationHandler {
 				})
 				.join("");
 
-			HTMLInjectionManager.injectHTML(filesTableBody, rows, { escape: false });
+			window.HTMLInjectionManager.injectHTML(filesTableBody, rows, {
+				escape: false,
+			});
 			this.attachFileRemoveHandlers();
 		} else {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				filesTableBody,
 				"<tr><td colspan='5' class='text-center'>No files selected</td></tr>",
 				{ escape: false },
@@ -1191,7 +1212,7 @@ class DatasetCreationHandler {
 								<label class="form-label small">Author Name</label>
 								<input type="text"
 									   class="form-control author-name-input"
-									   value="${HTMLInjectionManager.escapeHtml(authorName)}"
+									   value="${window.HTMLInjectionManager.escapeHtml(authorName)}"
 									   placeholder="Enter full name"
 									   ${index === 0 ? "readonly" : ""}
 									   data-index="${index}"
@@ -1201,7 +1222,7 @@ class DatasetCreationHandler {
 								<label class="form-label small">ORCID ID</label>
 								<input type="text"
 									   class="form-control author-orcid-input"
-									   value="${HTMLInjectionManager.escapeHtml(authorOrcid)}"
+									   value="${window.HTMLInjectionManager.escapeHtml(authorOrcid)}"
 									   placeholder="0000-0000-0000-0000"
 									   ${index === 0 ? "readonly" : ""}
 									   data-index="${index}"
@@ -1273,7 +1294,7 @@ class DatasetCreationHandler {
 		 * Show notification using HTMLInjectionManager
 		 */
 		this.showNotification = (message, type = "info") => {
-			HTMLInjectionManager.showNotification(message, type, {
+			window.HTMLInjectionManager.showNotification(message, type, {
 				containerId: "formErrors",
 				autoHide: true,
 				autoHideDelay: 5000,
@@ -1354,7 +1375,7 @@ class DatasetCreationHandler {
 		window.updateDatasetAuthors = (authorsField) =>
 			this.updateDatasetAuthors(authorsField);
 		window.formatAuthors = (authors) => this.formatAuthors(authors);
-		window.escapeHtml = (text) => HTMLInjectionManager.escapeHtml(text);
+		window.escapeHtml = (text) => window.HTMLInjectionManager.escapeHtml(text);
 	}
 
 	/**
@@ -1368,7 +1389,7 @@ class DatasetCreationHandler {
 			const authors = JSON.parse(authorsField.value || "[]");
 			const authorNames = this.formatAuthors(authors);
 			// In creation mode, just show current authors (no original/changes logic)
-			authorsElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(authorNames)}</span>`;
+			authorsElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(authorNames)}</span>`;
 		} catch (e) {
 			authorsElement.innerHTML =
 				'<span class="current-value">Error parsing authors.</span>';

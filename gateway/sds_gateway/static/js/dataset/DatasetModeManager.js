@@ -26,7 +26,10 @@ class DatasetModeManager {
 					...config,
 					permissions: this.permissions,
 				})
-			: new DatasetCreationHandler(config);
+			: new DatasetCreationHandler({
+					...config,
+					formId: "datasetForm",
+				});
 
 		// Store reference globally for backward compatibility
 		if (this.isEditMode) {
@@ -409,7 +412,7 @@ class DatasetModeManager {
 
 		if (!nameField) {
 			if (this.isEditMode) {
-				nameElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(this.originalDatasetData?.name || "Untitled Dataset")}</span>`;
+				nameElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(this.originalDatasetData?.name || "Untitled Dataset")}</span>`;
 			}
 			return;
 		}
@@ -419,7 +422,7 @@ class DatasetModeManager {
 
 		if (this.isEditMode) {
 			// Always show original value in black
-			nameElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
+			nameElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
 
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
@@ -430,7 +433,7 @@ class DatasetModeManager {
 				changesList.innerHTML = `
 					<li class="text-warning">
 						<i class="bi bi-pencil me-1"></i>
-						Change Name: "${HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${HTMLInjectionManager.escapeHtml(currentValue)}"</span>
+						Change Name: "${window.HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${window.HTMLInjectionManager.escapeHtml(currentValue)}"</span>
 					</li>
 				`;
 				nameElement.appendChild(changesList);
@@ -442,7 +445,7 @@ class DatasetModeManager {
 				}
 			}
 		} else {
-			nameElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
+			nameElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
 		}
 	}
 
@@ -455,7 +458,7 @@ class DatasetModeManager {
 
 		if (!statusField) {
 			if (this.isEditMode) {
-				statusElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(this.originalDatasetData?.status || "Unknown")}</span>`;
+				statusElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(this.originalDatasetData?.status || "Unknown")}</span>`;
 			}
 			return;
 		}
@@ -466,7 +469,7 @@ class DatasetModeManager {
 
 		if (this.isEditMode) {
 			// Always show original value in black
-			statusElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
+			statusElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
 
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
@@ -477,7 +480,7 @@ class DatasetModeManager {
 				changesList.innerHTML = `
 					<li class="text-warning">
 						<i class="bi bi-pencil me-1"></i>
-						Change Status: "${HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${HTMLInjectionManager.escapeHtml(currentValue)}"</span>
+						Change Status: "${window.HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${window.HTMLInjectionManager.escapeHtml(currentValue)}"</span>
 					</li>
 				`;
 				statusElement.appendChild(changesList);
@@ -489,7 +492,7 @@ class DatasetModeManager {
 				}
 			}
 		} else {
-			statusElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
+			statusElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
 		}
 	}
 
@@ -502,7 +505,7 @@ class DatasetModeManager {
 
 		if (!descriptionField) {
 			if (this.isEditMode) {
-				descriptionElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(this.originalDatasetData?.description || "No description provided.")}</span>`;
+				descriptionElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(this.originalDatasetData?.description || "No description provided.")}</span>`;
 			}
 			return;
 		}
@@ -512,7 +515,7 @@ class DatasetModeManager {
 
 		if (this.isEditMode) {
 			// Always show original value in black
-			descriptionElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
+			descriptionElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
 
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
@@ -523,7 +526,7 @@ class DatasetModeManager {
 				changesList.innerHTML = `
 					<li class="text-warning">
 						<i class="bi bi-pencil me-1"></i>
-						Change Description: "${HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${HTMLInjectionManager.escapeHtml(currentValue)}"</span>
+						Change Description: "${window.HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${window.HTMLInjectionManager.escapeHtml(currentValue)}"</span>
 					</li>
 				`;
 				descriptionElement.appendChild(changesList);
@@ -536,7 +539,7 @@ class DatasetModeManager {
 				}
 			}
 		} else {
-			descriptionElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
+			descriptionElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
 		}
 	}
 
@@ -623,8 +626,8 @@ class DatasetModeManager {
 			row.innerHTML = `
 				<td>Capture</td>
 				<td><span class="badge ${badgeClass}">${badgeText}</span></td>
-				<td>${HTMLInjectionManager.escapeHtml(change.data.type || "Unknown")}</td>
-				<td>${HTMLInjectionManager.escapeHtml(change.data.directory || "")}</td>
+				<td>${window.HTMLInjectionManager.escapeHtml(change.data.type || "Unknown")}</td>
+				<td>${window.HTMLInjectionManager.escapeHtml(change.data.directory || "")}</td>
 				<td>
 					<button class="btn btn-sm btn-outline-secondary cancel-change"
 							data-capture-id="${id}"
@@ -646,8 +649,8 @@ class DatasetModeManager {
 			row.innerHTML = `
 				<td>File</td>
 				<td><span class="badge ${badgeClass}">${badgeText}</span></td>
-				<td>${HTMLInjectionManager.escapeHtml(change.data.name || "Unknown")}</td>
-				<td>${HTMLInjectionManager.escapeHtml(change.data.path || "")}</td>
+				<td>${window.HTMLInjectionManager.escapeHtml(change.data.name || "Unknown")}</td>
+				<td>${window.HTMLInjectionManager.escapeHtml(change.data.path || "")}</td>
 				<td>
 					<button class="btn btn-sm btn-outline-secondary cancel-change"
 							data-file-id="${id}"

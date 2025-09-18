@@ -111,7 +111,7 @@ class DetailsActionManager {
 			this.showModalLoading("datasetDetailsModal");
 
 			// Fetch dataset details
-			const datasetData = await APIClient.get(
+			const datasetData = await window.APIClient.get(
 				`/users/dataset-details/?dataset_uuid=${datasetUuid}`,
 			);
 
@@ -139,7 +139,7 @@ class DetailsActionManager {
 			this.showModalLoading("captureDetailsModal");
 
 			// Fetch capture details
-			const captureData = await APIClient.get(
+			const captureData = await window.APIClient.get(
 				`/users/capture-details/?capture_uuid=${captureUuid}`,
 			);
 
@@ -424,9 +424,10 @@ class DetailsActionManager {
 		if (!authorsContainer) return;
 
 		if (!authors || authors.length === 0) {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				authorsContainer,
 				'<span class="text-muted">No authors specified</span>',
+				{ escape: false },
 			);
 			return;
 		}
@@ -440,9 +441,9 @@ class DetailsActionManager {
 			})
 			.join(", ");
 
-		HTMLInjectionManager.injectHTML(
+		window.HTMLInjectionManager.injectHTML(
 			authorsContainer,
-			HTMLInjectionManager.escapeHtml(authorsText),
+			window.HTMLInjectionManager.escapeHtml(authorsText),
 		);
 	}
 
@@ -456,16 +457,17 @@ class DetailsActionManager {
 		if (!tableBody) return;
 
 		if (captures.length === 0) {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				tableBody,
 				'<tr><td colspan="5" class="text-center text-muted">No captures in dataset</td></tr>',
+				{ escape: false },
 			);
 			return;
 		}
 
 		const rows = captures
 			.map((capture) => {
-				return HTMLInjectionManager.createTableRow(
+				return window.HTMLInjectionManager.createTableRow(
 					capture,
 					`
 				<tr>
@@ -481,7 +483,7 @@ class DetailsActionManager {
 			})
 			.join("");
 
-		HTMLInjectionManager.injectHTML(tableBody, rows, { escape: false });
+		window.HTMLInjectionManager.injectHTML(tableBody, rows, { escape: false });
 	}
 
 	/**
@@ -494,16 +496,17 @@ class DetailsActionManager {
 		if (!tableBody) return;
 
 		if (files.length === 0) {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				tableBody,
 				'<tr><td colspan="4" class="text-center text-muted">No files in dataset</td></tr>',
+				{ escape: false },
 			);
 			return;
 		}
 
 		const rows = files
 			.map((file) => {
-				return HTMLInjectionManager.createTableRow(
+				return window.HTMLInjectionManager.createTableRow(
 					file,
 					`
 				<tr>
@@ -517,7 +520,7 @@ class DetailsActionManager {
 			})
 			.join("");
 
-		HTMLInjectionManager.injectHTML(tableBody, rows, { escape: false });
+		window.HTMLInjectionManager.injectHTML(tableBody, rows, { escape: false });
 	}
 
 	/**
@@ -530,9 +533,10 @@ class DetailsActionManager {
 		if (!permissionsContainer) return;
 
 		if (permissions.length === 0) {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				permissionsContainer,
 				'<span class="text-muted">No shared permissions</span>',
+				{ escape: false },
 			);
 			return;
 		}
@@ -546,8 +550,8 @@ class DetailsActionManager {
 					permission.permission_level,
 				);
 				const userInfo = permission.user_name
-					? `${HTMLInjectionManager.escapeHtml(permission.user_name)} (${HTMLInjectionManager.escapeHtml(permission.user_email)})`
-					: HTMLInjectionManager.escapeHtml(permission.user_email);
+					? `${window.HTMLInjectionManager.escapeHtml(permission.user_name)} (${window.HTMLInjectionManager.escapeHtml(permission.user_email)})`
+					: window.HTMLInjectionManager.escapeHtml(permission.user_email);
 
 				return `
 				<div class="d-flex justify-content-between align-items-center mb-2">
@@ -558,9 +562,13 @@ class DetailsActionManager {
 			})
 			.join("");
 
-		HTMLInjectionManager.injectHTML(permissionsContainer, permissionsHtml, {
-			escape: false,
-		});
+		window.HTMLInjectionManager.injectHTML(
+			permissionsContainer,
+			permissionsHtml,
+			{
+				escape: false,
+			},
+		);
 	}
 
 	/**
@@ -591,14 +599,15 @@ class DetailsActionManager {
 		}
 
 		if (details.length === 0) {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				technicalDetails,
 				'<span class="text-muted">No technical details available</span>',
+				{ escape: false },
 			);
 		} else {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				technicalDetails,
-				`<ul class="list-unstyled mb-0">${details.map((detail) => `<li>${HTMLInjectionManager.escapeHtml(detail)}</li>`).join("")}</ul>`,
+				`<ul class="list-unstyled mb-0">${details.map((detail) => `<li>${window.HTMLInjectionManager.escapeHtml(detail)}</li>`).join("")}</ul>`,
 				{ escape: false },
 			);
 		}
@@ -703,10 +712,10 @@ class DetailsActionManager {
 
 			const loadingHtml = `
 				<div class="text-center py-4">
-					${HTMLInjectionManager.createLoadingSpinner("Loading details...", { size: "lg" })}
+					${window.HTMLInjectionManager.createLoadingSpinner("Loading details...", { size: "lg" })}
 				</div>
 			`;
-			HTMLInjectionManager.injectHTML(modalBody, loadingHtml, {
+			window.HTMLInjectionManager.injectHTML(modalBody, loadingHtml, {
 				escape: false,
 			});
 		}
@@ -723,7 +732,7 @@ class DetailsActionManager {
 		const modalBody = modal.querySelector(".modal-body");
 		if (modalBody?.dataset.originalContent) {
 			// Restore original content
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				modalBody,
 				modalBody.dataset.originalContent,
 				{ escape: false },
@@ -747,10 +756,12 @@ class DetailsActionManager {
 			const errorHtml = `
 				<div class="alert alert-danger" role="alert">
 					<i class="bi bi-exclamation-triangle me-2"></i>
-					${HTMLInjectionManager.escapeHtml(message)}
+					${window.HTMLInjectionManager.escapeHtml(message)}
 				</div>
 			`;
-			HTMLInjectionManager.injectHTML(modalBody, errorHtml, { escape: false });
+			window.HTMLInjectionManager.injectHTML(modalBody, errorHtml, {
+				escape: false,
+			});
 		}
 
 		// Show modal even with error
@@ -824,7 +835,7 @@ class DetailsActionManager {
 			this.showModalLoading("datasetDetailsModal");
 
 			// Fetch dataset details
-			const response = await APIClient.get(
+			const response = await window.APIClient.get(
 				`/users/dataset-details/?dataset_uuid=${datasetUuid}`,
 			);
 
@@ -860,12 +871,13 @@ class DetailsActionManager {
 		const rows = this.renderTreeNode(tree, 0);
 
 		if (rows.length === 0) {
-			HTMLInjectionManager.injectHTML(
+			window.HTMLInjectionManager.injectHTML(
 				tableBody,
 				'<tr><td colspan="5" class="text-center text-muted py-4">No files found</td></tr>',
+				{ escape: false },
 			);
 		} else {
-			HTMLInjectionManager.injectHTML(tableBody, rows.join(""), {
+			window.HTMLInjectionManager.injectHTML(tableBody, rows.join(""), {
 				escape: false,
 			});
 		}
@@ -885,8 +897,8 @@ class DetailsActionManager {
 		if (node.files && Array.isArray(node.files)) {
 			for (const file of node.files) {
 				const icon = '<i class="bi bi-file-earmark text-primary"></i>';
-				const name = `${indent}${icon} ${HTMLInjectionManager.escapeHtml(file.name)}`;
-				const type = HTMLInjectionManager.escapeHtml(
+				const name = `${indent}${icon} ${window.HTMLInjectionManager.escapeHtml(file.name)}`;
+				const type = window.HTMLInjectionManager.escapeHtml(
 					file.media_type || file.type || "File",
 				);
 				const size = this.formatFileSize(file.size || 0);
@@ -910,7 +922,7 @@ class DetailsActionManager {
 				if (childNode.type === "directory") {
 					// Render directory row
 					const icon = '<i class="bi bi-folder text-warning"></i>';
-					const name = `${indent}${icon} ${HTMLInjectionManager.escapeHtml(childNode.name)}/`;
+					const name = `${indent}${icon} ${window.HTMLInjectionManager.escapeHtml(childNode.name)}/`;
 					const type = "Directory";
 					const size = this.formatFileSize(childNode.size || 0);
 					const createdAt = this.formatDate(childNode.created_at);

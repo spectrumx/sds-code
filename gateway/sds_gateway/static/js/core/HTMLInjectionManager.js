@@ -20,11 +20,11 @@ class HTMLInjectionManager {
 	 * @param {Element|string} container - Container element or selector
 	 * @param {string} htmlString - HTML string to inject
 	 * @param {Object} options - Injection options
-	 * @param {boolean} options.escape - Whether to escape HTML (default: true)
+	 * @param {boolean} options.escape - Whether to escape HTML (default: false)
 	 * @param {string} options.method - Injection method: 'innerHTML', 'append', 'prepend' (default: 'innerHTML')
 	 */
 	injectHTML(container, htmlString, options = {}) {
-		const { escapeHtml = true, method = "innerHTML" } = options;
+		const { escape = true, method = "innerHTML" } = options;
 
 		const element =
 			typeof container === "string"
@@ -36,7 +36,7 @@ class HTMLInjectionManager {
 			return;
 		}
 
-		const safeHtml = escapeHtml ? this.escapeHtml(htmlString) : htmlString;
+		const safeHtml = escape ? this.escapeHtml(htmlString) : htmlString;
 
 		switch (method) {
 			case "innerHTML":
@@ -454,13 +454,18 @@ class HTMLInjectionManager {
 			</div>
 		`;
 
-		window.HTMLInjectionManager.injectHTML(toastContainer, toastHtml, {
+		this.injectHTML(toastContainer, toastHtml, {
 			escape: false,
+			method: "append",
 		});
 		const toastElem = document.getElementById(toastId);
-		const toast = new bootstrap.Toast(toastElem);
-		toast.show();
-		toastElem.addEventListener("hidden.bs.toast", () => toastElem.remove());
+		if (toastElem && window.bootstrap && bootstrap.Toast) {
+			const toast = new bootstrap.Toast(toastElem);
+			toast.show();
+			toastElem.addEventListener("hidden.bs.toast", () => toastElem.remove());
+		} else {
+			console.error("Toast element not found or Bootstrap not available");
+		}
 	}
 }
 
