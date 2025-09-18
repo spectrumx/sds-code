@@ -540,7 +540,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 item_uuid, item_type, shared_users, notify=True, message=message
             )
 
-    def post(
+    def post(  # noqa: C901, PLR0912, PLR0915
         self,
         request: HttpRequest,
         item_uuid: str,
@@ -1359,7 +1359,7 @@ class GroupCapturesView(
 ):
     template_name = "users/group_captures.html"
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):  # noqa: PLR0911
         """Handle GET request with permission checking and AJAX requests."""
         # Check if editing existing dataset
         dataset_uuid = request.GET.get("dataset_uuid")
@@ -1467,7 +1467,8 @@ class GroupCapturesView(
             if not can_user_access_item(
                 self.request.user, dataset_uuid, ItemType.DATASET
             ):
-                raise Http404("Dataset not found or access denied.")
+                msg = "Dataset not found or access denied."
+                raise Http404(msg)
 
             # Get the dataset - it exists and user has access
             existing_dataset = Dataset.objects.get(uuid=dataset_uuid)
@@ -1759,7 +1760,7 @@ class GroupCapturesView(
 
         return changes
 
-    def _apply_asset_changes(
+    def _apply_asset_changes(  # noqa: C901, PLR0912
         self, dataset: Dataset, changes: dict, user: User, permission_level: str
     ):
         """Apply asset changes based on user permissions."""
@@ -1835,7 +1836,8 @@ class GroupCapturesView(
         for i in changes.get("added", []):
             if i >= len(authors) and i < len(authors) + len(changes.get("added", [])):
                 # This is a new author that was added beyond the original array
-                # We need to get it from the current authors array (which includes the new ones)
+                # We need to get it from the current authors array
+                # (which includes the new ones)
                 if i < len(authors):
                     result.append(authors[i])
 

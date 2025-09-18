@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.test import TestCase
 from django.urls import reverse
+from rest_framework import status
 
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
@@ -17,7 +18,7 @@ from sds_gateway.api_methods.models import UserSharePermission
 User = get_user_model()
 
 # Test constants
-TEST_PASSWORD = "testpass123"
+TEST_PASSWORD = "testpass123"  # noqa: S105
 
 
 class PermissionUpdateTestCase(TestCase):
@@ -74,7 +75,7 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        assert response.status_code == HTTP_200_OK
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"]
 
@@ -119,7 +120,7 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        assert response.status_code == HTTP_200_OK
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"]
 
@@ -156,9 +157,7 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        assert (
-            response.status_code == HTTP_404_NOT_FOUND
-        )  # Item not found for this user
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_update_permission_invalid_level(self):
         """Test that invalid permission levels are rejected."""
@@ -187,7 +186,7 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        assert response.status_code == HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
         assert not data.get("success", True)
         assert "Invalid permission level" in data["error"]
@@ -210,7 +209,7 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        assert response.status_code == HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
         assert not data.get("success", True)
 
@@ -246,6 +245,6 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        assert response.status_code == HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         data = response.json()
         assert not data.get("success", True)

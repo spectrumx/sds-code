@@ -9,14 +9,12 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.utils.permissions import (
-    check_asset_ownership_permission,
-)
+from sds_gateway.api_methods.utils.permissions import check_asset_ownership_permission
 
 User = get_user_model()
 
 # Test constants
-TEST_PASSWORD = "testpass123"
+TEST_PASSWORD = "testpass123"  # noqa: S105
 
 
 class UserSharePermissionTestCase(TestCase):
@@ -81,21 +79,18 @@ class UserSharePermissionTestCase(TestCase):
             )
             == "viewer"
         )
-
         assert (
             UserSharePermission.get_user_permission_level(
                 self.contributor, self.dataset.uuid, ItemType.DATASET
             )
             == "contributor"
         )
-
         assert (
             UserSharePermission.get_user_permission_level(
                 self.co_owner, self.dataset.uuid, ItemType.DATASET
             )
             == "co-owner"
         )
-
         assert (
             UserSharePermission.get_user_permission_level(
                 self.owner, self.dataset.uuid, ItemType.DATASET
@@ -208,7 +203,7 @@ class UserSharePermissionTestCase(TestCase):
         # Get authors
         authors = UserSharePermission.get_dataset_authors(self.dataset.uuid)
 
-        # Should have 1 author: owner (only owner is returned by get_dataset_authors)
+        # Should have only 1 author: owner
         assert len(authors) == 1
 
         # Check that owner is present

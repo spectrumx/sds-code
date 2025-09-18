@@ -124,7 +124,7 @@ class AssetSearchHandler {
 		if (removeAllButton) {
 			removeAllButton.addEventListener("click", () => {
 				// Check if formHandler has a custom removal handler for edit mode
-				if (this.formHandler && this.formHandler.handleRemoveAllFiles) {
+				if (this.formHandler?.handleRemoveAllFiles) {
 					this.formHandler.handleRemoveAllFiles();
 				} else {
 					// Default behavior for create mode
@@ -278,7 +278,7 @@ class AssetSearchHandler {
 				const captureId = button.dataset.id;
 
 				// Check if formHandler has a custom removal handler for edit mode
-				if (this.formHandler && this.formHandler.handleCaptureRemoval) {
+				if (this.formHandler?.handleCaptureRemoval) {
 					this.formHandler.handleCaptureRemoval(captureId);
 				} else {
 					// Default behavior for create mode
@@ -791,7 +791,7 @@ class AssetSearchHandler {
 							const fileId = button.dataset.id;
 
 							// Check if formHandler has a custom removal handler for edit mode
-							if (this.formHandler && this.formHandler.handleFileRemoval) {
+							if (this.formHandler?.handleFileRemoval) {
 								this.formHandler.handleFileRemoval(fileId);
 							} else {
 								// Default behavior for create mode
