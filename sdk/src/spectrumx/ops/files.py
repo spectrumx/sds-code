@@ -95,7 +95,9 @@ def construct_file(file_path: Path, sds_path: Path | PurePosixPath) -> File:
 
 
 def is_valid_file(
-    file_path: Path, *, check_sds_ignore: bool = True
+    file_path: Path,
+    *,
+    check_sds_ignore: bool = True,
 ) -> tuple[bool, list[str]]:
     """Returns True if the path is a valid file.
     A similar check is also performed at the server side.

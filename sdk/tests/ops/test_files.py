@@ -465,29 +465,45 @@ class TestIsValidFile:
         assert is_valid is False, "Directory should fail validation"
         assert "Not a file" in reasons
 
-    def test_disallowed_executable_file(self, tmp_path: Path) -> None:
+    def test_disallowed_executable_file(self, tmp_path: Path, monkeypatch) -> None:
         """Test that executable files with disallowed MIME types fail validation."""
-        # Create a file that would be detected as an executable
+        # Create a non-empty file so MIME check is exercised (not the empty-file check)
         exe_file = tmp_path / "test.exe"
-        exe_file.write_bytes(b"MZ\x90\x00")  # DOS header
+        exe_file.write_text("dummy content")
+
+        # Patch get_file_media_type to return an application/* MIME for this file
+        monkeypatch.setattr(
+            "spectrumx.ops.files.get_file_media_type",
+            lambda _path: "application/x-msdownload",
+        )
 
         is_valid, reasons = is_valid_file(exe_file)
         assert is_valid is False, "Executable file should fail validation"
         assert any("Invalid MIME type" in reason for reason in reasons)
 
-    def test_disallowed_msi_file(self, tmp_path: Path) -> None:
+    def test_disallowed_msi_file(self, tmp_path: Path, monkeypatch) -> None:
         """Test that MSI files fail validation."""
         msi_file = tmp_path / "test.msi"
-        msi_file.write_bytes(b"\xd0\xcf\x11\xe0")  # MSI header
+        msi_file.write_text("dummy content")
+
+        monkeypatch.setattr(
+            "spectrumx.ops.files.get_file_media_type",
+            lambda _path: "application/x-msi",
+        )
 
         is_valid, reasons = is_valid_file(msi_file)
         assert is_valid is False, "MSI file should fail validation"
         assert any("Invalid MIME type" in reason for reason in reasons)
 
-    def test_disallowed_com_file(self, tmp_path: Path) -> None:
+    def test_disallowed_com_file(self, tmp_path: Path, monkeypatch) -> None:
         """Test that COM files fail validation."""
         com_file = tmp_path / "test.com"
-        com_file.write_bytes(b"\xeb\xfe")  # Simple COM program
+        com_file.write_text("dummy content")
+
+        monkeypatch.setattr(
+            "spectrumx.ops.files.get_file_media_type",
+            lambda _path: "application/x-msdos-program",
+        )
 
         is_valid, reasons = is_valid_file(com_file)
         assert is_valid is False, "COM file should fail validation"
