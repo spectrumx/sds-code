@@ -15,13 +15,13 @@ class ShareGroupManager {
 		this.pendingDeleteGroupName = null;
 		this.pendingRemovals = new Set();
 		this.shareGroupUserSearchHandler = null;
-		
+
 		// Configuration
 		this.config = {
 			apiEndpoint: config.apiEndpoint || "/users/share-groups/",
-			...config
+			...config,
 		};
-		
+
 		this.initializeEventListeners();
 	}
 
@@ -69,7 +69,6 @@ class ShareGroupManager {
 		formData.append("action", "create");
 		formData.append("name", groupName);
 
-
 		try {
 			const response = await APIClient.request(this.config.apiEndpoint, {
 				method: "POST",
@@ -97,7 +96,10 @@ class ShareGroupManager {
 
 				// Automatically open the manage modal for the new group
 				setTimeout(() => {
-					this.openManageModalForGroup(response.group.uuid, response.group.name);
+					this.openManageModalForGroup(
+						response.group.uuid,
+						response.group.name,
+					);
 				}, 500);
 			} else {
 				this.showAlert(response.error, "error");
@@ -108,9 +110,10 @@ class ShareGroupManager {
 			if (error.data && error.data.error) {
 				errorMessage = error.data.error;
 			} else if (error.message && error.message.includes("400")) {
-				errorMessage = "Bad request - please check the form data and try again.";
+				errorMessage =
+					"Bad request - please check the form data and try again.";
 			}
-			
+
 			this.showAlert(errorMessage, "error");
 		}
 	}
@@ -195,7 +198,7 @@ class ShareGroupManager {
 			if (error.data && error.data.error) {
 				errorMessage = error.data.error;
 			}
-			
+
 			this.showAlert(errorMessage, "error");
 		}
 	}
@@ -204,7 +207,9 @@ class ShareGroupManager {
 	 * Initialize manage members modal
 	 */
 	initializeManageMembersModal() {
-		const manageMembersModal = document.getElementById("share-modal-sharegroup");
+		const manageMembersModal = document.getElementById(
+			"share-modal-sharegroup",
+		);
 		if (manageMembersModal) {
 			manageMembersModal.addEventListener("show.bs.modal", (event) => {
 				const button = event.relatedTarget;
@@ -278,13 +283,16 @@ class ShareGroupManager {
 		const originalText = button.innerHTML;
 		button.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
 		button.disabled = true;
-		
+
 		// Handle pending removals
 		if (this.pendingRemovals.size > 0) {
 			const formData = new URLSearchParams();
 			formData.append("action", "remove_members");
 			formData.append("group_uuid", this.currentGroupUuid);
-			formData.append("user_emails", Array.from(this.pendingRemovals).join(","));
+			formData.append(
+				"user_emails",
+				Array.from(this.pendingRemovals).join(","),
+			);
 
 			try {
 				const response = await APIClient.request(this.config.apiEndpoint, {
@@ -330,7 +338,7 @@ class ShareGroupManager {
 				if (error.data && error.data.error) {
 					errorMessage = error.data.error;
 				}
-				
+
 				this.showAlert(errorMessage, "error");
 			} finally {
 				button.innerHTML = originalText;
@@ -346,7 +354,9 @@ class ShareGroupManager {
 	initializeDeleteGroupConfirmation() {
 		const confirmDeleteBtn = document.getElementById("confirmDeleteGroup");
 		if (confirmDeleteBtn) {
-			confirmDeleteBtn.addEventListener("click", () => this.handleDeleteGroup(confirmDeleteBtn));
+			confirmDeleteBtn.addEventListener("click", () =>
+				this.handleDeleteGroup(confirmDeleteBtn),
+			);
 		}
 	}
 
@@ -394,7 +404,7 @@ class ShareGroupManager {
 			if (error.data && error.data.error) {
 				errorMessage = error.data.error;
 			}
-			
+
 			this.showAlert(errorMessage, "error");
 		} finally {
 			// Reset button state
@@ -431,7 +441,9 @@ class ShareGroupManager {
 				</td>
 			</tr>
 		`;
-		HTMLInjectionManager.injectHTML(membersList, loadingHtml, { escape: false });
+		HTMLInjectionManager.injectHTML(membersList, loadingHtml, {
+			escape: false,
+		});
 
 		try {
 			const response = await APIClient.request(
@@ -440,7 +452,7 @@ class ShareGroupManager {
 					headers: {
 						"X-Requested-With": "XMLHttpRequest",
 					},
-				}
+				},
 			);
 
 			if (response.success) {
@@ -461,7 +473,9 @@ class ShareGroupManager {
 							</td>
 						</tr>
 					`;
-					HTMLInjectionManager.injectHTML(membersList, emptyHtml, { escape: false });
+					HTMLInjectionManager.injectHTML(membersList, emptyHtml, {
+						escape: false,
+					});
 				} else {
 					// Update the display list with table structure like share modal
 					const memberHtml = response.members
@@ -494,7 +508,9 @@ class ShareGroupManager {
 						)
 						.join("");
 
-					HTMLInjectionManager.injectHTML(membersList, memberHtml, { escape: false });
+					HTMLInjectionManager.injectHTML(membersList, memberHtml, {
+						escape: false,
+					});
 
 					// Update member count above the title
 					const memberCountElement = document.getElementById("memberCount");
@@ -515,7 +531,9 @@ class ShareGroupManager {
 						<p class="mb-0">Error loading members</p>
 					</div>
 				`;
-				HTMLInjectionManager.injectHTML(membersList, errorHtml, { escape: false });
+				HTMLInjectionManager.injectHTML(membersList, errorHtml, {
+					escape: false,
+				});
 			}
 		} catch (error) {
 			const errorHtml = `
@@ -524,7 +542,9 @@ class ShareGroupManager {
 					<p class="mb-0">Error loading members</p>
 				</div>
 			`;
-			HTMLInjectionManager.injectHTML(membersList, errorHtml, { escape: false });
+			HTMLInjectionManager.injectHTML(membersList, errorHtml, {
+				escape: false,
+			});
 		}
 	}
 
@@ -684,7 +704,9 @@ class ShareGroupManager {
 						</div>
 					</div>
 				`;
-				HTMLInjectionManager.injectHTML(sharedAssetsSection, sharedAssetsHtml, { escape: false });
+				HTMLInjectionManager.injectHTML(sharedAssetsSection, sharedAssetsHtml, {
+					escape: false,
+				});
 				sharedAssetsSection.classList.remove("d-none");
 			} else {
 				const noAssetsHtml = `
@@ -698,7 +720,9 @@ class ShareGroupManager {
 						</div>
 					</div>
 				`;
-				HTMLInjectionManager.injectHTML(sharedAssetsSection, noAssetsHtml, { escape: false });
+				HTMLInjectionManager.injectHTML(sharedAssetsSection, noAssetsHtml, {
+					escape: false,
+				});
 				sharedAssetsSection.classList.remove("d-none");
 			}
 		}
@@ -750,9 +774,6 @@ class ShareGroupManager {
 	 * Initialize share group user search using ShareActionManager functionality
 	 */
 	initializeShareGroupUserSearch() {
-		// Store reference to ShareGroupManager instance for proper method binding
-		const shareGroupManager = this;
-		
 		// Create a custom search handler for ShareGroup using ShareActionManager's methods
 		this.shareGroupUserSearchHandler = {
 			selectedUsersMap: {},
@@ -762,36 +783,41 @@ class ShareGroupManager {
 			// Search users using ShareGroup endpoint
 			searchUsers: async (query, dropdown) => {
 				if (query.length < 2) {
-					shareGroupManager.hideDropdown(dropdown);
+					this.hideDropdown(dropdown);
 					return;
 				}
 
 				// Cancel previous request if still pending
-				if (shareGroupManager.shareGroupUserSearchHandler.currentRequest) {
-					shareGroupManager.shareGroupUserSearchHandler.currentRequest.abort();
+				if (this.shareGroupUserSearchHandler.currentRequest) {
+					this.shareGroupUserSearchHandler.currentRequest.abort();
 				}
 
 				try {
-					shareGroupManager.shareGroupUserSearchHandler.currentRequest = new AbortController();
+					this.shareGroupUserSearchHandler.currentRequest =
+						new AbortController();
 					const response = await APIClient.get(
-						`${shareGroupManager.config.apiEndpoint}?q=${encodeURIComponent(query)}&group_uuid=${shareGroupManager.currentGroupUuid}`,
+						`${this.config.apiEndpoint}?q=${encodeURIComponent(query)}&group_uuid=${this.currentGroupUuid}`,
 						{},
-						null // No loading state for search
+						null, // No loading state for search
 					);
 
 					if (Array.isArray(response)) {
-						shareGroupManager.shareGroupUserSearchHandler.displayResults(response, dropdown, query);
+						this.shareGroupUserSearchHandler.displayResults(
+							response,
+							dropdown,
+							query,
+						);
 					} else {
-						shareGroupManager.hideDropdown(dropdown);
+						this.hideDropdown(dropdown);
 					}
 				} catch (error) {
 					if (error.name === "AbortError") {
 						return;
 					}
 					console.error("Search error:", error);
-					shareGroupManager.shareGroupUserSearchHandler.displayError(dropdown);
+					this.shareGroupUserSearchHandler.displayError(dropdown);
 				} finally {
-					shareGroupManager.shareGroupUserSearchHandler.currentRequest = null;
+					this.shareGroupUserSearchHandler.currentRequest = null;
 				}
 			},
 
@@ -800,38 +826,42 @@ class ShareGroupManager {
 				const listGroup = dropdown.querySelector(".list-group");
 
 				if (users.length === 0) {
-					listGroup.innerHTML = '<div class="list-group-item no-results">No users found</div>';
+					listGroup.innerHTML =
+						'<div class="list-group-item no-results">No users found</div>';
 				} else {
-					const items = users.map((user) => {
-						const icon = "bi-person-fill text-primary";
-						const subtitle = `<div class="user-email">${shareGroupManager.highlightMatch(user.email, query)}</div>`;
+					const items = users
+						.map((user) => {
+							const icon = "bi-person-fill text-primary";
+							const subtitle = `<div class="user-email">${this.highlightMatch(user.email, query)}</div>`;
 
-						return `
-							<div class="list-group-item" 
-								 data-user-name="${HTMLInjectionManager.escapeHtml(user.name)}" 
+							return `
+							<div class="list-group-item"
+								 data-user-name="${HTMLInjectionManager.escapeHtml(user.name)}"
 								 data-user-email="${HTMLInjectionManager.escapeHtml(user.email)}">
 								<div class="user-search-item">
 									<div class="user-name">
 										<i class="bi ${icon} me-2"></i>
-										${shareGroupManager.highlightMatch(user.name, query)}
+										${this.highlightMatch(user.name, query)}
 									</div>
 									${subtitle}
 								</div>
 							</div>
 						`;
-					}).join("");
+						})
+						.join("");
 
 					HTMLInjectionManager.injectHTML(listGroup, items, { escape: false });
 				}
 
-				shareGroupManager.showDropdown(dropdown);
+				this.showDropdown(dropdown);
 			},
 
 			// Display error (adapted from ShareActionManager)
 			displayError: (dropdown) => {
 				const listGroup = dropdown.querySelector(".list-group");
-				listGroup.innerHTML = '<div class="list-group-item no-results">Error loading users</div>';
-				shareGroupManager.showDropdown(dropdown);
+				listGroup.innerHTML =
+					'<div class="list-group-item no-results">Error loading users</div>';
+				this.showDropdown(dropdown);
 			},
 
 			// Select user from dropdown
@@ -840,23 +870,30 @@ class ShareGroupManager {
 				const userEmail = item.dataset.userEmail;
 				const inputId = input.id;
 
-				if (!shareGroupManager.shareGroupUserSearchHandler.selectedUsersMap[inputId]) {
-					shareGroupManager.shareGroupUserSearchHandler.selectedUsersMap[inputId] = [];
+				if (!this.shareGroupUserSearchHandler.selectedUsersMap[inputId]) {
+					this.shareGroupUserSearchHandler.selectedUsersMap[inputId] = [];
 				}
 
 				// Check if user is already selected
-				if (!shareGroupManager.shareGroupUserSearchHandler.selectedUsersMap[inputId].some((u) => u.email === userEmail)) {
-					shareGroupManager.shareGroupUserSearchHandler.selectedUsersMap[inputId].push({ name: userName, email: userEmail });
-					shareGroupManager.shareGroupUserSearchHandler.renderChips(input);
+				if (
+					!this.shareGroupUserSearchHandler.selectedUsersMap[inputId].some(
+						(u) => u.email === userEmail,
+					)
+				) {
+					this.shareGroupUserSearchHandler.selectedUsersMap[inputId].push({
+						name: userName,
+						email: userEmail,
+					});
+					this.shareGroupUserSearchHandler.renderChips(input);
 				}
 
 				// Clear the input field
 				input.value = "";
-				shareGroupManager.hideDropdown(item.closest(".user-search-dropdown"));
+				this.hideDropdown(item.closest(".user-search-dropdown"));
 				input.focus();
 
 				// Update save button state for share group
-				shareGroupManager.updateSaveButtonState();
+				this.updateSaveButtonState();
 			},
 
 			// Render user chips
@@ -872,7 +909,9 @@ class ShareGroupManager {
 				}
 
 				chipContainer.innerHTML = "";
-				for (const user of shareGroupManager.shareGroupUserSearchHandler.selectedUsersMap[inputId]) {
+				for (const user of this.shareGroupUserSearchHandler.selectedUsersMap[
+					inputId
+				]) {
 					const chip = document.createElement("span");
 					chip.className = "user-chip";
 					chip.textContent = user.email;
@@ -880,12 +919,13 @@ class ShareGroupManager {
 					remove.className = "remove-chip";
 					remove.innerHTML = "&times;";
 					remove.onclick = () => {
-						shareGroupManager.shareGroupUserSearchHandler.selectedUsersMap[inputId] = shareGroupManager.shareGroupUserSearchHandler.selectedUsersMap[inputId].filter(
-							(u) => u.email !== user.email,
-						);
-						shareGroupManager.shareGroupUserSearchHandler.renderChips(input);
+						this.shareGroupUserSearchHandler.selectedUsersMap[inputId] =
+							this.shareGroupUserSearchHandler.selectedUsersMap[inputId].filter(
+								(u) => u.email !== user.email,
+							);
+						this.shareGroupUserSearchHandler.renderChips(input);
 						// Update save button state when removing chips
-						shareGroupManager.updateSaveButtonState();
+						this.updateSaveButtonState();
 					};
 					chip.appendChild(remove);
 					chipContainer.appendChild(chip);
@@ -895,7 +935,7 @@ class ShareGroupManager {
 			// Reset share group state
 			resetShareGroup: () => {
 				// Clear selected users
-				shareGroupManager.shareGroupUserSearchHandler.selectedUsersMap = {};
+				this.shareGroupUserSearchHandler.selectedUsersMap = {};
 
 				// Clear input and chips
 				const input = document.getElementById("user-search-sharegroup");
@@ -910,7 +950,7 @@ class ShareGroupManager {
 				}
 
 				// Update save button state
-				shareGroupManager.updateSaveButtonState();
+				this.updateSaveButtonState();
 			},
 
 			// Initialize search input (adapted from ShareActionManager)
@@ -924,9 +964,9 @@ class ShareGroupManager {
 				// Setup search input
 				const searchInput = modal.querySelector(".user-search-input");
 				if (searchInput) {
-					shareGroupManager.setupSearchInput(searchInput);
+					this.setupSearchInput(searchInput);
 				}
-			}
+			},
 		};
 
 		// Initialize the handler
@@ -936,7 +976,7 @@ class ShareGroupManager {
 	/**
 	 * Helper methods adapted from ShareActionManager
 	 */
-	
+
 	/**
 	 * Highlight search matches
 	 * @param {string} text - Text to highlight
@@ -946,7 +986,10 @@ class ShareGroupManager {
 	highlightMatch(text, query) {
 		if (!query) return HTMLInjectionManager.escapeHtml(text);
 		const regex = new RegExp(`(${query})`, "gi");
-		return HTMLInjectionManager.escapeHtml(text).replace(regex, "<mark>$1</mark>");
+		return HTMLInjectionManager.escapeHtml(text).replace(
+			regex,
+			"<mark>$1</mark>",
+		);
 	}
 
 	/**
@@ -1193,9 +1236,12 @@ class ShareGroupManager {
 		);
 
 		const hasSelectedUsers =
-			this.shareGroupUserSearchHandler?.selectedUsersMap["user-search-sharegroup"] &&
-			this.shareGroupUserSearchHandler.selectedUsersMap["user-search-sharegroup"]
-				.length > 0;
+			this.shareGroupUserSearchHandler?.selectedUsersMap[
+				"user-search-sharegroup"
+			] &&
+			this.shareGroupUserSearchHandler.selectedUsersMap[
+				"user-search-sharegroup"
+			].length > 0;
 		const hasPendingRemovals = this.pendingRemovals.size > 0;
 
 		if (saveBtn) {

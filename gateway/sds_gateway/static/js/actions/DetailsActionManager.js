@@ -18,10 +18,10 @@ class DetailsActionManager {
 	initializeEventListeners() {
 		// Initialize details buttons for datasets
 		this.initializeDatasetDetailsButtons();
-		
+
 		// Initialize details buttons for captures
 		this.initializeCaptureDetailsButtons();
-		
+
 		// Initialize modal event handlers
 		this.initializeModalEventHandlers();
 	}
@@ -31,11 +31,11 @@ class DetailsActionManager {
 	 */
 	initializeDatasetDetailsButtons() {
 		const detailsButtons = document.querySelectorAll(".dataset-details-btn");
-		
-		detailsButtons.forEach((button) => {
+
+		for (const button of detailsButtons) {
 			// Prevent duplicate event listener attachment
 			if (button.dataset.detailsSetup === "true") {
-				return;
+				continue;
 			}
 			button.dataset.detailsSetup = "true";
 
@@ -46,7 +46,7 @@ class DetailsActionManager {
 				const datasetUuid = button.getAttribute("data-dataset-uuid");
 				this.handleDatasetDetails(datasetUuid);
 			});
-		});
+		}
 	}
 
 	/**
@@ -54,8 +54,8 @@ class DetailsActionManager {
 	 */
 	initializeCaptureDetailsButtons() {
 		const detailsButtons = document.querySelectorAll(".capture-details-btn");
-		
-		detailsButtons.forEach((button) => {
+
+		for (const button of detailsButtons) {
 			// Prevent duplicate event listener attachment
 			if (button.dataset.detailsSetup === "true") {
 				return;
@@ -66,17 +66,26 @@ class DetailsActionManager {
 				e.preventDefault();
 				e.stopPropagation();
 
-				const captureUuid = button.getAttribute("data-capture-uuid") || button.getAttribute("data-uuid");
-				
+				const captureUuid =
+					button.getAttribute("data-capture-uuid") ||
+					button.getAttribute("data-uuid");
+
 				// Skip if no valid UUID
-				if (!captureUuid || captureUuid === "null" || captureUuid === "undefined") {
-					console.warn("No valid capture UUID found for details button:", button);
+				if (
+					!captureUuid ||
+					captureUuid === "null" ||
+					captureUuid === "undefined"
+				) {
+					console.warn(
+						"No valid capture UUID found for details button:",
+						button,
+					);
 					return;
 				}
-				
+
 				this.handleCaptureDetails(captureUuid);
 			});
-		});
+		}
 	}
 
 	/**
@@ -103,7 +112,7 @@ class DetailsActionManager {
 
 			// Fetch dataset details
 			const datasetData = await APIClient.get(
-				`/users/dataset-details/?dataset_uuid=${datasetUuid}`
+				`/users/dataset-details/?dataset_uuid=${datasetUuid}`,
 			);
 
 			// Populate modal with data
@@ -111,10 +120,12 @@ class DetailsActionManager {
 
 			// Show modal
 			this.openModal("datasetDetailsModal");
-
 		} catch (error) {
 			console.error("Error loading dataset details:", error);
-			this.showModalError("datasetDetailsModal", "Failed to load dataset details");
+			this.showModalError(
+				"datasetDetailsModal",
+				"Failed to load dataset details",
+			);
 		}
 	}
 
@@ -129,7 +140,7 @@ class DetailsActionManager {
 
 			// Fetch capture details
 			const captureData = await APIClient.get(
-				`/users/capture-details/?capture_uuid=${captureUuid}`
+				`/users/capture-details/?capture_uuid=${captureUuid}`,
 			);
 
 			// Populate modal with data
@@ -137,10 +148,12 @@ class DetailsActionManager {
 
 			// Show modal
 			this.openModal("captureDetailsModal");
-
 		} catch (error) {
 			console.error("Error loading capture details:", error);
-			this.showModalError("captureDetailsModal", "Failed to load capture details");
+			this.showModalError(
+				"captureDetailsModal",
+				"Failed to load capture details",
+			);
 		}
 	}
 
@@ -158,11 +171,31 @@ class DetailsActionManager {
 		this.clearModalLoading("datasetDetailsModal");
 
 		// Update basic information using the correct selectors from the template
-		this.updateElementText(modal, ".dataset-details-name", datasetData.name || "Untitled Dataset");
-		this.updateElementText(modal, ".dataset-details-description", datasetData.description || "No description provided");
-		this.updateElementText(modal, ".dataset-details-status", datasetData.status || "Unknown");
-		this.updateElementText(modal, ".dataset-details-created", this.formatDate(datasetData.created_at));
-		this.updateElementText(modal, ".dataset-details-updated", this.formatDate(datasetData.updated_at));
+		this.updateElementText(
+			modal,
+			".dataset-details-name",
+			datasetData.name || "Untitled Dataset",
+		);
+		this.updateElementText(
+			modal,
+			".dataset-details-description",
+			datasetData.description || "No description provided",
+		);
+		this.updateElementText(
+			modal,
+			".dataset-details-status",
+			datasetData.status || "Unknown",
+		);
+		this.updateElementText(
+			modal,
+			".dataset-details-created",
+			this.formatDate(datasetData.created_at),
+		);
+		this.updateElementText(
+			modal,
+			".dataset-details-updated",
+			this.formatDate(datasetData.updated_at),
+		);
 
 		// Set up UUID copy functionality
 		this.setupUuidCopyButton(modal, datasetData.uuid);
@@ -172,10 +205,26 @@ class DetailsActionManager {
 
 		// Update statistics
 		if (statistics) {
-			this.updateElementText(modal, "#total-files-count", statistics.total_files || 0);
-			this.updateElementText(modal, "#captures-count", statistics.captures || 0);
-			this.updateElementText(modal, "#artifacts-count", statistics.artifacts || 0);
-			this.updateElementText(modal, "#total-size", this.formatFileSize(statistics.total_size || 0));
+			this.updateElementText(
+				modal,
+				"#total-files-count",
+				statistics.total_files || 0,
+			);
+			this.updateElementText(
+				modal,
+				"#captures-count",
+				statistics.captures || 0,
+			);
+			this.updateElementText(
+				modal,
+				"#artifacts-count",
+				statistics.artifacts || 0,
+			);
+			this.updateElementText(
+				modal,
+				"#total-size",
+				this.formatFileSize(statistics.total_size || 0),
+			);
 		}
 
 		// Update file tree (if tree container exists)
@@ -194,16 +243,48 @@ class DetailsActionManager {
 		if (!modal) return;
 
 		// Update basic information
-		this.updateElementText(modal, "#capture-name", captureData.name || "Untitled Capture");
-		this.updateElementText(modal, "#capture-type", captureData.type || "Unknown");
-		this.updateElementText(modal, "#capture-directory", captureData.directory || "Unknown");
-		this.updateElementText(modal, "#capture-channel", captureData.channel || "-");
-		this.updateElementText(modal, "#capture-scan-group", captureData.scan_group || "-");
-		this.updateElementText(modal, "#capture-created-at", this.formatDate(captureData.created_at));
-		this.updateElementText(modal, "#capture-updated-at", this.formatDate(captureData.updated_at));
+		this.updateElementText(
+			modal,
+			"#capture-name",
+			captureData.name || "Untitled Capture",
+		);
+		this.updateElementText(
+			modal,
+			"#capture-type",
+			captureData.type || "Unknown",
+		);
+		this.updateElementText(
+			modal,
+			"#capture-directory",
+			captureData.directory || "Unknown",
+		);
+		this.updateElementText(
+			modal,
+			"#capture-channel",
+			captureData.channel || "-",
+		);
+		this.updateElementText(
+			modal,
+			"#capture-scan-group",
+			captureData.scan_group || "-",
+		);
+		this.updateElementText(
+			modal,
+			"#capture-created-at",
+			this.formatDate(captureData.created_at),
+		);
+		this.updateElementText(
+			modal,
+			"#capture-updated-at",
+			this.formatDate(captureData.updated_at),
+		);
 
 		// Update owner information
-		this.updateElementText(modal, "#capture-owner", captureData.owner_name || "Unknown");
+		this.updateElementText(
+			modal,
+			"#capture-owner",
+			captureData.owner_name || "Unknown",
+		);
 
 		// Update technical details
 		this.updateTechnicalDetails(modal, captureData);
@@ -256,13 +337,12 @@ class DetailsActionManager {
 		try {
 			// Copy to clipboard using the modern Clipboard API
 			await navigator.clipboard.writeText(uuid);
-			
+
 			// Show success feedback
 			this.showCopyFeedback(event.target, "Copied!");
-			
 		} catch (error) {
 			console.warn("Clipboard API failed, trying fallback method:", error);
-			
+
 			// Fallback for older browsers
 			try {
 				this.fallbackCopyToClipboard(uuid);
@@ -287,9 +367,9 @@ class DetailsActionManager {
 		document.body.appendChild(textArea);
 		textArea.focus();
 		textArea.select();
-		
+
 		try {
-			document.execCommand('copy');
+			document.execCommand("copy");
 		} finally {
 			document.body.removeChild(textArea);
 		}
@@ -304,11 +384,11 @@ class DetailsActionManager {
 	showCopyFeedback(button, message, type = "success") {
 		// Find the button element (might be the icon inside)
 		const copyButton = button.closest(".copy-uuid-btn") || button;
-		
+
 		// Store original tooltip
 		const originalTitle = copyButton.getAttribute("title");
 		const originalIcon = copyButton.innerHTML;
-		
+
 		// Update button appearance temporarily
 		if (type === "success") {
 			copyButton.innerHTML = '<i class="bi bi-check text-success"></i>';
@@ -317,12 +397,12 @@ class DetailsActionManager {
 			copyButton.innerHTML = '<i class="bi bi-x text-danger"></i>';
 			copyButton.setAttribute("title", message);
 		}
-		
+
 		// Reset after 2 seconds
 		setTimeout(() => {
 			copyButton.innerHTML = originalIcon;
 			copyButton.setAttribute("title", originalTitle);
-			
+
 			// Re-initialize tooltip if using Bootstrap tooltips
 			if (window.bootstrap && bootstrap.Tooltip) {
 				const tooltip = bootstrap.Tooltip.getInstance(copyButton);
@@ -344,20 +424,26 @@ class DetailsActionManager {
 		if (!authorsContainer) return;
 
 		if (!authors || authors.length === 0) {
-			HTMLInjectionManager.injectHTML(authorsContainer, 
-				'<span class="text-muted">No authors specified</span>'
+			HTMLInjectionManager.injectHTML(
+				authorsContainer,
+				'<span class="text-muted">No authors specified</span>',
 			);
 			return;
 		}
 
-		const authorsText = authors.map(author => {
-			if (typeof author === 'string') {
-				return author;
-			}
-			return author.name || author.email || "Unknown Author";
-		}).join(", ");
+		const authorsText = authors
+			.map((author) => {
+				if (typeof author === "string") {
+					return author;
+				}
+				return author.name || author.email || "Unknown Author";
+			})
+			.join(", ");
 
-		HTMLInjectionManager.injectHTML(authorsContainer, HTMLInjectionManager.escapeHtml(authorsText));
+		HTMLInjectionManager.injectHTML(
+			authorsContainer,
+			HTMLInjectionManager.escapeHtml(authorsText),
+		);
 	}
 
 	/**
@@ -370,14 +456,18 @@ class DetailsActionManager {
 		if (!tableBody) return;
 
 		if (captures.length === 0) {
-			HTMLInjectionManager.injectHTML(tableBody, 
-				'<tr><td colspan="5" class="text-center text-muted">No captures in dataset</td></tr>'
+			HTMLInjectionManager.injectHTML(
+				tableBody,
+				'<tr><td colspan="5" class="text-center text-muted">No captures in dataset</td></tr>',
 			);
 			return;
 		}
 
-		const rows = captures.map(capture => {
-			return HTMLInjectionManager.createTableRow(capture, `
+		const rows = captures
+			.map((capture) => {
+				return HTMLInjectionManager.createTableRow(
+					capture,
+					`
 				<tr>
 					<td>{{type}}</td>
 					<td>{{directory}}</td>
@@ -385,8 +475,11 @@ class DetailsActionManager {
 					<td>{{scan_group}}</td>
 					<td>{{created_at}}</td>
 				</tr>
-			`, { dateFormat: "en-US" });
-		}).join("");
+			`,
+					{ dateFormat: "en-US" },
+				);
+			})
+			.join("");
 
 		HTMLInjectionManager.injectHTML(tableBody, rows, { escape: false });
 	}
@@ -401,22 +494,28 @@ class DetailsActionManager {
 		if (!tableBody) return;
 
 		if (files.length === 0) {
-			HTMLInjectionManager.injectHTML(tableBody, 
-				'<tr><td colspan="4" class="text-center text-muted">No files in dataset</td></tr>'
+			HTMLInjectionManager.injectHTML(
+				tableBody,
+				'<tr><td colspan="4" class="text-center text-muted">No files in dataset</td></tr>',
 			);
 			return;
 		}
 
-		const rows = files.map(file => {
-			return HTMLInjectionManager.createTableRow(file, `
+		const rows = files
+			.map((file) => {
+				return HTMLInjectionManager.createTableRow(
+					file,
+					`
 				<tr>
 					<td>{{name}}</td>
 					<td>{{media_type}}</td>
 					<td>{{relative_path}}</td>
 					<td>{{size}}</td>
 				</tr>
-			`);
-		}).join("");
+			`,
+				);
+			})
+			.join("");
 
 		HTMLInjectionManager.injectHTML(tableBody, rows, { escape: false });
 	}
@@ -431,28 +530,37 @@ class DetailsActionManager {
 		if (!permissionsContainer) return;
 
 		if (permissions.length === 0) {
-			HTMLInjectionManager.injectHTML(permissionsContainer, 
-				'<span class="text-muted">No shared permissions</span>'
+			HTMLInjectionManager.injectHTML(
+				permissionsContainer,
+				'<span class="text-muted">No shared permissions</span>',
 			);
 			return;
 		}
 
-		const permissionsHtml = permissions.map(permission => {
-			const badgeClass = PermissionsManager.getPermissionBadgeClass(permission.permission_level);
-			const displayName = PermissionsManager.getPermissionDisplayName(permission.permission_level);
-			const userInfo = permission.user_name ? 
-				`${HTMLInjectionManager.escapeHtml(permission.user_name)} (${HTMLInjectionManager.escapeHtml(permission.user_email)})` :
-				HTMLInjectionManager.escapeHtml(permission.user_email);
-			
-			return `
+		const permissionsHtml = permissions
+			.map((permission) => {
+				const badgeClass = PermissionsManager.getPermissionBadgeClass(
+					permission.permission_level,
+				);
+				const displayName = PermissionsManager.getPermissionDisplayName(
+					permission.permission_level,
+				);
+				const userInfo = permission.user_name
+					? `${HTMLInjectionManager.escapeHtml(permission.user_name)} (${HTMLInjectionManager.escapeHtml(permission.user_email)})`
+					: HTMLInjectionManager.escapeHtml(permission.user_email);
+
+				return `
 				<div class="d-flex justify-content-between align-items-center mb-2">
 					<span>${userInfo}</span>
 					<span class="badge ${badgeClass}">${displayName}</span>
 				</div>
 			`;
-		}).join("");
+			})
+			.join("");
 
-		HTMLInjectionManager.injectHTML(permissionsContainer, permissionsHtml, { escape: false });
+		HTMLInjectionManager.injectHTML(permissionsContainer, permissionsHtml, {
+			escape: false,
+		});
 	}
 
 	/**
@@ -465,31 +573,33 @@ class DetailsActionManager {
 		if (!technicalDetails) return;
 
 		const details = [];
-		
+
 		if (captureData.center_frequency_ghz) {
 			details.push(`Center Frequency: ${captureData.center_frequency_ghz} GHz`);
 		}
-		
+
 		if (captureData.bandwidth_mhz) {
 			details.push(`Bandwidth: ${captureData.bandwidth_mhz} MHz`);
 		}
-		
+
 		if (captureData.sample_rate_hz) {
 			details.push(`Sample Rate: ${captureData.sample_rate_hz} Hz`);
 		}
-		
+
 		if (captureData.duration_seconds) {
 			details.push(`Duration: ${captureData.duration_seconds} seconds`);
 		}
 
 		if (details.length === 0) {
-			HTMLInjectionManager.injectHTML(technicalDetails, 
-				'<span class="text-muted">No technical details available</span>'
+			HTMLInjectionManager.injectHTML(
+				technicalDetails,
+				'<span class="text-muted">No technical details available</span>',
 			);
 		} else {
-			HTMLInjectionManager.injectHTML(technicalDetails, 
-				`<ul class="list-unstyled mb-0">${details.map(detail => `<li>${HTMLInjectionManager.escapeHtml(detail)}</li>`).join("")}</ul>`,
-				{ escape: false }
+			HTMLInjectionManager.injectHTML(
+				technicalDetails,
+				`<ul class="list-unstyled mb-0">${details.map((detail) => `<li>${HTMLInjectionManager.escapeHtml(detail)}</li>`).join("")}</ul>`,
+				{ escape: false },
 			);
 		}
 	}
@@ -590,13 +700,15 @@ class DetailsActionManager {
 			if (!modalBody.dataset.originalContent) {
 				modalBody.dataset.originalContent = modalBody.innerHTML;
 			}
-			
+
 			const loadingHtml = `
 				<div class="text-center py-4">
 					${HTMLInjectionManager.createLoadingSpinner("Loading details...", { size: "lg" })}
 				</div>
 			`;
-			HTMLInjectionManager.injectHTML(modalBody, loadingHtml, { escape: false });
+			HTMLInjectionManager.injectHTML(modalBody, loadingHtml, {
+				escape: false,
+			});
 		}
 	}
 
@@ -609,9 +721,13 @@ class DetailsActionManager {
 		if (!modal) return;
 
 		const modalBody = modal.querySelector(".modal-body");
-		if (modalBody && modalBody.dataset.originalContent) {
+		if (modalBody?.dataset.originalContent) {
 			// Restore original content
-			HTMLInjectionManager.injectHTML(modalBody, modalBody.dataset.originalContent, { escape: false });
+			HTMLInjectionManager.injectHTML(
+				modalBody,
+				modalBody.dataset.originalContent,
+				{ escape: false },
+			);
 			// Clean up the stored content
 			delete modalBody.dataset.originalContent;
 		}
@@ -675,22 +791,25 @@ class DetailsActionManager {
 	handleDatasetDetailsModalShow(modal, event) {
 		// Get the triggering element (the element that opened the modal)
 		const triggerElement = event.relatedTarget;
-		
+
 		if (!triggerElement) {
 			console.warn("No trigger element found for dataset details modal");
-			this.showModalError("datasetDetailsModal", "Unable to load dataset details");
+			this.showModalError(
+				"datasetDetailsModal",
+				"Unable to load dataset details",
+			);
 			return;
 		}
-		
+
 		// Extract dataset UUID from the triggering element
-		const datasetUuid = triggerElement.getAttribute('data-dataset-uuid');
-		
+		const datasetUuid = triggerElement.getAttribute("data-dataset-uuid");
+
 		if (!datasetUuid) {
 			console.warn("No dataset UUID found on trigger element:", triggerElement);
 			this.showModalError("datasetDetailsModal", "Dataset UUID not found");
 			return;
 		}
-		
+
 		// Load dataset details
 		this.loadDatasetDetailsForModal(datasetUuid);
 	}
@@ -706,7 +825,7 @@ class DetailsActionManager {
 
 			// Fetch dataset details
 			const response = await APIClient.get(
-				`/users/dataset-details/?dataset_uuid=${datasetUuid}`
+				`/users/dataset-details/?dataset_uuid=${datasetUuid}`,
 			);
 
 			// Extract dataset data from the response
@@ -716,10 +835,12 @@ class DetailsActionManager {
 
 			// Populate modal with data
 			this.populateDatasetDetailsModal(datasetData, statistics, tree);
-
 		} catch (error) {
 			console.error("Error loading dataset details:", error);
-			this.showModalError("datasetDetailsModal", "Failed to load dataset details");
+			this.showModalError(
+				"datasetDetailsModal",
+				"Failed to load dataset details",
+			);
 		}
 	}
 
@@ -733,17 +854,20 @@ class DetailsActionManager {
 		if (!tableBody || !tree) return;
 
 		// Clear existing content
-		tableBody.innerHTML = '';
+		tableBody.innerHTML = "";
 
 		// Render the tree structure
 		const rows = this.renderTreeNode(tree, 0);
-		
+
 		if (rows.length === 0) {
-			HTMLInjectionManager.injectHTML(tableBody, 
-				'<tr><td colspan="5" class="text-center text-muted py-4">No files found</td></tr>'
+			HTMLInjectionManager.injectHTML(
+				tableBody,
+				'<tr><td colspan="5" class="text-center text-muted py-4">No files found</td></tr>',
 			);
 		} else {
-			HTMLInjectionManager.injectHTML(tableBody, rows.join(''), { escape: false });
+			HTMLInjectionManager.injectHTML(tableBody, rows.join(""), {
+				escape: false,
+			});
 		}
 	}
 
@@ -755,14 +879,16 @@ class DetailsActionManager {
 	 */
 	renderTreeNode(node, depth = 0) {
 		const rows = [];
-		const indent = '&nbsp;'.repeat(depth * 4);
+		const indent = "&nbsp;".repeat(depth * 4);
 
 		// Render files in this directory first
 		if (node.files && Array.isArray(node.files)) {
-			node.files.forEach(file => {
+			for (const file of node.files) {
 				const icon = '<i class="bi bi-file-earmark text-primary"></i>';
 				const name = `${indent}${icon} ${HTMLInjectionManager.escapeHtml(file.name)}`;
-				const type = HTMLInjectionManager.escapeHtml(file.media_type || file.type || 'File');
+				const type = HTMLInjectionManager.escapeHtml(
+					file.media_type || file.type || "File",
+				);
 				const size = this.formatFileSize(file.size || 0);
 				const createdAt = this.formatDate(file.created_at);
 
@@ -775,17 +901,17 @@ class DetailsActionManager {
 						<td>${createdAt}</td>
 					</tr>
 				`);
-			});
+			}
 		}
 
 		// Render child directories
-		if (node.children && typeof node.children === 'object') {
-			Object.values(node.children).forEach(childNode => {
-				if (childNode.type === 'directory') {
+		if (node.children && typeof node.children === "object") {
+			for (const childNode of Object.values(node.children)) {
+				if (childNode.type === "directory") {
 					// Render directory row
 					const icon = '<i class="bi bi-folder text-warning"></i>';
 					const name = `${indent}${icon} ${HTMLInjectionManager.escapeHtml(childNode.name)}/`;
-					const type = 'Directory';
+					const type = "Directory";
 					const size = this.formatFileSize(childNode.size || 0);
 					const createdAt = this.formatDate(childNode.created_at);
 
@@ -803,7 +929,7 @@ class DetailsActionManager {
 					const childRows = this.renderTreeNode(childNode, depth + 1);
 					rows.push(...childRows);
 				}
-			});
+			}
 		}
 
 		return rows;
@@ -816,12 +942,12 @@ class DetailsActionManager {
 	 */
 	formatFileSize(bytes) {
 		if (bytes === 0) return "0 Bytes";
-		
+
 		const k = 1024;
 		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		
-		return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+
+		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 	}
 
 	/**
@@ -831,7 +957,7 @@ class DetailsActionManager {
 	 */
 	formatDate(dateString) {
 		if (!dateString) return "Unknown";
-		
+
 		try {
 			const date = new Date(dateString);
 			return date.toLocaleDateString("en-US", {
@@ -839,7 +965,7 @@ class DetailsActionManager {
 				month: "short",
 				day: "numeric",
 				hour: "2-digit",
-				minute: "2-digit"
+				minute: "2-digit",
 			});
 		} catch (error) {
 			return "Invalid date";
@@ -852,8 +978,10 @@ class DetailsActionManager {
 	 */
 	initializeDetailsButtonsForContainer(container) {
 		// Initialize dataset details buttons in the container
-		const datasetDetailsButtons = container.querySelectorAll(".dataset-details-btn");
-		datasetDetailsButtons.forEach((button) => {
+		const datasetDetailsButtons = container.querySelectorAll(
+			".dataset-details-btn",
+		);
+		for (const button of datasetDetailsButtons) {
 			if (!button.dataset.detailsSetup) {
 				button.dataset.detailsSetup = "true";
 				button.addEventListener("click", (e) => {
@@ -864,11 +992,13 @@ class DetailsActionManager {
 					this.handleDatasetDetails(datasetUuid);
 				});
 			}
-		});
+		}
 
 		// Initialize capture details buttons in the container
-		const captureDetailsButtons = container.querySelectorAll(".capture-details-btn");
-		captureDetailsButtons.forEach((button) => {
+		const captureDetailsButtons = container.querySelectorAll(
+			".capture-details-btn",
+		);
+		for (const button of captureDetailsButtons) {
 			if (!button.dataset.detailsSetup) {
 				button.dataset.detailsSetup = "true";
 				button.addEventListener("click", (e) => {
@@ -879,7 +1009,7 @@ class DetailsActionManager {
 					this.handleCaptureDetails(captureUuid);
 				});
 			}
-		});
+		}
 	}
 
 	/**
@@ -887,11 +1017,13 @@ class DetailsActionManager {
 	 */
 	cleanup() {
 		// Remove event listeners and clean up any resources
-		const detailsButtons = document.querySelectorAll(".dataset-details-btn, .capture-details-btn");
-		detailsButtons.forEach((button) => {
+		const detailsButtons = document.querySelectorAll(
+			".dataset-details-btn, .capture-details-btn",
+		);
+		for (const button of detailsButtons) {
 			button.removeEventListener("click", this.handleDatasetDetails);
 			button.removeEventListener("click", this.handleCaptureDetails);
-		});
+		}
 	}
 }
 

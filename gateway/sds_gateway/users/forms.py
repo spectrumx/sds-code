@@ -91,7 +91,9 @@ class DatasetInfoForm(forms.Form):
         label="Authors",
         required=True,
         widget=forms.HiddenInput(attrs={"class": "form-control"}),
-        help_text="Add authors to the dataset. The first author should be the primary author.",
+        help_text=(
+            "Add authors to the dataset. The first author should be the primary author."
+        ),
     )
     status = forms.ChoiceField(
         label="Status",
@@ -145,9 +147,11 @@ class DatasetInfoForm(forms.Form):
                     if not author_name:
                         continue
                     if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
-                        raise ValidationError(
-                            f"Author name '{author_name}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
+                        error_msg = (
+                            f"Author name '{author_name}' is too short. "
+                            f"Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
                         )
+                        raise ValidationError(error_msg)
                     cleaned_authors.append({"name": author_name, "orcid_id": ""})
                 elif isinstance(author, dict):
                     # Handle new object format
@@ -155,9 +159,11 @@ class DatasetInfoForm(forms.Form):
                     if not author_name:
                         continue
                     if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
-                        raise ValidationError(
-                            f"Author name '{author_name}' is too short. Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
+                        error_msg = (
+                            f"Author name '{author_name}' is too short. "
+                            f"Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
                         )
+                        raise ValidationError(error_msg)
                     cleaned_authors.append(
                         {
                             "name": author_name,

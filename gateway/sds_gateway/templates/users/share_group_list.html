@@ -202,7 +202,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary btn-sm" id="add-members-btn" disabled>
+                            <button type="submit"
+                                    class="btn btn-primary btn-sm"
+                                    id="add-members-btn"
+                                    disabled>
                                 <i class="bi bi-person-plus me-1"></i>{% translate "Add Members" %}
                             </button>
                         </form>
@@ -294,7 +297,6 @@
     <!-- Share components -->
     <script src="{% static 'js/share/ShareGroupManager.js' %}"></script>
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
-    
     <script>
         // Initialize share group manager when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {

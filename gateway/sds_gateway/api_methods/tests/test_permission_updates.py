@@ -16,6 +16,9 @@ from sds_gateway.api_methods.models import UserSharePermission
 
 User = get_user_model()
 
+# Test constants
+TEST_PASSWORD = "testpass123"
+
 
 class PermissionUpdateTestCase(TestCase):
     """Test cases for permission level updates."""
@@ -26,13 +29,13 @@ class PermissionUpdateTestCase(TestCase):
 
         # Create test users
         self.owner = User.objects.create_user(
-            email="owner@example.com", password="testpass123", name="Dataset Owner"
+            email="owner@example.com", password=TEST_PASSWORD, name="Dataset Owner"
         )
         self.user1 = User.objects.create_user(
-            email="user1@example.com", password="testpass123", name="User One"
+            email="user1@example.com", password=TEST_PASSWORD, name="User One"
         )
         self.user2 = User.objects.create_user(
-            email="user2@example.com", password="testpass123", name="User Two"
+            email="user2@example.com", password=TEST_PASSWORD, name="User Two"
         )
 
         # Create test dataset
@@ -65,9 +68,9 @@ class PermissionUpdateTestCase(TestCase):
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "permission_changes": json.dumps([
-                    ["user1@example.com", {"permissionLevel": "contributor"}]
-                ])
+                "permission_changes": json.dumps(
+                    [["user1@example.com", {"permissionLevel": "contributor"}]]
+                )
             },
         )
 
@@ -110,9 +113,9 @@ class PermissionUpdateTestCase(TestCase):
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "permission_changes": json.dumps([
-                    [f"group:{self.group.uuid}", {"permissionLevel": "co-owner"}]
-                ])
+                "permission_changes": json.dumps(
+                    [[f"group:{self.group.uuid}", {"permissionLevel": "co-owner"}]]
+                )
             },
         )
 
@@ -147,9 +150,9 @@ class PermissionUpdateTestCase(TestCase):
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "permission_changes": json.dumps([
-                    ["user1@example.com", {"permissionLevel": "contributor"}]
-                ])
+                "permission_changes": json.dumps(
+                    [["user1@example.com", {"permissionLevel": "contributor"}]]
+                )
             },
         )
 
@@ -176,9 +179,9 @@ class PermissionUpdateTestCase(TestCase):
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "permission_changes": json.dumps([
-                    ["user1@example.com", {"permissionLevel": "invalid_level"}]
-                ])
+                "permission_changes": json.dumps(
+                    [["user1@example.com", {"permissionLevel": "invalid_level"}]]
+                )
             },
         )
 
@@ -199,9 +202,9 @@ class PermissionUpdateTestCase(TestCase):
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "permission_changes": json.dumps([
-                    ["nonexistent@example.com", {"permissionLevel": "contributor"}]
-                ])
+                "permission_changes": json.dumps(
+                    [["nonexistent@example.com", {"permissionLevel": "contributor"}]]
+                )
             },
         )
 
@@ -235,9 +238,9 @@ class PermissionUpdateTestCase(TestCase):
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "permission_changes": json.dumps([
-                    [f"group:{user1_group.uuid}", {"permissionLevel": "contributor"}]
-                ])
+                "permission_changes": json.dumps(
+                    [[f"group:{user1_group.uuid}", {"permissionLevel": "contributor"}]]
+                )
             },
         )
 
