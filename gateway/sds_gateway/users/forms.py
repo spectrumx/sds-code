@@ -126,16 +126,18 @@ class DatasetInfoForm(forms.Form):
 
         return name.strip()
 
-    def clean_authors(self):
+    def clean_authors(self):  # noqa: C901
         """Validate the authors list."""
         authors_json = self.cleaned_data["authors"]
         try:
             authors = json.loads(authors_json)
             if not isinstance(authors, list):
-                raise ValidationError("Authors must be a list")
+                msg = "Authors must be a list"
+                raise ValidationError(msg)
 
             if not authors:
-                raise ValidationError("At least one author is required")
+                msg = "At least one author is required"
+                raise ValidationError(msg)
 
             # Validate each author name
             cleaned_authors = []
@@ -172,11 +174,13 @@ class DatasetInfoForm(forms.Form):
                     )
 
             if not cleaned_authors:
-                raise ValidationError("At least one valid author is required")
+                msg = "At least one valid author is required"
+                raise ValidationError(msg)
 
             return json.dumps(cleaned_authors)
-        except json.JSONDecodeError:
-            raise ValidationError("Invalid authors format")
+        except json.JSONDecodeError as e:
+            msg = "Invalid authors format"
+            raise ValidationError(msg) from e
 
     def clean_description(self):
         """Clean and validate the description."""

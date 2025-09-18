@@ -535,7 +535,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 item_uuid, item_type, shared_users, notify=True, message=message
             )
 
-    def post(
+    def post(  # noqa: C901, PLR0912, PLR0915
         self,
         request: HttpRequest,
         item_uuid: str,
@@ -703,11 +703,13 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 valid_permissions = ["viewer", "contributor", "co-owner"]
                 for email, perm_level in user_permissions.items():
                     if perm_level not in valid_permissions:
-                        raise ValueError(
+                        msg = (
                             f"Invalid permission level '{perm_level}' for user {email}"
                         )
+                        raise ValueError(msg)
             except json.JSONDecodeError as e:
-                raise ValueError("Invalid user_permissions format") from e
+                msg = "Invalid user_permissions format"
+                raise ValueError(msg) from e
 
         # Parse user emails and their permissions
         users = {}
@@ -737,7 +739,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 for email, change_data in changes_list
             ]
         except json.JSONDecodeError as e:
-            raise ValueError("Invalid permission_changes format") from e
+            msg = "Invalid permission_changes format"
+            raise ValueError(msg) from e
 
     def _parse_removals(self, request: HttpRequest) -> list[str]:
         """Parse user removals from the request."""
@@ -748,7 +751,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         try:
             return json.loads(remove_users_json)
         except json.JSONDecodeError as e:
-            raise ValueError("Invalid remove_users format") from e
+            msg = "Invalid remove_users format"
+            raise ValueError(msg) from e
 
     def _process_permission_change(
         self, request: HttpRequest, item_uuid: str, item_type: ItemType, change: dict
@@ -805,17 +809,21 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             if not share_permission:
                 return {
                     "success": False,
-                    "error": f"User {user_email} is not shared with this {item_type.lower()}",
+                    "error": (
+                        f"User {user_email} is not shared with this {item_type.lower()}"
+                    ),
                 }
-
             old_permission = share_permission.permission_level
             share_permission.permission_level = new_permission
             share_permission.is_enabled = True  # Re-enable if it was disabled
             share_permission.save()
 
-            return {
+            return {  # noqa: TRY300
                 "success": True,
-                "message": f"Updated {user_email} permission from {old_permission} to {new_permission}",
+                "message": (
+                    f"Updated {user_email} permission from {old_permission} to "
+                    f"{new_permission}"
+                ),
             }
 
         except User.DoesNotExist:
@@ -852,16 +860,18 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     "success": False,
                     "error": f"Group is not shared with this {item_type.lower()}",
                 }
-
             updated_count = 0
             for permission in group_permissions:
                 permission.permission_level = new_permission
                 permission.save()
                 updated_count += 1
 
-            return {
+            return {  # noqa: TRY300
                 "success": True,
-                "message": f"Updated {updated_count} group members to {new_permission} permission",
+                "message": (
+                    f"Updated {updated_count} group members to {new_permission} "
+                    "permission"
+                ),
             }
 
         except ShareGroup.DoesNotExist:
@@ -880,7 +890,9 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             if not share_permission:
                 return {
                     "success": False,
-                    "error": f"User {user_email} is not shared with this {item_type.lower()}",
+                    "error": (
+                        f"User {user_email} is not shared with this {item_type.lower()}"
+                    ),
                 }
 
             share_permission.is_enabled = False
@@ -935,7 +947,10 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
             return {
                 "success": True,
-                "message": f"Removed {removed_count} group members from {item_type.lower()} sharing",
+                "message": (
+                    f"Removed {removed_count} group members from "
+                    f"{item_type.lower()} sharing"
+                ),
             }
 
         except ShareGroup.DoesNotExist:
@@ -1354,7 +1369,7 @@ class GroupCapturesView(
 ):
     template_name = "users/group_captures.html"
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):  # noqa: PLR0911
         """Handle GET request with permission checking and AJAX requests."""
         # Check if editing existing dataset
         dataset_uuid = request.GET.get("dataset_uuid")
@@ -1462,7 +1477,8 @@ class GroupCapturesView(
             if not can_user_access_item(
                 self.request.user, dataset_uuid, ItemType.DATASET
             ):
-                raise Http404("Dataset not found or access denied.")
+                msg = "Dataset not found or access denied."
+                raise Http404(msg)
 
             # Get the dataset - it exists and user has access
             existing_dataset = Dataset.objects.get(uuid=dataset_uuid)
@@ -1754,7 +1770,7 @@ class GroupCapturesView(
 
         return changes
 
-    def _apply_asset_changes(
+    def _apply_asset_changes(  # noqa: C901, PLR0912
         self, dataset: Dataset, changes: dict, user: User, permission_level: str
     ):
         """Apply asset changes based on user permissions."""
@@ -1830,7 +1846,8 @@ class GroupCapturesView(
         for i in changes.get("added", []):
             if i >= len(authors) and i < len(authors) + len(changes.get("added", [])):
                 # This is a new author that was added beyond the original array
-                # We need to get it from the current authors array (which includes the new ones)
+                # We need to get it from the current authors array
+                # (which includes the new ones)
                 if i < len(authors):
                     result.append(authors[i])
 

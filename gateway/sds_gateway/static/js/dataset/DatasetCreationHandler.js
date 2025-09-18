@@ -259,10 +259,7 @@ class DatasetCreationHandler {
 			}
 
 			// Store capture details if available from search handler
-			if (
-				this.capturesSearchHandler &&
-				this.capturesSearchHandler.selectedCaptureDetails
-			) {
+			if (this.capturesSearchHandler?.selectedCaptureDetails) {
 				const captureDetails =
 					this.capturesSearchHandler.selectedCaptureDetails.get(captureId);
 				if (captureDetails) {
@@ -506,11 +503,7 @@ class DatasetCreationHandler {
 		// Update status display
 		const statusDisplay = document.querySelector("#step4 .dataset-status");
 		if (statusDisplay) {
-			if (
-				this.statusField &&
-				this.statusField.options &&
-				this.statusField.selectedIndex >= 0
-			) {
+			if (this.statusField?.options && this.statusField.selectedIndex >= 0) {
 				statusDisplay.textContent =
 					this.statusField.options[this.statusField.selectedIndex].text;
 			} else {
@@ -539,13 +532,14 @@ class DatasetCreationHandler {
 		const authorsField = document.getElementById("id_authors");
 		const authorsDisplay = document.querySelector("#step4 .dataset-authors");
 
-		if (authorsField && authorsField.value && authorsDisplay) {
+		if (authorsField?.value && authorsDisplay) {
 			try {
 				const authors = JSON.parse(authorsField.value);
 				const authorNames = authors.map((author) => {
 					if (typeof author === "string") {
 						return author;
-					} else if (author && author.name) {
+					}
+					if (author?.name) {
 						return author.name;
 					}
 					return "Unnamed Author";

@@ -44,7 +44,7 @@ from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
 User = get_user_model()
 
 # Test constants
-TEST_PASSWORD = "testpass123"
+TEST_PASSWORD = "testpass123"  # noqa: S105
 
 # Test constants
 EXPECTED_FILES_COUNT = 3

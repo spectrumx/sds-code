@@ -9,14 +9,12 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.utils.permissions import (
-    check_asset_ownership_permission,
-)
+from sds_gateway.api_methods.utils.permissions import check_asset_ownership_permission
 
 User = get_user_model()
 
 # Test constants
-TEST_PASSWORD = "testpass123"
+TEST_PASSWORD = "testpass123"  # noqa: S105
 
 
 class UserSharePermissionTestCase(TestCase):
@@ -50,7 +48,7 @@ class UserSharePermissionTestCase(TestCase):
     def test_permission_levels(self):
         """Test that permission levels are correctly set and retrieved."""
         # Create permissions with different levels
-        viewer_perm = UserSharePermission.objects.create(
+        UserSharePermission.objects.create(
             owner=self.owner,
             shared_with=self.viewer,
             item_type=ItemType.DATASET,
@@ -58,7 +56,7 @@ class UserSharePermissionTestCase(TestCase):
             permission_level="viewer",
         )
 
-        contributor_perm = UserSharePermission.objects.create(
+        UserSharePermission.objects.create(
             owner=self.owner,
             shared_with=self.contributor,
             item_type=ItemType.DATASET,
@@ -66,7 +64,7 @@ class UserSharePermissionTestCase(TestCase):
             permission_level="contributor",
         )
 
-        co_owner_perm = UserSharePermission.objects.create(
+        UserSharePermission.objects.create(
             owner=self.owner,
             shared_with=self.co_owner,
             item_type=ItemType.DATASET,
@@ -75,29 +73,29 @@ class UserSharePermissionTestCase(TestCase):
         )
 
         # Test permission level retrieval
-        self.assertEqual(
+        assert (
             UserSharePermission.get_user_permission_level(
                 self.viewer, self.dataset.uuid, ItemType.DATASET
-            ),
-            "viewer",
+            )
+            == "viewer"
         )
-        self.assertEqual(
+        assert (
             UserSharePermission.get_user_permission_level(
                 self.contributor, self.dataset.uuid, ItemType.DATASET
-            ),
-            "contributor",
+            )
+            == "contributor"
         )
-        self.assertEqual(
+        assert (
             UserSharePermission.get_user_permission_level(
                 self.co_owner, self.dataset.uuid, ItemType.DATASET
-            ),
-            "co-owner",
+            )
+            == "co-owner"
         )
-        self.assertEqual(
+        assert (
             UserSharePermission.get_user_permission_level(
                 self.owner, self.dataset.uuid, ItemType.DATASET
-            ),
-            "owner",
+            )
+            == "owner"
         )
 
     def test_permission_checking(self):
@@ -128,91 +126,69 @@ class UserSharePermissionTestCase(TestCase):
         )
 
         # Test view permissions
-        self.assertTrue(
-            UserSharePermission.user_can_view(
-                self.owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_view(
+            self.owner, self.dataset.uuid, ItemType.DATASET
         )
-        self.assertTrue(
-            UserSharePermission.user_can_view(
-                self.viewer, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_view(
+            self.viewer, self.dataset.uuid, ItemType.DATASET
         )
-        self.assertTrue(
-            UserSharePermission.user_can_view(
-                self.contributor, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_view(
+            self.contributor, self.dataset.uuid, ItemType.DATASET
         )
-        self.assertTrue(
-            UserSharePermission.user_can_view(
-                self.co_owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_view(
+            self.co_owner, self.dataset.uuid, ItemType.DATASET
         )
 
         # Test add assets permissions
-        self.assertTrue(
-            UserSharePermission.user_can_add_assets(
-                self.owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_add_assets(
+            self.owner, self.dataset.uuid, ItemType.DATASET
         )
-        self.assertFalse(
+        assert not (
             UserSharePermission.user_can_add_assets(
                 self.viewer, self.dataset.uuid, ItemType.DATASET
             )
         )
-        self.assertTrue(
-            UserSharePermission.user_can_add_assets(
-                self.contributor, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_add_assets(
+            self.contributor, self.dataset.uuid, ItemType.DATASET
         )
-        self.assertTrue(
-            UserSharePermission.user_can_add_assets(
-                self.co_owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_add_assets(
+            self.co_owner, self.dataset.uuid, ItemType.DATASET
         )
 
         # Test remove assets permissions
-        self.assertTrue(
-            UserSharePermission.user_can_remove_assets(
-                self.owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_remove_assets(
+            self.owner, self.dataset.uuid, ItemType.DATASET
         )
-        self.assertFalse(
+        assert not (
             UserSharePermission.user_can_remove_assets(
                 self.viewer, self.dataset.uuid, ItemType.DATASET
             )
         )
-        self.assertFalse(
+        assert not (
             UserSharePermission.user_can_remove_assets(
                 self.contributor, self.dataset.uuid, ItemType.DATASET
             )
         )
-        self.assertTrue(
-            UserSharePermission.user_can_remove_assets(
-                self.co_owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_remove_assets(
+            self.co_owner, self.dataset.uuid, ItemType.DATASET
         )
 
         # Test edit dataset permissions
-        self.assertTrue(
-            UserSharePermission.user_can_edit_dataset(
-                self.owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_edit_dataset(
+            self.owner, self.dataset.uuid, ItemType.DATASET
         )
-        self.assertFalse(
+        assert not (
             UserSharePermission.user_can_edit_dataset(
                 self.viewer, self.dataset.uuid, ItemType.DATASET
             )
         )
-        self.assertFalse(
+        assert not (
             UserSharePermission.user_can_edit_dataset(
                 self.contributor, self.dataset.uuid, ItemType.DATASET
             )
         )
-        self.assertTrue(
-            UserSharePermission.user_can_edit_dataset(
-                self.co_owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert UserSharePermission.user_can_edit_dataset(
+            self.co_owner, self.dataset.uuid, ItemType.DATASET
         )
 
     def test_dataset_authors(self):
@@ -239,17 +215,17 @@ class UserSharePermissionTestCase(TestCase):
         authors = UserSharePermission.get_dataset_authors(self.dataset.uuid)
 
         # Should have only 1 author: owner
-        self.assertEqual(len(authors), 1)
+        assert len(authors) == 1
 
         # Check that only the owner is present
         author_names = [author["name"] for author in authors]
-        self.assertIn("Dataset Owner", author_names)
-        self.assertNotIn("Dataset Contributor", author_names)
-        self.assertNotIn("Dataset Co-Owner", author_names)
+        assert "Dataset Owner" in author_names
+        assert "Dataset Contributor" not in author_names
+        assert "Dataset Co-Owner" not in author_names
 
         # Check role
         author_roles = {author["name"]: author["role"] for author in authors}
-        self.assertEqual(author_roles["Dataset Owner"], "owner")
+        assert author_roles["Dataset Owner"] == "owner"
 
     def test_asset_ownership_permission(self):
         """Test asset ownership permission checking."""
@@ -272,27 +248,21 @@ class UserSharePermissionTestCase(TestCase):
         )
 
         # User can always modify their own assets
-        self.assertTrue(
-            check_asset_ownership_permission(
-                self.owner, self.owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert check_asset_ownership_permission(
+            self.owner, self.owner, self.dataset.uuid, ItemType.DATASET
         )
-        self.assertTrue(
-            check_asset_ownership_permission(
-                self.contributor, self.contributor, self.dataset.uuid, ItemType.DATASET
-            )
+        assert check_asset_ownership_permission(
+            self.contributor, self.contributor, self.dataset.uuid, ItemType.DATASET
         )
 
         # Contributor cannot remove others' assets
-        self.assertFalse(
+        assert not (
             check_asset_ownership_permission(
                 self.contributor, self.owner, self.dataset.uuid, ItemType.DATASET
             )
         )
 
         # Co-owner can remove others' assets
-        self.assertTrue(
-            check_asset_ownership_permission(
-                self.co_owner, self.owner, self.dataset.uuid, ItemType.DATASET
-            )
+        assert check_asset_ownership_permission(
+            self.co_owner, self.owner, self.dataset.uuid, ItemType.DATASET
         )

@@ -118,8 +118,7 @@ class DatasetEditingHandler {
 	populateSearchHandlerWithInitialData() {
 		// Populate the SearchHandler with initial captures if available
 		if (
-			this.capturesSearchHandler &&
-			this.capturesSearchHandler.selectedCaptures &&
+			this.capturesSearchHandler?.selectedCaptures &&
 			this.capturesSearchHandler.selectedCaptureDetails &&
 			this.initialCaptures &&
 			this.initialCaptures.length > 0
@@ -151,10 +150,7 @@ class DatasetEditingHandler {
 		this.populateCurrentCapturesList(initialCaptures);
 
 		// Use the existing SearchHandler to populate captures in the main table
-		if (
-			this.capturesSearchHandler &&
-			this.capturesSearchHandler.selectedCaptures
-		) {
+		if (this.capturesSearchHandler?.selectedCaptures) {
 			if (initialCaptures && initialCaptures.length > 0) {
 				for (const capture of initialCaptures) {
 					this.capturesSearchHandler.selectedCaptures.add(
@@ -804,7 +800,7 @@ class DatasetEditingHandler {
 	 */
 	handleRemoveAllFiles() {
 		// In edit mode: mark files for removal only if user has permission
-		if (this.filesSearchHandler && this.filesSearchHandler.selectedFiles) {
+		if (this.filesSearchHandler?.selectedFiles) {
 			let removedCount = 0;
 			for (const [
 				fileId,
@@ -1524,10 +1520,7 @@ class DatasetEditingHandler {
 		};
 
 		window.cancelAuthorModification = (index, field) => {
-			if (
-				authorChanges.modified[index] &&
-				authorChanges.modified[index][field]
-			) {
+			if (authorChanges.modified[index]?.[field]) {
 				delete authorChanges.modified[index][field];
 				if (Object.keys(authorChanges.modified[index]).length === 0) {
 					delete authorChanges.modified[index];
@@ -1600,12 +1593,14 @@ class DatasetEditingHandler {
 							<i class="bi bi-plus-circle me-1"></i>
 							Add: <span class="text-success">${HTMLInjectionManager.escapeHtml(change.name)}</span>
 						</li>`;
-						} else if (change.type === "remove") {
+						}
+						if (change.type === "remove") {
 							return `<li class="text-danger">
-							<i class="bi bi-dash-circle me-1"></i>
-							Remove: <span class="text-danger">${HTMLInjectionManager.escapeHtml(change.name)}</span>
-						</li>`;
-						} else if (change.type === "change") {
+						<i class="bi bi-dash-circle me-1"></i>
+						Remove: <span class="text-danger">${HTMLInjectionManager.escapeHtml(change.name)}</span>
+					</li>`;
+						}
+						if (change.type === "change") {
 							return `<li class="text-warning">
 							<i class="bi bi-pencil me-1"></i>
 							Change Name: "${HTMLInjectionManager.escapeHtml(change.oldName)}" → <span class="text-warning">"${HTMLInjectionManager.escapeHtml(change.newName)}"</span>

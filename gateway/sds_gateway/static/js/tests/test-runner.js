@@ -69,7 +69,7 @@ class TestRunner {
 	 * Print test summary
 	 */
 	printSummary() {
-		console.log("\n" + "=".repeat(50));
+		console.log(`\n${"=".repeat(50)}`);
 		console.log("TEST SUMMARY");
 		console.log("=".repeat(50));
 
@@ -83,7 +83,7 @@ class TestRunner {
 			}
 		}
 
-		console.log("\n" + "-".repeat(50));
+		console.log(`\n${"-".repeat(50)}`);
 		console.log(
 			`Total: ${this.results.passed}/${this.results.total} tests passed`,
 		);

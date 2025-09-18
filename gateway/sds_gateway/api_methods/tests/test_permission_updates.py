@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.test import TestCase
 from django.urls import reverse
+from rest_framework import status
 
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
@@ -17,7 +18,7 @@ from sds_gateway.api_methods.models import UserSharePermission
 User = get_user_model()
 
 # Test constants
-TEST_PASSWORD = "testpass123"
+TEST_PASSWORD = "testpass123"  # noqa: S105
 
 
 class PermissionUpdateTestCase(TestCase):
@@ -74,13 +75,13 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        self.assertTrue(data["success"])
+        assert data["success"]
 
         # Verify permission was updated
         permission.refresh_from_db()
-        self.assertEqual(permission.permission_level, "contributor")
+        assert permission.permission_level == "contributor"
 
     def test_update_group_permissions(self):
         """Test updating permission levels for group members."""
@@ -119,15 +120,15 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        self.assertTrue(data["success"])
+        assert data["success"]
 
         # Verify both permissions were updated
         permission1.refresh_from_db()
         permission2.refresh_from_db()
-        self.assertEqual(permission1.permission_level, "co-owner")
-        self.assertEqual(permission2.permission_level, "co-owner")
+        assert permission1.permission_level == "co-owner"
+        assert permission2.permission_level == "co-owner"
 
     def test_update_permission_unauthorized(self):
         """Test that unauthorized users cannot update permissions."""
@@ -156,7 +157,7 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 403)  # Access denied for this user
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_update_permission_invalid_level(self):
         """Test that invalid permission levels are rejected."""
@@ -185,10 +186,10 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 400)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        self.assertFalse(data.get("success", True))
-        self.assertIn("Invalid permission level", data["error"])
+        assert not data.get("success", True)
+        assert "Invalid permission level" in data["error"]
 
     def test_update_permission_missing_user(self):
         """Test that updating non-existent user returns error."""
@@ -208,9 +209,9 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 400)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        self.assertFalse(data.get("success", True))
+        assert not data.get("success", True)
 
     def test_update_group_permission_unauthorized(self):
         """Test that users cannot update group permissions they don't own."""
@@ -244,6 +245,6 @@ class PermissionUpdateTestCase(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 403)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         data = response.json()
-        self.assertFalse(data.get("success", True))
+        assert not data.get("success", True)

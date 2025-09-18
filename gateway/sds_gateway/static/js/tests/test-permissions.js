@@ -157,17 +157,17 @@ class PermissionsManager {
 			{
 				value: "viewer",
 				label: "Viewer",
-				description: this.getPermissionDescription("viewer"),
+				description: PermissionsManager.getPermissionDescription("viewer"),
 			},
 			{
 				value: "contributor",
 				label: "Contributor",
-				description: this.getPermissionDescription("contributor"),
+				description: PermissionsManager.getPermissionDescription("contributor"),
 			},
 			{
 				value: "co-owner",
 				label: "Co-Owner",
-				description: this.getPermissionDescription("co-owner"),
+				description: PermissionsManager.getPermissionDescription("co-owner"),
 			},
 		];
 	}
