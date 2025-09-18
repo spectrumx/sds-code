@@ -7,13 +7,13 @@
 const mockDOM = {
 	createElement: (tag) => ({
 		tagName: tag,
-		textContent: '',
-		innerHTML: '',
+		textContent: "",
+		innerHTML: "",
 		dataset: {},
 		classList: {
 			add: () => {},
 			remove: () => {},
-			contains: () => false
+			contains: () => false,
 		},
 		addEventListener: () => {},
 		removeEventListener: () => {},
@@ -22,33 +22,35 @@ const mockDOM = {
 		setAttribute: () => {},
 		getAttribute: () => null,
 		click: () => {},
-		disabled: false
+		disabled: false,
 	}),
 	getElementById: (id) => {
-		const element = mockDOM.createElement('div');
+		const element = mockDOM.createElement("div");
 		element.id = id;
 		return element;
 	},
 	querySelector: () => null,
 	querySelectorAll: () => [],
-	addEventListener: () => {}
+	addEventListener: () => {},
 };
 
 // Mock global objects
 global.document = mockDOM;
 global.window = {
-	fetch: () => Promise.resolve({
-		ok: true,
-		json: () => Promise.resolve({ success: true, message: 'Download requested' })
-	}),
+	fetch: () =>
+		Promise.resolve({
+			ok: true,
+			json: () =>
+				Promise.resolve({ success: true, message: "Download requested" }),
+		}),
 	showWebDownloadModal: () => {},
 	bootstrap: {
 		Modal: {
 			getInstance: () => ({
-				hide: () => {}
-			})
-		}
-	}
+				hide: () => {},
+			}),
+		},
+	},
 };
 
 // Mock PermissionsManager
@@ -61,11 +63,11 @@ class MockPermissionsManager {
 		// Check both dataset and capture permissions
 		const datasetCanDownload = this.permissions.datasetPermissions?.canDownload;
 		const captureCanDownload = this.permissions.capturePermissions?.canDownload;
-		
+
 		// Return true if either permission is explicitly true, false if either is explicitly false
 		if (datasetCanDownload !== undefined) return datasetCanDownload;
 		if (captureCanDownload !== undefined) return captureCanDownload;
-		
+
 		// Default to true if no permissions specified
 		return true;
 	}
@@ -74,15 +76,16 @@ class MockPermissionsManager {
 // Mock HTMLInjectionManager
 global.HTMLInjectionManager = {
 	createLoadingSpinner: (text) => `<span class="spinner">${text}</span>`,
-	showAlert: (message, type) => console.log(`Alert: ${message} (${type})`)
+	showAlert: (message, type) => console.log(`Alert: ${message} (${type})`),
 };
 
 // Mock APIClient
 global.APIClient = {
-	post: (url, data) => Promise.resolve({
-		success: true,
-		message: 'Download request submitted successfully!'
-	})
+	post: (url, data) =>
+		Promise.resolve({
+			success: true,
+			message: "Download request submitted successfully!",
+		}),
 };
 
 // Mock DownloadActionManager for testing
@@ -92,16 +95,19 @@ class MockDownloadActionManager {
 	}
 
 	initializeDatasetDownloadButtons() {
-		document.querySelectorAll('.download-dataset-btn');
+		document.querySelectorAll(".download-dataset-btn");
 	}
 
 	initializeCaptureDownloadButtons() {
-		document.querySelectorAll('.download-capture-btn');
+		document.querySelectorAll(".download-capture-btn");
 	}
 
 	async handleDatasetDownload(uuid, name, button) {
 		if (!this.permissions.canDownload()) {
-			this.showToast("You don't have permission to download this dataset", "warning");
+			this.showToast(
+				"You don't have permission to download this dataset",
+				"warning",
+			);
 			return;
 		}
 		// Simulate successful download
@@ -109,7 +115,10 @@ class MockDownloadActionManager {
 
 	async handleCaptureDownload(uuid, name, button) {
 		if (!this.permissions.canDownload()) {
-			this.showToast("You don't have permission to download this capture", "warning");
+			this.showToast(
+				"You don't have permission to download this capture",
+				"warning",
+			);
 			return;
 		}
 		if (window.showWebDownloadModal) {
@@ -126,16 +135,19 @@ class MockDownloadActionManager {
 	}
 
 	cleanup() {
-		const buttons = document.querySelectorAll(".download-dataset-btn, .download-capture-btn");
-		buttons.forEach((button) => {
+		const buttons = document.querySelectorAll(
+			".download-dataset-btn, .download-capture-btn",
+		);
+		for (const button of buttons) {
 			button.removeEventListener("click", this.handleDatasetDownload);
 			button.removeEventListener("click", this.handleCaptureDownload);
-		});
+		}
 	}
 }
 
 // Use mock if real class not available
-const DownloadActionManager = global.DownloadActionManager || MockDownloadActionManager;
+const DownloadActionManager =
+	global.DownloadActionManager || MockDownloadActionManager;
 
 // Test suite for Download Functionality
 class DownloadFunctionalityTests {
@@ -158,7 +170,7 @@ class DownloadFunctionalityTests {
 	 * Run all tests
 	 */
 	async runTests() {
-		console.log('Running Download Functionality Tests...\n');
+		console.log("Running Download Functionality Tests...\n");
 
 		for (const test of this.tests) {
 			try {
@@ -171,8 +183,14 @@ class DownloadFunctionalityTests {
 			}
 		}
 
-		console.log(`\nDownload Tests: ${this.passed} passed, ${this.failed} failed\n`);
-		return { passed: this.passed, failed: this.failed, total: this.tests.length };
+		console.log(
+			`\nDownload Tests: ${this.passed} passed, ${this.failed} failed\n`,
+		);
+		return {
+			passed: this.passed,
+			failed: this.failed,
+			total: this.tests.length,
+		};
 	}
 
 	/**
@@ -180,142 +198,174 @@ class DownloadFunctionalityTests {
 	 */
 	setupTests() {
 		// Test DownloadActionManager initialization
-		this.addTest('DownloadActionManager should initialize with permissions', () => {
-			const permissions = new MockPermissionsManager({
-				datasetPermissions: { canDownload: true }
-			});
+		this.addTest(
+			"DownloadActionManager should initialize with permissions",
+			() => {
+				const permissions = new MockPermissionsManager({
+					datasetPermissions: { canDownload: true },
+				});
 
-			const downloadManager = new DownloadActionManager({ permissions });
-			
-			if (!downloadManager.permissions) {
-				throw new Error('DownloadActionManager should store permissions');
-			}
-		});
+				const downloadManager = new DownloadActionManager({ permissions });
+
+				if (!downloadManager.permissions) {
+					throw new Error("DownloadActionManager should store permissions");
+				}
+			},
+		);
 
 		// Test dataset download permissions check
-		this.addTest('Dataset download should check permissions', async () => {
+		this.addTest("Dataset download should check permissions", async () => {
 			const permissions = new MockPermissionsManager({
-				datasetPermissions: { canDownload: false }
+				datasetPermissions: { canDownload: false },
 			});
 
 			const downloadManager = new DownloadActionManager({ permissions });
-			
+
 			// Mock button element
-			const button = mockDOM.createElement('button');
-			button.setAttribute('data-dataset-uuid', 'test-uuid');
-			button.setAttribute('data-dataset-name', 'Test Dataset');
+			const button = mockDOM.createElement("button");
+			button.setAttribute("data-dataset-uuid", "test-uuid");
+			button.setAttribute("data-dataset-name", "Test Dataset");
 
 			// Mock showToast method to capture message
-			let toastMessage = '';
-			let toastType = '';
+			let toastMessage = "";
+			let toastType = "";
 			downloadManager.showToast = (message, type) => {
 				toastMessage = message;
 				toastType = type;
 			};
 
 			// This should trigger permission check and show warning
-			await downloadManager.handleDatasetDownload('test-uuid', 'Test Dataset', button);
+			await downloadManager.handleDatasetDownload(
+				"test-uuid",
+				"Test Dataset",
+				button,
+			);
 
-			if (!toastMessage.includes("don't have permission") || toastType !== 'warning') {
-				throw new Error(`Should show permission denied message, got: "${toastMessage}" (${toastType})`);
+			if (
+				!toastMessage.includes("don't have permission") ||
+				toastType !== "warning"
+			) {
+				throw new Error(
+					`Should show permission denied message, got: "${toastMessage}" (${toastType})`,
+				);
 			}
 		});
 
 		// Test capture download permissions check
-		this.addTest('Capture download should check permissions', async () => {
+		this.addTest("Capture download should check permissions", async () => {
 			const permissions = new MockPermissionsManager({
-				capturePermissions: { canDownload: false }
+				capturePermissions: { canDownload: false },
 			});
 
 			const downloadManager = new DownloadActionManager({ permissions });
-			
+
 			// Mock button element
-			const button = mockDOM.createElement('button');
-			button.setAttribute('data-capture-uuid', 'test-uuid');
-			button.setAttribute('data-capture-name', 'Test Capture');
+			const button = mockDOM.createElement("button");
+			button.setAttribute("data-capture-uuid", "test-uuid");
+			button.setAttribute("data-capture-name", "Test Capture");
 
 			// Mock showToast method to capture message
-			let toastMessage = '';
-			let toastType = '';
+			let toastMessage = "";
+			let toastType = "";
 			downloadManager.showToast = (message, type) => {
 				toastMessage = message;
 				toastType = type;
 			};
 
 			// This should trigger permission check and show warning
-			await downloadManager.handleCaptureDownload('test-uuid', 'Test Capture', button);
+			await downloadManager.handleCaptureDownload(
+				"test-uuid",
+				"Test Capture",
+				button,
+			);
 
-			if (!toastMessage.includes("don't have permission") || toastType !== 'warning') {
-				throw new Error(`Should show permission denied message, got: "${toastMessage}" (${toastType})`);
+			if (
+				!toastMessage.includes("don't have permission") ||
+				toastType !== "warning"
+			) {
+				throw new Error(
+					`Should show permission denied message, got: "${toastMessage}" (${toastType})`,
+				);
 			}
 		});
 
 		// Test dataset download with valid permissions
-		this.addTest('Dataset download should work with valid permissions', async () => {
-			const permissions = new MockPermissionsManager({
-				datasetPermissions: { canDownload: true }
-			});
+		this.addTest(
+			"Dataset download should work with valid permissions",
+			async () => {
+				const permissions = new MockPermissionsManager({
+					datasetPermissions: { canDownload: true },
+				});
 
-			const downloadManager = new DownloadActionManager({ permissions });
-			
-			// Mock DOM elements
-			global.document.getElementById = (id) => {
-				if (id === 'downloadDatasetName') {
-					return { textContent: '' };
-				}
-				return mockDOM.createElement('div');
-			};
+				const downloadManager = new DownloadActionManager({ permissions });
 
-			// Mock showModal function
-			downloadManager.showModal = () => {};
+				// Mock DOM elements
+				global.document.getElementById = (id) => {
+					if (id === "downloadDatasetName") {
+						return { textContent: "" };
+					}
+					return mockDOM.createElement("div");
+				};
 
-			const button = mockDOM.createElement('button');
-			
-			// This should not throw an error
-			await downloadManager.handleDatasetDownload('test-uuid', 'Test Dataset', button);
-		});
+				// Mock showModal function
+				downloadManager.showModal = () => {};
+
+				const button = mockDOM.createElement("button");
+
+				// This should not throw an error
+				await downloadManager.handleDatasetDownload(
+					"test-uuid",
+					"Test Dataset",
+					button,
+				);
+			},
+		);
 
 		// Test capture download with web modal
-		this.addTest('Capture download should use web download modal', async () => {
+		this.addTest("Capture download should use web download modal", async () => {
 			const permissions = new MockPermissionsManager({
-				capturePermissions: { canDownload: true }
+				capturePermissions: { canDownload: true },
 			});
 
 			const downloadManager = new DownloadActionManager({ permissions });
-			
+
 			// Mock web download modal function
 			let modalCalled = false;
 			global.window.showWebDownloadModal = (uuid, name) => {
 				modalCalled = true;
-				if (uuid !== 'test-uuid' || name !== 'Test Capture') {
-					throw new Error('Wrong parameters passed to modal');
+				if (uuid !== "test-uuid" || name !== "Test Capture") {
+					throw new Error("Wrong parameters passed to modal");
 				}
 			};
 
-			const button = mockDOM.createElement('button');
-			
-			await downloadManager.handleCaptureDownload('test-uuid', 'Test Capture', button);
+			const button = mockDOM.createElement("button");
+
+			await downloadManager.handleCaptureDownload(
+				"test-uuid",
+				"Test Capture",
+				button,
+			);
 
 			if (!modalCalled) {
-				throw new Error('Web download modal should be called');
+				throw new Error("Web download modal should be called");
 			}
 		});
 
 		// Test download button initialization for datasets
-		this.addTest('Should initialize dataset download buttons', () => {
+		this.addTest("Should initialize dataset download buttons", () => {
 			const permissions = new MockPermissionsManager({
-				datasetPermissions: { canDownload: true }
+				datasetPermissions: { canDownload: true },
 			});
 
 			const downloadManager = new DownloadActionManager({ permissions });
-			
+
 			// Mock querySelectorAll to return mock buttons
 			let buttonCount = 0;
 			global.document.querySelectorAll = (selector) => {
-				if (selector === '.download-dataset-btn') {
+				if (selector === ".download-dataset-btn") {
 					buttonCount++;
-					const button = mockDOM.createElement('button');
-					button.dataset = { downloadSetup: 'false' };
+					const button = mockDOM.createElement("button");
+					button.dataset = { downloadSetup: "false" };
 					return [button];
 				}
 				return [];
@@ -324,25 +374,25 @@ class DownloadFunctionalityTests {
 			downloadManager.initializeDatasetDownloadButtons();
 
 			if (buttonCount === 0) {
-				throw new Error('Should query for dataset download buttons');
+				throw new Error("Should query for dataset download buttons");
 			}
 		});
 
 		// Test download button initialization for captures
-		this.addTest('Should initialize capture download buttons', () => {
+		this.addTest("Should initialize capture download buttons", () => {
 			const permissions = new MockPermissionsManager({
-				capturePermissions: { canDownload: true }
+				capturePermissions: { canDownload: true },
 			});
 
 			const downloadManager = new DownloadActionManager({ permissions });
-			
+
 			// Mock querySelectorAll to return mock buttons
 			let buttonCount = 0;
 			global.document.querySelectorAll = (selector) => {
-				if (selector === '.download-capture-btn') {
+				if (selector === ".download-capture-btn") {
 					buttonCount++;
-					const button = mockDOM.createElement('button');
-					button.dataset = { downloadSetup: 'false' };
+					const button = mockDOM.createElement("button");
+					button.dataset = { downloadSetup: "false" };
 					return [button];
 				}
 				return [];
@@ -351,48 +401,48 @@ class DownloadFunctionalityTests {
 			downloadManager.initializeCaptureDownloadButtons();
 
 			if (buttonCount === 0) {
-				throw new Error('Should query for capture download buttons');
+				throw new Error("Should query for capture download buttons");
 			}
 		});
 
 		// Test toast notification functionality
-		this.addTest('Should show toast notifications', () => {
+		this.addTest("Should show toast notifications", () => {
 			const permissions = new MockPermissionsManager({
-				datasetPermissions: { canDownload: true }
+				datasetPermissions: { canDownload: true },
 			});
 
 			const downloadManager = new DownloadActionManager({ permissions });
-			
+
 			// Mock window.showAlert
 			let alertShown = false;
 			global.window.showAlert = (message, type) => {
 				alertShown = true;
 				if (!message || !type) {
-					throw new Error('Alert should have message and type');
+					throw new Error("Alert should have message and type");
 				}
 			};
 
-			downloadManager.showToast('Test message', 'success');
+			downloadManager.showToast("Test message", "success");
 
 			if (!alertShown) {
-				throw new Error('Should show alert notification');
+				throw new Error("Should show alert notification");
 			}
 		});
 
 		// Test cleanup functionality
-		this.addTest('Should cleanup event listeners', () => {
+		this.addTest("Should cleanup event listeners", () => {
 			const permissions = new MockPermissionsManager({
-				datasetPermissions: { canDownload: true }
+				datasetPermissions: { canDownload: true },
 			});
 
 			const downloadManager = new DownloadActionManager({ permissions });
-			
+
 			// Mock buttons with removeEventListener
 			let cleanupCalled = false;
 			const mockButton = {
 				removeEventListener: (event, handler) => {
 					cleanupCalled = true;
-				}
+				},
 			};
 
 			global.document.querySelectorAll = () => [mockButton];
@@ -400,23 +450,23 @@ class DownloadFunctionalityTests {
 			downloadManager.cleanup();
 
 			if (!cleanupCalled) {
-				throw new Error('Should cleanup event listeners');
+				throw new Error("Should cleanup event listeners");
 			}
 		});
 
 		// Test error handling in download process
-		this.addTest('Should handle download errors gracefully', async () => {
+		this.addTest("Should handle download errors gracefully", async () => {
 			const permissions = new MockPermissionsManager({
-				capturePermissions: { canDownload: true }
+				capturePermissions: { canDownload: true },
 			});
 
 			const downloadManager = new DownloadActionManager({ permissions });
-			
+
 			// Mock showToast to capture error message
 			let errorShown = false;
-			let errorMessage = '';
+			let errorMessage = "";
 			downloadManager.showToast = (message, type) => {
-				if (type === 'danger' || type === 'error') {
+				if (type === "danger" || type === "error") {
 					errorShown = true;
 					errorMessage = message;
 				}
@@ -425,22 +475,31 @@ class DownloadFunctionalityTests {
 			// Mock web download modal that fails
 			global.window.showWebDownloadModal = () => {
 				// Simulate error in modal
-				downloadManager.showToast('Download functionality not available', 'error');
+				downloadManager.showToast(
+					"Download functionality not available",
+					"error",
+				);
 			};
 
-			const button = mockDOM.createElement('button');
-			
-			await downloadManager.handleCaptureDownload('test-uuid', 'Test Capture', button);
+			const button = mockDOM.createElement("button");
 
-			if (!errorShown || !errorMessage.includes('not available')) {
-				throw new Error(`Should show error message on failure, got: "${errorMessage}"`);
+			await downloadManager.handleCaptureDownload(
+				"test-uuid",
+				"Test Capture",
+				button,
+			);
+
+			if (!errorShown || !errorMessage.includes("not available")) {
+				throw new Error(
+					`Should show error message on failure, got: "${errorMessage}"`,
+				);
 			}
 		});
 	}
 }
 
 // Export for use in test runner
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
 	module.exports = DownloadFunctionalityTests;
 }
 

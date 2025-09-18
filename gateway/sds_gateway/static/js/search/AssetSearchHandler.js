@@ -34,7 +34,7 @@ class AssetSearchHandler {
 		// Configuration
 		this.config = {
 			apiEndpoint: config.apiEndpoint || window.location.pathname,
-			...config
+			...config,
 		};
 
 		// Set the form handler's reference to this SearchHandler instance
@@ -326,7 +326,7 @@ class AssetSearchHandler {
 					headers: {
 						"X-Requested-With": "XMLHttpRequest",
 					},
-				}
+				},
 			);
 
 			// APIClient.request already returns parsed JSON data
@@ -351,7 +351,7 @@ class AssetSearchHandler {
 					headers: {
 						"X-Requested-With": "XMLHttpRequest",
 					},
-				}
+				},
 			);
 
 			// APIClient.request already returns parsed JSON data
@@ -588,7 +588,6 @@ class AssetSearchHandler {
 	 * Handle search
 	 */
 	async handleSearch() {
-		
 		try {
 			// Get all input elements within the search container
 			const searchContainer = this.searchForm;
@@ -620,9 +619,8 @@ class AssetSearchHandler {
 					headers: {
 						"X-Requested-With": "XMLHttpRequest",
 					},
-				}
+				},
 			);
-
 
 			// APIClient.request already returns parsed JSON data
 
@@ -669,8 +667,7 @@ class AssetSearchHandler {
 						data.search_values.file_name ||
 						data.search_values.directory ||
 						data.search_values.file_extension;
-					
-					
+
 					this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
 
 					// Initialize select all checkbox handler for the current file tree
@@ -758,7 +755,8 @@ class AssetSearchHandler {
 								file.owner_id === this.formHandler.currentUserId;
 							const canRemove =
 								!isExistingFile ||
-								(isExistingFile && this.formHandler.permissions?.canRemoveAsset(file));
+								(isExistingFile &&
+									this.formHandler.permissions?.canRemoveAsset(file));
 							const rowClass = !canRemove ? "readonly-row" : "";
 
 							return `
@@ -901,7 +899,6 @@ class AssetSearchHandler {
 		currentPath = "",
 		searchTermEntered = false,
 	) {
-		
 		this.currentTree = tree;
 		const targetElement =
 			parentElement || document.querySelector("#file-tree-table tbody");
@@ -938,9 +935,8 @@ class AssetSearchHandler {
 
 		// Render directories
 		const directories = tree.children || {};
-		
+
 		for (const [name, content] of Object.entries(directories)) {
-			
 			if (
 				name === "files" ||
 				!content ||
@@ -954,8 +950,8 @@ class AssetSearchHandler {
 			const row = document.createElement("tr");
 			row.className = "folder-row";
 
-		// Set initial toggle state based on search term only (don't expand by default)
-		const initiallyExpanded = searchTermEntered;
+			// Set initial toggle state based on search term only (don't expand by default)
+			const initiallyExpanded = searchTermEntered;
 			const toggleSymbol = initiallyExpanded ? "▼" : "▶";
 
 			// Construct the path for this directory

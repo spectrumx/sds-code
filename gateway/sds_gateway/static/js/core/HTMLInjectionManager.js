@@ -24,21 +24,21 @@ class HTMLInjectionManager {
 	 * @param {string} options.method - Injection method: 'innerHTML', 'append', 'prepend' (default: 'innerHTML')
 	 */
 	static injectHTML(container, htmlString, options = {}) {
-		const {
-			escape = true,
-			method = "innerHTML"
-		} = options;
+		const { escapeHtml = true, method = "innerHTML" } = options;
 
-		const element = typeof container === "string" 
-			? document.querySelector(container) 
-			: container;
+		const element =
+			typeof container === "string"
+				? document.querySelector(container)
+				: container;
 
 		if (!element) {
 			console.error("Container element not found");
 			return;
 		}
 
-		const safeHtml = escape ? this.escapeHtml(htmlString) : htmlString;
+		const safeHtml = escapeHtml
+			? HTMLInjectionManager.escapeHtml(htmlString)
+			: htmlString;
 
 		switch (method) {
 			case "innerHTML":
@@ -63,35 +63,32 @@ class HTMLInjectionManager {
 	 * @returns {string} Safe HTML string
 	 */
 	static createTableRow(data, template, options = {}) {
-		const {
-			escape = true,
-			dateFormat = "en-US"
-		} = options;
+		const { escapeHtml = true, dateFormat = "en-US" } = options;
 
 		// Process data for safe injection
 		const processedData = {};
-		Object.entries(data).forEach(([key, value]) => {
+		for (const [key, value] of Object.entries(data)) {
 			if (value === null || value === undefined) {
 				processedData[key] = "-";
 			} else if (value instanceof Date) {
 				processedData[key] = value.toLocaleDateString(dateFormat, {
 					month: "2-digit",
 					day: "2-digit",
-					year: "numeric"
+					year: "numeric",
 				});
-			} else if (typeof value === "string" && escape) {
-				processedData[key] = this.escapeHtml(value);
+			} else if (typeof value === "string" && escapeHtml) {
+				processedData[key] = HTMLInjectionManager.escapeHtml(value);
 			} else {
 				processedData[key] = value;
 			}
-		});
+		}
 
 		// Replace placeholders in template
 		let html = template;
-		Object.entries(processedData).forEach(([key, value]) => {
+		for (const [key, value] of Object.entries(processedData)) {
 			const placeholder = new RegExp(`{{${key}}}`, "g");
 			html = html.replace(placeholder, value);
-		});
+		}
 
 		return html;
 	}
@@ -104,7 +101,7 @@ class HTMLInjectionManager {
 	 * @returns {string} Safe HTML string
 	 */
 	static createModalContent(data, template, options = {}) {
-		return this.createTableRow(data, template, options);
+		return HTMLInjectionManager.createTableRow(data, template, options);
 	}
 
 	/**
@@ -117,30 +114,35 @@ class HTMLInjectionManager {
 		const {
 			showPermissionSelect = true,
 			showRemoveButton = true,
-			permissionLevels = ["viewer", "contributor", "co-owner"]
+			permissionLevels = ["viewer", "contributor", "co-owner"],
 		} = options;
 
 		const isGroup = user.email?.startsWith("group:");
-		const displayName = this.escapeHtml(isGroup ? user.name : (user.name || user.email));
+		const displayName = HTMLInjectionManager.escapeHtml(
+			isGroup ? user.name : user.name || user.email,
+		);
 		const displayEmail = isGroup
 			? `Group • ${user.member_count || 0} members`
-			: this.escapeHtml(user.email);
+			: HTMLInjectionManager.escapeHtml(user.email);
 		const icon = isGroup ? "bi-people-fill" : "bi-person-fill";
 
 		let permissionSelect = "";
 		if (showPermissionSelect) {
-			const options = permissionLevels.map(level => 
-				`<option value="${level}" ${user.permission_level === level ? "selected" : ""}>${level.charAt(0).toUpperCase() + level.slice(1)}</option>`
-			).join("");
+			const options = permissionLevels
+				.map(
+					(level) =>
+						`<option value="${level}" ${user.permission_level === level ? "selected" : ""}>${level.charAt(0).toUpperCase() + level.slice(1)}</option>`,
+				)
+				.join("");
 			permissionSelect = `
-				<select class="form-select permission-select" data-user-email="${this.escapeHtml(user.email)}">
+				<select class="form-select permission-select" data-user-email="${HTMLInjectionManager.escapeHtml(user.email)}">
 					${options}
 				</select>
 			`;
 		}
 
-		const removeButton = showRemoveButton 
-			? '<span class="remove-chip">&times;</span>' 
+		const removeButton = showRemoveButton
+			? '<span class="remove-chip">&times;</span>'
 			: "";
 
 		return `
@@ -166,31 +168,32 @@ class HTMLInjectionManager {
 	 */
 	static createErrorMessage(errors, options = {}) {
 		const { showFieldNames = true } = options;
-		
+
 		let errorHtml = '<ul class="mb-0 list-unstyled">';
-		
+
 		if (Array.isArray(errors)) {
-			errors.forEach(error => {
-				errorHtml += `<li>${this.escapeHtml(error)}</li>`;
-			});
+			for (const error of errors) {
+				errorHtml += `<li>${HTMLInjectionManager.escapeHtml(error)}</li>`;
+			}
 		} else if (typeof errors === "object" && errors !== null) {
-			Object.entries(errors).forEach(([field, messages]) => {
-				const fieldName = showFieldNames && field !== "non_field_errors" 
-					? `<strong>${this.escapeHtml(field)}:</strong> ` 
-					: "";
-				
+			for (const [field, messages] of Object.entries(errors)) {
+				const fieldName =
+					showFieldNames && field !== "non_field_errors"
+						? `<strong>${HTMLInjectionManager.escapeHtml(field)}:</strong> `
+						: "";
+
 				if (Array.isArray(messages)) {
-					messages.forEach(message => {
-						errorHtml += `<li>${fieldName}${this.escapeHtml(message)}</li>`;
-					});
+					for (const message of messages) {
+						errorHtml += `<li>${fieldName}${HTMLInjectionManager.escapeHtml(message)}</li>`;
+					}
 				} else if (typeof messages === "string") {
-					errorHtml += `<li>${fieldName}${this.escapeHtml(messages)}</li>`;
+					errorHtml += `<li>${fieldName}${HTMLInjectionManager.escapeHtml(messages)}</li>`;
 				}
-			});
+			}
 		} else if (typeof errors === "string") {
-			errorHtml += `<li>${this.escapeHtml(errors)}</li>`;
+			errorHtml += `<li>${HTMLInjectionManager.escapeHtml(errors)}</li>`;
 		}
-		
+
 		errorHtml += "</ul>";
 		return errorHtml;
 	}
@@ -205,7 +208,7 @@ class HTMLInjectionManager {
 		const { size = "sm", color = "" } = options;
 		const sizeClass = size === "sm" ? "spinner-border-sm" : "";
 		const colorClass = color ? `text-${color}` : "";
-		
+
 		return `<span class="spinner-border ${sizeClass} me-2 ${colorClass}" role="status" aria-hidden="true"></span>${text}`;
 	}
 
@@ -219,8 +222,8 @@ class HTMLInjectionManager {
 	static createBadge(text, type = "primary", options = {}) {
 		const { size = "", customClass = "" } = options;
 		const sizeClass = size ? `badge-${size}` : "";
-		
-		return `<span class="badge bg-${type} ${sizeClass} ${customClass}">${this.escapeHtml(text)}</span>`;
+
+		return `<span class="badge bg-${type} ${sizeClass} ${customClass}">${HTMLInjectionManager.escapeHtml(text)}</span>`;
 	}
 
 	/**
@@ -238,21 +241,25 @@ class HTMLInjectionManager {
 			icon = "",
 			loading = false,
 			customClass = "",
-			attributes = {}
+			attributes = {},
 		} = options;
 
 		const sizeClass = size ? `btn-${size}` : "";
 		const disabledAttr = disabled ? "disabled" : "";
 		const iconHtml = icon ? `<i class="bi ${icon} me-1"></i>` : "";
-		const loadingHtml = loading ? this.createLoadingSpinner() : "";
-		
+		const loadingHtml = loading
+			? HTMLInjectionManager.createLoadingSpinner()
+			: "";
+
 		const attrs = Object.entries(attributes)
-			.map(([key, value]) => `${key}="${this.escapeHtml(value)}"`)
+			.map(
+				([key, value]) => `${key}="${HTMLInjectionManager.escapeHtml(value)}"`,
+			)
 			.join(" ");
 
 		return `
 			<button type="${type}" class="btn btn-${variant} ${sizeClass} ${customClass}" ${disabledAttr} ${attrs}>
-				${loadingHtml}${iconHtml}${this.escapeHtml(text)}
+				${loadingHtml}${iconHtml}${HTMLInjectionManager.escapeHtml(text)}
 			</button>
 		`;
 	}
@@ -265,7 +272,7 @@ class HTMLInjectionManager {
 	 */
 	static createPagination(pagination, options = {}) {
 		const { showArrows = true, maxPages = 5 } = options;
-		
+
 		if (pagination.num_pages <= 1) return "";
 
 		let html = '<ul class="pagination justify-content-center">';
@@ -321,7 +328,7 @@ class HTMLInjectionManager {
 			dismissible = true,
 			icon = true,
 			containerId = "formErrors",
-			customClass = ""
+			customClass = "",
 		} = options;
 
 		const iconMap = {
@@ -330,11 +337,13 @@ class HTMLInjectionManager {
 			warning: "bi-exclamation-triangle",
 			info: "bi-info-circle-fill",
 			primary: "bi-info-circle-fill",
-			secondary: "bi-info-circle-fill"
+			secondary: "bi-info-circle-fill",
 		};
 
 		const iconClass = icon ? iconMap[type] || iconMap.info : "";
-		const dismissibleHtml = dismissible ? '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' : "";
+		const dismissibleHtml = dismissible
+			? '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>'
+			: "";
 
 		return `
 			<div class="alert alert-${type} bg-${type}-subtle text-${type} mb-4 form-error-container ${customClass}" role="alert">
@@ -342,7 +351,7 @@ class HTMLInjectionManager {
 					${iconClass ? `<i class="bi ${iconClass} me-2"></i>` : ""}
 					<div class="error-content">
 						<ul class="mb-0 list-unstyled">
-							<li>${this.escapeHtml(message)}</li>
+							<li>${HTMLInjectionManager.escapeHtml(message)}</li>
 						</ul>
 					</div>
 				</div>
@@ -363,17 +372,23 @@ class HTMLInjectionManager {
 			autoHide = true,
 			autoHideDelay = 5000,
 			scrollTo = true,
-			replace = true
+			replace = true,
 		} = options;
 
 		const container = document.getElementById(containerId);
 		if (!container) {
-			console.error(`Notification container with ID '${containerId}' not found`);
+			console.error(
+				`Notification container with ID '${containerId}' not found`,
+			);
 			return;
 		}
 
-		const notificationHtml = this.createNotification(message, type, options);
-		
+		const notificationHtml = HTMLInjectionManager.createNotification(
+			message,
+			type,
+			options,
+		);
+
 		if (replace) {
 			// Replace existing content
 			container.innerHTML = notificationHtml;
@@ -393,7 +408,7 @@ class HTMLInjectionManager {
 		// Auto-hide if requested
 		if (autoHide) {
 			setTimeout(() => {
-				this.hideNotification(containerId);
+				HTMLInjectionManager.hideNotification(containerId);
 			}, autoHideDelay);
 		}
 	}
@@ -429,12 +444,17 @@ class HTMLInjectionManager {
 	static showAlert(message, type = "success") {
 		const toastContainer = document.getElementById("toast-container");
 		if (!toastContainer) return;
-		
+
 		const toastId = `toast-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-		const bgClass = type === "success" ? "bg-success text-white" : 
-						type === "error" ? "bg-danger text-white" :
-						type === "warning" ? "bg-warning text-dark" : "bg-info text-white";
-		
+		const bgClass =
+			type === "success"
+				? "bg-success text-white"
+				: type === "error"
+					? "bg-danger text-white"
+					: type === "warning"
+						? "bg-warning text-dark"
+						: "bg-info text-white";
+
 		const toastHtml = `
 			<div id="${toastId}" class="toast align-items-center ${bgClass}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3500">
 				<div class="d-flex">
@@ -443,8 +463,10 @@ class HTMLInjectionManager {
 				</div>
 			</div>
 		`;
-		
-		HTMLInjectionManager.injectHTML(toastContainer, toastHtml, { escape: false });
+
+		HTMLInjectionManager.injectHTML(toastContainer, toastHtml, {
+			escape: false,
+		});
 		const toastElem = document.getElementById(toastId);
 		const toast = new bootstrap.Toast(toastElem);
 		toast.show();

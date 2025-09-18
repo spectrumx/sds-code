@@ -16,7 +16,7 @@ class ShareActionManager {
 		this.selectedUsersMap = {}; // key: input id, value: array of {name, email}
 		this.pendingRemovals = new Set(); // Track users marked for removal
 		this.pendingPermissionChanges = new Map(); // Track permission level changes
-		
+
 		this.initializeEventListeners();
 	}
 
@@ -60,7 +60,9 @@ class ShareActionManager {
 		}
 
 		// Setup share button for this specific modal
-		const shareButton = document.getElementById(`share-item-btn-${this.itemUuid}`);
+		const shareButton = document.getElementById(
+			`share-item-btn-${this.itemUuid}`,
+		);
 		if (shareButton) {
 			this.setupShareItem(shareButton);
 		}
@@ -197,15 +199,15 @@ class ShareActionManager {
 
 		// Create a map of user emails to their permission levels
 		const userPermissions = {};
-		selectedUsers.forEach((user) => {
+		for (const user of selectedUsers) {
 			userPermissions[user.email] = user.permission_level || "viewer";
-		});
+		}
 
 		const userEmails = selectedUsers.map((u) => u.email).join(",");
 
 		const formData = {
 			"user-search": userEmails,
-			"user_permissions": JSON.stringify(userPermissions),
+			user_permissions: JSON.stringify(userPermissions),
 		};
 
 		// Add notify_users and notify_message if present
@@ -228,23 +230,26 @@ class ShareActionManager {
 		}
 
 		// Handle pending permission changes
-		if (this.pendingPermissionChanges && this.pendingPermissionChanges.size > 0) {
+		if (
+			this.pendingPermissionChanges &&
+			this.pendingPermissionChanges.size > 0
+		) {
 			formData.permission_changes = JSON.stringify(
-				Array.from(this.pendingPermissionChanges.entries())
+				Array.from(this.pendingPermissionChanges.entries()),
 			);
 		}
 
 		try {
 			const response = await APIClient.post(
 				`/users/share-item/${this.itemType}/${this.itemUuid}/`,
-				formData
+				formData,
 			);
 
 			if (response.success) {
 				// Show success message
 				this.showToast(
 					response.message || `${this.itemType} shared successfully!`,
-					"success"
+					"success",
 				);
 
 				// Close modal
@@ -255,14 +260,16 @@ class ShareActionManager {
 			} else {
 				// Show error message
 				const errorMessage =
-					response.error || response.message || `Error sharing ${this.itemType}`;
+					response.error ||
+					response.message ||
+					`Error sharing ${this.itemType}`;
 				this.showToast(errorMessage, "danger");
 			}
 		} catch (error) {
 			console.error(`Error sharing ${this.itemType}:`, error);
 			this.showToast(
 				`Error sharing ${this.itemType}. Please try again.`,
-				"danger"
+				"danger",
 			);
 		}
 	}
@@ -283,7 +290,7 @@ class ShareActionManager {
 			const users = await APIClient.get(
 				`/users/share-item/${this.itemType}/${this.itemUuid}/`,
 				{ q: query, limit: 10 },
-				null // No loading state for search
+				null, // No loading state for search
 			);
 			this.displayResults(users, dropdown, query);
 		} catch (error) {
@@ -307,23 +314,25 @@ class ShareActionManager {
 		const listGroup = dropdown.querySelector(".list-group");
 
 		if (users.length === 0) {
-			listGroup.innerHTML = '<div class="list-group-item no-results">No users or groups found</div>';
+			listGroup.innerHTML =
+				'<div class="list-group-item no-results">No users or groups found</div>';
 		} else {
-			const items = users.map((user) => {
-				const isGroup = user.type === "group";
-				const icon = isGroup
-					? "bi-people-fill text-info"
-					: "bi-person-fill text-primary";
-				const subtitle = isGroup
-					? `<div class="user-email">Group • ${user.member_count} members</div>`
-					: `<div class="user-email">${this.highlightMatch(user.email, query)}</div>`;
+			const items = users
+				.map((user) => {
+					const isGroup = user.type === "group";
+					const icon = isGroup
+						? "bi-people-fill text-info"
+						: "bi-person-fill text-primary";
+					const subtitle = isGroup
+						? `<div class="user-email">Group • ${user.member_count} members</div>`
+						: `<div class="user-email">${this.highlightMatch(user.email, query)}</div>`;
 
-				return `
-					<div class="list-group-item" 
-						 data-user-id="${HTMLInjectionManager.escapeHtml(user.url || "")}" 
-						 data-user-name="${HTMLInjectionManager.escapeHtml(user.name)}" 
-						 data-user-email="${HTMLInjectionManager.escapeHtml(user.email)}" 
-						 data-user-type="${HTMLInjectionManager.escapeHtml(user.type || "user")}" 
+					return `
+					<div class="list-group-item"
+						 data-user-id="${HTMLInjectionManager.escapeHtml(user.url || "")}"
+						 data-user-name="${HTMLInjectionManager.escapeHtml(user.name)}"
+						 data-user-email="${HTMLInjectionManager.escapeHtml(user.email)}"
+						 data-user-type="${HTMLInjectionManager.escapeHtml(user.type || "user")}"
 						 data-member-count="${user.member_count || 0}">
 						<div class="user-search-item">
 							<div class="user-name">
@@ -334,7 +343,8 @@ class ShareActionManager {
 						</div>
 					</div>
 				`;
-			}).join("");
+				})
+				.join("");
 
 			HTMLInjectionManager.injectHTML(listGroup, items, { escape: false });
 		}
@@ -348,7 +358,8 @@ class ShareActionManager {
 	 */
 	displayError(dropdown) {
 		const listGroup = dropdown.querySelector(".list-group");
-		listGroup.innerHTML = '<div class="list-group-item no-results">Error loading users</div>';
+		listGroup.innerHTML =
+			'<div class="list-group-item no-results">Error loading users</div>';
 		this.showDropdown(dropdown);
 	}
 
@@ -361,7 +372,10 @@ class ShareActionManager {
 	highlightMatch(text, query) {
 		if (!query) return HTMLInjectionManager.escapeHtml(text);
 		const regex = new RegExp(`(${query})`, "gi");
-		return HTMLInjectionManager.escapeHtml(text).replace(regex, "<mark>$1</mark>");
+		return HTMLInjectionManager.escapeHtml(text).replace(
+			regex,
+			"<mark>$1</mark>",
+		);
 	}
 
 	/**
@@ -467,8 +481,8 @@ class ShareActionManager {
 			const groupUuid = group.email.replace("group:", "");
 
 			// Make API call to check if user is in the group
-			const data = await APIClient.get(`/users/share-groups/`, {
-				group_uuid: groupUuid
+			const data = await APIClient.get("/users/share-groups/", {
+				group_uuid: groupUuid,
 			});
 
 			if (data.success && data.members) {
@@ -553,24 +567,29 @@ class ShareActionManager {
 			const chip = HTMLInjectionManager.createUserChip(user, {
 				showPermissionSelect: true,
 				showRemoveButton: true,
-				permissionLevels: ["viewer", "contributor", "co-owner"]
+				permissionLevels: ["viewer", "contributor", "co-owner"],
 			});
 
 			HTMLInjectionManager.injectHTML(chipContainer, chip, { escape: false });
 
 			// Add click handler for removal
-			const removeBtn = chipContainer.querySelector(`[data-user-email="${user.email}"]`).closest('.user-chip').querySelector(".remove-chip");
+			const removeBtn = chipContainer
+				.querySelector(`[data-user-email="${user.email}"]`)
+				.closest(".user-chip")
+				.querySelector(".remove-chip");
 			if (removeBtn) {
 				removeBtn.onclick = () => {
-					this.selectedUsersMap[inputId] = this.selectedUsersMap[inputId].filter(
-						(u) => u.email !== user.email,
-					);
+					this.selectedUsersMap[inputId] = this.selectedUsersMap[
+						inputId
+					].filter((u) => u.email !== user.email);
 					this.renderChips(input);
 				};
 			}
 
 			// Add change handler for permission level
-			const permissionSelect = chipContainer.querySelector(`[data-user-email="${user.email}"]`);
+			const permissionSelect = chipContainer.querySelector(
+				`[data-user-email="${user.email}"]`,
+			);
 			if (permissionSelect) {
 				permissionSelect.onchange = (e) => {
 					// Update the user's permission level in the selectedUsersMap
@@ -595,15 +614,25 @@ class ShareActionManager {
 	 */
 	toggleModalSections(inputId) {
 		const itemUuid = inputId.replace("user-search-", "");
-		const notifySection = document.getElementById(`notify-message-section-${itemUuid}`);
-		const usersWithAccessSection = document.getElementById(`users-with-access-section-${itemUuid}`);
+		const notifySection = document.getElementById(
+			`notify-message-section-${itemUuid}`,
+		);
+		const usersWithAccessSection = document.getElementById(
+			`users-with-access-section-${itemUuid}`,
+		);
 		const saveBtn = document.getElementById(`share-item-btn-${itemUuid}`);
-		const modalDivider = document.querySelector(`#share-modal-${itemUuid} .modal-divider`);
+		const modalDivider = document.querySelector(
+			`#share-modal-${itemUuid} .modal-divider`,
+		);
 
-		if (this.selectedUsersMap[inputId] && this.selectedUsersMap[inputId].length > 0) {
+		if (
+			this.selectedUsersMap[inputId] &&
+			this.selectedUsersMap[inputId].length > 0
+		) {
 			// Show notify section, hide users with access section
 			if (notifySection) notifySection.classList.remove("d-none");
-			if (usersWithAccessSection) usersWithAccessSection.classList.add("d-none");
+			if (usersWithAccessSection)
+				usersWithAccessSection.classList.add("d-none");
 			if (modalDivider) modalDivider.classList.add("d-none");
 
 			// Clear pending removals when adding new users
@@ -613,7 +642,8 @@ class ShareActionManager {
 			const modal = document.getElementById(`share-modal-${itemUuid}`);
 			if (modal) {
 				for (const button of modal.querySelectorAll(".btn-icon-dropdown")) {
-					button.innerHTML = '<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
+					button.innerHTML =
+						'<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
 					button.classList.remove("btn-outline-danger");
 					button.classList.add("btn-light");
 					button.disabled = false;
@@ -632,7 +662,8 @@ class ShareActionManager {
 		} else {
 			// Hide notify section, show users with access section
 			if (notifySection) notifySection.classList.add("d-none");
-			if (usersWithAccessSection) usersWithAccessSection.classList.remove("d-none");
+			if (usersWithAccessSection)
+				usersWithAccessSection.classList.remove("d-none");
 			if (modalDivider) modalDivider.classList.remove("d-none");
 
 			// Change button text back to "Save"
@@ -656,11 +687,17 @@ class ShareActionManager {
 			this.pendingPermissionChanges && this.pendingPermissionChanges.size > 0;
 
 		const saveBtn = document.getElementById(`share-item-btn-${itemUuid}`);
-		const pendingMessage = document.getElementById(`pending-changes-message-${itemUuid}`);
+		const pendingMessage = document.getElementById(
+			`pending-changes-message-${itemUuid}`,
+		);
 
 		// Update save button
 		if (saveBtn) {
-			if (hasSelectedUsers || hasPendingRemovals || hasPendingPermissionChanges) {
+			if (
+				hasSelectedUsers ||
+				hasPendingRemovals ||
+				hasPendingPermissionChanges
+			) {
 				saveBtn.disabled = false;
 			} else {
 				saveBtn.disabled = true;
@@ -715,14 +752,18 @@ class ShareActionManager {
 		const permissionLevel = button.dataset.permissionLevel;
 
 		if (!userEmail || !itemUuid || !itemType || !permissionLevel) {
-			console.error("Missing user email, item UUID, item type, or permission level");
+			console.error(
+				"Missing user email, item UUID, item type, or permission level",
+			);
 			return;
 		}
 
 		// Update the dropdown button text and icon to reflect the change
 		const dropdown = button.closest(".dropdown");
 		const dropdownButton = dropdown.querySelector(".access-level-dropdown");
-		const currentPermission = dropdownButton.getAttribute("data-current-permission");
+		const currentPermission = dropdownButton.getAttribute(
+			"data-current-permission",
+		);
 
 		// Don't do anything if selecting the same permission
 		if (permissionLevel === currentPermission) {
@@ -730,7 +771,8 @@ class ShareActionManager {
 		}
 
 		// Update the dropdown button text and icon
-		const iconClass = window.PermissionsManager.getPermissionIcon(permissionLevel);
+		const iconClass =
+			window.PermissionsManager.getPermissionIcon(permissionLevel);
 		dropdownButton.innerHTML = `<i class="bi ${iconClass} me-1"></i>${permissionLevel.charAt(0).toUpperCase() + permissionLevel.slice(1)}`;
 		dropdownButton.setAttribute("data-current-permission", permissionLevel);
 
@@ -746,7 +788,13 @@ class ShareActionManager {
 
 		// Handle permission level change
 		if (permissionLevel !== "remove") {
-			this.handlePermissionLevelChange(userEmail, userName, itemUuid, itemType, permissionLevel);
+			this.handlePermissionLevelChange(
+				userEmail,
+				userName,
+				itemUuid,
+				itemType,
+				permissionLevel,
+			);
 		}
 
 		// Update save button state
@@ -759,7 +807,6 @@ class ShareActionManager {
 		}
 	}
 
-
 	/**
 	 * Update dropdown menu
 	 * @param {Element} dropdown - Dropdown element
@@ -767,16 +814,18 @@ class ShareActionManager {
 	 */
 	updateDropdownMenu(dropdown, clickedButton) {
 		const dropdownMenu = dropdown.querySelector(".access-level-menu");
-		const allPermissionBtns = dropdownMenu.querySelectorAll(".permission-change-btn");
+		const allPermissionBtns = dropdownMenu.querySelectorAll(
+			".permission-change-btn",
+		);
 
 		// Remove selected class and checkmarks from all buttons
-		allPermissionBtns.forEach((btn) => {
+		for (const btn of allPermissionBtns) {
 			btn.classList.remove("selected");
 			const checkmark = btn.querySelector(".bi-check");
 			if (checkmark) {
 				checkmark.remove();
 			}
-		});
+		}
 
 		// Add selected class and checkmark to the clicked button
 		clickedButton.classList.add("selected");
@@ -792,14 +841,16 @@ class ShareActionManager {
 	 */
 	markUserForRemoval(userEmail, userName) {
 		this.pendingRemovals.add(userEmail);
-		
+
 		// Remove from permission changes if it was there
-		if (this.pendingPermissionChanges && this.pendingPermissionChanges.has(userEmail)) {
+		if (this.pendingPermissionChanges?.has(userEmail)) {
 			this.pendingPermissionChanges.delete(userEmail);
 		}
 
 		// Update user text styling
-		const userRow = document.querySelector(`[data-user-email="${userEmail}"]`).closest("tr");
+		const userRow = document
+			.querySelector(`[data-user-email="${userEmail}"]`)
+			.closest("tr");
 		const userNameElement = userRow.querySelector("h5");
 		if (userNameElement) {
 			userNameElement.style.textDecoration = "line-through";
@@ -815,7 +866,9 @@ class ShareActionManager {
 		this.pendingRemovals.delete(userEmail);
 
 		// Clear any existing text decoration or opacity
-		const userRow = document.querySelector(`[data-user-email="${userEmail}"]`).closest("tr");
+		const userRow = document
+			.querySelector(`[data-user-email="${userEmail}"]`)
+			.closest("tr");
 		const userNameElement = userRow.querySelector("h5");
 		if (userNameElement) {
 			userNameElement.style.textDecoration = "none";
@@ -831,7 +884,13 @@ class ShareActionManager {
 	 * @param {string} itemType - Item type
 	 * @param {string} permissionLevel - New permission level
 	 */
-	handlePermissionLevelChange(userEmail, userName, itemUuid, itemType, permissionLevel) {
+	handlePermissionLevelChange(
+		userEmail,
+		userName,
+		itemUuid,
+		itemType,
+		permissionLevel,
+	) {
 		// Store the permission change
 		if (!this.pendingPermissionChanges) {
 			this.pendingPermissionChanges = new Map();
@@ -946,7 +1005,8 @@ class ShareActionManager {
 
 		// Reset all dropdown buttons to their original state
 		for (const button of document.querySelectorAll(".btn-icon-dropdown")) {
-			button.innerHTML = '<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
+			button.innerHTML =
+				'<i class="bi bi-three-dots-vertical" aria-hidden="true"></i>';
 			button.classList.remove("btn-outline-danger");
 			button.classList.add("btn-light");
 			button.disabled = false;
@@ -959,20 +1019,28 @@ class ShareActionManager {
 		}
 
 		// Hide pending changes messages
-		for (const msg of document.querySelectorAll('[id^="pending-changes-message-"]')) {
+		for (const msg of document.querySelectorAll(
+			'[id^="pending-changes-message-"]',
+		)) {
 			msg.classList.add("d-none");
 		}
 
 		// Clear chips
-		for (const container of document.querySelectorAll(".selected-users-chips")) {
+		for (const container of document.querySelectorAll(
+			".selected-users-chips",
+		)) {
 			container.innerHTML = "";
 		}
 
 		// Hide notify sections and show users-with-access sections
-		for (const section of document.querySelectorAll('[id^="notify-message-section-"]')) {
+		for (const section of document.querySelectorAll(
+			'[id^="notify-message-section-"]',
+		)) {
 			section.classList.add("d-none");
 		}
-		for (const section of document.querySelectorAll('[id^="users-with-access-section-"]')) {
+		for (const section of document.querySelectorAll(
+			'[id^="users-with-access-section-"]',
+		)) {
 			section.classList.remove("d-none");
 		}
 
@@ -996,18 +1064,21 @@ class ShareActionManager {
 		}
 
 		// Reset notify checkboxes and textareas
-		for (const checkbox of document.querySelectorAll('[id^="notify-users-checkbox-"]')) {
+		for (const checkbox of document.querySelectorAll(
+			'[id^="notify-users-checkbox-"]',
+		)) {
 			checkbox.checked = true;
 			const itemUuid = checkbox.id.replace("notify-users-checkbox-", "");
 			if (typeof setupNotifyCheckbox === "function") {
 				setupNotifyCheckbox(itemUuid);
 			}
 		}
-		for (const textarea of document.querySelectorAll('[id^="notify-message-textarea-"]')) {
+		for (const textarea of document.querySelectorAll(
+			'[id^="notify-message-textarea-"]',
+		)) {
 			textarea.value = "";
 		}
 	}
-
 
 	/**
 	 * Get permission button text with icon (legacy method)
@@ -1016,15 +1087,17 @@ class ShareActionManager {
 	 */
 	getPermissionButtonText(permissionLevel) {
 		// Handle undefined/null permission levels
-		if (!permissionLevel || typeof permissionLevel !== 'string') {
-			permissionLevel = 'viewer'; // Default fallback
-		}
-		
-		const iconClass = window.PermissionsManager?.getPermissionIcon(permissionLevel) || 'bi-question-circle';
-		const displayText = permissionLevel.charAt(0).toUpperCase() + permissionLevel.slice(1);
+		const level =
+			!permissionLevel || typeof permissionLevel !== "string"
+				? "viewer"
+				: permissionLevel;
+
+		const iconClass =
+			window.PermissionsManager?.getPermissionIcon(level) ||
+			"bi-question-circle";
+		const displayText = level.charAt(0).toUpperCase() + level.slice(1);
 		return `<i class="bi ${iconClass} me-1"></i>${displayText}`;
 	}
-
 
 	/**
 	 * Show toast notification - Wrapper for global showAlert
@@ -1034,7 +1107,7 @@ class ShareActionManager {
 	showToast(message, type = "success") {
 		// Map ShareActionManager types to showAlert types
 		const mappedType = type === "danger" ? "error" : type;
-		
+
 		// Use the global showAlert function from HTMLInjectionManager
 		if (window.showAlert) {
 			window.showAlert(message, mappedType);
@@ -1046,4 +1119,3 @@ class ShareActionManager {
 
 // Make class available globally
 window.ShareActionManager = ShareActionManager;
-

@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
+from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
@@ -315,7 +316,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         try:
             model_class = self.ITEM_MODELS[item_type]
             # Get the item (we know it exists and user has access)
-            item = model_class.objects.get(uuid=item_uuid)
 
             # Get exclusion lists for search
             excluded_user_ids, excluded_group_ids = self._get_exclusion_lists(
@@ -1397,12 +1397,12 @@ class GroupCapturesView(
                         unsafe_path="/",
                         request=self.request,
                     )
-                    
+
                     form = FileSearchForm(request.GET, user=self.request.user)
                     if form.is_valid():
                         files = self.search_files(form.cleaned_data, request)
                         tree_data = self._get_directory_tree(files, str(base_dir))
-                        
+
                         return JsonResponse(
                             {
                                 "tree": tree_data,
@@ -1486,7 +1486,9 @@ class GroupCapturesView(
         else:
             initial_data = {}
             if existing_dataset:
-                authors_json = self._set_authors_el_ids(existing_dataset.get_authors_display())
+                authors_json = self._set_authors_el_ids(
+                    existing_dataset.get_authors_display()
+                )
 
                 initial_data = {
                     "name": existing_dataset.name,
@@ -1502,7 +1504,6 @@ class GroupCapturesView(
         selected_captures, selected_captures_details = self._get_capture_context(
             existing_dataset=existing_dataset
         )
-
 
         # Add to context
         context.update(
@@ -1532,7 +1533,6 @@ class GroupCapturesView(
         )
         return context
 
-
     def post(self, request, *args, **kwargs):
         """Handle dataset creation/update with selected captures and files."""
         try:
@@ -1559,13 +1559,13 @@ class GroupCapturesView(
         """Validate the dataset form and return error response if invalid."""
         # Check if this is an edit operation first
         dataset_uuid = request.GET.get("dataset_uuid")
-        
+
         if dataset_uuid:
             # For editing, validate permissions first
             permission_level = get_user_permission_level(
                 request.user, dataset_uuid, ItemType.DATASET
             )
-            
+
             if not permission_level:
                 return JsonResponse(
                     {
@@ -1577,7 +1577,7 @@ class GroupCapturesView(
 
             # Only validate form if user can edit metadata
             can_edit = self.can_edit_metadata(permission_level)
-            
+
             if can_edit:
                 dataset_form = DatasetInfoForm(request.POST, user=request.user)
                 if not dataset_form.is_valid():
@@ -1659,7 +1659,7 @@ class GroupCapturesView(
             permission_level = get_user_permission_level(
                 request.user, dataset_uuid, ItemType.DATASET
             )
-            
+
             if not permission_level:
                 return JsonResponse(
                     {
@@ -1731,11 +1731,15 @@ class GroupCapturesView(
 
         if captures_add:
             changes["captures"]["add"] = [
-                id.strip() for id in captures_add.split(",") if id.strip()
+                capture_id.strip()
+                for capture_id in captures_add.split(",")
+                if capture_id.strip()
             ]
         if captures_remove:
             changes["captures"]["remove"] = [
-                id.strip() for id in captures_remove.split(",") if id.strip()
+                capture_id.strip()
+                for capture_id in captures_remove.split(",")
+                if capture_id.strip()
             ]
 
         # Parse files changes
@@ -1744,11 +1748,13 @@ class GroupCapturesView(
 
         if files_add:
             changes["files"]["add"] = [
-                id.strip() for id in files_add.split(",") if id.strip()
+                file_id.strip() for file_id in files_add.split(",") if file_id.strip()
             ]
         if files_remove:
             changes["files"]["remove"] = [
-                id.strip() for id in files_remove.split(",") if id.strip()
+                file_id.strip()
+                for file_id in files_remove.split(",")
+                if file_id.strip()
             ]
 
         return changes
@@ -2160,7 +2166,8 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "permission_level": perm.permission_level,
                     "owner": group.owner.name,
                     "owner_email": group.owner.email,
-                    "is_group_owner": group.owner == current_user,  # Check if the current user owns the group
+                    "is_group_owner": group.owner
+                    == current_user,  # Check if the current user owns the group
                 }
             group_permissions[group_uuid]["members"].append(
                 {

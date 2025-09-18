@@ -5,6 +5,7 @@ This document provides comprehensive information about the JavaScript test suite
 ## Overview
 
 The test suite provides comprehensive testing for all major JavaScript components:
+
 - **test-permissions.js**: Tests permission checking logic
 - **test-sharing.js**: Tests sharing functionality
 - **test-dataset-editing.js**: Tests dataset creation and editing
@@ -15,6 +16,7 @@ The test suite provides comprehensive testing for all major JavaScript component
 ### Test Framework
 
 The tests use a custom test framework that provides:
+
 - **Assertion Methods**: `assert()`, `assertEqual()`, `assertContains()`
 - **Test Organization**: Grouped test suites with individual test cases
 - **Result Reporting**: Detailed pass/fail reporting with error messages
@@ -120,7 +122,7 @@ Tests the ShareActionManager class and sharing functionality.
 sharingTests.addTest("User selection works correctly", () => {
     const manager = sharingTests.createMockShareActionManager();
     const inputId = "user-search-test-uuid";
-    
+
     // Add user to selection
     manager.selectedUsersMap[inputId] = [
         {
@@ -130,7 +132,7 @@ sharingTests.addTest("User selection works correctly", () => {
             permission_level: "viewer"
         }
     ];
-    
+
     sharingTests.assert(manager.selectedUsersMap[inputId].length === 1);
     sharingTests.assertEqual(manager.selectedUsersMap[inputId][0].email, "test@example.com");
     sharingTests.assertEqual(manager.selectedUsersMap[inputId][0].permission_level, "viewer");
@@ -140,7 +142,7 @@ sharingTests.addTest("User selection works correctly", () => {
 sharingTests.addTest("Permission level changes work correctly", () => {
     const manager = sharingTests.createMockShareActionManager();
     const userEmail = "test@example.com";
-    
+
     // Add permission change
     manager.pendingPermissionChanges.set(userEmail, {
         userName: "Test User",
@@ -148,7 +150,7 @@ sharingTests.addTest("Permission level changes work correctly", () => {
         itemType: "dataset",
         permissionLevel: "contributor"
     });
-    
+
     sharingTests.assert(manager.pendingPermissionChanges.has(userEmail));
     sharingTests.assertEqual(manager.pendingPermissionChanges.get(userEmail).permissionLevel, "contributor");
 });
@@ -173,12 +175,12 @@ Tests dataset creation and editing functionality.
 // Test step navigation
 datasetEditingTests.addTest("Step navigation works correctly in creation mode", () => {
     const handler = datasetEditingTests.createMockDatasetCreationHandler();
-    
+
     // Test forward navigation
     const forwardResult = handler.navigateStep(1);
     datasetEditingTests.assert(forwardResult, "Should be able to navigate forward");
     datasetEditingTests.assertEqual(handler.currentStep, 1);
-    
+
     // Test backward navigation
     const backwardResult = handler.navigateStep(-1);
     datasetEditingTests.assert(backwardResult, "Should be able to navigate backward");
@@ -188,16 +190,16 @@ datasetEditingTests.addTest("Step navigation works correctly in creation mode", 
 // Test pending changes
 datasetEditingTests.addTest("Pending changes tracking works correctly", () => {
     const handler = datasetEditingTests.createMockDatasetEditingHandler();
-    
+
     // Initially no changes
     datasetEditingTests.assert(!handler.hasChanges(), "Should have no changes initially");
-    
+
     // Add some changes
     handler.markCaptureForRemoval("capture1");
     handler.addFileToPending("file1", { name: "new.h5" });
-    
+
     datasetEditingTests.assert(handler.hasChanges(), "Should have changes after modifications");
-    
+
     const changes = handler.getPendingChanges();
     datasetEditingTests.assertEqual(changes.captures.length, 1);
     datasetEditingTests.assertEqual(changes.files.length, 1);
@@ -221,6 +223,7 @@ The test runner coordinates execution of all test suites and provides comprehens
 #### Usage
 
 **In Browser:**
+
 ```javascript
 // Tests run automatically when page loads
 // Or manually:
@@ -229,11 +232,13 @@ await runner.runInBrowser();
 ```
 
 **In Node.js:**
+
 ```bash
 node test-runner.js
 ```
 
 **Programmatic:**
+
 ```javascript
 const runner = new TestRunner();
 
@@ -283,7 +288,7 @@ class NewComponentTests {
 
     async runTests() {
         console.log("Running NewComponent tests...");
-        
+
         for (const test of this.tests) {
             try {
                 await test.testFn();
@@ -294,7 +299,7 @@ class NewComponentTests {
                 this.failed++;
             }
         }
-        
+
         console.log(`\nTest Results: ${this.passed} passed, ${this.failed} failed`);
         return this.failed === 0;
     }
@@ -390,12 +395,12 @@ createMockShareActionManager(config = {}) {
         selectedUsersMap: {},
         pendingRemovals: new Set(),
         pendingPermissionChanges: new Map(),
-        
+
         // Mock methods
         handleShareItem: async function() {
             return { success: true };
         },
-        
+
         clearSelections: function() {
             this.selectedUsersMap = {};
             this.pendingRemovals.clear();
@@ -413,13 +418,13 @@ Test error scenarios:
 // Test error handling
 sharingTests.addTest("Error handling works correctly", async () => {
     const manager = sharingTests.createMockShareActionManager();
-    
+
     // Mock API error
     const originalAPIClient = global.APIClient;
     global.APIClient.post = async () => {
         throw new Error("Network error");
     };
-    
+
     try {
         await manager.handleShareItem();
         sharingTests.assert(false, "Should have thrown an error");
@@ -440,10 +445,10 @@ Handle asynchronous operations properly:
 // Test async operations
 datasetEditingTests.addTest("Form submission works correctly in creation mode", async () => {
     const handler = datasetEditingTests.createMockDatasetCreationHandler();
-    
+
     // Mock form submission
     const result = await handler.handleSubmit(new Event("submit"));
-    
+
     datasetEditingTests.assert(result.success, "Form submission should be successful");
 });
 ```
@@ -506,7 +511,7 @@ For CI/CD pipelines:
 
 Tests provide detailed output including:
 
-```
+```text
 Running PermissionsManager tests...
 ✓ Owner has all permissions
 ✓ Co-owner has most permissions

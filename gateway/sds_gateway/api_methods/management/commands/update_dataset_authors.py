@@ -38,7 +38,10 @@ class Command(BaseCommand):
             "--dataset-ids",
             nargs="*",
             type=str,
-            help="Specific dataset UUIDs to update (if not provided, all datasets are processed)",
+            help=(
+                "Specific dataset UUIDs to update "
+                "(if not provided, all datasets are processed)"
+            ),
         )
 
     def handle(self, *args, **options):
@@ -47,62 +50,79 @@ class Command(BaseCommand):
         batch_size = options["batch_size"]
         dataset_ids = options["dataset_ids"]
 
+        self._print_start_message(dry_run=dry_run)
+        datasets = self._get_datasets_to_update(dataset_ids)
+        total_datasets = datasets.count()
+
+        if total_datasets == 0:
+            self.stdout.write(self.style.WARNING("No datasets found to update"))
+            return
+
+        self.stdout.write(f"Found {total_datasets} datasets to process")
+        counts = self._process_datasets_in_batches(
+            datasets, total_datasets, batch_size, dry_run=dry_run
+        )
+        self._print_summary(counts, total_datasets, dry_run)
+
+    def _print_start_message(self, *, dry_run: bool):
+        """Print the start message."""
         self.stdout.write(
             self.style.SUCCESS(
                 f"Starting dataset authors update{' (DRY RUN)' if dry_run else ''}..."
             )
         )
 
-        # Get datasets to update
+    def _get_datasets_to_update(self, dataset_ids):
+        """Get the datasets to update."""
         if dataset_ids:
             datasets = Dataset.objects.filter(uuid__in=dataset_ids)
             if not datasets.exists():
-                raise CommandError(
-                    f"No datasets found with the provided UUIDs: {dataset_ids}"
-                )
+                error_msg = f"No datasets found with the provided UUIDs: {dataset_ids}"
+                raise CommandError(error_msg)
         else:
             datasets = Dataset.objects.all()
+        return datasets
 
-        total_datasets = datasets.count()
-        self.stdout.write(f"Found {total_datasets} datasets to process")
+    def _process_datasets_in_batches(
+        self, datasets, total_datasets, batch_size, *, dry_run
+    ):
+        """Process datasets in batches."""
+        counts = {"updated": 0, "skipped": 0, "error": 0}
 
-        if total_datasets == 0:
-            self.stdout.write(self.style.WARNING("No datasets found to update"))
-            return
-
-        updated_count = 0
-        skipped_count = 0
-        error_count = 0
-
-        # Process datasets in batches
         for i in range(0, total_datasets, batch_size):
             batch = datasets[i : i + batch_size]
             self.stdout.write(
                 f"Processing batch {i // batch_size + 1} ({len(batch)} datasets)"
             )
+            self._process_batch(batch, counts, dry_run)
 
-            for dataset in batch:
-                try:
-                    result = self._update_dataset_authors(dataset, dry_run)
-                    if result == "updated":
-                        updated_count += 1
-                    elif result == "skipped":
-                        skipped_count += 1
-                except Exception as e:
-                    error_count += 1
-                    logger.error(f"Error updating dataset {dataset.uuid}: {e}")
-                    self.stdout.write(
-                        self.style.ERROR(f"Error updating dataset {dataset.uuid}: {e}")
-                    )
+        return counts
 
-        # Summary
+    def _process_batch(self, batch, counts, dry_run):
+        """Process a single batch of datasets."""
+        for dataset in batch:
+            try:
+                result = self._update_dataset_authors(dataset, dry_run=dry_run)
+                if result == "updated":
+                    counts["updated"] += 1
+                elif result == "skipped":
+                    counts["skipped"] += 1
+            except (ValueError, TypeError, AttributeError) as e:
+                counts["error"] += 1
+                logger.exception("Error updating dataset %s", dataset.uuid)
+                self.stdout.write(
+                    self.style.ERROR(f"Error updating dataset {dataset.uuid}: {e}")
+                )
+
+    def _print_summary(self, counts, total_datasets, dry_run):
+        """Print the summary."""
         self.stdout.write("\n" + "=" * 50)
         self.stdout.write("SUMMARY:")
         self.stdout.write(f"Total datasets processed: {total_datasets}")
-        self.stdout.write(self.style.SUCCESS(f"Updated: {updated_count}"))
-        self.stdout.write(self.style.WARNING(f"Skipped: {skipped_count}"))
-        if error_count > 0:
-            self.stdout.write(self.style.ERROR(f"Errors: {error_count}"))
+        self.stdout.write(self.style.SUCCESS(f"Updated: {counts['updated']}"))
+        self.stdout.write(self.style.WARNING(f"Skipped: {counts['skipped']}"))
+        if counts["error"] > 0:
+            self.stdout.write(self.style.ERROR(f"Errors: {counts['error']}"))
 
         if dry_run:
             self.stdout.write(
@@ -112,7 +132,7 @@ class Command(BaseCommand):
                 )
             )
 
-    def _update_dataset_authors(self, dataset: Dataset, dry_run: bool) -> str:
+    def _update_dataset_authors(self, dataset: Dataset, *, dry_run: bool) -> str:
         """Update a single dataset's authors field."""
         if not dataset.authors:
             self.stdout.write(f"  Dataset {dataset.uuid}: No authors to update")

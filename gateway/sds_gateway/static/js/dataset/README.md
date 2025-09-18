@@ -5,6 +5,7 @@ This document provides detailed information about the dataset-specific JavaScrip
 ## Overview
 
 The dataset components provide specialized functionality for dataset management:
+
 - **DatasetCreationHandler**: Handles dataset creation workflow
 - **DatasetEditingHandler**: Manages dataset editing with pending changes
 - **DatasetModeManager**: Coordinates between creation and editing modes
@@ -43,14 +44,17 @@ const creationHandler = new DatasetCreationHandler({
 #### Methods
 
 ##### `navigateStep(direction)`
+
 Navigates between steps.
 
 **Parameters:**
+
 - `direction` (number): Direction to navigate (-1 for previous, 1 for next)
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 // Go to next step
 await creationHandler.navigateStep(1);
@@ -60,11 +64,13 @@ await creationHandler.navigateStep(-1);
 ```
 
 ##### `validateCurrentStep()`
+
 Validates the current step.
 
 **Returns:** `boolean` - Whether current step is valid
 
 **Example:**
+
 ```javascript
 if (creationHandler.validateCurrentStep()) {
     // Enable next button
@@ -73,14 +79,17 @@ if (creationHandler.validateCurrentStep()) {
 ```
 
 ##### `handleSubmit(e)`
+
 Handles form submission.
 
 **Parameters:**
+
 - `e` (Event): Submit event
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 document.getElementById('submitForm').addEventListener('click', (e) => {
     creationHandler.handleSubmit(e);
@@ -88,21 +97,26 @@ document.getElementById('submitForm').addEventListener('click', (e) => {
 ```
 
 ##### `updateHiddenFields()`
+
 Updates hidden form fields with current selections.
 
 **Example:**
+
 ```javascript
 creationHandler.updateHiddenFields();
 ```
 
 ##### `setSearchHandler(searchHandler, type)`
+
 Sets search handler reference.
 
 **Parameters:**
+
 - `searchHandler` (Object): Search handler instance
 - `type` (string): Handler type ('captures' or 'files')
 
 **Example:**
+
 ```javascript
 creationHandler.setSearchHandler(capturesSearchHandler, 'captures');
 creationHandler.setSearchHandler(filesSearchHandler, 'files');
@@ -113,17 +127,21 @@ creationHandler.setSearchHandler(filesSearchHandler, 'files');
 The handler includes built-in validation for each step:
 
 ##### Step 0: Dataset Info
+
 - Name field is required and not empty
 - Authors field contains valid JSON array
 - Status field is selected
 
 ##### Step 1: Captures Selection
+
 - Optional step (always valid)
 
 ##### Step 2: Files Selection
+
 - Optional step (always valid)
 
 ##### Step 3: Review
+
 - All previous steps must be valid
 
 #### Event Listeners
@@ -197,35 +215,44 @@ const editingHandler = new DatasetEditingHandler({
 #### Methods
 
 ##### `markCaptureForRemoval(captureId)`
+
 Marks a capture for removal.
 
 **Parameters:**
+
 - `captureId` (string): Capture ID to mark for removal
 
 **Example:**
+
 ```javascript
 editingHandler.markCaptureForRemoval('capture-123');
 ```
 
 ##### `markFileForRemoval(fileId)`
+
 Marks a file for removal.
 
 **Parameters:**
+
 - `fileId` (string): File ID to mark for removal
 
 **Example:**
+
 ```javascript
 editingHandler.markFileForRemoval('file-456');
 ```
 
 ##### `addCaptureToPending(captureId, captureData)`
+
 Adds a capture to pending additions.
 
 **Parameters:**
+
 - `captureId` (string): Capture ID
 - `captureData` (Object): Capture data
 
 **Example:**
+
 ```javascript
 editingHandler.addCaptureToPending('new-capture', {
     type: 'spectrum',
@@ -235,13 +262,16 @@ editingHandler.addCaptureToPending('new-capture', {
 ```
 
 ##### `addFileToPending(fileId, fileData)`
+
 Adds a file to pending additions.
 
 **Parameters:**
+
 - `fileId` (string): File ID
 - `fileData` (Object): File data
 
 **Example:**
+
 ```javascript
 editingHandler.addFileToPending('new-file', {
     name: 'new.h5',
@@ -251,11 +281,13 @@ editingHandler.addFileToPending('new-file', {
 ```
 
 ##### `getPendingChanges()`
+
 Gets all pending changes.
 
 **Returns:** `Object` - Pending changes object
 
 **Example:**
+
 ```javascript
 const changes = editingHandler.getPendingChanges();
 // Returns: {
@@ -265,11 +297,13 @@ const changes = editingHandler.getPendingChanges();
 ```
 
 ##### `hasChanges()`
+
 Checks if there are any pending changes.
 
 **Returns:** `boolean` - Whether there are pending changes
 
 **Example:**
+
 ```javascript
 if (editingHandler.hasChanges()) {
     // Show save prompt
@@ -278,13 +312,16 @@ if (editingHandler.hasChanges()) {
 ```
 
 ##### `setSearchHandler(searchHandler, type)`
+
 Sets search handler reference.
 
 **Parameters:**
+
 - `searchHandler` (Object): Search handler instance
 - `type` (string): Handler type ('captures' or 'files')
 
 **Example:**
+
 ```javascript
 editingHandler.setSearchHandler(capturesSearchHandler, 'captures');
 editingHandler.setSearchHandler(filesSearchHandler, 'files');
@@ -407,11 +444,13 @@ const modeManager = new DatasetModeManager({
 #### Methods
 
 ##### `getHandler()`
+
 Gets the current handler.
 
 **Returns:** `Object` - Current handler instance
 
 **Example:**
+
 ```javascript
 const handler = modeManager.getHandler();
 if (modeManager.isInEditMode()) {
@@ -424,11 +463,13 @@ if (modeManager.isInEditMode()) {
 ```
 
 ##### `getPermissions()`
+
 Gets the permissions manager.
 
 **Returns:** `PermissionsManager` - Permissions manager instance
 
 **Example:**
+
 ```javascript
 const permissions = modeManager.getPermissions();
 if (permissions.canEditMetadata()) {
@@ -437,11 +478,13 @@ if (permissions.canEditMetadata()) {
 ```
 
 ##### `isInEditMode()`
+
 Checks if in edit mode.
 
 **Returns:** `boolean` - Whether in edit mode
 
 **Example:**
+
 ```javascript
 if (modeManager.isInEditMode()) {
     // Handle edit mode specific logic
@@ -451,11 +494,13 @@ if (modeManager.isInEditMode()) {
 ```
 
 ##### `getDatasetUuid()`
+
 Gets the dataset UUID.
 
 **Returns:** `string|null` - Dataset UUID or null for create mode
 
 **Example:**
+
 ```javascript
 const uuid = modeManager.getDatasetUuid();
 if (uuid) {
@@ -468,12 +513,15 @@ if (uuid) {
 ```
 
 ##### `updatePermissions(newPermissions)`
+
 Updates permissions.
 
 **Parameters:**
+
 - `newPermissions` (Object): New permissions object
 
 **Example:**
+
 ```javascript
 modeManager.updatePermissions({
     canEditMetadata: false,
@@ -482,14 +530,17 @@ modeManager.updatePermissions({
 ```
 
 ##### `handleSubmit(e)`
+
 Handles form submission (delegates to appropriate handler).
 
 **Parameters:**
+
 - `e` (Event): Submit event
 
 **Returns:** `Promise<void>`
 
 **Example:**
+
 ```javascript
 document.getElementById('submitForm').addEventListener('click', (e) => {
     modeManager.handleSubmit(e);
@@ -497,11 +548,13 @@ document.getElementById('submitForm').addEventListener('click', (e) => {
 ```
 
 ##### `getPendingChanges()`
+
 Gets pending changes (edit mode only).
 
 **Returns:** `Object|null` - Pending changes or null if not in edit mode
 
 **Example:**
+
 ```javascript
 const changes = modeManager.getPendingChanges();
 if (changes) {
@@ -510,11 +563,13 @@ if (changes) {
 ```
 
 ##### `hasPendingChanges()`
+
 Checks if there are pending changes (edit mode only).
 
 **Returns:** `boolean` - Whether there are pending changes
 
 **Example:**
+
 ```javascript
 if (modeManager.hasPendingChanges()) {
     // Show save prompt
@@ -522,9 +577,11 @@ if (modeManager.hasPendingChanges()) {
 ```
 
 ##### `cleanup()`
+
 Cleans up resources.
 
 **Example:**
+
 ```javascript
 modeManager.cleanup();
 ```
@@ -565,20 +622,20 @@ const modeManager = new DatasetModeManager({
 // Check mode
 if (modeManager.isInEditMode()) {
     console.log('In edit mode');
-    
+
     // Get editing handler
     const editingHandler = modeManager.getHandler();
-    
+
     // Check for pending changes
     if (modeManager.hasPendingChanges()) {
         showSavePrompt();
     }
 } else {
     console.log('In create mode');
-    
+
     // Get creation handler
     const creationHandler = modeManager.getHandler();
-    
+
     // Navigate steps
     creationHandler.navigateStep(1);
 }

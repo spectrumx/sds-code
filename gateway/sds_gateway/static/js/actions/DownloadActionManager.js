@@ -18,7 +18,7 @@ class DownloadActionManager {
 	initializeEventListeners() {
 		// Initialize download buttons for datasets
 		this.initializeDatasetDownloadButtons();
-		
+
 		// Initialize download buttons for captures
 		this.initializeCaptureDownloadButtons();
 	}
@@ -28,11 +28,11 @@ class DownloadActionManager {
 	 */
 	initializeDatasetDownloadButtons() {
 		const downloadButtons = document.querySelectorAll(".download-dataset-btn");
-		
-		downloadButtons.forEach((button) => {
+
+		for (const button of downloadButtons) {
 			// Prevent duplicate event listener attachment
 			if (button.dataset.downloadSetup === "true") {
-				return;
+				continue;
 			}
 			button.dataset.downloadSetup = "true";
 
@@ -44,13 +44,16 @@ class DownloadActionManager {
 				const datasetName = button.getAttribute("data-dataset-name");
 
 				if (!this.permissions.canDownload()) {
-					this.showToast("You don't have permission to download this dataset", "warning");
+					this.showToast(
+						"You don't have permission to download this dataset",
+						"warning",
+					);
 					return;
 				}
 
 				this.handleDatasetDownload(datasetUuid, datasetName, button);
 			});
-		});
+		}
 	}
 
 	/**
@@ -58,11 +61,11 @@ class DownloadActionManager {
 	 */
 	initializeCaptureDownloadButtons() {
 		const downloadButtons = document.querySelectorAll(".download-capture-btn");
-		
-		downloadButtons.forEach((button) => {
+
+		for (const button of downloadButtons) {
 			// Prevent duplicate event listener attachment
 			if (button.dataset.downloadSetup === "true") {
-				return;
+				continue;
 			}
 			button.dataset.downloadSetup = "true";
 
@@ -74,13 +77,16 @@ class DownloadActionManager {
 				const captureName = button.getAttribute("data-capture-name");
 
 				if (!this.permissions.canDownload()) {
-					this.showToast("You don't have permission to download this capture", "warning");
+					this.showToast(
+						"You don't have permission to download this capture",
+						"warning",
+					);
 					return;
 				}
 
 				this.handleCaptureDownload(captureUuid, captureName, button);
 			});
-		});
+		}
 	}
 
 	/**
@@ -112,35 +118,39 @@ class DownloadActionManager {
 
 				// Show loading state
 				const originalContent = button.innerHTML;
-				button.innerHTML = HTMLInjectionManager.createLoadingSpinner("Processing...");
+				button.innerHTML =
+					HTMLInjectionManager.createLoadingSpinner("Processing...");
 				button.disabled = true;
 
 				try {
 					const response = await APIClient.post(
 						`/users/download-item/dataset/${datasetUuid}/`,
-						{}
+						{},
 					);
 
 					if (response.success === true) {
-						button.innerHTML = '<i class="bi bi-check-circle text-success"></i> Download Requested';
+						button.innerHTML =
+							'<i class="bi bi-check-circle text-success"></i> Download Requested';
 						this.showToast(
 							response.message ||
 								"Download request submitted successfully! You will receive an email when ready.",
-							"success"
+							"success",
 						);
 					} else {
-						button.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+						button.innerHTML =
+							'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
 						this.showToast(
 							response.message || "Download request failed. Please try again.",
-							"danger"
+							"danger",
 						);
 					}
 				} catch (error) {
 					console.error("Download error:", error);
-					button.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+					button.innerHTML =
+						'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
 					this.showToast(
 						error.message || "An error occurred while processing your request.",
-						"danger"
+						"danger",
 					);
 				} finally {
 					// Reset button after 3 seconds
@@ -163,44 +173,52 @@ class DownloadActionManager {
 		// Use the web download modal (same as datasets)
 		if (window.showWebDownloadModal) {
 			// Update modal content for capture
-			const modalTitleElement = document.getElementById("webDownloadModalLabel");
-			const modalNameElement = document.getElementById("webDownloadDatasetName");
+			const modalTitleElement = document.getElementById(
+				"webDownloadModalLabel",
+			);
+			const modalNameElement = document.getElementById(
+				"webDownloadDatasetName",
+			);
 			const confirmBtn = document.getElementById("confirmWebDownloadBtn");
-			
+
 			if (modalTitleElement) {
-				modalTitleElement.innerHTML = '<i class="bi bi-download"></i> Download Capture';
+				modalTitleElement.innerHTML =
+					'<i class="bi bi-download"></i> Download Capture';
 			}
-			
+
 			if (modalNameElement) {
-				modalNameElement.textContent = captureName || 'Unnamed Capture';
+				modalNameElement.textContent = captureName || "Unnamed Capture";
 			}
-			
+
 			if (confirmBtn) {
 				// Update button text for capture
-				confirmBtn.innerHTML = '<i class="bi bi-download"></i> Yes, Download Capture';
-				
+				confirmBtn.innerHTML =
+					'<i class="bi bi-download"></i> Yes, Download Capture';
+
 				// Update the dataset UUID to capture UUID for the API call
 				confirmBtn.dataset.datasetUuid = captureUuid;
 				confirmBtn.dataset.datasetName = captureName;
-				
+
 				// Override the API endpoint for captures by temporarily modifying the fetch URL
 				const originalFetch = window.fetch;
-				window.fetch = function(url, options) {
-					if (url.includes(`/users/download-item/dataset/${captureUuid}/`)) {
-						url = `/users/download-item/capture/${captureUuid}/`;
-					}
-					return originalFetch(url, options);
+				window.fetch = (url, options) => {
+					const modifiedUrl = url.includes(
+						`/users/download-item/dataset/${captureUuid}/`,
+					)
+						? `/users/download-item/capture/${captureUuid}/`
+						: url;
+					return originalFetch(modifiedUrl, options);
 				};
-				
+
 				// Restore fetch after modal is hidden
-				const modal = document.getElementById('webDownloadModal');
+				const modal = document.getElementById("webDownloadModal");
 				const restoreFetch = () => {
 					window.fetch = originalFetch;
-					modal.removeEventListener('hidden.bs.modal', restoreFetch);
+					modal.removeEventListener("hidden.bs.modal", restoreFetch);
 				};
-				modal.addEventListener('hidden.bs.modal', restoreFetch);
+				modal.addEventListener("hidden.bs.modal", restoreFetch);
 			}
-			
+
 			// Show the modal
 			window.showWebDownloadModal(captureUuid, captureName);
 		} else {
@@ -243,7 +261,7 @@ class DownloadActionManager {
 	showToast(message, type = "success") {
 		// Map DownloadActionManager types to showAlert types
 		const mappedType = type === "danger" ? "error" : type;
-		
+
 		// Use the global showAlert function from HTMLInjectionManager
 		if (window.showAlert) {
 			window.showAlert(message, mappedType);
@@ -258,8 +276,10 @@ class DownloadActionManager {
 	 */
 	initializeDownloadButtonsForContainer(container) {
 		// Initialize dataset download buttons in the container
-		const datasetDownloadButtons = container.querySelectorAll(".download-dataset-btn");
-		datasetDownloadButtons.forEach((button) => {
+		const datasetDownloadButtons = container.querySelectorAll(
+			".download-dataset-btn",
+		);
+		for (const button of datasetDownloadButtons) {
 			if (!button.dataset.downloadSetup) {
 				button.dataset.downloadSetup = "true";
 				button.addEventListener("click", (e) => {
@@ -270,18 +290,23 @@ class DownloadActionManager {
 					const datasetName = button.getAttribute("data-dataset-name");
 
 					if (!this.permissions.canDownload()) {
-						this.showToast("You don't have permission to download this dataset", "warning");
+						this.showToast(
+							"You don't have permission to download this dataset",
+							"warning",
+						);
 						return;
 					}
 
 					this.handleDatasetDownload(datasetUuid, datasetName, button);
 				});
 			}
-		});
+		}
 
 		// Initialize capture download buttons in the container
-		const captureDownloadButtons = container.querySelectorAll(".download-capture-btn");
-		captureDownloadButtons.forEach((button) => {
+		const captureDownloadButtons = container.querySelectorAll(
+			".download-capture-btn",
+		);
+		for (const button of captureDownloadButtons) {
 			if (!button.dataset.downloadSetup) {
 				button.dataset.downloadSetup = "true";
 				button.addEventListener("click", (e) => {
@@ -292,14 +317,17 @@ class DownloadActionManager {
 					const captureName = button.getAttribute("data-capture-name");
 
 					if (!this.permissions.canDownload()) {
-						this.showToast("You don't have permission to download this capture", "warning");
+						this.showToast(
+							"You don't have permission to download this capture",
+							"warning",
+						);
 						return;
 					}
 
 					this.handleCaptureDownload(captureUuid, captureName, button);
 				});
 			}
-		});
+		}
 	}
 
 	/**
@@ -315,7 +343,7 @@ class DownloadActionManager {
 
 		// Additional item-specific checks can be added here
 		// For example, checking if item is public, if user owns it, etc.
-		
+
 		return true;
 	}
 
@@ -324,11 +352,13 @@ class DownloadActionManager {
 	 */
 	cleanup() {
 		// Remove event listeners and clean up any resources
-		const downloadButtons = document.querySelectorAll(".download-dataset-btn, .download-capture-btn");
-		downloadButtons.forEach((button) => {
+		const downloadButtons = document.querySelectorAll(
+			".download-dataset-btn, .download-capture-btn",
+		);
+		for (const button of downloadButtons) {
 			button.removeEventListener("click", this.handleDatasetDownload);
 			button.removeEventListener("click", this.handleCaptureDownload);
-		});
+		}
 	}
 }
 

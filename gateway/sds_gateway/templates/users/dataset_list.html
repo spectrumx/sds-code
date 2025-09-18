@@ -297,7 +297,11 @@
                 pageType: 'dataset-list',
                 permissions: {
                     userPermissionLevel: 'owner', // User is always owner of their own datasets
-                    currentUserId: {{ request.user.id }},
+                    currentUserId: {
+                        {
+                            request.user.id
+                        }
+                    },
                     isOwner: true,
                     datasetPermissions: {
                         canEditMetadata: true,

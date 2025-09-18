@@ -44,6 +44,9 @@ from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
 User = get_user_model()
 
 # Test constants
+TEST_PASSWORD = "testpass123"
+
+# Test constants
 EXPECTED_FILES_COUNT = 3
 EXPECTED_EXPIRED_FILES_COUNT = 2
 CELERY_BEAT_SCHEDULE_EXPIRES = 3600
@@ -70,7 +73,7 @@ class TestCeleryTasks(TestCase):
 
         self.user = User.objects.create_user(
             email="test@example.com",
-            password="testpass123",  # noqa: S106
+            password=TEST_PASSWORD,
             is_approved=True,
         )
 

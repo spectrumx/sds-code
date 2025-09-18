@@ -12,35 +12,35 @@ class DatasetCreationHandler {
 		this.steps = config.steps || [];
 		this.currentStep = 0;
 		this.onStepChange = config.onStepChange;
-		
+
 		// Navigation elements
 		this.prevBtn = document.getElementById("prevStep");
 		this.nextBtn = document.getElementById("nextStep");
 		this.submitBtn = document.getElementById("submitForm");
 		this.stepTabs = document.querySelectorAll("#stepTabs .btn");
-		
+
 		// Form fields
 		this.nameField = document.getElementById("id_name");
 		this.authorsField = document.getElementById("id_authors");
 		this.statusField = document.getElementById("id_status");
 		this.descriptionField = document.getElementById("id_description");
-		
+
 		// Hidden fields
 		this.selectedCapturesField = document.getElementById("selected_captures");
 		this.selectedFilesField = document.getElementById("selected_files");
-		
+
 		// Selections
 		this.selectedCaptures = new Set(); // Set of capture IDs
 		this.selectedFiles = new Set(); // Set of file objects for the main card
 		this.selectedCaptureDetails = new Map(); // Map of capture ID -> capture details
-		
+
 		// File browser modal state (intermediate selections)
 		this.modalSelectedFiles = new Set(); // Set of file objects for modal intermediate state
-		
+
 		// Search handlers
 		this.capturesSearchHandler = null;
 		this.filesSearchHandler = null;
-		
+
 		this.initializeEventListeners();
 		this.initializeErrorContainer();
 		this.initializeAuthorsManagement();
@@ -85,20 +85,20 @@ class DatasetCreationHandler {
 				this.navigateStep(-1);
 			});
 		}
-		
+
 		if (this.nextBtn) {
 			this.nextBtn.addEventListener("click", (e) => {
 				e.stopPropagation();
 				this.navigateStep(1);
 			});
 		}
-		
+
 		if (this.submitBtn) {
 			this.submitBtn.addEventListener("click", (e) => this.handleSubmit(e));
 		}
 
 		// Step tab handlers
-		this.stepTabs.forEach((tab, index) => {
+		for (const [index, tab] of this.stepTabs.entries()) {
 			tab.addEventListener("click", () => {
 				if (index <= this.currentStep) {
 					this.currentStep = index;
@@ -108,17 +108,23 @@ class DatasetCreationHandler {
 					}
 				}
 			});
-		});
+		}
 
 		// Form field validation
 		if (this.nameField) {
-			this.nameField.addEventListener("input", () => this.validateCurrentStep());
+			this.nameField.addEventListener("input", () =>
+				this.validateCurrentStep(),
+			);
 		}
 		if (this.authorsField) {
-			this.authorsField.addEventListener("input", () => this.validateCurrentStep());
+			this.authorsField.addEventListener("input", () =>
+				this.validateCurrentStep(),
+			);
 		}
 		if (this.statusField) {
-			this.statusField.addEventListener("change", () => this.validateCurrentStep());
+			this.statusField.addEventListener("change", () =>
+				this.validateCurrentStep(),
+			);
 		}
 
 		// Capture selection handler (direct table selection)
@@ -149,26 +155,37 @@ class DatasetCreationHandler {
 		// Initialize selected files table with placeholder
 		const selectedFilesTable = document.getElementById("selected-files-table");
 		const selectedFilesBody = selectedFilesTable?.querySelector("tbody");
-		if (selectedFilesBody && selectedFilesBody.innerHTML.trim() === '') {
-			selectedFilesBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No files selected</td></tr>';
+		if (selectedFilesBody && selectedFilesBody.innerHTML.trim() === "") {
+			selectedFilesBody.innerHTML =
+				'<tr><td colspan="6" class="text-center text-muted">No files selected</td></tr>';
 		}
 
 		// Initialize captures selection table with placeholder
-		const capturesSelectionTable = document.getElementById("captures-table-body");
-		if (capturesSelectionTable && capturesSelectionTable.innerHTML.trim() === '') {
-			capturesSelectionTable.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No captures found</td></tr>';
+		const capturesSelectionTable = document.getElementById(
+			"captures-table-body",
+		);
+		if (
+			capturesSelectionTable &&
+			capturesSelectionTable.innerHTML.trim() === ""
+		) {
+			capturesSelectionTable.innerHTML =
+				'<tr><td colspan="7" class="text-center text-muted">No captures found</td></tr>';
 		}
 
 		// Initialize captures table on review step with placeholder (will be updated later)
-		const capturesTable = document.querySelector('#step4 .captures-table tbody');
-		if (capturesTable && capturesTable.innerHTML.trim() === '') {
-			capturesTable.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No captures selected</td></tr>';
+		const capturesTable = document.querySelector(
+			"#step4 .captures-table tbody",
+		);
+		if (capturesTable && capturesTable.innerHTML.trim() === "") {
+			capturesTable.innerHTML =
+				'<tr><td colspan="6" class="text-center text-muted">No captures selected</td></tr>';
 		}
 
-		// Initialize files table on review step with placeholder (will be updated later)  
-		const filesTable = document.querySelector('#step4 .files-table tbody');
-		if (filesTable && filesTable.innerHTML.trim() === '') {
-			filesTable.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No files selected</td></tr>';
+		// Initialize files table on review step with placeholder (will be updated later)
+		const filesTable = document.querySelector("#step4 .files-table tbody");
+		if (filesTable && filesTable.innerHTML.trim() === "") {
+			filesTable.innerHTML =
+				'<tr><td colspan="5" class="text-center text-muted">No files selected</td></tr>';
 		}
 	}
 
@@ -184,7 +201,9 @@ class DatasetCreationHandler {
 		});
 
 		// Select all files checkbox
-		const selectAllCheckbox = document.getElementById("select-all-files-checkbox");
+		const selectAllCheckbox = document.getElementById(
+			"select-all-files-checkbox",
+		);
 		if (selectAllCheckbox) {
 			selectAllCheckbox.addEventListener("change", (e) => {
 				this.handleSelectAllFiles(e.target.checked);
@@ -205,14 +224,16 @@ class DatasetCreationHandler {
 			modal.addEventListener("show.bs.modal", () => {
 				this.onFileModalShow();
 			});
-			
+
 			modal.addEventListener("hidden.bs.modal", () => {
 				this.onFileModalHide();
 			});
 		}
 
 		// Remove all files button
-		const removeAllButton = document.getElementById("remove-all-selected-files-button");
+		const removeAllButton = document.getElementById(
+			"remove-all-selected-files-button",
+		);
 		if (removeAllButton) {
 			removeAllButton.addEventListener("click", () => {
 				this.removeAllSelectedFiles();
@@ -227,19 +248,23 @@ class DatasetCreationHandler {
 	handleCaptureSelection(checkbox) {
 		const captureId = checkbox.value;
 		const row = checkbox.closest("tr");
-		
+
 		if (checkbox.checked) {
 			// Add to selected captures
 			this.selectedCaptures.add(captureId);
-			
+
 			// Highlight the row
 			if (row) {
 				row.classList.add("table-warning");
 			}
-			
+
 			// Store capture details if available from search handler
-			if (this.capturesSearchHandler && this.capturesSearchHandler.selectedCaptureDetails) {
-				const captureDetails = this.capturesSearchHandler.selectedCaptureDetails.get(captureId);
+			if (
+				this.capturesSearchHandler &&
+				this.capturesSearchHandler.selectedCaptureDetails
+			) {
+				const captureDetails =
+					this.capturesSearchHandler.selectedCaptureDetails.get(captureId);
 				if (captureDetails) {
 					this.selectedCaptureDetails.set(captureId, captureDetails);
 				}
@@ -248,13 +273,13 @@ class DatasetCreationHandler {
 			// Remove from selected captures
 			this.selectedCaptures.delete(captureId);
 			this.selectedCaptureDetails.delete(captureId);
-			
+
 			// Remove highlight from row
 			if (row) {
 				row.classList.remove("table-warning");
 			}
 		}
-		
+
 		this.updateHiddenFields();
 		this.updateSelectedCapturesPanel();
 	}
@@ -286,10 +311,10 @@ class DatasetCreationHandler {
 	handleModalFileSelection(checkbox) {
 		const fileId = checkbox.value;
 		const row = checkbox.closest("tr");
-		
+
 		// Get file data from the row
 		const fileData = this.getFileDataFromRow(row);
-		
+
 		if (checkbox.checked) {
 			// Add to modal intermediate selection
 			this.modalSelectedFiles.add(fileData);
@@ -297,7 +322,7 @@ class DatasetCreationHandler {
 			// Remove from modal intermediate selection
 			this.modalSelectedFiles.delete(fileData);
 		}
-		
+
 		// Update select all checkbox state
 		this.updateSelectAllCheckbox();
 	}
@@ -315,7 +340,7 @@ class DatasetCreationHandler {
 			media_type: cells[2]?.textContent?.trim() || "",
 			relative_path: cells[3]?.textContent?.trim() || "",
 			size: cells[4]?.textContent?.trim() || "",
-			created_at: cells[5]?.textContent?.trim() || ""
+			created_at: cells[5]?.textContent?.trim() || "",
 		};
 	}
 
@@ -324,24 +349,33 @@ class DatasetCreationHandler {
 	 * @param {boolean} checked - Whether select all is checked
 	 */
 	handleSelectAllFiles(checked) {
-		const checkboxes = document.querySelectorAll('#file-tree-table input[name="files"]');
-		checkboxes.forEach(checkbox => {
+		const checkboxes = document.querySelectorAll(
+			'#file-tree-table input[name="files"]',
+		);
+		for (const checkbox of checkboxes) {
 			checkbox.checked = checked;
 			this.handleModalFileSelection(checkbox);
-		});
+		}
 	}
 
 	/**
 	 * Update select all checkbox state
 	 */
 	updateSelectAllCheckbox() {
-		const selectAllCheckbox = document.getElementById("select-all-files-checkbox");
-		const allCheckboxes = document.querySelectorAll('#file-tree-table input[name="files"]');
-		
+		const selectAllCheckbox = document.getElementById(
+			"select-all-files-checkbox",
+		);
+		const allCheckboxes = document.querySelectorAll(
+			'#file-tree-table input[name="files"]',
+		);
+
 		if (selectAllCheckbox && allCheckboxes.length > 0) {
-			const checkedCount = Array.from(allCheckboxes).filter(cb => cb.checked).length;
+			const checkedCount = Array.from(allCheckboxes).filter(
+				(cb) => cb.checked,
+			).length;
 			selectAllCheckbox.checked = checkedCount === allCheckboxes.length;
-			selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < allCheckboxes.length;
+			selectAllCheckbox.indeterminate =
+				checkedCount > 0 && checkedCount < allCheckboxes.length;
 		}
 	}
 
@@ -350,19 +384,21 @@ class DatasetCreationHandler {
 	 */
 	confirmFileSelection() {
 		// Add modal selections to main selection
-		this.modalSelectedFiles.forEach(file => {
+		for (const file of this.modalSelectedFiles) {
 			this.selectedFiles.add(file);
-		});
-		
+		}
+
 		// Clear modal selections
 		this.modalSelectedFiles.clear();
-		
+
 		// Update UI
 		this.updateSelectedFilesDisplay();
 		this.updateHiddenFields();
-		
+
 		// Close modal
-		const modal = bootstrap.Modal.getInstance(document.getElementById("fileTreeModal"));
+		const modal = bootstrap.Modal.getInstance(
+			document.getElementById("fileTreeModal"),
+		);
 		if (modal) {
 			modal.hide();
 		}
@@ -392,20 +428,22 @@ class DatasetCreationHandler {
 	removeAllSelectedFiles() {
 		// Clear main selection
 		this.selectedFiles.clear();
-		
+
 		// Clear modal intermediate selection
 		this.modalSelectedFiles.clear();
-		
+
 		// Update UI
 		this.updateSelectedFilesDisplay();
 		this.updateHiddenFields();
-		
+
 		// Uncheck all checkboxes in modal if it's open
-		const checkboxes = document.querySelectorAll('#file-tree-table input[name="files"]');
-		checkboxes.forEach(checkbox => {
+		const checkboxes = document.querySelectorAll(
+			'#file-tree-table input[name="files"]',
+		);
+		for (const checkbox of checkboxes) {
 			checkbox.checked = false;
-		});
-		
+		}
+
 		// Update select all checkbox
 		this.updateSelectAllCheckbox();
 	}
@@ -416,27 +454,13 @@ class DatasetCreationHandler {
 	updateSelectedFilesDisplay() {
 		const displayInput = document.getElementById("selected-files-display");
 		const count = this.selectedFiles.size;
-		
+
 		if (displayInput) {
 			displayInput.value = `${count} file(s) selected`;
 		}
-		
+
 		// Update selected files table
 		this.updateSelectedFilesTable();
-	}
-
-	/**
-	 * Update hidden fields with current selections
-	 */
-	updateHiddenFields() {
-		if (this.selectedCapturesField) {
-			this.selectedCapturesField.value = Array.from(this.selectedCaptures).join(",");
-		}
-		if (this.selectedFilesField) {
-			this.selectedFilesField.value = Array.from(this.selectedFiles)
-				.map((file) => file.id)
-				.join(",");
-		}
 	}
 
 	/**
@@ -446,7 +470,7 @@ class DatasetCreationHandler {
 	async navigateStep(direction) {
 		if (direction < 0 || this.validateCurrentStep()) {
 			const nextStep = this.currentStep + direction;
-			
+
 			// Update review step if moving to it
 			if (nextStep === 3) {
 				this.updateReviewStep();
@@ -455,7 +479,7 @@ class DatasetCreationHandler {
 			this.currentStep = nextStep;
 			this.updateNavigation();
 			this.updateDatasetNameDisplay();
-			
+
 			if (this.onStepChange) {
 				this.onStepChange(this.currentStep);
 			}
@@ -482,15 +506,22 @@ class DatasetCreationHandler {
 		// Update status display
 		const statusDisplay = document.querySelector("#step4 .dataset-status");
 		if (statusDisplay) {
-			if (this.statusField && this.statusField.options && this.statusField.selectedIndex >= 0) {
-				statusDisplay.textContent = this.statusField.options[this.statusField.selectedIndex].text;
+			if (
+				this.statusField &&
+				this.statusField.options &&
+				this.statusField.selectedIndex >= 0
+			) {
+				statusDisplay.textContent =
+					this.statusField.options[this.statusField.selectedIndex].text;
 			} else {
 				statusDisplay.textContent = "";
 			}
 		}
 
 		// Update description display
-		const descriptionDisplay = document.querySelector("#step4 .dataset-description");
+		const descriptionDisplay = document.querySelector(
+			"#step4 .dataset-description",
+		);
 		if (descriptionDisplay) {
 			descriptionDisplay.textContent = this.descriptionField
 				? this.descriptionField.value
@@ -507,7 +538,7 @@ class DatasetCreationHandler {
 	updateAuthorsDisplayFallback() {
 		const authorsField = document.getElementById("id_authors");
 		const authorsDisplay = document.querySelector("#step4 .dataset-authors");
-		
+
 		if (authorsField && authorsField.value && authorsDisplay) {
 			try {
 				const authors = JSON.parse(authorsField.value);
@@ -532,7 +563,9 @@ class DatasetCreationHandler {
 	 * Update dataset name display
 	 */
 	updateDatasetNameDisplay() {
-		const nameDisplays = document.getElementsByClassName("dataset-name-display");
+		const nameDisplays = document.getElementsByClassName(
+			"dataset-name-display",
+		);
 		if (this.nameField && nameDisplays.length > 0) {
 			for (const nameDisplay of Array.from(nameDisplays)) {
 				nameDisplay.textContent = this.nameField.value || "Untitled Dataset";
@@ -545,14 +578,14 @@ class DatasetCreationHandler {
 	 */
 	updateNavigation() {
 		// Update step tabs
-		this.stepTabs.forEach((tab, index) => {
+		for (const [index, tab] of this.stepTabs.entries()) {
 			tab.classList.remove(
 				"btn-outline-primary",
 				"btn-primary",
 				"active-tab",
-				"inactive-tab"
+				"inactive-tab",
 			);
-			
+
 			if (index === this.currentStep) {
 				tab.classList.add("btn-primary", "active-tab");
 			} else if (index > this.currentStep) {
@@ -560,15 +593,17 @@ class DatasetCreationHandler {
 			} else {
 				tab.classList.add("btn-primary", "inactive-tab");
 			}
-		});
+		}
 
 		// Update content panes
-		document.querySelectorAll(".tab-pane").forEach((pane, index) => {
+		for (const [index, pane] of document
+			.querySelectorAll(".tab-pane")
+			.entries()) {
 			pane.classList.remove("show", "active");
 			if (index === this.currentStep) {
 				pane.classList.add("show", "active");
 			}
-		});
+		}
 
 		// Update navigation buttons
 		if (this.prevBtn) {
@@ -582,7 +617,7 @@ class DatasetCreationHandler {
 			isLastStep ? this.hide(this.nextBtn) : this.show(this.nextBtn);
 			this.nextBtn.disabled = !isValid;
 		}
-		
+
 		if (this.submitBtn) {
 			const isLastStep = this.currentStep === this.steps.length - 1;
 			if (isLastStep) {
@@ -600,7 +635,7 @@ class DatasetCreationHandler {
 	 */
 	validateCurrentStep() {
 		let isValid = true;
-		
+
 		switch (this.currentStep) {
 			case 0:
 				isValid = this.validateDatasetInfo();
@@ -672,7 +707,7 @@ class DatasetCreationHandler {
 	 */
 	async handleSubmit(e) {
 		e.preventDefault();
-		
+
 		if (!this.validateCurrentStep()) {
 			return;
 		}
@@ -713,14 +748,14 @@ class DatasetCreationHandler {
 	 */
 	handleSubmissionError(error) {
 		let errorMessage;
-		
+
 		if (error instanceof APIError && error.data.errors) {
 			// Use HTMLInjectionManager to create error message HTML
 			errorMessage = HTMLInjectionManager.createErrorMessage(error.data.errors);
 		} else {
 			errorMessage = "An unexpected error occurred. Please try again.";
 		}
-		
+
 		// Use the new notification system
 		HTMLInjectionManager.showNotification(errorMessage, "danger", {
 			containerId: "formErrors",
@@ -728,7 +763,7 @@ class DatasetCreationHandler {
 			scrollTo: true,
 			replace: true,
 			icon: true,
-			dismissible: true
+			dismissible: true,
 		});
 	}
 
@@ -749,7 +784,8 @@ class DatasetCreationHandler {
 		if (isLoading) {
 			this.submitBtn.dataset.originalText = this.submitBtn.textContent;
 			this.submitBtn.disabled = true;
-			this.submitBtn.innerHTML = HTMLInjectionManager.createLoadingSpinner("Creating...");
+			this.submitBtn.innerHTML =
+				HTMLInjectionManager.createLoadingSpinner("Creating...");
 		} else {
 			this.submitBtn.disabled = false;
 			if (this.submitBtn.dataset.originalText) {
@@ -771,21 +807,28 @@ class DatasetCreationHandler {
 	 * Update selected captures table
 	 */
 	updateSelectedCapturesTable() {
-		const capturesTableBody = document.querySelector("#step4 .captures-table tbody");
-		
+		const capturesTableBody = document.querySelector(
+			"#step4 .captures-table tbody",
+		);
+
 		if (!capturesTableBody) return;
 
 		if (this.selectedCaptures.size > 0 && this.capturesSearchHandler) {
-			const rows = Array.from(this.selectedCaptures).map((captureId) => {
-				const data = this.capturesSearchHandler.selectedCaptureDetails.get(captureId) || {
-					type: "Unknown",
-					directory: "Unknown",
-					channel: "-",
-					scan_group: "-",
-					created_at: new Date().toISOString(),
-				};
-				
-				return HTMLInjectionManager.createTableRow(data, `
+			const rows = Array.from(this.selectedCaptures)
+				.map((captureId) => {
+					const data = this.capturesSearchHandler.selectedCaptureDetails.get(
+						captureId,
+					) || {
+						type: "Unknown",
+						directory: "Unknown",
+						channel: "-",
+						scan_group: "-",
+						created_at: new Date().toISOString(),
+					};
+
+					return HTMLInjectionManager.createTableRow(
+						data,
+						`
 					<tr>
 						<td>{{type}}</td>
 						<td>{{directory}}</td>
@@ -798,15 +841,21 @@ class DatasetCreationHandler {
 							</button>
 						</td>
 					</tr>
-				`, { dateFormat: "en-US" });
-			}).join("");
+				`,
+						{ dateFormat: "en-US" },
+					);
+				})
+				.join("");
 
-			HTMLInjectionManager.injectHTML(capturesTableBody, rows, { escape: false });
+			HTMLInjectionManager.injectHTML(capturesTableBody, rows, {
+				escape: false,
+			});
 			this.attachCaptureRemoveHandlers();
 		} else {
-			HTMLInjectionManager.injectHTML(capturesTableBody, 
+			HTMLInjectionManager.injectHTML(
+				capturesTableBody,
 				"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>",
-				{ escape: false }
+				{ escape: false },
 			);
 		}
 	}
@@ -815,20 +864,29 @@ class DatasetCreationHandler {
 	 * Update selected captures side panel
 	 */
 	updateSelectedCapturesPanel() {
-		const selectedCapturesTable = document.getElementById("selected-captures-table");
+		const selectedCapturesTable = document.getElementById(
+			"selected-captures-table",
+		);
 		const selectedCapturesBody = selectedCapturesTable?.querySelector("tbody");
-		const selectedCapturesCount = document.getElementById("selected-captures-count");
-		
+		const selectedCapturesCount = document.getElementById(
+			"selected-captures-count",
+		);
+
 		if (!selectedCapturesBody) return;
 
 		if (this.selectedCaptures.size > 0 && this.capturesSearchHandler) {
-			const rows = Array.from(this.selectedCaptures).map((captureId) => {
-				const data = this.capturesSearchHandler.selectedCaptureDetails.get(captureId) || {
-					type: "Unknown",
-					directory: "Unknown"
-				};
-				
-				return HTMLInjectionManager.createTableRow(data, `
+			const rows = Array.from(this.selectedCaptures)
+				.map((captureId) => {
+					const data = this.capturesSearchHandler.selectedCaptureDetails.get(
+						captureId,
+					) || {
+						type: "Unknown",
+						directory: "Unknown",
+					};
+
+					return HTMLInjectionManager.createTableRow(
+						data,
+						`
 					<tr>
 						<td>{{type}}</td>
 						<td>{{directory}}</td>
@@ -838,23 +896,30 @@ class DatasetCreationHandler {
 							</button>
 						</td>
 					</tr>
-				`);
-			}).join("");
+				`,
+					);
+				})
+				.join("");
 
-			HTMLInjectionManager.injectHTML(selectedCapturesBody, rows, { escape: false });
-			
+			HTMLInjectionManager.injectHTML(selectedCapturesBody, rows, {
+				escape: false,
+			});
+
 			// Add event listeners for remove buttons
-			const removeButtons = selectedCapturesBody.querySelectorAll(".remove-selected-capture");
-			removeButtons.forEach(button => {
-				button.addEventListener('click', (e) => {
-					const captureId = e.target.closest('button').dataset.id;
+			const removeButtons = selectedCapturesBody.querySelectorAll(
+				".remove-selected-capture",
+			);
+			for (const button of removeButtons) {
+				button.addEventListener("click", (e) => {
+					const captureId = e.target.closest("button").dataset.id;
 					this.removeCapture(captureId);
 				});
-			});
+			}
 		} else {
-			HTMLInjectionManager.injectHTML(selectedCapturesBody, 
+			HTMLInjectionManager.injectHTML(
+				selectedCapturesBody,
 				"<tr><td colspan='3' class='text-center text-muted'>No captures selected</td></tr>",
-				{ escape: false }
+				{ escape: false },
 			);
 		}
 
@@ -869,12 +934,15 @@ class DatasetCreationHandler {
 	 */
 	updateSelectedFilesTable() {
 		const filesTableBody = document.querySelector("#step4 .files-table tbody");
-		
+
 		if (!filesTableBody) return;
 
 		if (this.selectedFiles.size > 0) {
-			const rows = Array.from(this.selectedFiles).map((file) => {
-				return HTMLInjectionManager.createTableRow(file, `
+			const rows = Array.from(this.selectedFiles)
+				.map((file) => {
+					return HTMLInjectionManager.createTableRow(
+						file,
+						`
 					<tr>
 						<td>{{name}}</td>
 						<td>{{media_type}}</td>
@@ -886,15 +954,18 @@ class DatasetCreationHandler {
 							</button>
 						</td>
 					</tr>
-				`);
-			}).join("");
+				`,
+					);
+				})
+				.join("");
 
 			HTMLInjectionManager.injectHTML(filesTableBody, rows, { escape: false });
 			this.attachFileRemoveHandlers();
 		} else {
-			HTMLInjectionManager.injectHTML(filesTableBody, 
+			HTMLInjectionManager.injectHTML(
+				filesTableBody,
 				"<tr><td colspan='5' class='text-center'>No files selected</td></tr>",
-				{ escape: false }
+				{ escape: false },
 			);
 		}
 	}
@@ -905,10 +976,12 @@ class DatasetCreationHandler {
 	updateSelectionCounts() {
 		const capturesCount = this.selectedCaptures.size;
 		const filesCount = this.selectedFiles.size;
-		
-		const capturesCountElement = document.querySelector("#step4 .captures-count");
+
+		const capturesCountElement = document.querySelector(
+			"#step4 .captures-count",
+		);
 		const filesCountElement = document.querySelector("#step4 .files-count");
-		
+
 		if (capturesCountElement) {
 			capturesCountElement.textContent = `${capturesCount} selected`;
 		}
@@ -922,12 +995,12 @@ class DatasetCreationHandler {
 	 */
 	attachCaptureRemoveHandlers() {
 		const removeButtons = document.querySelectorAll(".remove-capture");
-		removeButtons.forEach((button) => {
+		for (const button of removeButtons) {
 			button.addEventListener("click", () => {
 				const captureId = button.dataset.id;
 				this.removeCapture(captureId);
 			});
-		});
+		}
 	}
 
 	/**
@@ -935,12 +1008,12 @@ class DatasetCreationHandler {
 	 */
 	attachFileRemoveHandlers() {
 		const removeButtons = document.querySelectorAll(".remove-file");
-		removeButtons.forEach((button) => {
+		for (const button of removeButtons) {
 			button.addEventListener("click", () => {
 				const fileId = button.dataset.id;
 				this.removeFile(fileId);
 			});
-		});
+		}
 	}
 
 	/**
@@ -955,9 +1028,11 @@ class DatasetCreationHandler {
 		this.updateHiddenFields();
 		this.updateSelectedItemsTable();
 		this.updateSelectedCapturesPanel();
-		
+
 		// Update checkbox in captures table if visible
-		const checkbox = document.querySelector(`input[name="captures"][value="${captureId}"]`);
+		const checkbox = document.querySelector(
+			`input[name="captures"][value="${captureId}"]`,
+		);
 		if (checkbox) {
 			checkbox.checked = false;
 			const row = checkbox.closest("tr");
@@ -973,28 +1048,34 @@ class DatasetCreationHandler {
 	 */
 	removeFile(fileId) {
 		// Remove from main selection
-		const fileToRemove = Array.from(this.selectedFiles).find((f) => f.id === fileId);
+		const fileToRemove = Array.from(this.selectedFiles).find(
+			(f) => f.id === fileId,
+		);
 		if (fileToRemove) {
 			this.selectedFiles.delete(fileToRemove);
 		}
-		
+
 		// Remove from modal intermediate selection
-		const modalFileToRemove = Array.from(this.modalSelectedFiles).find((f) => f.id === fileId);
+		const modalFileToRemove = Array.from(this.modalSelectedFiles).find(
+			(f) => f.id === fileId,
+		);
 		if (modalFileToRemove) {
 			this.modalSelectedFiles.delete(modalFileToRemove);
 		}
-		
+
 		// Update UI
 		this.updateSelectedFilesDisplay();
 		this.updateHiddenFields();
 		this.updateSelectedItemsTable();
-		
+
 		// Update checkbox in file tree modal if visible
-		const checkbox = document.querySelector(`input[name="files"][value="${fileId}"]`);
+		const checkbox = document.querySelector(
+			`input[name="files"][value="${fileId}"]`,
+		);
 		if (checkbox) {
 			checkbox.checked = false;
 		}
-		
+
 		// Update select all checkbox
 		this.updateSelectAllCheckbox();
 	}
@@ -1015,41 +1096,22 @@ class DatasetCreationHandler {
 	}
 
 	/**
-	 * Format file size for display
-	 * @param {number} bytes - File size in bytes
-	 * @returns {string} Formatted file size
-	 */
-	formatFileSize(bytes) {
-		if (!bytes) return '0 B';
-		
-		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-		let size = bytes;
-		let unitIndex = 0;
-		
-		while (size >= 1024 && unitIndex < units.length - 1) {
-			size /= 1024;
-			unitIndex++;
-		}
-		
-		return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-	}
-
-
-	/**
 	 * Update hidden fields with current selections
 	 */
 	updateHiddenFields() {
 		// Update captures hidden field
 		if (this.selectedCapturesField) {
-			this.selectedCapturesField.value = Array.from(this.selectedCaptures).join(',');
+			this.selectedCapturesField.value = Array.from(this.selectedCaptures).join(
+				",",
+			);
 		}
 
 		// Update files hidden field
 		if (this.selectedFilesField) {
-			const fileIds = Array.from(this.selectedFiles).map(file => 
-				typeof file === 'object' ? file.id : file
+			const fileIds = Array.from(this.selectedFiles).map((file) =>
+				typeof file === "object" ? file.id : file,
 			);
-			this.selectedFilesField.value = fileIds.join(',');
+			this.selectedFilesField.value = fileIds.join(",");
 		}
 	}
 
@@ -1057,30 +1119,30 @@ class DatasetCreationHandler {
 	 * Initialize authors management for creation mode
 	 */
 	initializeAuthorsManagement() {
-		const authorsContainer = document.getElementById('authors-container');
-		const authorsList = authorsContainer?.querySelector('.authors-list');
-		const addAuthorBtn = document.getElementById('add-author-btn');
-		const authorsHiddenField = document.getElementById('id_authors');
-		
+		const authorsContainer = document.getElementById("authors-container");
+		const authorsList = authorsContainer?.querySelector(".authors-list");
+		const addAuthorBtn = document.getElementById("add-author-btn");
+		const authorsHiddenField = document.getElementById("id_authors");
+
 		if (!authorsContainer || !authorsList || !authorsHiddenField) return;
 
 		// Get initial authors from the hidden field
 		let authors = [];
 		try {
 			const initialAuthors = authorsHiddenField.value;
-			if (initialAuthors && initialAuthors.trim() !== '') {
+			if (initialAuthors && initialAuthors.trim() !== "") {
 				authors = JSON.parse(initialAuthors);
 			}
 		} catch (e) {
-			console.error('Error parsing initial authors:', e);
+			console.error("Error parsing initial authors:", e);
 		}
 
 		// Convert legacy string authors to new format if needed
-		authors = authors.map(author => {
-			if (typeof author === 'string') {
+		authors = authors.map((author) => {
+			if (typeof author === "string") {
 				return {
 					name: author,
-					orcid_id: ''
+					orcid_id: "",
 				};
 			}
 			return author;
@@ -1088,12 +1150,15 @@ class DatasetCreationHandler {
 
 		// If no authors, add the current user as the first author
 		if (authors.length === 0) {
-			const currentUserName = document.body.dataset.currentUserName || 'Current User';
-			const currentUserOrcid = document.body.dataset.currentUserOrcid || '';
-			authors = [{
-				name: currentUserName,
-				orcid_id: currentUserOrcid
-			}];
+			const currentUserName =
+				document.body.dataset.currentUserName || "Current User";
+			const currentUserOrcid = document.body.dataset.currentUserOrcid || "";
+			authors = [
+				{
+					name: currentUserName,
+					orcid_id: currentUserOrcid,
+				},
+			];
 		}
 
 		/**
@@ -1101,15 +1166,17 @@ class DatasetCreationHandler {
 		 */
 		const updateAuthorsDisplay = () => {
 			// Clear the entire authors list
-			authorsList.innerHTML = '';
+			authorsList.innerHTML = "";
 
 			// Rebuild the display from the current authors array
-			authors.forEach((author, index) => {
-				const authorDiv = document.createElement('div');
-				authorDiv.className = 'author-item mb-3 p-3 border rounded';
+			for (const [index, author] of authors.entries()) {
+				const authorDiv = document.createElement("div");
+				authorDiv.className = "author-item mb-3 p-3 border rounded";
 
-				const authorName = typeof author === 'string' ? author : author.name || '';
-				const authorOrcid = typeof author === 'string' ? '' : author.orcid_id || '';
+				const authorName =
+					typeof author === "string" ? author : author.name || "";
+				const authorOrcid =
+					typeof author === "string" ? "" : author.orcid_id || "";
 
 				authorDiv.innerHTML = `
 					<div class="position-relative">
@@ -1118,9 +1185,10 @@ class DatasetCreationHandler {
 								<!-- Empty space for alignment -->
 							</div>
 							<div class="d-flex align-items-center gap-2">
-								${index === 0 ?
-									'<span class="badge bg-primary">Primary</span><i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>' :
-									`<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="Remove author"><i class="bi bi-trash"></i></button>`
+								${
+									index === 0
+										? '<span class="badge bg-primary">Primary</span><i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>'
+										: `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="Remove author"><i class="bi bi-trash"></i></button>`
 								}
 							</div>
 						</div>
@@ -1131,7 +1199,7 @@ class DatasetCreationHandler {
 									   class="form-control author-name-input"
 									   value="${HTMLInjectionManager.escapeHtml(authorName)}"
 									   placeholder="Enter full name"
-									   ${index === 0 ? 'readonly' : ''}
+									   ${index === 0 ? "readonly" : ""}
 									   data-index="${index}"
 									   data-field="name">
 							</div>
@@ -1141,7 +1209,7 @@ class DatasetCreationHandler {
 									   class="form-control author-orcid-input"
 									   value="${HTMLInjectionManager.escapeHtml(authorOrcid)}"
 									   placeholder="0000-0000-0000-0000"
-									   ${index === 0 ? 'readonly' : ''}
+									   ${index === 0 ? "readonly" : ""}
 									   data-index="${index}"
 									   data-field="orcid_id">
 							</div>
@@ -1149,14 +1217,14 @@ class DatasetCreationHandler {
 					</div>
 				`;
 				authorsList.appendChild(authorDiv);
-			});
+			}
 
 			// Update hidden field
 			authorsHiddenField.value = JSON.stringify(authors);
 
 			// Show add button in create mode (always available)
 			if (addAuthorBtn) {
-				addAuthorBtn.style.display = '';
+				addAuthorBtn.style.display = "";
 			}
 		};
 
@@ -1165,14 +1233,16 @@ class DatasetCreationHandler {
 		 */
 		const addAuthor = () => {
 			authors.push({
-				name: '',
-				orcid_id: ''
+				name: "",
+				orcid_id: "",
 			});
 
 			updateAuthorsDisplay();
 
 			// Focus on the new name input
-			const newInput = authorsList.querySelector(`input[data-index="${authors.length - 1}"][data-field="name"]`);
+			const newInput = authorsList.querySelector(
+				`input[data-index="${authors.length - 1}"][data-field="name"]`,
+			);
 			if (newInput) {
 				newInput.focus();
 			}
@@ -1187,7 +1257,8 @@ class DatasetCreationHandler {
 		 * Remove author
 		 */
 		const removeAuthor = (index) => {
-			if (index > 0) { // Don't remove the primary author
+			if (index > 0) {
+				// Don't remove the primary author
 				authors.splice(index, 1);
 				updateAuthorsDisplay();
 
@@ -1197,39 +1268,45 @@ class DatasetCreationHandler {
 				}
 			} else {
 				// Show warning that primary author cannot be removed
-				this.showNotification('The primary author cannot be removed. This is the dataset creator.', 'warning');
+				this.showNotification(
+					"The primary author cannot be removed. This is the dataset creator.",
+					"warning",
+				);
 			}
 		};
 
 		/**
 		 * Show notification using HTMLInjectionManager
 		 */
-		this.showNotification = (message, type = 'info') => {
+		this.showNotification = (message, type = "info") => {
 			HTMLInjectionManager.showNotification(message, type, {
-				containerId: 'formErrors',
+				containerId: "formErrors",
 				autoHide: true,
 				autoHideDelay: 5000,
 				scrollTo: true,
-				replace: true
+				replace: true,
 			});
 		};
 
 		// Event listeners
 		if (addAuthorBtn) {
-			addAuthorBtn.addEventListener('click', addAuthor);
+			addAuthorBtn.addEventListener("click", addAuthor);
 		}
 
 		// Handle input changes
-		authorsList.addEventListener('input', (e) => {
-			if (e.target.classList.contains('author-name-input') || e.target.classList.contains('author-orcid-input')) {
-				const index = parseInt(e.target.dataset.index);
+		authorsList.addEventListener("input", (e) => {
+			if (
+				e.target.classList.contains("author-name-input") ||
+				e.target.classList.contains("author-orcid-input")
+			) {
+				const index = Number.parseInt(e.target.dataset.index);
 				const field = e.target.dataset.field;
 
 				// Ensure author object exists
-				if (!authors[index] || typeof authors[index] === 'string') {
+				if (!authors[index] || typeof authors[index] === "string") {
 					authors[index] = {
-						name: typeof authors[index] === 'string' ? authors[index] : '',
-						orcid_id: ''
+						name: typeof authors[index] === "string" ? authors[index] : "",
+						orcid_id: "",
 					};
 				}
 
@@ -1237,7 +1314,11 @@ class DatasetCreationHandler {
 
 				// Only update display if we need to remove empty authors
 				let needsUpdate = false;
-				if (index > 0 && !authors[index].name.trim() && !authors[index].orcid_id.trim()) {
+				if (
+					index > 0 &&
+					!authors[index].name.trim() &&
+					!authors[index].orcid_id.trim()
+				) {
 					authors.splice(index, 1);
 					needsUpdate = true;
 				}
@@ -1257,13 +1338,13 @@ class DatasetCreationHandler {
 		});
 
 		// Handle remove buttons
-		authorsList.addEventListener('click', (e) => {
-			const removeButton = e.target.closest('.remove-author');
+		authorsList.addEventListener("click", (e) => {
+			const removeButton = e.target.closest(".remove-author");
 
 			if (removeButton) {
 				e.preventDefault();
 				e.stopPropagation();
-				const index = parseInt(removeButton.dataset.index);
+				const index = Number.parseInt(removeButton.dataset.index);
 				removeAuthor(index);
 			}
 		});
@@ -1274,9 +1355,10 @@ class DatasetCreationHandler {
 		// Store authors for external access
 		this.authors = authors;
 		this.updateAuthorsDisplay = updateAuthorsDisplay;
-		
+
 		// Make author display functions available for review (simple version for creation mode)
-		window.updateDatasetAuthors = (authorsField) => this.updateDatasetAuthors(authorsField);
+		window.updateDatasetAuthors = (authorsField) =>
+			this.updateDatasetAuthors(authorsField);
 		window.formatAuthors = (authors) => this.formatAuthors(authors);
 		window.escapeHtml = (text) => HTMLInjectionManager.escapeHtml(text);
 	}
@@ -1285,16 +1367,17 @@ class DatasetCreationHandler {
 	 * Update dataset authors for review display (simple version for creation mode)
 	 */
 	updateDatasetAuthors(authorsField) {
-		const authorsElement = document.querySelector('.dataset-authors');
+		const authorsElement = document.querySelector(".dataset-authors");
 		if (!authorsElement || !authorsField) return;
 
 		try {
-			const authors = JSON.parse(authorsField.value || '[]');
+			const authors = JSON.parse(authorsField.value || "[]");
 			const authorNames = this.formatAuthors(authors);
 			// In creation mode, just show current authors (no original/changes logic)
 			authorsElement.innerHTML = `<span class="current-value">${HTMLInjectionManager.escapeHtml(authorNames)}</span>`;
 		} catch (e) {
-			authorsElement.innerHTML = '<span class="current-value">Error parsing authors.</span>';
+			authorsElement.innerHTML =
+				'<span class="current-value">Error parsing authors.</span>';
 		}
 	}
 
@@ -1303,12 +1386,14 @@ class DatasetCreationHandler {
 	 */
 	formatAuthors(authors) {
 		if (!Array.isArray(authors) || authors.length === 0) {
-			return 'No authors specified.';
+			return "No authors specified.";
 		}
-		
-		return authors.map(author => 
-			typeof author === 'string' ? author : author.name || 'Unknown'
-		).join(', ');
+
+		return authors
+			.map((author) =>
+				typeof author === "string" ? author : author.name || "Unknown",
+			)
+			.join(", ");
 	}
 
 	/**

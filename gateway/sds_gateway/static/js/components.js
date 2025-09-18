@@ -734,11 +734,11 @@ class FilterManager {
 		const sortOrder = urlParams.get("sort_order") || "desc";
 
 		// Clear all parameters except search and sort
-		urlParams.forEach((_, key) => {
+		for (const [_, key] of urlParams) {
 			if (key !== "search" && key !== "sort_by" && key !== "sort_order") {
 				urlParams.delete(key);
 			}
-		});
+		}
 
 		// Ensure sort parameters are set
 		urlParams.set("sort_by", sortBy);

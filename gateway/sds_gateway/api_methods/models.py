@@ -674,18 +674,24 @@ class Dataset(BaseModel):
                 authors_data = json.loads(self.authors)
                 # Convert legacy string authors to new format if needed
                 if authors_data and isinstance(authors_data[0], str):
-                    return [{"name": author, "orcid_id": ""} for author in authors_data]
-                return authors_data
+                    result = [
+                        {"name": author, "orcid_id": ""} for author in authors_data
+                    ]
+                else:
+                    result = authors_data
             except (json.JSONDecodeError, TypeError):
-                return [{"name": self.authors, "orcid_id": ""}]
+                result = [{"name": self.authors, "orcid_id": ""}]
 
         # Handle case where authors is already a list
-        if isinstance(self.authors, list):
+        elif isinstance(self.authors, list):
             if self.authors and isinstance(self.authors[0], str):
-                return [{"name": author, "orcid_id": ""} for author in self.authors]
-            return self.authors
+                result = [{"name": author, "orcid_id": ""} for author in self.authors]
+            else:
+                result = self.authors
+        else:
+            result = self.authors
 
-        return self.authors
+        return result
 
 
 class TemporaryZipFile(BaseModel):
