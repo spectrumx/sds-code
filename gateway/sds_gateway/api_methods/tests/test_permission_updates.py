@@ -2,6 +2,8 @@
 Tests for permission level update functionality.
 """
 
+import json
+
 from django.contrib.auth import get_user_model
 from django.test import Client
 from django.test import TestCase
@@ -68,12 +70,16 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Update permission to contributor
-        response = self.client.patch(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
-            data={"user_email": "user1@example.com", "permission_level": "contributor"},
+            data={
+                "permission_changes": json.dumps([
+                    ["user1@example.com", {"permissionLevel": "contributor"}]
+                ])
+            },
         )
 
         assert response.status_code == HTTP_200_OK
@@ -109,12 +115,16 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Update group permissions to co-owner
-        response = self.client.put(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
-            data={"group_uuid": str(self.group.uuid), "permission_level": "co-owner"},
+            data={
+                "permission_changes": json.dumps([
+                    [f"group:{self.group.uuid}", {"permissionLevel": "co-owner"}]
+                ])
+            },
         )
 
         assert response.status_code == HTTP_200_OK
@@ -142,12 +152,16 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.user1)
 
         # Try to update permission
-        response = self.client.patch(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
-            data={"user_email": "user1@example.com", "permission_level": "contributor"},
+            data={
+                "permission_changes": json.dumps([
+                    ["user1@example.com", {"permissionLevel": "contributor"}]
+                ])
+            },
         )
 
         assert (
@@ -169,14 +183,15 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Try to update with invalid permission level
-        response = self.client.patch(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "user_email": "user1@example.com",
-                "permission_level": "invalid_level",
+                "permission_changes": json.dumps([
+                    ["user1@example.com", {"permissionLevel": "invalid_level"}]
+                ])
             },
         )
 
@@ -191,14 +206,15 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Try to update non-existent user
-        response = self.client.patch(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "user_email": "nonexistent@example.com",
-                "permission_level": "contributor",
+                "permission_changes": json.dumps([
+                    ["nonexistent@example.com", {"permissionLevel": "contributor"}]
+                ])
             },
         )
 
@@ -226,14 +242,15 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Try to update group permissions
-        response = self.client.put(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "group_uuid": str(user1_group.uuid),
-                "permission_level": "contributor",
+                "permission_changes": json.dumps([
+                    [f"group:{user1_group.uuid}", {"permissionLevel": "contributor"}]
+                ])
             },
         )
 

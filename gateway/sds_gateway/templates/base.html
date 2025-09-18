@@ -33,6 +33,11 @@
     ================================================== -->
         {# Placed at the top of the document so pages load faster with defer #}
         {% block javascript %}
+            <!-- Core JavaScript files - available globally -->
+            <script src="{% static 'js/core/APIClient.js' %}"></script>
+            <script src="{% static 'js/core/HTMLInjectionManager.js' %}"></script>
+            <script src="{% static 'js/core/PermissionsManager.js' %}"></script>
+            <script src="{% static 'js/core/PageLifecycleManager.js' %}"></script>
         {% endblock javascript %}
     </head>
     {# djlint:off H021 #}

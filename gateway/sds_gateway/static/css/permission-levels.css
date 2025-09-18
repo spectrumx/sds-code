@@ -242,6 +242,11 @@
 	text-overflow: ellipsis;
 }
 
+.bg-owner {
+	background-color: var(--spectrumx-owner-color);
+	color: white;
+}
+
 .bg-contributor {
 	background-color: var(--spectrumx-contributor-color);
 	color: white;

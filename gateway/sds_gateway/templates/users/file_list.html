@@ -249,13 +249,18 @@
     {% include "users/partials/capture_modal.html" %}
     <!-- Visualization Selection Modal -->
     {% include "users/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
+    <!-- Web Download Modal -->
+    {% include "users/partials/web_download_modal.html" %}
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}
+    <!-- Action components -->
+    <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
+    
+    <!-- Page-specific components -->
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
-    <script src="{% static 'js/userSearchComponent.js' %}"></script>
-    <script src="{% static 'js/visualizationModal.js' %}"></script>
     <!-- Pass Django context data to JavaScript -->
     {# djlint:off #}
     <script>
@@ -263,7 +268,6 @@
         window.visualizationCompatibility = {{ visualization_compatibility | safe }};
 </script>
     {# djlint:on #}
-    <script src="{% static 'js/permission-levels.js' %}"></script>
     <script>
         // Initialize noUiSlider for frequency range
         document.addEventListener('DOMContentLoaded', function() {
@@ -339,34 +343,68 @@
                     window.initializeFrequencySlider();
                 }
             }
-        });
 
-        // Initialize share modals for captures
-        document.addEventListener('DOMContentLoaded', function() {
-            // Create a UserSearchHandler for each share modal
-            document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
-                const itemUuid = modal.getAttribute('data-item-uuid');
-                const itemType = modal.getAttribute('data-item-type');
-                if (window.UserSearchHandler) {
-                    const handler = new window.UserSearchHandler();
-                    // Store the handler on the modal element
-                    modal.userSearchHandler = handler;
+            // Initialize PageLifecycleManager for capture list page (download manager only)
+            document.addEventListener('DOMContentLoaded', function() {
+                const pageConfig = {
+                    pageType: 'capture-list-minimal', // Custom page type for minimal managers
+                    permissions: {
+                        userPermissionLevel: 'owner',
+                        currentUserId: {{ request.user.id }},
+                        isOwner: true,
+                        capturePermissions: {
+                            canEditMetadata: false, // Only owners can edit metadata (determined per-capture)
+                            canAddAssets: false,
+                            canRemoveAnyAssets: false,
+                            canRemoveOwnAssets: false,
+                            canShare: true, // Allow sharing for capture owners (determined per-capture)
+                            canDownload: true, // Allow downloads for all users (shared and owners)
+                            canDelete: false
+                        }
+                    }
+                };
+
+                // Initialize managers for captures
+                const permissionsManager = new PermissionsManager(pageConfig.permissions);
+                
+                // Initialize download manager
+                const downloadManager = new DownloadActionManager({
+                    permissions: permissionsManager
+                });
+                window.currentDownloadManager = downloadManager;
+                
+                // Initialize share action managers for each capture modal
+                document.querySelectorAll('.modal[data-item-uuid]').forEach(modal => {
+                    const itemUuid = modal.getAttribute('data-item-uuid');
+                    const itemType = modal.getAttribute('data-item-type');
+                    
+                    if (window.ShareActionManager && itemUuid && itemType === 'capture') {
+                        const shareManager = new ShareActionManager({
+                            itemUuid: itemUuid,
+                            itemType: itemType,
+                            permissions: permissionsManager
+                        });
+                        // Store the handler on the modal element
+                        modal.shareActionManager = shareManager;
+                    }
+
+                    // Reset selections when modal is hidden
+                    modal.addEventListener('hidden.bs.modal', function() {
+                        if (modal.shareActionManager) {
+                            modal.shareActionManager.clearSelections();
+                        }
+                    });
+                });
+
+                // Check for download alert messages
+                const downloadAlert = sessionStorage.getItem('captureDownloadAlert');
+                if (downloadAlert) {
+                    const alertData = JSON.parse(downloadAlert);
+                    if (window.showAlert) {
+                        window.showAlert(alertData.message, alertData.type);
+                    }
+                    sessionStorage.removeItem('captureDownloadAlert');
                 }
-
-                // On modal show, set the item info and call init()
-                modal.addEventListener('show.bs.modal', function() {
-                    if (modal.userSearchHandler) {
-                        modal.userSearchHandler.setItemInfo(itemUuid, itemType);
-                        modal.userSearchHandler.init();
-                    }
-                });
-
-                // On modal hide, reset all selections and entered data
-                modal.addEventListener('hidden.bs.modal', function() {
-                    if (modal.userSearchHandler) {
-                        modal.userSearchHandler.resetAll();
-                    }
-                });
             });
 
             // Initialize visualization modal
@@ -382,21 +420,5 @@
                 sessionStorage.removeItem('captureDownloadAlert');
             }
         });
-
-        // Function to show alerts (same as in dataset-list.js)
-        function showAlert(message, type) {
-            const alertClass = type === "success" ? "alert-success" : "alert-danger";
-            const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                    ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            `;
-
-            const alertContainer = document.querySelector(".container-fluid");
-            if (alertContainer) {
-                alertContainer.insertAdjacentHTML("afterbegin", alertHtml);
-            }
-        }
     </script>
 {% endblock javascript %}

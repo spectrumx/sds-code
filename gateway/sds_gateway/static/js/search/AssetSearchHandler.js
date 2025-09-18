@@ -1,904 +1,13 @@
-/* js functions for group_captures.html */
-
-class FormHandler {
-	constructor(config) {
-		this.form = document.getElementById(config.formId);
-		this.steps = config.steps;
-		this.currentStep = 0;
-		this.onStepChange = config.onStepChange;
-		this.isEditMode = config.isEditMode || false; // Whether this is an edit form
-		this.capturesSearchHandler = null; // Reference to captures SearchHandler instance
-		this.filesSearchHandler = null; // Reference to files SearchHandler instance
-		this.searchHandler = null; // Current active SearchHandler
-
-		// Store references to navigation elements
-		this.prevBtn = document.getElementById("prevStep");
-		this.nextBtn = document.getElementById("nextStep");
-		this.submitBtn = document.getElementById("submitForm");
-		this.stepTabs = document.querySelectorAll("#stepTabs .btn");
-
-		// Store references to hidden fields
-		this.selectedCapturesField = document.getElementById("selected_captures");
-		this.selectedFilesField = document.getElementById("selected_files");
-
-		// Initialize selections with initial values if provided
-		this.selectedCaptures = config.initialCaptures || new Set();
-		this.selectedFiles = config.initialFiles || new Set();
-		this.selectedCaptureDetails = new Map(
-			Object.entries(config.initialCaptureDetails || {}),
-		);
-
-		// Update hidden fields with initial values
-		this.updateHiddenFields();
-
-		// Store references to required fields
-		this.nameField = document.getElementById("id_name");
-		this.authorsField = document.getElementById("id_authors");
-		this.statusField = document.getElementById("id_status");
-
-		this.initializeEventListeners();
-		this.initializeErrorContainer();
-		this.validateCurrentStep(); // Initial validation
-		this.updateNavigation(); // Initial navigation button display
-
-		// Initialize review display if in edit mode
-		if (this.isEditMode && window.updateReviewDatasetDisplay) {
-			window.updateReviewDatasetDisplay();
-		}
-
-		// In edit mode, remove the btn-group-disabled class to allow tab navigation
-		if (this.isEditMode) {
-			const stepTabsContainer = document.getElementById("stepTabs");
-			if (stepTabsContainer) {
-				stepTabsContainer.classList.remove("btn-group-disabled");
-			}
-		}
-
-		// Hide the submit button at the start unless on the last step
-		if (this.submitBtn && this.currentStep !== this.steps.length - 1) {
-			this.hide(this.submitBtn);
-		}
-	}
-
-	// Add method to set SearchHandler reference
-	setSearchHandler(searchHandler, type) {
-		if (type === "captures") {
-			this.capturesSearchHandler = searchHandler;
-		} else if (type === "files") {
-			this.filesSearchHandler = searchHandler;
-			this.filesSearchHandler.updateSelectedFilesList();
-		}
-		this.searchHandler = searchHandler;
-	}
-
-	initializeEventListeners() {
-		// Prevent form submission on enter key
-		if (this.form) {
-			this.form.addEventListener("keypress", (e) => {
-				if (e.key === "Enter") {
-					e.preventDefault();
-				}
-			});
-		}
-
-		// Navigation buttons
-		if (this.prevBtn) {
-			this.prevBtn.addEventListener("click", (e) => {
-				e.stopPropagation();
-				this.navigateStep(-1);
-			});
-		}
-		if (this.nextBtn) {
-			this.nextBtn.addEventListener("click", (e) => {
-				e.stopPropagation();
-				this.navigateStep(1);
-			});
-		}
-		if (this.submitBtn) {
-			this.submitBtn.addEventListener("click", (e) => this.handleSubmit(e));
-		}
-
-		// Step tab handlers
-		this.stepTabs.forEach((tab, index) => {
-			tab.addEventListener("click", () => {
-				// In edit mode, allow navigation to any tab
-				// In create mode, only allow navigation to current or previous tabs
-				if (this.isEditMode || index <= this.currentStep) {
-					this.currentStep = index;
-					this.updateNavigation();
-					if (this.onStepChange) {
-						this.onStepChange(this.currentStep);
-					}
-				}
-			});
-		});
-
-		// Dataset info validation
-		if (this.nameField) {
-			this.nameField.addEventListener("input", () =>
-				this.validateCurrentStep(),
-			);
-		}
-		if (this.authorsField) {
-			this.authorsField.addEventListener("input", () =>
-				this.validateCurrentStep(),
-			);
-		}
-		if (this.statusField) {
-			this.statusField.addEventListener("change", () =>
-				this.validateCurrentStep(),
-			);
-		}
-
-		// Capture selection handler
-		document.addEventListener("change", (e) => {
-			if (e.target.matches('input[name="captures"]')) {
-				if (e.target.checked) {
-					this.selectedCaptures.add(e.target.value);
-				} else {
-					this.selectedCaptures.delete(e.target.value);
-				}
-				this.updateHiddenFields();
-			}
-		});
-	}
-
-	initializeErrorContainer() {
-		const errorContainer = document.getElementById("formErrors");
-		if (errorContainer) {
-			this.hide(errorContainer);
-		}
-	}
-
-	show(container, showClass = "display-block") {
-		container.classList.remove("display-none");
-		container.classList.add(showClass);
-	}
-
-	hide(container, showClass = "display-block") {
-		container.classList.remove(showClass);
-		container.classList.add("display-none");
-	}
-
-	updateHiddenFields() {
-		// Sync native form checkboxes with JavaScript-managed selection
-		this.syncNativeFormCheckboxes();
-
-		// Update hidden fields with current selections
-		if (this.selectedCapturesField) {
-			this.selectedCapturesField.value = Array.from(this.selectedCaptures).join(
-				",",
-			);
-		}
-		if (this.selectedFilesField) {
-			this.selectedFilesField.value = Array.from(this.selectedFiles)
-				.map((file) => file.id)
-				.join(",");
-		}
-	}
-
-	syncNativeFormCheckboxes() {
-		// Sync captures checkboxes
-		const captureCheckboxes = document.querySelectorAll(
-			'input[name="captures"]',
-		);
-		captureCheckboxes.forEach((checkbox) => {
-			const captureId = checkbox.value;
-			if (checkbox.checked && !this.selectedCaptures.has(captureId)) {
-				// Check if this capture can be selected (owned by current user)
-				const row = checkbox.closest("tr");
-				if (row && !row.classList.contains("readonly-row")) {
-					this.selectedCaptures.add(captureId);
-				} else {
-					// Uncheck if it can't be selected
-					checkbox.checked = false;
-				}
-			} else if (!checkbox.checked && this.selectedCaptures.has(captureId)) {
-				this.selectedCaptures.delete(captureId);
-			}
-		});
-	}
-
-	dataSetNameDisplay() {
-		const nameDisplays = document.getElementsByClassName(
-			"dataset-name-display",
-		);
-		const nameInput = document.getElementById("id_name");
-		if (nameInput && nameDisplays.length > 0) {
-			for (const nameDisplay of Array.from(nameDisplays)) {
-				nameDisplay.textContent = nameInput.value || "Untitled Dataset";
-			}
-		}
-	}
-
-	async navigateStep(direction) {
-		if (direction < 0 || this.validateCurrentStep()) {
-			const nextStep = this.currentStep + direction;
-			// If moving to review step (step 4), update the review content
-			if (nextStep === 3) {
-				// Update form values in review step - show current/new values
-				const nameDisplay = document.querySelector("#step4 .dataset-name");
-				if (nameDisplay) {
-					nameDisplay.textContent = this.nameField ? this.nameField.value : "";
-				}
-
-				// Update the complete review display (includes dataset info and authors)
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-
-				// Handle authors display (fallback if updateReviewDatasetDisplay doesn't exist)
-				if (window.updateReviewAuthorsDisplay) {
-					// Use the new function that handles edit mode changes
-					window.updateReviewAuthorsDisplay();
-				} else {
-					// Fallback for create mode
-					const authorsField = document.getElementById("id_authors");
-					if (authorsField && authorsField.value) {
-						try {
-							const authors = JSON.parse(authorsField.value);
-							// Handle both old string format and new object format
-							const authorNames = authors.map((author) => {
-								if (typeof author === "string") {
-									return author;
-								} else if (author && author.name) {
-									return author.name;
-								}
-								return "Unnamed Author";
-							});
-							const authorsDisplay = authorNames.join(", ");
-							document.querySelector("#step4 .dataset-authors").textContent =
-								authorsDisplay;
-						} catch (e) {
-							document.querySelector("#step4 .dataset-authors").textContent =
-								authorsField.value;
-						}
-					} else {
-						document.querySelector("#step4 .dataset-authors").textContent =
-							"No authors specified";
-					}
-				}
-
-				// Update status and description with current values
-				const statusDisplay = document.querySelector("#step4 .dataset-status");
-				if (statusDisplay) {
-					if (
-						this.statusField &&
-						this.statusField.options &&
-						this.statusField.selectedIndex >= 0
-					) {
-						statusDisplay.textContent =
-							this.statusField.options[this.statusField.selectedIndex].text;
-					} else {
-						statusDisplay.textContent = "";
-					}
-				}
-
-				const descriptionDisplay = document.querySelector(
-					"#step4 .dataset-description",
-				);
-				if (descriptionDisplay) {
-					const descriptionField = document.getElementById("id_description");
-					descriptionDisplay.textContent = descriptionField
-						? descriptionField.value
-						: "No description provided.";
-				}
-
-				// Handle dataset metadata changes display
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-
-				// In edit mode, show pending changes instead of selected items
-				if (this.isEditMode) {
-					this.updatePendingChangesTable();
-				} else {
-					this.updateSelectedItemsTable();
-				}
-			}
-
-			this.currentStep = nextStep;
-			this.updateNavigation();
-			this.dataSetNameDisplay();
-			if (this.onStepChange) {
-				this.onStepChange(this.currentStep);
-			}
-		}
-	}
-
-	updateNavigation() {
-		// Update step tabs
-		this.stepTabs.forEach((tab, index) => {
-			tab.classList.remove(
-				"btn-outline-primary",
-				"btn-primary",
-				"active-tab",
-				"inactive-tab",
-			);
-			if (index === this.currentStep) {
-				tab.classList.add("btn-primary", "active-tab");
-			} else if (this.isEditMode) {
-				// In edit mode, make all tabs look clickable
-				tab.classList.add("btn-outline-primary", "inactive-tab");
-			} else if (index > this.currentStep) {
-				tab.classList.add("btn-outline-primary", "inactive-tab");
-			} else {
-				// Previous tabs get a light blue color and are disabled
-				tab.classList.add("btn-primary", "inactive-tab");
-			}
-		});
-
-		// Update content panes
-		document.querySelectorAll(".tab-pane").forEach((pane, index) => {
-			pane.classList.remove("show", "active");
-			if (index === this.currentStep) {
-				pane.classList.add("show", "active");
-			}
-		});
-
-		// In edit mode, update pending changes table when on review step
-		if (this.isEditMode && this.currentStep === 3) {
-			// Use setTimeout to ensure DOM is updated
-			setTimeout(() => {
-				this.updatePendingChangesTable();
-			}, 100);
-		}
-
-		// Update navigation buttons
-		if (this.prevBtn) {
-			this.currentStep > 0 ? this.show(this.prevBtn) : this.hide(this.prevBtn);
-		}
-
-		// Update next/submit buttons and validate current step
-		const isValid = this.validateCurrentStep();
-
-		if (this.nextBtn) {
-			const isLastStep = this.currentStep === this.steps.length - 1;
-			isLastStep ? this.hide(this.nextBtn) : this.show(this.nextBtn);
-			this.nextBtn.disabled = !isValid;
-		}
-		if (this.submitBtn) {
-			const isLastStep = this.currentStep === this.steps.length - 1;
-			if (isLastStep) {
-				this.show(this.submitBtn);
-				this.submitBtn.disabled = !isValid;
-			} else {
-				this.hide(this.submitBtn);
-			}
-		}
-	}
-
-	validateCurrentStep() {
-		let isValid = true;
-		switch (this.currentStep) {
-			case 0:
-				isValid = this.validateDatasetInfo();
-				break;
-			case 1:
-				isValid = this.validateCapturesSelection();
-				break;
-			case 2:
-				isValid = this.validateFilesSelection();
-				break;
-			default:
-				isValid = true;
-		}
-
-		// Update button states based on validation
-		if (this.nextBtn) {
-			this.nextBtn.disabled = !isValid;
-		}
-		if (this.submitBtn && this.currentStep === this.steps.length - 1) {
-			this.submitBtn.disabled = !isValid;
-		}
-
-		return isValid;
-	}
-
-	validateDatasetInfo() {
-		// In edit mode, the dataset already has the required information, so it's always valid
-		if (this.isEditMode) {
-			return true;
-		}
-
-		// Check if all required fields have non-empty values
-		const nameValue = this.nameField?.value.trim() || "";
-		const authorsValue = this.authorsField?.value.trim() || "";
-		const statusValue = this.statusField?.value || "";
-
-		// Validate authors JSON
-		if (authorsValue) {
-			try {
-				const authors = JSON.parse(authorsValue);
-				if (!Array.isArray(authors) || authors.length === 0) {
-					return false;
-				}
-			} catch (e) {
-				return false;
-			}
-		}
-
-		return nameValue !== "" && authorsValue !== "" && statusValue !== "";
-	}
-
-	validateCapturesSelection() {
-		return true; // Keep as is per requirements
-	}
-
-	validateFilesSelection() {
-		return true; // Keep as is per requirements
-	}
-
-	async handleSubmit(e) {
-		e.preventDefault();
-		if (this.validateCurrentStep()) {
-			// Set loading state
-			this.setSubmitButtonLoading(true);
-
-			// Sync native form checkboxes with JavaScript selection
-			this.syncNativeFormCheckboxes();
-
-			// Update hidden fields one last time before submission
-			this.updateHiddenFields();
-
-			// Clear any existing errors
-			const errorContainer = document.getElementById("formErrors");
-			const errorContent = errorContainer?.querySelector(".error-content");
-			if (errorContainer && errorContent) {
-				this.hide(errorContainer);
-				errorContent.innerHTML = "";
-			}
-
-			const formData = new FormData(this.form);
-
-			// If this is an editing handler, add the pending changes
-			if (this.isEditMode && window.datasetEditingHandler) {
-				const changes = window.datasetEditingHandler.getPendingChanges();
-
-				// Add captures changes
-				const capturesAdd = changes.captures
-					.filter(([id, change]) => change.action === "add")
-					.map(([id, change]) => id);
-				const capturesRemove = changes.captures
-					.filter(([id, change]) => change.action === "remove")
-					.map(([id, change]) => id);
-
-				formData.append("captures_add", capturesAdd.join(","));
-				formData.append("captures_remove", capturesRemove.join(","));
-
-				// Add files changes
-				const filesAdd = changes.files
-					.filter(([id, change]) => change.action === "add")
-					.map(([id, change]) => id);
-				const filesRemove = changes.files
-					.filter(([id, change]) => change.action === "remove")
-					.map(([id, change]) => id);
-
-				formData.append("files_add", filesAdd.join(","));
-				formData.append("files_remove", filesRemove.join(","));
-			}
-
-			// Add author changes if in edit mode
-			if (this.isEditMode && window.getAuthorChanges) {
-				const authorChanges = window.getAuthorChanges();
-				if (
-					authorChanges &&
-					(authorChanges.added.length > 0 ||
-						authorChanges.removed.length > 0 ||
-						Object.keys(authorChanges.modified).length > 0)
-				) {
-					formData.append("author_changes", JSON.stringify(authorChanges));
-				}
-			}
-
-			try {
-				const response = await fetch(this.form.action, {
-					method: "POST",
-					body: formData,
-					headers: {
-						"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
-							.value,
-					},
-				});
-
-				const data = await response.json();
-
-				if (!response.ok) {
-					if (response.status === 400 && data.errors) {
-						// Show errors in the error container
-						let errorHtml = '<ul class="mb-0 list-unstyled">';
-						for (const [field, messages] of Object.entries(data.errors)) {
-							if (Array.isArray(messages)) {
-								for (const message of messages) {
-									errorHtml += `<li>${field === "non_field_errors" ? "" : `<strong>${field}:</strong> `}${message}</li>`;
-								}
-							} else if (typeof messages === "string") {
-								errorHtml += `<li>${field === "non_field_errors" ? "" : `<strong>${field}:</strong> `}${messages}</li>`;
-							}
-						}
-						errorHtml += "</ul>";
-
-						if (errorContainer && errorContent) {
-							errorContent.innerHTML = errorHtml;
-							this.show(errorContainer);
-							errorContainer.scrollIntoView({
-								behavior: "smooth",
-								block: "start",
-							});
-						}
-						// Reset loading state on error
-						this.setSubmitButtonLoading(false);
-						return;
-					}
-					throw new Error("Server error");
-				}
-
-				if (data.success) {
-					window.location.href = data.redirect_url;
-				} else if (data.errors) {
-					throw new Error(data.errors.join(", "));
-				}
-			} catch (error) {
-				console.error("Error submitting form:", error);
-				if (errorContainer && errorContent) {
-					errorContent.innerHTML =
-						'<ul class="mb-0 list-unstyled"><li>An unexpected error occurred. Please try again.</li></ul>';
-					this.show(errorContainer);
-					errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
-				}
-				// Reset loading state on error
-				this.setSubmitButtonLoading(false);
-			}
-		}
-	}
-
-	// Helper function to format file size
-	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-	}
-
-	// Set loading state for submit button
-	setSubmitButtonLoading(isLoading) {
-		if (!this.submitBtn) return;
-
-		if (isLoading) {
-			// Store original text
-			this.submitBtn.dataset.originalText = this.submitBtn.textContent;
-			// Set loading state
-			this.submitBtn.disabled = true;
-			const busyText = this.isEditMode ? "Updating..." : "Creating...";
-			this.submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${busyText}`;
-		} else {
-			// Restore original state
-			this.submitBtn.disabled = false;
-			if (this.submitBtn.dataset.originalText) {
-				this.submitBtn.textContent = this.submitBtn.dataset.originalText;
-			}
-		}
-	}
-
-	updateSelectedItemsTable() {
-		// Update captures table
-		const capturesTableBody = document.querySelector(
-			"#step4 .captures-table tbody",
-		);
-
-		if (
-			capturesTableBody &&
-			this.selectedCaptures.size > 0 &&
-			this.capturesSearchHandler
-		) {
-			capturesTableBody.innerHTML = Array.from(this.selectedCaptures)
-				.map((captureId) => {
-					const data = this.capturesSearchHandler.selectedCaptureDetails.get(
-						captureId,
-					) || {
-						type: "Unknown",
-						directory: "Unknown",
-						channel: "-",
-						scan_group: "-",
-						created_at: new Date().toISOString(),
-					};
-					return `
-					<tr>
-						<td>${data.type}</td>
-						<td>${data.directory}</td>
-						<td>${data.channel}</td>
-						<td>${data.scan_group}</td>
-						<td>${new Date(data.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
-						<td>
-							<button class="btn btn-sm btn-danger remove-capture" data-id="${captureId}">
-								Remove
-							</button>
-						</td>
-					</tr>
-				`;
-				})
-				.join("");
-
-			// Add event listeners for capture removal
-			const removeButtons =
-				capturesTableBody.querySelectorAll(".remove-capture");
-			for (const button of removeButtons) {
-				button.addEventListener("click", () => {
-					const captureId = button.dataset.id;
-					// Remove from selected captures
-					this.selectedCaptures.delete(captureId);
-					// Remove from capture details
-					if (this.capturesSearchHandler) {
-						this.capturesSearchHandler.selectedCaptureDetails.delete(captureId);
-					}
-					// Update hidden field
-					this.updateHiddenFields();
-					// Update checkbox and row styling in captures table if visible
-					const checkbox = document.querySelector(
-						`input[name="captures"][value="${captureId}"]`,
-					);
-					if (checkbox) {
-						checkbox.checked = false;
-						const row = checkbox.closest("tr");
-						if (row) {
-							row.classList.remove("table-warning");
-						}
-					}
-					// Remove the row
-					button.closest("tr").remove();
-					// Update count
-					const capturesCount = this.selectedCaptures.size;
-					document.querySelector("#step4 .captures-count").textContent =
-						`${capturesCount} selected`;
-					// Show "No captures selected" if none left
-					if (capturesCount === 0) {
-						capturesTableBody.innerHTML =
-							"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
-					}
-					// Update the selected captures pane in step 2 if it exists
-					if (this.capturesSearchHandler) {
-						this.capturesSearchHandler.updateSelectedCapturesPane();
-					}
-				});
-			}
-		} else {
-			capturesTableBody.innerHTML =
-				"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
-		}
-
-		// Update files table
-		const filesTableBody = document.querySelector("#step4 .files-table tbody");
-
-		if (filesTableBody && this.selectedFiles.size > 0) {
-			filesTableBody.innerHTML = Array.from(this.selectedFiles)
-				.map(
-					(file) => `
-				<tr>
-					<td>${file.name}</td>
-					<td>${file.media_type || "Unknown"}</td>
-					<td>${file.relative_path}</td>
-					<td>${this.formatFileSize(file.size)}</td>
-					<td>
-						<button class="btn btn-sm btn-danger remove-file" data-id="${file.id}">
-							Remove
-						</button>
-					</td>
-				</tr>
-			`,
-				)
-				.join("");
-
-			// Add event listeners for file removal
-			const removeFileButtons = filesTableBody.querySelectorAll(".remove-file");
-			for (const button of removeFileButtons) {
-				button.addEventListener("click", () => {
-					const fileId = button.dataset.id;
-					const fileToRemove = Array.from(this.selectedFiles).find(
-						(f) => f.id === fileId,
-					);
-					if (fileToRemove) {
-						// Remove from selected files
-						this.selectedFiles.delete(fileToRemove);
-						// Update SearchHandler's selectedFiles Map
-						if (this.filesSearchHandler) {
-							this.filesSearchHandler.selectedFiles.delete(fileId);
-							// Update the selected files list in SearchHandler
-							this.filesSearchHandler.updateSelectedFilesList();
-						}
-						// Update hidden field
-						this.updateHiddenFields();
-						// Update checkbox in file tree if visible
-						const checkbox = document.querySelector(
-							`input[name="files"][value="${fileId}"]`,
-						);
-						if (checkbox) {
-							checkbox.checked = false;
-						}
-						// Remove the row
-						button.closest("tr").remove();
-						// Update count
-						const filesCount = this.selectedFiles.size;
-						document.querySelector("#step4 .files-count").textContent =
-							`${filesCount} selected`;
-						// Show "No files selected" if none left
-						if (filesCount === 0) {
-							filesTableBody.innerHTML =
-								"<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
-						}
-					}
-				});
-			}
-		} else {
-			filesTableBody.innerHTML =
-				"<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
-		}
-
-		// Update selection counts
-		const capturesCount = this.selectedCaptures.size;
-		const filesCount = this.selectedFiles.size;
-		document.querySelector("#step4 .captures-count").textContent =
-			`${capturesCount} selected`;
-		document.querySelector("#step4 .files-count").textContent =
-			`${filesCount} selected`;
-	}
-
-	// Update pending changes table for edit mode
-	updatePendingChangesTable() {
-		const pendingChangesTableBody = document.querySelector(
-			"#step4 .pending-changes-table tbody",
-		);
-		const pendingChangesCount = document.querySelector(
-			"#step4 .pending-changes-count",
-		);
-
-		if (!pendingChangesTableBody) {
-			return;
-		}
-
-		const changes = [];
-		let totalChanges = 0;
-
-		// Get changes from the DatasetEditingHandler (which is the formHandler in edit mode)
-		let editingHandler = null;
-		if (
-			this.capturesSearchHandler &&
-			this.capturesSearchHandler.formHandler &&
-			this.capturesSearchHandler.formHandler.pendingCaptures
-		) {
-			editingHandler = this.capturesSearchHandler.formHandler;
-		} else if (
-			this.filesSearchHandler &&
-			this.filesSearchHandler.formHandler &&
-			this.filesSearchHandler.formHandler.pendingFiles
-		) {
-			editingHandler = this.filesSearchHandler.formHandler;
-		}
-
-		if (editingHandler) {
-			// Get capture changes
-			if (
-				editingHandler.pendingCaptures &&
-				editingHandler.pendingCaptures.size > 0
-			) {
-				editingHandler.pendingCaptures.forEach((change, captureId) => {
-					const actionText = change.action === "add" ? "Add" : "Remove";
-					const actionType =
-						change.action === "add" ? "capture_add" : "capture_remove";
-
-					changes.push({
-						type: "Capture",
-						action: actionText,
-						name: `${change.data.type} (${change.data.directory})`,
-						details: `Channel: ${change.data.channel}, Scan Group: ${change.data.scan_group}`,
-						actionType: actionType,
-						id: captureId,
-					});
-					totalChanges++;
-				});
-			}
-
-			// Get file changes
-			if (editingHandler.pendingFiles && editingHandler.pendingFiles.size > 0) {
-				editingHandler.pendingFiles.forEach((change, fileId) => {
-					const actionText = change.action === "add" ? "Add" : "Remove";
-					const actionType =
-						change.action === "add" ? "file_add" : "file_remove";
-
-					changes.push({
-						type: "File",
-						action: actionText,
-						name: change.data.name || `File ${fileId}`,
-						details: change.data.relative_path || "Will be modified in dataset",
-						actionType: actionType,
-						id: fileId,
-					});
-					totalChanges++;
-				});
-			}
-		}
-
-		// Update the table
-		if (changes.length > 0) {
-			pendingChangesTableBody.innerHTML = changes
-				.map(
-					(change) => `
-				<tr>
-					<td>${change.type}</td>
-					<td><span class="badge bg-${change.action === "Add" ? "success" : change.action === "Remove" ? "danger" : "warning"}">${change.action}</span></td>
-					<td>${change.name}</td>
-					<td>${change.details}</td>
-					<td>
-						<button type="button" class="btn btn-sm btn-outline-secondary cancel-change" data-action-type="${change.actionType}" data-id="${change.id || change.index}">
-							Cancel
-						</button>
-					</td>
-				</tr>
-			`,
-				)
-				.join("");
-
-			// Add event listeners for cancel buttons
-			const cancelButtons =
-				pendingChangesTableBody.querySelectorAll(".cancel-change");
-			cancelButtons.forEach((button) => {
-				button.addEventListener("click", (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-
-					const actionType = button.dataset.actionType;
-					const id = button.dataset.id;
-
-					// Get the editing handler
-					let editingHandler = null;
-					if (
-						this.capturesSearchHandler &&
-						this.capturesSearchHandler.formHandler &&
-						this.capturesSearchHandler.formHandler.pendingCaptures
-					) {
-						editingHandler = this.capturesSearchHandler.formHandler;
-					} else if (
-						this.filesSearchHandler &&
-						this.filesSearchHandler.formHandler &&
-						this.filesSearchHandler.formHandler.pendingFiles
-					) {
-						editingHandler = this.filesSearchHandler.formHandler;
-					}
-
-					if (editingHandler) {
-						// Handle different types of cancellations
-						if (
-							actionType === "capture_add" ||
-							actionType === "capture_remove"
-						) {
-							// Cancel capture change
-							editingHandler.cancelCaptureChange(id);
-						} else if (
-							actionType === "file_add" ||
-							actionType === "file_remove"
-						) {
-							// Cancel file change
-							editingHandler.cancelFileChange(id);
-						}
-
-						// Refresh the pending changes table
-						this.updatePendingChangesTable();
-					}
-				});
-			});
-		} else {
-			pendingChangesTableBody.innerHTML =
-				"<tr><td colspan='5' class='text-center'>No pending asset changes</td></tr>";
-		}
-
-		// Update the count badge
-		if (pendingChangesCount) {
-			pendingChangesCount.textContent = `${totalChanges} change${totalChanges !== 1 ? "s" : ""}`;
-		}
-	}
-}
-
-class SearchHandler {
+/**
+ * Asset Search Handler
+ * Handles search functionality for captures and files in dataset creation/editing
+ * Refactored from SearchHandler to use core components and centralized management
+ */
+class AssetSearchHandler {
+	/**
+	 * Initialize asset search handler
+	 * @param {Object} config - Configuration object
+	 */
 	constructor(config) {
 		this.searchForm = document.getElementById(config.searchFormId);
 		this.searchButton = document.getElementById(config.searchButtonId);
@@ -907,7 +16,7 @@ class SearchHandler {
 		this.paginationContainer = document.getElementById(
 			config.paginationContainerId,
 		);
-		this.type = config.type;
+		this.type = config.type; // 'captures' or 'files'
 		this.selectedFiles = new Map(
 			Object.entries(config.initialFileDetails || {}),
 		);
@@ -916,11 +25,17 @@ class SearchHandler {
 		);
 		this.currentTree = null;
 		this.formHandler = config.formHandler;
-		this.isEditMode = config.isEditMode || false; // Store isEditMode flag
+		this.isEditMode = config.isEditMode || false;
 		this.currentFilters = {}; // Store current capture filters
 		this.selectedCaptureDetails = new Map(
 			Object.entries(config.initialCaptureDetails || {}),
 		);
+
+		// Configuration
+		this.config = {
+			apiEndpoint: config.apiEndpoint || window.location.pathname,
+			...config
+		};
 
 		// Set the form handler's reference to this SearchHandler instance
 		if (config.formHandler) {
@@ -930,63 +45,9 @@ class SearchHandler {
 		this.initializeEventListeners();
 	}
 
-	async fetchCaptures(params = {}) {
-		try {
-			const searchParams = new URLSearchParams();
-
-			// Add all params to the search parameters
-			for (const [key, value] of Object.entries(params)) {
-				if (value) {
-					searchParams.append(key, value);
-				}
-			}
-
-			// Always add the search_captures parameter
-			searchParams.append("search_captures", "true");
-
-			const response = await fetch(
-				`${window.location.pathname}?${searchParams.toString()}`,
-				{
-					headers: {
-						"X-Requested-With": "XMLHttpRequest",
-					},
-				},
-			);
-
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-
-			return await response.json();
-		} catch (error) {
-			console.error("Error fetching captures:", error);
-			return { results: [], pagination: {} };
-		}
-	}
-
-	async fetchFiles(params = {}) {
-		try {
-			const searchParams = new URLSearchParams(params);
-			const response = await fetch(
-				`${window.location.pathname}?${searchParams.toString()}&search_files=true`,
-				{
-					headers: {
-						"X-Requested-With": "XMLHttpRequest",
-					},
-				},
-			);
-
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-
-			return await response.json();
-		} catch (error) {
-			console.error("Error fetching files:", error);
-			return { tree: {}, pagination: {} };
-		}
-	}
-
+	/**
+	 * Initialize event listeners
+	 */
 	initializeEventListeners() {
 		// Search form handlers
 		if (this.searchButton) {
@@ -1014,6 +75,9 @@ class SearchHandler {
 		this.initializeEnterKeyListener();
 	}
 
+	/**
+	 * Initialize enter key listener
+	 */
 	initializeEnterKeyListener() {
 		// Allow pressing enter when focused on a search input to trigger the search
 		const searchInputs = this.searchForm.querySelectorAll("input[type='text']");
@@ -1026,6 +90,9 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Initialize select all checkbox
+	 */
 	initializeSelectAllCheckbox() {
 		const selectAllCheckbox = document.getElementById(
 			"select-all-files-checkbox",
@@ -1047,6 +114,9 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Initialize remove all button
+	 */
 	initializeRemoveAllButton() {
 		const removeAllButton = document.getElementById(
 			"remove-all-selected-files-button",
@@ -1058,7 +128,7 @@ class SearchHandler {
 					this.formHandler.handleRemoveAllFiles();
 				} else {
 					// Default behavior for create mode
-					//deselect all files
+					// Deselect all files
 					const fileCheckboxes = document.querySelectorAll(
 						'#file-tree-table tbody input[type="checkbox"]',
 					);
@@ -1074,6 +144,9 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Initialize captures search
+	 */
 	initializeCapturesSearch() {
 		// Initialize event listeners for captures search
 		const searchButton = document.getElementById("search-captures");
@@ -1117,6 +190,9 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Create selected captures pane
+	 */
 	createSelectedCapturesPane() {
 		// Create the selected captures pane next to the captures table
 		const capturesContainer = document.querySelector("#step2 .row");
@@ -1154,6 +230,9 @@ class SearchHandler {
 		capturesContainer.appendChild(selectedPane);
 	}
 
+	/**
+	 * Update selected captures pane
+	 */
 	updateSelectedCapturesPane() {
 		const selectedList = document.getElementById("selected-captures-list");
 		const countBadge = document.querySelector(".selected-captures-count");
@@ -1222,6 +301,71 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Fetch captures data
+	 * @param {Object} params - Search parameters
+	 * @returns {Promise<Object>} Captures data
+	 */
+	async fetchCaptures(params = {}) {
+		try {
+			const searchParams = new URLSearchParams();
+
+			// Add all params to the search parameters
+			for (const [key, value] of Object.entries(params)) {
+				if (value) {
+					searchParams.append(key, value);
+				}
+			}
+
+			// Always add the search_captures parameter
+			searchParams.append("search_captures", "true");
+
+			const data = await APIClient.request(
+				`${this.config.apiEndpoint}?${searchParams.toString()}`,
+				{
+					headers: {
+						"X-Requested-With": "XMLHttpRequest",
+					},
+				}
+			);
+
+			// APIClient.request already returns parsed JSON data
+			return data;
+		} catch (error) {
+			console.error("Error fetching captures:", error);
+			return { results: [], pagination: {} };
+		}
+	}
+
+	/**
+	 * Fetch files data
+	 * @param {Object} params - Search parameters
+	 * @returns {Promise<Object>} Files data
+	 */
+	async fetchFiles(params = {}) {
+		try {
+			const searchParams = new URLSearchParams(params);
+			const data = await APIClient.request(
+				`${this.config.apiEndpoint}?${searchParams.toString()}&search_files=true`,
+				{
+					headers: {
+						"X-Requested-With": "XMLHttpRequest",
+					},
+				}
+			);
+
+			// APIClient.request already returns parsed JSON data
+			return data;
+		} catch (error) {
+			console.error("Error fetching files:", error);
+			return { tree: {}, pagination: {} };
+		}
+	}
+
+	/**
+	 * Update captures table
+	 * @param {Object} data - Captures data
+	 */
 	updateCapturesTable(data) {
 		const tbody = document.querySelector("#captures-table tbody");
 		tbody.innerHTML = "";
@@ -1231,7 +375,7 @@ class SearchHandler {
 
 		if (data.results.length === 0) {
 			tbody.innerHTML =
-				'<tr><td colspan="8" class="text-center">No captures found</td></tr>';
+				'<tr><td colspan="7" class="text-center">No captures found</td></tr>';
 			return;
 		}
 
@@ -1354,6 +498,11 @@ class SearchHandler {
 		this.updateSelectedCapturesPane();
 	}
 
+	/**
+	 * Update pagination
+	 * @param {string} type - Type of pagination (captures or files)
+	 * @param {Object} pagination - Pagination data
+	 */
 	updatePagination(type, pagination) {
 		const paginationContainer = document.querySelector(`#${type}-pagination`);
 		if (!paginationContainer) return;
@@ -1435,7 +584,11 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Handle search
+	 */
 	async handleSearch() {
+		
 		try {
 			// Get all input elements within the search container
 			const searchContainer = this.searchForm;
@@ -1461,20 +614,17 @@ class SearchHandler {
 				"true",
 			);
 
-			const response = await fetch(
-				`${window.location.pathname}?${params.toString()}`,
+			const data = await APIClient.request(
+				`${this.config.apiEndpoint}?${params.toString()}`,
 				{
 					headers: {
 						"X-Requested-With": "XMLHttpRequest",
 					},
-				},
+				}
 			);
 
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
 
-			const data = await response.json();
+			// APIClient.request already returns parsed JSON data
 
 			if (this.type === "captures") {
 				this.updateCapturesTable(data);
@@ -1519,6 +669,8 @@ class SearchHandler {
 						data.search_values.file_name ||
 						data.search_values.directory ||
 						data.search_values.file_extension;
+					
+					
 					this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
 
 					// Initialize select all checkbox handler for the current file tree
@@ -1538,6 +690,9 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Handle clear
+	 */
 	handleClear() {
 		// Clear all form inputs
 		const searchContainer = this.searchForm;
@@ -1555,6 +710,9 @@ class SearchHandler {
 		this.handleSearch();
 	}
 
+	/**
+	 * Update selected files list
+	 */
 	updateSelectedFilesList() {
 		// Update form handler's selectedFiles with current selection (create mode only)
 		if (this.formHandler && !this.isEditMode) {
@@ -1600,7 +758,7 @@ class SearchHandler {
 								file.owner_id === this.formHandler.currentUserId;
 							const canRemove =
 								!isExistingFile ||
-								(isExistingFile && this.formHandler.canRemoveAssets);
+								(isExistingFile && this.formHandler.permissions?.canRemoveAsset(file));
 							const rowClass = !canRemove ? "readonly-row" : "";
 
 							return `
@@ -1667,6 +825,9 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Load file tree
+	 */
 	async loadFileTree() {
 		try {
 			// Get current values from form fields
@@ -1712,7 +873,12 @@ class SearchHandler {
 		}
 	}
 
-	// Helper function to get relative path
+	/**
+	 * Get relative path
+	 * @param {Object} file - File object
+	 * @param {string} currentPath - Current path
+	 * @returns {string} Relative path
+	 */
 	getRelativePath(file, currentPath = "") {
 		if (!currentPath) {
 			return "";
@@ -1720,6 +886,14 @@ class SearchHandler {
 		return `/${currentPath}`;
 	}
 
+	/**
+	 * Render file tree
+	 * @param {Object} tree - File tree data
+	 * @param {HTMLElement} parentElement - Parent element
+	 * @param {number} level - Nesting level
+	 * @param {string} currentPath - Current path
+	 * @param {boolean} searchTermEntered - Whether search term was entered
+	 */
 	renderFileTree(
 		tree,
 		parentElement = null,
@@ -1727,6 +901,7 @@ class SearchHandler {
 		currentPath = "",
 		searchTermEntered = false,
 	) {
+		
 		this.currentTree = tree;
 		const targetElement =
 			parentElement || document.querySelector("#file-tree-table tbody");
@@ -1763,7 +938,9 @@ class SearchHandler {
 
 		// Render directories
 		const directories = tree.children || {};
+		
 		for (const [name, content] of Object.entries(directories)) {
+			
 			if (
 				name === "files" ||
 				!content ||
@@ -1777,8 +954,8 @@ class SearchHandler {
 			const row = document.createElement("tr");
 			row.className = "folder-row";
 
-			// Set initial toggle state based on search term
-			const initiallyExpanded = searchTermEntered;
+		// Set initial toggle state based on search term only (don't expand by default)
+		const initiallyExpanded = searchTermEntered;
 			const toggleSymbol = initiallyExpanded ? "▼" : "▶";
 
 			// Construct the path for this directory
@@ -1820,7 +997,9 @@ class SearchHandler {
 			targetElement.appendChild(nestedContainer);
 
 			// Add click handler for folder
-			row.addEventListener("click", () => {
+			row.addEventListener("click", (e) => {
+				e.preventDefault();
+				e.stopPropagation();
 				const hasChildren = Object.keys(content.children || {}).length > 0;
 				const hasFiles = content.files && content.files.length > 0;
 				const expandable = hasChildren || hasFiles;
@@ -1830,9 +1009,12 @@ class SearchHandler {
 
 				if (expandable) {
 					toggle.textContent = isExpanded ? "▶" : "▼";
-					isExpanded
-						? this.formHandler.hide(nestedContainer, "display-table-row")
-						: this.formHandler.show(nestedContainer, "display-table-row");
+
+					if (isExpanded) {
+						this.formHandler.hide(nestedContainer, "display-table-row");
+					} else {
+						this.formHandler.show(nestedContainer, "display-table-row");
+					}
 				} else {
 					toggle.textContent = "▶";
 					this.formHandler.hide(nestedContainer, "display-table-row");
@@ -1851,8 +1033,8 @@ class SearchHandler {
 				}
 			});
 
-			// If there's a search term, automatically load and expand the content
-			if (searchTermEntered && !nestedContainer.dataset.loaded) {
+			// If there's a search term or initially expanded, automatically load and expand the content
+			if (initiallyExpanded && !nestedContainer.dataset.loaded) {
 				this.renderFileTree(
 					content,
 					nestedContainer.querySelector("tbody"),
@@ -1923,7 +1105,10 @@ class SearchHandler {
 		this.updateSelectAllCheckboxState();
 	}
 
-	// Function to update files table
+	/**
+	 * Update files table
+	 * @param {Object} data - Files data
+	 */
 	updateFilesTable(data) {
 		const tbody = document.querySelector("#file-tree-table tbody");
 		if (!tbody) {
@@ -1941,6 +1126,10 @@ class SearchHandler {
 		this.renderFileTree(data.tree);
 	}
 
+	/**
+	 * Show error message
+	 * @param {string} message - Error message
+	 */
 	showError(message) {
 		const errorContainer = document.getElementById("formErrors");
 		const errorContent = errorContainer?.querySelector(".error-content");
@@ -1951,7 +1140,9 @@ class SearchHandler {
 		}
 	}
 
-	// Helper function to update select all checkbox state
+	/**
+	 * Update select all checkbox state
+	 */
 	updateSelectAllCheckboxState() {
 		const selectAllCheckbox = document.getElementById(
 			"select-all-files-checkbox",
@@ -1973,6 +1164,10 @@ class SearchHandler {
 		}
 	}
 
+	/**
+	 * Update results count
+	 * @param {number} count - Results count
+	 */
 	updateResultsCount(count) {
 		const resultsCountElement = document.getElementById("results-count");
 		if (resultsCountElement) {
@@ -1982,9 +1177,5 @@ class SearchHandler {
 	}
 }
 
-// Make classes available globally
-window.SearchHandler = SearchHandler;
-window.FormHandler = FormHandler;
-
-// Export the classes (commented out to avoid syntax error in non-module context)
-// export { FormHandler, SearchHandler };
+// Make class available globally
+window.AssetSearchHandler = AssetSearchHandler;
