@@ -7,6 +7,7 @@ class UserSearchHandler {
 		this.currentRequest = null;
 		this.selectedUsersMap = {}; // key: input id, value: array of {name, email}
 		this.pendingRemovals = new Set(); // Track users marked for removal
+		this.pendingPermissionChanges = new Map(); // Track permission level changes
 	}
 
 	getCSRFToken() {
@@ -278,6 +279,8 @@ class UserSearchHandler {
 		dropdown.addEventListener("click", (e) => {
 			const item = e.target.closest(".list-group-item");
 			if (item && !item.classList.contains("no-results")) {
+				e.preventDefault();
+				e.stopPropagation();
 				this.selectUser(item, input);
 			}
 		});
@@ -298,11 +301,15 @@ class UserSearchHandler {
 		shareButton.dataset.shareSetup = "true";
 
 		shareButton.addEventListener("click", async () => {
-			// get the user emails from the selected users map
-			// The selectedUsersMap is keyed by input ID, so we need to get the first (and only) array
+			// Get the user emails from the selected users map
 			const inputId = `user-search-${this.itemUuid}`;
-
 			const selectedUsers = this.selectedUsersMap[inputId] || [];
+
+			// Create a map of user emails to their permission levels
+			const userPermissions = {};
+			for (const user of selectedUsers) {
+				userPermissions[user.email] = user.permission_level || "viewer";
+			}
 
 			const userEmails = selectedUsers.map((u) => u.email).join(",");
 
@@ -311,6 +318,7 @@ class UserSearchHandler {
 
 			const formData = new FormData();
 			formData.append("user-search", userEmails);
+			formData.append("user_permissions", JSON.stringify(userPermissions));
 
 			// Add notify_users and notify_message if present
 			const notifyCheckbox = document.getElementById(
@@ -334,6 +342,17 @@ class UserSearchHandler {
 				);
 			}
 
+			// Handle pending permission changes
+			if (
+				this.pendingPermissionChanges &&
+				this.pendingPermissionChanges.size > 0
+			) {
+				formData.append(
+					"permission_changes",
+					JSON.stringify(Array.from(this.pendingPermissionChanges.entries())),
+				);
+			}
+
 			try {
 				const response = await fetch(
 					`/users/share-item/${this.itemType}/${this.itemUuid}/`,
@@ -348,12 +367,13 @@ class UserSearchHandler {
 
 				const result = await response.json();
 
-				if (response.ok) {
+				if (response.ok && result.success) {
 					// Show success message
 					showToast(
 						result.message || `${this.itemType} shared successfully!`,
 						"success",
 					);
+
 					// Close modal
 					const modal = document.getElementById(`share-modal-${this.itemUuid}`);
 					const bootstrapModal = bootstrap.Modal.getInstance(modal);
@@ -372,15 +392,20 @@ class UserSearchHandler {
 					document.body.style.overflow = "";
 					document.body.style.paddingRight = "";
 
-					// Clear selected users and pending removals
+					// Clear selected users and pending changes
 					this.selectedUsersMap = {};
 					this.pendingRemovals.clear();
+					if (this.pendingPermissionChanges) {
+						this.pendingPermissionChanges.clear();
+					}
 
 					// Refresh the appropriate list based on item type
 					await this.refreshItemList();
 				} else {
 					// Show error message
-					showToast(result.error || `Error sharing ${this.itemType}`, "danger");
+					const errorMessage =
+						result.error || result.message || `Error sharing ${this.itemType}`;
+					showToast(errorMessage, "danger");
 				}
 			} catch (error) {
 				console.error(`Error sharing ${this.itemType}:`, error);
@@ -447,7 +472,7 @@ class UserSearchHandler {
 						: `<div class="user-email">${this.highlightMatch(user.email, query)}</div>`;
 
 					return `
-                <div class="list-group-item" data-user-id="${user.url || ""}" data-user-name="${user.name}" data-user-email="${user.email}" data-user-type="${user.type || "user"}">
+                <div class="list-group-item" data-user-id="${user.url || ""}" data-user-name="${user.name}" data-user-email="${user.email}" data-user-type="${user.type || "user"}" data-member-count="${user.member_count || 0}">
                     <div class="user-search-item">
                         <div class="user-name">
                             <i class="bi ${icon} me-2"></i>
@@ -460,16 +485,7 @@ class UserSearchHandler {
 				})
 				.join("");
 
-			// Add click event listeners to the dropdown items
-			// Find the input associated with this dropdown
-			const input = this.getInputForDropdown(dropdown);
-			if (input) {
-				for (const item of listGroup.querySelectorAll(".list-group-item")) {
-					item.addEventListener("click", () => {
-						this.selectUser(item, input);
-					});
-				}
-			}
+			// Event delegation is already handled in setupSearchInput, so we don't need to add listeners here
 		}
 
 		this.showDropdown(dropdown);
@@ -542,11 +558,23 @@ class UserSearchHandler {
 		}
 
 		if (!this.selectedUsersMap[inputId].some((u) => u.email === userEmail)) {
-			this.selectedUsersMap[inputId].push({
+			// Create user object with all available data
+			const userData = {
 				name: userName,
 				email: userEmail,
 				type: userType,
-			});
+				permission_level: "viewer", // Default permission level
+			};
+
+			// For groups, get member count from dataset attribute
+			if (userType === "group") {
+				const memberCount = item.dataset.memberCount;
+				if (memberCount) {
+					userData.member_count = Number.parseInt(memberCount, 10);
+				}
+			}
+
+			this.selectedUsersMap[inputId].push(userData);
 			this.renderChips(input);
 		}
 
@@ -597,6 +625,7 @@ class UserSearchHandler {
 					name: userName,
 					email: userEmail,
 					type: "user",
+					permission_level: "viewer", // Default permission level
 				});
 				this.renderChips(input);
 			}
@@ -612,6 +641,7 @@ class UserSearchHandler {
 					name: userName,
 					email: userEmail,
 					type: "user",
+					permission_level: "viewer", // Default permission level
 				});
 				this.renderChips(input);
 			}
@@ -624,9 +654,20 @@ class UserSearchHandler {
 
 	renderChips(input) {
 		const inputId = input.id;
-		const chipContainer = input
+
+		// Try to find the chip container in the new location
+		let chipContainer = input
 			.closest(".user-search-input-container")
 			.querySelector(".selected-users-chips");
+
+		// If not found, try to find it in the permissions section
+		if (!chipContainer) {
+			chipContainer = input
+				.closest("form")
+				.querySelector(
+					".selected-users-permissions-section .selected-users-chips",
+				);
+		}
 
 		if (!chipContainer) {
 			console.warn("Chip container not found for input:", inputId);
@@ -635,18 +676,34 @@ class UserSearchHandler {
 
 		chipContainer.innerHTML = "";
 		for (const user of this.selectedUsersMap[inputId]) {
-			const chip = document.createElement("span");
+			const chip = document.createElement("div");
 			chip.className = "user-chip";
 
 			// Check if this is a group
 			const isGroup = user.email?.startsWith("group:");
-			const displayText = isGroup ? user.name : user.email;
+			const displayName = isGroup ? user.name : user.name || user.email;
+			const displayEmail = isGroup
+				? `Group • ${user.member_count || 0} members`
+				: user.email;
 
-			// Create chip content with icon
+			// Create chip content with user info and permission selection
 			const icon = isGroup ? "bi-people-fill" : "bi-person-fill";
 			chip.innerHTML = `
-				<i class="bi ${icon} me-1"></i>
-				${displayText}
+				<div class="user-info">
+					<i class="bi ${icon}"></i>
+					<div>
+						<div class="user-name">${displayName}</div>
+						<div class="user-email">${displayEmail}</div>
+					</div>
+				</div>
+				<select class="form-select permission-select" data-user-email="${user.email}">
+					<option value="viewer" ${user.permission_level === "viewer" ? "selected" : ""}>Viewer</option>
+					<!-- Disable contributor and co-owner options (TODO: Enable this when the access controls are implemented) -->
+					<!--
+					<option value="contributor" ${user.permission_level === "contributor" ? "selected" : ""}>Contributor</option>
+					<option value="co-owner" ${user.permission_level === "co-owner" ? "selected" : ""}>Co-Owner</option>
+					-->
+				</select>
 				<span class="remove-chip">&times;</span>
 			`;
 
@@ -657,6 +714,19 @@ class UserSearchHandler {
 					(u) => u.email !== user.email,
 				);
 				this.renderChips(input);
+			};
+
+			// Add change handler for permission level
+			const permissionSelect = chip.querySelector(".permission-select");
+			permissionSelect.onchange = (e) => {
+				// Update the user's permission level in the selectedUsersMap
+				const userIndex = this.selectedUsersMap[inputId].findIndex(
+					(u) => u.email === user.email,
+				);
+				if (userIndex !== -1) {
+					this.selectedUsersMap[inputId][userIndex].permission_level =
+						e.target.value;
+				}
 			};
 
 			chipContainer.appendChild(chip);
@@ -749,6 +819,8 @@ class UserSearchHandler {
 		const selectedUsers = this.selectedUsersMap[inputId] || [];
 		const hasSelectedUsers = selectedUsers.length > 0;
 		const hasPendingRemovals = this.pendingRemovals.size > 0;
+		const hasPendingPermissionChanges =
+			this.pendingPermissionChanges && this.pendingPermissionChanges.size > 0;
 
 		const saveBtn = document.getElementById(`share-item-btn-${itemUuid}`);
 		const pendingMessage = document.getElementById(
@@ -757,7 +829,11 @@ class UserSearchHandler {
 
 		// Only update save button if it exists
 		if (saveBtn) {
-			if (hasSelectedUsers || hasPendingRemovals) {
+			if (
+				hasSelectedUsers ||
+				hasPendingRemovals ||
+				hasPendingPermissionChanges
+			) {
 				saveBtn.disabled = false;
 			} else {
 				saveBtn.disabled = true;
@@ -766,7 +842,7 @@ class UserSearchHandler {
 
 		// Only update pending message if it exists
 		if (pendingMessage) {
-			if (hasPendingRemovals) {
+			if (hasPendingRemovals || hasPendingPermissionChanges) {
 				pendingMessage.classList.remove("d-none");
 			} else {
 				pendingMessage.classList.add("d-none");
@@ -792,6 +868,11 @@ class UserSearchHandler {
 
 		// Clear pending removals
 		this.pendingRemovals.clear();
+
+		// Clear pending permission changes
+		if (this.pendingPermissionChanges) {
+			this.pendingPermissionChanges.clear();
+		}
 
 		// Reset all dropdown buttons to their original state
 		for (const button of document.querySelectorAll(".btn-icon-dropdown")) {
@@ -883,48 +964,120 @@ class UserSearchHandler {
 		}
 		modal.dataset.removeButtonsSetup = "true";
 
-		// Setup remove access buttons for this specific modal only
+		// Setup permission change buttons for this specific modal only
 		modal.addEventListener("click", async (e) => {
-			if (e.target.closest(".remove-access-btn")) {
-				const button = e.target.closest(".remove-access-btn");
+			if (e.target.closest(".permission-change-btn")) {
+				const button = e.target.closest(".permission-change-btn");
 				const userEmail = button.dataset.userEmail;
 				const userName = button.dataset.userName;
 				const itemUuid = button.dataset.itemUuid;
 				const itemType = button.dataset.itemType;
+				const permissionLevel = button.dataset.permissionLevel;
 
-				if (!userEmail || !itemUuid || !itemType) {
-					console.error("Missing user email, item UUID, or item type");
+				if (!userEmail || !itemUuid || !itemType || !permissionLevel) {
+					console.error(
+						"Missing user email, item UUID, item type, or permission level",
+					);
 					return;
 				}
 
-				// Add to pending removals
-				this.pendingRemovals.add(userEmail);
+				// Update the dropdown button text and icon to reflect the change
+				const dropdown = button.closest(".dropdown");
+				const dropdownButton = dropdown.querySelector(".access-level-dropdown");
+				const currentPermission = dropdownButton.getAttribute(
+					"data-current-permission",
+				);
 
-				// Update the button to show "Remove Access" is selected
-				const dropdownMenu = button.closest(".dropdown-menu");
-				const dropdownButton = dropdownMenu.previousElementSibling;
+				// Don't do anything if selecting the same permission
+				if (permissionLevel === currentPermission) {
+					return;
+				}
 
-				// Change the dropdown button to show "Remove Access" is selected
-				dropdownButton.innerHTML =
-					'<i class="bi bi-person-slash text-danger"></i>';
-				dropdownButton.classList.add("btn-outline-danger");
-				dropdownButton.classList.remove("btn-light");
+				// Update the dropdown button text and icon
+				const iconClass =
+					permissionLevel === "viewer"
+						? "bi-eye"
+						: permissionLevel === "contributor"
+							? "bi-plus-circle"
+							: permissionLevel === "co-owner"
+								? "bi-gear"
+								: permissionLevel === "remove"
+									? "bi-person-slash"
+									: "bi-question-circle";
 
-				// Disable the dropdown to prevent further changes
-				dropdownButton.disabled = true;
+				dropdownButton.innerHTML = `<i class="bi ${iconClass} me-1"></i>${permissionLevel.charAt(0).toUpperCase() + permissionLevel.slice(1)}`;
+				dropdownButton.setAttribute("data-current-permission", permissionLevel);
 
-				// Close the dropdown menu
-				const dropdownToggle = dropdownButton;
-				if (dropdownToggle?.classList.contains("dropdown-toggle")) {
-					const dropdownMenu = dropdownToggle.nextElementSibling;
-					if (dropdownMenu?.classList.contains("dropdown-menu")) {
-						dropdownMenu.classList.remove("show");
-						dropdownToggle.setAttribute("aria-expanded", "false");
+				// Update checkmarks in dropdown menu
+				const dropdownMenu = dropdown.querySelector(".access-level-menu");
+				const allPermissionBtns = dropdownMenu.querySelectorAll(
+					".permission-change-btn",
+				);
+
+				// Remove selected class and checkmarks from all buttons
+				for (const btn of allPermissionBtns) {
+					btn.classList.remove("selected");
+					const checkmark = btn.querySelector(".bi-check");
+					if (checkmark) {
+						checkmark.remove();
 					}
+				}
+
+				// Add selected class and checkmark to the clicked button
+				button.classList.add("selected");
+				const checkmark = document.createElement("i");
+				checkmark.className = "bi bi-check ms-auto";
+				button.appendChild(checkmark);
+
+				// Update user text for removal case
+				if (permissionLevel === "remove") {
+					const userRow = button.closest("tr");
+					const userNameElement = userRow.querySelector("h5");
+					if (userNameElement) {
+						userNameElement.style.textDecoration = "line-through";
+						userNameElement.style.opacity = "0.6";
+					}
+				} else {
+					// Clear any existing text decoration or opacity
+					const userRow = button.closest("tr");
+					const userNameElement = userRow.querySelector("h5");
+					if (userNameElement) {
+						userNameElement.style.textDecoration = "none";
+						userNameElement.style.opacity = "1";
+					}
+				}
+
+				// Handle removal
+				if (permissionLevel === "remove") {
+					this.pendingRemovals.add(userEmail);
+					// Remove from permission changes if it was there
+					if (this.pendingPermissionChanges?.has(userEmail)) {
+						this.pendingPermissionChanges.delete(userEmail);
+					}
+				} else {
+					// Handle permission level change
+					this.pendingRemovals.delete(userEmail); // Remove from removals if it was there
+
+					// Store the permission change
+					if (!this.pendingPermissionChanges) {
+						this.pendingPermissionChanges = new Map();
+					}
+					this.pendingPermissionChanges.set(userEmail, {
+						userName: userName,
+						itemUuid: itemUuid,
+						itemType: itemType,
+						permissionLevel: permissionLevel,
+					});
 				}
 
 				// Update save button state
 				this.updateSaveButtonState(itemUuid);
+
+				// Close the dropdown
+				const bsDropdown = bootstrap.Dropdown.getInstance(dropdownButton);
+				if (bsDropdown) {
+					bsDropdown.hide();
+				}
 			}
 		});
 	}

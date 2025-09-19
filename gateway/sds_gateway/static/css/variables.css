@@ -10,6 +10,38 @@
 	--pink: #f2dede;
 	--dark-pink: #eed3d7;
 	--red: #b94a48;
+
+	/* Permission Level Color Variables */
+
+	/* Viewer (Blue) */
+	--spectrumx-viewer-color: #1d4ed8;
+	--spectrumx-viewer-hover-color: #1e40af;
+	--spectrumx-viewer-bg: #dbeafe;
+	--spectrumx-viewer-border: #1d4ed8;
+
+	/* Contributor (Green) */
+	--spectrumx-contributor-color: #059669;
+	--spectrumx-contributor-hover-color: #047857;
+	--spectrumx-contributor-bg: #d1fae5;
+	--spectrumx-contributor-border: #059669;
+
+	/* Co-Owner (Orange) */
+	--spectrumx-co-owner-color: #d97706;
+	--spectrumx-co-owner-hover-color: #92400e;
+	--spectrumx-co-owner-bg: #fef3c7;
+	--spectrumx-co-owner-border: #d97706;
+
+	/* Owner (Purple) */
+	--spectrumx-owner-color: #7924c9;
+	--spectrumx-owner-hover-color: #510d8c;
+	--spectrumx-owner-bg: #ddcfff;
+	--spectrumx-owner-border: #7924c9;
+
+	/* Remove/Danger (Red) */
+	--spectrumx-remove-color: #dc2626;
+	--spectrumx-remove-hover-color: #b91c1c;
+	--spectrumx-remove-bg: #fef2f2;
+	--spectrumx-remove-border: #dc2626;
 }
 
 /* External link styling */

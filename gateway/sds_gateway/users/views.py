@@ -305,7 +305,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
             # Get exclusion lists for search
             excluded_user_ids, excluded_group_ids = self._get_exclusion_lists(
-                user=request.user, item_uuid=item_uuid, item_type=item_type
+                request.user, item_uuid, item_type
             )
 
         except model_class.DoesNotExist:
@@ -374,70 +374,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             member_ids.extend(group.members.values_list("id", flat=True))
         return list(set(member_ids))  # Remove duplicates
 
-    def _parse_remove_users(self, request: HttpRequest) -> list[str]:
-        """Parse the remove_users JSON from the request."""
-        remove_users_json = request.POST.get("remove_users", "")
-        if not remove_users_json:
-            return []
-        try:
-            return json.loads(remove_users_json)
-        except json.JSONDecodeError as err:
-            msg = "Invalid remove_users format"
-            raise ValueError(msg) from err
-
-    def _add_users_to_item(
-        self,
-        item_uuid: str,
-        item_type: ItemType,
-        user_emails_str: str,
-        request_user: User,
-        message: str = "",
-    ) -> tuple[list[str], list[str]]:
-        """
-        Add users and groups to item sharing using UserSharePermission
-        and return (shared_users, errors).
-
-        Args:
-            item_uuid: The UUID of the item to share
-            item_type: The type of item to share from ItemType enum
-            user_emails_str: A comma-separated string of user
-            emails or group identifiers to share with
-            request_user: The user sharing the item
-            message: A message to share with the users
-
-        Returns:
-            A tuple containing a list of shared users and a list of errors
-        """
-        if not user_emails_str:
-            return [], []
-
-        identifiers = [
-            identifier.strip()
-            for identifier in user_emails_str.split(",")
-            if identifier.strip()
-        ]
-
-        shared_users = []
-        errors = []
-
-        for identifier in identifiers:
-            if identifier.startswith("group:"):
-                group_shared_users, group_errors = self._add_group_to_item(
-                    identifier, item_uuid, item_type, request_user, message
-                )
-                shared_users.extend(group_shared_users)
-                errors.extend(group_errors)
-            else:
-                user_shared, user_error = self._add_individual_user_to_item(
-                    identifier, item_uuid, item_type, request_user, message
-                )
-                if user_shared:
-                    shared_users.append(user_shared)
-                if user_error:
-                    errors.append(user_error)
-
-        return shared_users, errors
-
     def _add_group_to_item(
         self,
         group_identifier: str,
@@ -445,11 +381,12 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         item_type: ItemType,
         request_user: User,
         message: str,
-    ) -> tuple[list[str], list[str]]:
+        permission_level: str = "viewer",
+    ) -> tuple[list[dict], list[str]]:
         """Add a group to item sharing."""
         group_uuid = group_identifier.split(":")[1]  # Remove "group:" prefix
-        shared_users = []
-        errors = []
+        shared_users: list[dict] = []
+        errors: list[str] = []
 
         try:
             group = ShareGroup.objects.get(
@@ -473,6 +410,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     item_uuid=item_uuid,
                     item_type=item_type,
                     message=message,
+                    permission_level=permission_level,
                 )
                 shared_users.append(member.email)
 
@@ -488,6 +426,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         item_type: ItemType,
         request_user: User,
         message: str,
+        permission_level: str = "viewer",
     ) -> tuple[str | None, str | None]:
         """Add an individual user to item sharing. Returns (shared_user, error)."""
         try:
@@ -510,9 +449,10 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                         None,
                         f"{item_type.capitalize()} is already shared with {email}",
                     )
-                # Re-enable the existing disabled permission
+                # Re-enable the existing disabled permission and update permission level
                 existing_permission.is_enabled = True
                 existing_permission.message = message
+                existing_permission.permission_level = permission_level
                 existing_permission.save()
                 return email, None
 
@@ -523,6 +463,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 item_type=item_type,
                 item_uuid=item_uuid,
                 message=message,
+                permission_level=permission_level,
                 is_enabled=True,
             )
         except User.DoesNotExist:
@@ -531,7 +472,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return email, None
 
     def _get_existing_user_permission(
-        self, user: User, item_uuid: str, item_type: ItemType, request_user: User
+        self,
+        user: User,
+        item_uuid: str,
+        item_type: ItemType,
+        request_user: User,
     ) -> UserSharePermission | None:
         """Get existing share permission for a user and item."""
         return UserSharePermission.objects.filter(
@@ -541,220 +486,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             shared_with=user,
             is_deleted=False,
         ).first()
-
-    def _remove_users_from_item(
-        self,
-        item_uuid: str,
-        item_type: str,
-        users_to_remove: list[str],
-        request_user: User,
-    ) -> tuple[list[str], list[str]]:
-        """
-        Remove users and groups from item sharing using UserSharePermission
-        and return (removed_users, errors).
-
-        Args:
-            item_uuid: The UUID of the item to share
-            item_type: The type of item to share from ItemType enum
-            users_to_remove: A list of user emails or group identifiers to remove
-            request_user: The user removing the users
-
-        Returns:
-            A tuple containing a list of removed users and a list of errors
-        """
-        removed_users = []
-        errors = []
-
-        for identifier in users_to_remove:
-            if identifier.startswith("group:"):
-                group_removed_users, group_errors = self._remove_group_from_item(
-                    identifier, item_uuid, item_type, request_user
-                )
-                removed_users.extend(group_removed_users)
-                errors.extend(group_errors)
-            else:
-                user_removed, user_error = self._remove_individual_user_from_item(
-                    identifier, item_uuid, item_type, request_user
-                )
-                if user_removed:
-                    removed_users.append(user_removed)
-                if user_error:
-                    errors.append(user_error)
-
-        return removed_users, errors
-
-    def _remove_group_from_item(
-        self, group_identifier: str, item_uuid: str, item_type: str, request_user: User
-    ) -> tuple[list[str], list[str]]:
-        """Remove a group from item sharing."""
-        group_uuid = group_identifier.split(":")[1]  # Remove "group:" prefix
-        removed_users: list[str] = []
-        errors: list[str] = []
-
-        try:
-            group = ShareGroup.objects.get(
-                uuid=group_uuid, owner=request_user, is_deleted=False
-            )
-
-            group_name = group.name
-
-            # Check if any group members are actually shared with this item
-            group_member_permissions = UserSharePermission.objects.filter(
-                item_uuid=item_uuid,
-                item_type=item_type,
-                owner=request_user,
-                share_groups=group,
-                is_deleted=False,
-                is_enabled=True,
-            )
-
-            if not group_member_permissions.exists():
-                errors.append(
-                    f"{item_type.capitalize()} is not shared with group: {group_name}"
-                )
-                return removed_users, errors
-
-            # Disable all individual permissions for group members
-            for permission in group_member_permissions:
-                permission.share_groups.remove(group)
-                permission.update_enabled_status()
-                permission.message = "Unshared from group"
-                permission.save()
-
-            removed_users.extend(
-                member.shared_with.email for member in group_member_permissions
-            )
-
-        except ShareGroup.DoesNotExist:
-            errors.append(f"Group '{group_name}' not found or you don't own it")
-
-        return removed_users, errors
-
-    def _remove_individual_user_from_item(
-        self, email: str, item_uuid: str, item_type: str, request_user: User
-    ) -> tuple[str | None, str | None]:
-        """
-        Remove an individual user from item sharing.
-        Returns (removed_user, error).
-        """
-        try:
-            user_to_remove = User.objects.get(email=email)
-
-            # Check if the user is actually shared with this item
-            share_permission = UserSharePermission.objects.filter(
-                item_uuid=item_uuid,
-                item_type=item_type,
-                owner=request_user,
-                shared_with=user_to_remove,
-                is_deleted=False,
-            ).first()
-
-            if not share_permission or not share_permission.is_enabled:
-                return (
-                    None,
-                    f"{item_type.capitalize()} is not shared with user: {email}",
-                )
-
-            # Disable the share permission instead of soft deleting
-            share_permission.is_enabled = False
-            share_permission.save()
-        except User.DoesNotExist:
-            return None, f"User with email {email} not found"
-        else:
-            return email, None
-
-    def _build_response(
-        self,
-        item_type: str,
-        shared_users: list[str],
-        removed_users: list[str],
-        errors: list[str],
-    ) -> JsonResponse:
-        """
-        Build the response message based on the results.
-
-        Args:
-            item_type: The type of item to share from ItemType enum
-            shared_users: A list of user emails that were shared
-            removed_users: A list of user emails that were removed
-            errors: A list of error messages
-
-        Returns:
-            A JSON response containing the response message
-        """
-        response_parts = []
-        if shared_users:
-            response_parts.append(
-                f"{item_type.capitalize()} shared with {', '.join(shared_users)}"
-            )
-        if removed_users:
-            response_parts.append(f"Removed access for {', '.join(removed_users)}")
-
-        if response_parts and not errors:
-            message = ". ".join(response_parts)
-            return JsonResponse({"success": True, "message": message})
-        if response_parts and errors:
-            message = ". ".join(response_parts) + f". Issues: {'; '.join(errors)}"
-            return JsonResponse({"success": True, "message": message})
-        if not response_parts and errors:
-            return JsonResponse({"error": "; ".join(errors)}, status=400)
-
-        return JsonResponse({"success": True, "message": "No changes made"})
-
-    def post(
-        self,
-        request: HttpRequest,
-        item_uuid: str,
-        item_type: ItemType,
-        *args: Any,
-        **kwargs: Any,
-    ) -> HttpResponse:
-        """
-        Share an item with another user using the generalized permission system.
-
-        Args:
-            request: The HTTP request object
-            item_uuid: The UUID of the item to share
-            item_type: The type of item to share from ItemType enum
-
-        Returns:
-            A JSON response containing the response message
-        """
-        # Validate request
-        validation_error = self._validate_share_request(request, item_uuid, item_type)
-        if validation_error:
-            return validation_error
-
-        # Get form data
-        user_emails_str = request.POST.get("user-search", "").strip()
-        message = request.POST.get("notify_message", "").strip() or ""
-
-        # Parse users to remove
-        try:
-            users_to_remove = self._parse_remove_users(request)
-        except ValueError:
-            return JsonResponse({"error": "Invalid remove_users format"}, status=400)
-
-        # Handle adding new users
-        shared_users, add_errors = self._add_users_to_item(
-            item_uuid, item_type, user_emails_str, request.user, message
-        )
-
-        # Handle removing users
-        removed_users, remove_errors = self._remove_users_from_item(
-            item_uuid, item_type, users_to_remove, request.user
-        )
-
-        # Combine all errors
-        errors = add_errors + remove_errors
-
-        # Notify shared users if requested
-        self._notify_shared_users_if_requested(
-            request, item_uuid, item_type, shared_users, message
-        )
-
-        # Build and return response
-        return self._build_response(item_type, shared_users, removed_users, errors)
 
     def _validate_share_request(
         self, request: HttpRequest, item_uuid: str, item_type: ItemType
@@ -793,15 +524,17 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 item_uuid, item_type, shared_users, notify=True, message=message
             )
 
-    def delete(
+    def post(
         self,
         request: HttpRequest,
         item_uuid: str,
-        item_type: str,
+        item_type: ItemType,
         *args: Any,
         **kwargs: Any,
     ) -> HttpResponse:
-        """Remove a user from item sharing using the generalized permission system.
+        """
+        Unified endpoint for sharing operations: adding users, updating permissions,
+        and removing users.
 
         Args:
             request: The HTTP request object
@@ -816,51 +549,419 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         if validation_error:
             return validation_error
 
-        # Get the user email from the request
-        user_email = request.POST.get("user_email", "").strip()
+        try:
+            results = self._process_share_operations(request, item_uuid, item_type)
+        except (ValueError, json.JSONDecodeError) as e:
+            return JsonResponse({"error": str(e)}, status=400)
 
-        if not user_email:
-            return JsonResponse({"error": "User email is required"}, status=400)
+        return self._build_share_response(
+            request,
+            item_uuid,
+            item_type,
+            results,
+        )
+
+    def _process_share_operations(
+        self, request: HttpRequest, item_uuid: str, item_type: ItemType
+    ) -> dict[str, list[str]]:
+        """Process all sharing operations and return results."""
+        # Parse all change types from the request
+        new_users = self._parse_new_users(request)
+        permission_changes = self._parse_permission_changes(request)
+        removals = self._parse_removals(request)
+
+        # Track results
+        results: dict[str, list[str]] = {
+            "added": [],
+            "updated": [],
+            "removed": [],
+            "errors": [],
+        }
+
+        # Process new user additions
+        if new_users:
+            added_users, add_errors = self._add_users_to_item(
+                item_uuid,
+                item_type,
+                new_users,
+                request.user,
+                request.POST.get("notify_message", "").strip() or "",
+            )
+            results["added"].extend(added_users)
+            results["errors"].extend(add_errors)
+
+        # Process permission changes
+        for change in permission_changes:
+            change_result = self._process_permission_change(
+                request, item_uuid, item_type, change
+            )
+            if change_result.get("success"):
+                results["updated"].append(change_result["message"])
+            else:
+                results["errors"].append(change_result["error"])
+
+        # Process removals
+        for removal in removals:
+            removal_result = self._process_removal(
+                request, item_uuid, item_type, removal
+            )
+            if removal_result.get("success"):
+                results["removed"].append(removal_result["message"])
+            else:
+                results["errors"].append(removal_result["error"])
+
+        return results
+
+    def _build_share_response(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: ItemType,
+        results: dict[str, list[str]],
+    ) -> JsonResponse:
+        """Build the final JSON response for sharing operations."""
+        # Send notifications if requested
+        if results["added"]:
+            self._notify_shared_users_if_requested(
+                request,
+                item_uuid,
+                item_type,
+                results["added"],
+                request.POST.get("notify_message", "").strip() or "",
+            )
+
+        # Build response message
+        messages = []
+        if results["added"]:
+            messages.append(f"Added {len(results['added'])} user(s)")
+        if results["updated"]:
+            messages.append(f"Updated {len(results['updated'])} permission(s)")
+        if results["removed"]:
+            messages.append(f"Removed {len(results['removed'])} user(s)")
+
+        success_message = "; ".join(messages) if messages else "No changes made"
+
+        return JsonResponse(
+            {
+                "success": len(results["errors"]) == 0,
+                "message": success_message,
+                "details": results,
+            }
+        )
+
+    def _parse_new_users(self, request: HttpRequest) -> dict:
+        """Parse new users to add from the request."""
+        user_emails_str = request.POST.get("user-search", "").strip()
+        if not user_emails_str:
+            return {}
+
+        # Parse user permissions if provided
+        user_permissions = {}
+        user_permissions_str = request.POST.get("user_permissions", "")
+        if user_permissions_str:
+            try:
+                user_permissions = json.loads(user_permissions_str)
+            except json.JSONDecodeError as err:
+                msg = "Invalid user_permissions format"
+                raise ValueError(msg) from err
+            else:
+                # Validate all permission levels
+                valid_permissions = ["viewer", "contributor", "co-owner"]
+                for email, perm_level in user_permissions.items():
+                    if perm_level not in valid_permissions:
+                        msg = (
+                            f"Invalid permission level '{perm_level}' for user {email}"
+                        )
+                        raise ValueError(msg) from None
+
+        # Parse user emails and their permissions
+        users = {}
+        identifiers = [
+            identifier.strip()
+            for identifier in user_emails_str.split(",")
+            if identifier.strip()
+        ]
+
+        for identifier in identifiers:
+            permission = user_permissions.get(identifier, "viewer")
+            users[identifier] = permission
+
+        return users
+
+    def _parse_permission_changes(self, request: HttpRequest) -> list[dict]:
+        """Parse permission changes from the request."""
+        permission_changes_json = request.POST.get("permission_changes", "")
+        if not permission_changes_json:
+            return []
 
         try:
-            # Find the user to remove
-            user_to_remove = User.objects.get(email=user_email)
+            changes_list = json.loads(permission_changes_json)
+            # Convert from [["email", {change_data}], ...] to list of dicts
+            return [
+                {"user_email": email, **change_data}
+                for email, change_data in changes_list
+            ]
+        except json.JSONDecodeError as err:
+            msg = "Invalid permission_changes format"
+            raise ValueError(msg) from err
 
-            # Check if the user is actually shared with this item
-            share_permission = UserSharePermission.objects.filter(
+    def _parse_removals(self, request: HttpRequest) -> list[str]:
+        """Parse user removals from the request."""
+        remove_users_json = request.POST.get("remove_users", "")
+        if not remove_users_json:
+            return []
+
+        try:
+            return json.loads(remove_users_json)
+        except json.JSONDecodeError as err:
+            msg = "Invalid remove_users format"
+            raise ValueError(msg) from err
+
+    def _process_permission_change(
+        self, request: HttpRequest, item_uuid: str, item_type: ItemType, change: dict
+    ) -> dict:
+        """Process a single permission change."""
+        user_email = change.get("user_email")
+        new_permission = change.get("permissionLevel")
+
+        if not user_email or not new_permission:
+            return {"success": False, "error": "Missing email or permission level"}
+
+        if new_permission == "remove":
+            return self._process_removal(request, item_uuid, item_type, user_email)
+
+        # Validate permission level
+        valid_permissions = ["viewer", "contributor", "co-owner"]
+        if new_permission not in valid_permissions:
+            return {
+                "success": False,
+                "error": f"Invalid permission level: {new_permission}",
+            }
+
+        # Handle group vs individual user
+        if user_email.startswith("group:"):
+            return self._update_group_permission(
+                request, item_uuid, item_type, user_email, new_permission
+            )
+        return self._update_individual_permission(
+            request, item_uuid, item_type, user_email, new_permission
+        )
+
+    def _process_removal(
+        self, request: HttpRequest, item_uuid: str, item_type: ItemType, user_email: str
+    ) -> dict:
+        """Process a single user removal."""
+        if user_email.startswith("group:"):
+            return self._remove_group_access(request, item_uuid, item_type, user_email)
+        return self._remove_individual_access(request, item_uuid, item_type, user_email)
+
+    def _update_individual_permission(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: ItemType,
+        user_email: str,
+        new_permission: str,
+    ) -> dict:
+        """Update permission for an individual user."""
+        try:
+            user_to_update = User.objects.get(email=user_email)
+            share_permission = self._get_existing_user_permission(
+                user_to_update, item_uuid, item_type, request.user
+            )
+
+            if not share_permission:
+                return {
+                    "success": False,
+                    "error": (
+                        f"User {user_email} is not shared with this {item_type.lower()}"
+                    ),
+                }
+            old_permission = share_permission.permission_level
+            share_permission.permission_level = new_permission
+            share_permission.is_enabled = True  # Re-enable if it was disabled
+            share_permission.save()
+
+            return {  # noqa: TRY300
+                "success": True,
+                "message": (
+                    f"Updated {user_email} permission from {old_permission} "
+                    f"to {new_permission}"
+                ),
+            }
+
+        except User.DoesNotExist:
+            return {
+                "success": False,
+                "error": f"User with email {user_email} not found",
+            }
+
+    def _update_group_permission(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: ItemType,
+        group_identifier: str,
+        new_permission: str,
+    ) -> dict:
+        """Update permission for a group."""
+        try:
+            group_uuid = group_identifier.split(":")[1]
+            group = ShareGroup.objects.get(
+                uuid=group_uuid, owner=request.user, is_deleted=False
+            )
+
+            group_permissions = UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
                 owner=request.user,
-                shared_with=user_to_remove,
+                share_groups=group,
                 is_deleted=False,
-            ).first()
+                is_enabled=True,
+            )
 
-            if not share_permission or not share_permission.is_enabled:
-                return JsonResponse(
-                    {
-                        "error": (
-                            f"User {user_email} is not shared with this "
-                            f"{item_type.lower()}"
-                        )
-                    },
-                    status=400,
-                )
+            if not group_permissions.exists():
+                return {
+                    "success": False,
+                    "error": f"Group is not shared with this {item_type.lower()}",
+                }
+            updated_count = 0
+            for permission in group_permissions:
+                permission.permission_level = new_permission
+                permission.save()
+                updated_count += 1
 
-            # Disable the share permission instead of soft deleting
+            return {  # noqa: TRY300
+                "success": True,
+                "message": (
+                    f"Updated {updated_count} group members to {new_permission} "
+                    "permission"
+                ),
+            }
+
+        except ShareGroup.DoesNotExist:
+            return {"success": False, "error": "Group not found or you don't own it"}
+
+    def _remove_individual_access(
+        self, request: HttpRequest, item_uuid: str, item_type: ItemType, user_email: str
+    ) -> dict:
+        """Remove access for an individual user."""
+        try:
+            user_to_remove = User.objects.get(email=user_email)
+            share_permission = self._get_existing_user_permission(
+                user_to_remove, item_uuid, item_type, request.user
+            )
+
+            if not share_permission:
+                return {
+                    "success": False,
+                    "error": (
+                        f"User {user_email} is not shared with this {item_type.lower()}"
+                    ),
+                }
+
             share_permission.is_enabled = False
             share_permission.save()
 
-            return JsonResponse(
-                {
-                    "success": True,
-                    "message": f"Removed {user_email} from {item_type.lower()} sharing",
-                }
-            )
+            return {
+                "success": True,
+                "message": f"Removed {user_email} from {item_type.lower()} sharing",
+            }
 
         except User.DoesNotExist:
-            return JsonResponse(
-                {"error": f"User with email {user_email} not found"}, status=400
+            return {
+                "success": False,
+                "error": f"User with email {user_email} not found",
+            }
+
+    def _remove_group_access(
+        self,
+        request: HttpRequest,
+        item_uuid: str,
+        item_type: ItemType,
+        group_identifier: str,
+    ) -> dict:
+        """Remove access for a group."""
+        try:
+            group_uuid = group_identifier.split(":")[1]
+            group = ShareGroup.objects.get(
+                uuid=group_uuid, owner=request.user, is_deleted=False
             )
+
+            group_permissions = UserSharePermission.objects.filter(
+                item_uuid=item_uuid,
+                item_type=item_type,
+                owner=request.user,
+                share_groups=group,
+                is_deleted=False,
+                is_enabled=True,
+            )
+
+            if not group_permissions.exists():
+                return {
+                    "success": False,
+                    "error": f"Group is not shared with this {item_type.lower()}",
+                }
+
+            removed_count = 0
+            for permission in group_permissions:
+                permission.share_groups.remove(group)
+                permission.update_enabled_status()
+                permission.message = "Unshared from group"
+                permission.save()
+                removed_count += 1
+
+            return {
+                "success": True,
+                "message": (
+                    f"Removed {removed_count} group members from "
+                    f"{item_type.lower()} sharing"
+                ),
+            }
+
+        except ShareGroup.DoesNotExist:
+            return {"success": False, "error": "Group not found or you don't own it"}
+
+    def _add_users_to_item(
+        self,
+        item_uuid: str,
+        item_type: ItemType,
+        users: dict,  # {email: permission_level}
+        request_user: User,
+        message: str,
+    ) -> tuple[list[str], list[str]]:
+        """
+        Add users and groups to item sharing.
+
+        Args:
+            item_uuid: The UUID of the item to share
+            item_type: The type of item to share
+            users: Dictionary mapping user emails to permission levels
+            request_user: The user sharing the item
+
+        Returns:
+            A tuple containing a list of shared users and a list of errors
+        """
+        shared_users = []
+        errors = []
+
+        for email, permission_level in users.items():
+            if email.startswith("group:"):
+                group_shared_users, group_errors = self._add_group_to_item(
+                    email, item_uuid, item_type, request_user, message, permission_level
+                )
+                shared_users.extend(group_shared_users)
+                errors.extend(group_errors)
+            else:
+                user_shared, user_error = self._add_individual_user_to_item(
+                    email, item_uuid, item_type, request_user, message, permission_level
+                )
+                if user_shared:
+                    shared_users.append(user_shared)
+                if user_error:
+                    errors.append(user_error)
+
+        return shared_users, errors
 
 
 user_share_item_view = ShareItemView.as_view()
@@ -1713,8 +1814,8 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             .prefetch_related("share_groups__members")
         )
 
-        shared_users = []
-        group_permissions = {}
+        shared_users: list[dict] = []
+        group_permissions: dict[str, dict] = {}
 
         for perm in shared_permissions:
             if perm.share_groups.exists():
@@ -1758,9 +1859,8 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             "name": perm.shared_with.name,
             "email": perm.shared_with.email,
             "type": "user",
+            "permission_level": perm.permission_level,
         }
-        if hasattr(perm, "permission_level"):
-            user_data["permission_level"] = perm.permission_level
         shared_users.append(user_data)
 
     def _paginate_datasets(self, datasets: list[dict], request: HttpRequest) -> Any:
@@ -1980,14 +2080,14 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 
             return render(request, template_name=self.template_name, context=context)
 
-        except TemporaryZipFile.DoesNotExist:
+        except TemporaryZipFile.DoesNotExist as err:
             logger.warning(
                 "Temporary zip file not found: %s for user: %s",
                 zip_uuid,
                 request.user.id,
             )
             error_msg = "File not found."
-            raise Http404(error_msg) from None
+            raise Http404(error_msg) from err
 
     def _serve_file_download(self, zip_uuid: str, user) -> HttpResponse:
         """Serve the zip file for download."""
@@ -2293,7 +2393,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 include_groups=False,
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
 
     def _display_share_groups_page(self, request: HttpRequest) -> HttpResponse:
         """Display the main share groups page."""
@@ -2325,7 +2425,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 {"success": True, "members": member_list, "count": len(member_list)}
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Handle ShareGroup operations (create, update, delete)."""
@@ -2363,7 +2463,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return JsonResponse(
                 {
                     "success": True,
-                    "message": f'Group "{name}" created successfully',
+                    "message": f'ShareGroup "{name}" created successfully',
                     "group": {
                         "uuid": str(share_group.uuid),
                         "name": share_group.name,
@@ -2390,7 +2490,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
 
         # Get shared assets that will be accessible to new group members
         # (commented out as not currently used)
@@ -2457,7 +2557,6 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     user=user_object,
                     message=message,
                 )
-
             except User.DoesNotExist:
                 errors.append(f"User with email {email} not found or not approved")
 
@@ -2482,7 +2581,6 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             .values_list("item_uuid", "item_type")
             .distinct()
         )
-
         # create share permissions for new member
         for item_uuid, item_type in shared_items:
             update_or_create_user_group_share_permissions(
@@ -2509,7 +2607,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
 
         # Parse user emails
         user_emails = [
@@ -2570,7 +2668,6 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             .select_related("owner")
             .distinct("item_uuid", "item_type")
         )
-
         shared_assets = []
         for permission in share_permissions:
             try:
@@ -2580,8 +2677,6 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 elif permission.item_type == "capture":
                     item = Capture.objects.get(uuid=permission.item_uuid)
                 else:
-                    msg = f"Unknown item type: {permission.item_type}"
-                    logger.warning(msg)
                     continue  # Skip unknown item types
 
                 shared_assets.append(
@@ -2613,6 +2708,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             shared_with=user,
             share_groups=share_group,
             is_deleted=False,
+            is_enabled=True,
         )
 
         # For each permission, remove the group association and update enabled status
@@ -2634,7 +2730,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
 
         shared_assets = self._get_shared_assets_for_group(share_group)
 
@@ -2652,28 +2748,14 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 uuid=group_uuid, is_deleted=False
             )
         except ShareGroup.DoesNotExist:
-            return JsonResponse({"error": "Group not found"}, status=404)
+            return JsonResponse({"error": "ShareGroup not found"}, status=404)
 
         try:
-            # remove all members from the group
-            share_group.members.clear()
-
-            # remove all share permissions for the group
-            share_permissions = UserSharePermission.objects.filter(
-                share_groups=share_group,
-                is_deleted=False,
-                is_enabled=True,
-            )
-            for permission in share_permissions:
-                permission.share_groups.remove(share_group)
-                permission.update_enabled_status()
-
-            # soft delete the group
             share_group.soft_delete()
             return JsonResponse(
                 {
                     "success": True,
-                    "message": f'Group "{share_group.name}" deleted successfully',
+                    "message": f'ShareGroup "{share_group.name}" deleted successfully',
                 }
             )
         except (ValueError, IntegrityError) as e:
