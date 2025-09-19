@@ -985,32 +985,6 @@ class UserSharePermission(BaseModel):
             PermissionLevel.CO_OWNER,
         ]
 
-    @classmethod
-    def get_dataset_authors(cls, dataset_uuid):
-        """
-        Get all authors for a dataset including owner and contributors.
-
-        Returns:
-            list: List of dictionaries with author information
-        """
-        dataset = Dataset.objects.filter(uuid=dataset_uuid, is_deleted=False).first()
-        if not dataset:
-            return []
-
-        authors = []
-
-        # Add the owner
-        if dataset.owner:
-            authors.append(
-                {
-                    "name": dataset.owner.name or dataset.owner.email,
-                    "email": dataset.owner.email,
-                    "role": PermissionLevel.OWNER,
-                }
-            )
-
-        return authors
-
 
 class DEPRECATEDPostProcessedData(BaseModel):
     """
