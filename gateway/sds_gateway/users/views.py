@@ -10,14 +10,11 @@ from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
-from django.core.exceptions import PermissionDenied
-from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
-from django.db.models import ProtectedError
 from django.db.models import Q
 from django.db.models import Sum
 from django.db.models.query import QuerySet
@@ -571,18 +568,15 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
         try:
             results = self._process_share_operations(request, item_uuid, item_type)
-            return self._build_share_response(request, item_uuid, item_type, results)
-
         except (ValueError, json.JSONDecodeError) as e:
             return JsonResponse({"error": str(e)}, status=400)
-        except (
-            PermissionDenied,
-            ValidationError,
-            ProtectedError,
-        ) as e:
-            return JsonResponse({"error": str(e)}, status=400)
-        except DatabaseError as e:
-            return JsonResponse({"error": f"Database error: {e!s}"}, status=500)
+
+        return self._build_share_response(
+            request,
+            item_uuid,
+            item_type,
+            results,
+        )
 
     def _process_share_operations(
         self, request: HttpRequest, item_uuid: str, item_type: ItemType
