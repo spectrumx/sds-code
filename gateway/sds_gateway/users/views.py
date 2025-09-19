@@ -783,13 +783,12 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                         f"User {user_email} is not shared with this {item_type.lower()}"
                     ),
                 }
-
             old_permission = share_permission.permission_level
             share_permission.permission_level = new_permission
             share_permission.is_enabled = True  # Re-enable if it was disabled
             share_permission.save()
 
-            return {
+            return {  # noqa: TRY300
                 "success": True,
                 "message": (
                     f"Updated {user_email} permission from {old_permission} "
@@ -832,14 +831,13 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                     "success": False,
                     "error": f"Group is not shared with this {item_type.lower()}",
                 }
-
             updated_count = 0
             for permission in group_permissions:
                 permission.permission_level = new_permission
                 permission.save()
                 updated_count += 1
 
-            return {
+            return {  # noqa: TRY300
                 "success": True,
                 "message": (
                     f"Updated {updated_count} group members to {new_permission} "

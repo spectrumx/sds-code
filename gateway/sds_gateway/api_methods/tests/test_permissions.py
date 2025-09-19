@@ -20,23 +20,23 @@ class UserSharePermissionTestCase(TestCase):
         """Set up test data."""
         self.owner = User.objects.create_user(
             email="owner@example.com",
-            password="testpass123",
-            name="Dataset Owner",  # noqa: S106
+            password="testpass123",  # noqa: S106
+            name="Dataset Owner",
         )
         self.viewer = User.objects.create_user(
             email="viewer@example.com",
-            password="testpass123",
-            name="Dataset Viewer",  # noqa: S106
+            password="testpass123",  # noqa: S106
+            name="Dataset Viewer",
         )
         self.contributor = User.objects.create_user(
             email="contributor@example.com",
-            password="testpass123",  # noqa: S106
+            password="testpass123",  # noqa: S106  # noqa: S106
             name="Dataset Contributor",
         )
         self.co_owner = User.objects.create_user(
             email="coowner@example.com",
-            password="testpass123",
-            name="Dataset Co-Owner",  # noqa: S106
+            password="testpass123",  # noqa: S106
+            name="Dataset Co-Owner",
         )
 
         self.dataset = Dataset.objects.create(
