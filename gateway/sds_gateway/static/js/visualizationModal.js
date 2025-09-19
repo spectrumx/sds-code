@@ -48,8 +48,9 @@ class VisualizationModal {
 	setupEventListeners() {
 		// Handle visualization selection buttons
 		this.modal.addEventListener("click", (e) => {
-			if (e.target.classList.contains("visualization-select-btn")) {
-				const visualizationType = e.target.dataset.visualization;
+			const button = e.target.closest(".visualization-select-btn");
+			if (button) {
+				const visualizationType = button.dataset.visualization;
 				this.openVisualization(visualizationType);
 			}
 		});
