@@ -165,8 +165,14 @@ To refresh the collation version for all databases, you can iterate over them:
 
 ```bash
 docker exec -it sds-gateway-local-postgres bash -c "
-    for db in \$(psql -U \${POSTGRES_USER} -tAc 'SELECT datname FROM pg_database WHERE datistemplate = false;'); do
+    for db in \$(psql -U \${POSTGRES_USER} -tAc 'SELECT datname FROM pg_database;'); do
         psql -U \${POSTGRES_USER} -c \"ALTER DATABASE \\\"\$db\\\" REFRESH COLLATION VERSION;\"
     done
 "
+```
+
+Or one-by-one:
+
+```bash
+docker exec -it sds-gateway-local-postgres bash -c "psql -U \${POSTGRES_USER} -c \"ALTER DATABASE \"spectrumx\" REFRESH COLLATION VERSION;\""
 ```
