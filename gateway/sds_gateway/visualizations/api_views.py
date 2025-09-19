@@ -1,7 +1,5 @@
 """API views for the visualizations app."""
 
-from typing import Any
-
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample
@@ -25,6 +23,7 @@ from .config import get_available_visualizations
 from .models import PostProcessedData
 from .models import ProcessingStatus
 from .models import ProcessingType
+from .post_processing import launch_visualization_processing
 from .serializers import PostProcessedDataSerializer
 
 
@@ -171,31 +170,34 @@ class VisualizationViewSet(ViewSet):
 
         log.info(
             f"No existing spectrogram found for capture {capture.uuid} "
-            f"with these parameters. Creating new spectrogram."
-        )
-
-        # Create new spectrogram processing record
-        spectrogram_data = PostProcessedData.objects.create(
-            capture=capture,
-            processing_type=ProcessingType.Spectrogram.value,
-            processing_parameters=processing_params,
-            processing_status=ProcessingStatus.Pending.value,
-            metadata={
-                "requested_by": str(request.user.id),
-                "requested_at": request.data.get("timestamp"),
-            },
+            f"with these parameters. Starting spectrogram processing."
         )
 
         try:
             # Start spectrogram processing
             # This will use the cog pipeline to generate the spectrogram
-            self._start_spectrogram_processing(spectrogram_data, processing_params)
-            log.info(
-                f"Started spectrogram processing for capture {capture.uuid}: "
-                f"{spectrogram_data.uuid}"
+            processing_config = {
+                "spectrogram": {
+                    "fft_size": processing_params["fft_size"],
+                    "std_dev": processing_params["std_dev"],
+                    "hop_size": processing_params["hop_size"],
+                    "colormap": processing_params["colormap"],
+                    "dimensions": processing_params["dimensions"],
+                }
+            }
+
+            result = launch_visualization_processing(
+                str(capture.uuid), processing_config
             )
-            serializer = PostProcessedDataSerializer(spectrogram_data)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            log.info(f"Started spectrogram processing for capture {capture.uuid}")
+
+            response_data = {
+                "status": "success",
+                "message": "Spectrogram processing started",
+                "uuid": result["processing_config"]["spectrogram"]["processed_data_id"],
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:  # noqa: BLE001
             log.error(f"Error creating spectrogram: {e}")
@@ -529,27 +531,25 @@ class VisualizationViewSet(ViewSet):
 
             log.info(
                 f"No existing waterfall found for capture {capture.uuid}."
-                " Creating new waterfall."
-            )
-
-            # Create new waterfall processing record
-            waterfall_data = PostProcessedData.objects.create(
-                capture=capture,
-                processing_type=ProcessingType.Waterfall.value,
-                processing_parameters={},
-                processing_status=ProcessingStatus.Pending.value,
-                metadata={},
+                " Starting waterfall processing."
             )
 
             # Start waterfall processing
             # This will use the cog pipeline to generate the waterfall
-            self._start_waterfall_processing(waterfall_data)
-            log.info(
-                f"Started waterfall processing for capture {capture.uuid}: "
-                f"{waterfall_data.uuid}"
+            processing_config = {"waterfall": {}}
+
+            result = launch_visualization_processing(
+                str(capture.uuid), processing_config
             )
-            serializer = PostProcessedDataSerializer(waterfall_data)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            log.info(f"Started waterfall processing for capture {capture.uuid}")
+
+            response_data = {
+                "status": "success",
+                "message": "Waterfall processing started",
+                "uuid": result["processing_config"]["waterfall"]["processed_data_id"],
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:  # noqa: BLE001
             log.error(f"Error creating waterfall: {e}")
@@ -687,76 +687,3 @@ class VisualizationViewSet(ViewSet):
                 {"error": "Failed to download waterfall"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-    def _start_waterfall_processing(self, waterfall_data: PostProcessedData) -> None:
-        """
-        Start waterfall processing using the cog pipeline.
-        """
-        try:
-            # Mark as processing
-            waterfall_data.processing_status = ProcessingStatus.Processing.value
-            waterfall_data.save()
-
-            from sds_gateway.api_methods.tasks import (  # noqa: PLC0415
-                start_capture_post_processing,
-            )
-
-            # Launch waterfall processing as a Celery task
-            processing_config = {"waterfall": {}}
-
-            result = start_capture_post_processing.delay(  # type: ignore[attr-defined]
-                str(waterfall_data.capture.uuid), processing_config
-            )
-
-            log.info(
-                f"Launched waterfall processing task for"
-                f"{waterfall_data.uuid}, task_id: {result.id}"
-            )
-
-        except Exception as e:
-            log.error(f"Error starting waterfall processing: {e}")
-            waterfall_data.processing_status = ProcessingStatus.Failed.value
-            waterfall_data.processing_error = str(e)
-            waterfall_data.save()
-            raise
-
-    def _start_spectrogram_processing(
-        self, spectrogram_data: PostProcessedData, processing_params: dict[str, Any]
-    ) -> None:
-        """
-        Start spectrogram processing using the cog pipeline.
-        """
-        try:
-            # Mark as processing
-            spectrogram_data.processing_status = ProcessingStatus.Processing.value
-            spectrogram_data.save()
-
-            from sds_gateway.api_methods.tasks import (  # noqa: PLC0415
-                start_capture_post_processing,
-            )
-
-            # Launch the spectrogram processing task
-            processing_config = {
-                "spectrogram": {
-                    "fft_size": processing_params["fft_size"],
-                    "std_dev": processing_params["std_dev"],
-                    "hop_size": processing_params["hop_size"],
-                    "colormap": processing_params["colormap"],
-                    "dimensions": processing_params["dimensions"],
-                }
-            }
-            result = start_capture_post_processing.delay(  # type: ignore[attr-defined]
-                str(spectrogram_data.capture.uuid), processing_config
-            )
-
-            log.info(
-                f"Launched spectrogram processing task for "
-                f"{spectrogram_data.uuid}, task_id: {result.id}"
-            )
-
-        except Exception as e:  # noqa: BLE001
-            log.error(f"Could not launch spectrogram processing task: {e}")
-            # Mark as failed
-            spectrogram_data.processing_status = ProcessingStatus.Failed.value
-            spectrogram_data.processing_error = f"Failed to launch task: {e}"
-            spectrogram_data.save()

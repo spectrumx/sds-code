@@ -61,8 +61,8 @@ def get_visualization_pipeline_config() -> dict[str, Any]:
                 ],
             },
             {
-                "name": "waterfall_stage",
-                "description": "Process waterfall data (downloads, processes, and "
+                "name": "processing_stage",
+                "description": "Process visualization data (downloads, processes, and "
                 "stores)",
                 "depends_on": ["setup_stage"],
                 "tasks": [
@@ -71,21 +71,13 @@ def get_visualization_pipeline_config() -> dict[str, Any]:
                         "cog": "process_waterfall_data_cog",
                         "args": {},
                         "description": "Process waterfall data",
-                    }
-                ],
-            },
-            {
-                "name": "spectrogram_stage",
-                "description": "Process spectrogram data (downloads, processes, and "
-                "stores)",
-                "depends_on": ["setup_stage"],
-                "tasks": [
+                    },
                     {
                         "name": "process_spectrogram",
                         "cog": "process_spectrogram_data_cog",
                         "args": {},
                         "description": "Process spectrogram data",
-                    }
+                    },
                 ],
             },
         ],
@@ -133,10 +125,6 @@ def setup_post_processing_cog(
     # imports to run when the app is ready
     from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
     from sds_gateway.api_methods.models import CaptureType  # noqa: PLC0415
-    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        create_or_reset_processed_data_obj,
-    )
 
     try:
         logger.info(
@@ -185,18 +173,25 @@ def setup_post_processing_cog(
             error_msg = "No processing config specified"
             raise ValueError(error_msg)  # noqa: TRY301
 
-        # Create PostProcessedData records for each processing type
+        # PostProcessedData records should be created before the pipeline starts
+        # This function just validates the capture and config
         logger.info(
-            f"Creating PostProcessedData records for "
-            f"{len(processing_config)} processing types"
+            f"Processing config received for {len(processing_config)} processing types"
         )
         for processing_type, parameters in processing_config.items():
             logger.info(
-                f"Creating record for {processing_type} with parameters: {parameters}"
+                f"Processing type {processing_type} with parameters: {parameters}"
             )
-            create_or_reset_processed_data_obj(
-                capture, ProcessingType(processing_type), parameters
-            )
+
+            # Validate that processed_data_id is provided
+            processed_data_id = parameters.get("processed_data_id")
+            if not processed_data_id:
+                error_msg = (
+                    f"processed_data_id is required for {processing_type} processing. "
+                    f"PostProcessedData records must be created before starting the "
+                    f"pipeline."
+                )
+                raise ValueError(error_msg)
 
         logger.info(f"Completed setup for capture {capture_uuid}")
     except Exception as e:
@@ -298,18 +293,27 @@ def process_waterfall_data_cog(
 
     capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
-    # Get the processed data record and mark processing as started
-    processed_data_obj = PostProcessedData.objects.filter(
-        capture=capture,
-        processing_type=ProcessingType.Waterfall.value,
-    ).first()
+    # Get the processed data record using the ID from processing config
+    waterfall_config = processing_config.get("waterfall", {})
+    processed_data_id = waterfall_config.get("processed_data_id")
 
-    if not processed_data_obj:
+    if not processed_data_id:
         error_msg = (
-            f"No processed data record found for {ProcessingType.Waterfall.value}"
+            "processed_data_id is required for waterfall processing. "
+            "PostProcessedData records must be created before starting the pipeline."
         )
         raise ValueError(error_msg)
 
+    # Use the specific PostProcessedData ID
+    try:
+        processed_data_obj = PostProcessedData.objects.get(
+            uuid=processed_data_id,
+            capture=capture,
+            processing_type=ProcessingType.Waterfall.value,
+        )
+    except PostProcessedData.DoesNotExist:
+        error_msg = f"PostProcessedData with ID {processed_data_id} not found"
+        raise ValueError(error_msg) from None
     processed_data_obj.mark_processing_started(pipeline_id="django_cog_pipeline")
 
     with tempfile.TemporaryDirectory(prefix=f"waterfall_{capture_uuid}_") as temp_dir:
@@ -381,18 +385,27 @@ def process_spectrogram_data_cog(
 
     capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
-    # Get the processed data record and mark processing as started
-    processed_data_obj = PostProcessedData.objects.filter(
-        capture=capture,
-        processing_type=ProcessingType.Spectrogram.value,
-    ).first()
+    # Get the processed data record using the ID from processing config
+    spectrogram_config = processing_config.get("spectrogram", {})
+    processed_data_id = spectrogram_config.get("processed_data_id")
 
-    if not processed_data_obj:
+    if not processed_data_id:
         error_msg = (
-            f"No processed data record found for {ProcessingType.Spectrogram.value}"
+            "processed_data_id is required for spectrogram processing. "
+            "PostProcessedData records must be created before starting the pipeline."
         )
         raise ValueError(error_msg)
 
+    # Use the specific PostProcessedData ID
+    try:
+        processed_data_obj = PostProcessedData.objects.get(
+            uuid=processed_data_id,
+            capture=capture,
+            processing_type=ProcessingType.Spectrogram.value,
+        )
+    except PostProcessedData.DoesNotExist:
+        error_msg = f"PostProcessedData with ID {processed_data_id} not found"
+        raise ValueError(error_msg) from None
     # Mark processing as started
     processed_data_obj.mark_processing_started(pipeline_id="django_cog_pipeline")
 
