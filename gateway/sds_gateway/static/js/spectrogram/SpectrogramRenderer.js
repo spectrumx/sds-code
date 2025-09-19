@@ -75,14 +75,24 @@ export class SpectrogramRenderer {
 	 * Get display dimensions (actual rendered size)
 	 */
 	getDisplayDimensions() {
-		if (!this.imageElement || !this.imageElement.src) {
+		if (!this.imageElement) {
 			return null;
 		}
 
-		const width =
-			this.imageElement.offsetWidth || this.imageElement.naturalWidth;
-		const height =
-			this.imageElement.offsetHeight || this.imageElement.naturalHeight;
+		const imageContainer = this.imageElement.parentElement;
+		if (!imageContainer) {
+			return null;
+		}
+
+		let width, height;
+
+		if (imageContainer.offsetWidth && imageContainer.offsetHeight) {
+			width = imageContainer.offsetWidth;
+			height = imageContainer.offsetHeight;
+		} else {
+			width = imageContainer.naturalWidth;
+			height = imageContainer.naturalHeight;
+		}
 
 		if (width === 0 || height === 0) {
 			return null;

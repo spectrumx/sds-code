@@ -38,12 +38,6 @@ def _generate_spectrogram_plot(
 
     figure, axes = plt.subplots(figsize=(width_inches, height_inches))
 
-    # Set title
-    title = f"Spectrogram - Channel {channel}"
-    if center_freq != 0:
-        title += f" (Center: {center_freq / 1e6:.2f} MHz)"
-    axes.set_title(title, fontsize=14)
-
     # Set axis labels
     axes.set_xlabel("Time (s)", fontsize=12)
     axes.set_ylabel("Frequency (Hz)", fontsize=12)

@@ -137,10 +137,15 @@ export class SpectrogramVisualization {
 			}
 
 			const data = await response.json();
-			this.currentJobId = data.uuid;
 
-			// Start polling for status
-			this.startStatusPolling();
+			if (!data.uuid) {
+				throw new Error("Spectrogram job ID not found");
+			} else {
+				this.currentJobId = data.uuid;
+
+				// Start polling for status
+				this.startStatusPolling();
+			}
 		} catch (error) {
 			console.error("Error creating spectrogram job:", error);
 			throw error;
