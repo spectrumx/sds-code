@@ -519,10 +519,15 @@ class WaterfallVisualization {
 			}
 
 			const data = await response.json();
-			this.currentJobId = data.uuid;
 
-			// Start polling for status
-			this.startStatusPolling();
+			if (!data.uuid) {
+				throw new Error("Waterfall job ID not found");
+			} else {
+				this.currentJobId = data.uuid;
+
+				// Start polling for status
+				this.startStatusPolling();
+			}
 		} catch (error) {
 			console.error("Error creating waterfall job:", error);
 			throw error;
