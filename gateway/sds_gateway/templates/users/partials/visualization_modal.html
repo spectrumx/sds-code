@@ -18,7 +18,7 @@
                 <div class="visualization-grid">
                     {% if visualization_compatibility %}
                         {% for viz_type, config in visualization_compatibility.items %}
-                            <div class="visualization-card visualization-option"
+                            <div class="visualization-option"
                                  data-visualization="{{ viz_type }}"
                                  data-supported-types="{% for capture_type in config.supported_capture_types %}{{ capture_type }}{% if not forloop.last %},{% endif %}{% endfor %}">
                                 <div class="card h-100">
@@ -79,17 +79,6 @@
                                         </div>
                                     {% endfor %}
                                 </small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Processing Status -->
-                <div class="mt-4">
-                    <h6>Processing Status</h6>
-                    <div id="processing-status-container">
-                        <div class="d-flex justify-content-center py-3">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading processing status...</span>
                             </div>
                         </div>
                     </div>

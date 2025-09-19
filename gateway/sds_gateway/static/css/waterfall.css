@@ -16,7 +16,6 @@
 
 #waterfallCanvas {
 	border: none;
-	cursor: crosshair;
 	position: relative;
 }
 
@@ -45,6 +44,20 @@
 	/* Add padding to align with waterfall plot margins */
 	padding-right: var(--plots-right-margin, 80px);
 	padding-left: var(--plots-left-margin, 85px);
+}
+
+#waterfallErrorDisplay {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 5;
+}
+
+#waterfallErrorDisplay p {
+	margin: 0;
+	font-size: 1.1rem;
+	color: #6c757d;
 }
 
 #waterfallPlot {

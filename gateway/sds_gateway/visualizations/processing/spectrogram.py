@@ -38,12 +38,6 @@ def _generate_spectrogram_plot(
 
     figure, axes = plt.subplots(figsize=(width_inches, height_inches))
 
-    # Set title
-    title = f"Spectrogram - Channel {channel}"
-    if center_freq != 0:
-        title += f" (Center: {center_freq / 1e6:.2f} MHz)"
-    axes.set_title(title, fontsize=14)
-
     # Set axis labels
     axes.set_xlabel("Time (s)", fontsize=12)
     axes.set_ylabel("Frequency (Hz)", fontsize=12)
@@ -94,7 +88,7 @@ def generate_spectrogram_from_drf(
     std_dev = processing_parameters.get("std_dev", 100)
     hop_size = processing_parameters.get("hop_size", 500)
     colormap = processing_parameters.get("colormap", "magma")
-    dimensions = processing_parameters.get("dimensions", {})
+    dimensions = processing_parameters.get("dimensions")
 
     # Validate DigitalRF data and get validated parameters
     params = validate_digitalrf_data(drf_path, channel, fft_size)

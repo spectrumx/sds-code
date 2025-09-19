@@ -620,14 +620,14 @@ def start_capture_post_processing(
     Start post-processing pipeline for a DigitalRF capture.
 
     This is the main entry point that launches the django-cog pipeline.
-    Setup and validation are now handled within the pipeline itself.
 
     Args:
         capture_uuid: UUID of the capture to process
         processing_config: Dict with processing configurations, e.g.:
             {
                 "spectrogram": {"fft_size": 1024, "std_dev": 100, "hop_size": 500,
-                "colormap": "magma"}, "waterfall": {...}
+                "colormap": "magma", "processed_data_id": "uuid"},
+                "waterfall": {"processed_data_id": "uuid"}
             }
     """
     logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
@@ -638,37 +638,11 @@ def start_capture_post_processing(
             error_msg = "No processing config specified"
             raise ValueError(error_msg)  # noqa: TRY301
 
-        # Get the appropriate pipeline from the database
-        from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
-
-        # Always use the visualization pipeline - individual cogs will check if they
-        # should run
-        pipeline_name = "visualization_processing"
-        pipeline = get_latest_pipeline_by_base_name(pipeline_name)
-        if not pipeline:
-            error_msg = (
-                f"No {pipeline_name} pipeline found. Please run setup_pipelines."
-            )
-            raise ValueError(error_msg)  # noqa: TRY301
-
-        # Launch the visualization pipeline with processing config
-        # Individual cogs will check if they should run based on processing_config
-        logger.info(
-            f"Launching pipeline {pipeline_name} for capture {capture_uuid} "
-            f"with config: {processing_config}"
+        from sds_gateway.visualizations.post_processing import (
+            launch_visualization_processing,
         )
-        pipeline.launch(capture_uuid=capture_uuid, processing_config=processing_config)
-        logger.info(f"Pipeline launched successfully for capture {capture_uuid}")
 
-        return {
-            "status": "success",
-            "message": (
-                f"Post-processing pipeline started for {len(processing_config)} "
-                f"processing types"
-            ),
-            "capture_uuid": capture_uuid,
-            "processing_config": processing_config,
-        }
+        return launch_visualization_processing(capture_uuid, processing_config)
     except Exception as e:
         error_msg = f"Unexpected error in post-processing pipeline: {e}"
         logger.exception(error_msg)

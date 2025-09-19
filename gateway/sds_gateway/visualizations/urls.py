@@ -1,13 +1,11 @@
 from django.urls import path
 
-from .api_views import VisualizationViewSet
 from .views import SpectrogramVisualizationView
 from .views import WaterfallVisualizationView
 
 app_name = "visualizations"
 
-# Template view URLs (for displaying visualizations)
-template_urlpatterns = [
+urlpatterns = [
     path(
         "waterfall/<str:capture_uuid>/",
         WaterfallVisualizationView.as_view(),
@@ -19,39 +17,3 @@ template_urlpatterns = [
         name="spectrogram",
     ),
 ]
-
-
-# API view URLs (for programmatic access)
-api_urlpatterns = [
-    path(
-        "api/",
-        VisualizationViewSet.as_view(
-            {
-                "get": "get_visualization_compatibility",
-            }
-        ),
-        name="api_compatibility",
-    ),
-    path(
-        "api/<str:capture_uuid>/",
-        VisualizationViewSet.as_view(
-            {
-                "post": "create_spectrogram",
-                "get": "get_spectrogram_status",
-            }
-        ),
-        name="api_spectrogram",
-    ),
-    path(
-        "api/<str:capture_uuid>/download/",
-        VisualizationViewSet.as_view(
-            {
-                "get": "download_spectrogram",
-            }
-        ),
-        name="api_download_spectrogram",
-    ),
-]
-
-
-urlpatterns = template_urlpatterns + api_urlpatterns

@@ -1,7 +1,5 @@
 """API views for the visualizations app."""
 
-from typing import Any
-
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample
@@ -25,6 +23,7 @@ from .config import get_available_visualizations
 from .models import PostProcessedData
 from .models import ProcessingStatus
 from .models import ProcessingType
+from .post_processing import launch_visualization_processing
 from .serializers import PostProcessedDataSerializer
 
 
@@ -105,30 +104,47 @@ class VisualizationViewSet(ViewSet):
         )
 
         # Validate request data
-        fft_size = request.data.get("fft_size", 1024)
-        std_dev = request.data.get("std_dev", 100)
-        hop_size = request.data.get("hop_size", 500)
-        colormap = request.data.get("colormap", "magma")
-        dimensions = request.data.get("dimensions", None)
+        fft_size_raw = request.data.get("fft_size") or 1024
+        std_dev_raw = request.data.get("std_dev") or 100
+        hop_size_raw = request.data.get("hop_size") or 500
+        colormap_raw = request.data.get("colormap") or "magma"
+        dimensions_raw = request.data.get("dimensions") or None
+
+        fft_size = int(
+            fft_size_raw[0] if isinstance(fft_size_raw, list) else fft_size_raw
+        )
+        std_dev = int(std_dev_raw[0] if isinstance(std_dev_raw, list) else std_dev_raw)
+        hop_size = int(
+            hop_size_raw[0] if isinstance(hop_size_raw, list) else hop_size_raw
+        )
+        colormap = colormap_raw[0] if isinstance(colormap_raw, list) else colormap_raw
+        dimensions = (
+            dimensions_raw[0] if isinstance(dimensions_raw, list) else dimensions_raw
+        )
 
         # Validate parameters
-        if not self._validate_spectrogram_params(fft_size, std_dev, hop_size, colormap):
+        if not self._validate_spectrogram_params(
+            fft_size, std_dev, hop_size, colormap, dimensions
+        ):
             return Response(
                 {"error": "Invalid spectrogram parameters"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Check if spectrogram already exists with same parameters
+        processing_params = {
+            "fft_size": fft_size,
+            "std_dev": std_dev,
+            "hop_size": hop_size,
+            "colormap": colormap,
+        }
+        if dimensions is not None:
+            processing_params["dimensions"] = dimensions
+
         existing_spectrogram = PostProcessedData.objects.filter(
             capture=capture,
             processing_type=ProcessingType.Spectrogram.value,
-            processing_parameters={
-                "fft_size": fft_size,
-                "std_dev": std_dev,
-                "hop_size": hop_size,
-                "colormap": colormap,
-                "dimensions": dimensions,
-            },
+            processing_parameters=processing_params,
         ).first()
 
         if existing_spectrogram:
@@ -154,39 +170,34 @@ class VisualizationViewSet(ViewSet):
 
         log.info(
             f"No existing spectrogram found for capture {capture.uuid} "
-            f"with these parameters. Creating new spectrogram."
-        )
-
-        # Create new spectrogram processing record
-        processing_params = {
-            "fft_size": fft_size,
-            "std_dev": std_dev,
-            "hop_size": hop_size,
-            "colormap": colormap,
-            "dimensions": dimensions,
-        }
-
-        spectrogram_data = PostProcessedData.objects.create(
-            capture=capture,
-            processing_type=ProcessingType.Spectrogram.value,
-            processing_parameters=processing_params,
-            processing_status=ProcessingStatus.Pending.value,
-            metadata={
-                "requested_by": str(request.user.id),
-                "requested_at": request.data.get("timestamp"),
-            },
+            f"with these parameters. Starting spectrogram processing."
         )
 
         try:
             # Start spectrogram processing
             # This will use the cog pipeline to generate the spectrogram
-            self._start_spectrogram_processing(spectrogram_data, processing_params)
-            log.info(
-                f"Started spectrogram processing for capture {capture.uuid}: "
-                f"{spectrogram_data.uuid}"
+            processing_config = {
+                "spectrogram": {
+                    "fft_size": processing_params["fft_size"],
+                    "std_dev": processing_params["std_dev"],
+                    "hop_size": processing_params["hop_size"],
+                    "colormap": processing_params["colormap"],
+                    "dimensions": processing_params["dimensions"],
+                }
+            }
+
+            result = launch_visualization_processing(
+                str(capture.uuid), processing_config
             )
-            serializer = PostProcessedDataSerializer(spectrogram_data)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            log.info(f"Started spectrogram processing for capture {capture.uuid}")
+
+            response_data = {
+                "status": "success",
+                "message": "Spectrogram processing started",
+                "uuid": result["processing_config"]["spectrogram"]["processed_data_id"],
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:  # noqa: BLE001
             log.error(f"Error creating spectrogram: {e}")
@@ -234,15 +245,15 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        try:
-            # Get the processing job
-            processing_job = get_object_or_404(
-                PostProcessedData,
-                uuid=job_id,
-                capture__uuid=pk,
-                processing_type=ProcessingType.Spectrogram.value,
-            )
+        # Get the processing job
+        processing_job = get_object_or_404(
+            PostProcessedData,
+            uuid=job_id,
+            capture__uuid=pk,
+            processing_type=ProcessingType.Spectrogram.value,
+        )
 
+        try:
             serializer = PostProcessedDataSerializer(processing_job)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -385,6 +396,9 @@ class VisualizationViewSet(ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            if isinstance(capture_type, list):
+                capture_type = capture_type[0]
+
             available_visualizations = get_available_visualizations(capture_type)
 
             return Response(
@@ -451,43 +465,225 @@ class VisualizationViewSet(ViewSet):
         ]
         return colormap in valid_colormaps
 
-    def _start_spectrogram_processing(
-        self, spectrogram_data: PostProcessedData, processing_params: dict[str, Any]
-    ) -> None:
+    @extend_schema(
+        summary="Create waterfall visualization",
+        description="Generate a waterfall visualization from a capture",
+        parameters=[
+            OpenApiParameter(
+                name="capture_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the capture to generate waterfall from",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Waterfall generation started successfully",
+                response=PostProcessedDataSerializer,
+            ),
+            400: OpenApiResponse(description="Invalid request parameters"),
+            404: OpenApiResponse(description="Capture not found"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+    )
+    @action(detail=True, methods=["post"], url_path="create_waterfall")
+    def create_waterfall(self, request: Request, pk: str | None = None) -> Response:
         """
-        Start spectrogram processing using the cog pipeline.
+        Create a waterfall visualization for a capture.
+
+        Args:
+            request: The HTTP request
+            pk: UUID of the capture
+        Returns:
+            Response with processing job details
         """
+        # Get the capture
+        capture = get_object_or_404(
+            Capture, uuid=pk, owner=request.user, is_deleted=False
+        )
+
         try:
-            # Mark as processing
-            spectrogram_data.processing_status = ProcessingStatus.Processing.value
-            spectrogram_data.save()
+            # Check if waterfall already exists
+            existing_waterfall = PostProcessedData.objects.filter(
+                capture=capture,
+                processing_type=ProcessingType.Waterfall.value,
+            ).first()
 
-            from sds_gateway.api_methods.tasks import (  # noqa: PLC0415
-                start_capture_post_processing,
-            )
-
-            # Launch the spectrogram processing task
-            processing_config = {
-                "spectrogram": {
-                    "fft_size": processing_params["fft_size"],
-                    "std_dev": processing_params["std_dev"],
-                    "hop_size": processing_params["hop_size"],
-                    "colormap": processing_params["colormap"],
-                    "dimensions": processing_params["dimensions"],
-                }
-            }
-            result = start_capture_post_processing.delay(
-                str(spectrogram_data.capture.uuid), processing_config
-            )
+            if existing_waterfall:
+                log.info(
+                    f"Existing waterfall found for capture {capture.uuid}: "
+                    f"{existing_waterfall.uuid}"
+                )
+                if (
+                    existing_waterfall.processing_status
+                    == ProcessingStatus.Completed.value
+                ):
+                    # Return existing completed waterfall
+                    serializer = PostProcessedDataSerializer(existing_waterfall)
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+                if (
+                    existing_waterfall.processing_status
+                    == ProcessingStatus.Processing.value
+                ):
+                    # Return processing status
+                    serializer = PostProcessedDataSerializer(existing_waterfall)
+                    return Response(serializer.data, status=status.HTTP_200_OK)
 
             log.info(
-                f"Launched spectrogram processing task for "
-                f"{spectrogram_data.uuid}, task_id: {result.id}"
+                f"No existing waterfall found for capture {capture.uuid}."
+                " Starting waterfall processing."
             )
 
+            # Start waterfall processing
+            # This will use the cog pipeline to generate the waterfall
+            processing_config = {"waterfall": {}}
+
+            result = launch_visualization_processing(
+                str(capture.uuid), processing_config
+            )
+            log.info(f"Started waterfall processing for capture {capture.uuid}")
+
+            response_data = {
+                "status": "success",
+                "message": "Waterfall processing started",
+                "uuid": result["processing_config"]["waterfall"]["processed_data_id"],
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
         except Exception as e:  # noqa: BLE001
-            log.error(f"Could not launch spectrogram processing task: {e}")
-            # Mark as failed
-            spectrogram_data.processing_status = ProcessingStatus.Failed.value
-            spectrogram_data.processing_error = f"Failed to launch task: {e}"
-            spectrogram_data.save()
+            log.error(f"Error creating waterfall: {e}")
+            return Response(
+                {"error": "Failed to create waterfall"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        summary="Get waterfall status",
+        description="Get the status of a waterfall generation job",
+        parameters=[
+            OpenApiParameter(
+                name="capture_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the capture",
+            ),
+            OpenApiParameter(
+                name="job_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the processing job",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Processing job status",
+                response=PostProcessedDataSerializer,
+            ),
+            404: OpenApiResponse(description="Job not found"),
+        },
+    )
+    @action(detail=True, methods=["get"], url_path="waterfall_status")
+    def get_waterfall_status(self, request: Request, pk: str | None = None) -> Response:
+        """
+        Get the status of a waterfall generation job.
+        """
+        job_id = request.query_params.get("job_id")
+        if not job_id:
+            return Response(
+                {"error": "job_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get the processing job
+        processing_job = get_object_or_404(
+            PostProcessedData,
+            uuid=job_id,
+            capture__uuid=pk,
+            processing_type=ProcessingType.Waterfall.value,
+        )
+
+        try:
+            serializer = PostProcessedDataSerializer(processing_job)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:  # noqa: BLE001
+            log.error(f"Error getting waterfall status: {e}")
+            return Response(
+                {"error": "Failed to get waterfall status"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        summary="Download waterfall result",
+        description="Download the generated waterfall data",
+        parameters=[
+            OpenApiParameter(
+                name="capture_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the capture",
+            ),
+            OpenApiParameter(
+                name="job_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the processing job",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Waterfall data file"),
+            404: OpenApiResponse(description="Result not found"),
+            400: OpenApiResponse(description="Processing not completed"),
+        },
+    )
+    @action(detail=True, methods=["get"], url_path="download_waterfall")
+    def download_waterfall(
+        self, request: Request, pk: str | None = None
+    ) -> Response | FileResponse:
+        """
+        Download the generated waterfall data.
+        """
+        job_id = request.query_params.get("job_id")
+        if not job_id:
+            return Response(
+                {"error": "job_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get the processing job
+        processing_job = get_object_or_404(
+            PostProcessedData,
+            uuid=job_id,
+            capture__uuid=pk,
+            processing_type=ProcessingType.Waterfall.value,
+        )
+
+        try:
+            if processing_job.processing_status != ProcessingStatus.Completed.value:
+                return Response(
+                    {"error": "Waterfall processing not completed"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not processing_job.data_file:
+                return Response(
+                    {"error": "No waterfall file found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Return the file
+            file_response = FileResponse(
+                processing_job.data_file, content_type="application/json"
+            )
+            file_response["Content-Disposition"] = (
+                f'attachment; filename="waterfall_{pk}.json"'
+            )
+            return file_response  # noqa: TRY300
+
+        except Exception as e:  # noqa: BLE001
+            log.error(f"Error downloading waterfall: {e}")
+            return Response(
+                {"error": "Failed to download waterfall"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

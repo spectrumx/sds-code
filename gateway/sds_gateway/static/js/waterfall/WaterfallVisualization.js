@@ -3,7 +3,13 @@
  * Main orchestrator that coordinates all waterfall components
  */
 
-import { DEFAULT_COLOR_MAP } from "./constants.js";
+import {
+	DEFAULT_COLOR_MAP,
+	ERROR_MESSAGES,
+	get_create_waterfall_endpoint,
+	get_waterfall_result_endpoint,
+	get_waterfall_status_endpoint,
+} from "./constants.js";
 
 class WaterfallVisualization {
 	constructor(captureUuid) {
@@ -21,6 +27,11 @@ class WaterfallVisualization {
 		this.scaleMin = null;
 		this.scaleMax = null;
 		this.isLoading = false;
+
+		// Processing state
+		this.isGenerating = false;
+		this.currentJobId = null;
+		this.pollingInterval = null;
 
 		// Visualization state
 		this.currentSliceIndex = 0;
@@ -188,6 +199,12 @@ class WaterfallVisualization {
 		if (!this.parsedWaterfallData || this.parsedWaterfallData.length === 0) {
 			return;
 		}
+
+		// Hide error display if it exists
+		this.hideErrorDisplay();
+
+		// Show visualization components
+		this.showVisualizationComponents();
 
 		// Render waterfall with cached parsed data
 		this.renderWaterfall();
@@ -403,9 +420,9 @@ class WaterfallVisualization {
 			);
 
 			if (!waterfallData) {
-				throw new Error(
-					"Waterfall data not available. Please ensure post-processing is complete.",
-				);
+				// No waterfall data available, trigger processing
+				await this.triggerWaterfallProcessing();
+				return;
 			}
 
 			// Get the waterfall data file
@@ -459,6 +476,190 @@ class WaterfallVisualization {
 
 			this.showError(userMessage);
 		}
+	}
+
+	/**
+	 * Trigger waterfall processing when data is not available
+	 */
+	async triggerWaterfallProcessing() {
+		// Check if we are already generating
+		if (this.isGenerating) {
+			return;
+		}
+
+		try {
+			this.setGeneratingState(true);
+
+			// Create waterfall processing job
+			await this.createWaterfallJob();
+		} catch (error) {
+			console.error("Error triggering waterfall processing:", error);
+			this.showError(ERROR_MESSAGES.API_ERROR);
+			this.setGeneratingState(false);
+		}
+	}
+
+	/**
+	 * Create a waterfall generation job via API
+	 */
+	async createWaterfallJob() {
+		try {
+			const response = await fetch(
+				get_create_waterfall_endpoint(this.captureUuid),
+				{
+					method: "POST",
+					headers: {
+						"X-CSRFToken": this.getCSRFToken(),
+					},
+				},
+			);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+			}
+
+			const data = await response.json();
+
+			if (!data.uuid) {
+				throw new Error("Waterfall job ID not found");
+			} else {
+				this.currentJobId = data.uuid;
+
+				// Start polling for status
+				this.startStatusPolling();
+			}
+		} catch (error) {
+			console.error("Error creating waterfall job:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Start polling for job status
+	 */
+	startStatusPolling() {
+		if (this.pollingInterval) {
+			clearInterval(this.pollingInterval);
+		}
+
+		this.pollingInterval = setInterval(async () => {
+			await this.checkJobStatus();
+		}, 2000); // Poll every 2 seconds
+	}
+
+	/**
+	 * Check the status of the current job
+	 */
+	async checkJobStatus() {
+		if (!this.currentJobId) return;
+
+		try {
+			const response = await fetch(
+				get_waterfall_status_endpoint(this.captureUuid, this.currentJobId),
+				{
+					headers: {
+						"X-CSRFToken": this.getCSRFToken(),
+					},
+				},
+			);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+			}
+
+			const data = await response.json();
+
+			if (data.processing_status === "completed") {
+				// Job completed, stop polling and fetch result
+				this.stopStatusPolling();
+				await this.fetchWaterfallResult();
+			} else if (data.processing_status === "failed") {
+				// Job failed
+				this.stopStatusPolling();
+				this.showError(data.processing_error || "Waterfall generation failed");
+				this.setGeneratingState(false);
+			}
+			// If still processing, continue polling
+		} catch (error) {
+			console.error("Error checking job status:", error);
+			// Continue polling on error
+		}
+	}
+
+	/**
+	 * Stop status polling
+	 */
+	stopStatusPolling() {
+		if (this.pollingInterval) {
+			clearInterval(this.pollingInterval);
+			this.pollingInterval = null;
+		}
+	}
+
+	/**
+	 * Fetch the completed waterfall result
+	 */
+	async fetchWaterfallResult() {
+		try {
+			const response = await fetch(
+				get_waterfall_result_endpoint(this.captureUuid, this.currentJobId),
+				{
+					headers: {
+						"X-CSRFToken": this.getCSRFToken(),
+					},
+				},
+			);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+			}
+
+			const waterfallJson = await response.json();
+
+			this.waterfallData = waterfallJson;
+			this.totalSlices = waterfallJson.length;
+
+			// Parse all waterfall data once and cache it
+			this.parsedWaterfallData = this.waterfallData.map((slice) => ({
+				...slice,
+				data: this.parseWaterfallData(slice.data),
+			}));
+
+			// Calculate power bounds from all data
+			this.calculatePowerBounds();
+
+			this.setGeneratingState(false);
+
+			this.controls.setTotalSlices(this.totalSlices);
+			this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
+			this.periodogramChart.updateYAxisBounds(this.scaleMin, this.scaleMax);
+			this.updateColorLegend();
+
+			this.render();
+		} catch (error) {
+			console.error("Error fetching waterfall result:", error);
+			this.showError("Failed to fetch waterfall result");
+			this.setGeneratingState(false);
+		}
+	}
+
+	/**
+	 * Set the generating state (loading indicators, button states)
+	 */
+	setGeneratingState(isGenerating) {
+		this.isGenerating = isGenerating;
+		this.isLoading = isGenerating;
+
+		// Show/hide loading overlay
+		this.showLoading(isGenerating);
+	}
+
+	/**
+	 * Get CSRF token from form input
+	 */
+	getCSRFToken() {
+		const token = document.querySelector("[name=csrfmiddlewaretoken]");
+		return token ? token.value : "";
 	}
 
 	/**
@@ -551,18 +752,96 @@ class WaterfallVisualization {
 	 * Show error message
 	 */
 	showError(message) {
-		// Create error alert
-		const alertDiv = document.createElement("div");
-		alertDiv.className = "alert alert-danger alert-dismissible fade show";
-		alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
+		// Clear data state first
+		this.waterfallData = [];
+		this.parsedWaterfallData = [];
+		this.totalSlices = 0;
+		this.scaleMin = null;
+		this.scaleMax = null;
 
-		// Insert at top of content
-		const content = document.querySelector(".container-fluid");
-		if (content) {
-			content.insertBefore(alertDiv, content.firstChild);
+		// Hide all visualization components
+		this.hideVisualizationComponents();
+
+		// Display error message in the main plot area
+		this.displayErrorInPlot(message);
+
+		// Update controls to reflect empty state
+		if (this.controls) {
+			this.controls.setTotalSlices(0);
+		}
+	}
+
+	/**
+	 * Hide all visualization components
+	 */
+	hideVisualizationComponents() {
+		// Hide waterfall canvas
+		if (this.canvas) {
+			this.canvas.classList.add("d-none");
+		}
+		if (this.overlayCanvas) {
+			this.overlayCanvas.classList.add("d-none");
+		}
+
+		// Hide periodogram chart
+		const periodogramContainer = document.getElementById("periodogramChart");
+		if (periodogramContainer) {
+			periodogramContainer.classList.add("d-none");
+		}
+
+		// Hide color legend
+		const colorLegend = document.getElementById("colorLegend");
+		if (colorLegend) {
+			colorLegend.classList.add("d-none");
+		}
+	}
+
+	/**
+	 * Display error message in the plot area
+	 */
+	displayErrorInPlot(message) {
+		const errorDisplay = document.getElementById("waterfallErrorDisplay");
+		if (errorDisplay) {
+			const errorText = errorDisplay.querySelector("p");
+			if (errorText) {
+				errorText.textContent = message;
+			}
+			errorDisplay.classList.remove("d-none");
+		}
+	}
+
+	/**
+	 * Hide error display
+	 */
+	hideErrorDisplay() {
+		const errorDisplay = document.getElementById("waterfallErrorDisplay");
+		if (errorDisplay) {
+			errorDisplay.classList.add("d-none");
+		}
+	}
+
+	/**
+	 * Show all visualization components
+	 */
+	showVisualizationComponents() {
+		// Show waterfall canvas
+		if (this.canvas) {
+			this.canvas.classList.remove("d-none");
+		}
+		if (this.overlayCanvas) {
+			this.overlayCanvas.classList.remove("d-none");
+		}
+
+		// Show periodogram chart
+		const periodogramContainer = document.getElementById("periodogramChart");
+		if (periodogramContainer) {
+			periodogramContainer.classList.remove("d-none");
+		}
+
+		// Show color legend
+		const colorLegend = document.getElementById("colorLegend");
+		if (colorLegend) {
+			colorLegend.classList.remove("d-none");
 		}
 	}
 
@@ -570,6 +849,9 @@ class WaterfallVisualization {
 	 * Cleanup resources
 	 */
 	destroy() {
+		// Stop polling
+		this.stopStatusPolling();
+
 		// Cleanup components
 		if (this.waterfallRenderer) {
 			this.waterfallRenderer.destroy();

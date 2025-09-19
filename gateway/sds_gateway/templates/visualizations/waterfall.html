@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{% static 'css/waterfall.css' %}" />
 {% endblock css %}
 {% block content %}
+    {% csrf_token %}
     <div class="container-fluid px-5 pt-4"
          data-capture-uuid="{{ capture.uuid }}">
         <div class="row">
@@ -102,7 +103,7 @@
                     <div class="card-body p-0">
                         <!-- Periodogram Chart -->
                         <div>
-                            <div id="periodogramChart"></div>
+                            <div id="periodogramChart" class="d-none"></div>
                         </div>
                         <div id="loadingOverlay" class="loading-overlay d-none">
                             <div class="spinner-border text-primary" role="status">
@@ -121,10 +122,12 @@
                                 </div>
                             </div>
                             <div id="waterfallPlot">
-                                <canvas id="waterfallCanvas" width="800" height="400"></canvas>
-                                <canvas id="waterfallOverlayCanvas" width="800" height="400"></canvas>
-                                <!-- Color Legend - positioned to sit in right margin area -->
-                                <div id="colorLegend" class="color-legend">
+                                <canvas id="waterfallCanvas" class="d-none" width="800" height="400"></canvas>
+                                <canvas id="waterfallOverlayCanvas" class="d-none" width="800" height="400"></canvas>
+                                <div id="waterfallErrorDisplay" class="text-center p-4 d-none">
+                                    <p class="text-muted"></p>
+                                </div>
+                                <div id="colorLegend" class="color-legend d-none">
                                     <div class="legend-gradient"></div>
                                     <div class="legend-labels"></div>
                                 </div>

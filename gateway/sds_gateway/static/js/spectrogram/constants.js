@@ -2,7 +2,6 @@
  * Constants for Spectrogram Visualization
  */
 
-// Default spectrogram settings
 export const DEFAULT_SPECTROGRAM_SETTINGS = {
 	fftSize: 1024,
 	stdDev: 100,
@@ -15,7 +14,6 @@ export const FFT_SIZE_OPTIONS = [
 	64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536,
 ];
 
-// Color map options
 export const COLOR_MAP_OPTIONS = [
 	"magma",
 	"viridis",
@@ -35,23 +33,24 @@ export const INPUT_RANGES = {
 	hopSize: { min: 100, max: 1000 },
 };
 
-// Default image dimensions
 export const DEFAULT_IMAGE_DIMENSIONS = {
 	width: 800,
 	height: 400,
 };
 
 // API endpoints
-export const API_ENDPOINTS = {
-	createSpectrogram:
-		"/api/v1/visualizations/{capture_uuid}/create_spectrogram/",
-	getSpectrogramStatus:
-		"/api/v1/visualizations/{capture_uuid}/spectrogram_status/",
-	getSpectrogramResult:
-		"/api/v1/visualizations/{capture_uuid}/download_spectrogram/",
+export const get_create_spectrogram_endpoint = (capture_uuid) => {
+	return `/api/v1/visualizations/${capture_uuid}/create_spectrogram/`;
 };
 
-// Status messages
+export const get_spectrogram_status_endpoint = (capture_uuid, job_id) => {
+	return `/api/v1/visualizations/${capture_uuid}/spectrogram_status/?job_id=${job_id}`;
+};
+
+export const get_spectrogram_result_endpoint = (capture_uuid, job_id) => {
+	return `/api/v1/visualizations/${capture_uuid}/download_spectrogram/?job_id=${job_id}`;
+};
+
 export const STATUS_MESSAGES = {
 	GENERATING: "Generating spectrogram...",
 	SUCCESS: "",
@@ -59,7 +58,6 @@ export const STATUS_MESSAGES = {
 	LOADING: "Loading...",
 };
 
-// Error messages
 export const ERROR_MESSAGES = {
 	NO_CAPTURE: "No capture data found",
 	INVALID_SETTINGS: "Invalid spectrogram parameters",
