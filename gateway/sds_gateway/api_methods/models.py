@@ -665,15 +665,6 @@ class Dataset(BaseModel):
                 setattr(instance, field, json.loads(getattr(instance, field)))
         return instance
 
-    def update_authors_field(self):
-        """Update the authors field based on current permissions."""
-        authors_data = UserSharePermission.get_dataset_authors(self.uuid)
-        author_names = [author["name"] for author in authors_data]
-
-        # Update the authors field
-        self.authors = author_names
-        self.save(update_fields=["authors"])
-
     def get_authors_display(self):
         """Get the authors as a list for display purposes."""
         if not self.authors:
@@ -981,32 +972,6 @@ class UserSharePermission(BaseModel):
             PermissionLevel.OWNER,
             PermissionLevel.CO_OWNER,
         ]
-
-    @classmethod
-    def get_dataset_authors(cls, dataset_uuid):
-        """
-        Get all authors for a dataset including owner and contributors.
-
-        Returns:
-            list: List of dictionaries with author information
-        """
-        dataset = Dataset.objects.filter(uuid=dataset_uuid, is_deleted=False).first()
-        if not dataset:
-            return []
-
-        authors = []
-
-        # Add the owner
-        if dataset.owner:
-            authors.append(
-                {
-                    "name": dataset.owner.name or dataset.owner.email,
-                    "email": dataset.owner.email,
-                    "role": PermissionLevel.OWNER,
-                }
-            )
-
-        return authors
 
 
 class DEPRECATEDPostProcessedData(BaseModel):
@@ -1415,35 +1380,3 @@ def handle_sharegroup_soft_delete(sender, instance: ShareGroup, **kwargs) -> Non
             # Update the enabled status based on remaining groups
             permission.update_enabled_status()
             permission.save()
-
-
-@receiver(post_save, sender=UserSharePermission)
-def handle_usersharepermission_change(
-    sender, instance: UserSharePermission, **kwargs
-) -> None:
-    """
-    Handle changes to UserSharePermission by updating dataset authors field.
-    """
-    if instance.item_type == ItemType.DATASET and instance.is_enabled:
-        # Update the authors field for the dataset
-        dataset = Dataset.objects.filter(
-            uuid=instance.item_uuid, is_deleted=False
-        ).first()
-        if dataset:
-            dataset.update_authors_field()
-
-
-@receiver(post_delete, sender=UserSharePermission)
-def handle_usersharepermission_delete(
-    sender, instance: UserSharePermission, **kwargs
-) -> None:
-    """
-    Handle deletion of UserSharePermission by updating dataset authors field.
-    """
-    if instance.item_type == ItemType.DATASET:
-        # Update the authors field for the dataset
-        dataset = Dataset.objects.filter(
-            uuid=instance.item_uuid, is_deleted=False
-        ).first()
-        if dataset:
-            dataset.update_authors_field()
