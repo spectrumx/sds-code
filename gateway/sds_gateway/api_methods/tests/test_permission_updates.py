@@ -30,18 +30,18 @@ class PermissionUpdateTestCase(TestCase):
         # Create test users
         self.owner = User.objects.create_user(
             email="owner@example.com",
-            password="testpass123",
-            name="Dataset Owner",  # noqa: S106
+            password="testpass123",  # noqa: S106
+            name="Dataset Owner",
         )
         self.user1 = User.objects.create_user(
             email="user1@example.com",
-            password="testpass123",
-            name="User One",  # noqa: S106
+            password="testpass123",  # noqa: S106
+            name="User One",
         )
         self.user2 = User.objects.create_user(
             email="user2@example.com",
-            password="testpass123",
-            name="User Two",  # noqa: S106
+            password="testpass123",  # noqa: S106
+            name="User Two",
         )
 
         # Create test dataset
