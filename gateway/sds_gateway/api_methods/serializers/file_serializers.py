@@ -219,7 +219,6 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
             user=user,
         )
 
-        log.debug(f"Checking file contents for user in directory: {safe_dir}")
         identical_file: File | None = identical_user_owned_file.filter(
             directory=safe_dir,
             name=name,
@@ -242,14 +241,12 @@ class FilePostSerializer(serializers.ModelSerializer[File]):
                     user_mutable_attributes_differ = True
                     break
 
-        payload = {
+        return {
             "file_exists_in_tree": identical_file is not None,
             "file_contents_exist_for_user": file_contents_exist_for_user,
             "user_mutable_attributes_differ": user_mutable_attributes_differ,
             "asset_id": asset.uuid if asset else None,
         }
-        log.debug(payload)
-        return payload
 
 
 class FileCheckResponseSerializer(serializers.Serializer[File]):

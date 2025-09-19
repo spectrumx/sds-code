@@ -29,7 +29,7 @@ def check_disk_space_available(
         directory = Path(settings.MEDIA_ROOT)
 
     try:
-        total, used, free = shutil.disk_usage(directory)
+        _total, _used, free = shutil.disk_usage(directory)
         available_space = free - DISK_SPACE_BUFFER
     except (OSError, ValueError) as e:
         logger.error(f"Error checking disk space for {directory}: {e}")
