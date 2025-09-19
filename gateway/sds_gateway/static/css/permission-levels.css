@@ -36,6 +36,12 @@
 	border: 1px solid var(--spectrumx-owner-border);
 }
 
+.bg-owner {
+	background-color: var(--spectrumx-owner-color);
+	color: white;
+	border: 1px solid var(--spectrumx-owner-border);
+}
+
 /* Permission level selection form */
 .permission-level-section {
 	background-color: #f8f9fa;

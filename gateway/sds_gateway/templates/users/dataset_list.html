@@ -3,7 +3,10 @@
 {% load static %}
 {% load custom_filters %}
 {% load tz %}
-
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
+{% endblock css %}
 {% block bodyclass %}
     hero-white-page
 {% endblock bodyclass %}
