@@ -37,7 +37,6 @@
                                 </div>
                             </div>
                         </div>
-                        
                         <!-- Selected Users with Individual Permission Levels -->
                         <div class="selected-users-permissions-section mb-3">
                             <label class="form-label fw-bold">
@@ -46,13 +45,17 @@
                             <div class="selected-users-chips d-flex flex-column gap-2"></div>
                             <div class="form-text">
                                 <small class="text-muted">
-                                    <strong>Viewer:</strong> Can view dataset information and download files<br>
-                                    <strong>Contributor:</strong> Can add their own assets to the dataset<br>
+                                    <strong>Viewer:</strong> Can view dataset information and download files
+                                    <!-- Disable contributor and co-owner options (TODO: Enable this when the access controls are implemented) -->
+                                    <!--
+                                    <br />
+                                    <strong>Contributor:</strong> Can add their own assets to the dataset
+                                    <br />
                                     <strong>Co-Owner:</strong> Can add/remove assets and edit dataset metadata
+                                    -->
                                 </small>
                             </div>
                         </div>
-                        
                         <!-- Notify/message section, shown only if chips are present -->
                         <div id="notify-message-section-{{ item.uuid }}" class="d-none mt-3">
                             <div class="form-check mb-2">
@@ -186,39 +189,24 @@
                                                                             data-item-type="{{ item_type }}"
                                                                             data-permission-level="viewer">
                                                                         <i class="bi bi-eye me-2"></i>Viewer
-                                                                        {% if user.permission_level == 'viewer' %}
-                                                                            <i class="bi bi-check ms-auto"></i>
-                                                                        {% endif %}
+                                                                        {% if user.permission_level == 'viewer' %}<i class="bi bi-check ms-auto"></i>{% endif %}
                                                                     </button>
                                                                 </li>
+                                                                <!-- Disable permission options other than viewer (TODO: Enable this when the access controls are implemented) -->
+                                                                <!--
                                                                 <li>
-                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'contributor' %}selected{% endif %}"
-                                                                            type="button"
-                                                                            data-user-email="{{ user.email }}"
-                                                                            data-user-name="{{ user.name }}"
-                                                                            data-item-uuid="{{ item.uuid }}"
-                                                                            data-item-type="{{ item_type }}"
-                                                                            data-permission-level="contributor">
+                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'contributor' %}selected{% endif %}" type="button" data-user-email="{{ user.email }}" data-user-name="{{ user.name }}" data-item-uuid="{{ item.uuid }}" data-item-type="{{ item_type }}" data-permission-level="contributor">
                                                                         <i class="bi bi-plus-circle me-2"></i>Contributor
-                                                                        {% if user.permission_level == 'contributor' %}
-                                                                            <i class="bi bi-check ms-auto"></i>
-                                                                        {% endif %}
+                                                                        {% if user.permission_level == 'contributor' %}<i class="bi bi-check ms-auto"></i>{% endif %}
                                                                     </button>
                                                                 </li>
                                                                 <li>
-                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'co-owner' %}selected{% endif %}"
-                                                                            type="button"
-                                                                            data-user-email="{{ user.email }}"
-                                                                            data-user-name="{{ user.name }}"
-                                                                            data-item-uuid="{{ item.uuid }}"
-                                                                            data-item-type="{{ item_type }}"
-                                                                            data-permission-level="co-owner">
+                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'co-owner' %}selected{% endif %}" type="button" data-user-email="{{ user.email }}" data-user-name="{{ user.name }}" data-item-uuid="{{ item.uuid }}" data-item-type="{{ item_type }}" data-permission-level="co-owner">
                                                                         <i class="bi bi-gear me-2"></i>Co-Owner
-                                                                        {% if user.permission_level == 'co-owner' %}
-                                                                            <i class="bi bi-check ms-auto"></i>
-                                                                        {% endif %}
+                                                                        {% if user.permission_level == 'co-owner' %}<i class="bi bi-check ms-auto"></i>{% endif %}
                                                                     </button>
                                                                 </li>
+                                                                -->
                                                                 <li>
                                                                     <hr class="dropdown-divider" />
                                                                 </li>
@@ -263,26 +251,26 @@
     </div>
 </div>
 <script>
-        // Group member popup functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize access level dropdowns
-            const accessLevelDropdowns = document.querySelectorAll('.access-level-dropdown');
-            accessLevelDropdowns.forEach(dropdown => {
-                const currentPermission = dropdown.getAttribute('data-current-permission');
-                const dropdownMenu = dropdown.nextElementSibling;
-                const permissionBtns = dropdownMenu.querySelectorAll('.permission-change-btn');
-                
-                // Mark current permission as selected
-                permissionBtns.forEach(btn => {
-                    if (btn.getAttribute('data-permission-level') === currentPermission) {
-                        btn.classList.add('selected');
-                    }
-                });
-                
-                // Colors are now handled by CSS based on data-current-permission attribute
+    // Group member popup functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize access level dropdowns
+        const accessLevelDropdowns = document.querySelectorAll('.access-level-dropdown');
+        accessLevelDropdowns.forEach(dropdown => {
+            const currentPermission = dropdown.getAttribute('data-current-permission');
+            const dropdownMenu = dropdown.nextElementSibling;
+            const permissionBtns = dropdownMenu.querySelectorAll('.permission-change-btn');
+
+            // Mark current permission as selected
+            permissionBtns.forEach(btn => {
+                if (btn.getAttribute('data-permission-level') === currentPermission) {
+                    btn.classList.add('selected');
+                }
             });
-            
-            const groupRows = document.querySelectorAll('tr:has(.bi-people-fill)');
+
+            // Colors are now handled by CSS based on data-current-permission attribute
+        });
+
+        const groupRows = document.querySelectorAll('tr:has(.bi-people-fill)');
 
         groupRows.forEach(row => {
             const popup = row.querySelector('.group-members-popup');
