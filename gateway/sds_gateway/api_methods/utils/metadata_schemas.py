@@ -365,6 +365,24 @@ base_index_fields = [
 # This will be populated at runtime to avoid circular imports
 capture_index_mapping_by_type = {}
 
+
+def _initialize_capture_index_mapping() -> None:
+    """Initialize the capture index mapping to avoid circular imports."""
+    if not capture_index_mapping_by_type:
+        # Local import to avoid circular dependency
+        from sds_gateway.api_methods.models import CaptureType
+
+        capture_index_mapping_by_type.update(
+            {
+                CaptureType.DigitalRF: drf_capture_index_mapping,
+                CaptureType.RadioHound: rh_capture_index_mapping,
+            }
+        )
+
+
+# Initialize the mapping when the module is imported
+_initialize_capture_index_mapping()
+
 base_properties = {
     "channel": {"type": "keyword"},
     "top_level_dir": {"type": "keyword"},
