@@ -182,9 +182,12 @@ class VisualizationViewSet(ViewSet):
                     "std_dev": processing_params["std_dev"],
                     "hop_size": processing_params["hop_size"],
                     "colormap": processing_params["colormap"],
-                    "dimensions": processing_params["dimensions"],
                 }
             }
+            if "dimensions" in processing_params:
+                processing_config["spectrogram"]["dimensions"] = processing_params[
+                    "dimensions"
+                ]
 
             result = launch_visualization_processing(
                 str(capture.uuid), processing_config
