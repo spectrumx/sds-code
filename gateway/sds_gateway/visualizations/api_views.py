@@ -176,18 +176,7 @@ class VisualizationViewSet(ViewSet):
         try:
             # Start spectrogram processing
             # This will use the cog pipeline to generate the spectrogram
-            processing_config = {
-                "spectrogram": {
-                    "fft_size": processing_params["fft_size"],
-                    "std_dev": processing_params["std_dev"],
-                    "hop_size": processing_params["hop_size"],
-                    "colormap": processing_params["colormap"],
-                }
-            }
-            if "dimensions" in processing_params:
-                processing_config["spectrogram"]["dimensions"] = processing_params[
-                    "dimensions"
-                ]
+            processing_config = {"spectrogram": processing_params}
 
             result = launch_visualization_processing(
                 str(capture.uuid), processing_config
