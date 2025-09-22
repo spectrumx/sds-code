@@ -2,7 +2,7 @@
 
 #spectrogramDisplay {
 	position: relative;
-	min-height: 400px;
+	height: 500px;
 	background-color: #f8f9fa;
 	border-radius: 0.375rem;
 }
@@ -10,18 +10,22 @@
 #spectrogramContainer {
 	position: relative;
 	width: 100%;
-	min-height: 500px;
+	height: 100%;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	overflow: hidden;
 }
 
 #spectrogramImage {
 	max-width: 100%;
+	max-height: 100%;
+	width: auto;
 	height: auto;
 	display: block;
 	border: 1px solid #dee2e6;
 	border-radius: 0.375rem;
+	object-fit: contain;
 }
 
 .loading-overlay {
@@ -116,9 +120,14 @@
 		margin-bottom: 1rem;
 	}
 
-	#spectrogramImage {
-		width: 100%;
-		height: auto;
+	#spectrogramDisplay {
+		height: 400px;
+	}
+}
+
+@media (max-width: 576px) {
+	#spectrogramDisplay {
+		height: 300px;
 	}
 }
 

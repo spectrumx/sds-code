@@ -72,7 +72,7 @@ export class SpectrogramRenderer {
 	}
 
 	/**
-	 * Get display dimensions (actual rendered size)
+	 * Get display dimensions (fixed container size)
 	 */
 	getDisplayDimensions() {
 		if (!this.imageElement) {
@@ -84,24 +84,31 @@ export class SpectrogramRenderer {
 			return null;
 		}
 
-		let width, height;
+		// Get the fixed container dimensions from CSS
+		const computedStyle = window.getComputedStyle(imageContainer);
+		const width = Math.floor(Number.parseFloat(computedStyle.width));
+		const height = Math.floor(Number.parseFloat(computedStyle.height));
 
-		if (imageContainer.offsetWidth && imageContainer.offsetHeight) {
-			width = imageContainer.offsetWidth;
-			height = imageContainer.offsetHeight;
-		} else {
-			width = imageContainer.naturalWidth;
-			height = imageContainer.naturalHeight;
+		// Return fixed dimensions - container size should be stable
+		if (width > 0 && height > 0) {
+			return {
+				width: width,
+				height: height,
+			};
 		}
 
-		if (width === 0 || height === 0) {
-			return null;
+		// Fallback to offset dimensions if computed style fails
+		const offsetWidth = Math.floor(imageContainer.offsetWidth || 0);
+		const offsetHeight = Math.floor(imageContainer.offsetHeight || 0);
+
+		if (offsetWidth > 0 && offsetHeight > 0) {
+			return {
+				width: offsetWidth,
+				height: offsetHeight,
+			};
 		}
 
-		return {
-			width: width,
-			height: height,
-		};
+		return null;
 	}
 
 	/**
