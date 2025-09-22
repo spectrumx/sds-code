@@ -255,7 +255,6 @@ class CaptureTestCases(APITestCase):
                     "index_name": self.drf_capture_v0.index_name,
                 },
             )
-            # Let's mock the index_capture_metadata function instead
             assert response_raw.status_code == status.HTTP_201_CREATED, (
                 f"Status {response_raw.status_code} != {status.HTTP_201_CREATED}"
             )
