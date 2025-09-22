@@ -167,25 +167,29 @@ class WaterfallAPIViewTestCases(TestCase):
         self.client.force_login(self.user)
 
         with patch(
-            "sds_gateway.visualizations.api_views.VisualizationViewSet._start_waterfall_processing"
-        ) as mock_start_processing:
+            "sds_gateway.visualizations.api_views.launch_visualization_processing"
+        ) as mock_launch_processing:
+            # Mock the return value to include the processed_data_id
+            mock_launch_processing.return_value = {
+                "status": "success",
+                "message": "Waterfall processing started",
+                "capture_uuid": str(self.capture.uuid),
+                "processing_config": {
+                    "waterfall": {
+                        "processed_data_id": "test-uuid-123",
+                    }
+                },
+            }
+
             response = self.client.post(self.create_waterfall_url)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert "uuid" in data
-            assert data["processing_type"] == ProcessingType.Waterfall.value
-            assert data["processing_status"] == ProcessingStatus.Pending.value
-            assert data["capture"] == str(self.capture.uuid)
-
-            # Verify PostProcessedData was created
-            waterfall_data = PostProcessedData.objects.get(uuid=data["uuid"])
-            assert waterfall_data.capture == self.capture
-            assert waterfall_data.processing_type == ProcessingType.Waterfall.value
-            assert waterfall_data.processing_status == ProcessingStatus.Pending.value
+            assert data["uuid"] == "test-uuid-123"
 
             # Verify processing was started
-            mock_start_processing.assert_called_once_with(waterfall_data)
+            mock_launch_processing.assert_called_once()
 
     def test_create_waterfall_api_capture_not_found(self) -> None:
         """Test that non-existent capture returns 404 for API."""
@@ -427,29 +431,73 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         assert capture.owner == self.user
         assert capture.is_deleted is False
 
-    def test_create_spectrogram_api_requires_authentication(self) -> None:
-        """Test that create_spectrogram API requires authentication."""
-        create_spectrogram_url = reverse(
+
+class SpectrogramAPIViewTestCases(TestCase):
+    """Test cases for SpectrogramAPIView."""
+
+    def setUp(self) -> None:
+        """Set up test data."""
+        self.user = User.objects.create(
+            email="testuser@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+
+        # Create test capture
+        self.capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="test-index",
+            owner=self.user,
+            top_level_dir="/test/dir",
+        )
+
+        # Set up URLs
+        self.create_spectrogram_url = reverse(
             "api:visualizations-create-spectrogram",
             kwargs={"pk": self.capture.uuid},
         )
-        response = self.client.post(create_spectrogram_url)
+
+        self.get_spectrogram_status_url = reverse(
+            "api:visualizations-get-spectrogram-status",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+        self.download_spectrogram_url = reverse(
+            "api:visualizations-download-spectrogram",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+    def test_create_spectrogram_api_requires_authentication(self) -> None:
+        """Test that create_spectrogram API requires authentication."""
+        response = self.client.post(self.create_spectrogram_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_create_spectrogram_api_authenticated_user_success(self) -> None:
         """Test that authenticated users can create spectrogram processing via API."""
         self.client.force_login(self.user)
 
-        create_spectrogram_url = reverse(
-            "api:visualizations-create-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-
         with patch(
-            "sds_gateway.visualizations.api_views.VisualizationViewSet._start_spectrogram_processing"
-        ) as mock_start_processing:
+            "sds_gateway.visualizations.api_views.launch_visualization_processing"
+        ) as mock_launch_processing:
+            # Mock the return value to include the processed_data_id
+            mock_launch_processing.return_value = {
+                "status": "success",
+                "message": "Spectrogram processing started",
+                "capture_uuid": str(self.capture.uuid),
+                "processing_config": {
+                    "spectrogram": {
+                        "processed_data_id": "test-uuid-123",
+                        "fft_size": 1024,
+                        "std_dev": 100,
+                        "hop_size": 500,
+                        "colormap": "magma",
+                    }
+                },
+            }
+
             response = self.client.post(
-                create_spectrogram_url,
+                self.create_spectrogram_url,
                 {
                     "fft_size": 1024,
                     "std_dev": 100,
@@ -461,18 +509,10 @@ class SpectrogramVisualizationViewTestCases(TestCase):
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert "uuid" in data
-            assert data["processing_type"] == ProcessingType.Spectrogram.value
-            assert data["processing_status"] == ProcessingStatus.Pending.value
-            assert data["capture"] == str(self.capture.uuid)
-
-            # Verify PostProcessedData was created
-            spectrogram_data = PostProcessedData.objects.get(uuid=data["uuid"])
-            assert spectrogram_data.capture == self.capture
-            assert spectrogram_data.processing_type == ProcessingType.Spectrogram.value
-            assert spectrogram_data.processing_status == ProcessingStatus.Pending.value
+            assert data["uuid"] == "test-uuid-123"
 
             # Verify processing was started
-            mock_start_processing.assert_called_once()
+            mock_launch_processing.assert_called_once()
 
     def test_create_spectrogram_api_capture_not_found(self) -> None:
         """Test that non-existent capture returns 404 for API."""
@@ -497,12 +537,7 @@ class SpectrogramVisualizationViewTestCases(TestCase):
 
         self.client.force_login(other_user)
 
-        create_spectrogram_url = reverse(
-            "api:visualizations-create-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-
-        response = self.client.post(create_spectrogram_url)
+        response = self.client.post(self.create_spectrogram_url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_spectrogram_api_existing_completed(self) -> None:
@@ -523,13 +558,8 @@ class SpectrogramVisualizationViewTestCases(TestCase):
             metadata={},
         )
 
-        create_spectrogram_url = reverse(
-            "api:visualizations-create-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-
         response = self.client.post(
-            create_spectrogram_url,
+            self.create_spectrogram_url,
             {
                 "fft_size": 1024,
                 "std_dev": 100,
@@ -547,14 +577,9 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         """Test that invalid spectrogram parameters return 400."""
         self.client.force_login(self.user)
 
-        create_spectrogram_url = reverse(
-            "api:visualizations-create-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-
         # Test invalid FFT size (not power of 2)
         response = self.client.post(
-            create_spectrogram_url,
+            self.create_spectrogram_url,
             {
                 "fft_size": 1000,  # Not a power of 2
                 "std_dev": 100,
@@ -566,7 +591,7 @@ class SpectrogramVisualizationViewTestCases(TestCase):
 
         # Test invalid colormap
         response = self.client.post(
-            create_spectrogram_url,
+            self.create_spectrogram_url,
             {
                 "fft_size": 1024,
                 "std_dev": 100,
@@ -578,23 +603,14 @@ class SpectrogramVisualizationViewTestCases(TestCase):
 
     def test_get_spectrogram_status_api_requires_authentication(self) -> None:
         """Test that get_spectrogram_status API requires authentication."""
-        get_spectrogram_status_url = reverse(
-            "api:visualizations-get-spectrogram-status",
-            kwargs={"pk": self.capture.uuid},
-        )
-        response = self.client.get(get_spectrogram_status_url)
+        response = self.client.get(self.get_spectrogram_status_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_get_spectrogram_status_api_missing_job_id(self) -> None:
         """Test that missing job_id parameter returns 400 for API."""
         self.client.force_login(self.user)
 
-        get_spectrogram_status_url = reverse(
-            "api:visualizations-get-spectrogram-status",
-            kwargs={"pk": self.capture.uuid},
-        )
-
-        response = self.client.get(get_spectrogram_status_url)
+        response = self.client.get(self.get_spectrogram_status_url)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
         data = response.json()
@@ -619,13 +635,8 @@ class SpectrogramVisualizationViewTestCases(TestCase):
             metadata={},
         )
 
-        get_spectrogram_status_url = reverse(
-            "api:visualizations-get-spectrogram-status",
-            kwargs={"pk": self.capture.uuid},
-        )
-
         response = self.client.get(
-            get_spectrogram_status_url, {"job_id": str(spectrogram_data.uuid)}
+            self.get_spectrogram_status_url, {"job_id": str(spectrogram_data.uuid)}
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -639,33 +650,21 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         self.client.force_login(self.user)
 
         fake_job_id = "00000000-0000-0000-0000-000000000000"
-        get_spectrogram_status_url = reverse(
-            "api:visualizations-get-spectrogram-status",
-            kwargs={"pk": self.capture.uuid},
+        response = self.client.get(
+            self.get_spectrogram_status_url, {"job_id": fake_job_id}
         )
-
-        response = self.client.get(get_spectrogram_status_url, {"job_id": fake_job_id})
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_download_spectrogram_api_requires_authentication(self) -> None:
         """Test that download_spectrogram API requires authentication."""
-        download_spectrogram_url = reverse(
-            "api:visualizations-download-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-        response = self.client.get(download_spectrogram_url)
+        response = self.client.get(self.download_spectrogram_url)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_download_spectrogram_api_missing_job_id(self) -> None:
         """Test that missing job_id parameter returns 400 for API."""
         self.client.force_login(self.user)
 
-        download_spectrogram_url = reverse(
-            "api:visualizations-download-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-
-        response = self.client.get(download_spectrogram_url)
+        response = self.client.get(self.download_spectrogram_url)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
         data = response.json()
@@ -690,13 +689,8 @@ class SpectrogramVisualizationViewTestCases(TestCase):
             metadata={},
         )
 
-        download_spectrogram_url = reverse(
-            "api:visualizations-download-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-
         response = self.client.get(
-            download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
+            self.download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -722,13 +716,8 @@ class SpectrogramVisualizationViewTestCases(TestCase):
             metadata={},
         )
 
-        download_spectrogram_url = reverse(
-            "api:visualizations-download-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-
         response = self.client.get(
-            download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
+            self.download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -763,13 +752,8 @@ class SpectrogramVisualizationViewTestCases(TestCase):
             data_file=test_file,
         )
 
-        download_spectrogram_url = reverse(
-            "api:visualizations-download-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
-
         response = self.client.get(
-            download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
+            self.download_spectrogram_url, {"job_id": str(spectrogram_data.uuid)}
         )
 
         assert response.status_code == status.HTTP_200_OK
