@@ -241,6 +241,10 @@ class CaptureTestCases(APITestCase):
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.drf_capture_v0.index_name,
             ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                return_value=(Path("mock_path"), []),
+            ),
         ):
             response_raw = self.client.post(
                 self.list_url,
@@ -248,6 +252,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": unique_channel,
                     "top_level_dir": unique_top_level_dir,
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             assert response_raw.status_code == status.HTTP_201_CREATED, (
@@ -291,6 +296,10 @@ class CaptureTestCases(APITestCase):
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.drf_capture_v1.index_name,
             ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                return_value=(Path("mock_path"), []),
+            ),
         ):
             response_raw = self.client.post(
                 self.list_url,
@@ -298,6 +307,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": unique_channel,
                     "top_level_dir": unique_top_level_dir,
+                    "index_name": self.drf_capture_v1.index_name,
                 },
             )
             assert response_raw.status_code == status.HTTP_201_CREATED, (
@@ -353,6 +363,10 @@ class CaptureTestCases(APITestCase):
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.rh_capture.index_name,
             ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                return_value=(Path("mock_path"), []),
+            ),
         ):
             response_raw = self.client.post(
                 self.list_url,
@@ -360,6 +374,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.RadioHound,
                     "scan_group": str(unique_scan_group),
                     "top_level_dir": self.top_level_dir_rh,
+                    "index_name": self.rh_capture.index_name,
                 },
             )
             assert response_raw.status_code == status.HTTP_201_CREATED, (
@@ -390,6 +405,10 @@ class CaptureTestCases(APITestCase):
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.drf_capture_v0.index_name,
             ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                return_value=(Path("mock_path"), []),
+            ),
         ):
             response_raw = self.client.post(
                 self.list_url,
@@ -397,6 +416,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": self.channel_v0,
                     "top_level_dir": self.top_level_dir_v0,
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             assert response_raw.status_code == status.HTTP_400_BAD_REQUEST
@@ -427,6 +447,10 @@ class CaptureTestCases(APITestCase):
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.rh_capture.index_name,
             ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                return_value=(Path("mock_path"), []),
+            ),
         ):
             # ACT
             response_raw = self.client.post(
@@ -435,6 +459,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.RadioHound,
                     "scan_group": str(self.scan_group),
                     "top_level_dir": self.top_level_dir_rh,
+                    "index_name": self.rh_capture.index_name,
                 },
             )
 
@@ -1215,6 +1240,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": channel_without_slash,
                     "top_level_dir": path_without_slash,
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             assert response1.status_code == status.HTTP_201_CREATED, (
@@ -1228,6 +1254,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": channel_without_slash,
                     "top_level_dir": f"/{path_without_slash}",  # Add leading slash
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             assert response2.status_code == status.HTTP_400_BAD_REQUEST, (
@@ -1267,6 +1294,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": channel_with_slash,
                     "top_level_dir": path_with_slash,
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             assert response1.status_code == status.HTTP_201_CREATED, (
@@ -1280,6 +1308,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": channel_with_slash,
                     "top_level_dir": path_with_slash.lstrip("/"),  # Remove slash
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             assert response2.status_code == status.HTTP_400_BAD_REQUEST, (
@@ -1318,6 +1347,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": channel_whitespace_path,
                     "top_level_dir": f" {base_path}",  # Leading space
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             assert response1.status_code == status.HTTP_201_CREATED, (
@@ -1331,6 +1361,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": channel_whitespace_path,
                     "top_level_dir": base_path,  # No leading space
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             # With whitespace stripping, these should be detected as duplicates
@@ -1425,6 +1456,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": channel_multi_slash,
                     "top_level_dir": f"/{base_path}",
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             assert response1.status_code == status.HTTP_201_CREATED, (
@@ -1438,6 +1470,7 @@ class CaptureTestCases(APITestCase):
                     "capture_type": CaptureType.DigitalRF,
                     "channel": channel_multi_slash,
                     "top_level_dir": f"//{base_path}",  # Double slash
+                    "index_name": self.drf_capture_v0.index_name,
                 },
             )
             # Multiple slashes are now normalized by _normalize_top_level_dir(),
@@ -1594,7 +1627,7 @@ class OpenSearchErrorTestCases(APITestCase):
             password="testpassword",  # noqa: S106
             is_approved=True,
         )
-        api_key, key = UserAPIKey.objects.create_key(
+        _api_key, key = UserAPIKey.objects.create_key(
             name="test-key",
             user=self.user,
         )
