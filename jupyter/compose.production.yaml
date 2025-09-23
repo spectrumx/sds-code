@@ -7,13 +7,14 @@
 volumes:
     # for safety, all gateway production volumes start with "sds-gateway-prod-"
     sds-gateway-prod-app-media: {}
-    sds-gateway-prod-temp-zips: {} # for temporary zip files
+    sds-gateway-prod-temp-zips: {}  # for temporary zip files
     sds-gateway-prod-minio-files: {}
     sds-gateway-prod-opensearch-data: {}
     sds-gateway-prod-postgres-data-backups: {}
     sds-gateway-prod-postgres-data: {}
     sds-gateway-prod-redis-data: {}
     sds-gateway-prod-static: {}
+    sds-gateway-prod-jupyter-data: {}  # for JupyterHub persistent data
 
 networks:
     # for safety, all gateway production networks start with "sds-gateway-prod-"
@@ -23,6 +24,9 @@ networks:
         driver: bridge
     sds-network-prod:
         external: true
+    # Simple network for JupyterHub and user containers
+    jupyter-net:
+        driver: bridge
 
 services:
     sds-gateway-prod-app:
@@ -47,19 +51,19 @@ services:
               type: volume
               read_only: false
               bind:
-                  selinux: z
+                selinux: z
             - source: sds-gateway-prod-temp-zips
               target: /app/sds_gateway/media/temp_zips
               type: volume
               read_only: false
               bind:
-                  selinux: z
+                selinux: z
             - source: sds-gateway-prod-static
               target: /app/staticfiles/
               type: volume
               read_only: false
               bind:
-                  selinux: z
+                selinux: z
             - source: ./opensearch/data/certs-django
               target: /app/opensearch/data/certs
               type: bind
@@ -82,7 +86,7 @@ services:
         image: docker.io/nginx:1-alpine
         container_name: sds-gateway-prod-nginx
         volumes:
-            - source: ./compose/production/nginx/nginx-default.conf
+            - source : ./compose/production/nginx/nginx-default.conf
               target: /etc/nginx/conf.d/default.conf
               type: bind
               read_only: true
@@ -138,7 +142,7 @@ services:
         networks:
             - sds-gateway-prod-opensearch-net
         healthcheck:
-            test: [ "CMD-SHELL", "curl -k -u \"$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWORD\" https://localhost:9200/_cluster/health || exit 1" ]
+            test: ["CMD-SHELL", "curl -k -u \"$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWORD\" https://localhost:9200/_cluster/health || exit 1"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -189,13 +193,13 @@ services:
               type: volume
               read_only: false
               bind:
-                  selinux: z
+                selinux: z
             - source: sds-gateway-prod-temp-zips
               target: /app/sds_gateway/media/temp_zips
               type: volume
               read_only: false
               bind:
-                  selinux: z
+                selinux: z
             - source: ./opensearch/data/certs-django
               target: /app/opensearch/data/certs
               type: bind
@@ -231,13 +235,13 @@ services:
               type: volume
               read_only: false
               bind:
-                  selinux: z
+                selinux: z
             - source: sds-gateway-prod-temp-zips
               target: /app/sds_gateway/media/temp_zips
               type: volume
               read_only: false
               bind:
-                  selinux: z
+                selinux: z
             - source: ./opensearch/data/certs-django
               target: /app/opensearch/data/certs
               type: bind
@@ -253,35 +257,99 @@ services:
             - sds-gateway-prod-minio-net
             - sds-network-prod
 
-    celery-flower:
-        # Celery monitoring and administration tool
+    # TODO: check this after VLA
+    # celery-flower:
+    #     # Celery monitoring and administration tool
+    #     build:
+    #         context: .
+    #         dockerfile: ./compose/production/django/Dockerfile
+    #     image: sds-gateway-prod-app
+    #     container_name: sds-gateway-prod-celery-flower
+    #     depends_on:
+    #         redis:
+    #             condition: service_started
+    #         postgres:
+    #             condition: service_started
+    #         minio:
+    #             condition: service_started
+    #         opensearch:
+    #             condition: service_started
+    #     volumes:
+    #         - source: sds-gateway-prod-app-media
+    #           target: /app/sds_gateway/media
+    #           type: volume
+    #           read_only: false
+    #           bind:
+    #             selinux: z
+    #         - source: sds-gateway-prod-temp-zips
+    #           target: /app/sds_gateway/media/temp_zips
+    #           type: volume
+    #           read_only: false
+    #           bind:
+    #             selinux: z
+    #         - source: ./opensearch/data/certs-django
+    #           target: /app/opensearch/data/certs
+    #           type: bind
+    #           read_only: true
+    #     env_file:
+    #         - ./.envs/production/django.env
+    #         - ./.envs/production/minio.env
+    #         - ./.envs/production/postgres.env
+    #         - ./.envs/production/opensearch.env
+    #     command: /flower-start
+    #     ports:
+    #         - "15555:5555"  # Flower web interface
+    #     networks:
+    #         - sds-gateway-prod-opensearch-net
+    #         - sds-gateway-prod-minio-net
+    #         - sds-network-prod
+
+    jupyter:
+        # JupyterHub for interactive data analysis and notebooks (PRODUCTION)
         build:
             context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
-        container_name: sds-gateway-prod-celery-flower
-        depends_on:
-            redis:
-                condition: service_started
-            postgres:
-                condition: service_started
-            minio:
-                condition: service_started
-            opensearch:
-                condition: service_started
-        volumes:
-            - .:/app:z
-            - sds-gateway-prod-app-media:/app/sds_gateway/media # persistent media storage
-            - sds-gateway-prod-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
-        env_file:
-            - ./.envs/production/django.env
-            - ./.envs/production/minio.env
-            - ./.envs/production/postgres.env
-            - ./.envs/production/opensearch.env
-        command: /flower-start
-        ports:
-            - "15555:5555" # Flower web interface
+            dockerfile: ./compose/production/jupyter/Dockerfile
+            args:
+                JUPYTERHUB_VERSION: latest
+                # Dynamic UID/GID configuration from environment variables
+                # These should be set in .envs/production/jupyterhub.env
+                NB_UID: ${NB_UID}        # User ID for jupyter user in container
+                NB_GID: ${NB_GID}        # Group ID for jupyter user group
+                DOCKER_GID: ${DOCKER_GID} # Group ID for docker group access
+        restart: unless-stopped
+        image: sds-gateway-prod-jupyter
+        container_name: sds-gateway-prod-jupyter
         networks:
-            - sds-gateway-prod-minio-net
-            - sds-gateway-prod-opensearch-net
-            - sds-network-prod
+            jupyter-net:
+                aliases:
+                    - jupyterhub
+            sds-network-prod:  # Keep connection to main network for API access
+        volumes:
+            - './compose/production/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
+            - '/var/run/docker.sock:/var/run/docker.sock:rw'  # Docker socket for container management
+            - 'sds-gateway-prod-jupyter-data:/data'  # Persistent data for JupyterHub
+        userns_mode: 'host'  # needs to match UID of the host machine in order to access the Docker socket
+        user: "${NB_UID}:${DOCKER_GID}"  # Dynamic user:group from environment variables
+        security_opt:
+            - no-new-privileges:true
+        cap_drop:
+            - ALL
+        cap_add:
+            # Required capabilities for JupyterHub user container management
+            - SETUID  # Allow changing effective user ID for container operations
+            - SETGID  # Allow changing effective group ID for container operations
+        ports:
+            - '18888:8000'
+        env_file:
+            - ./.envs/production/jupyterhub.env
+        environment:
+            JUPYTERHUB_ADMIN: admin
+            JUPYTERHUB_HOST: sds.crc.nd.edu/notebook
+            DOCKER_NETWORK_NAME: gateway_jupyter-net
+            DOCKER_NOTEBOOK_IMAGE: quay.io/jupyter/base-notebook:latest
+            DOCKER_NOTEBOOK_DIR: /home/jovyan/work
+            # Ensure the network is created with the full name
+            COMPOSE_PROJECT_NAME: sds-gateway-prod
+
+    # ===================
+    # production services
