@@ -1,104 +1,96 @@
 # Local JupyterHub configuration file for SVI integration
 import os
 
-# JupyterHub configuration
-c = get_config()  # noqa: F821
+c = get_config()  # noqa: F821 # pyright: ignore[reportUndefinedVariable]
 
-# JupyterHub configuration
+# === HUB APP ===
+# reference: https://jupyterhub.readthedocs.io/en/stable/reference/api/app.html
+
+c.JupyterHub.active_server_limit = 10
+c.JupyterHub.base_url = os.environ.get("JUPYTERHUB_BASE_URL", "/")
 c.JupyterHub.bind_url = "http://0.0.0.0:8000"
-c.JupyterHub.hub_ip = "0.0.0.0"  # Bind to all interfaces
-c.JupyterHub.hub_port = 8080
-
-# Configure hub URL for user containers to use hostname instead of container ID
-c.JupyterHub.hub_connect_url = "http://jupyterhub:8080"
-
-# Security configuration - use environment variable for cookie secret
 c.JupyterHub.cookie_secret = os.environ.get(
     "JUPYTERHUB_CRYPT_KEY",
     "09e1bbb166e33b5edf6479451910cacde5df6c06c40ce8f924e2dc5b1d505100",
 )
-
-# Use DockerSpawner for proper user isolation with Docker-in-Docker
+c.JupyterHub.cleanup_proxy = True
+c.JupyterHub.cleanup_servers = True
+c.JupyterHub.concurrent_spawn_limit = 10
+c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
+c.JupyterHub.hub_connect_ip = "jupyterhub"
+c.JupyterHub.hub_ip = "0.0.0.0"
+c.JupyterHub.hub_port = 8080
+c.JupyterHub.log_level = "DEBUG"
 c.JupyterHub.spawner_class = "dockerspawner.DockerSpawner"
 
-# Docker configuration
-c.DockerSpawner.docker_socket = "unix:///var/run/docker.sock"
+# === HUB SPAWNER ===
+# reference: https://jupyterhub.readthedocs.io/en/latest/reference/api/spawner.html
 
-# Docker image for user containers
-c.DockerSpawner.image = "quay.io/jupyter/base-notebook:latest"
+c.Spawner.cmd = ["jupyter-labhub"]
+c.Spawner.cpu_limit = 1.0
+c.Spawner.debug = True
+c.Spawner.default_url = "/lab"
+c.Spawner.environment = {"JUPYTER_ENABLE_LAB": "yes"}
+c.Spawner.http_timeout = 60
+c.Spawner.mem_limit = "2G"
+c.Spawner.start_timeout = 120
 
-# Notebook directory in the container
-c.DockerSpawner.notebook_dir = "/home/jovyan/work"
+# === DOCKER SPAWNER ===
+# reference: https://jupyterhub-dockerspawner.readthedocs.io/en/latest/api/index.html
 
-# Mount user volumes
-c.DockerSpawner.volumes = {"jupyterhub-user-{username}": "/home/jovyan/work"}
+_nb_uid = os.environ.get("NB_UID", "1000")
+_nb_gid = os.environ.get("NB_GID", "100")
 
-# Container management
-c.DockerSpawner.remove = True
-
-# Network configuration - use internal Docker network
-c.DockerSpawner.use_internal_ip = True
-c.DockerSpawner.network_name = "gateway_jupyter-net"
-
-# Increase timeouts for container startup
-c.Spawner.start_timeout = 120  # 2 minutes
-c.Spawner.http_timeout = 60  # 1 minute
-c.Spawner.stop_timeout = 30  # 30 seconds
-
-# Basic JupyterLab configuration
-c.Spawner.default_url = "/lab"  # Start with JupyterLab
-c.Spawner.cmd = ["jupyter-labhub"]  # Use JupyterLab
-c.Spawner.cleanup_on_exit = True  # Clean up containers on exit
-
-# User configuration for containers - use the default jovyan user
-# The base notebook image uses jovyan (UID 1000, GID 100)
-c.DockerSpawner.extra_create_kwargs = {
-    "user": "1000:100"  # Use the default jovyan user from the image
-}
-
-# Environment variables for containers
-c.DockerSpawner.environment = {
-    "JUPYTER_ENABLE_LAB": "yes",
-    "NB_UID": "1000",
-    "NB_GID": "100",
-    "CHOWN_HOME": "yes",
-    "CHOWN_HOME_OPTS": "-R",
-    "JUPYTERHUB_API_URL": "http://jupyterhub:8080/hub/api",
-}
-
-# Enable debug logging for DockerSpawner
 c.DockerSpawner.debug = True
+c.DockerSpawner.environment = {
+    "CHOWN_HOME_OPTS": "-R",
+    "CHOWN_HOME": "yes",
+    "JUPYTER_ENABLE_LAB": "yes",
+    "NB_GID": _nb_gid,
+    "NB_UID": _nb_uid,
+}
+c.DockerSpawner.extra_create_kwargs = {"user": f"{_nb_uid}:{_nb_gid}"}
+c.DockerSpawner.image = os.environ.get(
+    "DOCKER_NOTEBOOK_IMAGE", "quay.io/jupyter/base-notebook:latest"
+)
+c.DockerSpawner.network_name = "jupyter_" + os.environ.get(
+    "DOCKER_NETWORK_NAME", "sds-jupyter-local-net-clients"
+)
+c.DockerSpawner.notebook_dir = os.environ.get(
+    "DOCKER_NOTEBOOK_DIR", "/home/jovyan/work"
+)
+c.DockerSpawner.post_start_cmd = "pip install ipywidgets spectrumx"
+c.DockerSpawner.remove = True
+c.DockerSpawner.use_internal_ip = True
+c.DockerSpawner.volumes = {
+    "jupyterhub-user-{username}": {"bind": c.DockerSpawner.notebook_dir, "mode": "rw"},
+}
 
-# Use simple local authenticator for development
-c.JupyterHub.authenticator_class = "jupyterhub.auth.DummyAuthenticator"
-c.DummyAuthenticator.password = os.environ.get("JUPYTERHUB_DUMMY_PASSWORD", "admin")
-c.DummyAuthenticator.allowed_users = {"admin"}
+# === AUTHENTICATION ===
+# reference: https://jupyterhub.readthedocs.io/en/latest/reference/api/auth.html
+# oauthenticator: https://oauthenticator.readthedocs.io/en/stable/reference/api/gen/oauthenticator.auth0.html
 
-# Admin users (use authenticator's admin_users instead of deprecated
-# JupyterHub.admin_users)
-c.DummyAuthenticator.admin_users = {"admin"}
+c.Auth0OAuthenticator.allow_all = False
+c.Authenticator.auto_login = False
+c.Authenticator.enable_auth_state = True
 
-# Database configuration - use SQLite for local development
-c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
+use_auth0: bool = bool(
+    os.environ.get("AUTH0_DOMAIN")
+    and os.environ.get("AUTH0_CLIENT_ID")
+    and os.environ.get("AUTH0_CLIENT_SECRET")
+)
+
+# Authenticate users with Auth0 (you can use Auth0 dev credentials for this)
+if use_auth0:
+    c.JupyterHub.authenticator_class = "oauthenticator.auth0.Auth0OAuthenticator"
+# Alternatively, use simple local authenticator for development
+else:
+    c.JupyterHub.authenticator_class = "jupyterhub.auth.DummyAuthenticator"
+    c.DummyAuthenticator.admin_users = {"admin"}
+    c.DummyAuthenticator.allowed_users = {"admin"}
+    c.DummyAuthenticator.password = os.environ.get("JUPYTERHUB_DUMMY_PASSWORD", "admin")
+
+# === OTHER CONFIGURATION ===
 
 # Configure proxy PID file to use writable directory
 c.ConfigurableHTTPProxy.pid_file = "/data/jupyterhub-proxy.pid"
-
-# Logging
-c.JupyterHub.log_level = "INFO"
-c.Spawner.debug = True
-
-# User limits
-c.Spawner.mem_limit = "2G"
-c.Spawner.cpu_limit = 1.0
-
-# Timeout settings
-c.Spawner.start_timeout = 600  # 10 minutes for first startup
-c.Spawner.http_timeout = 300  # 5 minutes for HTTP operations
-
-# Enable JupyterLab
-c.Spawner.environment = {"JUPYTER_ENABLE_LAB": "yes"}
-
-# Mount host directories into user containers (now handled in main volumes config)
-
-# Minimal setup for local testing

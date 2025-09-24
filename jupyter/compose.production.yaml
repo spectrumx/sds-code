@@ -1,309 +1,19 @@
 # ⚠️ PRODUCTION COMPOSE FILE ⚠️
-# Make sure images, container names, and other assets start with "sds-gateway-prod-"
+# Make sure images, container names, and other assets start with "sds-jupyter-prod-"
 #   to underline its importance and avoid accidents.
 # Also try to keep it as close to the production
 #   file as possible to simplify the deployment process.
 
 volumes:
-    # for safety, all gateway production volumes start with "sds-gateway-prod-"
-    sds-gateway-prod-app-media: {}
-    sds-gateway-prod-temp-zips: {}  # for temporary zip files
-    sds-gateway-prod-minio-files: {}
-    sds-gateway-prod-opensearch-data: {}
-    sds-gateway-prod-postgres-data-backups: {}
-    sds-gateway-prod-postgres-data: {}
-    sds-gateway-prod-redis-data: {}
-    sds-gateway-prod-static: {}
-    sds-gateway-prod-jupyter-data: {}  # for JupyterHub persistent data
+    # for safety, all production volumes start with "sds-jupyter-prod-"
+    sds-jupyter-prod-jupyter-data: {}
 
 networks:
-    # for safety, all gateway production networks start with "sds-gateway-prod-"
-    sds-gateway-prod-minio-net:
-        driver: bridge
-    sds-gateway-prod-opensearch-net:
-        driver: bridge
-    sds-network-prod:
-        external: true
-    # Simple network for JupyterHub and user containers
-    jupyter-net:
+    # for safety, all production networks start with "sds-jupyter-prod-"
+    sds-jupyter-prod-jupyter-net:
         driver: bridge
 
 services:
-    sds-gateway-prod-app:
-        build:
-            context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
-        container_name: sds-gateway-prod-app
-        tty: true
-        depends_on:
-            opensearch:
-                condition: service_healthy
-            postgres:
-                condition: service_started
-            redis:
-                condition: service_started
-            minio:
-                condition: service_started
-        volumes:
-            - source: sds-gateway-prod-app-media
-              target: /app/sds_gateway/media
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: sds-gateway-prod-temp-zips
-              target: /app/sds_gateway/media/temp_zips
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: sds-gateway-prod-static
-              target: /app/staticfiles/
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: ./opensearch/data/certs-django
-              target: /app/opensearch/data/certs
-              type: bind
-              read_only: true
-        env_file:
-            - ./.envs/production/django.env
-            - ./.envs/production/minio.env
-            - ./.envs/production/postgres.env
-            - ./.envs/production/opensearch.env
-        ports:
-            - "18000:18000" # make sure this port matches traefik's config, if used
-        command: /start
-        networks:
-            - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
-
-    nginx:
-        # nginx serves the static files generated for the gateway
-        image: docker.io/nginx:1-alpine
-        container_name: sds-gateway-prod-nginx
-        volumes:
-            - source : ./compose/production/nginx/nginx-default.conf
-              target: /etc/nginx/conf.d/default.conf
-              type: bind
-              read_only: true
-            # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
-            # - This path in app is: ./staticfiles/:/app/staticfiles/:z
-            - source: sds-gateway-prod-static
-              target: /usr/share/nginx/static/
-              type: volume
-              read_only: true
-        networks:
-            - sds-network-prod
-
-    minio:
-        # main file storage for sds
-        # minio uses rolling upgrades that are non-disruptive, so we can target latest
-        # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
-        # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
-        image: minio/minio:latest
-        container_name: sds-gateway-prod-minio
-        volumes:
-            - sds-gateway-prod-minio-files:/files
-        ports:
-            - "19000:9000"
-            - "19001:9001"
-        env_file:
-            - ./.envs/production/minio.env
-        command: server /files --console-address ":9001"
-        networks:
-            - sds-gateway-prod-minio-net
-
-    opensearch:
-        # used for indexing and searching documents
-        build:
-            context: .
-            dockerfile: ./compose/production/opensearch/Dockerfile
-            args:
-                UID: ${UID}
-                GID: ${GID}
-        container_name: sds-gateway-prod-opensearch
-        volumes:
-            - sds-gateway-prod-opensearch-data:/usr/share/opensearch/data
-            - ./compose/production/opensearch/opensearch.yaml:/usr/share/opensearch/config/opensearch.yml
-            - ./opensearch/data/certs:/usr/share/opensearch/config/certs
-        env_file:
-            - ./.envs/production/opensearch.env
-        ulimits:
-            memlock:
-                soft: -1
-                hard: -1
-        ports:
-            - "19200:9200"
-            - "19600:9600"
-        networks:
-            - sds-gateway-prod-opensearch-net
-        healthcheck:
-            test: ["CMD-SHELL", "curl -k -u \"$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWORD\" https://localhost:9200/_cluster/health || exit 1"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-
-    postgres:
-        # main database for the gateway app
-        build:
-            context: .
-            dockerfile: ./compose/production/postgres/Dockerfile
-        image: sds-gateway-prod-postgres
-        container_name: sds-gateway-prod-postgres
-        command: -c 'max_connections=300'
-        volumes:
-            - sds-gateway-prod-postgres-data:/var/lib/postgresql/data
-            - sds-gateway-prod-postgres-data-backups:/backups
-        env_file:
-            - ./.envs/production/postgres.env
-        networks:
-            - sds-gateway-prod-minio-net
-
-    redis:
-        # used as caching layer for the gateway app
-        image: docker.io/redis:6
-        container_name: sds-gateway-prod-redis
-        volumes:
-            - sds-gateway-prod-redis-data:/data
-        networks:
-            - sds-network-prod
-
-    # ===================
-    # Celery services for background tasks
-    celery-worker:
-        build:
-            context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
-        container_name: sds-gateway-prod-celery-worker
-        depends_on:
-            redis:
-                condition: service_started
-            postgres:
-                condition: service_started
-            minio:
-                condition: service_started
-        volumes:
-            - source: sds-gateway-prod-app-media
-              target: /app/sds_gateway/media
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: sds-gateway-prod-temp-zips
-              target: /app/sds_gateway/media/temp_zips
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: ./opensearch/data/certs-django
-              target: /app/opensearch/data/certs
-              type: bind
-              read_only: true
-        env_file:
-            - ./.envs/production/django.env
-            - ./.envs/production/minio.env
-            - ./.envs/production/postgres.env
-            - ./.envs/production/opensearch.env
-        command: celery -A config.celery_app worker -l INFO
-        networks:
-            - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
-
-    celery-beat:
-        # Celery Beat scheduler for periodic tasks
-        build:
-            context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
-        container_name: sds-gateway-prod-celery-beat
-        depends_on:
-            redis:
-                condition: service_started
-            postgres:
-                condition: service_started
-            minio:
-                condition: service_started
-        volumes:
-            - source: sds-gateway-prod-app-media
-              target: /app/sds_gateway/media
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: sds-gateway-prod-temp-zips
-              target: /app/sds_gateway/media/temp_zips
-              type: volume
-              read_only: false
-              bind:
-                selinux: z
-            - source: ./opensearch/data/certs-django
-              target: /app/opensearch/data/certs
-              type: bind
-              read_only: true
-        env_file:
-            - ./.envs/production/django.env
-            - ./.envs/production/minio.env
-            - ./.envs/production/postgres.env
-            - ./.envs/production/opensearch.env
-        command: celery -A config.celery_app beat -l INFO
-        networks:
-            - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
-
-    # TODO: check this after VLA
-    # celery-flower:
-    #     # Celery monitoring and administration tool
-    #     build:
-    #         context: .
-    #         dockerfile: ./compose/production/django/Dockerfile
-    #     image: sds-gateway-prod-app
-    #     container_name: sds-gateway-prod-celery-flower
-    #     depends_on:
-    #         redis:
-    #             condition: service_started
-    #         postgres:
-    #             condition: service_started
-    #         minio:
-    #             condition: service_started
-    #         opensearch:
-    #             condition: service_started
-    #     volumes:
-    #         - source: sds-gateway-prod-app-media
-    #           target: /app/sds_gateway/media
-    #           type: volume
-    #           read_only: false
-    #           bind:
-    #             selinux: z
-    #         - source: sds-gateway-prod-temp-zips
-    #           target: /app/sds_gateway/media/temp_zips
-    #           type: volume
-    #           read_only: false
-    #           bind:
-    #             selinux: z
-    #         - source: ./opensearch/data/certs-django
-    #           target: /app/opensearch/data/certs
-    #           type: bind
-    #           read_only: true
-    #     env_file:
-    #         - ./.envs/production/django.env
-    #         - ./.envs/production/minio.env
-    #         - ./.envs/production/postgres.env
-    #         - ./.envs/production/opensearch.env
-    #     command: /flower-start
-    #     ports:
-    #         - "15555:5555"  # Flower web interface
-    #     networks:
-    #         - sds-gateway-prod-opensearch-net
-    #         - sds-gateway-prod-minio-net
-    #         - sds-network-prod
-
     jupyter:
         # JupyterHub for interactive data analysis and notebooks (PRODUCTION)
         build:
@@ -311,45 +21,50 @@ services:
             dockerfile: ./compose/production/jupyter/Dockerfile
             args:
                 JUPYTERHUB_VERSION: latest
-                # Dynamic UID/GID configuration from environment variables
-                # These should be set in .envs/production/jupyterhub.env
-                NB_UID: ${NB_UID}        # User ID for jupyter user in container
-                NB_GID: ${NB_GID}        # Group ID for jupyter user group
-                DOCKER_GID: ${DOCKER_GID} # Group ID for docker group access
+                NB_UID: ${NB_UID}
+                NB_GID: ${NB_GID}
+                DOCKER_GID: ${DOCKER_GID}
         restart: unless-stopped
-        image: sds-gateway-prod-jupyter
-        container_name: sds-gateway-prod-jupyter
+        image: sds-jupyter-prod-jupyter
+        container_name: sds-jupyter-prod-jupyter
         networks:
-            jupyter-net:
+            sds-jupyter-prod-jupyter-net:
                 aliases:
                     - jupyterhub
-            sds-network-prod:  # Keep connection to main network for API access
         volumes:
             - './compose/production/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
-            - '/var/run/docker.sock:/var/run/docker.sock:rw'  # Docker socket for container management
-            - 'sds-gateway-prod-jupyter-data:/data'  # Persistent data for JupyterHub
-        userns_mode: 'host'  # needs to match UID of the host machine in order to access the Docker socket
-        user: "${NB_UID}:${DOCKER_GID}"  # Dynamic user:group from environment variables
+            - './compose/production/jupyter/sample_scripts:/srv/jupyter/sample_scripts:ro'
+            - type: volume
+              source: sds-jupyter-prod-data
+              target: /data
+              read_only: false
+            - type: bind
+              source: /var/run/docker.sock
+              target: /run/docker.sock
+
+        userns_mode: 'host'
+        user: "${NB_UID:-1000}:${DOCKER_GID:-103}"
         security_opt:
             - no-new-privileges:true
         cap_drop:
             - ALL
         cap_add:
             # Required capabilities for JupyterHub user container management
-            - SETUID  # Allow changing effective user ID for container operations
-            - SETGID  # Allow changing effective group ID for container operations
+            - SETUID # Allow changing effective user ID for container operations
+            - SETGID # Allow changing effective group ID for container operations
         ports:
             - '18888:8000'
         env_file:
             - ./.envs/production/jupyterhub.env
         environment:
             JUPYTERHUB_ADMIN: admin
-            JUPYTERHUB_HOST: sds.crc.nd.edu/notebook
-            DOCKER_NETWORK_NAME: gateway_jupyter-net
-            DOCKER_NOTEBOOK_IMAGE: quay.io/jupyter/base-notebook:latest
-            DOCKER_NOTEBOOK_DIR: /home/jovyan/work
-            # Ensure the network is created with the full name
-            COMPOSE_PROJECT_NAME: sds-gateway-prod
-
-    # ===================
-    # production services
+            COMPOSE_PROJECT_NAME: sds-jupyter-prod
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.middlewares.jupyter-stripprefix.stripprefix.prefixes=/notebook"
+            - "traefik.http.routers.sds-jupyter-prod.entrypoints=web,web-secure"
+            - "traefik.http.routers.sds-jupyter-prod.middlewares=jupyter-stripprefix"
+            - "traefik.http.routers.sds-jupyter-prod.rule=Host(`sds.crc.nd.edu`) && PathPrefix(`/notebook`)"
+            - "traefik.http.routers.sds-jupyter-prod.tls.certresolver=letsencrypt"
+            - "traefik.http.routers.sds-jupyter-prod.tls=true"
+            - "traefik.http.services.sds-jupyter-prod.loadbalancer.server.port=8000"

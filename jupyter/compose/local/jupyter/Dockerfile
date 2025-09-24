@@ -1,12 +1,14 @@
 # Copyright (c) Jupyter Development Team.
 # Distributed under the terms of the Modified BSD License.
 ARG JUPYTERHUB_VERSION
+
+# https://quay.io/repository/jupyterhub/jupyterhub?tab=tags&tag=latest
 FROM quay.io/jupyterhub/jupyterhub:$JUPYTERHUB_VERSION
 
 # Build arguments with defaults
 ARG NB_UID=1000
 ARG NB_GID=100
-ARG DOCKER_GID=103
+ARG DOCKER_GID=999
 
 # Install packages and create users in one layer
 RUN apt-get update && \
@@ -33,10 +35,9 @@ RUN mkdir -p /data /home/jupyter/work /home/jupyter/.local/share/jupyter/runtime
 
 # Create startup script
 RUN echo '#!/bin/bash\n\
-set -e\n\
-[ -d "/data" ] && sudo chown -R jupyter:${DOCKER_GID} /data\n\
-[ -S "/var/run/docker.sock" ] && sudo chown root:${DOCKER_GID} /var/run/docker.sock && sudo chmod 660 /var/run/docker.sock\n\
-exec jupyterhub -f /srv/jupyterhub/jupyterhub_config.py' > /start-jupyterhub.sh && \
+    set -e\n\
+    [ -d "/data" ] && sudo chown -R jupyter:${DOCKER_GID} /data\n\
+    exec jupyterhub -f /srv/jupyterhub/jupyterhub_config.py' > /start-jupyterhub.sh && \
     chmod +x /start-jupyterhub.sh
 
 # Switch to non-root user
