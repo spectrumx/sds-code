@@ -1,3 +1,5 @@
+{% load permission_utils %}
+
 <!-- Generic Share Modal -->
 <div class="modal fade"
      id="share-modal-{{ item.uuid }}"
@@ -9,75 +11,80 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="share-modal-label-{{ item.uuid }}">Share {{ item_type|title }}</h5>
+                <h5 class="modal-title" id="share-modal-label-{{ item.uuid }}">Share {{ item_type|title }}: {{ item.name }}</h5>
                 <button type="button"
                         class="btn-close"
                         data-bs-dismiss="modal"
                         aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="fw-bold">Share this {{ item_type }} with others:</p>
-                <div>
-                    <form id="share-form-{{ item.uuid }}"
-                          action="{% url 'users:share_item' item_type item.uuid %}"
-                          method="post">
-                        {% csrf_token %}
-                        <div class="user-search-input-container">
-                            <input type="text"
-                                   class="form-control user-search-input mb-3"
-                                   placeholder="Search users by name or email..."
-                                   id="user-search-{{ item.uuid }}"
-                                   name="user-search"
-                                   autocomplete="off" />
-                            <!-- User search dropdown -->
-                            <div class="user-search-dropdown d-none"
-                                 id="user-search-dropdown-{{ item.uuid }}">
-                                <div class="list-group">
-                                    <!-- Search results will be populated here -->
+                {% if item.is_owner or item.permission_level == 'co-owner' %}
+                    <p class="fw-bold">Share this {{ item_type }} with others:</p>
+                    <div>
+                        <form id="share-form-{{ item.uuid }}"
+                              action="{% url 'users:share_item' item_type item.uuid %}"
+                              method="post">
+                            {% csrf_token %}
+                            <div class="user-search-input-container">
+                                <input type="text"
+                                       class="form-control user-search-input mb-3"
+                                       placeholder="Search users by name or email..."
+                                       id="user-search-{{ item.uuid }}"
+                                       name="user-search"
+                                       autocomplete="off" />
+                                <!-- User search dropdown -->
+                                <div class="user-search-dropdown d-none"
+                                     id="user-search-dropdown-{{ item.uuid }}">
+                                    <div class="list-group">
+                                        <!-- Search results will be populated here -->
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <!-- Selected Users with Individual Permission Levels -->
-                        <div class="selected-users-permissions-section mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-shield-lock me-1"></i>Selected Users & Permission Levels:
-                            </label>
-                            <div class="selected-users-chips d-flex flex-column gap-2"></div>
-                            <div class="form-text">
-                                <small class="text-muted">
-                                    <strong>Viewer:</strong> Can view dataset information and download files
-                                    <!-- Disable contributor and co-owner options (TODO: Enable this when the access controls are implemented) -->
-                                    <!--
-                                    <br />
-                                    <strong>Contributor:</strong> Can add their own assets to the dataset
-                                    <br />
-                                    <strong>Co-Owner:</strong> Can add/remove assets and edit dataset metadata
-                                    -->
-                                </small>
+                            <!-- Selected Users with Individual Permission Levels -->
+                            <div class="selected-users-permissions-section mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-shield-lock me-1"></i>Selected Users & Permission Levels:
+                                </label>
+                                <div class="selected-users-chips d-flex flex-column gap-2"></div>
+                                <div class="form-text">
+                                    <small class="text-muted">
+                                        <strong>Viewer:</strong> Can view dataset information and download files
+                                        <br />
+                                        <strong>Contributor:</strong> Can add their own assets to the dataset
+                                        <br />
+                                        <strong>Co-Owner:</strong> Can add/remove assets and edit dataset metadata
+                                    </small>
+                                </div>
                             </div>
-                        </div>
-                        <!-- Notify/message section, shown only if chips are present -->
-                        <div id="notify-message-section-{{ item.uuid }}" class="d-none mt-3">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       value="1"
-                                       id="notify-users-checkbox-{{ item.uuid }}"
-                                       name="notify_users"
-                                       checked />
-                                <label class="form-check-label" for="notify-users-checkbox-{{ item.uuid }}">Notify users by email</label>
+                            <!-- Notify/message section, shown only if chips are present -->
+                            <div id="notify-message-section-{{ item.uuid }}" class="d-none mt-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           value="1"
+                                           id="notify-users-checkbox-{{ item.uuid }}"
+                                           name="notify_users"
+                                           checked />
+                                    <label class="form-check-label" for="notify-users-checkbox-{{ item.uuid }}">Notify users by email</label>
+                                </div>
+                                <div id="notify-message-textarea-container-{{ item.uuid }}"
+                                     class="mb-2 notify-message-anim">
+                                    <textarea class="form-control"
+                                              id="notify-message-textarea-{{ item.uuid }}"
+                                              name="notify_message"
+                                              rows="3"
+                                              placeholder="Add a message (optional)"></textarea>
+                                </div>
                             </div>
-                            <div id="notify-message-textarea-container-{{ item.uuid }}"
-                                 class="mb-2 notify-message-anim">
-                                <textarea class="form-control"
-                                          id="notify-message-textarea-{{ item.uuid }}"
-                                          name="notify_message"
-                                          rows="3"
-                                          placeholder="Add a message (optional)"></textarea>
-                            </div>
-                        </div>
-                    </form>
-                </div>
+                        </form>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>
+                        You have <strong>{{ item.permission_level|title }}</strong> access to this {{ item_type }}.
+                        Only owners and co-owners can manage sharing.
+                    </div>
+                {% endif %}
                 <hr class="modal-divider" />
                 <!-- Users with Access section, hidden if chips are present -->
                 <div id="users-with-access-section-{{ item.uuid }}">
@@ -134,7 +141,13 @@
                                                         <p class="mb-0">
                                                             <small class="text-muted">
                                                                 {% if user.type == "group" %}
-                                                                    Group • Hover to see members
+                                                                    Owned by
+                                                                    {% if not user.is_group_owner %}
+                                                                        {{ user.owner }}
+                                                                    {% else %}
+                                                                        You
+                                                                    {% endif %}
+                                                                    • Hover to see members
                                                                 {% else %}
                                                                     {{ user.email }}
                                                                 {% endif %}
@@ -157,106 +170,113 @@
                                                 </div>
                                                 <div class="col-md-2 d-flex justify-content-end align-items-center">
                                                     <div class="d-flex align-items-center gap-2">
-                                                        <!-- Access Level Dropdown Button -->
-                                                        <div class="dropdown">
-                                                            <button class="btn btn-sm dropdown-toggle access-level-dropdown"
-                                                                    type="button"
-                                                                    data-bs-toggle="dropdown"
-                                                                    data-bs-popper="static"
-                                                                    aria-expanded="false"
-                                                                    data-user-email="{{ user.email }}"
-                                                                    data-user-name="{{ user.name }}"
-                                                                    data-item-uuid="{{ item.uuid }}"
-                                                                    data-item-type="{{ item_type }}"
-                                                                    data-current-permission="{{ user.permission_level }}">
-                                                                {% if user.permission_level == 'viewer' %}
-                                                                    <i class="bi bi-eye me-1"></i>Viewer
-                                                                {% elif user.permission_level == 'contributor' %}
-                                                                    <i class="bi bi-plus-circle me-1"></i>Contributor
-                                                                {% elif user.permission_level == 'co-owner' %}
-                                                                    <i class="bi bi-gear me-1"></i>Co-Owner
-                                                                {% else %}
-                                                                    <i class="bi bi-question-circle me-1"></i>{{ user.permission_level|title }}
-                                                                {% endif %}
-                                                            </button>
-                                                            <ul class="dropdown-menu access-level-menu">
-                                                                <li>
-                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'viewer' %}selected{% endif %}"
+                                                        {% if item.is_owner or item.permission_level == 'co-owner' %}
+                                                            {% if user.type == 'group' and not user.is_group_owner %}
+                                                                <!-- Group owned by someone else - show badge with owner info -->
+                                                                <div class="text-end">
+                                                                    <span class="badge {{ user.permission_level|permission_badge_class }} access-level-badge me-1">
+                                                                        <i class="bi {{ user.permission_level|permission_icon }} me-1"></i>{{ user.permission_level|title }}
+                                                                    </span>
+                                                                </div>
+                                                            {% else %}
+                                                                <!-- Individual user or group owned by current user - show dropdown -->
+                                                                <div class="dropdown">
+                                                                    <button class="btn btn-sm dropdown-toggle access-level-dropdown"
                                                                             type="button"
+                                                                            data-bs-toggle="dropdown"
+                                                                            data-bs-popper="static"
+                                                                            aria-expanded="false"
                                                                             data-user-email="{{ user.email }}"
                                                                             data-user-name="{{ user.name }}"
                                                                             data-item-uuid="{{ item.uuid }}"
                                                                             data-item-type="{{ item_type }}"
-                                                                            data-permission-level="viewer">
-                                                                        <i class="bi bi-eye me-2"></i>Viewer
-                                                                        {% if user.permission_level == 'viewer' %}<i class="bi bi-check ms-auto"></i>{% endif %}
+                                                                            data-current-permission="{{ user.permission_level }}">
+                                                                        <i class="bi {{ user.permission_level|permission_icon }} me-1"></i>{{ user.permission_level|title }}
                                                                     </button>
-                                                                </li>
-                                                                <!-- Disable permission options other than viewer (TODO: Enable this when the access controls are implemented) -->
-                                                                <!--
-                                                                <li>
-                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'contributor' %}selected{% endif %}"
-                                                                            type="button"
-                                                                            data-user-email="{{ user.email }}"
-                                                                            data-user-name="{{ user.name }}"
-                                                                            data-item-uuid="{{ item.uuid }}"
-                                                                            data-item-type="{{ item_type }}"
-                                                                            data-permission-level="contributor">
-                                                                        <i class="bi bi-plus-circle me-2"></i>Contributor
-                                                                        {% if user.permission_level == 'contributor' %}<i class="bi bi-check ms-auto"></i>{% endif %}
-                                                                    </button>
-                                                                </li>
-                                                                <li>
-                                                                    <button class="dropdown-item permission-change-btn {% if user.permission_level == 'co-owner' %}selected{% endif %}"
-                                                                            type="button"
-                                                                            data-user-email="{{ user.email }}"
-                                                                            data-user-name="{{ user.name }}"
-                                                                            data-item-uuid="{{ item.uuid }}"
-                                                                            data-item-type="{{ item_type }}"
-                                                                            data-permission-level="co-owner">
-                                                                        <i class="bi bi-gear me-2"></i>Co-Owner
-                                                                        {% if user.permission_level == 'co-owner' %}<i class="bi bi-check ms-auto"></i>{% endif %}
-                                                                    </button>
-                                                                </li>
-                                                                -->
-                                                                <li>
-                                                                    <hr class="dropdown-divider" />
-                                                                </li>
-                                                                <li>
-                                                                    <button class="dropdown-item text-danger permission-change-btn"
-                                                                            type="button"
-                                                                            data-user-email="{{ user.email }}"
-                                                                            data-user-name="{{ user.name }}"
-                                                                            data-item-uuid="{{ item.uuid }}"
-                                                                            data-item-type="{{ item_type }}"
-                                                                            data-permission-level="remove">
-                                                                        <i class="bi bi-person-slash me-2"></i>Remove access
-                                                                    </button>
-                                                                </li>
-                                                            </ul>
+                                                                    <ul class="dropdown-menu access-level-menu">
+                                                                        <li>
+                                                                            <button class="dropdown-item permission-change-btn {% if user.permission_level == 'viewer' %}selected{% endif %}"
+                                                                                    type="button"
+                                                                                    data-user-email="{{ user.email }}"
+                                                                                    data-user-name="{{ user.name }}"
+                                                                                    data-item-uuid="{{ item.uuid }}"
+                                                                                    data-item-type="{{ item_type }}"
+                                                                                    data-permission-level="viewer">
+                                                                                <i class="bi {{ 'viewer'|permission_icon }} me-2"></i>Viewer
+                                                                                {% if user.permission_level == 'viewer' %}<i class="bi bi-check ms-auto"></i>{% endif %}
+                                                                            </button>
+                                                                        </li>
+                                                                        <li>
+                                                                            <button class="dropdown-item permission-change-btn {% if user.permission_level == 'contributor' %}selected{% endif %}"
+                                                                                    type="button"
+                                                                                    data-user-email="{{ user.email }}"
+                                                                                    data-user-name="{{ user.name }}"
+                                                                                    data-item-uuid="{{ item.uuid }}"
+                                                                                    data-item-type="{{ item_type }}"
+                                                                                    data-permission-level="contributor">
+                                                                                <i class="bi {{ 'contributor'|permission_icon }} me-2"></i>Contributor
+                                                                                {% if user.permission_level == 'contributor' %}<i class="bi bi-check ms-auto"></i>{% endif %}
+                                                                            </button>
+                                                                        </li>
+                                                                        <li>
+                                                                            <button class="dropdown-item permission-change-btn {% if user.permission_level == 'co-owner' %}selected{% endif %}"
+                                                                                    type="button"
+                                                                                    data-user-email="{{ user.email }}"
+                                                                                    data-user-name="{{ user.name }}"
+                                                                                    data-item-uuid="{{ item.uuid }}"
+                                                                                    data-item-type="{{ item_type }}"
+                                                                                    data-permission-level="co-owner">
+                                                                                <i class="bi {{ 'co-owner'|permission_icon }} me-2"></i>Co-Owner
+                                                                                {% if user.permission_level == 'co-owner' %}<i class="bi bi-check ms-auto"></i>{% endif %}
+                                                                            </button>
+                                                                        </li>
+                                                                        <li>
+                                                                            <hr class="dropdown-divider" />
+                                                                        </li>
+                                                                        <li>
+                                                                            <button class="dropdown-item text-danger permission-change-btn"
+                                                                                    type="button"
+                                                                                    data-user-email="{{ user.email }}"
+                                                                                    data-user-name="{{ user.name }}"
+                                                                                    data-item-uuid="{{ item.uuid }}"
+                                                                                    data-item-type="{{ item_type }}"
+                                                                                    data-permission-level="remove">
+                                                                                <i class="bi {{ 'remove'|permission_icon }} me-2"></i>Remove access
+                                                                            </button>
+                                                                        </li>
+                                                                    </ul>
+                                                                </div>
+                                                            {% endif %}
                                                         </div>
-                                                    </div>
+                                                    {% else %}
+                                                        <!-- Show permission level as static badge for users who can't manage permissions -->
+                                                        <span class="badge {{ user.permission_level|permission_badge_class }} access-level-badge">
+                                                            <i class="bi {{ user.permission_level|permission_icon }} me-1"></i>{{ user.permission_level|title }}
+                                                        </span>
+                                                    {% endif %}
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    {% endif %}
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-                <div class="modal-footer">
-                    <div class="d-flex align-items-center gap-2">
-                        <span id="pending-changes-message-{{ item.uuid }}"
-                              class="text-muted d-none">
-                            <i class="bi bi-exclamation-triangle me-1"></i>Pending changes
-                        </span>
+            </div>
+            <div class="modal-footer">
+                <div class="d-flex align-items-center gap-2">
+                    <span id="pending-changes-message-{{ item.uuid }}"
+                          class="text-muted d-none">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Pending changes
+                    </span>
+                    {% if item.is_owner or item.permission_level == 'co-owner' %}
                         <button type="button"
                                 class="btn btn-primary"
                                 id="share-item-btn-{{ item.uuid }}"
                                 disabled>Save</button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
+                    {% endif %}
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
@@ -267,24 +287,24 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize access level dropdowns
         const accessLevelDropdowns = document.querySelectorAll('.access-level-dropdown');
-        accessLevelDropdowns.forEach(dropdown => {
+        for (const dropdown of accessLevelDropdowns) {
             const currentPermission = dropdown.getAttribute('data-current-permission');
             const dropdownMenu = dropdown.nextElementSibling;
             const permissionBtns = dropdownMenu.querySelectorAll('.permission-change-btn');
 
             // Mark current permission as selected
-            permissionBtns.forEach(btn => {
+            for (const btn of permissionBtns) {
                 if (btn.getAttribute('data-permission-level') === currentPermission) {
                     btn.classList.add('selected');
                 }
-            });
+            }
 
             // Colors are now handled by CSS based on data-current-permission attribute
-        });
+        }
 
         const groupRows = document.querySelectorAll('tr:has(.bi-people-fill)');
 
-        groupRows.forEach(row => {
+        for (const row of groupRows) {
             const popup = row.querySelector('.group-members-popup');
             if (popup) {
                 row.addEventListener('mouseenter', function() {
@@ -295,6 +315,6 @@
                     popup.classList.add('d-none');
                 });
             }
-        });
+        };
     });
 </script>
