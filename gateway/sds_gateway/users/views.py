@@ -88,6 +88,7 @@ from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.navigation_models import NavigationContext
 from sds_gateway.users.navigation_models import NavigationType
+from sds_gateway.users.forms import UserUpdateForm
 from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import render_html_fragment
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
@@ -149,7 +150,7 @@ user_detail_view = UserDetailView.as_view()
 
 class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView):  # pyright: ignore[reportMissingTypeArgument]
     model = User
-    fields = ["name"]
+    form_class = UserUpdateForm
     success_message = _("Information successfully updated")
 
     def get_success_url(self):
