@@ -63,6 +63,7 @@ from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
