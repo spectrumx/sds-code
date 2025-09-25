@@ -729,6 +729,19 @@ th.sortable:hover .sort-icon {
 	background-color: #004b80;
 }
 
+/* Make permission badges match dropdown button size */
+.badge.access-level-badge {
+	padding: 0.25rem 0.5rem;
+	font-size: 0.875rem;
+	font-weight: 400;
+	border-radius: 0.375rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	min-height: 32px;
+	line-height: 1.4;
+}
+
 /* Selected captures/files badges */
 .selected-captures-count,
 .selected-files-count,
