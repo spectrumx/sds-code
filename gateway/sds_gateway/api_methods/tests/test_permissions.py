@@ -8,6 +8,7 @@ from django.test import TestCase
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
 
 User = get_user_model()
@@ -55,7 +56,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.viewer,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="viewer",
+            permission_level=PermissionLevel.VIEWER,
         )
 
         UserSharePermission.objects.create(
@@ -63,7 +64,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.contributor,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="contributor",
+            permission_level=PermissionLevel.CONTRIBUTOR,
         )
 
         UserSharePermission.objects.create(
@@ -71,7 +72,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.co_owner,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="co-owner",
+            permission_level=PermissionLevel.CO_OWNER,
         )
 
         # Test permission level retrieval
@@ -79,28 +80,28 @@ class UserSharePermissionTestCase(TestCase):
             UserSharePermission.get_user_permission_level(
                 self.viewer, self.dataset.uuid, ItemType.DATASET
             )
-            == "viewer"
+            == PermissionLevel.VIEWER
         )
 
         assert (
             UserSharePermission.get_user_permission_level(
                 self.contributor, self.dataset.uuid, ItemType.DATASET
             )
-            == "contributor"
+            == PermissionLevel.CONTRIBUTOR
         )
 
         assert (
             UserSharePermission.get_user_permission_level(
                 self.co_owner, self.dataset.uuid, ItemType.DATASET
             )
-            == "co-owner"
+            == PermissionLevel.CO_OWNER
         )
 
         assert (
             UserSharePermission.get_user_permission_level(
                 self.owner, self.dataset.uuid, ItemType.DATASET
             )
-            == "owner"
+            == PermissionLevel.OWNER
         )
 
     def test_permission_checking(self):
@@ -111,7 +112,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.viewer,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="viewer",
+            permission_level=PermissionLevel.VIEWER,
         )
 
         UserSharePermission.objects.create(
@@ -119,7 +120,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.contributor,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="contributor",
+            permission_level=PermissionLevel.CONTRIBUTOR,
         )
 
         UserSharePermission.objects.create(
@@ -127,7 +128,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.co_owner,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="co-owner",
+            permission_level=PermissionLevel.CO_OWNER,
         )
 
         # Test view permissions
@@ -194,7 +195,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.contributor,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="contributor",
+            permission_level=PermissionLevel.CONTRIBUTOR,
         )
 
         UserSharePermission.objects.create(
@@ -202,7 +203,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.co_owner,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="co-owner",
+            permission_level=PermissionLevel.CO_OWNER,
         )
 
         # Get authors
@@ -217,7 +218,7 @@ class UserSharePermissionTestCase(TestCase):
 
         # Check role
         author_roles = {author["name"]: author["role"] for author in authors}
-        assert author_roles["Dataset Owner"] == "owner"
+        assert author_roles["Dataset Owner"] == PermissionLevel.OWNER
 
     def test_asset_ownership_permission(self):
         """Test asset ownership permission checking using model methods."""
@@ -227,7 +228,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.contributor,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="contributor",
+            permission_level=PermissionLevel.CONTRIBUTOR,
         )
 
         UserSharePermission.objects.create(
@@ -235,7 +236,7 @@ class UserSharePermissionTestCase(TestCase):
             shared_with=self.co_owner,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="co-owner",
+            permission_level=PermissionLevel.CO_OWNER,
         )
 
         # User can always modify their own assets (owner always has remove permissions)

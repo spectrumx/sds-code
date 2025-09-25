@@ -89,6 +89,15 @@ class DatasetStatus(StrEnum):
     FINAL = "final"
 
 
+class PermissionLevel(StrEnum):
+    """The access level of a user."""
+
+    OWNER = "owner"
+    CO_OWNER = "co-owner"
+    CONTRIBUTOR = "contributor"
+    VIEWER = "viewer"
+
+
 def default_expiration_date() -> datetime.datetime:
     """Returns the default expiration date for a file."""
     # 2 years from now
@@ -777,12 +786,11 @@ class UserSharePermission(BaseModel):
         (ItemType.CAPTURE, "Capture"),
     ]
 
-    class PermissionType(models.TextChoices):
-        """Enumeration of permission types."""
-
-        VIEWER = "viewer", "Viewer"
-        CONTRIBUTOR = "contributor", "Contributor"
-        CO_OWNER = "co-owner", "Co-Owner"
+    PERMISSION_CHOICES = [
+        (PermissionLevel.VIEWER, "Viewer"),
+        (PermissionLevel.CONTRIBUTOR, "Contributor"),
+        (PermissionLevel.CO_OWNER, "Co-Owner"),
+    ]
 
     # The user who owns the item being shared
     owner = models.ForeignKey(
@@ -793,8 +801,8 @@ class UserSharePermission(BaseModel):
 
     permission_level = models.CharField(
         max_length=20,
-        choices=PermissionType.choices,
-        default=PermissionType.VIEWER,
+        choices=PERMISSION_CHOICES,
+        default=PermissionLevel.VIEWER,
     )
 
     # The user who is being granted access
@@ -914,7 +922,7 @@ class UserSharePermission(BaseModel):
             if model_class.objects.filter(
                 uuid=item_uuid, owner=user, is_deleted=False
             ).exists():
-                return "owner"
+                return PermissionLevel.OWNER
 
         # Check shared permissions
         permission = cls.objects.filter(
@@ -939,13 +947,20 @@ class UserSharePermission(BaseModel):
     def user_can_add_assets(cls, user, item_uuid, item_type):
         """Check if user can add assets to the item."""
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
-        return permission_level in ["owner", "co-owner", "contributor"]
+        return permission_level in [
+            PermissionLevel.OWNER,
+            PermissionLevel.CO_OWNER,
+            PermissionLevel.CONTRIBUTOR,
+        ]
 
     @classmethod
     def user_can_remove_assets(cls, user, item_uuid, item_type):
         """Check if user can remove assets from the item."""
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
-        return permission_level in ["owner", "co-owner"]
+        return permission_level in [
+            PermissionLevel.OWNER,
+            PermissionLevel.CO_OWNER,
+        ]
 
     @classmethod
     def user_can_edit_dataset(cls, user, item_uuid, item_type):
@@ -953,13 +968,19 @@ class UserSharePermission(BaseModel):
         if item_type != ItemType.DATASET:
             return False
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
-        return permission_level in ["owner", "co-owner"]
+        return permission_level in [
+            PermissionLevel.OWNER,
+            PermissionLevel.CO_OWNER,
+        ]
 
     @classmethod
     def user_can_remove_others_assets(cls, user, item_uuid, item_type):
         """Check if user can remove assets owned by other users."""
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
-        return permission_level in ["owner", "co-owner"]
+        return permission_level in [
+            PermissionLevel.OWNER,
+            PermissionLevel.CO_OWNER,
+        ]
 
     @classmethod
     def get_dataset_authors(cls, dataset_uuid):
@@ -981,7 +1002,7 @@ class UserSharePermission(BaseModel):
                 {
                     "name": dataset.owner.name or dataset.owner.email,
                     "email": dataset.owner.email,
-                    "role": "owner",
+                    "role": PermissionLevel.OWNER,
                 }
             )
 
