@@ -153,7 +153,7 @@ class Migration(migrations.Migration):
     """Migration to convert dataset authors to object format."""
 
     dependencies = [
-        ("api_methods", "0015_rename_postprocesseddata_deprecatedpostprocesseddata_and_more"),
+        ("api_methods", "0016_alter_usersharepermission_permission_level"),
     ]
 
     operations = [
