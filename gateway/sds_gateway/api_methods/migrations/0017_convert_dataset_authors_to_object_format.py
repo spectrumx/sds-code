@@ -50,7 +50,6 @@ def convert_authors_to_object_format(apps, schema_editor):
                     logger.debug("Dataset %s already in new format, skipping", dataset.uuid)
                     skipped_count += 1
                     continue
-
                 # Convert string authors to object format
                 if isinstance(current_authors[0], str):
                     new_authors = []
@@ -126,7 +125,6 @@ def reverse_authors_to_string_format(apps, schema_editor):
                 if isinstance(current_authors[0], dict) and "name" in current_authors[0]:
                     # Convert object authors back to string format
                     string_authors = [author["name"] for author in current_authors]
-
                     # Update the dataset
                     dataset.authors = json.dumps(string_authors)
                     dataset.save(update_fields=["authors"])
