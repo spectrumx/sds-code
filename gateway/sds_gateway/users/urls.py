@@ -9,7 +9,6 @@ from .views import FilesView
 from .views import ListCapturesView
 from .views import UploadCaptureView
 from .views import generate_api_key_form_view
-from .views import keyword_autocomplete_api_view
 from .views import new_api_key_view
 from .views import render_html_fragment_view
 from .views import revoke_api_key_view
@@ -17,11 +16,11 @@ from .views import user_api_key_view
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
+from .views import user_dataset_versioning_view
 from .views import user_detail_view
 from .views import user_download_item_view
 from .views import user_file_detail_view
 from .views import user_group_captures_view
-from .views import user_publish_dataset_view
 from .views import user_redirect_view
 from .views import user_search_datasets_view
 from .views import user_share_group_list_view
@@ -33,6 +32,11 @@ app_name = "users"
 urlpatterns = [
     path("~redirect/", view=user_redirect_view, name="redirect"),
     path("~update/", view=user_update_view, name="update"),
+    path(
+        "dataset-versioning/",
+        view=user_dataset_versioning_view,
+        name="dataset_versioning",
+    ),
     path("<int:pk>/", view=user_detail_view, name="detail"),
     path("view-api-key/", user_api_key_view, name="view_api_key"),
     path("new-api-key/", new_api_key_view, name="new_api_key"),
@@ -48,16 +52,6 @@ urlpatterns = [
     path("dataset-list/", user_dataset_list_view, name="dataset_list"),
     path("search-datasets/", user_search_datasets_view, name="search_datasets"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
-    path(
-        "api/keyword-autocomplete/",
-        keyword_autocomplete_api_view,
-        name="keyword_autocomplete",
-    ),
-    path(
-        "publish-dataset/<uuid:dataset_uuid>/",
-        user_publish_dataset_view,
-        name="publish_dataset",
-    ),
     path("render-html/", render_html_fragment_view, name="render_html"),
     path("group-captures/", user_group_captures_view, name="group_captures"),
     path(
