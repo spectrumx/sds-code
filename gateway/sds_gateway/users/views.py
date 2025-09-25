@@ -56,6 +56,7 @@ from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -65,8 +66,6 @@ from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
-from sds_gateway.api_methods.utils.permissions import can_user_access_item
-from sds_gateway.api_methods.utils.permissions import get_user_permission_level
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.file_utils import get_file_content_response
 from sds_gateway.users.file_utils import validate_file_preview_request
@@ -345,7 +344,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             )
 
         # Check if user has access to the item (either as owner or shared user)
-        if not can_user_access_item(request.user, item_uuid, item_type):
+        if not user_has_access_to_item(request.user, item_uuid, item_type):
             return JsonResponse(
                 {"error": f"{item_type.capitalize()} not found or access denied"},
                 status=404,
@@ -550,7 +549,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return JsonResponse({"error": "Invalid item type"}, status=400)
 
         # Check if user has access to the item (either as owner or shared user)
-        if not can_user_access_item(request.user, item_uuid, item_type):
+        if not user_has_access_to_item(request.user, item_uuid, item_type):
             return JsonResponse(
                 {"error": f"{item_type.capitalize()} not found or access denied"},
                 status=404,
@@ -1230,7 +1229,7 @@ def _get_captures_for_template(
         capture_data["capture"] = capture
 
         # Add shared users data for share modal
-        if can_user_access_item(request.user, capture.uuid, ItemType.CAPTURE):
+        if user_has_access_to_item(request.user, capture.uuid, ItemType.CAPTURE):
             # Get shared users and groups using the new model
             shared_permissions = (
                 UserSharePermission.objects.filter(
@@ -1490,7 +1489,7 @@ class GroupCapturesView(
 
         if dataset_uuid:
             # Check if user has access to edit this dataset
-            if not can_user_access_item(request.user, dataset_uuid, ItemType.DATASET):
+            if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
                 messages.error(request, "Dataset not found or access denied.")
                 return redirect("users:dataset_list")
 
@@ -1588,7 +1587,7 @@ class GroupCapturesView(
 
         if dataset_uuid:
             # Check if user has access to this dataset
-            if not can_user_access_item(
+            if not user_has_access_to_item(
                 self.request.user, dataset_uuid, ItemType.DATASET
             ):
                 msg = "Dataset not found or access denied."
@@ -2135,12 +2134,12 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         owned_datasets = self._get_owned_datasets(request.user, order_by)
         shared_datasets = self._get_shared_datasets(request.user, order_by)
 
-        datasets_with_shared_users = []
+        datasets_with_shared_users: list[dict] = []
         datasets_with_shared_users.extend(
-            self._prepare_owned_datasets(owned_datasets, request.user)
+            self._serialize_datasets(owned_datasets, request.user)
         )
         datasets_with_shared_users.extend(
-            self._prepare_shared_datasets(shared_datasets, request.user)
+            self._serialize_datasets(shared_datasets, request.user)
         )
 
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
@@ -2191,55 +2190,18 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             .order_by(order_by)
         )
 
-    def _prepare_owned_datasets(
+    def _serialize_datasets(
         self, datasets: QuerySet[Dataset], user: User
     ) -> list[dict]:
-        """Prepare owned datasets with shared user information."""
+        """Prepare serialized datasets."""
         result = []
         for dataset in datasets:
-            # Use serializer for API fields, but keep the original model for template
-            dataset_data = DatasetGetSerializer(dataset).data
-            shared_users = self._get_shared_users_for_dataset(dataset, user)
-
-            dataset_data.update(
-                {
-                    "shared_users": shared_users,
-                    "is_owner": True,
-                    "is_shared_with_me": False,
-                    "owner_name": dataset.owner.name or "Owner",
-                    "owner_email": dataset.owner.email or "",
-                    "dataset": dataset,
-                    "permission_level": "owner",
-                }
-            )
-            result.append(dataset_data)
-        return result
-
-    def _prepare_shared_datasets(
-        self, datasets: QuerySet[Dataset], user: User
-    ) -> list[dict]:
-        """Prepare shared datasets with shared user information."""
-        result = []
-        for dataset in datasets:
-            dataset_data = DatasetGetSerializer(dataset).data
-            shared_users = self._get_shared_users_for_dataset(dataset, user)
-
-            # Get the current user's permission level for this dataset
-            permission_level = get_user_permission_level(
-                user, dataset.uuid, ItemType.DATASET
-            )
-
-            dataset_data.update(
-                {
-                    "shared_users": shared_users,
-                    "is_owner": False,
-                    "is_shared_with_me": True,
-                    "owner_name": dataset.owner.name or "Owner",
-                    "owner_email": dataset.owner.email or "",
-                    "dataset": dataset,
-                    "permission_level": permission_level,
-                }
-            )
+            # Use serializer with request context for proper field calculation
+            context = {"request": type('Request', (), {"user": user})()}
+            dataset_data = DatasetGetSerializer(dataset, context=context).data
+            
+            # Add the original model for template access
+            dataset_data["dataset"] = dataset
             result.append(dataset_data)
         return result
 
