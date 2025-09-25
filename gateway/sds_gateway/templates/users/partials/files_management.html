@@ -1,0 +1,54 @@
+<!-- Files Management for Dataset Editing -->
+<div class="row g-4">
+    <!-- Main File Browser Area (8 columns) -->
+    <div class="col-md-8">
+        {% if can_add_assets %}
+            <!-- Search for New Files -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Add New Files</h5>
+                </div>
+                <div class="card-body p-4">{% include "users/partials/file_browser.html" %}</div>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body p-4">
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        You don't have permission to add files to this dataset.
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    <!-- Side Panel (4 columns) -->
+    <div class="col-md-4">
+        <!-- Pending Changes -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    Pending File Changes
+                    <span class="badge bg-warning ms-2 pending-files-changes-count">0</span>
+                </h5>
+            </div>
+            <div class="card-body p-3">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0" id="pending-files-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>File Name</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pending-files-list">
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">No pending file changes</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
