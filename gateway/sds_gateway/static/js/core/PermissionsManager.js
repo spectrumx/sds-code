@@ -204,7 +204,7 @@ class PermissionsManager {
 	 */
 	static getPermissionIcon(level) {
 		const icons = {
-			owner: "bi-crown",
+			owner: "bi-person-circle",
 			"co-owner": "bi-gear",
 			contributor: "bi-plus-circle",
 			viewer: "bi-eye",
