@@ -1307,6 +1307,11 @@ def user_has_access_to_item(user, item_uuid, item_type):
     """
     return UserSharePermission.user_can_view(user, item_uuid, item_type)
 
+def get_user_permission_level(user, item_uuid, item_type):
+    """
+    Get the permission level for a user on a specific item.
+    """
+    return UserSharePermission.get_user_permission_level(user, item_uuid, item_type)
 
 def get_shared_users_for_item(item_uuid, item_type):
     """
