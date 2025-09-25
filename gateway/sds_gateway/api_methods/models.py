@@ -660,29 +660,26 @@ class Dataset(BaseModel):
         if not self.authors:
             return []
 
-        if isinstance(self.authors, str):
-            try:
-                authors_data = json.loads(self.authors)
-                # Convert legacy string authors to new format if needed
-                if authors_data and isinstance(authors_data[0], str):
-                    result = [
-                        {"name": author, "orcid_id": ""} for author in authors_data
-                    ]
-                else:
-                    result = authors_data
-            except (json.JSONDecodeError, TypeError):
-                result = [{"name": self.authors, "orcid_id": ""}]
+        # from_db should have already converted JSON string to list
+        if not isinstance(self.authors, list):
+            log.warning(
+                "Dataset %s: authors field is not a list (type: %s)",
+                self.uuid,
+                type(self.authors).__name__,
+            )
+            return []
 
-        # Handle case where authors is already a list
-        elif isinstance(self.authors, list):
-            if self.authors and isinstance(self.authors[0], str):
-                result = [{"name": author, "orcid_id": ""} for author in self.authors]
-            else:
-                result = self.authors
-        else:
-            result = self.authors
+        # Check if authors are in old string format and need conversion
+        if self.authors and isinstance(self.authors[0], str):
+            log.warning(
+                "Dataset %s: authors still in old string format, needs migration",
+                self.uuid,
+            )
+            # Convert old format for backward compatibility
+            return [{"name": author, "orcid_id": ""} for author in self.authors]
 
-        return result
+        # Authors should already be in new object format
+        return self.authors
 
 
 class TemporaryZipFile(BaseModel):
