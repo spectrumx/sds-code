@@ -57,6 +57,7 @@ from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -66,8 +67,6 @@ from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
-from sds_gateway.api_methods.utils.permissions import can_user_access_item
-from sds_gateway.api_methods.utils.permissions import get_user_permission_level
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.file_utils import get_file_content_response
 from sds_gateway.users.file_utils import validate_file_preview_request
