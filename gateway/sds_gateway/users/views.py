@@ -65,6 +65,8 @@ from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
+from sds_gateway.api_methods.utils.permissions import can_user_access_item
+from sds_gateway.api_methods.utils.permissions import get_user_permission_level
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.file_utils import get_file_content_response
 from sds_gateway.users.file_utils import validate_file_preview_request
@@ -342,11 +344,17 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 {"error": "Item UUID is required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Check if user has access to the item (either as owner or shared user)
+        if not can_user_access_item(request.user, item_uuid, item_type):
+            return JsonResponse(
+                {"error": f"{item_type.capitalize()} not found or access denied"},
+                status=404,
+            )
+
         # Get the item to check existing shared users
         try:
             model_class = self.ITEM_MODELS[item_type]
-            # Verify the item exists and user owns it
-            model_class.objects.get(uuid=item_uuid, owner=request.user)
+            # Get the item (we know it exists and user has access)
 
             # Get exclusion lists for search
             excluded_user_ids, excluded_group_ids = self._get_exclusion_lists(
@@ -376,7 +384,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
-                owner=user,
                 is_deleted=False,
                 is_enabled=True,
             )
@@ -389,7 +396,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
-                owner=user,
                 is_deleted=False,
                 is_enabled=True,
             )
@@ -430,7 +436,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     ) -> tuple[list[dict], list[str]]:
         """Add a group to item sharing."""
         group_uuid = group_identifier.split(":")[1]  # Remove "group:" prefix
-        shared_users: list[dict] = []
+        shared_users: list[str] = []
         errors: list[str] = []
 
         try:
@@ -527,7 +533,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         return UserSharePermission.objects.filter(
             item_uuid=item_uuid,
             item_type=item_type,
-            owner=request_user,
             shared_with=user,
             is_deleted=False,
             is_enabled=True,
@@ -544,13 +549,18 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         if item_type not in self.ITEM_MODELS:
             return JsonResponse({"error": "Invalid item type"}, status=400)
 
-        # Verify the item exists and user owns it
-        try:
-            model_class = self.ITEM_MODELS[item_type]
-            model_class.objects.get(uuid=item_uuid, owner=request.user)
-        except model_class.DoesNotExist:
+        # Check if user has access to the item (either as owner or shared user)
+        if not can_user_access_item(request.user, item_uuid, item_type):
             return JsonResponse(
-                {"error": f"{item_type.capitalize()} not found"}, status=404
+                {"error": f"{item_type.capitalize()} not found or access denied"},
+                status=404,
+            )
+
+        # For sharing operations, user must be owner or co-owner
+        permission_level = get_user_permission_level(request.user, item_uuid, item_type)
+        if permission_level not in ["owner", "co-owner"]:
+            return JsonResponse(
+                {"error": "Only owners and co-owners can manage sharing"}, status=403
             )
 
         return None
@@ -778,7 +788,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
         if not user_email or not new_permission:
             return {"success": False, "error": "Missing email or permission level"}
-
         if new_permission == "remove":
             return self._process_removal(request, item_uuid, item_type, user_email)
 
@@ -870,7 +879,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             group_permissions = UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
-                owner=request.user,
                 share_groups=group,
                 is_deleted=False,
                 is_enabled=True,
@@ -950,7 +958,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             group_permissions = UserSharePermission.objects.filter(
                 item_uuid=item_uuid,
                 item_type=item_type,
-                owner=request.user,
                 share_groups=group,
                 is_deleted=False,
                 is_enabled=True,
@@ -1224,13 +1231,12 @@ def _get_captures_for_template(
         # contains all needed information.
 
         # Add shared users data for share modal
-        if capture.owner == request.user:
+        if can_user_access_item(request.user, capture.uuid, ItemType.CAPTURE):
             # Get shared users and groups using the new model
             shared_permissions = (
                 UserSharePermission.objects.filter(
                     item_uuid=capture.uuid,
                     item_type=ItemType.CAPTURE,
-                    owner=request.user,
                     is_deleted=False,
                     is_enabled=True,
                 )
@@ -1253,6 +1259,9 @@ def _get_captures_for_template(
                                 "type": "group",
                                 "members": [],
                                 "permission_level": perm.permission_level,
+                                "owner": group.owner.name,
+                                "owner_email": group.owner.email,
+                                "is_group_owner": group.owner == request.user,
                             }
                         group_permissions[group_uuid]["members"].append(
                             {
@@ -1505,6 +1514,71 @@ class GroupCapturesView(
 ):
     template_name = "users/group_captures.html"
 
+    def get(self, request, *args, **kwargs):  # noqa: PLR0911
+        """Handle GET request with permission checking and AJAX requests."""
+        # Check if editing existing dataset
+        dataset_uuid = request.GET.get("dataset_uuid")
+
+        if dataset_uuid:
+            # Check if user has access to edit this dataset
+            if not can_user_access_item(request.user, dataset_uuid, ItemType.DATASET):
+                messages.error(request, "Dataset not found or access denied.")
+                return redirect("users:dataset_list")
+
+            # Check if user can edit dataset metadata
+            permission_level = get_user_permission_level(
+                request.user, dataset_uuid, ItemType.DATASET
+            )
+            if permission_level not in ["owner", "co-owner", "contributor"]:
+                messages.error(
+                    request, "You don't have permission to edit this dataset."
+                )
+                return redirect("users:dataset_list")
+
+        # Handle AJAX requests
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            try:
+                if "search_captures" in request.GET:
+                    form = CaptureSearchForm(request.GET)
+                    if form.is_valid():
+                        captures = self.search_captures(form.cleaned_data, request)
+                        return JsonResponse(
+                            self.get_paginated_response(captures, request)
+                        )
+                    return JsonResponse({"error": form.errors}, status=400)
+
+                if "search_files" in request.GET:
+                    base_dir = sanitize_path_rel_to_user(
+                        unsafe_path="/",
+                        request=self.request,
+                    )
+
+                    form = FileSearchForm(request.GET, user=self.request.user)
+                    if form.is_valid():
+                        files = self.search_files(form.cleaned_data, request)
+                        tree_data = self._get_directory_tree(files, str(base_dir))
+
+                        return JsonResponse(
+                            {
+                                "tree": tree_data,
+                                "extension_choices": form.fields[
+                                    "file_extension"
+                                ].choices,
+                                "search_values": {
+                                    "file_name": form.cleaned_data.get("file_name", ""),
+                                    "file_extension": form.cleaned_data.get(
+                                        "file_extension", ""
+                                    ),
+                                    "directory": form.cleaned_data.get("directory", ""),
+                                },
+                            },
+                        )
+                    return JsonResponse({"error": form.errors}, status=400)
+            except (OSError, DatabaseError) as e:
+                return JsonResponse({"error": str(e)}, status=500)
+
+        return super().get(request, *args, **kwargs)
+
     def search_captures(self, search_data, request) -> list[Capture]:
         """Override to only return captures owned by the user for dataset creation."""
         # Only get captures owned by the user (no shared captures)
@@ -1540,10 +1614,27 @@ class GroupCapturesView(
         # Check if we're editing an existing dataset
         dataset_uuid = self.request.GET.get("dataset_uuid", None)
         existing_dataset = None
+        permission_level = None
+        is_owner = False
+
         if dataset_uuid:
-            existing_dataset = get_object_or_404(
-                Dataset, uuid=dataset_uuid, owner=self.request.user
+            # Check if user has access to this dataset
+            if not can_user_access_item(
+                self.request.user, dataset_uuid, ItemType.DATASET
+            ):
+                msg = "Dataset not found or access denied."
+                raise Http404(msg)
+
+            # Get the dataset - it exists and user has access
+            existing_dataset = Dataset.objects.get(uuid=dataset_uuid)
+            permission_level = get_user_permission_level(
+                self.request.user, dataset_uuid, ItemType.DATASET
             )
+            is_owner = existing_dataset.owner == self.request.user
+        else:
+            # For new dataset creation, user is always the owner
+            permission_level = "owner"
+            is_owner = True
 
         # Get form
         if self.request.method == "POST":
@@ -1551,10 +1642,14 @@ class GroupCapturesView(
         else:
             initial_data = {}
             if existing_dataset:
+                authors_json = self._set_authors_el_ids(
+                    existing_dataset.get_authors_display()
+                )
+
                 initial_data = {
                     "name": existing_dataset.name,
                     "description": existing_dataset.description,
-                    "author": existing_dataset.authors[0],
+                    "authors": authors_json,
                     "status": existing_dataset.status,
                 }
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
@@ -1584,50 +1679,15 @@ class GroupCapturesView(
                 "selected_files_details_json": json.dumps(
                     selected_files_details, cls=DjangoJSONEncoder
                 ),
+                "permission_level": permission_level,
+                "is_owner": is_owner,
+                "can_edit_metadata": permission_level in ["owner", "co-owner"],
+                "can_add_assets": permission_level
+                in ["owner", "co-owner", "contributor"],
+                "can_remove_assets": permission_level in ["owner", "co-owner"],
             }
         )
         return context
-
-    def get(self, request, *args, **kwargs):
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            try:
-                if "search_captures" in request.GET:
-                    form = CaptureSearchForm(request.GET)
-                    if form.is_valid():
-                        captures = self.search_captures(form.cleaned_data, request)
-                        return JsonResponse(
-                            self.get_paginated_response(captures, request)
-                        )
-                    return JsonResponse({"error": form.errors}, status=400)
-
-                if "search_files" in request.GET:
-                    base_dir = sanitize_path_rel_to_user(
-                        unsafe_path="/",
-                        request=self.request,
-                    )
-                    form = FileSearchForm(request.GET, user=self.request.user)
-                    if form.is_valid():
-                        files = self.search_files(form.cleaned_data, request)
-                        return JsonResponse(
-                            {
-                                "tree": self._get_directory_tree(files, str(base_dir)),
-                                "extension_choices": form.fields[
-                                    "file_extension"
-                                ].choices,
-                                "search_values": {
-                                    "file_name": form.cleaned_data.get("file_name", ""),
-                                    "file_extension": form.cleaned_data.get(
-                                        "file_extension", ""
-                                    ),
-                                    "directory": form.cleaned_data.get("directory", ""),
-                                },
-                            },
-                        )
-                    return JsonResponse({"error": form.errors}, status=400)
-            except (OSError, DatabaseError) as e:
-                return JsonResponse({"error": str(e)}, status=500)
-
-        return super().get(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
         """Handle dataset creation/update with selected captures and files."""
@@ -1637,27 +1697,12 @@ class GroupCapturesView(
             if validation_result:
                 return validation_result
 
-            dataset_form, selected_captures, selected_files = (
-                self._get_form_and_selections(request)
-            )
-
-            # Create or update dataset
-            dataset = self._create_or_update_dataset(request, dataset_form)
-
-            # Add captures to dataset
-            capture_error = self._add_captures_to_dataset(
-                dataset, selected_captures, request
-            )
-            if capture_error:
-                return capture_error
-
-            # Add files to dataset
-            self._add_files_to_dataset(dataset, selected_files)
-
-            # Return success response with redirect URL
-            return JsonResponse(
-                {"success": True, "redirect_url": reverse("users:dataset_list")},
-            )
+            dataset_uuid = request.GET.get("dataset_uuid")
+            if dataset_uuid:
+                # Handle dataset editing
+                return self._handle_dataset_edit(request, dataset_uuid)
+            # Handle dataset creation
+            return self._handle_dataset_creation(request)
 
         except (DatabaseError, IntegrityError) as e:
             logger.exception("Database error in dataset creation")
@@ -1668,32 +1713,290 @@ class GroupCapturesView(
 
     def _validate_dataset_form(self, request) -> JsonResponse | None:
         """Validate the dataset form and return error response if invalid."""
-        dataset_form = DatasetInfoForm(request.POST, user=request.user)
-        if not dataset_form.is_valid():
-            return JsonResponse(
-                {"success": False, "errors": dataset_form.errors},
-                status=400,
+        # Check if this is an edit operation first
+        dataset_uuid = request.GET.get("dataset_uuid")
+
+        if dataset_uuid:
+            # For editing, validate permissions first
+            permission_level = get_user_permission_level(
+                request.user, dataset_uuid, ItemType.DATASET
             )
 
-        # Get selected captures and files from hidden fields
-        selected_captures = request.POST.get("selected_captures", "").split(",")
-        selected_files = request.POST.get("selected_files", "").split(",")
+            if not permission_level:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "errors": {"non_field_errors": ["Access denied."]},
+                    },
+                    status=403,
+                )
 
-        # Validate that at least one capture or file is selected
-        if not selected_captures[0] and not selected_files[0]:
+            # Only validate form if user can edit metadata
+            can_edit = self.can_edit_metadata(permission_level)
+
+            if can_edit:
+                dataset_form = DatasetInfoForm(request.POST, user=request.user)
+                if not dataset_form.is_valid():
+                    return JsonResponse(
+                        {"success": False, "errors": dataset_form.errors},
+                        status=400,
+                    )
+            # If user can't edit metadata, skip form validation
+        else:
+            # For new dataset creation, always validate form
+            dataset_form = DatasetInfoForm(request.POST, user=request.user)
+            if not dataset_form.is_valid():
+                return JsonResponse(
+                    {"success": False, "errors": dataset_form.errors},
+                    status=400,
+                )
+
+            # For creation, get selected captures and files from hidden fields
+            selected_captures = request.POST.get("selected_captures", "").split(",")
+            selected_files = request.POST.get("selected_files", "").split(",")
+
+            # Validate that at least one capture or file is selected
+            if not selected_captures[0] and not selected_files[0]:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "errors": {
+                            "non_field_errors": [
+                                "Please select at least one capture or file.",
+                            ],
+                        },
+                    },
+                    status=400,
+                )
+
+        return None
+
+    def _set_authors_el_ids(self, authors: list) -> str:
+        """Set the author element IDs for the page lifecycle in edit mode."""
+        for author in authors:
+            author["_stableId"] = str(uuid.uuid4())
+        return json.dumps(authors)
+
+    def can_edit_metadata(self, permission_level: str) -> bool:
+        """Check if user can edit dataset metadata."""
+        return permission_level in ["owner", "co-owner"]
+
+    def _handle_dataset_creation(self, request) -> JsonResponse:
+        """Handle dataset creation."""
+        dataset_form, selected_captures, selected_files = self._get_form_and_selections(
+            request
+        )
+
+        # Create dataset
+        dataset = self._create_or_update_dataset(request, dataset_form)
+
+        # Add captures to dataset
+        capture_error = self._add_captures_to_dataset(
+            dataset, selected_captures, request
+        )
+        if capture_error:
+            return capture_error
+
+        # Add files to dataset
+        self._add_files_to_dataset(dataset, selected_files)
+
+        # Return success response with redirect URL
+        return JsonResponse(
+            {"success": True, "redirect_url": reverse("users:dataset_list")},
+        )
+
+    def _handle_dataset_edit(self, request, dataset_uuid: str) -> JsonResponse:
+        """Handle dataset editing with asset management."""
+        try:
+            # Get the dataset
+            dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
+
+            # Check permissions
+            permission_level = get_user_permission_level(
+                request.user, dataset_uuid, ItemType.DATASET
+            )
+
+            if not permission_level:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "errors": {"non_field_errors": ["Access denied."]},
+                    },
+                    status=403,
+                )
+
+            # Update metadata if user has permission
+            if self.can_edit_metadata(permission_level):
+                dataset_form = DatasetInfoForm(request.POST, user=request.user)
+                if dataset_form.is_valid():
+                    dataset.name = dataset_form.cleaned_data["name"]
+                    dataset.description = dataset_form.cleaned_data["description"]
+
+                    # Handle authors with changes tracking
+                    authors_json = dataset_form.cleaned_data["authors"]
+                    authors = json.loads(authors_json)
+
+                    # Parse author changes if provided
+                    author_changes_json = request.POST.get("author_changes", "")
+                    if author_changes_json:
+                        try:
+                            author_changes = json.loads(author_changes_json)
+                            # Apply author changes
+                            authors = self._apply_author_changes(
+                                authors, author_changes
+                            )
+                        except json.JSONDecodeError:
+                            # Fallback to direct authors if parsing fails
+                            pass
+
+                    dataset.authors = authors
+                    dataset.status = dataset_form.cleaned_data["status"]
+                    dataset.save()
+
+            # Handle asset changes
+            asset_changes = self._parse_asset_changes(request)
+
+            # Apply asset changes based on permissions
+            self._apply_asset_changes(
+                dataset, asset_changes, request.user, permission_level
+            )
+
+            return JsonResponse(
+                {"success": True, "redirect_url": reverse("users:dataset_list")},
+            )
+
+        except Dataset.DoesNotExist:
             return JsonResponse(
                 {
                     "success": False,
-                    "errors": {
-                        "non_field_errors": [
-                            "Please select at least one capture or file.",
-                        ],
-                    },
+                    "errors": {"non_field_errors": ["Dataset not found."]},
                 },
-                status=400,
+                status=404,
             )
 
-        return None
+    def _parse_asset_changes(self, request) -> dict:
+        """Parse asset changes from the request."""
+        changes: dict[str, dict[str, list[str]]] = {
+            "captures": {"add": [], "remove": []},
+            "files": {"add": [], "remove": []},
+        }
+
+        # Parse captures changes
+        captures_add = request.POST.get("captures_add", "")
+        captures_remove = request.POST.get("captures_remove", "")
+
+        if captures_add:
+            changes["captures"]["add"] = [
+                capture_id.strip()
+                for capture_id in captures_add.split(",")
+                if capture_id.strip()
+            ]
+        if captures_remove:
+            changes["captures"]["remove"] = [
+                capture_id.strip()
+                for capture_id in captures_remove.split(",")
+                if capture_id.strip()
+            ]
+
+        # Parse files changes
+        files_add = request.POST.get("files_add", "")
+        files_remove = request.POST.get("files_remove", "")
+
+        if files_add:
+            changes["files"]["add"] = [
+                file_id.strip() for file_id in files_add.split(",") if file_id.strip()
+            ]
+        if files_remove:
+            changes["files"]["remove"] = [
+                file_id.strip()
+                for file_id in files_remove.split(",")
+                if file_id.strip()
+            ]
+
+        return changes
+
+    def _apply_asset_changes(  # noqa: C901, PLR0912
+        self, dataset: Dataset, changes: dict, user: User, permission_level: str
+    ):
+        """Apply asset changes based on user permissions."""
+        # Handle captures
+        if permission_level in ["owner", "co-owner", "contributor"]:
+            # Add captures
+            for capture_id in changes["captures"]["add"]:
+                try:
+                    capture = Capture.objects.get(
+                        uuid=capture_id, owner=user, is_deleted=False
+                    )
+                    dataset.captures.add(capture)
+                except Capture.DoesNotExist:
+                    continue
+
+        if permission_level in ["owner", "co-owner"]:
+            # Remove captures
+            for capture_id in changes["captures"]["remove"]:
+                try:
+                    capture = Capture.objects.get(uuid=capture_id, is_deleted=False)
+                    # Check if user can remove this capture
+                    if capture.owner == user or permission_level in [
+                        "owner",
+                        "co-owner",
+                    ]:
+                        dataset.captures.remove(capture)
+                except Capture.DoesNotExist:
+                    continue
+
+        # Handle files
+        if permission_level in ["owner", "co-owner", "contributor"]:
+            # Add files
+            for file_id in changes["files"]["add"]:
+                try:
+                    file_obj = File.objects.get(
+                        uuid=file_id, owner=user, is_deleted=False
+                    )
+                    dataset.files.add(file_obj)
+                except File.DoesNotExist:
+                    continue
+
+        if permission_level in ["owner", "co-owner"]:
+            # Remove files
+            for file_id in changes["files"]["remove"]:
+                try:
+                    file_obj = File.objects.get(uuid=file_id, is_deleted=False)
+                    # Check if user can remove this file
+                    if file_obj.owner == user or permission_level in [
+                        "owner",
+                        "co-owner",
+                    ]:
+                        dataset.files.remove(file_obj)
+                except File.DoesNotExist:
+                    continue
+
+    def _apply_author_changes(self, authors: list, changes: dict) -> list:
+        """Apply author changes based on the changes tracking."""
+        result = []
+
+        # Process each author index
+        for i, author in enumerate(authors):
+            # Skip if marked for removal
+            if i in changes.get("removed", []):
+                continue
+
+            # Apply modifications if any
+            if i in changes.get("modified", {}):
+                result.append(changes["modified"][i]["new"])
+            else:
+                result.append(author)
+
+        # Add new authors (only those that are beyond the original authors array)
+        for i in changes.get("added", []):
+            if i >= len(authors) and i < len(authors) + len(changes.get("added", [])):
+                # This is a new author that was added beyond the original array
+                # We need to get it from the current authors array
+                # (which includes the new ones)
+                if i < len(authors):
+                    result.append(authors[i])
+
+        return result
 
     def _get_form_and_selections(
         self, request
@@ -1715,7 +2018,10 @@ class GroupCapturesView(
             dataset = get_object_or_404(Dataset, uuid=dataset_uuid, owner=request.user)
             dataset.name = dataset_form.cleaned_data["name"]
             dataset.description = dataset_form.cleaned_data["description"]
-            dataset.authors = [dataset_form.cleaned_data["author"]]
+            # Parse authors from JSON string
+            authors_json = dataset_form.cleaned_data["authors"]
+            authors = json.loads(authors_json)
+            dataset.authors = authors
             dataset.status = dataset_form.cleaned_data["status"]
             dataset.save()
 
@@ -1724,10 +2030,13 @@ class GroupCapturesView(
             dataset.files.clear()
         else:
             # Create new dataset
+            # Parse authors from JSON string
+            authors_json = dataset_form.cleaned_data["authors"]
+            authors = json.loads(authors_json)
             dataset = Dataset.objects.create(
                 name=dataset_form.cleaned_data["name"],
                 description=dataset_form.cleaned_data["description"],
-                authors=[dataset_form.cleaned_data["author"]],
+                authors=authors,
                 status=dataset_form.cleaned_data["status"],
                 owner=request.user,
             )
@@ -1780,7 +2089,10 @@ class GroupCapturesView(
     ) -> None:
         """Add selected files to the dataset."""
         if selected_files[0]:
-            files = File.objects.filter(uuid__in=selected_files)
+            files = File.objects.filter(
+                uuid__in=selected_files,
+                owner=self.request.user,
+            )
             dataset.files.add(*files)
 
     def _get_file_context(
@@ -1795,7 +2107,6 @@ class GroupCapturesView(
 
         files_queryset = existing_dataset.files.filter(
             is_deleted=False,
-            owner=self.request.user,
         )
 
         # Prepare file details for JavaScript
@@ -1805,25 +2116,22 @@ class GroupCapturesView(
                 if base_dir
                 else None
             )
-            selected_files.append(self.serialize_item(selected_file, rel_path))
+            file_dict = self.serialize_item(selected_file, rel_path)
+            selected_files.append(file_dict)
 
-            selected_files_details[str(selected_file.uuid)] = self.serialize_item(
-                selected_file,
-                rel_path,
-            )
+            selected_files_details[str(selected_file.uuid)] = file_dict
 
         return selected_files, selected_files_details
 
     def _get_capture_context(
         self, existing_dataset: Dataset | None = None
-    ) -> tuple[list[str], dict[str, Any]]:
-        selected_captures: list[str] = []
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        selected_captures: list[dict[str, Any]] = []
         selected_captures_details: dict[str, Any] = {}
         composite_capture_dirs: set[str] = set()
         if existing_dataset:
             captures_queryset = existing_dataset.captures.filter(
                 is_deleted=False,
-                owner=self.request.user,
             )
 
             # Only include one composite per group
@@ -1832,13 +2140,13 @@ class GroupCapturesView(
                     if capture.top_level_dir not in composite_capture_dirs:
                         capture_dict = self.serialize_item(capture)
                         capture_uuid = str(capture_dict["id"])
-                        selected_captures.append(capture_uuid)
+                        selected_captures.append(capture_dict)
                         selected_captures_details[capture_uuid] = capture_dict
                         composite_capture_dirs.add(capture.top_level_dir)
                 else:
                     capture_dict = self.serialize_item(capture)
                     capture_uuid = str(capture_dict["id"])
-                    selected_captures.append(capture_uuid)
+                    selected_captures.append(capture_dict)
                     selected_captures_details[capture_uuid] = capture_dict
 
         return selected_captures, selected_captures_details
@@ -1863,7 +2171,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             self._prepare_owned_datasets(owned_datasets, request.user)
         )
         datasets_with_shared_users.extend(
-            self._prepare_shared_datasets(shared_datasets)
+            self._prepare_shared_datasets(shared_datasets, request.user)
         )
 
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
@@ -1931,19 +2239,26 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "is_shared_with_me": False,
                     "owner_name": dataset.owner.name or "Owner",
                     "owner_email": dataset.owner.email or "",
-                    # Add the original model instance for template use
                     "dataset": dataset,
+                    "permission_level": "owner",
                 }
             )
             result.append(dataset_data)
         return result
 
-    def _prepare_shared_datasets(self, datasets: QuerySet[Dataset]) -> list[dict]:
+    def _prepare_shared_datasets(
+        self, datasets: QuerySet[Dataset], user: User
+    ) -> list[dict]:
         """Prepare shared datasets with shared user information."""
         result = []
         for dataset in datasets:
             dataset_data = DatasetGetSerializer(dataset).data
-            shared_users = self._get_shared_users_for_dataset(dataset, dataset.owner)
+            shared_users = self._get_shared_users_for_dataset(dataset, user)
+
+            # Get the current user's permission level for this dataset
+            permission_level = get_user_permission_level(
+                user, dataset.uuid, ItemType.DATASET
+            )
 
             dataset_data.update(
                 {
@@ -1952,22 +2267,21 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "is_shared_with_me": True,
                     "owner_name": dataset.owner.name or "Owner",
                     "owner_email": dataset.owner.email or "",
-                    # Add the original model instance for template use
                     "dataset": dataset,
+                    "permission_level": permission_level,
                 }
             )
             result.append(dataset_data)
         return result
 
     def _get_shared_users_for_dataset(
-        self, dataset: Dataset, owner: User
+        self, dataset: Dataset, current_user: User
     ) -> list[dict]:
         """Get shared users and groups for a dataset."""
         shared_permissions = (
             UserSharePermission.objects.filter(
                 item_uuid=dataset.uuid,
                 item_type=ItemType.DATASET,
-                owner=owner,
                 is_deleted=False,
                 is_enabled=True,
             )
@@ -1980,7 +2294,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
         for perm in shared_permissions:
             if perm.share_groups.exists():
-                self._process_group_permission(perm, group_permissions)
+                self._process_group_permission(perm, group_permissions, current_user)
             else:
                 self._process_individual_permission(perm, shared_users)
 
@@ -1992,7 +2306,10 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         return shared_users
 
     def _process_group_permission(
-        self, perm: UserSharePermission, group_permissions: dict
+        self,
+        perm: UserSharePermission,
+        group_permissions: dict,
+        current_user: User,
     ) -> None:
         """Process a group permission and update group_permissions dict."""
         for group in perm.share_groups.all():
@@ -2004,6 +2321,10 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "type": "group",
                     "members": [],
                     "permission_level": perm.permission_level,
+                    "owner": group.owner.name,
+                    "owner_email": group.owner.email,
+                    "is_group_owner": group.owner
+                    == current_user,  # Check if the current user owns the group
                 }
             group_permissions[group_uuid]["members"].append(
                 {

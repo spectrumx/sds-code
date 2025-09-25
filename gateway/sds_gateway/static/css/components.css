@@ -6,16 +6,227 @@
 
 /* Button hover states - ensure proper contrast */
 .btn-outline-secondary:hover {
-	color: #fff !important;
-	background-color: #6c757d !important;
-	border-color: #6c757d !important;
+	color: #fff;
+	background-color: #6c757d;
+	border-color: #6c757d;
 }
 
 .btn-outline-secondary:focus {
-	color: #fff !important;
-	background-color: #6c757d !important;
-	border-color: #6c757d !important;
-	box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25) !important;
+	color: #fff;
+	background-color: #6c757d;
+	border-color: #6c757d;
+	box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25);
+}
+
+/* Dataset Editing Styles */
+.marked-for-removal {
+	text-decoration: line-through;
+	background-color: #f8f9fa;
+	cursor: not-allowed;
+}
+
+/* Disabled button styling for marked items */
+.marked-for-removal .mark-for-removal-btn {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.marked-for-removal .mark-for-removal-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.current-capture-row,
+.current-file-row {
+	transition: all 0.3s ease;
+}
+
+.current-capture-row:hover,
+.current-file-row:hover {
+	background-color: #f8f9fa;
+}
+
+.pending-changes-count,
+.current-captures-count,
+.current-files-count {
+	font-size: 0.875rem;
+}
+
+/* User profile styling */
+.form-control[readonly] {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+	color: #6c757d;
+}
+
+.form-control[readonly]:focus {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+	box-shadow: none;
+}
+
+/* Author management styling */
+.author-item {
+	transition: all 0.3s ease;
+}
+
+.author-item:hover {
+	background-color: #f8f9fa;
+}
+
+.author-item.marked-for-removal .form-control {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+	color: #6c757d;
+}
+
+.author-name-input,
+.author-orcid-input {
+	font-size: 0.9rem;
+}
+
+.author-orcid-input {
+	font-family: "Courier New", monospace;
+}
+
+/* Permission-based styling */
+.readonly-field {
+	background-color: #f8f9fa;
+	border: 1px solid #dee2e6;
+	color: #6c757d;
+}
+
+.readonly-field:focus {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+	box-shadow: none;
+}
+
+.readonly-row {
+	background-color: #f8f9fa;
+	opacity: 0.8;
+}
+.readonly-row td {
+	color: #6c757d;
+}
+.readonly-row .badge {
+	opacity: 0.7;
+}
+
+/* Authors management styling */
+.author-item {
+	transition: all 0.2s ease;
+}
+
+.author-item:hover {
+	background-color: #f8f9fa;
+	padding: 0.5rem;
+	border-radius: 0.375rem;
+}
+
+.author-input[readonly] {
+	background-color: #f8f9fa;
+	border-color: #dee2e6;
+	color: #6c757d;
+	font-weight: 500;
+}
+
+.authors-list {
+	min-height: 2.5rem;
+}
+
+#add-author-btn {
+	transition: all 0.2s ease;
+}
+
+#add-author-btn:hover {
+	transform: translateY(-1px);
+}
+
+/* Dataset Management Layout Improvements */
+.card {
+	border-radius: 0.5rem;
+	box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-header {
+	border-bottom: 1px solid #dee2e6;
+	padding: 1rem 1.25rem;
+	background-color: #f8f9fa;
+	border-top-left-radius: 0.5rem;
+	border-top-right-radius: 0.5rem;
+}
+
+.card-body {
+	padding: 1.25rem;
+}
+
+.table {
+	margin-bottom: 0;
+}
+
+.table th {
+	border-top: none;
+	border-bottom: 2px solid #dee2e6;
+	font-weight: 600;
+	color: #495057;
+	padding: 0.75rem 0.5rem;
+}
+
+.table td {
+	padding: 0.75rem 0.5rem;
+	vertical-align: middle;
+}
+
+.table-hover tbody tr:hover {
+	background-color: #f8f9fa;
+}
+
+/* Side panel styling */
+.col-md-4 .card {
+	height: fit-content;
+}
+
+.col-md-4 .card:first-child {
+	margin-bottom: 1.5rem;
+}
+
+/* Badge styling */
+.badge {
+	font-size: 0.75rem;
+	padding: 0.25rem 0.5rem;
+}
+
+/* Button spacing */
+.btn + .btn {
+	margin-left: 0.5rem;
+}
+
+/* Form spacing */
+.form-group {
+	margin-bottom: 1rem;
+}
+
+.form-label {
+	font-weight: 500;
+	color: #495057;
+	margin-bottom: 0.5rem;
+}
+
+/* Alert styling */
+.alert {
+	border-radius: 0.5rem;
+	border: none;
+}
+
+.alert-info {
+	background-color: #d1ecf1;
+	color: #0c5460;
+}
+
+.alert-warning {
+	background-color: #fff3cd;
+	color: #856404;
 }
 
 /* Top Gradient Bar */
@@ -1091,22 +1302,22 @@ body {
 /* Remove member button sizing for share groups */
 .remove-member-btn.btn-danger,
 .remove-member-btn.btn-outline-danger {
-	padding: 0.375rem 0.75rem !important;
-	font-size: 0.875rem !important;
-	line-height: 1.5 !important;
-	border-radius: 0.375rem !important;
-	border-width: 1px !important;
-	min-width: 80px !important;
-	height: auto !important;
+	padding: 0.375rem 0.75rem;
+	font-size: 0.875rem;
+	line-height: 1.5;
+	border-radius: 0.375rem;
+	border-width: 1px;
+	min-width: 80px;
+	height: auto;
 }
 
 /* Delete modal z-index for share groups */
 #deleteGroupModal {
-	z-index: 2055 !important;
+	z-index: 2055;
 }
 
 #deleteGroupModal .modal-dialog {
-	z-index: 2056 !important;
+	z-index: 2056;
 }
 
 /* Group member popup styles */
@@ -1278,50 +1489,50 @@ body {
 
 /* Copy UUID Button Styles */
 .copy-uuid-btn {
-	transition: all 0.2s ease !important;
-	background: none !important;
-	border: none !important;
-	border-radius: 0.25rem !important;
-	padding: 0 0.25rem !important;
-	color: #6c757d !important;
-	font-size: inherit !important;
-	cursor: pointer !important;
+	transition: all 0.2s ease;
+	background: none;
+	border: none;
+	border-radius: 0.25rem;
+	padding: 0 0.25rem;
+	color: #6c757d;
+	font-size: inherit;
+	cursor: pointer;
 }
 
 .copy-uuid-btn:hover {
-	background: none !important;
-	border: none !important;
-	color: #495057 !important;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+	background: none;
+	border: none;
+	color: #495057;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .copy-uuid-btn:active {
-	transform: none !important;
-	box-shadow: none !important;
+	transform: none;
+	box-shadow: none;
 }
 
 .copy-uuid-btn.btn-success {
-	background: none !important;
-	border: none !important;
-	color: #198754 !important;
+	background: none;
+	border: none;
+	color: #198754;
 }
 
 .copy-uuid-btn.btn-success:hover {
-	background: none !important;
-	border: none !important;
-	color: #157347 !important;
+	background: none;
+	border: none;
+	color: #157347;
 }
 
 .copy-uuid-btn.btn-danger {
-	background: none !important;
-	border: none !important;
-	color: #dc3545 !important;
+	background: none;
+	border: none;
+	color: #dc3545;
 }
 
 .copy-uuid-btn.btn-danger:hover {
-	background: none !important;
-	border: none !important;
-	color: #bb2d3b !important;
+	background: none;
+	border: none;
+	color: #bb2d3b;
 }
 
 .code-example pre {
@@ -1330,15 +1541,15 @@ body {
 	margin: 0;
 	white-space: pre-wrap;
 	word-wrap: break-word;
-	background: #f8f9fa !important;
-	border: 1px solid #dee2e6 !important;
+	background: #f8f9fa;
+	border: 1px solid #dee2e6;
 }
 
 .code-example pre code {
-	background: transparent !important;
-	color: #212529 !important;
-	text-shadow: none !important;
-	font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace !important;
+	background: transparent;
+	color: #212529;
+	text-shadow: none;
+	font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
 }
 
 .copy-btn {
@@ -1347,103 +1558,103 @@ body {
 }
 
 .copy-btn:hover {
-	background-color: #005a9c !important;
-	border-color: #005a9c !important;
-	color: white !important;
+	background-color: #005a9c;
+	border-color: #005a9c;
+	color: white;
 }
 
 .copy-btn.copied {
-	background-color: #28a745 !important;
-	border-color: #28a745 !important;
-	color: white !important;
+	background-color: #28a745;
+	border-color: #28a745;
+	color: white;
 }
 
 /* Prism.js light theme custom styles */
 .token.comment {
-	color: #6c757d !important;
-	font-style: italic !important;
+	color: #6c757d;
+	font-style: italic;
 }
 
 .token.string {
-	color: #28a745 !important;
+	color: #28a745;
 }
 
 .token.keyword {
-	color: #005a9c !important;
+	color: #005a9c;
 }
 
 .token.function {
-	color: #17a2b8 !important;
+	color: #17a2b8;
 }
 
 .token.number {
-	color: #e83e8c !important;
+	color: #e83e8c;
 }
 
 .token.operator {
-	color: #6c757d !important;
+	color: #6c757d;
 }
 
 .token.punctuation {
-	color: #6c757d !important;
+	color: #6c757d;
 }
 
 .token.class-name {
-	color: #005a9c !important;
+	color: #005a9c;
 }
 
 .token.builtin {
-	color: #fd7e14 !important;
+	color: #fd7e14;
 }
 
 .token.boolean {
-	color: #e83e8c !important;
+	color: #e83e8c;
 }
 
 /* Copy UUID Button Styles */
 .copy-uuid-btn {
-	transition: all 0.2s ease !important;
-	background: none !important;
-	border: none !important;
-	border-radius: 0.25rem !important;
-	padding: 0 0.25rem !important;
-	color: #6c757d !important;
-	font-size: inherit !important;
-	cursor: pointer !important;
+	transition: all 0.2s ease;
+	background: none;
+	border: none;
+	border-radius: 0.25rem;
+	padding: 0 0.25rem;
+	color: #6c757d;
+	font-size: inherit;
+	cursor: pointer;
 }
 
 .copy-uuid-btn:hover {
-	background: none !important;
-	border: none !important;
-	color: #495057 !important;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+	background: none;
+	border: none;
+	color: #495057;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .copy-uuid-btn:active {
-	transform: none !important;
-	box-shadow: none !important;
+	transform: none;
+	box-shadow: none;
 }
 
 .copy-uuid-btn.btn-success {
-	background: none !important;
-	border: none !important;
-	color: #198754 !important;
+	background: none;
+	border: none;
+	color: #198754;
 }
 
 .copy-uuid-btn.btn-success:hover {
-	background: none !important;
-	border: none !important;
-	color: #157347 !important;
+	background: none;
+	border: none;
+	color: #157347;
 }
 
 .copy-uuid-btn.btn-danger {
-	background: none !important;
-	border: none !important;
-	color: #dc3545 !important;
+	background: none;
+	border: none;
+	color: #dc3545;
 }
 
 .copy-uuid-btn.btn-danger:hover {
-	background: none !important;
-	border: none !important;
-	color: #bb2d3b !important;
+	background: none;
+	border: none;
+	color: #bb2d3b;
 }
