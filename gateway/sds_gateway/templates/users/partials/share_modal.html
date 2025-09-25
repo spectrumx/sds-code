@@ -99,9 +99,6 @@
                                             <div>
                                                 <h5 class="mb-1">
                                                     {{ item.owner_name|default:"Owner" }}
-                                                    <i class="bi bi-person-fill text-primary"
-                                                       data-bs-toggle="tooltip"
-                                                       title="Owner"></i>
                                                 </h5>
                                                 <p class="mb-0">
                                                     <small class="text-muted">{{ item.owner_email }}</small>
@@ -110,7 +107,9 @@
                                         </div>
                                         <div class="col-md-2 d-flex justify-content-end align-items-center">
                                             <h5>
-                                                <span class="badge bg-owner ms-2 align-middle">Owner</span>
+                                                <span class="badge bg-owner access-level-badge ms-2 align-middle">
+                                                    <i class="bi bi-person-circle me-1"></i>Owner
+                                                </span>
                                             </h5>
                                         </div>
                                     </div>
