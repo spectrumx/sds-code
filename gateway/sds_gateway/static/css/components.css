@@ -25,6 +25,72 @@
 	cursor: not-allowed;
 }
 
+/* Authors Management Styles */
+.authors-management {
+	border: 1px solid #dee2e6;
+	border-radius: 0.375rem;
+	padding: 1rem;
+	background-color: #f8f9fa;
+}
+
+.author-item {
+	display: flex;
+	align-items-center;
+	gap: 0.5rem;
+	margin-bottom: 0.75rem;
+	padding: 0.75rem;
+	background-color: #fff;
+	border: 1px solid #dee2e6;
+	border-radius: 0.375rem;
+}
+
+.author-item:last-child {
+	margin-bottom: 0;
+}
+
+.author-name-input,
+.author-orcid-input {
+	flex: 1;
+	min-width: 0;
+}
+
+.author-name-input {
+	flex: 2;
+}
+
+.author-orcid-input {
+	flex: 1.5;
+}
+
+.remove-author {
+	flex-shrink: 0;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+}
+
+.author-item-number {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background-color: #0d6efd;
+	color: white;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.75rem;
+	font-weight: 600;
+}
+
+.authors-list:empty + #add-author-btn {
+	margin-top: 0;
+}
+
 /* Disabled button styling for marked items */
 .marked-for-removal .mark-for-removal-btn {
 	opacity: 0.5;
