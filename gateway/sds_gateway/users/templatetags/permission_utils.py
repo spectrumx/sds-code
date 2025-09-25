@@ -7,7 +7,7 @@ register = template.Library()
 def permission_icon(level):
     """Get the Bootstrap icon class for a permission level."""
     icons = {
-        "owner": "bi-crown",
+        "owner": "bi-person-check",
         "co-owner": "bi-gear",
         "contributor": "bi-plus-circle",
         "viewer": "bi-eye",
