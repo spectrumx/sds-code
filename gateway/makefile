@@ -8,6 +8,7 @@ redeploy: build down up logs
 
 # variables for local (dev) deployment
 APP_CONTAINER := sds-gateway-local-app
+NODE_CONTAINER := node
 COMPOSE_FILE := compose.local.yaml
 ENV_FILE := .envs/local/opensearch.env
 ENV := local
