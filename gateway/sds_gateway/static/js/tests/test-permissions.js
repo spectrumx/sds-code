@@ -129,7 +129,7 @@ class PermissionsManager {
 
 	static getPermissionIcon(level) {
 		const icons = {
-			owner: "bi-crown",
+			owner: "bi-person-circle",
 			"co-owner": "bi-gear",
 			contributor: "bi-plus-circle",
 			viewer: "bi-eye",
@@ -581,7 +581,7 @@ permissionsTests.addTest("Permission descriptions", () => {
 permissionsTests.addTest("Permission icons", () => {
 	permissionsTests.assertEqual(
 		PermissionsManager.getPermissionIcon("owner"),
-		"bi-crown",
+		"bi-person-circle",
 	);
 	permissionsTests.assertEqual(
 		PermissionsManager.getPermissionIcon("co-owner"),
