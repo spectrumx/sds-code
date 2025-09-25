@@ -47,6 +47,7 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
@@ -398,7 +399,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         item_type: ItemType,
         request_user: User,
         message: str,
-        permission_level: str = "viewer",
+        permission_level: PermissionLevel = PermissionLevel.VIEWER,
     ) -> tuple[list[dict], list[str]]:
         """Add a group to item sharing."""
         group_uuid = group_identifier.split(":")[1]  # Remove "group:" prefix
@@ -443,7 +444,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         item_type: ItemType,
         request_user: User,
         message: str,
-        permission_level: str = "viewer",
+        permission_level: PermissionLevel = PermissionLevel.VIEWER,
     ) -> tuple[str | None, str | None]:
         """Add an individual user to item sharing. Returns (shared_user, error)."""
         try:
@@ -683,7 +684,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 raise ValueError(msg) from err
             else:
                 # Validate all permission levels
-                valid_permissions = ["viewer", "contributor", "co-owner"]
+                valid_permissions = [
+                    PermissionLevel.VIEWER,
+                    PermissionLevel.CONTRIBUTOR,
+                    PermissionLevel.CO_OWNER,
+                ]
                 for email, perm_level in user_permissions.items():
                     if perm_level not in valid_permissions:
                         msg = (
@@ -700,7 +705,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         ]
 
         for identifier in identifiers:
-            permission = user_permissions.get(identifier, "viewer")
+            permission = user_permissions.get(identifier, PermissionLevel.VIEWER)
             users[identifier] = permission
 
         return users
@@ -739,7 +744,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     ) -> dict:
         """Process a single permission change."""
         user_email = change.get("user_email")
-        new_permission = change.get("permissionLevel")
+        new_permission = change.get("permissionLevel", PermissionLevel.VIEWER)
 
         if not user_email or not new_permission:
             return {"success": False, "error": "Missing email or permission level"}
@@ -748,7 +753,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return self._process_removal(request, item_uuid, item_type, user_email)
 
         # Validate permission level
-        valid_permissions = ["viewer", "contributor", "co-owner"]
+        valid_permissions = [
+            PermissionLevel.VIEWER,
+            PermissionLevel.CONTRIBUTOR,
+            PermissionLevel.CO_OWNER,
+        ]
         if new_permission not in valid_permissions:
             return {
                 "success": False,
@@ -778,7 +787,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         item_uuid: str,
         item_type: ItemType,
         user_email: str,
-        new_permission: str,
+        new_permission: PermissionLevel,
     ) -> dict:
         """Update permission for an individual user."""
         try:
@@ -819,7 +828,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         item_uuid: str,
         item_type: ItemType,
         group_identifier: str,
-        new_permission: str,
+        new_permission: PermissionLevel,
     ) -> dict:
         """Update permission for a group."""
         try:

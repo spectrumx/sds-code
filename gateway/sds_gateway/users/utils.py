@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.capture_serializers import (
@@ -99,7 +100,7 @@ def update_or_create_user_group_share_permissions(
     item_uuid: str,
     item_type: ItemType,
     message: str,
-    permission_level: str = "viewer",
+    permission_level: PermissionLevel = PermissionLevel.VIEWER,
 ) -> None:
     """
     Update or add share permissions for a user in a group.

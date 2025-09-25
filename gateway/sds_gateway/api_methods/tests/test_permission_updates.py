@@ -9,6 +9,7 @@ from django.urls import reverse
 
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import UserSharePermission
 
@@ -61,7 +62,7 @@ class PermissionUpdateTestCase(TestCase):
             shared_with=self.user1,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="viewer",
+            permission_level=PermissionLevel.VIEWER,
         )
 
         # Login as owner
@@ -73,7 +74,10 @@ class PermissionUpdateTestCase(TestCase):
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
-            data={"user_email": "user1@example.com", "permission_level": "contributor"},
+            data={
+                "user_email": "user1@example.com",
+                "permission_level": PermissionLevel.CONTRIBUTOR,
+            },
         )
 
         assert response.status_code == HTTP_200_OK
@@ -82,7 +86,7 @@ class PermissionUpdateTestCase(TestCase):
 
         # Verify permission was updated
         permission.refresh_from_db()
-        assert permission.permission_level == "contributor"
+        assert permission.permission_level == PermissionLevel.CONTRIBUTOR
 
     def test_update_group_permissions(self):
         """Test updating permission levels for group members."""
@@ -92,7 +96,7 @@ class PermissionUpdateTestCase(TestCase):
             shared_with=self.user1,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="viewer",
+            permission_level=PermissionLevel.VIEWER,
         )
         permission1.share_groups.add(self.group)
 
@@ -101,7 +105,7 @@ class PermissionUpdateTestCase(TestCase):
             shared_with=self.user2,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="viewer",
+            permission_level=PermissionLevel.VIEWER,
         )
         permission2.share_groups.add(self.group)
 
@@ -114,7 +118,10 @@ class PermissionUpdateTestCase(TestCase):
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
-            data={"group_uuid": str(self.group.uuid), "permission_level": "co-owner"},
+            data={
+                "group_uuid": str(self.group.uuid),
+                "permission_level": PermissionLevel.CO_OWNER,
+            },
         )
 
         assert response.status_code == HTTP_200_OK
@@ -124,8 +131,8 @@ class PermissionUpdateTestCase(TestCase):
         # Verify both permissions were updated
         permission1.refresh_from_db()
         permission2.refresh_from_db()
-        assert permission1.permission_level == "co-owner"
-        assert permission2.permission_level == "co-owner"
+        assert permission1.permission_level == PermissionLevel.CO_OWNER
+        assert permission2.permission_level == PermissionLevel.CO_OWNER
 
     def test_update_permission_unauthorized(self):
         """Test that unauthorized users cannot update permissions."""
@@ -135,7 +142,7 @@ class PermissionUpdateTestCase(TestCase):
             shared_with=self.user1,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="viewer",
+            permission_level=PermissionLevel.VIEWER,
         )
 
         # Login as user1 (not the owner)
@@ -147,7 +154,10 @@ class PermissionUpdateTestCase(TestCase):
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
-            data={"user_email": "user1@example.com", "permission_level": "contributor"},
+            data={
+                "user_email": "user1@example.com",
+                "permission_level": PermissionLevel.CONTRIBUTOR,
+            },
         )
 
         assert (
@@ -162,7 +172,7 @@ class PermissionUpdateTestCase(TestCase):
             shared_with=self.user1,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="viewer",
+            permission_level=PermissionLevel.VIEWER,
         )
 
         # Login as owner
@@ -198,7 +208,7 @@ class PermissionUpdateTestCase(TestCase):
             ),
             data={
                 "user_email": "nonexistent@example.com",
-                "permission_level": "contributor",
+                "permission_level": PermissionLevel.CONTRIBUTOR,
             },
         )
 
@@ -218,7 +228,7 @@ class PermissionUpdateTestCase(TestCase):
             shared_with=self.user2,
             item_type=ItemType.DATASET,
             item_uuid=self.dataset.uuid,
-            permission_level="viewer",
+            permission_level=PermissionLevel.VIEWER,
         )
         permission.share_groups.add(user1_group)
 
@@ -233,7 +243,7 @@ class PermissionUpdateTestCase(TestCase):
             ),
             data={
                 "group_uuid": str(user1_group.uuid),
-                "permission_level": "contributor",
+                "permission_level": PermissionLevel.CONTRIBUTOR,
             },
         )
 
