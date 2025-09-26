@@ -131,7 +131,7 @@ class TestShareItemView:
         assert response.status_code == status.HTTP_200_OK
         result = response.json()
         assert result["success"] is True
-        assert user_to_share_with.email in result["message"]
+        assert "Added 1 user(s)" in result["message"]
 
         # Verify the share permission was created
         permission = UserSharePermission.objects.get(
@@ -169,9 +169,10 @@ class TestShareItemView:
 
         response = client.post(url, data)
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_200_OK
         result = response.json()
-        assert "already shared" in result["error"]
+        assert result["success"] is False
+        assert "already shared" in str(result["details"]["errors"])
 
     def test_share_re_enable_disabled_permission(
         self, client: Client, owner: User, user_to_share_with: User, dataset: Dataset
@@ -238,7 +239,7 @@ class TestShareItemView:
         assert response.status_code == status.HTTP_200_OK
         result = response.json()
         assert result["success"] is True
-        assert "Removed access" in result["message"]
+        assert "Removed 1 user(s)" in result["message"]
 
         # Verify the permission was disabled
         permission = UserSharePermission.objects.get(
@@ -266,9 +267,10 @@ class TestShareItemView:
 
         response = client.post(url, data)
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_200_OK
         result = response.json()
-        assert "not shared" in result["error"]
+        assert result["success"] is False
+        assert "not shared" in str(result["details"]["errors"])
 
     def test_share_with_multiple_users(
         self, client: Client, owner: User, user_to_share_with: User, dataset: Dataset
@@ -298,8 +300,7 @@ class TestShareItemView:
         assert response.status_code == status.HTTP_200_OK
         result = response.json()
         assert result["success"] is True
-        assert user_to_share_with.email in result["message"]
-        assert user2.email in result["message"]
+        assert "Added 2 user(s)" in result["message"]
 
         # Verify both permissions were created
         permissions = UserSharePermission.objects.filter(
