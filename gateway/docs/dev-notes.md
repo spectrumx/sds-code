@@ -1,6 +1,8 @@
 # Gateway Development Notes
 
 + [Gateway Development Notes](#gateway-development-notes)
+    + [Production Backups](#production-backups)
+        + [Backups Restoration](#backups-restoration)
     + [OpenSearch Cluster Maintenance](#opensearch-cluster-maintenance)
         + [Cluster health](#cluster-health)
         + [Cluster stats](#cluster-stats)
@@ -17,6 +19,38 @@
         + [Running Postgres commands](#running-postgres-commands)
         + [Postgres collation version mismatch](#postgres-collation-version-mismatch)
             + [Solution](#solution)
+
+## Production Backups
+
+This procedure might be useful for daily backups, before major database changes such
+as migrations, or before upgrading Postgres versions.
+
+1. `cp scripts/.env.sh.example scripts/.env.sh`.
+2. `$EDITOR scripts/.env.sh` to set the variables in it.
+3. Run `make snapshot` to create a daily backup snapshot of Postgres database.
+    + See `scripts/create-snapshot.sh` for details of what is executed.
+    + Database credentials are automatically loaded from the postgres container, so
+        the user running the snapshot must have privileges to manage the database
+        container, and the container must be running with those env variables set.
+    + The Postgres snapshot is created with `pg_dumpall`. See the docs for details:
+        [Postgres docs](https://postgresql.org/docs/current/app-pg-dumpall.html).
+    + The snapshot creation is non-interactive, so it can be run from automated scripts; but interaction might be required for backup exfiltration.
+4. Access the created files in `./data/backups/`.
+
+### Backups Restoration
+
+> [!WARNING]
+> This is a destructive operation that will overwrite the existing database.
+>
+> Unless in exceptional data recovery circumstances, do not restore a backup to a live
+> production environment. If doing that anyway, create a recent snapshot and export
+> it to a different machine first. See [production backups](#production-backups) above.
+
+See `scripts/restore-snapshot.sh` to restore the most recent snapshot.
+
+This is an interactive script with some safeguards to prevent accidental overwriting of
+data. Read the script before running it to make sure it does the expected, since this
+is a destructive operation.
 
 ## OpenSearch Cluster Maintenance
 

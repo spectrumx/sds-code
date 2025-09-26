@@ -142,9 +142,12 @@ function snapshot_stats() {
 
 function transfer_to_qa_when_prod() {
     log_header "Transferring backup to QA server…"
-    if [[ -z "${HOSTNAME_PROD}" || -z "${HOSTNAME_QA}" || -z "${QA_SSH_NAME}" || -z "${QA_BACKUPS_PATH}" ]]; then
+    if [[ -z "${HOSTNAME_PROD}" || -z "${HOSTNAME_QA}" || -z "${QA_BACKUPS_PATH}" ]]; then
         log_warning "One or more required variables are not set. Skipping transfer to QA."
         return
+    fi
+    if [[ -z "${QA_SSH_NAME}" ]]; then
+        QA_SSH_NAME="${HOSTNAME_QA}"
     fi
     hostname="$(hostname)"
     if [[ "${hostname}" != "${HOSTNAME_PROD}" ]]; then
