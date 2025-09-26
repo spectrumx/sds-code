@@ -74,7 +74,7 @@ def _get_dmd_first_sample_file_name(file_queryset: QuerySet[File]) -> str | None
 
     if not dmd_file_objs.exists():
         msg = "No metadata sample files found"
-        log.error(msg)
+        log.warning(msg)
         return None
 
     # get the first dmd file name
