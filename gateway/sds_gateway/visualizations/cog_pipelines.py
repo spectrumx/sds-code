@@ -191,7 +191,7 @@ def setup_post_processing_cog(
                     f"PostProcessedData records must be created before starting the "
                     f"pipeline."
                 )
-                raise ValueError(error_msg)
+                raise ValueError(error_msg)  # noqa: TRY301
 
         logger.info(f"Completed setup for capture {capture_uuid}")
     except Exception as e:

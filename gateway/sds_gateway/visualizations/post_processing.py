@@ -36,7 +36,7 @@ def launch_visualization_processing(
         # Validate processing config
         if not processing_config:
             error_msg = "No processing config specified"
-            raise ValueError(error_msg)
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Get the capture
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
@@ -54,8 +54,8 @@ def launch_visualization_processing(
             if existing_processed_data_id:
                 # Use existing processed_data_id
                 logger.info(
-                    f"Using existing processed_data with ID {existing_processed_data_id} "
-                    f"for {processing_type}"
+                    f"Using existing processed_data with ID "
+                    f"{existing_processed_data_id} for {processing_type}"
                 )
                 updated_processing_config[processing_type] = parameters
             else:
@@ -80,7 +80,9 @@ def launch_visualization_processing(
                 )
 
         # Get the appropriate pipeline from the database
-        from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
+        from sds_gateway.visualizations.models import (  # noqa: PLC0415
+            get_latest_pipeline_by_base_name,
+        )
 
         # Always use the visualization pipeline - individual cogs will check if they
         # should run
@@ -90,7 +92,7 @@ def launch_visualization_processing(
             error_msg = (
                 f"No {pipeline_name} pipeline found. Please run setup_pipelines."
             )
-            raise ValueError(error_msg)
+            raise ValueError(error_msg)  # noqa: TRY301
 
         # Launch the visualization pipeline with updated processing config
         logger.info(

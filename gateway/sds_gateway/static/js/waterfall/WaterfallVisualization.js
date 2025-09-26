@@ -522,12 +522,11 @@ class WaterfallVisualization {
 
 			if (!data.uuid) {
 				throw new Error("Waterfall job ID not found");
-			} else {
-				this.currentJobId = data.uuid;
-
-				// Start polling for status
-				this.startStatusPolling();
 			}
+			this.currentJobId = data.uuid;
+
+			// Start polling for status
+			this.startStatusPolling();
 		} catch (error) {
 			console.error("Error creating waterfall job:", error);
 			throw error;
