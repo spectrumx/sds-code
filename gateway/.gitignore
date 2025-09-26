@@ -7,6 +7,7 @@ opensearch/data/*
 # data dirs
 data/*
 opensearch/data/*
+!data/.gitkeep
 !opensearch/data/.gitkeep
 
 ### Python template
