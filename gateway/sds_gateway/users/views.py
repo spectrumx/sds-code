@@ -78,6 +78,16 @@ from sds_gateway.visualizations.config import get_visualization_compatibility
 # Constants
 MAX_API_KEY_COUNT = 10
 
+
+class ShareOperationError(Exception):
+    """Custom exception for share operation errors with HTTP status codes."""
+
+    def __init__(self, message: str, status_code: int = 400):
+        self.message = message
+        self.status_code = status_code
+        super().__init__(message)
+
+
 # Add logger for debugging
 logger = logging.getLogger(__name__)
 
@@ -569,6 +579,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
         try:
             results = self._process_share_operations(request, item_uuid, item_type)
+        except ShareOperationError as e:
+            return JsonResponse({"error": e.message}, status=e.status_code)
         except (ValueError, json.JSONDecodeError) as e:
             return JsonResponse({"error": str(e)}, status=400)
 
@@ -759,10 +771,10 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             PermissionLevel.CO_OWNER,
         ]
         if new_permission not in valid_permissions:
-            return {
-                "success": False,
-                "error": f"Invalid permission level: {new_permission}",
-            }
+            error_msg = f"Invalid permission level: {new_permission}"
+            raise ShareOperationError(
+                error_msg, status_code=status.HTTP_400_BAD_REQUEST
+            )
 
         # Handle group vs individual user
         if user_email.startswith("group:"):
@@ -816,11 +828,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 ),
             }
 
-        except User.DoesNotExist:
-            return {
-                "success": False,
-                "error": f"User with email {user_email} not found",
-            }
+        except User.DoesNotExist as err:
+            error_msg = f"User with email {user_email} not found"
+            raise ShareOperationError(
+                error_msg, status_code=status.HTTP_400_BAD_REQUEST
+            ) from err
 
     def _update_group_permission(
         self,
@@ -865,8 +877,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 ),
             }
 
-        except ShareGroup.DoesNotExist:
-            return {"success": False, "error": "Group not found or you don't own it"}
+        except ShareGroup.DoesNotExist as err:
+            error_msg = "Group not found or you don't own it"
+            raise ShareOperationError(
+                error_msg, status_code=status.HTTP_404_NOT_FOUND
+            ) from err
 
     def _remove_individual_access(
         self, request: HttpRequest, item_uuid: str, item_type: ItemType, user_email: str

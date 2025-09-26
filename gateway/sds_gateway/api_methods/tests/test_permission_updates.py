@@ -2,10 +2,13 @@
 Tests for permission level update functionality.
 """
 
+import json
+
 from django.contrib.auth import get_user_model
 from django.test import Client
 from django.test import TestCase
 from django.urls import reverse
+from rest_framework import status
 
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
@@ -14,11 +17,6 @@ from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import UserSharePermission
 
 User = get_user_model()
-
-# HTTP status constants
-HTTP_200_OK = 200
-HTTP_400_BAD_REQUEST = 400
-HTTP_404_NOT_FOUND = 404
 
 
 class PermissionUpdateTestCase(TestCase):
@@ -69,18 +67,24 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Update permission to contributor
-        response = self.client.patch(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "user_email": "user1@example.com",
-                "permission_level": PermissionLevel.CONTRIBUTOR,
+                "permission_changes": json.dumps(
+                    [
+                        [
+                            "user1@example.com",
+                            {"permissionLevel": PermissionLevel.CONTRIBUTOR},
+                        ]
+                    ]
+                ),
             },
         )
 
-        assert response.status_code == HTTP_200_OK
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"]
 
@@ -113,18 +117,24 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Update group permissions to co-owner
-        response = self.client.put(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "group_uuid": str(self.group.uuid),
-                "permission_level": PermissionLevel.CO_OWNER,
+                "permission_changes": json.dumps(
+                    [
+                        [
+                            f"group:{self.group.uuid}",
+                            {"permissionLevel": PermissionLevel.CO_OWNER},
+                        ]
+                    ]
+                ),
             },
         )
 
-        assert response.status_code == HTTP_200_OK
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"]
 
@@ -149,19 +159,25 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.user1)
 
         # Try to update permission
-        response = self.client.patch(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "user_email": "user1@example.com",
-                "permission_level": PermissionLevel.CONTRIBUTOR,
+                "permission_changes": json.dumps(
+                    [
+                        [
+                            "user1@example.com",
+                            {"permissionLevel": PermissionLevel.CONTRIBUTOR},
+                        ]
+                    ]
+                ),
             },
         )
 
         assert (
-            response.status_code == HTTP_404_NOT_FOUND
+            response.status_code == status.HTTP_404_NOT_FOUND
         )  # Item not found for this user
 
     def test_update_permission_invalid_level(self):
@@ -179,20 +195,20 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Try to update with invalid permission level
-        response = self.client.patch(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "user_email": "user1@example.com",
-                "permission_level": "invalid_level",
+                "permission_changes": json.dumps(
+                    [["user1@example.com", {"permissionLevel": "invalid_level"}]]
+                ),
             },
         )
 
-        assert response.status_code == HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        assert not data.get("success", True)
         assert "Invalid permission level" in data["error"]
 
     def test_update_permission_missing_user(self):
@@ -201,20 +217,26 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Try to update non-existent user
-        response = self.client.patch(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "user_email": "nonexistent@example.com",
-                "permission_level": PermissionLevel.CONTRIBUTOR,
+                "permission_changes": json.dumps(
+                    [
+                        [
+                            "nonexistent@example.com",
+                            {"permissionLevel": PermissionLevel.CONTRIBUTOR},
+                        ]
+                    ]
+                ),
             },
         )
 
-        assert response.status_code == HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        assert not data.get("success", True)
+        assert "not found" in data["error"]
 
     def test_update_group_permission_unauthorized(self):
         """Test that users cannot update group permissions they don't own."""
@@ -236,17 +258,21 @@ class PermissionUpdateTestCase(TestCase):
         self.client.force_login(self.owner)
 
         # Try to update group permissions
-        response = self.client.put(
+        response = self.client.post(
             reverse(
                 "users:share_item",
                 kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
             ),
             data={
-                "group_uuid": str(user1_group.uuid),
-                "permission_level": PermissionLevel.CONTRIBUTOR,
+                "permission_changes": json.dumps(
+                    [
+                        [
+                            f"group:{user1_group.uuid}",
+                            {"permissionLevel": PermissionLevel.CONTRIBUTOR},
+                        ]
+                    ]
+                ),
             },
         )
 
-        assert response.status_code == HTTP_400_BAD_REQUEST
-        data = response.json()
-        assert not data.get("success", True)
+        assert response.status_code == status.HTTP_404_NOT_FOUND

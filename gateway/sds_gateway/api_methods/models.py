@@ -1397,6 +1397,26 @@ def handle_dataset_soft_delete(sender, instance: Dataset, **kwargs) -> None:
             permission.soft_delete()
 
 
+@receiver(post_save, sender=ShareGroup)
+def handle_sharegroup_soft_delete(sender, instance: ShareGroup, **kwargs) -> None:
+    """
+    Handle soft deletion of share groups by updating related share permissions.
+    """
+    if instance.is_deleted:
+        # Find all UserSharePermission records that include this group
+        share_permissions = UserSharePermission.objects.filter(
+            share_groups=instance,
+            is_deleted=False,
+        )
+
+        for permission in share_permissions:
+            # Remove the group from the permission
+            permission.share_groups.remove(instance)
+            # Update the enabled status based on remaining groups
+            permission.update_enabled_status()
+            permission.save()
+
+
 @receiver(post_save, sender=UserSharePermission)
 def handle_usersharepermission_change(
     sender, instance: UserSharePermission, **kwargs
