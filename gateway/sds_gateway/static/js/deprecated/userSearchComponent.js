@@ -1022,7 +1022,7 @@ class UserSearchHandler {
 						checkmark.remove();
 					}
 				});
-				
+
 				// Add selected class and checkmark to the clicked button
 				button.classList.add('selected');
 				const checkmark = document.createElement('i');
@@ -1057,7 +1057,7 @@ class UserSearchHandler {
 				} else {
 					// Handle permission level change
 					this.pendingRemovals.delete(userEmail); // Remove from removals if it was there
-					
+
 					// Store the permission change
 					if (!this.pendingPermissionChanges) {
 						this.pendingPermissionChanges = new Map();
