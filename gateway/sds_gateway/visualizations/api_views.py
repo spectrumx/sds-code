@@ -43,6 +43,37 @@ class VisualizationViewSet(ViewSet):
     authentication_classes = [SessionAuthentication, APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def extract_first_if_list(value):
+        """
+        Extract the first element if value is a list, otherwise return the value itself.
+        """
+        return value[0] if isinstance(value, list) else value
+
+    @staticmethod
+    def get_request_param(
+        request: Request, param_name: str, default=None, *, from_query=False
+    ):
+        """
+        Extract a parameter from request data or query params with list handling.
+
+        Args:
+            request: The HTTP request object
+            param_name: Name of the parameter to extract
+            default: Default value if parameter is not found
+            from_query: If True, get from query_params, otherwise from data
+
+        Returns:
+            The parameter value (first element if it's a list, otherwise the value
+            itself)
+        """
+        if from_query:
+            value = request.query_params.get(param_name, default)
+        else:
+            value = request.data.get(param_name, default)
+
+        return VisualizationViewSet.extract_first_if_list(value)
+
     @extend_schema(
         summary="Create spectrogram visualization",
         description="Generate a spectrogram visualization from a capture",
@@ -103,24 +134,12 @@ class VisualizationViewSet(ViewSet):
             Capture, uuid=pk, owner=request.user, is_deleted=False
         )
 
-        # Validate request data
-        fft_size_raw = request.data.get("fft_size") or 1024
-        std_dev_raw = request.data.get("std_dev") or 100
-        hop_size_raw = request.data.get("hop_size") or 500
-        colormap_raw = request.data.get("colormap") or "magma"
-        dimensions_raw = request.data.get("dimensions") or None
-
-        fft_size = int(
-            fft_size_raw[0] if isinstance(fft_size_raw, list) else fft_size_raw
-        )
-        std_dev = int(std_dev_raw[0] if isinstance(std_dev_raw, list) else std_dev_raw)
-        hop_size = int(
-            hop_size_raw[0] if isinstance(hop_size_raw, list) else hop_size_raw
-        )
-        colormap = colormap_raw[0] if isinstance(colormap_raw, list) else colormap_raw
-        dimensions = (
-            dimensions_raw[0] if isinstance(dimensions_raw, list) else dimensions_raw
-        )
+        # Extract and validate request parameters
+        fft_size = int(self.get_request_param(request, "fft_size", 1024))
+        std_dev = int(self.get_request_param(request, "std_dev", 100))
+        hop_size = int(self.get_request_param(request, "hop_size", 500))
+        colormap = self.get_request_param(request, "colormap", "magma")
+        dimensions = self.get_request_param(request, "dimensions", None)
 
         # Validate parameters
         if not self._validate_spectrogram_params(
@@ -230,7 +249,7 @@ class VisualizationViewSet(ViewSet):
         """
         Get the status of a spectrogram generation job.
         """
-        job_id = request.query_params.get("job_id")
+        job_id = self.get_request_param(request, "job_id", from_query=True)
         if not job_id:
             return Response(
                 {"error": "job_id parameter is required"},
@@ -286,7 +305,7 @@ class VisualizationViewSet(ViewSet):
         """
         Download the generated spectrogram image.
         """
-        job_id = request.query_params.get("job_id")
+        job_id = self.get_request_param(request, "job_id", from_query=True)
         if not job_id:
             return Response(
                 {"error": "job_id parameter is required"},
@@ -381,15 +400,14 @@ class VisualizationViewSet(ViewSet):
         Get available visualizations for a specific capture type.
         """
         try:
-            capture_type = request.query_params.get("capture_type")
+            capture_type = self.get_request_param(
+                request, "capture_type", from_query=True
+            )
             if not capture_type:
                 return Response(
                     {"error": "capture_type parameter is required"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-
-            if isinstance(capture_type, list):
-                capture_type = capture_type[0]
 
             available_visualizations = get_available_visualizations(capture_type)
 
@@ -580,7 +598,7 @@ class VisualizationViewSet(ViewSet):
         """
         Get the status of a waterfall generation job.
         """
-        job_id = request.query_params.get("job_id")
+        job_id = self.get_request_param(request, "job_id", from_query=True)
         if not job_id:
             return Response(
                 {"error": "job_id parameter is required"},
@@ -636,7 +654,7 @@ class VisualizationViewSet(ViewSet):
         """
         Download the generated waterfall data.
         """
-        job_id = request.query_params.get("job_id")
+        job_id = self.get_request_param(request, "job_id", from_query=True)
         if not job_id:
             return Response(
                 {"error": "job_id parameter is required"},
