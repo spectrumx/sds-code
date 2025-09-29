@@ -37,6 +37,8 @@ class File(SDSModel):
         local_path:         The path to the file on the local filesystem (includes name)
     """
 
+    # TODO ownership: include ownership and access level information
+
     created_at: datetime
     directory: Annotated[PurePosixPath, Field(default_factory=PurePosixPath)]
     expiration_date: datetime | None

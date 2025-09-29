@@ -65,6 +65,8 @@ class CaptureFile(BaseModel):
 class Capture(SDSModel):
     """A capture in SDS. A collection of spectrum data files that is indexed."""
 
+    # TODO ownership: include ownership and access level information
+
     capture_props: Annotated[dict[str, Any], Field(description=_d_capture_props)]
     capture_type: Annotated[CaptureType, Field(description=_d_capture_type)]
     index_name: Annotated[str, Field(max_length=255, description=_d_index_name)]

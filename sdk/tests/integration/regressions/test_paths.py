@@ -152,12 +152,6 @@ def test_paths_sds_capture_ops(
     # this test makes several requests, so we silence some of the output
     integration_client.verbose = False
 
-    # cleanup all captures
-    cleanup_captures(
-        integration_client=integration_client,
-        captures_created=integration_client.captures.listing(),
-    )
-
     # ARRANGE a new directory to upload as capture
     log.debug("Testing SDS paths for DRF capture uploads")
     captures_created: list[Capture] = []

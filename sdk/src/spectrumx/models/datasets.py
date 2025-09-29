@@ -10,6 +10,8 @@ from pydantic import BaseModel
 class Dataset(BaseModel):
     """A dataset in SDS."""
 
+    # TODO ownership: include ownership and access level information
+
     uuid: UUID4 | None = None
     name: str | None = None
     abstract: str | None = None
