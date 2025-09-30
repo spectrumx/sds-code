@@ -88,10 +88,13 @@ def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | N
     if params.slice_num_samples <= 0:
         return None
 
-    # Read the data
-    data_array = params.reader.read_vector(
-        params.slice_start_sample, params.slice_num_samples, params.channel, 0
-    )
+    # Read the data with error handling for sample count mismatches
+    try:
+        data_array = params.reader.read_vector(
+            params.slice_start_sample, params.slice_num_samples, params.channel, 0
+        )
+    except OSError:
+        return None
 
     # Perform FFT processing
     fft_data = np.fft.fft(data_array, n=params.fft_size)
@@ -149,6 +152,7 @@ def convert_drf_to_waterfall_json(
 
     # Process slices and create JSON data
     waterfall_data = []
+    skipped_slices = 0
     last_log_time = time.time()
 
     for slice_idx in range(slices_to_process):
@@ -164,13 +168,24 @@ def convert_drf_to_waterfall_json(
         waterfall_file = _process_waterfall_slice(slice_params)
         if waterfall_file:
             waterfall_data.append(waterfall_file)
+        else:
+            skipped_slices += 1
 
         # Log progress every 2 seconds
         current_time = time.time()
         log_interval = 2.0
         if current_time - last_log_time >= log_interval:
-            logger.debug(f"Processed {slice_idx}/{slices_to_process} slices")
+            logger.debug(
+                f"Processed {slice_idx + 1}/{slices_to_process} slices "
+                f"(skipped: {skipped_slices})"
+            )
             last_log_time = current_time
+
+    # Log final summary
+    logger.info(
+        f"Waterfall processing complete: {len(waterfall_data)} slices processed, "
+        f"{skipped_slices} slices skipped due to data issues"
+    )
 
     metadata = {
         "center_frequency": base_params.center_freq,
@@ -179,6 +194,7 @@ def convert_drf_to_waterfall_json(
         "max_frequency": base_params.max_frequency,
         "total_slices": total_slices,
         "slices_processed": len(waterfall_data),
+        "slices_skipped": skipped_slices,
         "fft_size": base_params.fft_size,
         "samples_per_slice": SAMPLES_PER_SLICE,
         "channel": channel,
