@@ -385,6 +385,22 @@ CELERY_WORKER_SEND_TASK_EVENTS: bool = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std-setting-task_send_sent_event
 CELERY_TASK_SEND_SENT_EVENT: bool = True
 
+# Django Cog task time limits
+CELERY_TASK_ANNOTATIONS: dict[str, dict[str, Any]] = {
+    "django_cog.launch_task": {
+        "time_limit": 30 * 60,  # 30 minutes
+        "soft_time_limit": 25 * 60,  # 25 minutes
+    },
+    "django_cog.launch_stage": {
+        "time_limit": 30 * 60,  # 30 minutes
+        "soft_time_limit": 25 * 60,  # 25 minutes
+    },
+    "django_cog.launch_pipeline": {
+        "time_limit": 30 * 60,  # 30 minutes
+        "soft_time_limit": 25 * 60,  # 25 minutes
+    },
+}
+
 # CELERY BEAT SCHEDULE
 # ------------------------------------------------------------------------------
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#beat-schedule
