@@ -63,7 +63,7 @@ class TestDatasetStatus(TestCase):
         form_data = {
             "name": "Test Dataset",
             "description": "A test dataset",
-            "author": "Test Author",
+            "authors": '[{"name": "Test Author", "orcid_id": ""}]',
             "status": "final",
         }
         form = DatasetInfoForm(data=form_data, user=self.user)

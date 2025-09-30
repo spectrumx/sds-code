@@ -95,6 +95,15 @@ class TestShareItemView:
             description="A test dataset",
         )
 
+    @pytest.fixture(autouse=True)
+    def cleanup_permissions(self, owner: User):
+        """Clean up permissions after each test to prevent conflicts."""
+        yield  # This runs the test
+        # This runs after the test
+        UserSharePermission.objects.filter(
+            owner=owner,
+        ).delete()
+
     def test_share_dataset_not_owner(
         self, client: Client, user_to_share_with: User, dataset: Dataset
     ) -> None:
@@ -178,6 +187,7 @@ class TestShareItemView:
         self, client: Client, owner: User, user_to_share_with: User, dataset: Dataset
     ) -> None:
         """Test re-enabling a disabled share permission."""
+
         # Create a disabled share permission
         permission = UserSharePermission.objects.create(
             owner=owner,
