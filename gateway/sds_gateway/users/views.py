@@ -535,7 +535,6 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             item_type=item_type,
             shared_with=user,
             is_deleted=False,
-            is_enabled=True,
         ).first()
 
     def _validate_share_request(
