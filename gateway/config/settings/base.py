@@ -388,16 +388,16 @@ CELERY_TASK_SEND_SENT_EVENT: bool = True
 # Django Cog task time limits
 CELERY_TASK_ANNOTATIONS: dict[str, dict[str, Any]] = {
     "django_cog.launch_task": {
-        "time_limit": 30 * 60,  # 30 minutes
-        "soft_time_limit": 25 * 60,  # 25 minutes
+        "time_limit": 70 * 60,  # 70 minutes
+        "soft_time_limit": 60 * 60,  # 60 minutes
     },
     "django_cog.launch_stage": {
-        "time_limit": 30 * 60,  # 30 minutes
-        "soft_time_limit": 25 * 60,  # 25 minutes
+        "time_limit": 70 * 60,  # 70 minutes
+        "soft_time_limit": 60 * 60,  # 60 minutes
     },
     "django_cog.launch_pipeline": {
-        "time_limit": 30 * 60,  # 30 minutes
-        "soft_time_limit": 25 * 60,  # 25 minutes
+        "time_limit": 70 * 60,  # 70 minutes
+        "soft_time_limit": 60 * 60,  # 60 minutes
     },
 }
 
