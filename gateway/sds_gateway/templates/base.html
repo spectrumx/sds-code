@@ -33,6 +33,8 @@
     ================================================== -->
         {# Placed at the top of the document so pages load faster with defer #}
         {% block javascript %}
+            <!-- Permission constants (must be loaded first) -->
+            <script src="{% static 'js/constants/PermissionLevels.js' %}"></script>
             <!-- Core JavaScript files - available globally -->
             <script src="{% static 'js/core/APIClient.js' %}"></script>
             <script src="{% static 'js/core/HTMLInjectionManager.js' %}"></script>
