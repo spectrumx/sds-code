@@ -1,8 +1,10 @@
+// PermissionLevels is now available globally
+
 /**
  * Share Action Manager
  * Handles all sharing-related actions and user management
  */
-class ShareActionManager {
+window.ShareActionManager = class ShareActionManager {
 	/**
 	 * Initialize share action manager
 	 * @param {Object} config - Configuration object
@@ -200,7 +202,8 @@ class ShareActionManager {
 		// Create a map of user emails to their permission levels
 		const userPermissions = {};
 		for (const user of selectedUsers) {
-			userPermissions[user.email] = user.permission_level || "viewer";
+			userPermissions[user.email] =
+				user.permission_level || window.PermissionLevels.VIEWER;
 		}
 
 		const userEmails = selectedUsers.map((u) => u.email).join(",");
@@ -450,7 +453,7 @@ class ShareActionManager {
 				name: userName,
 				email: userEmail,
 				type: userType,
-				permission_level: "viewer", // Default permission level
+				permission_level: window.PermissionLevels.VIEWER, // Default permission level
 			};
 
 			// For groups, get member count from dataset attribute
@@ -511,7 +514,7 @@ class ShareActionManager {
 					name: userName,
 					email: userEmail,
 					type: "user",
-					permission_level: "viewer", // Default permission level
+					permission_level: window.PermissionLevels.VIEWER, // Default permission level
 				});
 				this.renderChips(input);
 			}
@@ -527,7 +530,7 @@ class ShareActionManager {
 					name: userName,
 					email: userEmail,
 					type: "user",
-					permission_level: "viewer", // Default permission level
+					permission_level: window.PermissionLevels.VIEWER, // Default permission level
 				});
 				this.renderChips(input);
 			}
@@ -569,7 +572,11 @@ class ShareActionManager {
 			const chip = window.HTMLInjectionManager.createUserChip(user, {
 				showPermissionSelect: true,
 				showRemoveButton: true,
-				permissionLevels: ["viewer", "contributor", "co-owner"],
+				permissionLevels: [
+					window.PermissionLevels.VIEWER,
+					window.PermissionLevels.CONTRIBUTOR,
+					window.PermissionLevels.CO_OWNER,
+				],
 			});
 
 			window.HTMLInjectionManager.injectHTML(chipContainer, chip, {
@@ -1093,7 +1100,7 @@ class ShareActionManager {
 		// Handle undefined/null permission levels
 		const level =
 			!permissionLevel || typeof permissionLevel !== "string"
-				? "viewer"
+				? window.PermissionLevels.VIEWER
 				: permissionLevel;
 
 		const iconClass =
@@ -1119,7 +1126,7 @@ class ShareActionManager {
 			console.error("Global showAlert function not available");
 		}
 	}
-}
+};
 
 // Make class available globally
 window.ShareActionManager = ShareActionManager;

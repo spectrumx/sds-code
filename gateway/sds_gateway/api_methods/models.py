@@ -14,7 +14,6 @@ from django.conf import settings
 from django.db import models
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
-from django.db.models.signals import post_delete
 from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
@@ -973,6 +972,15 @@ class UserSharePermission(BaseModel):
             PermissionLevel.CO_OWNER,
         ]
 
+    @classmethod
+    def user_can_share(cls, user, item_uuid, item_type):
+        """Check if user can share the item with others."""
+        permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
+        return permission_level in [
+            PermissionLevel.OWNER,
+            PermissionLevel.CO_OWNER,
+        ]
+
 
 class DEPRECATEDPostProcessedData(BaseModel):
     """
@@ -1295,11 +1303,13 @@ def user_has_access_to_item(user, item_uuid, item_type):
     """
     return UserSharePermission.user_can_view(user, item_uuid, item_type)
 
+
 def get_user_permission_level(user, item_uuid, item_type):
     """
     Get the permission level for a user on a specific item.
     """
     return UserSharePermission.get_user_permission_level(user, item_uuid, item_type)
+
 
 def get_shared_users_for_item(item_uuid, item_type):
     """

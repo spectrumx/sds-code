@@ -115,25 +115,25 @@
                                                             {% if forloop.counter <= 2 %}
                                                                 {% if author.name %}
                                                                     {% if author.orcid_id %}
-                                                                        <a href="https://orcid.org/{{ author.orcid_id }}" 
-                                                                           target="_blank" 
+                                                                        <a href="https://orcid.org/{{ author.orcid_id }}"
+                                                                           target="_blank"
                                                                            rel="noopener noreferrer"
                                                                            class="text-decoration-none"
                                                                            title="View {{ author.name }}'s ORCID profile">
                                                                             {{ author.name }}
-                                                                            <i class="bi bi-box-arrow-up-right text-muted" style="font-size: 0.8em;"></i>
+                                                                            <i class="bi bi-box-arrow-up-right text-muted sort-icon"></i>
                                                                         </a>
                                                                     {% else %}
                                                                         {{ author.name }}
                                                                     {% endif %}
-                                                                    {% if not forloop.last and forloop.counter < 2 and dataset.authors|length > 1 %}, {% endif %}
+                                                                    {% if not forloop.last and forloop.counter < 2 and dataset.authors|length > 1 %},{% endif %}
                                                                 {% else %}
                                                                     {{ author }}
-                                                                    {% if not forloop.last and forloop.counter < 2 and dataset.authors|length > 1 %}, {% endif %}
+                                                                    {% if not forloop.last and forloop.counter < 2 and dataset.authors|length > 1 %},{% endif %}
                                                                 {% endif %}
                                                             {% endif %}
                                                         {% endfor %}
-                                                        {% if dataset.authors|length > 2 %}<span class="text-muted"> ...</span>{% endif %}
+                                                        {% if dataset.authors|length > 2 %}<span class="text-muted">...</span>{% endif %}
                                                     {% else %}
                                                         -
                                                     {% endif %}
