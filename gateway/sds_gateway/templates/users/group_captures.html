@@ -171,7 +171,9 @@
                                                                                 <strong>{{ author.name|default:"Unnamed Author" }}</strong>
                                                                                 {% if author.orcid_id %}
                                                                                     <br />
-                                                                                    <small class="text-muted">ORCID: <a href="https://orcid.org/{{ author.orcid_id }}" target="_blank" class="text-decoration-none">{{ author.orcid_id }}</a></small>
+                                                                                    <small class="text-muted">ORCID: <a href="https://orcid.org/{{ author.orcid_id }}"
+    target="_blank"
+    class="text-decoration-none">{{ author.orcid_id }}</a></small>
                                                                                 {% endif %}
                                                                             </div>
                                                                             <div>

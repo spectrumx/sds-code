@@ -55,8 +55,8 @@ from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.models import get_user_permission_level
+from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -557,8 +557,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             )
 
         # For sharing operations, user must be owner or co-owner
-        permission_level = get_user_permission_level(request.user, item_uuid, item_type)
-        if permission_level not in ["owner", "co-owner"]:
+        if not UserSharePermission.user_can_share(request.user, item_uuid, item_type):
             return JsonResponse(
                 {"error": "Only owners and co-owners can manage sharing"}, status=403
             )
@@ -1521,15 +1520,18 @@ class GroupCapturesView(
 
         if dataset_uuid:
             # Check if user has access to edit this dataset
-            if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
+            if not user_has_access_to_item(
+                request.user, dataset_uuid, ItemType.DATASET
+            ):
                 messages.error(request, "Dataset not found or access denied.")
                 return redirect("users:dataset_list")
 
             # Check if user can edit dataset metadata
-            permission_level = get_user_permission_level(
+            if not UserSharePermission.user_can_edit_dataset(
                 request.user, dataset_uuid, ItemType.DATASET
-            )
-            if permission_level not in ["owner", "co-owner", "contributor"]:
+            ) and not UserSharePermission.user_can_add_assets(
+                request.user, dataset_uuid, ItemType.DATASET
+            ):
                 messages.error(
                     request, "You don't have permission to edit this dataset."
                 )
@@ -1633,7 +1635,7 @@ class GroupCapturesView(
             is_owner = existing_dataset.owner == self.request.user
         else:
             # For new dataset creation, user is always the owner
-            permission_level = "owner"
+            permission_level = PermissionLevel.OWNER
             is_owner = True
 
         # Get form
@@ -1681,10 +1683,15 @@ class GroupCapturesView(
                 ),
                 "permission_level": permission_level,
                 "is_owner": is_owner,
-                "can_edit_metadata": permission_level in ["owner", "co-owner"],
-                "can_add_assets": permission_level
-                in ["owner", "co-owner", "contributor"],
-                "can_remove_assets": permission_level in ["owner", "co-owner"],
+                "can_edit_metadata": UserSharePermission.user_can_edit_dataset(
+                    self.request.user, dataset_uuid, ItemType.DATASET
+                ),
+                "can_add_assets": UserSharePermission.user_can_add_assets(
+                    self.request.user, dataset_uuid, ItemType.DATASET
+                ),
+                "can_remove_assets": UserSharePermission.user_can_remove_assets(
+                    self.request.user, dataset_uuid, ItemType.DATASET
+                ),
             }
         )
         return context
@@ -1732,7 +1739,9 @@ class GroupCapturesView(
                 )
 
             # Only validate form if user can edit metadata
-            can_edit = self.can_edit_metadata(permission_level)
+            can_edit = UserSharePermission.user_can_edit_dataset(
+                request.user, dataset_uuid, ItemType.DATASET
+            )
 
             if can_edit:
                 dataset_form = DatasetInfoForm(request.POST, user=request.user)
@@ -1776,10 +1785,6 @@ class GroupCapturesView(
         for author in authors:
             author["_stableId"] = str(uuid.uuid4())
         return json.dumps(authors)
-
-    def can_edit_metadata(self, permission_level: str) -> bool:
-        """Check if user can edit dataset metadata."""
-        return permission_level in ["owner", "co-owner"]
 
     def _handle_dataset_creation(self, request) -> JsonResponse:
         """Handle dataset creation."""
@@ -1826,7 +1831,9 @@ class GroupCapturesView(
                 )
 
             # Update metadata if user has permission
-            if self.can_edit_metadata(permission_level):
+            if UserSharePermission.user_can_edit_dataset(
+                request.user, dataset_uuid, ItemType.DATASET
+            ):
                 dataset_form = DatasetInfoForm(request.POST, user=request.user)
                 if dataset_form.is_valid():
                     dataset.name = dataset_form.cleaned_data["name"]
@@ -1920,7 +1927,9 @@ class GroupCapturesView(
     ):
         """Apply asset changes based on user permissions."""
         # Handle captures
-        if permission_level in ["owner", "co-owner", "contributor"]:
+        if UserSharePermission.user_can_add_assets(
+            user, dataset.uuid, ItemType.DATASET
+        ):
             # Add captures
             for capture_id in changes["captures"]["add"]:
                 try:
@@ -1931,22 +1940,28 @@ class GroupCapturesView(
                 except Capture.DoesNotExist:
                     continue
 
-        if permission_level in ["owner", "co-owner"]:
+        if UserSharePermission.user_can_remove_assets(
+            user, dataset.uuid, ItemType.DATASET
+        ):
             # Remove captures
             for capture_id in changes["captures"]["remove"]:
                 try:
                     capture = Capture.objects.get(uuid=capture_id, is_deleted=False)
                     # Check if user can remove this capture
-                    if capture.owner == user or permission_level in [
-                        "owner",
-                        "co-owner",
-                    ]:
+                    if (
+                        capture.owner == user
+                        or UserSharePermission.user_can_remove_others_assets(
+                            user, dataset.uuid, ItemType.DATASET
+                        )
+                    ):
                         dataset.captures.remove(capture)
                 except Capture.DoesNotExist:
                     continue
 
         # Handle files
-        if permission_level in ["owner", "co-owner", "contributor"]:
+        if UserSharePermission.user_can_add_assets(
+            user, dataset.uuid, ItemType.DATASET
+        ):
             # Add files
             for file_id in changes["files"]["add"]:
                 try:
@@ -1957,16 +1972,20 @@ class GroupCapturesView(
                 except File.DoesNotExist:
                     continue
 
-        if permission_level in ["owner", "co-owner"]:
+        if UserSharePermission.user_can_remove_assets(
+            user, dataset.uuid, ItemType.DATASET
+        ):
             # Remove files
             for file_id in changes["files"]["remove"]:
                 try:
                     file_obj = File.objects.get(uuid=file_id, is_deleted=False)
                     # Check if user can remove this file
-                    if file_obj.owner == user or permission_level in [
-                        "owner",
-                        "co-owner",
-                    ]:
+                    if (
+                        file_obj.owner == user
+                        or UserSharePermission.user_can_remove_others_assets(
+                            user, dataset.uuid, ItemType.DATASET
+                        )
+                    ):
                         dataset.files.remove(file_obj)
                 except File.DoesNotExist:
                     continue
@@ -2229,9 +2248,9 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         result = []
         for dataset in datasets:
             # Use serializer with request context for proper field calculation
-            context = {"request": type('Request', (), {"user": user})()}
+            context = {"request": type("Request", (), {"user": user})()}
             dataset_data = DatasetGetSerializer(dataset, context=context).data
-            
+
             # Add the original model for template access
             dataset_data["dataset"] = dataset
             result.append(dataset_data)
