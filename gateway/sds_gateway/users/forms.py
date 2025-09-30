@@ -78,27 +78,28 @@ class UserSocialSignupForm(SocialSignupForm):
 
 class UserUpdateForm(forms.ModelForm):
     """Form for updating user profile information."""
-    
+
     name = forms.CharField(
         label=_("Name"),
         max_length=255,
         required=False,
-        widget=forms.TextInput(attrs={
-            "class": "form-control",
-            "placeholder": "Enter your full name"
-        }),
-        help_text=_("Your display name for datasets and collaborations.")
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Enter your full name"}
+        ),
+        help_text=_("Your display name for datasets and collaborations."),
     )
-    
+
     orcid_id = forms.CharField(
         label=_("ORCID ID"),
         max_length=255,
         required=False,
-        widget=forms.TextInput(attrs={
-            "class": "form-control",
-            "placeholder": "0000-0000-0000-0000"
-        }),
-        help_text=_("Your ORCID identifier (e.g., 0000-0000-0000-0000). This will be used to link your research contributions.")
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "0000-0000-0000-0000"}
+        ),
+        help_text=_(
+            "Your ORCID identifier (e.g., 0000-0000-0000-0000). "
+            "This will be used to link your research contributions."
+        ),
     )
 
     class Meta:
@@ -108,10 +109,10 @@ class UserUpdateForm(forms.ModelForm):
     def clean_orcid_id(self):
         """Validate ORCID ID format."""
         orcid_id = self.cleaned_data.get("orcid_id", "").strip()
-        
+
         if not orcid_id:
             return ""
-        
+
         # Remove any URL prefix if present
         if orcid_id.startswith("https://orcid.org/"):
             orcid_id = orcid_id.replace("https://orcid.org/", "")
@@ -119,15 +120,18 @@ class UserUpdateForm(forms.ModelForm):
             orcid_id = orcid_id.replace("http://orcid.org/", "")
         elif orcid_id.startswith("orcid.org/"):
             orcid_id = orcid_id.replace("orcid.org/", "")
-        
+
         # Validate ORCID ID format: 0000-0000-0000-0000
         orcid_pattern = r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$"
-        
+
         if not re.match(orcid_pattern, orcid_id):
             raise ValidationError(
-                _("Please enter a valid ORCID ID in the format 0000-0000-0000-0000 (the last character can be X).")
+                _(
+                    "Please enter a valid ORCID ID in the format 0000-0000-0000-0000 "
+                    "(the last character can be X)."
+                )
             )
-        
+
         return orcid_id
 
 

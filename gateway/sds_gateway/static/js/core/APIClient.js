@@ -1,8 +1,10 @@
+// PermissionLevels is now available globally
+
 /**
  * Centralized API Client for all fetch operations
  * Handles CSRF tokens, error handling, and loading states consistently
  */
-class APIClient {
+window.APIClient = class APIClient {
 	/**
 	 * Get CSRF token from various sources
 	 * @returns {string} CSRF token
@@ -202,7 +204,7 @@ class APIClient {
 			loadingState,
 		);
 	}
-}
+};
 
 /**
  * Custom API Error class
@@ -360,7 +362,7 @@ class ListRefreshManager {
 						email: emailElement.textContent.trim(),
 						permission_level: permissionElement
 							? permissionElement.textContent.trim().toLowerCase()
-							: "viewer",
+							: window.PermissionLevels.VIEWER,
 						isOwner: index === 0,
 						type: nameElement.querySelector(".bi-people-fill")
 							? "group"
