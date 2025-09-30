@@ -177,8 +177,8 @@ class PermissionUpdateTestCase(TestCase):
         )
 
         assert (
-            response.status_code == status.HTTP_404_NOT_FOUND
-        )  # Item not found for this user
+            response.status_code == status.HTTP_403_FORBIDDEN
+        )  # Forbidden for this user
 
     def test_update_permission_invalid_level(self):
         """Test that invalid permission levels are rejected."""
