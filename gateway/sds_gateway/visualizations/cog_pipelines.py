@@ -483,11 +483,11 @@ def visualization_error_handler(error, task_run=None):
         error: The exception that occurred
         task_run: The task run object (optional, provided by Django COG)
     """
-    logger.error(f"COG task failed: {error}")
+    logger.opt(exception=error).error(f"Failed task: {error}")
 
     if task_run:
-        logger.error(f"Failed task: {task_run.task.name}")
-        logger.error(f"Task run ID: {task_run.id}")
+        logger.warning(f"Failed task: {task_run.task.name}")
+        logger.warning(f"Task run ID: {task_run.id}")
 
         # Try to extract capture_uuid from pipeline run arguments
         try:
@@ -505,7 +505,7 @@ def visualization_error_handler(error, task_run=None):
             capture_uuid = pipeline_args.get("capture_uuid")
             if capture_uuid:
                 logger.info(
-                    f"Attempting to mark PostProcessedData records as failed for "
+                    f"Marking PostProcessedData records as failed for "
                     f"capture {capture_uuid}"
                 )
 
@@ -517,23 +517,33 @@ def visualization_error_handler(error, task_run=None):
                     ProcessingStatus,
                 )
 
-                # Find any PostProcessedData records for this capture that are still
-                # pending
+                # Find any PostProcessedData records for this capture that are pending
+                # or processing
                 failed_records = PostProcessedData.objects.filter(
                     capture__uuid=capture_uuid,
-                    processing_status=ProcessingStatus.Pending.value,
+                    processing_status__in=[
+                        ProcessingStatus.Pending.value,
+                        ProcessingStatus.Processing.value,
+                    ],
                 )
+
+                if not failed_records:
+                    logger.warning(
+                        f"No PostProcessedData records found for capture {capture_uuid}"
+                        f" that are pending or processing"
+                    )
+                    return
 
                 for record in failed_records:
                     error_message = f"COG task '{task_run.task.name}' failed: {error}"
                     record.mark_processing_failed(error_message)
-                    logger.info(
+                    logger.warning(
                         f"Marked PostProcessedData record {record.uuid} as failed "
                         f"due to COG task failure"
                     )
 
             else:
-                logger.warning(
+                logger.error(
                     "Could not extract capture_uuid from pipeline run arguments"
                 )
 
