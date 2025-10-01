@@ -3,6 +3,7 @@
 + [Gateway Development Notes](#gateway-development-notes)
     + [Production Backups](#production-backups)
         + [Backups Restoration](#backups-restoration)
+    + [MinIO Configuration](#minio-configuration)
     + [OpenSearch Cluster Maintenance](#opensearch-cluster-maintenance)
         + [Cluster health](#cluster-health)
         + [Cluster stats](#cluster-stats)
@@ -51,6 +52,10 @@ See `scripts/restore-snapshot.sh` to restore the most recent snapshot.
 This is an interactive script with some safeguards to prevent accidental overwriting of
 data. Read the script before running it to make sure it does the expected, since this
 is a destructive operation.
+
+## MinIO Configuration
+
++ [MinIO reference document](https://github.com/minio/minio/blob/master/docs/config/README.md)
 
 ## OpenSearch Cluster Maintenance
 

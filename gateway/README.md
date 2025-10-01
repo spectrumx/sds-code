@@ -293,6 +293,8 @@ Keep this in mind, however:
 
     6.2 Set admin settings:
 
+    + [MinIO reference document](https://github.com/minio/minio/blob/master/docs/config/README.md)
+
     ```bash
     # enable object compression for all objects, except the ones excluded by default
     # NOTE: compression is not recommended by MinIO when also using encryption.
