@@ -319,7 +319,82 @@
 
                 // Show the body after basic initialization
                 document.getElementById('body').classList.remove('d-none');
+
+                // Initialize visibility toggle
+                initializeVisibilityToggle();
             });
+
+            function initializeVisibilityToggle() {
+                const publicOption = document.getElementById('public-option');
+                const privateOption = document.getElementById('private-option');
+
+                if (publicOption) {
+                    // Add change event listener for public option
+                    publicOption.addEventListener('change', function() {
+                        if (this.checked) {
+                            showPublicWarning();
+                        }
+                        // Update review display when visibility changes
+                        if (window.updateReviewDatasetDisplay) {
+                            window.updateReviewDatasetDisplay();
+                        }
+                    });
+                }
+
+                if (privateOption) {
+                    // Add change event listener for private option
+                    privateOption.addEventListener('change', function() {
+                        // Update review display when visibility changes
+                        if (window.updateReviewDatasetDisplay) {
+                            window.updateReviewDatasetDisplay();
+                        }
+                    });
+                }
+            }
+
+            function showPublicWarning() {
+                // Check if status is Final
+                const statusSelect = document.querySelector('select[name="status"]');
+                if (statusSelect && statusSelect.value !== 'final') {
+                    // Show inline warning message
+                    showInlineWarning('Only datasets with "Final" status can be made public. Please change the status to "Final" first.');
+                    // Switch back to private
+                    const privateOption = document.getElementById('private-option');
+                    if (privateOption) {
+                        privateOption.checked = true;
+                    }
+                }
+            }
+
+            function showInlineWarning(message) {
+                // Remove any existing warning
+                const existingWarning = document.querySelector('.visibility-warning');
+                if (existingWarning) {
+                    existingWarning.remove();
+                }
+
+                // Create warning element
+                const warningDiv = document.createElement('div');
+                warningDiv.className = 'alert alert-warning alert-dismissible fade show visibility-warning mt-2';
+                warningDiv.innerHTML = `
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+
+                // Insert after the button group
+                const buttonGroup = document.querySelector('.btn-group');
+                if (buttonGroup) {
+                    buttonGroup.parentNode.insertBefore(warningDiv, buttonGroup.nextSibling);
+                }
+
+                // Auto-dismiss after 5 seconds
+                setTimeout(() => {
+                    if (warningDiv && warningDiv.parentNode) {
+                        warningDiv.remove();
+                    }
+                }, 5000);
+            }
 
 </script>
         {# djlint:on #}
