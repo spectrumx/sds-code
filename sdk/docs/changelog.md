@@ -1,6 +1,11 @@
 # SpectrumX SDK Changelog
 
-## `0.1.14` - 2025-09-xx
+## `0.1.14` - 2025-10-xx
+
++ Documentation:
+    + **Added and SDK walkthrough notebook** to the users' guide: [SpectrumX SDK walkthrough](https://github.com/crcresearch/spx-events/blob/main/demos/data_system/walkthrough.ipynb).
++ Fixes:
+    + [**Reviewed logic to ignore files**](https://github.com/spectrumx/sds-code/pull/191): now files like `.DS_Store`, `*.tmp`, and other patterns in [.sds-ignore](https://github.com/spectrumx/sds-code/blob/a7aabce571108d07a80efcc88feb15fe66a2a35a/sdk/src/spectrumx/ops/.sds-ignore) are correctly skipped for uploads.
 
 ## `0.1.13` - 2025-08-26
 

@@ -7,6 +7,7 @@
 + [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)
     + [Getting Started](#getting-started)
         + [Installation](#installation)
+        + [Example notebook](#example-notebook)
         + [Basic Usage](#basic-usage)
         + [Error Handling](#error-handling)
     + [Concurrent Access](#concurrent-access)
@@ -29,12 +30,15 @@ uv add spectrumx
 # or one of:
 #   poetry add spectrumx
 #   pip install spectrumx
-#   conda install spectrumx
 #   ...
 ```
 
 > [!NOTE]
 > When not using `uv`, make sure you are using Python 3.12 or higher (`python --version`).
+
+### Example notebook
+
++ [SpectrumX SDK walkthrough](https://github.com/crcresearch/spx-events/blob/main/demos/data_system/walkthrough.ipynb)
 
 ### Basic Usage
 
