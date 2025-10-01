@@ -64,6 +64,7 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.models import get_user_permission_level
+from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -1854,6 +1855,7 @@ class GroupCapturesView(
                     ),
                     "authors": authors_json,
                     "status": existing_dataset.status,
+                    "is_public": existing_dataset.is_public,
                 }
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
@@ -2279,6 +2281,7 @@ class GroupCapturesView(
             authors = json.loads(authors_json)
             dataset.authors = authors
             dataset.status = dataset_form.cleaned_data["status"]
+            dataset.is_public = dataset_form.cleaned_data.get("is_public", False)
             dataset.save()
 
             # Clear existing relationships
@@ -2296,6 +2299,7 @@ class GroupCapturesView(
                 description=dataset_form.cleaned_data["description"],
                 authors=authors,
                 status=dataset_form.cleaned_data["status"],
+                is_public=dataset_form.cleaned_data.get("is_public", False),
                 owner=request.user,
             )
 

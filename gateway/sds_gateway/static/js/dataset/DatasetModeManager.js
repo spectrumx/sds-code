@@ -434,6 +434,9 @@ class DatasetModeManager {
 		// Update status
 		this.updateDatasetStatus(statusField);
 
+		// Update visibility
+		this.updateDatasetVisibility();
+
 		// Update description
 		this.updateDatasetDescription(descriptionField);
 
@@ -625,6 +628,59 @@ class DatasetModeManager {
 			}
 		} else {
 			descriptionElement.textContent = currentValue;
+		}
+	}
+
+	/**
+	 * Update dataset visibility with pending changes
+	 */
+	updateDatasetVisibility() {
+		const visibilityElement = document.querySelector(".dataset-visibility");
+		if (!visibilityElement) return;
+
+		const currentIsPublic =
+			document.querySelector('input[name="is_public"]:checked')?.value ===
+			"true";
+		const originalIsPublic = this.originalDatasetData?.is_public || false;
+
+		if (this.isEditMode) {
+			// Show original value
+			const originalBadge = originalIsPublic
+				? '<span class="badge bg-primary"><i class="bi bi-globe me-1"></i>Public</span>'
+				: '<span class="badge bg-danger"><i class="bi bi-lock-fill me-1"></i>Private</span>';
+			visibilityElement.innerHTML = `<span class="current-value">${originalBadge}</span>`;
+
+			// Add pending changes if different from original
+			if (currentIsPublic !== originalIsPublic) {
+				const changesList =
+					visibilityElement.querySelector(".pending-changes") ||
+					document.createElement("ul");
+				changesList.className = "pending-changes list-unstyled mt-2";
+
+				const newBadge = currentIsPublic
+					? '<span class="badge bg-primary"><i class="bi bi-globe me-1"></i>Public</span>'
+					: '<span class="badge bg-danger"><i class="bi bi-lock-fill me-1"></i>Private</span>';
+
+				changesList.innerHTML = `
+					<li class="text-warning">
+						<i class="bi bi-pencil me-1"></i>
+						Change Visibility: ${originalBadge} → <span class="text-warning">${newBadge}</span>
+					</li>
+				`;
+				visibilityElement.appendChild(changesList);
+			} else {
+				// Remove pending changes if no changes
+				const changesList = visibilityElement.querySelector(".pending-changes");
+				if (changesList) {
+					changesList.remove();
+				}
+			}
+		} else {
+			// Creation mode: just show current value
+			const currentBadge = currentIsPublic
+				? '<span class="badge bg-primary"><i class="bi bi-globe me-1"></i>Public</span>'
+				: '<span class="badge bg-danger"><i class="bi bi-lock-fill me-1"></i>Private</span>';
+			visibilityElement.innerHTML = `<span class="current-value">${currentBadge}</span>`;
 		}
 	}
 
