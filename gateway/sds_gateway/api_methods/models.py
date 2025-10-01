@@ -14,7 +14,6 @@ from django.conf import settings
 from django.db import models
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
-from django.db.models.signals import post_delete
 from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
@@ -664,15 +663,6 @@ class Dataset(BaseModel):
             if getattr(instance, field):
                 setattr(instance, field, json.loads(getattr(instance, field)))
         return instance
-
-    def update_authors_field(self):
-        """Update the authors field based on current permissions."""
-        authors_data = UserSharePermission.get_dataset_authors(self.uuid)
-        author_names = [author["name"] for author in authors_data]
-
-        # Update the authors field
-        self.authors = author_names
-        self.save(update_fields=["authors"])
 
     def get_authors_display(self):
         """Get the authors as a list for display purposes."""
@@ -1428,35 +1418,3 @@ def handle_sharegroup_soft_delete(sender, instance: ShareGroup, **kwargs) -> Non
             # Update the enabled status based on remaining groups
             permission.update_enabled_status()
             permission.save()
-
-
-@receiver(post_save, sender=UserSharePermission)
-def handle_usersharepermission_change(
-    sender, instance: UserSharePermission, **kwargs
-) -> None:
-    """
-    Handle changes to UserSharePermission by updating dataset authors field.
-    """
-    if instance.item_type == ItemType.DATASET and instance.is_enabled:
-        # Update the authors field for the dataset
-        dataset = Dataset.objects.filter(
-            uuid=instance.item_uuid, is_deleted=False
-        ).first()
-        if dataset:
-            dataset.update_authors_field()
-
-
-@receiver(post_delete, sender=UserSharePermission)
-def handle_usersharepermission_delete(
-    sender, instance: UserSharePermission, **kwargs
-) -> None:
-    """
-    Handle deletion of UserSharePermission by updating dataset authors field.
-    """
-    if instance.item_type == ItemType.DATASET:
-        # Update the authors field for the dataset
-        dataset = Dataset.objects.filter(
-            uuid=instance.item_uuid, is_deleted=False
-        ).first()
-        if dataset:
-            dataset.update_authors_field()
