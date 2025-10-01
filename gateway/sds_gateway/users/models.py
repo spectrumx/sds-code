@@ -13,6 +13,7 @@ from sds_gateway.api_methods.models import KeySources
 
 from .managers import APIKeyUserManager
 from .managers import UserManager
+from .validators import validate_orcid_id
 
 
 class User(AbstractUser):
@@ -28,7 +29,9 @@ class User(AbstractUser):
     username: str | None = None
     name = models.CharField(_("Name of User"), blank=True, max_length=255)
     email = models.EmailField(_("Email address"), unique=True)
-    orcid_id = models.CharField(_("ORCID ID"), blank=True, max_length=255)
+    orcid_id = models.CharField(
+        _("ORCID ID"), blank=True, max_length=19, validators=[validate_orcid_id]
+    )
     is_approved = models.BooleanField(
         _("Approved"),
         default=settings.SDS_NEW_USERS_APPROVED_ON_CREATION,
@@ -38,7 +41,7 @@ class User(AbstractUser):
     )
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []
+    REQUIRED_FIELDS: list[str] = []
 
     objects = UserManager()
 
