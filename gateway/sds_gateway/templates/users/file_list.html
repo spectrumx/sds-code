@@ -11,8 +11,6 @@
     <link rel="stylesheet"
           href="{% static 'css/visualizations/visualization_modal.css' %}" />
     <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
-{% endblock css %}
-{% block content %}
     <!-- Add Font Awesome for sort arrows -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
@@ -21,13 +19,23 @@
           href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
     <!-- Add file-list.css for upload modal styling -->
     <link rel="stylesheet" href="{% static 'css/file-list.css' %}" />
-    <!-- Add noUiSlider JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
+    <link rel="stylesheet" href="{% static 'css/visualization_modal.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
     <style>
         .clear-search-hidden {
             display: none;
         }
     </style>
+{% endblock css %}
+{% block javascript %}
+    {{ block.super }}
+    <script src="{% static 'js/permission-levels.js' %}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+{% endblock javascript %}
+{% block content %}
+    <!-- Add noUiSlider JS -->
     <!-- CSRF Token for JavaScript -->
     {% csrf_token %}
     <!-- System-wide notifications -->
