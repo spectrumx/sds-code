@@ -1,3 +1,5 @@
+import json
+import re
 from pathlib import Path
 
 from allauth.account.forms import SignupForm
@@ -74,6 +76,65 @@ class UserSocialSignupForm(SocialSignupForm):
         return user
 
 
+class UserUpdateForm(forms.ModelForm):
+    """Form for updating user profile information."""
+
+    name = forms.CharField(
+        label=_("Name"),
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Enter your full name"}
+        ),
+        help_text=_("Your display name for datasets and collaborations."),
+    )
+
+    orcid_id = forms.CharField(
+        label=_("ORCID ID"),
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "0000-0000-0000-0000"}
+        ),
+        help_text=_(
+            "Your ORCID identifier (e.g., 0000-0000-0000-0000). "
+            "This will be used to link your research contributions."
+        ),
+    )
+
+    class Meta:
+        model = User
+        fields = ["name", "orcid_id"]
+
+    def clean_orcid_id(self):
+        """Validate ORCID ID format."""
+        orcid_id = self.cleaned_data.get("orcid_id", "").strip()
+
+        if not orcid_id:
+            return ""
+
+        # Remove any URL prefix if present
+        if orcid_id.startswith("https://orcid.org/"):
+            orcid_id = orcid_id.replace("https://orcid.org/", "")
+        elif orcid_id.startswith("http://orcid.org/"):
+            orcid_id = orcid_id.replace("http://orcid.org/", "")
+        elif orcid_id.startswith("orcid.org/"):
+            orcid_id = orcid_id.replace("orcid.org/", "")
+
+        # Validate ORCID ID format: 0000-0000-0000-0000
+        orcid_pattern = r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$"
+
+        if not re.match(orcid_pattern, orcid_id):
+            raise ValidationError(
+                _(
+                    "Please enter a valid ORCID ID in the format 0000-0000-0000-0000 "
+                    "(the last character can be X)."
+                )
+            )
+
+        return orcid_id
+
+
 class DatasetInfoForm(forms.Form):
     name = forms.CharField(
         label="Name",
@@ -86,11 +147,13 @@ class DatasetInfoForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 5}),
     )
-    author = forms.CharField(
-        label="Author",
+    authors = forms.CharField(
+        label="Authors",
         required=True,
-        disabled=True,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
+        widget=forms.HiddenInput(attrs={"class": "form-control"}),
+        help_text=(
+            "Add authors to the dataset. The first author should be the primary author."
+        ),
     )
     status = forms.ChoiceField(
         label="Status",
@@ -104,8 +167,16 @@ class DatasetInfoForm(forms.Form):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
-        if user:
-            self.fields["author"].initial = user.name
+        initial_authors = self.initial.get("authors")
+        # Check if authors is empty (None, empty string, or "[]")
+        is_authors_empty = not initial_authors or initial_authors in ["", "[]"]
+        if user and is_authors_empty:
+            # Set initial authors as JSON string with the user as the first author
+            # Use new object format with name and orcid_id
+            initial_authors = [
+                {"name": user.name or user.email, "orcid_id": user.orcid_id or ""}
+            ]
+            self.fields["authors"].initial = json.dumps(initial_authors)
 
     def clean_name(self):
         """Validate the dataset name."""
@@ -115,12 +186,61 @@ class DatasetInfoForm(forms.Form):
 
         return name.strip()
 
-    def clean_author(self):
-        """Validate the author name."""
-        author = self.cleaned_data["author"]
-        if len(author.strip()) < MIN_AUTHOR_NAME_LENGTH:
-            raise ValidationError(AUTHOR_NAME_LENGTH_ERROR)
-        return author.strip()
+    def clean_authors(self):  # noqa: C901
+        """Validate the authors list."""
+        authors_json = self.cleaned_data["authors"]
+        try:
+            authors = json.loads(authors_json)
+            if not isinstance(authors, list):
+                msg = "Authors must be a list"
+                raise ValidationError(msg)
+
+            if not authors:
+                msg = "At least one author is required"
+                raise ValidationError(msg)
+
+            # Validate each author name
+            cleaned_authors = []
+            for author in authors:
+                # Handle both old string format and new object format
+                if isinstance(author, str):
+                    # Convert old string format to new object format
+                    author_name = author.strip()
+                    if not author_name:
+                        continue
+                    if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
+                        error_msg = (
+                            f"Author name '{author_name}' is too short. "
+                            f"Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
+                        )
+                        raise ValidationError(error_msg)
+                    cleaned_authors.append({"name": author_name, "orcid_id": ""})
+                elif isinstance(author, dict):
+                    # Handle new object format
+                    author_name = author.get("name", "").strip()
+                    if not author_name:
+                        continue
+                    if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
+                        error_msg = (
+                            f"Author name '{author_name}' is too short. "
+                            f"Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
+                        )
+                        raise ValidationError(error_msg)
+                    cleaned_authors.append(
+                        {
+                            "name": author_name,
+                            "orcid_id": author.get("orcid_id", "").strip(),
+                        }
+                    )
+
+            if not cleaned_authors:
+                msg = "At least one valid author is required"
+                raise ValidationError(msg)
+
+            return json.dumps(cleaned_authors)
+        except json.JSONDecodeError as e:
+            msg = "Invalid authors format"
+            raise ValidationError(msg) from e
 
     def clean_description(self):
         """Clean and validate the description."""
