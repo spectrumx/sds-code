@@ -24,6 +24,9 @@ class DatasetCreationHandler {
 		this.authorsField = document.getElementById("id_authors");
 		this.statusField = document.getElementById("id_status");
 		this.descriptionField = document.getElementById("id_description");
+		this.visibilityField = document.querySelector(
+			'input[name="is_public"]:checked',
+		);
 
 		// Hidden fields
 		this.selectedCapturesField = document.getElementById("selected_captures");
@@ -504,6 +507,23 @@ class DatasetCreationHandler {
 					this.statusField.options[this.statusField.selectedIndex].text;
 			} else {
 				statusDisplay.textContent = "";
+			}
+		}
+
+		// Update visibility display
+		const visibilityDisplay = document.querySelector(
+			"#step4 .dataset-visibility",
+		);
+		if (visibilityDisplay) {
+			const isPublic =
+				document.querySelector('input[name="is_public"]:checked')?.value ===
+				"true";
+			if (isPublic) {
+				visibilityDisplay.innerHTML =
+					'<span class="badge bg-primary"><i class="bi bi-globe me-1"></i>Public</span>';
+			} else {
+				visibilityDisplay.innerHTML =
+					'<span class="badge bg-danger"><i class="bi bi-lock-fill me-1"></i>Private</span>';
 			}
 		}
 
