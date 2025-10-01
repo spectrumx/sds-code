@@ -2,7 +2,10 @@
     dependencies = [
         "blake3>=1.0.0",
         "loguru>=0.6.0",
-        "pydantic>=2.8.0",
+        "pydantic>=2.8.0 ; python_full_version < '3.14'",
+        # "pydantic>=2.11.10 ; python_full_version >= '3.14'",
+        # py3.14 support blocked by a new pydantic release >2.11.9
+        # https://github.com/pydantic/pydantic/releases
         "python-dotenv>=1.0.0",
         "requests>=2.28.2",
         "tqdm>=4.64.1",
