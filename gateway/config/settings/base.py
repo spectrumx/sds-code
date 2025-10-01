@@ -391,14 +391,6 @@ CELERY_TASK_ANNOTATIONS: dict[str, dict[str, Any]] = {
         "time_limit": 70 * 60,  # 70 minutes
         "soft_time_limit": 60 * 60,  # 60 minutes
     },
-    "django_cog.launch_stage": {
-        "time_limit": 70 * 60,  # 70 minutes
-        "soft_time_limit": 60 * 60,  # 60 minutes
-    },
-    "django_cog.launch_pipeline": {
-        "time_limit": 70 * 60,  # 70 minutes
-        "soft_time_limit": 60 * 60,  # 60 minutes
-    },
 }
 
 # CELERY BEAT SCHEDULE
