@@ -543,7 +543,7 @@ def visualization_error_handler(error, task_run=None):
                     )
 
             else:
-                logger.error(
+                logger.warning(
                     "Could not extract capture_uuid from pipeline run arguments"
                 )
 
