@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from django.db.utils import IntegrityError
 from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
+from django.http import HttpResponseRedirect
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
@@ -36,6 +38,7 @@ from django.views.generic import TemplateView
 from django.views.generic import UpdateView
 from rest_framework import status
 
+from sds_gateway.api_methods.helpers.download_file import download_file
 from sds_gateway.api_methods.helpers.file_helpers import (
     check_file_contents_exist_helper,
 )
@@ -61,6 +64,12 @@ from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.users.files_utils import add_capture_files
+from sds_gateway.users.files_utils import add_root_items
+from sds_gateway.users.files_utils import add_shared_items
+from sds_gateway.users.files_utils import build_breadcrumbs
+from sds_gateway.users.files_utils import format_modified
+from sds_gateway.users.files_utils import make_dir_item
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
@@ -1110,6 +1119,194 @@ class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[re
 
 
 user_file_detail_view = FileDetailView.as_view()
+
+
+class FileDownloadView(Auth0LoginRequiredMixin, View):
+    """Session-authenticated file download for the Users UI."""
+
+    def get(self, request: HttpRequest, uuid: str, *args, **kwargs) -> HttpResponse:
+        file_obj = get_object_or_404(File, uuid=uuid, is_deleted=False)
+
+        # Access control: owner or shared via capture/dataset
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        try:
+            content = download_file(file_obj)
+        except Exception:
+            logger.exception("Error downloading file %s", file_obj.name)
+            return JsonResponse({"error": "Failed to download file"}, status=500)
+
+        response = HttpResponse(
+            content,
+            content_type=file_obj.media_type or "application/octet-stream",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{file_obj.name}"'
+        return response
+
+
+class FileContentView(Auth0LoginRequiredMixin, View):
+    """Serve small text content of a file for modal previews.
+
+    Supports rendering JSON as pretty-printed text. Enforces basic access
+    control: owners or users with access to the parent capture/dataset.
+    """
+
+    MAX_BYTES = 1024 * 1024  # 1 MiB safety limit for previews
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:  # noqa: C901, PLR0911
+        file_uuid = kwargs.get("uuid")
+        if not file_uuid:
+            return JsonResponse({"error": "File UUID required"}, status=400)
+
+        file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
+
+        # Access control: owner or shared via capture/dataset
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        try:
+            # Size guard
+            if file_obj.size and int(file_obj.size) > self.MAX_BYTES:
+                return JsonResponse({"error": "File too large to preview"}, status=413)
+
+            # Read content
+            file_obj.file.open("rb")
+            raw = file_obj.file.read(self.MAX_BYTES + 1)
+            file_obj.file.close()
+
+            if len(raw) > self.MAX_BYTES:
+                return JsonResponse({"error": "File too large to preview"}, status=413)
+
+            # Detect JSON by extension
+            name_lower = (file_obj.name or "").lower()
+            if name_lower.endswith(".json"):
+                try:
+                    parsed = json.loads(raw.decode("utf-8"))
+                    pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
+                    return HttpResponse(
+                        pretty, content_type="text/plain; charset=utf-8"
+                    )
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    # fall through to plain text rendering below
+                    pass
+
+            # Default: return UTF-8 text
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                # Replace undecodable bytes
+                text = raw.decode("utf-8", errors="replace")
+
+            return HttpResponse(text, content_type="text/plain; charset=utf-8")
+        except OSError:
+            logger.exception("Error reading file content for preview")
+            return JsonResponse({"error": "Error reading file"}, status=500)
+
+
+class FileH5InfoView(Auth0LoginRequiredMixin, View):
+    """Return a summarized structure for an HDF5 file as JSON for modal preview."""
+
+    H5_MAX_BYTES = 200 * 1024 * 1024  # 200 MiB cap for preview temp copy
+    MAX_PREVIEW_ELEMENTS = 10
+    MAX_CHILDREN_PER_GROUP = 200
+    MAX_RECURSION_DEPTH = 4
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:  # noqa: C901, PLR0911
+        file_uuid = kwargs.get("uuid")
+        if not file_uuid:
+            return JsonResponse({"error": "File UUID required"}, status=400)
+
+        file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
+
+        # Access control like content view
+        has_access = False
+        if file_obj.owner_id == request.user.id:
+            has_access = True
+        elif file_obj.capture_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.capture_id), ItemType.CAPTURE
+            )
+        elif file_obj.dataset_id:
+            has_access = user_has_access_to_item(
+                request.user, str(file_obj.dataset_id), ItemType.DATASET
+            )
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        # Guard extension
+        name_lower = (file_obj.name or "").lower()
+        if not name_lower.endswith((".h5", ".hdf5")):
+            return JsonResponse({"error": "Not an HDF5 file"}, status=400)
+
+        # Size guard
+        try:
+            if file_obj.size and int(file_obj.size) > self.H5_MAX_BYTES:
+                return JsonResponse({"error": "File too large to preview"}, status=413)
+        except (TypeError, ValueError):
+            pass
+
+        # Copy to temp file (h5py requires a filename)
+        temp_file = tempfile.NamedTemporaryFile(  # noqa: SIM115 - needs real path; we manage cleanup
+            delete=False, suffix=".h5"
+        )
+        temp_path = temp_file.name
+        try:
+            bytes_written = 0
+            file_obj.file.open("rb")
+            for chunk in file_obj.file.chunks():
+                bytes_written += len(chunk)
+                if bytes_written > self.H5_MAX_BYTES:
+                    file_obj.file.close()
+                    temp_file.close()
+                    Path(temp_path).unlink(missing_ok=True)
+                    return JsonResponse(
+                        {"error": "File too large to preview"}, status=413
+                    )
+                temp_file.write(chunk)
+            file_obj.file.close()
+            temp_file.flush()
+            temp_file.close()
+
+            # For now, just return a simple message that H5 preview is not available
+            return JsonResponse(
+                {
+                    "error": "H5 file preview not yet implemented",
+                    "message": (
+                        "HDF5 file preview functionality is not available yet. "
+                        "Please download the file to view its contents."
+                    ),
+                }
+            )
+        except OSError:
+            logger.exception("Error creating H5 preview")
+            return JsonResponse({"error": "Error reading HDF5 file"}, status=500)
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
 
 
 def _get_captures_for_template(
@@ -3404,6 +3601,137 @@ class CheckFileExistsView(Auth0LoginRequiredMixin, View):
 
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+
+
+class FilesView(Auth0LoginRequiredMixin, View):
+    """Handle HTML requests for the files page."""
+
+    template_name = "users/files.html"
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+        """Handle HTML page requests for files page."""
+        # Get the current directory from query params
+        current_dir = request.GET.get("dir", "/")
+
+        # Debug logging
+        logger.debug("FilesView: current_dir=%s", current_dir)
+
+        # Initialize items list
+        items = []
+
+        if current_dir == "/":
+            # Root directory - show captures and datasets as folders
+            self._add_root_items(request, items)
+        elif current_dir.startswith("/captures/"):
+            # Inside a capture - show nested directories/files within the capture
+            parts = current_dir.strip("/").split("/")
+            capture_uuid = parts[1] if len(parts) > 1 else ""
+            # Subpath inside the capture (may be empty for the capture root)
+            subpath_start_index = 2
+            subpath = (
+                "/".join(parts[subpath_start_index:])
+                if len(parts) > subpath_start_index
+                else ""
+            )
+            self._add_capture_files(request, items, capture_uuid, subpath=subpath)
+
+        else:
+            # Unknown directory - go back to root
+            return HttpResponseRedirect("/users/files/")
+
+        # Build breadcrumb parts
+        breadcrumb_parts = self._build_breadcrumbs(current_dir, request.user.email)
+
+        # Debug logging
+        logger.debug(
+            "FilesView: context summary items=%d",
+            len(items),
+        )
+        logger.debug(
+            "FilesView: first items preview=%s",
+            items[:3] if items else "No items",
+        )
+
+        # Additional debugging for directory items
+        for i, item in enumerate(items):
+            if item.get("type") == "directory":
+                logger.debug("FilesView: directory item %d => %s", i, item)
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "items": items,
+                "current_dir": current_dir,
+                "breadcrumb_parts": breadcrumb_parts,
+                "user_email": request.user.email,
+            },
+        )
+
+    def _format_modified(self, dt):
+        """Return a consistent display string for modified timestamps."""
+        return format_modified(dt)
+
+    def _make_dir_item(self, **kwargs):
+        """Create a standardized directory item dict for the template."""
+        return make_dir_item(**kwargs)
+
+    def _make_file_item(
+        self,
+        *,
+        file_obj: File,
+        capture_uuid: str = "",
+        is_shared: bool = False,
+        shared_by: str = "",
+    ) -> dict:
+        """Create a standardized file item dict for the template."""
+        return {
+            "type": "file",
+            "name": file_obj.name,
+            "path": str(file_obj.uuid),
+            "uuid": str(file_obj.uuid),
+            "is_capture": False,
+            "is_shared": is_shared,
+            "capture_uuid": capture_uuid,
+            "modified_at": self._format_modified(getattr(file_obj, "updated_at", None)),
+            "shared_by": shared_by,
+        }
+
+    def _add_root_items(self, request, items):
+        """Add captures and datasets to the root directory."""
+        add_root_items(request, items)
+        # Add shared items
+        self._add_shared_items(request, items)
+
+    def _add_capture_files(self, request, items, capture_uuid, subpath: str = ""):
+        """Add nested directories/files within a specific capture."""
+        add_capture_files(request, items, capture_uuid, subpath)
+
+    def _add_shared_items(self, request, items):
+        """Add shared captures and datasets, avoiding N+1 lookups."""
+        add_shared_items(request, items)
+
+    def _build_breadcrumbs(self, current_dir, user_email: str):
+        """Build breadcrumb navigation with friendly names."""
+        return build_breadcrumbs(current_dir, user_email)
+
+
+def files_view(request):
+    """Simple function-based view for files page."""
+    # Check if user is authenticated
+    if not request.user.is_authenticated:
+        return redirect("users:redirect")
+
+    return render(
+        request,
+        "users/files.html",
+        {
+            "items": [],
+            "current_dir": request.GET.get("dir", "/"),
+            "breadcrumb_parts": [],
+            "user_email": getattr(request.user, "email", ""),
+        },
+    )
 
 
 user_check_file_exists_view = CheckFileExistsView.as_view()
