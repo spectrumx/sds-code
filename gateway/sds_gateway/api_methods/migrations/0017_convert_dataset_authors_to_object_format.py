@@ -11,21 +11,21 @@ logger = logging.getLogger(__name__)
 def convert_authors_to_object_format(apps, schema_editor):
     """Convert dataset authors from string format to object format."""
     Dataset = apps.get_model("api_methods", "Dataset")
-    
+
     # Get all datasets with authors
     datasets = Dataset.objects.filter(authors__isnull=False).exclude(authors="")
     total_count = datasets.count()
-    
+
     if total_count == 0:
         logger.info("No datasets with authors found to convert")
         return
-    
+
     logger.info("Converting %d datasets with authors to new format", total_count)
-    
+
     updated_count = 0
     skipped_count = 0
     error_count = 0
-    
+
     for dataset in datasets:
         try:
             # Parse current authors
@@ -39,18 +39,18 @@ def convert_authors_to_object_format(apps, schema_editor):
                     continue
             else:
                 current_authors = dataset.authors
-            
+
             if not current_authors:
                 skipped_count += 1
                 continue
-                
+
             # Check if already in new format (has dict with 'name' key)
             if isinstance(current_authors, list) and current_authors:
                 if isinstance(current_authors[0], dict) and "name" in current_authors[0]:
                     logger.debug("Dataset %s already in new format, skipping", dataset.uuid)
                     skipped_count += 1
                     continue
-                
+
                 # Convert string authors to object format
                 if isinstance(current_authors[0], str):
                     new_authors = []
@@ -60,11 +60,11 @@ def convert_authors_to_object_format(apps, schema_editor):
                         else:
                             # Handle unexpected format
                             logger.warning(
-                                "Dataset %s has unexpected author format: %s", 
+                                "Dataset %s has unexpected author format: %s",
                                 dataset.uuid, author
                             )
                             new_authors.append({"name": str(author), "orcid_id": ""})
-                    
+
                     # Update the dataset
                     dataset.authors = json.dumps(new_authors)
                     dataset.save(update_fields=["authors"])
@@ -76,13 +76,13 @@ def convert_authors_to_object_format(apps, schema_editor):
             else:
                 # Empty or invalid authors list
                 skipped_count += 1
-                
+
         except Exception as e:
             error_count += 1
             logger.error("Error converting dataset %s: %s", dataset.uuid, e)
-    
+
     logger.info(
-        "Author conversion complete: %d updated, %d skipped, %d errors", 
+        "Author conversion complete: %d updated, %d skipped, %d errors",
         updated_count, skipped_count, error_count
     )
 
@@ -90,21 +90,21 @@ def convert_authors_to_object_format(apps, schema_editor):
 def reverse_authors_to_string_format(apps, schema_editor):
     """Reverse migration: convert authors back to string format."""
     Dataset = apps.get_model("api_methods", "Dataset")
-    
+
     # Get all datasets with authors
     datasets = Dataset.objects.filter(authors__isnull=False).exclude(authors="")
     total_count = datasets.count()
-    
+
     if total_count == 0:
         logger.info("No datasets with authors found to reverse")
         return
-    
+
     logger.info("Reversing %d datasets with authors to string format", total_count)
-    
+
     updated_count = 0
     skipped_count = 0
     error_count = 0
-    
+
     for dataset in datasets:
         try:
             # Parse current authors
@@ -116,17 +116,17 @@ def reverse_authors_to_string_format(apps, schema_editor):
                     continue
             else:
                 current_authors = dataset.authors
-            
+
             if not current_authors:
                 skipped_count += 1
                 continue
-                
+
             # Check if in object format (has dict with 'name' key)
             if isinstance(current_authors, list) and current_authors:
                 if isinstance(current_authors[0], dict) and "name" in current_authors[0]:
                     # Convert object authors back to string format
                     string_authors = [author["name"] for author in current_authors]
-                    
+
                     # Update the dataset
                     dataset.authors = json.dumps(string_authors)
                     dataset.save(update_fields=["authors"])
@@ -138,13 +138,13 @@ def reverse_authors_to_string_format(apps, schema_editor):
             else:
                 # Empty or invalid authors list
                 skipped_count += 1
-                
+
         except Exception as e:
             error_count += 1
             logger.error("Error reversing dataset %s: %s", dataset.uuid, e)
-    
+
     logger.info(
-        "Author reversal complete: %d updated, %d skipped, %d errors", 
+        "Author reversal complete: %d updated, %d skipped, %d errors",
         updated_count, skipped_count, error_count
     )
 
@@ -153,7 +153,7 @@ class Migration(migrations.Migration):
     """Migration to convert dataset authors to object format."""
 
     dependencies = [
-        ("api_methods", "0015_rename_postprocesseddata_deprecatedpostprocesseddata_and_more"),
+        ("api_methods", "0016_alter_usersharepermission_permission_level"),
     ]
 
     operations = [
