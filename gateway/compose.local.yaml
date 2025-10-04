@@ -21,10 +21,9 @@ networks:
     sds-gateway-local-opensearch-net:
         driver: bridge
     sds-network-local:
-        external: true  # make it external if running with traefik on this machine
+        # external: true # make it external if running with traefik on this machine
         driver: bridge
 services:
-
     sds-gateway-local-app:
         build:
             context: .
@@ -51,12 +50,24 @@ services:
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
+        # remember /entrypoint runs first
+        command: "/start"
         ports:
             - "8000:8000" # make sure this port matches traefik's config, if used
         networks:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
             - sds-network-local
+        develop:
+            watch:
+                - action: sync
+                  path: .
+                  target: /app
+                  ignore:
+                      - .venv/
+
+                - action: rebuild
+                  path: ./pyproject.toml
 
     nginx:
         # nginx serves the static files generated for the gateway
@@ -90,7 +101,7 @@ services:
             - "9001:9001"
         env_file:
             - ./.envs/local/minio.env
-        command: server /files --console-address ":9001"
+        command: 'server /files --console-address ":9001"'
         networks:
             - sds-gateway-local-minio-net
 
@@ -118,7 +129,11 @@ services:
         networks:
             - sds-gateway-local-opensearch-net
         healthcheck:
-            test: [ "CMD-SHELL", "curl -u ${OPENSEARCH_USER}:${OPENSEARCH_PASSWORD} http://localhost:9200/_cluster/health?pretty | grep -q '\"status\" : \"green\"\\|\"status\" : \"yellow\"'" ]
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -u ${OPENSEARCH_USER}:${OPENSEARCH_PASSWORD} http://localhost:9200/_cluster/health?pretty | grep -q '\"status\" : \"green\"\\|\"status\" : \"yellow\"'",
+                ]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -156,6 +171,7 @@ services:
             dockerfile: ./compose/local/django/Dockerfile
         image: sds-gateway-local-app
         container_name: sds-gateway-local-celery-worker
+        tty: true
         depends_on:
             redis:
                 condition: service_started
@@ -172,7 +188,7 @@ services:
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
-        command: uv run celery -A config.celery_app worker -l INFO
+        command: "bash /worker-start"
         networks:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
@@ -201,7 +217,7 @@ services:
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
-        command: uv run celery -A config.celery_app beat -l INFO
+        command: "/beat-start"
         networks:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
@@ -214,6 +230,7 @@ services:
             dockerfile: ./compose/local/django/Dockerfile
         image: sds-gateway-local-app
         container_name: sds-gateway-local-celery-flower
+        tty: true
         depends_on:
             redis:
                 condition: service_started
@@ -225,14 +242,14 @@ services:
                 condition: service_started
         volumes:
             - .:/app:z
-            - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
-            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - sds-gateway-local-app-media:/app/sds_gateway/media
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips
         env_file:
             - ./.envs/local/django.env
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
-        command: /flower-start
+        command: "/flower-start"
         ports:
             - "5555:5555" # Flower web interface
         networks:
@@ -255,7 +272,7 @@ services:
             - .:/app:z
             # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
             - /app/node_modules
-        command: npm run dev
+        command: "npm run dev"
         ports:
             - "3000:3000"
 
