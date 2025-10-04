@@ -8,6 +8,7 @@ redeploy: build down up logs
 
 # variables for local (dev) deployment
 APP_CONTAINER := sds-gateway-local-app
+NODE_CONTAINER := node
 COMPOSE_FILE := compose.local.yaml
 ENV_FILE := .envs/local/opensearch.env
 ENV := local
@@ -59,13 +60,16 @@ snapshot:
 test:
 
 	@echo "Validating templates"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py validate_templates
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run --rm $(APP_CONTAINER) python manage.py validate_templates
 
-	@echo "Running tests"
-	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) pytest $(ARGS)
+	@echo "Running Python tests"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run --rm $(APP_CONTAINER) pytest $(ARGS)
+
+	@echo "Running JavaScript tests"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run --rm $(NODE_CONTAINER) node sds_gateway/static/js/tests/test-runner.js
 
 	@# Django's test runner: obsolete, subset of pytest tests, left as reference.
-	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0
+	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run --rm $(APP_CONTAINER) python manage.py test --no-input --force-color --verbosity 0
 
 update:
 	@# uv sync --upgrade # re-enable when uv integration is done
