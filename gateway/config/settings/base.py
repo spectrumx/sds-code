@@ -110,6 +110,11 @@ LOCALE_PATHS: list[str] = [str(BASE_DIR / "locale")]
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
 DATABASES: dict[str, Any] = {"default": env.dj_db_url("DATABASE_URL")}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
+# TODO: enable connection pools when upgrading to Django 5.1+ and psycopg3
+# https://docs.djangoproject.com/en/5.2/ref/databases/#connection-pool
+# DATABASES["default"]["OPTIONS"] = {
+#     "pool": True,
+# }
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD: str = "django.db.models.BigAutoField"
 
