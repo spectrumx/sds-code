@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+
+rm -f './celerybeat.pid'
+
+# for cli options, run:
+# uvx watchfiles --help
+exec uv run watchfiles \
+    'celery.__main__.main' \
+    --filter 'python' \
+    --args '-A config.celery_app beat -l INFO'

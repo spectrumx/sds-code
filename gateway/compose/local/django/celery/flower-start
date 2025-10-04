@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+
+until uv run celery -A config.celery_app inspect ping; do
+    >&2 echo "$(date +%Y-%m-%d\ %H:%M:%S) - Celery workers are unavailable - sleeping"
+    sleep 10
+done
+
+echo 'Starting flower'
+
+# for cli options, run:
+# uvx watchfiles --help
+exec uv run watchfiles \
+    'celery.__main__.main' \
+    --filter 'python' \
+    --args "-A config.celery_app -b \"${CELERY_BROKER_URL}\" flower \
+    --basic_auth=\"${CELERY_FLOWER_USER}:${CELERY_FLOWER_PASSWORD}\""
