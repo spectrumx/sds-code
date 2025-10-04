@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from django.core.asgi import get_asgi_application
+from loguru import logger as log
 
 # This allows easy placement of apps within the interior
 # sds_gateway directory.
@@ -37,3 +38,6 @@ async def application(scope, receive, send):
     else:
         msg = f"Unknown scope type {scope['type']}"
         raise NotImplementedError(msg)
+
+
+log.info("Starting ASGI application")
