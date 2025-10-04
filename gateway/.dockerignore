@@ -1,18 +1,19 @@
 .venv/
+node_modules
 opensearch/data
 
 .editorconfig
+.envs/
+.git
 .gitattributes
 .github
 .gitignore
-.gitlab-ci.yml
 .gitlab-ci.yaml
+.gitlab-ci.yml
 .idea
 .pre-commit-config.yaml
-.readthedocs.yml
 .readthedocs.yaml
-.travis.yml
+.readthedocs.yml
 .travis.yaml
+.travis.yml
 venv
-.git
-.envs/
