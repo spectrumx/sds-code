@@ -8,6 +8,7 @@ volumes:
     # for safety, all local volumes start with "sds-gateway-local-"
     sds-gateway-local-app-media: {} # for Django media files
     sds-gateway-local-temp-zips: {} # for temporary zip files
+    sds-gateway-local-venv: {} # Python virtual environment
     sds-gateway-local-minio-files: {}
     sds-gateway-local-opensearch-data: {}
     sds-gateway-local-postgres-data-backups: {}
@@ -42,6 +43,7 @@ services:
                 condition: service_started
         volumes:
             - .:/app:z # bind mount used in local for hot reloading; prod uses built assets
+            - sds-gateway-local-venv:/app/.venv
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
@@ -181,6 +183,7 @@ services:
                 condition: service_started
         volumes:
             - .:/app:z
+            - sds-gateway-local-venv:/app/.venv
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
         env_file:
@@ -188,7 +191,7 @@ services:
             - ./.envs/local/minio.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
-        command: "bash /worker-start"
+        command: "/worker-start"
         networks:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
@@ -210,6 +213,7 @@ services:
                 condition: service_started
         volumes:
             - .:/app:z
+            - sds-gateway-local-venv:/app/.venv
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
         env_file:
@@ -242,6 +246,7 @@ services:
                 condition: service_started
         volumes:
             - .:/app:z
+            - sds-gateway-local-venv:/app/.venv
             - sds-gateway-local-app-media:/app/sds_gateway/media
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips
         env_file:
@@ -270,6 +275,7 @@ services:
             - sds-gateway-local-app
         volumes:
             - .:/app:z
+            - sds-gateway-local-venv:/app/.venv
             # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
             - /app/node_modules
         command: "npm run dev"

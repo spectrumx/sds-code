@@ -8,6 +8,7 @@ volumes:
     # for safety, all gateway production volumes start with "sds-gateway-prod-"
     sds-gateway-prod-app-media: {}
     sds-gateway-prod-temp-zips: {} # for temporary zip files
+    sds-gateway-prod-venv: {} # Python virtual environment
     sds-gateway-prod-minio-files: {}
     sds-gateway-prod-opensearch-data: {}
     sds-gateway-prod-postgres-data-backups: {}
@@ -64,6 +65,12 @@ services:
               target: /app/opensearch/data/certs
               type: bind
               read_only: true
+            - source: sds-gateway-prod-venv
+              target: /opt/uv-cache/
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
@@ -124,9 +131,20 @@ services:
                 GID: ${GID}
         container_name: sds-gateway-prod-opensearch
         volumes:
-            - sds-gateway-prod-opensearch-data:/usr/share/opensearch/data
-            - ./compose/production/opensearch/opensearch.yaml:/usr/share/opensearch/config/opensearch.yml
-            - ./opensearch/data/certs:/usr/share/opensearch/config/certs
+            - source: sds-gateway-prod-opensearch-data
+              target: /usr/share/opensearch/data
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./compose/production/opensearch/opensearch.yaml
+              target: /usr/share/opensearch/config/opensearch.yml
+              type: bind
+              read_only: true
+            - source: ./opensearch/data/certs
+              target: /usr/share/opensearch/config/certs
+              type: bind
+              read_only: true
         env_file:
             - ./.envs/production/opensearch.env
         ulimits:
@@ -190,6 +208,12 @@ services:
             minio:
                 condition: service_started
         volumes:
+            - source: sds-gateway-prod-venv
+              target: /opt/uv-cache/
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
             - source: sds-gateway-prod-app-media
               target: /app/sds_gateway/media
               type: volume
@@ -232,6 +256,12 @@ services:
             minio:
                 condition: service_started
         volumes:
+            - source: sds-gateway-prod-venv
+              target: /opt/uv-cache/
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
             - source: sds-gateway-prod-app-media
               target: /app/sds_gateway/media
               type: volume
@@ -277,9 +307,24 @@ services:
             opensearch:
                 condition: service_started
         volumes:
-            - .:/app:z
-            - sds-gateway-prod-app-media:/app/sds_gateway/media # persistent media storage
-            - sds-gateway-prod-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - source: sds-gateway-prod-venv
+              target: /opt/uv-cache/
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
+            - source: sds-gateway-prod-app-media
+              target: /app/sds_gateway/media
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
+            - source: sds-gateway-prod-temp-zips
+              target: /app/sds_gateway/media/temp_zips
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
