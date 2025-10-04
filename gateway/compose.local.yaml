@@ -42,8 +42,7 @@ services:
             minio:
                 condition: service_started
         volumes:
-            - .:/app:z # bind mount used in local for hot reloading; prod uses built assets
-            - sds-gateway-local-venv:/app/.venv
+            - sds-gateway-local-venv:/opt/uv-cache/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
@@ -66,7 +65,9 @@ services:
                   path: .
                   target: /app
                   ignore:
-                      - .venv/
+                      - ".venv/**/*"
+                      - "node_modules/**/*"
+                      - "staticfiles/**/*"
 
                 - action: rebuild
                   path: ./pyproject.toml
@@ -182,8 +183,7 @@ services:
             minio:
                 condition: service_started
         volumes:
-            - .:/app:z
-            - sds-gateway-local-venv:/app/.venv
+            - sds-gateway-local-venv:/opt/uv-cache/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
         env_file:
@@ -212,8 +212,7 @@ services:
             minio:
                 condition: service_started
         volumes:
-            - .:/app:z
-            - sds-gateway-local-venv:/app/.venv
+            - sds-gateway-local-venv:/opt/uv-cache/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
         env_file:
@@ -245,8 +244,7 @@ services:
             opensearch:
                 condition: service_started
         volumes:
-            - .:/app:z
-            - sds-gateway-local-venv:/app/.venv
+            - sds-gateway-local-venv:/opt/uv-cache/
             - sds-gateway-local-app-media:/app/sds_gateway/media
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips
         env_file:
@@ -274,8 +272,7 @@ services:
         depends_on:
             - sds-gateway-local-app
         volumes:
-            - .:/app:z
-            - sds-gateway-local-venv:/app/.venv
+            - sds-gateway-local-venv:/opt/uv-cache/
             # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
             - /app/node_modules
         command: "npm run dev"
