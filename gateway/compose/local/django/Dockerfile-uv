@@ -25,6 +25,7 @@ ENV PYTHONUNBUFFERED=1
 # https://docs.astral.sh/uv/guides/integration/docker/
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
+ENV UV_CACHE_DIR=/opt/uv-cache/
 
 # install required system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -59,13 +60,14 @@ COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
 RUN uv sync --frozen --extra ${BUILD_ENVIRONMENT}
 
 # "entrypoint" only has a production version
-COPY ./compose/production/django/entrypoint /entrypoint
-RUN sed -i 's/\r$//g' /entrypoint
-RUN chmod +x /entrypoint
+COPY ./compose/production/django/entrypoint         /entrypoint
 
-COPY ./compose/local/django/start /start
-RUN sed -i 's/\r$//g' /start
-RUN chmod +x /start
+# copy command scripts and set exec flag
+COPY ./compose/local/django/start                   /start
+COPY ./compose/local/django/celery/flower-start     /flower-start
+COPY ./compose/local/django/celery/worker-start     /worker-start
+COPY ./compose/local/django/celery/beat-start       /beat-start
+RUN chmod +x /entrypoint /start /worker-start /flower-start /beat-start
 
 # copy application code to WORKDIR
 COPY . ${APP_HOME}

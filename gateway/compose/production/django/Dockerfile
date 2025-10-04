@@ -25,6 +25,7 @@ ENV PYTHONUNBUFFERED=1
 # https://docs.astral.sh/uv/guides/integration/docker/
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
+ENV UV_CACHE_DIR=/opt/uv-cache/
 
 # install required system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -61,24 +62,23 @@ RUN addgroup --system django \
 COPY --chown=django:django ./pyproject.toml ./uv.lock ${APP_HOME}/
 RUN uv sync --frozen --extra ${BUILD_ENVIRONMENT}
 
-COPY --chown=django:django ./compose/production/django/entrypoint /entrypoint
-RUN sed -i 's/\r$//g' /entrypoint
-RUN chmod +x /entrypoint
+# copy command scripts and set exec flag
+COPY --chown=django:django ./compose/production/django/entrypoint   /entrypoint
+COPY --chown=django:django ./compose/production/django/start        /start
+COPY --chown=django:django ./compose/production/django/worker-start /worker-start
+COPY --chown=django:django ./compose/production/django/flower-start /flower-start
+COPY --chown=django:django ./compose/production/django/beat-start   /beat-start
 
-COPY --chown=django:django ./compose/production/django/start /start
-RUN sed -i 's/\r$//g' /start
-RUN chmod +x /start
+RUN chmod +x /entrypoint /start /worker-start /flower-start /beat-start
 
 # copy application code to WORKDIR
 COPY --from=client-builder --chown=django:django ${APP_HOME} ${APP_HOME}
-
-# make django owner of the WORKDIR directory as well.
 RUN chown -R django:django ${APP_HOME}
 
-# Create temp_zips directory and set permissions
-RUN mkdir -p /app/sds_gateway/media/temp_zips && \
-    chown -R django:django /app/sds_gateway/media/temp_zips && \
-    find /app/sds_gateway/media/temp_zips -type d -exec chmod 755 {} \;
+# create temp_zips directory and set permissions
+RUN mkdir -p ${APP_HOME}/sds_gateway/media/temp_zips && \
+    chown -R django:django ${APP_HOME}/sds_gateway/media/temp_zips && \
+    find ${APP_HOME}/sds_gateway/media/temp_zips -type d -exec chmod 755 {} \;
 
 USER django
 

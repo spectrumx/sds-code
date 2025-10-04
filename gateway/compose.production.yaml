@@ -71,7 +71,8 @@ services:
             - ./.envs/production/opensearch.env
         ports:
             - "18000:18000" # make sure this port matches traefik's config, if used
-        command: /start
+        # remember /entrypoint runs first
+        command: "/start"
         networks:
             - sds-gateway-prod-opensearch-net
             - sds-gateway-prod-minio-net
@@ -109,7 +110,7 @@ services:
             - "19001:9001"
         env_file:
             - ./.envs/production/minio.env
-        command: server /files --console-address ":9001"
+        command: 'server /files --console-address ":9001"'
         networks:
             - sds-gateway-prod-minio-net
 
@@ -138,7 +139,11 @@ services:
         networks:
             - sds-gateway-prod-opensearch-net
         healthcheck:
-            test: [ "CMD-SHELL", "curl -k -u \"$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWORD\" https://localhost:9200/_cluster/health || exit 1" ]
+            test:
+                [
+                    "CMD-SHELL",
+                    'curl -k -u "$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWORD" https://localhost:9200/_cluster/health || exit 1',
+                ]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -150,7 +155,7 @@ services:
             dockerfile: ./compose/production/postgres/Dockerfile
         image: sds-gateway-prod-postgres
         container_name: sds-gateway-prod-postgres
-        command: -c 'max_connections=300'
+        command: "-c 'max_connections=300'"
         volumes:
             - sds-gateway-prod-postgres-data:/var/lib/postgresql/data
             - sds-gateway-prod-postgres-data-backups:/backups
@@ -176,6 +181,7 @@ services:
             dockerfile: ./compose/production/django/Dockerfile
         image: sds-gateway-prod-app
         container_name: sds-gateway-prod-celery-worker
+        tty: true
         depends_on:
             redis:
                 condition: service_started
@@ -205,7 +211,7 @@ services:
             - ./.envs/production/minio.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
-        command: uv run celery -A config.celery_app worker -l INFO
+        command: "/worker-start"
         networks:
             - sds-gateway-prod-opensearch-net
             - sds-gateway-prod-minio-net
@@ -247,7 +253,7 @@ services:
             - ./.envs/production/minio.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
-        command: uv run celery -A config.celery_app beat -l INFO
+        command: "/beat-start"
         networks:
             - sds-gateway-prod-opensearch-net
             - sds-gateway-prod-minio-net
@@ -260,6 +266,7 @@ services:
             dockerfile: ./compose/production/django/Dockerfile
         image: sds-gateway-prod-app
         container_name: sds-gateway-prod-celery-flower
+        tty: true
         depends_on:
             redis:
                 condition: service_started
@@ -278,7 +285,7 @@ services:
             - ./.envs/production/minio.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
-        command: /flower-start
+        command: "/flower-start"
         ports:
             - "15555:5555" # Flower web interface
         networks:
