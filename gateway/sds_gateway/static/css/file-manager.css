@@ -206,6 +206,17 @@
 	justify-content: center;
 }
 
+.file-actions {
+	font-size: 0.8125rem;
+	white-space: nowrap;
+	flex-shrink: 0;
+	min-width: 80px; /* Fixed width for actions column */
+	text-align: center; /* Center align actions */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 /* Directory Specific */
 .file-card[data-type="directory"] {
 	font-weight: 500;

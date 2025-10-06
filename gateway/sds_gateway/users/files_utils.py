@@ -6,14 +6,113 @@ extracted to improve testability and reusability. They can now be tested
 independently without needing to instantiate the entire view class.
 """
 
+import contextlib
 import logging
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
+from django.http import JsonResponse
 from django.utils import timezone
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.utils.asset_access_control import (
+    user_has_access_to_capture,
+)
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
+
+from .item_models import CaptureItem
+from .item_models import DatasetItem
+from .item_models import DirectoryItem
+from .item_models import FileItem
+from .item_models import Item
+
+
+@dataclass
+class DirItemParams:
+    """Parameters for creating directory items."""
+
+    name: str
+    path: str
+    uuid: str = ""
+    is_capture: bool = False
+    is_owner: bool = False
+    capture_uuid: str = ""
+    modified_at_display: str = "N/A"
+    item_count: int | None = None
+    is_shared: bool = False
+    shared_by: str = ""
+
+
+@contextlib.contextmanager
+def temp_h5_file_context(file_obj, h5_max_bytes: int):
+    """Context manager for safely handling H5 file operations with temporary file."""
+    temp_file = None
+    temp_path = None
+    try:
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as temp_file:
+            temp_path = temp_file.name
+
+            # Copy file content to temp file
+            file_obj.file.open("rb")
+            bytes_written = 0
+            for chunk in file_obj.file.chunks():
+                bytes_written += len(chunk)
+                if bytes_written > h5_max_bytes:
+                    error_msg = "File too large to preview"
+                    raise ValueError(error_msg)
+                temp_file.write(chunk)
+            temp_file.flush()
+
+        yield temp_path
+    finally:
+        # Clean up source file
+        try:
+            if hasattr(file_obj.file, "close"):
+                file_obj.file.close()
+        except OSError:
+            pass
+
+        # Clean up temp file
+        with contextlib.suppress(OSError):
+            if temp_file and not temp_file.closed:
+                temp_file.close()
+
+        # Remove temp file from disk
+        if temp_path:
+            try:
+                Path(temp_path).unlink(missing_ok=True)
+            except OSError as e:
+                logger.warning("Could not delete temporary file %s: %s", temp_path, e)
+
+
+def items_to_dicts(items: list[Item]) -> list[dict[str, Any]]:
+    """Convert Pydantic items to dictionaries for templates."""
+    return [item.model_dump() for item in items]
+
+
+def dicts_to_items(data: list[dict[str, Any]]) -> list[Item]:
+    """Convert dictionaries to Pydantic items based on type field."""
+    items: list[Item] = []
+    for item_dict in data:
+        item_type = item_dict.get("type")
+        if item_type == "file":
+            items.append(FileItem(**item_dict))
+        elif item_type == "directory":
+            items.append(DirectoryItem(**item_dict))
+        elif item_type == "capture":
+            items.append(CaptureItem(**item_dict))
+        elif item_type == "dataset":
+            items.append(DatasetItem(**item_dict))
+        else:
+            logger.warning("Unknown item type: %s", item_type)
+    return items
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,31 +139,61 @@ def format_modified(dt: timezone.datetime | None) -> str:
     return dt.strftime("%Y-%m-%d %H:%M") if dt else "N/A"
 
 
-def make_dir_item(
-    *,
-    name: str,
-    path: str,
-    uuid: str = "",
-    is_capture: bool = False,
-    is_shared: bool = False,
-    is_owner: bool = False,
-    capture_uuid: str = "",
-    modified_at_display: str = "N/A",
-    shared_by: str = "",
-) -> dict:
-    """Create a standardized directory item dict for the template."""
-    return {
-        "type": "directory",
-        "name": name,
-        "path": path,
-        "uuid": uuid,
-        "is_capture": is_capture,
-        "is_shared": is_shared,
-        "is_owner": is_owner,
-        "capture_uuid": capture_uuid,
-        "modified_at": modified_at_display,
-        "shared_by": shared_by,
-    }
+def check_file_access(file_obj, user) -> bool:
+    """Check if user has access to a file.
+
+    Args:
+        file_obj: The file object to check access for
+        user: The user requesting access
+
+    Returns:
+        bool: True if user has access, False otherwise
+    """
+    return user_has_access_to_file(user, file_obj)
+
+
+def validate_h5_file(file_obj, max_bytes: int) -> tuple[bool, JsonResponse | None]:
+    """Validate H5 file for preview.
+
+    Args:
+        file_obj: The file object to validate
+        max_bytes: Maximum bytes allowed for preview
+
+    Returns:
+        tuple: (is_valid, error_response) where is_valid is bool and
+               error_response is JsonResponse or None
+    """
+    # Check file extension
+    if not file_obj.name.lower().endswith((".h5", ".hdf5")):
+        return False, JsonResponse({"error": "File is not an HDF5 file"}, status=400)
+
+    # Check file size
+    if file_obj.size is None:
+        return False, JsonResponse({"error": "Cannot determine file size"}, status=400)
+
+    try:
+        file_size = int(file_obj.size)
+        if file_size > max_bytes:
+            return False, JsonResponse(
+                {"error": "File too large to preview"}, status=413
+            )
+    except (TypeError, ValueError):
+        return False, JsonResponse({"error": "Invalid file size"}, status=400)
+
+    return True, None
+
+
+def make_dir_item(params: DirItemParams) -> DirectoryItem:
+    """Create a standardized directory item."""
+    return DirectoryItem(
+        name=params.name,
+        path=params.path,
+        uuid=params.uuid,
+        modified_at=params.modified_at_display,
+        item_count=params.item_count,
+        is_shared=params.is_shared,
+        shared_by=params.shared_by,
+    )
 
 
 def make_file_item(
@@ -73,24 +202,25 @@ def make_file_item(
     capture_uuid: str = "",
     is_shared: bool = False,
     shared_by: str = "",
-) -> dict:
-    """Create a standardized file item dict for the template."""
-    return {
-        "type": "file",
-        "name": file_obj.name,
-        "path": f"/users/files/{file_obj.uuid}/",
-        "uuid": str(file_obj.uuid),
-        "is_capture": False,
-        "is_shared": is_shared,
-        "capture_uuid": capture_uuid,
-        "description": getattr(file_obj, "description", ""),
-        "modified_at": format_modified(getattr(file_obj, "updated_at", None)),
-        "shared_by": shared_by,
-    }
+) -> FileItem:
+    """Create a standardized file item."""
+    return FileItem(
+        name=file_obj.name,
+        path=f"/users/files/{file_obj.uuid}/",
+        uuid=str(file_obj.uuid),
+        is_capture=False,
+        is_shared=is_shared,
+        capture_uuid=capture_uuid,
+        description=getattr(file_obj, "description", ""),
+        modified_at=format_modified(getattr(file_obj, "updated_at", None)),
+        shared_by=shared_by,
+    )
 
 
-def add_root_items(request, items):
+def add_root_items(request) -> list[Item]:
     """Add captures and datasets to the root directory."""
+    items: list[Item] = []
+
     # Get user's captures
     user_captures = request.user.captures.filter(is_deleted=False)
 
@@ -101,22 +231,26 @@ def add_root_items(request, items):
     )
 
     # Add captures as folders
-    for capture in user_captures:
-        items.append(
+    items.extend(
+        [
             make_dir_item(
-                name=capture.name or f"Capture {capture.uuid}",
-                path=f"/captures/{capture.uuid}",
-                uuid=str(capture.uuid),
-                is_capture=True,
-                is_shared=False,
-                is_owner=True,  # User owns their own captures
-                capture_uuid=str(capture.uuid),
-                modified_at_display=format_modified(
-                    getattr(capture, "updated_at", None)
-                ),
-                shared_by="",
+                DirItemParams(
+                    name=capture.name or f"Capture {capture.uuid}",
+                    path=f"/captures/{capture.uuid}",
+                    uuid=str(capture.uuid),
+                    is_capture=True,
+                    is_shared=False,
+                    is_owner=True,  # User owns their own captures
+                    capture_uuid=str(capture.uuid),
+                    modified_at_display=format_modified(
+                        getattr(capture, "updated_at", None)
+                    ),
+                    shared_by="",
+                )
             )
-        )
+            for capture in user_captures
+        ]
+    )
 
     # Add individual files that are not part of any capture
     individual_files = get_filtered_files_queryset(
@@ -133,85 +267,69 @@ def add_root_items(request, items):
         individual_files.count(),
     )
 
-    for file_obj in individual_files:
-        items.append(
+    items.extend(
+        [
             make_file_item(
                 file_obj=file_obj,
                 capture_uuid="",
                 is_shared=False,
                 shared_by="",
             )
-        )
+            for file_obj in individual_files
+        ]
+    )
 
-    # Note: _add_shared_items will be called separately from the view
+    return items
 
 
-def add_capture_files(request, items, capture_uuid, subpath: str = ""):  # noqa: C901, PLR0912, PLR0915
-    """Add nested directories/files within a specific capture.
+def _get_capture_for_user(request, capture_uuid: str) -> Capture | None:
+    """Get a capture for the user, checking both owned and shared captures."""
 
-    Displays only the immediate children (directories and files) of the
-    provided subpath within the capture, preserving the nested structure.
-    """
     try:
-        capture = request.user.captures.get(uuid=capture_uuid, is_deleted=False)
+        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+        if user_has_access_to_capture(request.user, capture):
+            return capture
+        return None  # noqa: TRY300
     except Capture.DoesNotExist:
-        # Check if it's shared
-        shared_permission = UserSharePermission.objects.filter(
-            item_uuid=capture_uuid,
-            item_type=ItemType.CAPTURE,
-            shared_with=request.user,
-            is_deleted=False,
-            is_enabled=True,
-        ).first()
-        if shared_permission:
-            capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
-        else:
-            return
+        return None
 
-    # Get files associated with this capture
-    capture_files = get_filtered_files_queryset(
-        File.objects.filter(capture=capture, is_deleted=False)
-    )
 
-    logger.debug(
-        "FilesView: capture=%s files=%d",
-        capture.name,
-        capture_files.count(),
-    )
+def _normalize_path(path: str) -> str:
+    """Normalize a path (no leading/trailing slashes)."""
+    return path.strip("/")
 
-    # Normalize helper
-    def _norm(path: str) -> str:
-        """Normalize a path (no leading/trailing slashes)."""
-        return path.strip("/")
 
-    capture_root = _norm(capture.top_level_dir or "")
-    current_subpath = _norm(subpath)
-    user_root = _norm(f"files/{request.user.email}")
+def _get_relative_directory(file_obj, capture_root: str, user_root: str) -> str:
+    """Get the relative directory path for a file within a capture."""
+    file_dir = _normalize_path(file_obj.directory)
 
-    # Collect immediate child directories and files under current_subpath
+    # Start with the most specific root (capture_root), else fall back to user root
+    if capture_root and file_dir.startswith(capture_root):
+        return file_dir[len(capture_root) :].lstrip("/")
+
+    # Strip '/files/<email>/' if present
+    if user_root and file_dir.startswith(user_root):
+        rel_dir = file_dir[len(user_root) :].lstrip("/")
+    else:
+        rel_dir = file_dir
+
+    # If rel_dir begins with the capture folder name, drop it to get inside-capture path
+    if "/" in rel_dir:
+        _first_seg, rest = rel_dir.split("/", 1)
+        return rest  # drop capture folder name
+
+    return rel_dir
+
+
+def _filter_files_by_subpath(
+    files, current_subpath: str, user_root: str = ""
+) -> tuple[list, set[str]]:
+    """Filter files by subpath and collect child directories."""
     child_dirs: set[str] = set()
     child_files: list = []
 
-    for file_obj in capture_files:
-        # Build the directory relative to the capture's top level dir
-        file_dir = _norm(file_obj.directory)
-
-        # Start with the most specific root (capture_root),
-        # else fall back to user root
-        rel_dir = file_dir
-        if capture_root and file_dir.startswith(capture_root):
-            rel_dir = file_dir[len(capture_root) :].lstrip("/")
-        else:
-            # Strip '/files/<email>/' if present
-            if user_root and file_dir.startswith(user_root):
-                rel_dir = file_dir[len(user_root) :].lstrip("/")
-            # If rel_dir begins with the capture folder name,
-            # drop it to get inside-capture path
-            if "/" in rel_dir:
-                _first_seg, rest = rel_dir.split("/", 1)
-                rel_dir = rest  # drop capture folder name
-            else:
-                rel_dir = ""
+    for file_obj in files:
+        rel_dir = _get_relative_directory(file_obj, "", user_root)
 
         # If we're inside a subpath, filter to entries within that subpath
         if current_subpath:
@@ -229,7 +347,7 @@ def add_capture_files(request, items, capture_uuid, subpath: str = ""):  # noqa:
 
         # Determine if this file belongs to an immediate child directory
         if not remainder:
-            # File lives directly at this level (capture root or current subpath)
+            # File lives directly at this level
             child_files.append(file_obj)
         elif remainder:
             first_component = remainder.split("/", 1)[0]
@@ -240,7 +358,20 @@ def add_capture_files(request, items, capture_uuid, subpath: str = ""):  # noqa:
                 # File directly within this level
                 child_files.append(file_obj)
 
-    # Add immediate child directories first
+    return child_files, child_dirs
+
+
+def _add_child_directories(
+    child_dirs: set[str],
+    capture_uuid: str,
+    current_subpath: str,
+    capture: Capture,
+    *,
+    is_shared: bool = False,
+    shared_by: str = "",
+) -> list[Item]:
+    """Add child directories to the items list."""
+    items: list[Item] = []
     for dirname in sorted(child_dirs):
         # Build the next-level path
         next_path_parts = ["captures", str(capture_uuid)]
@@ -248,36 +379,108 @@ def add_capture_files(request, items, capture_uuid, subpath: str = ""):  # noqa:
             next_path_parts.append(current_subpath)
         next_path_parts.append(dirname)
         next_path = "/" + "/".join(next_path_parts)
+
+        # Use a more friendly name if the directory name looks like an email
+        display_name = dirname
+        if "@" in dirname and "." in dirname:
+            # This looks like an email address, use a more friendly name
+            display_name = "Files"
+
         items.append(
             make_dir_item(
-                name=dirname,
-                path=next_path,
-                uuid="",
-                is_capture=False,
-                is_shared=False,
-                is_owner=True,  # Directories within user's own captures
-                capture_uuid=str(capture_uuid),
-                modified_at_display=format_modified(
-                    getattr(capture, "updated_at", None)
-                ),
-                shared_by="",
+                DirItemParams(
+                    name=display_name,
+                    path=next_path,
+                    uuid="",
+                    is_capture=False,
+                    is_shared=is_shared,
+                    is_owner=not is_shared,  # Only owned if not shared
+                    capture_uuid=str(capture_uuid),
+                    modified_at_display=format_modified(
+                        getattr(capture, "updated_at", None)
+                    ),
+                    shared_by=shared_by,
+                )
             )
         )
+    return items
+
+
+def _add_child_files(
+    child_files: list,
+    capture_uuid: str,
+    *,
+    is_shared: bool = False,
+    shared_by: str = "",
+) -> list[Item]:
+    """Add child files to the items list."""
+    return [
+        make_file_item(
+            file_obj=file_obj,
+            capture_uuid=str(capture_uuid),
+            is_shared=is_shared,
+            shared_by=shared_by,
+        )
+        for file_obj in sorted(child_files, key=lambda f: f.name.lower())
+    ]
+
+
+def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
+    """Add nested directories/files within a specific capture.
+
+    Displays only the immediate children (directories and files) of the
+    provided subpath within the capture, preserving the nested structure.
+    """
+    # Get the capture (owned or shared)
+    capture = _get_capture_for_user(request, capture_uuid)
+    if not capture:
+        return []
+
+    # Check if this is a shared capture (not owned by current user)
+    is_shared = capture.owner != request.user
+    shared_by = capture.owner.email if is_shared else ""
+
+    # Get files associated with this capture
+    capture_files = get_filtered_files_queryset(
+        File.objects.filter(capture=capture, is_deleted=False)
+    )
+
+    logger.debug(
+        "FilesView: capture=%s files=%d is_shared=%s",
+        capture.name,
+        capture_files.count(),
+        is_shared,
+    )
+
+    # Normalize paths
+    current_subpath = _normalize_path(subpath)
+
+    # For shared captures, use the original owner's email path, not current user's
+    if is_shared:
+        user_root = _normalize_path(f"files/{capture.owner.email}")
+    else:
+        user_root = _normalize_path(f"files/{request.user.email}")
+
+    # Filter files by subpath and collect child directories
+    child_files, child_dirs = _filter_files_by_subpath(
+        capture_files, current_subpath, user_root
+    )
+
+    # Add child directories first
+    directory_items = _add_child_directories(
+        child_dirs, capture_uuid, current_subpath, capture, is_shared, shared_by
+    )
 
     # Then add files that live directly in this level
-    for file_obj in sorted(child_files, key=lambda f: f.name.lower()):
-        items.append(
-            make_file_item(
-                file_obj=file_obj,
-                capture_uuid=str(capture_uuid),
-                is_shared=False,
-                shared_by="",
-            )
-        )
+    file_items = _add_child_files(child_files, capture_uuid, is_shared, shared_by)
+
+    return directory_items + file_items
 
 
-def add_shared_items(request, items):
+def add_shared_items(request) -> list[Item]:
     """Add shared captures and datasets, avoiding N+1 lookups."""
+    items: list[Item] = []
+
     shared_permissions = (
         UserSharePermission.objects.filter(
             shared_with=request.user,
@@ -303,22 +506,28 @@ def add_shared_items(request, items):
         uuid__in=capture_uuids, is_deleted=False
     ).exclude(owner=request.user)
 
-    for capture in shared_captures:
-        items.append(
+    items.extend(
+        [
             make_dir_item(
-                name=capture.name or f"Capture {capture.uuid}",
-                path=f"/captures/{capture.uuid}",
-                uuid=str(capture.uuid),
-                is_capture=True,
-                is_shared=True,
-                is_owner=False,  # Shared items are not owned by current user
-                capture_uuid=str(capture.uuid),
-                modified_at_display=format_modified(
-                    getattr(capture, "updated_at", None)
-                ),
-                shared_by=capture_owner_by_uuid.get(str(capture.uuid), "Unknown"),
+                DirItemParams(
+                    name=capture.name or f"Capture {capture.uuid}",
+                    path=f"/captures/{capture.uuid}",
+                    uuid=str(capture.uuid),
+                    is_capture=True,
+                    is_shared=True,
+                    is_owner=False,  # Shared items are not owned by current user
+                    capture_uuid=str(capture.uuid),
+                    modified_at_display=format_modified(
+                        getattr(capture, "updated_at", None)
+                    ),
+                    shared_by=capture_owner_by_uuid.get(str(capture.uuid), "Unknown"),
+                )
             )
-        )
+            for capture in shared_captures
+        ]
+    )
+
+    return items
 
 
 def build_breadcrumbs(current_dir, user_email: str):
@@ -340,7 +549,9 @@ def build_breadcrumbs(current_dir, user_email: str):
             try:
                 obj = Capture.objects.only("name").filter(uuid=part).first()
                 return obj.name or str(part) if obj else str(part)
-            except Exception:  # noqa: BLE001 - resolving display names is best-effort
+            except (ValueError, TypeError, AttributeError):
+                # Handle UUID parsing errors, type errors, or attribute access issues
+                # These are expected during name resolution and should fall back
                 return str(part)
         return str(part)
 
@@ -348,6 +559,11 @@ def build_breadcrumbs(current_dir, user_email: str):
         # Skip noisy storage and container segments
         if part in {"files", user_email, "captures"}:
             continue
+
+        # Skip email addresses (anything with @ and .)
+        if "@" in part and "." in part:
+            continue
+
         breadcrumb_parts.append(
             {
                 "name": resolve_name(i, part),
