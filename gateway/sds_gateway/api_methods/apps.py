@@ -26,6 +26,7 @@ def silence_unwanted_logs() -> None:
             "botocore",
         ],
         logging.WARNING: [
+            "matplotlib",
             "opensearch",
             "s3transfer",
             "urllib3",

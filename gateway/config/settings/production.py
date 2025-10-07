@@ -2,7 +2,10 @@
 # ruff: noqa: F405, ERA001
 
 import sentry_sdk
+from django.utils.log import DEFAULT_LOGGING
 from loguru import logger as log
+
+from config.settings.logs import ColoredFormatter
 
 from .base import *  # noqa: F403 pylint: disable=wildcard-import,unused-wildcard-import
 from .base import DATABASES
@@ -28,7 +31,8 @@ ALLOWED_HOSTS: list[str] = env.list(
 
 # DATABASES
 # ------------------------------------------------------------------------------
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
+# disable persistent connections for ASGI workers, as instructed by Django docs
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=0)
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -121,6 +125,10 @@ ADMIN_URL: str = env("DJANGO_ADMIN_URL")
 
 # LOGGING
 # ------------------------------------------------------------------------------
+# disable pesky admin emails;
+#   check ADMINS' email addresses in base.py if re-enabling this handler.
+DEFAULT_LOGGING["handlers"]["mail_admins"]["class"] = "logging.NullHandler"
+
 # https://docs.djangoproject.com/en/dev/ref/settings/#logging
 # See https://docs.djangoproject.com/en/dev/topics/logging for
 # more details on how to customize your logging configuration.
@@ -129,33 +137,32 @@ LOGGING: dict[str, Any] = {
     "disable_existing_loggers": False,
     "filters": {"require_debug_false": {"()": "django.utils.log.RequireDebugFalse"}},
     "formatters": {
-        "verbose": {
-            "format": "%(levelname)s %(asctime)s %(module)s "
-            "%(process)d %(thread)d %(message)s",
+        "colored": {
+            "()": ColoredFormatter,
         },
     },
     "handlers": {
-        # "mail_admins": {
-        #     "level": "ERROR",
-        #     "filters": ["require_debug_false"],
-        #     "class": "django.utils.log.AdminEmailHandler",
-        # },
+        "mail_admins": {
+            "level": "ERROR",
+            "filters": ["require_debug_false"],
+            "class": "django.utils.log.AdminEmailHandler",
+        },
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "formatter": "colored",
         },
     },
     "root": {"level": "DEBUG", "handlers": ["console"]},
     "loggers": {
-        # "django.request": {
-        #     "handlers": ["mail_admins"],  # will send emails to crc-sds-list@nd.edu
-        #     "level": "ERROR",
-        #     "propagate": True,
-        # },
-        "django.security.DisallowedHost": {
+        "django.request": {
+            "handlers": ["console"],
             "level": "ERROR",
-            "handlers": ["console", "mail_admins"],
+            "propagate": True,
+        },
+        "django.security.DisallowedHost": {
+            "handlers": ["console"],
+            "level": "ERROR",
             "propagate": True,
         },
     },
