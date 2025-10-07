@@ -90,6 +90,40 @@ else:
     c.DummyAuthenticator.allowed_users = {"admin"}
     c.DummyAuthenticator.password = os.environ.get("JUPYTERHUB_DUMMY_PASSWORD", "admin")
 
+# === IDLE CULLER CONFIGURATION ===
+# Configure jupyterhub-idle-culler service following JupyterHub 2.0+ scopes
+
+# Define the idle culler service as a hub managed service
+c.JupyterHub.services = [
+    {
+        "name": "jupyterhub-idle-culler-service",
+        "command": [
+            "python",
+            "-m",
+            "jupyterhub_idle_culler",
+            "--timeout=30",  # 30s timeout for idle servers for testing
+            "--cull-every=10",  # Check every 10s for testing
+            "--remove-named-servers",  # Remove named servers
+            "--concurrency=10",  # Limit concurrent operations
+            "--max-age=60",  # Maximum age of 60s for testing.
+        ],
+    }
+]
+
+# Configure idle culler permissions using JupyterHub 2.0+ scopes
+c.JupyterHub.load_roles = [
+    {
+        "name": "jupyterhub-idle-culler-role",
+        "scopes": [
+            "list:users",  # Access to the user list API
+            "read:users:activity",  # Read users' last_activity field
+            "read:servers",  # Read users' servers field
+            "delete:servers",  # Stop users' servers and delete named servers
+        ],
+        "services": ["jupyterhub-idle-culler-service"],
+    }
+]
+
 # === OTHER CONFIGURATION ===
 
 # Configure proxy PID file to use writable directory
