@@ -1,0 +1,182 @@
+// Jest setup file for global test configuration
+
+// Mock DOM environment
+const mockDOM = {
+	createElement: (tag) => ({
+		tagName: tag,
+		textContent: "",
+		innerHTML: "",
+		classList: {
+			add: jest.fn(),
+			remove: jest.fn(),
+			contains: jest.fn(() => false),
+			toggle: jest.fn(),
+			addEventListener: jest.fn(),
+			removeEventListener: jest.fn(),
+		},
+		querySelector: jest.fn(() => null),
+		querySelectorAll: jest.fn(() => []),
+		appendChild: jest.fn(),
+		removeChild: jest.fn(),
+		setAttribute: jest.fn(),
+		getAttribute: jest.fn(),
+		addEventListener: jest.fn(),
+		removeEventListener: jest.fn(),
+		dispatchEvent: jest.fn(),
+	}),
+	querySelector: jest.fn(() => null),
+	querySelectorAll: jest.fn(() => []),
+	getElementById: jest.fn(() => null),
+	createTextNode: jest.fn((text) => ({ textContent: text })),
+	addEventListener: jest.fn(),
+	removeEventListener: jest.fn(),
+};
+
+// Mock window object
+const mockWindow = {
+	location: {
+		href: "http://localhost:8000",
+		pathname: "/",
+		search: "",
+		hash: "",
+	},
+	history: {
+		pushState: jest.fn(),
+		replaceState: jest.fn(),
+		back: jest.fn(),
+		forward: jest.fn(),
+	},
+	localStorage: {
+		getItem: jest.fn(),
+		setItem: jest.fn(),
+		removeItem: jest.fn(),
+		clear: jest.fn(),
+	},
+	sessionStorage: {
+		getItem: jest.fn(),
+		setItem: jest.fn(),
+		removeItem: jest.fn(),
+		clear: jest.fn(),
+	},
+	fetch: jest.fn(),
+	alert: jest.fn(),
+	confirm: jest.fn(),
+	prompt: jest.fn(),
+	setTimeout: jest.fn((fn) => fn()),
+	clearTimeout: jest.fn(),
+	setInterval: jest.fn(),
+	clearInterval: jest.fn(),
+};
+
+// Set up global mocks
+global.document = mockDOM;
+global.window = mockWindow;
+
+// Mock console methods to reduce noise in tests
+global.console = {
+	...console,
+	// Uncomment to suppress console.log in tests
+	// log: jest.fn(),
+	// debug: jest.fn(),
+	// info: jest.fn(),
+	warn: jest.fn(),
+	error: jest.fn(),
+};
+
+// Mock fetch globally
+global.fetch = jest.fn();
+
+// Mock ResizeObserver
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+	observe: jest.fn(),
+	unobserve: jest.fn(),
+	disconnect: jest.fn(),
+}));
+
+// Mock IntersectionObserver
+global.IntersectionObserver = jest.fn().mockImplementation(() => ({
+	observe: jest.fn(),
+	unobserve: jest.fn(),
+	disconnect: jest.fn(),
+}));
+
+// Mock matchMedia
+Object.defineProperty(window, "matchMedia", {
+	writable: true,
+	value: jest.fn().mockImplementation((query) => ({
+		matches: false,
+		media: query,
+		onchange: null,
+		addListener: jest.fn(),
+		removeListener: jest.fn(),
+		addEventListener: jest.fn(),
+		removeEventListener: jest.fn(),
+		dispatchEvent: jest.fn(),
+	})),
+});
+
+// Mock URL and URLSearchParams
+global.URL = class URL {
+	constructor(url, base) {
+		this.href = url;
+		this.pathname = url.split("?")[0];
+		this.search = url.includes("?") ? "?" + url.split("?")[1] : "";
+		this.hash = url.includes("#") ? "#" + url.split("#")[1] : "";
+	}
+};
+
+global.URLSearchParams = class URLSearchParams {
+	constructor(search) {
+		this.params = new Map();
+		if (search) {
+			search.split("&").forEach((param) => {
+				const [key, value] = param.split("=");
+				this.params.set(key, value);
+			});
+		}
+	}
+
+	get(name) {
+		return this.params.get(name);
+	}
+
+	set(name, value) {
+		this.params.set(name, value);
+	}
+
+	has(name) {
+		return this.params.has(name);
+	}
+
+	delete(name) {
+		this.params.delete(name);
+	}
+
+	append(name, value) {
+		const existing = this.params.get(name);
+		if (existing) {
+			this.params.set(name, existing + "," + value);
+		} else {
+			this.params.set(name, value);
+		}
+	}
+
+	toString() {
+		return Array.from(this.params.entries())
+			.map(([key, value]) => `${key}=${value}`)
+			.join("&");
+	}
+};
+
+// Mock Bootstrap
+global.bootstrap = {
+	Modal: {
+		getInstance: jest.fn(),
+		Modal: jest.fn(),
+	},
+};
+
+// Mock global showAlert function
+global.window.showAlert = jest.fn();
+global.window.showToast = jest.fn();
+global.window.hideToast = jest.fn();
