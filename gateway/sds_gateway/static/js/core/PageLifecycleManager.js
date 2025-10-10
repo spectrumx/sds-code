@@ -511,3 +511,6 @@ class PageLifecycleManager {
 
 // Make class available globally
 window.PageLifecycleManager = PageLifecycleManager;
+
+// Export for ES6 modules (Jest testing)
+export { PageLifecycleManager };

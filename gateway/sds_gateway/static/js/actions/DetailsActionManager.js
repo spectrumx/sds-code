@@ -543,10 +543,10 @@ class DetailsActionManager {
 
 		const permissionsHtml = permissions
 			.map((permission) => {
-				const badgeClass = PermissionsManager.getPermissionBadgeClass(
+				const badgeClass = this.permissions.getPermissionBadgeClass(
 					permission.permission_level,
 				);
-				const displayName = PermissionsManager.getPermissionDisplayName(
+				const displayName = this.permissions.getPermissionDisplayName(
 					permission.permission_level,
 				);
 				const userInfo = permission.user_name
@@ -650,17 +650,6 @@ class DetailsActionManager {
 			} else {
 				editButton.style.display = "inline-block";
 				editButton.href = `/users/edit-dataset/${datasetData.uuid}/`;
-			}
-		}
-
-		// Delete button
-		const deleteButton = modal.querySelector("#delete-dataset-btn");
-		if (deleteButton) {
-			if (!this.permissions.canDelete()) {
-				deleteButton.style.display = "none";
-			} else {
-				deleteButton.style.display = "inline-block";
-				deleteButton.setAttribute("data-dataset-uuid", datasetData.uuid);
 			}
 		}
 	}
@@ -1041,3 +1030,6 @@ class DetailsActionManager {
 
 // Make class available globally
 window.DetailsActionManager = DetailsActionManager;
+
+// Export for ES6 modules (Jest testing)
+export { DetailsActionManager };
