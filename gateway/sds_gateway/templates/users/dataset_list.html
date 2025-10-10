@@ -49,7 +49,7 @@
                                             <th scope="col" class="sortable w-35" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="sortable w-25" data-sort="created_at">
+                                            <th scope="col" class="sortable w-20" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="w-5">Actions</th>
@@ -73,7 +73,7 @@
                                             <th scope="col" class="sortable w-35" data-sort="authors">
                                                 Author <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
-                                            <th scope="col" class="sortable w-25" data-sort="created_at">
+                                            <th scope="col" class="sortable w-20" data-sort="created_at">
                                                 Created At <i class="bi bi-caret-down-fill sort-icon"></i>
                                             </th>
                                             <th scope="col" class="w-5">Actions</th>
@@ -82,7 +82,12 @@
                                     <tbody>
                                         {% for dataset in page_obj %}
                                             <tr class="clickable-row" data-dataset-uuid="{{ dataset.uuid }}">
-                                                <td class="text-break">
+                                                <td class="text-nowrap">
+                                                    {% if dataset.is_public %}
+                                                        <i class="bi bi-globe me-1 text-primary" title="Public"></i>
+                                                    {% else %}
+                                                        <i class="bi bi-lock-fill me-1 text-danger" title="Private"></i>
+                                                    {% endif %}
                                                     {% if dataset.is_owner %}
                                                         <a href="#"
                                                            class="dataset-name-link"
@@ -133,7 +138,7 @@
                                                                 {% endif %}
                                                             {% endif %}
                                                         {% endfor %}
-                                                        {% if dataset.authors|length > 2 %}<span class="text-muted"> ...</span>{% endif %}
+                                                        {% if dataset.authors|length > 2 %}<span class="text-muted">...</span>{% endif %}
                                                     {% else %}
                                                         -
                                                     {% endif %}
@@ -151,7 +156,7 @@
                                                     -
                                                 {% endif %}
                                             </td>
-                                            <td class="text-end">
+                                            <td class="text-center">
                                                 <div class="dropdown">
                                                     <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
                                                             type="button"
