@@ -776,7 +776,7 @@ class ShareActionManager {
 
 		// Update the dropdown button text and icon
 		const iconClass =
-			window.PermissionsManager.getPermissionIcon(permissionLevel);
+			this.permissions.getPermissionIcon(permissionLevel);
 		dropdownButton.innerHTML = `<i class="bi ${iconClass} me-1"></i>${permissionLevel.charAt(0).toUpperCase() + permissionLevel.slice(1)}`;
 		dropdownButton.setAttribute("data-current-permission", permissionLevel);
 
@@ -1097,7 +1097,7 @@ class ShareActionManager {
 				: permissionLevel;
 
 		const iconClass =
-			window.PermissionsManager?.getPermissionIcon(level) ||
+			this.permissions?.getPermissionIcon(level) ||
 			"bi-question-circle";
 		const displayText = level.charAt(0).toUpperCase() + level.slice(1);
 		return `<i class="bi ${iconClass} me-1"></i>${displayText}`;
@@ -1123,3 +1123,6 @@ class ShareActionManager {
 
 // Make class available globally
 window.ShareActionManager = ShareActionManager;
+
+// Export for ES6 modules (Jest testing)
+export { ShareActionManager };

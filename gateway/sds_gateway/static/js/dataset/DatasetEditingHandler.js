@@ -1804,3 +1804,6 @@ class DatasetEditingHandler {
 
 // Make class available globally
 window.DatasetEditingHandler = DatasetEditingHandler;
+
+// Export for ES6 modules (Jest testing)
+export { DatasetEditingHandler };

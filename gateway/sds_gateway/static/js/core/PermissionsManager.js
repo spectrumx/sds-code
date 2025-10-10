@@ -26,7 +26,6 @@ class PermissionsManager {
 			canRemoveAssets: config.datasetPermissions?.canRemoveAssets || false,
 			canShare: config.datasetPermissions?.canShare || false,
 			canDownload: config.datasetPermissions?.canDownload || false,
-			canDelete: config.datasetPermissions?.canDelete || false,
 			...config.datasetPermissions,
 		};
 	}
@@ -37,7 +36,7 @@ class PermissionsManager {
 	 */
 	canEditMetadata() {
 		if (this.isOwner || this.userPermissionLevel === "co-owner") return true;
-		return this.datasetPermissions.canEditMetadata;
+		return this.datasetPermissions.canEditMetadata || false;
 	}
 
 	/**
@@ -50,7 +49,7 @@ class PermissionsManager {
 			["co-owner", "contributor"].includes(this.userPermissionLevel)
 		)
 			return true;
-		return this.datasetPermissions.canAddAssets;
+		return this.datasetPermissions.canAddAssets || false;
 	}
 
 	/**
@@ -63,7 +62,7 @@ class PermissionsManager {
 			["co-owner", "contributor"].includes(this.userPermissionLevel)
 		)
 			return true;
-		return this.datasetPermissions.canRemoveOwnAssets;
+		return this.datasetPermissions.canRemoveOwnAssets || false;
 	}
 
 	/**
@@ -72,7 +71,7 @@ class PermissionsManager {
 	 */
 	canRemoveAnyAssets() {
 		if (this.isOwner || this.userPermissionLevel === "co-owner") return true;
-		return this.datasetPermissions.canRemoveAnyAssets;
+		return this.datasetPermissions.canRemoveAnyAssets || false;
 	}
 
 	/**
@@ -81,7 +80,7 @@ class PermissionsManager {
 	 */
 	canShare() {
 		if (this.isOwner || this.userPermissionLevel === "co-owner") return true;
-		return this.datasetPermissions.canShare;
+		return this.datasetPermissions.canShare || false;
 	}
 
 	/**
@@ -94,16 +93,7 @@ class PermissionsManager {
 			["co-owner", "contributor", "viewer"].includes(this.userPermissionLevel)
 		)
 			return true;
-		return this.datasetPermissions.canDownload;
-	}
-
-	/**
-	 * Check if user can delete dataset
-	 * @returns {boolean}
-	 */
-	canDelete() {
-		if (this.isOwner || this.userPermissionLevel === "co-owner") return true;
-		return this.datasetPermissions.canDelete;
+		return this.datasetPermissions.canDownload || false;
 	}
 
 	/**
@@ -171,7 +161,7 @@ class PermissionsManager {
 	 * @param {string} level - Permission level
 	 * @returns {string} Display name
 	 */
-	static getPermissionDisplayName(level) {
+	getPermissionDisplayName(level) {
 		const displayNames = {
 			owner: "Owner",
 			"co-owner": "Co-Owner",
@@ -186,7 +176,7 @@ class PermissionsManager {
 	 * @param {string} level - Permission level
 	 * @returns {string} Description
 	 */
-	static getPermissionDescription(level) {
+	getPermissionDescription(level) {
 		const descriptions = {
 			owner: "Full control over the dataset including deletion and sharing",
 			"co-owner": "Can edit metadata, add/remove assets, and share the dataset",
@@ -202,7 +192,7 @@ class PermissionsManager {
 	 * @param {string} level - Permission level
 	 * @returns {string} Icon class
 	 */
-	static getPermissionIcon(level) {
+	getPermissionIcon(level) {
 		const icons = {
 			owner: "bi-person-circle",
 			"co-owner": "bi-gear",
@@ -218,7 +208,7 @@ class PermissionsManager {
 	 * @param {string} level - Permission level
 	 * @returns {string} Badge class
 	 */
-	static getPermissionBadgeClass(level) {
+	getPermissionBadgeClass(level) {
 		const badgeClasses = {
 			owner: "bg-owner",
 			"co-owner": "bg-co-owner",
@@ -245,35 +235,6 @@ class PermissionsManager {
 		return (hierarchy[level1] || 0) > (hierarchy[level2] || 0);
 	}
 
-	/**
-	 * Get all available permission levels
-	 * @returns {Array} Array of permission level objects
-	 */
-	static getAvailablePermissionLevels() {
-		return [
-			{
-				value: "viewer",
-				label: "Viewer",
-				description: PermissionsManager.getPermissionDescription("viewer"),
-				icon: PermissionsManager.getPermissionIcon("viewer"),
-				badgeClass: PermissionsManager.getPermissionBadgeClass("viewer"),
-			},
-			{
-				value: "contributor",
-				label: "Contributor",
-				description: PermissionsManager.getPermissionDescription("contributor"),
-				icon: PermissionsManager.getPermissionIcon("contributor"),
-				badgeClass: PermissionsManager.getPermissionBadgeClass("contributor"),
-			},
-			{
-				value: "co-owner",
-				label: "Co-Owner",
-				description: PermissionsManager.getPermissionDescription("co-owner"),
-				icon: PermissionsManager.getPermissionIcon("co-owner"),
-				badgeClass: PermissionsManager.getPermissionBadgeClass("co-owner"),
-			},
-		];
-	}
 
 	/**
 	 * Get permission summary for display
@@ -282,14 +243,14 @@ class PermissionsManager {
 	getPermissionSummary() {
 		return {
 			userPermissionLevel: this.userPermissionLevel,
-			displayName: PermissionsManager.getPermissionDisplayName(
+			displayName: this.getPermissionDisplayName(
 				this.userPermissionLevel,
 			),
-			description: PermissionsManager.getPermissionDescription(
+			description: this.getPermissionDescription(
 				this.userPermissionLevel,
 			),
-			icon: PermissionsManager.getPermissionIcon(this.userPermissionLevel),
-			badgeClass: PermissionsManager.getPermissionBadgeClass(
+			icon: this.getPermissionIcon(this.userPermissionLevel),
+			badgeClass: this.getPermissionBadgeClass(
 				this.userPermissionLevel,
 			),
 			isEditMode: this.isEditMode,
@@ -302,7 +263,6 @@ class PermissionsManager {
 				removalPermissionLevel: this.getRemovalPermissionLevel(),
 				canShare: this.canShare(),
 				canDownload: this.canDownload(),
-				canDelete: this.canDelete(),
 				canView: this.canView(),
 			},
 		};
@@ -350,3 +310,6 @@ class PermissionsManager {
 
 // Make class available globally
 window.PermissionsManager = PermissionsManager;
+
+// Export for ES6 modules (Jest testing)
+export { PermissionsManager };

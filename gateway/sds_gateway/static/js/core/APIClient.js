@@ -420,3 +420,6 @@ window.APIClient = new APIClient();
 window.APIError = APIError;
 window.LoadingStateManager = LoadingStateManager;
 window.ListRefreshManager = new ListRefreshManager();
+
+// Export for ES6 modules (Jest testing)
+export { APIClient, APIError, LoadingStateManager, ListRefreshManager };

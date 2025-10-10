@@ -11,6 +11,12 @@ class DatasetModeManager {
 		this.isEditMode = !!config.datasetUuid;
 		this.config = config;
 
+		// Define numbered steps
+		this.step1 = 0;
+		this.step2 = 1;
+		this.step3 = 2;
+		this.step4 = 3;
+
 		// Initialize permissions manager
 		this.permissions = new PermissionsManager({
 			userPermissionLevel: config.userPermissionLevel,
@@ -207,7 +213,7 @@ class DatasetModeManager {
 		this.submitBtn = document.getElementById("submitForm");
 
 		// Current step (0-based index)
-		this.currentStep = 0;
+		this.currentStep = this.step1;
 
 		// Step configuration
 		this.steps = [
@@ -280,12 +286,12 @@ class DatasetModeManager {
 		this.updateStepDisplay();
 
 		// Load file tree when accessing files step
-		if (stepIndex === 2 && this.filesSearchHandler) {
+		if (stepIndex === this.step3 && this.filesSearchHandler) {
 			this.loadFileTree();
 		}
 
 		// Update review display when accessing review step (step 4 = index 3)
-		if (stepIndex === 3) {
+		if (stepIndex === this.step4) {
 			this.updateReviewDatasetDisplay();
 		}
 
@@ -324,7 +330,7 @@ class DatasetModeManager {
 
 		// Update navigation buttons
 		if (this.prevBtn) {
-			if (this.currentStep === 0) {
+			if (this.currentStep === this.step1) {
 				this.prevBtn.style.display = "none";
 			} else {
 				this.prevBtn.style.display = "inline-block";
@@ -844,14 +850,6 @@ class DatasetModeManager {
 				downloadButton.style.display = "none";
 			}
 		}
-
-		// Delete button
-		const deleteButton = document.getElementById("delete-dataset-btn");
-		if (deleteButton) {
-			if (!this.permissions.canDelete()) {
-				deleteButton.style.display = "none";
-			}
-		}
 	}
 
 	/**
@@ -950,3 +948,6 @@ class DatasetModeManager {
 
 // Make class available globally
 window.DatasetModeManager = DatasetModeManager;
+
+// Export for ES6 modules (Jest testing)
+export { DatasetModeManager };

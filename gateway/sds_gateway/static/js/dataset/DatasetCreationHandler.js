@@ -1427,3 +1427,6 @@ class DatasetCreationHandler {
 
 // Make class available globally
 window.DatasetCreationHandler = DatasetCreationHandler;
+
+// Export for ES6 modules (Jest testing)
+export { DatasetCreationHandler };

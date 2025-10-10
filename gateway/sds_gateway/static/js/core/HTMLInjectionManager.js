@@ -476,3 +476,6 @@ window.HTMLInjectionManager = new HTMLInjectionManager();
 window.showAlert = window.HTMLInjectionManager.showAlert.bind(
 	window.HTMLInjectionManager,
 );
+
+// Export for ES6 modules (Jest testing)
+export { HTMLInjectionManager };
