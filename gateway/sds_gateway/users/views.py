@@ -1976,6 +1976,9 @@ class GroupCapturesView(
                     status=403,
                 )
 
+            # Get the dataset to check if it's public
+            dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
+
             # Only validate form if user can edit metadata
             can_edit = UserSharePermission.user_can_edit_dataset(
                 request.user, dataset_uuid, ItemType.DATASET

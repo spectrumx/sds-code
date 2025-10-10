@@ -80,6 +80,9 @@ class AssetSearchHandler {
 	 */
 	initializeEnterKeyListener() {
 		// Allow pressing enter when focused on a search input to trigger the search
+		if (!this.searchForm) {
+			return; // Skip if search form doesn't exist (e.g., for public datasets)
+		}
 		const searchInputs = this.searchForm.querySelectorAll("input[type='text']");
 		for (const input of searchInputs) {
 			input.addEventListener("keypress", (e) => {
