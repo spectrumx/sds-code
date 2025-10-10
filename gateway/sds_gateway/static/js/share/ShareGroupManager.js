@@ -64,7 +64,6 @@ class ShareGroupManager {
 			return;
 		}
 
-		// Use URLSearchParams for form-encoded data instead of FormData
 		const formData = new URLSearchParams();
 		formData.append("action", "create");
 		formData.append("name", groupName);
