@@ -1547,3 +1547,6 @@ class ShareGroupManager {
 
 // Make class available globally
 window.ShareGroupManager = ShareGroupManager;
+
+// Export for ES6 modules (Jest testing)
+export { ShareGroupManager };
