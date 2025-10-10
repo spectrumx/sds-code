@@ -1727,6 +1727,9 @@ class GroupCapturesView(
                     status=403,
                 )
 
+            # Get the dataset to check if it's public
+            dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
+
             # Only validate form if user can edit metadata
             can_edit = UserSharePermission.user_can_edit_dataset(
                 request.user, dataset_uuid, ItemType.DATASET
@@ -1847,15 +1850,19 @@ class GroupCapturesView(
 
                     dataset.authors = authors
                     dataset.status = dataset_form.cleaned_data["status"]
+                    dataset.is_public = dataset_form.cleaned_data.get(
+                        "is_public", False
+                    )
                     dataset.save()
 
-            # Handle asset changes
-            asset_changes = self._parse_asset_changes(request)
+            # Handle asset changes only if dataset is not public
+            if not dataset.is_public:
+                asset_changes = self._parse_asset_changes(request)
 
-            # Apply asset changes based on permissions
-            self._apply_asset_changes(
-                dataset, asset_changes, request.user, permission_level
-            )
+                # Apply asset changes based on permissions
+                self._apply_asset_changes(
+                    dataset, asset_changes, request.user, permission_level
+                )
 
             return JsonResponse(
                 {"success": True, "redirect_url": reverse("users:dataset_list")},
