@@ -1,7 +1,7 @@
 SHELL=/bin/bash
 
-PYTHON_VERSION ?= 3.13
-SUPPORTED_PYTHON_VERSIONS := 3.14
+PYTHON_VERSION ?= 3.14
+SUPPORTED_PYTHON_VERSIONS := 3.10 3.11 3.12 3.13 3.14
 GIT_ROOT := $(shell git rev-parse --show-toplevel;)
 TEST_MARKER_DEFAULT := not integration
 TEST_MARKER_INTEGRATION := integration
@@ -49,7 +49,7 @@ test:
 
 test-lowest:
 	# Run tests against the lowest versions of dependencies to ensure compatibility
-	uv run -v --resolution lowest-direct -p $(PYTHON_VERSION) pytest \
+	uv run --resolution lowest-direct -p $(PYTHON_VERSION) pytest \
 		-m "$(TEST_MARKER_DEFAULT)" \
 		tests
 
