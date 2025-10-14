@@ -406,9 +406,7 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
 ACCOUNT_ALLOW_REGISTRATION: bool = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 
 # https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_AUTHENTICATION_METHOD: str = "email"
-ACCOUNT_EMAIL_REQUIRED: bool = True
-ACCOUNT_USERNAME_REQUIRED: bool = False
+ACCOUNT_SIGNUP_FIELDS: list[str] = ["email*"]
 ACCOUNT_USER_MODEL_USERNAME_FIELD: str | None = None
 ACCOUNT_EMAIL_VERIFICATION: str = "none"
 # https://docs.allauth.org/en/latest/account/configuration.html
