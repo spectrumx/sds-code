@@ -22,6 +22,7 @@ from django.db.utils import IntegrityError
 from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
+from django.http import HttpResponseRedirect
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
@@ -34,8 +35,11 @@ from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import TemplateView
 from django.views.generic import UpdateView
+from minio.error import MinioException
 from rest_framework import status
 
+from sds_gateway.api_methods.helpers.download_file import FileDownloadError
+from sds_gateway.api_methods.helpers.download_file import download_file
 from sds_gateway.api_methods.helpers.file_helpers import (
     check_file_contents_exist_helper,
 )
@@ -60,10 +64,20 @@ from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializ
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.users.file_utils import get_file_content_response
+from sds_gateway.users.file_utils import validate_file_preview_request
+from sds_gateway.users.files_utils import add_capture_files
+from sds_gateway.users.files_utils import add_root_items
+from sds_gateway.users.files_utils import add_shared_items
+from sds_gateway.users.files_utils import build_breadcrumbs
+from sds_gateway.users.files_utils import items_to_dicts
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
+from sds_gateway.users.h5_service import H5PreviewService
+from sds_gateway.users.item_models import Item
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FileTreeMixin
@@ -71,6 +85,8 @@ from sds_gateway.users.mixins import FormSearchMixin
 from sds_gateway.users.mixins import UserSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
+from sds_gateway.users.navigation_models import NavigationContext
+from sds_gateway.users.navigation_models import NavigationType
 from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 from sds_gateway.visualizations.config import get_visualization_compatibility
@@ -1110,6 +1126,79 @@ class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[re
 
 
 user_file_detail_view = FileDetailView.as_view()
+
+
+class FileDownloadView(Auth0LoginRequiredMixin, View):
+    """Session-authenticated file download for the Users UI."""
+
+    def get(self, request: HttpRequest, uuid: str, *args, **kwargs) -> HttpResponse:
+        file_obj = get_object_or_404(File, uuid=uuid, is_deleted=False)
+
+        # Access control: owner or shared via capture/dataset
+        has_access = user_has_access_to_file(request.user, file_obj)
+
+        if not has_access:
+            return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+        try:
+            content = download_file(file_obj)
+        except (MinioException, FileDownloadError) as e:
+            logger.warning("Error downloading file %s: %s", file_obj.name, e)
+            return JsonResponse({"error": "Failed to download file"}, status=500)
+
+        response = HttpResponse(
+            content,
+            content_type=file_obj.media_type or "application/octet-stream",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{file_obj.name}"'
+        return response
+
+
+class FileContentView(Auth0LoginRequiredMixin, View):
+    """Serve small text content of a file for modal previews.
+
+    Supports rendering JSON as pretty-printed text. Enforces basic access
+    control: owners or users with access to the parent capture/dataset.
+    """
+
+    MAX_BYTES = 1024 * 1024  # 1 MiB safety limit for previews
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """Get file content for preview."""
+        file_uuid = kwargs.get("uuid")
+        if not file_uuid:
+            return JsonResponse({"error": "File UUID required"}, status=400)
+
+        file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
+
+        # Validate request (access control and size checks)
+        error_response = validate_file_preview_request(
+            request.user, file_obj, self.MAX_BYTES
+        )
+        if error_response is not None:
+            return error_response
+
+        # Get file content response
+        try:
+            return get_file_content_response(file_obj, self.MAX_BYTES)
+        except OSError as e:
+            logger.warning("Error reading file content for preview: %s", e)
+            return JsonResponse({"error": "Error reading file"}, status=500)
+
+
+class FileH5InfoView(Auth0LoginRequiredMixin, View):
+    """Return a summarized structure for an HDF5 file as JSON for modal preview."""
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:
+        file_uuid = kwargs.get("uuid")
+        if not file_uuid:
+            return JsonResponse({"error": "File UUID required"}, status=400)
+
+        file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
+
+        # Use the H5 service to handle all the complex logic
+        h5_service = H5PreviewService()
+        return h5_service.get_preview(file_obj, request.user)
 
 
 def _get_captures_for_template(
@@ -3404,6 +3493,103 @@ class CheckFileExistsView(Auth0LoginRequiredMixin, View):
 
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+
+
+class FilesView(Auth0LoginRequiredMixin, View):
+    """Handle HTML requests for the files page."""
+
+    template_name = "users/files.html"
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+        """Handle HTML page requests for files page."""
+        # Get the current directory from query params
+        current_dir = request.GET.get("dir", "/")
+
+        # Debug logging
+        logger.debug("FilesView: current_dir=%s", current_dir)
+
+        # Initialize items list with proper typing
+        items: list[Item] = []
+
+        # Parse the current directory into a navigation context
+        nav_context = NavigationContext.from_path(current_dir)
+
+        if nav_context.type == NavigationType.ROOT:
+            # Root directory - show captures and datasets as folders
+            items.extend(self._add_root_items(request))
+        elif nav_context.type == NavigationType.CAPTURE:
+            # Inside a capture - show nested directories/files within the capture
+            if not nav_context.capture_uuid:
+                return HttpResponseRedirect("/users/files/")
+            items.extend(
+                add_capture_files(
+                    request, nav_context.capture_uuid, subpath=nav_context.subpath
+                )
+            )
+        elif nav_context.type == NavigationType.DATASET:
+            # Inside a dataset - show nested directories/files within the dataset
+            # TODO: Implement dataset file browsing when needed
+            return HttpResponseRedirect("/users/files/")
+        else:
+            # Unknown directory - go back to root
+            return HttpResponseRedirect("/users/files/")
+
+        # Build breadcrumb parts
+        breadcrumb_parts = build_breadcrumbs(nav_context.to_path(), request.user.email)
+
+        # Debug logging
+        logger.debug(
+            "FilesView: context summary items=%d",
+            len(items),
+        )
+        logger.debug(
+            "FilesView: first items preview=%s",
+            items[:3] if items else "No items",
+        )
+
+        # Additional debugging for directory items
+        for i, item in enumerate(items):
+            if hasattr(item, "type") and item.type == "directory":
+                logger.debug("FilesView: directory item %d => %s", i, item)
+
+        # Convert Pydantic models to dictionaries for template
+        items_data = items_to_dicts(items)
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "items": items_data,
+                "current_dir": nav_context.to_path(),
+                "breadcrumb_parts": breadcrumb_parts,
+                "user_email": request.user.email,
+            },
+        )
+
+    def _add_root_items(self, request) -> list[Item]:
+        """Add captures and datasets to the root directory."""
+        items = add_root_items(request)
+        # Add shared items
+        items.extend(add_shared_items(request))
+        return items
+
+
+def files_view(request):
+    """Simple function-based view for files page."""
+    # Check if user is authenticated
+    if not request.user.is_authenticated:
+        return redirect("users:redirect")
+
+    return render(
+        request,
+        "users/files.html",
+        {
+            "items": [],
+            "current_dir": request.GET.get("dir", "/"),
+            "breadcrumb_parts": [],
+            "user_email": getattr(request.user, "email", ""),
+        },
+    )
 
 
 user_check_file_exists_view = CheckFileExistsView.as_view()

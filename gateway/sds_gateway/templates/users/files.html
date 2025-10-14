@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title %}
+    Files
+{% endblock title %}
+{% block css %}
+    {{ block.super }}
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined"
+          rel="stylesheet" />
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+          rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap"
+          rel="stylesheet" />
+    <!-- File Manager Styles -->
+    <link href="{% static 'css/file-manager.css' %}" rel="stylesheet" />
+    <!-- Reuse captures modal styling from file_list -->
+    <link rel="stylesheet" href="{% static 'css/file-list.css' %}" />
+    <!-- Prism.js for syntax highlighting -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" />
+{% endblock css %}
+{% block content %}
+    <!-- Global Drop Zone Overlay (initially hidden) -->
+    <div id="globalDropZone" class="global-drop-zone d-none">
+        <div class="global-drop-zone-content">
+            <i class="material-icons global-drop-zone-icon">cloud_upload</i>
+            <div class="global-drop-zone-text">Drop files here to upload</div>
+            <div class="global-drop-zone-subtext">Release to start upload</div>
+        </div>
+    </div>
+    <!-- Main Container -->
+    <div class="container-fluid files-page-container">
+        <!-- New Button Dropdown -->
+        <div class="files-actions-bar align-items-center mb-4">
+            <div class="dropdown">
+                <button class="new-button"
+                        type="button"
+                        id="newButton"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                    <i class="bi bi-plus"></i> New
+                </button>
+                <ul class="new-menu dropdown-menu" aria-labelledby="newButton">
+                    <li>
+                        <a class="dropdown-item"
+                           href="#"
+                           data-bs-toggle="modal"
+                           data-bs-target="#uploadCaptureModal">
+                            <i class="bi bi-folder"></i> Capture
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item"
+                           href="#"
+                           data-bs-toggle="modal"
+                           data-bs-target="#uploadFileModal">
+                            <i class="material-icons file-icon">description</i> Text File
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <!-- Files Container -->
+        <div class="files-container"
+             data-current-dir="{{ current_dir }}"
+             data-user-email="{{ user_email }}">
+            <nav aria-label="File location breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'users:files' %}">Home</a>
+                    </li>
+                    {% for part in breadcrumb_parts %}
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'users:files' %}?dir={{ part.path|urlencode }}">{{ part.name }}</a>
+                        </li>
+                    {% endfor %}
+                </ol>
+            </nav>
+            <!-- Files Grid -->
+            <div class="files-grid">
+                <div class="file-card header">
+                    <div class="file-card-content">
+                        <div class="file-name">Name</div>
+                        <div class="file-meta">Modified</div>
+                        <div class="file-shared">Shared by</div>
+                        <div class="file-actions text-center">Actions</div>
+                    </div>
+                </div>
+                {% for item in items %}
+                    <div class="file-card"
+                         data-type="{{ item.type }}"
+                         data-path="{{ item.path }}"
+                         data-uuid="{{ item.uuid|default:'' }}"
+                         data-is-capture="{{ item.is_capture|yesno:'true,false' }}"
+                         data-is-shared="{{ item.is_shared|yesno:'true,false' }}"
+                         data-capture-uuid="{{ item.capture_uuid|default:'' }}"
+                         data-description="{{ item.description|default:'' }}"
+                         {% if item.type == 'file' and item.is_h5_file %}data-h5-file="true"{% endif %}>
+                        <div class="file-card-content">
+                            {% if item.type == "directory" %}
+                                <i class="bi bi-folder folder-icon"></i>
+                            {% else %}
+                                <i class="material-icons file-icon">description</i>
+                            {% endif %}
+                            <div class="file-name">
+                                <span class="file-name-text">{{ item.name }}</span>
+                                {% if item.is_shared and item.type == 'directory' %}
+                                    <span class="align-middle" data-bs-toggle="tooltip" title="Shared with you">
+                                        <i class="bi bi-people-fill text-success"></i>
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div class="file-meta">
+                                {% if item.modified_at %}
+                                    {{ item.modified_at }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </div>
+                            <div class="file-shared">
+                                {% if item.shared_by %}{{ item.shared_by }}{% endif %}
+                            </div>
+                            <div class="file-actions">
+                                {% if item.type == 'file' and item.is_h5_file %}
+                                    <!-- No actions for H5 files -->
+                                {% else %}
+                                    <!-- Show actions for captures and individual files -->
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-popper="static"
+                                                aria-expanded="false"
+                                                aria-label="Actions for {{ item.name }}">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            {% if item.is_capture %}
+                                                <!-- Capture actions -->
+                                                {% if item.is_owner %}
+                                                    <li>
+                                                        <button class="dropdown-item capture-details-btn"
+                                                                type="button"
+                                                                data-uuid="{{ item.uuid }}"
+                                                                data-name="{{ item.name|default:'' }}"
+                                                                data-channel="{{ item.capture_uuid }}"
+                                                                data-scan-group=""
+                                                                data-capture-type=""
+                                                                data-top-level-dir=""
+                                                                data-owner="{{ request.user.email }}"
+                                                                data-origin=""
+                                                                data-created-at=""
+                                                                data-updated-at=""
+                                                                data-is-public="false"
+                                                                data-center-frequency-ghz=""
+                                                                data-is-multi-channel="false"
+                                                                data-channels="">
+                                                            <i class="bi bi-pencil me-2"></i>Edit
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <button class="dropdown-item"
+                                                                type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#share-modal-{{ item.uuid }}">
+                                                            <i class="bi bi-share me-2"></i>Share
+                                                        </button>
+                                                    </li>
+                                                {% endif %}
+                                                <li>
+                                                    <button class="dropdown-item download-capture-btn"
+                                                            type="button"
+                                                            data-capture-uuid="{{ item.uuid }}"
+                                                            data-capture-name="{{ item.name }}">
+                                                        <i class="bi bi-download me-2"></i>Download
+                                                    </button>
+                                                </li>
+                                            {% elif item.type == 'file' %}
+                                                <!-- Individual file actions -->
+                                                <li>
+                                                    <a class="dropdown-item"
+                                                       href="{% url 'users:file_download' uuid=item.uuid %}">
+                                                        <i class="bi bi-download me-2"></i>Download
+                                                    </a>
+                                                </li>
+                                            {% elif item.type == 'directory' and item.capture_uuid %}
+                                                <!-- Nested directory within capture actions -->
+                                                <li>
+                                                    <button class="dropdown-item download-capture-btn"
+                                                            type="button"
+                                                            data-capture-uuid="{{ item.capture_uuid }}"
+                                                            data-capture-name="{{ item.name }}">
+                                                        <i class="bi bi-download me-2"></i>Download
+                                                    </button>
+                                                </li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="no-files">
+                        <i class="material-icons empty-folder-icon">folder_open</i>
+                        <p>This folder is empty</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <!-- Download Confirmation Modal (shared with captures page style) -->
+    <div class="custom-modal"
+         id="downloadModal"
+         tabindex="-1"
+         aria-labelledby="downloadModalLabel">
+        <div class="custom-modal-backdrop"></div>
+        <div class="custom-modal-dialog">
+            <div class="custom-modal-content">
+                <div class="custom-modal-header">
+                    <h5 class="custom-modal-title" id="downloadModalLabel">Download</h5>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"
+                            onclick="closeCustomModal('downloadModal')"></button>
+                </div>
+                <div class="custom-modal-body">
+                    <p>Are you sure you want to download this item?</p>
+                    <p>
+                        <strong>Item:</strong> <span id="downloadCaptureName"></span>
+                    </p>
+                </div>
+                <div class="custom-modal-footer">
+                    <button type="button"
+                            class="btn btn-secondary"
+                            onclick="closeCustomModal('downloadModal')">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmDownloadBtn">Download</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Upload Capture Modal -->
+    <div class="modal fade"
+         id="uploadCaptureModal"
+         tabindex="-1"
+         aria-labelledby="uploadCaptureModalLabel">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="uploadCaptureForm" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="uploadCaptureModalLabel">Upload Files & Create Capture</h5>
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="modal"
+                                aria-label="Close"
+                                tabindex="-1"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- File Selection Section (styled like file_list, but wrapper keeps drag & drop) -->
+                        <label for="captureFileInput" class="form-label">Select a folder to upload</label>
+                        <input type="file"
+                               id="captureFileInput"
+                               name="files"
+                               multiple
+                               webkitdirectory
+                               directory
+                               class="form-control"
+                               tabindex="0" />
+                        <div class="upload-zone mt-2"
+                             id="uploadZone"
+                             aria-label="Drag and drop folder here">
+                            <i class="material-icons upload-zone-icon">cloud_upload</i>
+                            <div class="upload-zone-text">Drag and drop your folder here</div>
+                            <div class="upload-zone-subtext">Or use the file picker above</div>
+                        </div>
+                        <div class="selected-files" id="selectedFiles">
+                            <div class="selected-files-header">Selected Files:</div>
+                            <ul class="selected-files-list" id="selectedFilesList">
+                            </ul>
+                        </div>
+                        <!-- Progress Bar Section (initially hidden) -->
+                        <div id="checkingProgressSection" class="mt-3 progress-section-hidden">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-2" role="status">
+                                    <span class="visually-hidden">Processing...</span>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="progress progress-bar-custom">
+                                        <div id="checkingProgressBar"
+                                             class="progress-bar"
+                                             role="progressbar"
+                                             class="progress-bar progress-bar-width-0"></div>
+                                    </div>
+                                </div>
+                                <small class="ms-2 text-muted" id="checkingProgressText">0%</small>
+                            </div>
+                            <small class="text-muted" id="progressMessage">Checking files for duplicates...</small>
+                        </div>
+                        <!-- Capture Type Selection -->
+                        <div class="mt-3">
+                            <label for="captureTypeSelect" class="form-label">Capture Type</label>
+                            <select class="form-select"
+                                    id="captureTypeSelect"
+                                    name="capture_type"
+                                    required
+                                    tabindex="0">
+                                <option value="">Select capture type...</option>
+                                <option value="drf">DigitalRF</option>
+                                <option value="rh">RadioHound</option>
+                            </select>
+                            <div class="form-text">
+                                <strong>DigitalRF:</strong> For .h5/.hdf5 files with channel-based structure
+                                <br />
+                                <strong>RadioHound:</strong> For .rh.json files with scan group metadata
+                            </div>
+                        </div>
+                        <!-- Channel input (DigitalRF) -->
+                        <div id="channelInputGroup" class="mt-3 hidden-input-group">
+                            <label for="captureChannelsInput" class="form-label">Capture Channel Names (comma-separated)</label>
+                            <input type="text"
+                                   id="captureChannelsInput"
+                                   name="channels"
+                                   class="form-control"
+                                   placeholder="e.g. ch1,ch2,ch3"
+                                   tabindex="0" />
+                            <div class="form-text">Required for DigitalRF captures</div>
+                        </div>
+                        <!-- Scan Group input (RadioHound) -->
+                        <div id="scanGroupInputGroup" class="mt-3 hidden-input-group">
+                            <label for="captureScanGroupInput" class="form-label">Scan Group</label>
+                            <input type="text"
+                                   id="captureScanGroupInput"
+                                   name="scan_group"
+                                   class="form-control"
+                                   placeholder="xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+                                   tabindex="0" />
+                            <div class="form-text">For RadioHound captures, optional UUID</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                data-bs-dismiss="modal"
+                                tabindex="0">Cancel</button>
+                        <button type="submit"
+                                class="btn btn-primary"
+                                id="uploadSubmitBtn"
+                                tabindex="0">
+                            <span class="upload-text">Check & Upload Files</span>
+                            <span class="upload-spinner d-none">
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                Uploading...
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Upload Result Modal -->
+    <div class="modal fade"
+         id="uploadResultModal"
+         tabindex="-1"
+         aria-labelledby="uploadResultModalLabel">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadResultModalLabel">Upload Result</h5>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"
+                            tabindex="-1"></button>
+                </div>
+                <div class="modal-body" id="uploadResultModalBody"></div>
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn btn-secondary"
+                            data-bs-dismiss="modal"
+                            tabindex="0">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Upload File Modal -->
+    <div class="modal fade"
+         id="uploadFileModal"
+         tabindex="-1"
+         aria-labelledby="uploadFileModalLabel">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="uploadFileForm" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="uploadFileModalLabel">Upload File</h5>
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="modal"
+                                aria-label="Close"
+                                tabindex="-1"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="fileInput" class="form-label">Select File</label>
+                            <input type="file"
+                                   id="fileInput"
+                                   name="files"
+                                   class="form-control"
+                                   required
+                                   tabindex="0" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                data-bs-dismiss="modal"
+                                tabindex="0">Cancel</button>
+                        <button type="submit"
+                                class="btn btn-primary"
+                                id="uploadFileSubmitBtn"
+                                tabindex="0">
+                            <span class="upload-text">Upload</span>
+                            <span class="upload-spinner d-none">
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                Uploading...
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- File Preview Modal -->
+    <div class="modal fade"
+         id="filePreviewModal"
+         tabindex="-1"
+         aria-labelledby="filePreviewModalLabel">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="filePreviewModalLabel">File Preview</h5>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"
+                            tabindex="-1"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="preview-content"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn btn-secondary"
+                            data-bs-dismiss="modal"
+                            tabindex="0">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Include capture modal for editing -->
+    {% include "users/partials/capture_modal.html" %}
+    <!-- Include share modals for captures -->
+    {% for item in items %}
+        {% if item.is_capture %}
+            {% include "users/partials/share_modal.html" with item=item item_type="capture" %}
+        {% endif %}
+    {% endfor %}
+{% endblock content %}
+{% block javascript %}
+    <script src="{% static 'js/components.js' %}"></script>
+    <script src="{% static 'js/userSearchComponent.js' %}"></script>
+    {# Fallback modal helpers provided by components.js; inline duplicates removed #}
+    <script src="{% static 'js/file-manager.js' %}?v=7"></script>
+    <!-- Load the WASM library for BLAKE3 hashing -->
+    <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
+    <!-- Prism.js for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <!-- Configuration for external JavaScript files -->
+    <script>
+        // Global configuration for files page JavaScript modules
+        window.filesConfig = {
+            urls: {
+                checkFileExists: "{% url 'users:check_file_exists' %}",
+                uploadFiles: "{% url 'users:upload_files' %}"
+            },
+            csrfToken: "{{ csrf_token }}"
+        };
+
+        // Expose configuration to modules for backwards compatibility
+        window.checkFileExistsUrl = window.filesConfig.urls.checkFileExists;
+        window.uploadFilesUrl = window.filesConfig.urls.uploadFiles;
+        window.csrfToken = window.filesConfig.csrfToken;
+    </script>
+    <!-- External JavaScript modules -->
+    <script src="{% static 'js/files-upload.js' %}"></script>
+    <script src="{% static 'js/files-ui.js' %}"></script>
+{% endblock javascript %}

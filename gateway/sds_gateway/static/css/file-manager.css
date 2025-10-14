@@ -1,0 +1,962 @@
+:root {
+	--color-text-primary: #3c4043;
+	--color-text-secondary: #5f6368;
+	--color-border: #dadce0;
+	--color-background: #fff;
+	--color-background-hover: #f8f9fa;
+	--color-primary: #1a73e8;
+	--color-primary-hover: #1557b0;
+	--font-family: "Google Sans", sans-serif;
+	--shadow-small: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px
+		rgba(60, 64, 67, 0.15);
+	--shadow-medium: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 2px 6px 2px
+		rgba(60, 64, 67, 0.15);
+	--transition-default: background-color 0.2s, box-shadow 0.2s, color 0.2s;
+
+	/* Spacing and sizing variables */
+	--spacing-xs: 4px;
+	--spacing-sm: 8px;
+	--spacing-md: 12px;
+	--spacing-lg: 16px;
+	--spacing-xl: 24px;
+	--spacing-2xl: 32px;
+	--spacing-3xl: 48px;
+	--spacing-4xl: 96px;
+	--spacing-5xl: 120px;
+
+	/* Component sizing */
+	--file-list-max-height: 320px;
+	--modal-max-width: 800px;
+	--button-height: 36px;
+	--header-height: 40px;
+	--breadcrumb-height: 32px;
+	--file-card-min-height: 40px;
+	--z-index-sticky: 10;
+}
+
+/* Base Styles */
+/* Apply Google Sans font only to file manager content */
+.files-page-container {
+	font-family: var(--font-family);
+}
+
+/* Accessibility */
+/* Focus styles for keyboard navigation */
+.file-card:focus-visible,
+.breadcrumb-item:focus-visible,
+.new-button:focus-visible,
+.upload-zone:focus-visible,
+.dropdown-item:focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* Layout */
+/* Main container */
+.files-container {
+	display: flex;
+	flex-direction: column;
+	height: auto;
+	min-height: 200px; /* Minimum height to prevent empty state from looking too small */
+	max-height: calc(100vh - 250px); /* Maximum height based on viewport */
+	overflow: auto;
+}
+
+/* Files grid */
+.files-grid {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	background-color: var(--color-background);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	margin: 0 16px;
+	height: auto; /* Let it grow based on content */
+	min-height: 100px; /* Minimum height for empty state */
+}
+
+/* Individual file card */
+.file-card {
+	border: none;
+	padding: 8px 16px;
+	cursor: pointer;
+	transition: var(--transition-default);
+	display: flex;
+	align-items: center;
+	text-align: left;
+	position: relative;
+	background-color: var(--color-background);
+	min-height: var(--file-card-min-height);
+	gap: 12px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.file-card:last-child {
+	border-bottom: none;
+}
+
+.file-card:hover {
+	background-color: var(--color-background-hover);
+}
+
+/* Clickable directory styling */
+.clickable-directory {
+	cursor: pointer;
+}
+
+.clickable-directory:hover {
+	background-color: var(--color-background-hover);
+	box-shadow: var(--shadow-small);
+}
+
+.file-card-content {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	gap: 16px;
+}
+
+/* File/Folder Names */
+.file-name {
+	font-size: 0.875rem;
+	color: var(--color-text-primary);
+	margin: 0;
+	font-weight: 400;
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding-right: 24px;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+/* Icons */
+.file-icon,
+.folder-icon,
+.dataset-icon.bi {
+	font-size: 1.25rem;
+	color: var(--color-text-secondary);
+	margin-right: 12px;
+	flex-shrink: 0;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+/* Dataset icon styles are consolidated with other icons and hover rules */
+
+/* Hover effects for all items */
+.file-card:hover .file-name,
+.file-card:hover .folder-icon,
+.file-card:hover .file-icon {
+	color: #005a9c; /* SpectrumX blue */
+}
+
+/* No hover effects for H5 files */
+.file-card[data-type="file"]:not([data-h5-file="true"]):hover .file-name,
+.file-card[data-type="file"]:not([data-h5-file="true"]):hover .file-icon {
+	color: #005a9c; /* SpectrumX blue */
+}
+
+/* Directory hover should also use the same blue */
+.file-card[data-type="directory"]:hover .file-name {
+	color: #005a9c;
+}
+
+.file-meta {
+	font-size: 0.8125rem;
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+	flex-shrink: 0;
+	min-width: 150px; /* Increased width for modified date */
+	text-align: center; /* Center align the modified date */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	padding-right: 24px; /* reserve space for right-aligned shared icon */
+}
+
+/* Keep the shared-with icon from shifting the centered date */
+
+.file-shared {
+	font-size: 0.8125rem;
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+	flex-shrink: 0;
+	min-width: 120px; /* Fixed width for shared by column */
+	text-align: center; /* Center align shared by */
+	margin-left: 0; /* Remove offset that pushes content */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.file-actions {
+	font-size: 0.8125rem;
+	white-space: nowrap;
+	flex-shrink: 0;
+	min-width: 80px; /* Fixed width for actions column */
+	text-align: center; /* Center align actions */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Directory Specific */
+.file-card[data-type="directory"] {
+	font-weight: 500;
+}
+
+/* Header row */
+.file-card.header {
+	padding: 12px 16px;
+	height: var(--header-height);
+	border-bottom: 1px solid var(--color-border);
+	font-weight: 500;
+	color: var(--color-text-secondary);
+	cursor: default;
+	position: sticky;
+	top: 0;
+	z-index: var(--z-index-sticky);
+	background-color: #f8f9fa;
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
+}
+
+.file-card.header:hover {
+	background-color: #f8f9fa;
+}
+
+.file-card.header .file-name {
+	font-weight: 500;
+	color: var(--color-text-secondary);
+	font-size: 0.8125rem;
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.file-card.header .file-meta,
+.file-card.header .file-shared {
+	font-size: 0.8125rem;
+	text-transform: none;
+	letter-spacing: normal;
+	color: var(--color-text-secondary);
+}
+
+/* Breadcrumb Navigation */
+.breadcrumb {
+	display: flex;
+	align-items: center;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: 0.875rem;
+	height: var(--breadcrumb-height);
+	font-family: var(--font-family);
+	font-weight: 400; /* Add normal font weight */
+}
+
+.breadcrumb-item {
+	color: var(--color-text-secondary);
+	text-decoration: none;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	height: var(--breadcrumb-height);
+	padding: 0 4px;
+	border-radius: 4px;
+	font-family: var(--font-family);
+	font-weight: 400; /* Add normal font weight */
+}
+
+.breadcrumb-item:hover {
+	background-color: var(--color-background-hover);
+}
+
+.breadcrumb-item a {
+	color: var(--color-text-secondary);
+	text-decoration: none;
+	padding: 0 4px;
+	font-family: var(--font-family);
+	font-weight: 400; /* Add normal font weight */
+}
+
+.breadcrumb-item:hover a {
+	color: var(--color-text-primary);
+	text-decoration: none;
+}
+
+/* Empty State */
+.no-files {
+	text-align: center;
+	padding: var(--spacing-5xl) 20px;
+	color: var(--color-text-secondary);
+	background-color: var(--color-background);
+	margin: 0;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.empty-folder-icon {
+	font-size: var(--spacing-4xl);
+	margin-bottom: 24px;
+	color: var(--color-border);
+}
+
+/* Upload Zone */
+.upload-zone {
+	border: 2px dashed #ccc;
+	border-radius: 8px;
+	padding: 2rem;
+	text-align: center;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	user-select: none;
+}
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+	border-color: #0d6efd;
+	background-color: rgba(13, 110, 253, 0.05);
+}
+
+.upload-zone-icon {
+	font-size: 3rem;
+	color: #6c757d;
+	margin-bottom: 1rem;
+}
+
+.upload-zone-text {
+	font-size: 1.1rem;
+	margin-bottom: 0.5rem;
+}
+
+.upload-zone-subtext {
+	color: #6c757d;
+	font-size: 0.9rem;
+}
+
+.browse-button {
+	color: #0d6efd;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.browse-button:hover {
+	text-decoration: none;
+}
+
+/* Selected Files */
+.selected-files {
+	margin-top: 1rem;
+	display: none;
+}
+
+.selected-files.has-files {
+	display: block;
+}
+
+.selected-files-header {
+	font-weight: 500;
+	margin-bottom: 0.5rem;
+}
+
+.selected-files-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	max-height: var(--file-list-max-height); /* taller list for large folder previews */
+	overflow-y: auto;
+	border: 1px solid #dee2e6;
+	border-radius: 4px;
+	padding: 0.5rem;
+}
+
+.selected-files-list li {
+	display: flex;
+	align-items: center;
+	padding: 0.25rem 0;
+}
+
+.selected-files-list li i {
+	margin-right: 0.5rem;
+	color: #6c757d;
+}
+
+.selected-files-list li ul {
+	list-style: none;
+	padding-left: 1.5rem;
+	margin: 0;
+}
+
+.upload-spinner {
+	display: inline-flex;
+	align-items: center;
+}
+
+/* Modal Styles */
+.modal-content {
+	border-radius: 8px;
+	border: none;
+}
+
+.modal-header {
+	border-bottom: 1px solid var(--color-border);
+	padding: 16px 24px;
+}
+
+.modal-title {
+	font-family: var(--font-family);
+	font-size: 1rem;
+	font-weight: 500;
+	color: var(--color-text-primary);
+}
+
+.modal-body {
+	padding: 24px;
+}
+
+.modal-footer {
+	border-top: 1px solid var(--color-border);
+	padding: 16px 24px;
+}
+
+/* Button Styles (scoped to files page content only to avoid modal conflicts) */
+/* Scope button tweaks to the files page action bar only to avoid bleed into modals */
+.files-actions-bar .btn-primary,
+.files-actions-bar .btn-secondary {
+	font-family: var(--font-family);
+	font-weight: 500;
+}
+
+.files-actions-bar .btn-primary {
+	background-color: var(--color-primary);
+	border-color: var(--color-primary);
+}
+
+.files-actions-bar .btn-primary:hover {
+	background-color: var(--color-primary-hover);
+	border-color: var(--color-primary-hover);
+}
+
+.files-actions-bar .btn-secondary {
+	color: var(--color-primary);
+	background-color: transparent;
+	border-color: transparent;
+}
+
+.files-actions-bar .btn-secondary:hover {
+	color: var(--color-primary-hover);
+	background-color: var(--color-background-hover);
+	border-color: transparent;
+}
+
+/* Form Styles */
+.form-control {
+	border-radius: 4px;
+	border-color: var(--color-border);
+	padding: 8px 12px;
+}
+
+.form-control:focus {
+	border-color: var(--color-primary);
+	box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.form-label {
+	font-size: 0.875rem;
+	color: var(--color-text-secondary);
+	margin-bottom: 8px;
+}
+
+.form-text {
+	font-size: 0.75rem;
+	color: var(--color-text-secondary);
+}
+
+.file-card[data-type="directory"] .folder-icon {
+	margin-left: 0;
+}
+
+/* Adjust size of Bootstrap Icons */
+.bi {
+	font-size: 1.25rem;
+	line-height: 1;
+	vertical-align: middle;
+}
+
+.preview-content {
+	max-height: 500px;
+	overflow: auto;
+	border: 1px solid #e9ecef;
+	border-radius: 4px;
+	background: #f8f9fa;
+}
+
+.preview-text {
+	margin: 0;
+	padding: 1rem;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	font-family: monospace;
+	font-size: 0.875rem;
+	line-height: 1.5;
+	color: #212529;
+}
+
+/* Enhanced syntax highlighting styles */
+.syntax-highlighted {
+	margin: 0;
+	padding: 0;
+	border-radius: 6px;
+	overflow: hidden;
+	background: #f8f9fa;
+	border: 1px solid #e9ecef;
+}
+
+.syntax-highlighted code {
+	font-family: "Fira Code", "Monaco", "Consolas", "Liberation Mono",
+		"Courier New", monospace;
+	font-size: 0.8125rem;
+	line-height: 1.6;
+	padding: 1rem;
+	display: block;
+	overflow-x: auto;
+	white-space: pre;
+	background: transparent;
+}
+
+/* Custom Prism.js theme overrides for better readability */
+.syntax-highlighted .token.comment,
+.syntax-highlighted .token.prolog,
+.syntax-highlighted .token.doctype,
+.syntax-highlighted .token.cdata {
+	color: #6a737d;
+	font-style: italic;
+}
+
+.syntax-highlighted .token.string,
+.syntax-highlighted .token.attr-value {
+	color: #032f62;
+}
+
+.syntax-highlighted .token.keyword,
+.syntax-highlighted .token.operator {
+	color: #d73a49;
+}
+
+.syntax-highlighted .token.function,
+.syntax-highlighted .token.class-name {
+	color: #6f42c1;
+}
+
+.syntax-highlighted .token.number,
+.syntax-highlighted .token.boolean {
+	color: #005cc5;
+}
+
+.syntax-highlighted .token.variable {
+	color: #24292e;
+}
+
+.syntax-highlighted .token.property {
+	color: #005cc5;
+}
+
+.syntax-highlighted .token.tag {
+	color: #22863a;
+}
+
+.syntax-highlighted .token.attr-name {
+	color: #6f42c1;
+}
+
+/* File preview modal enhancements */
+#filePreviewModal .modal-body {
+	padding: 0;
+}
+
+#filePreviewModal .preview-content {
+	max-height: 70vh;
+	overflow: auto;
+}
+
+/* Jupyter Notebook Preview Styles */
+.jupyter-notebook-preview {
+	font-family: var(--font-family);
+	background: #fff;
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.notebook-header {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	padding: 20px;
+	border-bottom: 1px solid #e9ecef;
+}
+
+.notebook-title {
+	font-size: 1.5rem;
+	font-weight: 600;
+	margin-bottom: 8px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.notebook-title i {
+	font-size: 1.75rem;
+	color: #ffd700;
+}
+
+.notebook-info {
+	display: flex;
+	gap: 20px;
+	font-size: 0.875rem;
+	opacity: 0.9;
+}
+
+.notebook-kernel {
+	background: rgba(255, 255, 255, 0.2);
+	padding: 4px 12px;
+	border-radius: 16px;
+	font-weight: 500;
+}
+
+.notebook-cells {
+	background: rgba(255, 255, 255, 0.2);
+	padding: 4px 12px;
+	border-radius: 16px;
+	font-weight: 500;
+}
+
+.notebook-cell {
+	margin: 0;
+	border-bottom: 1px solid #f0f0f0;
+}
+
+.notebook-cell:last-child {
+	border-bottom: none;
+}
+
+.cell-header {
+	background: #f8f9fa;
+	padding: 8px 16px;
+	border-left: 4px solid transparent;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-size: 0.8125rem;
+	font-weight: 500;
+}
+
+.notebook-cell.code .cell-header {
+	border-left-color: #007acc;
+}
+
+.notebook-cell.markdown .cell-header {
+	border-left-color: #28a745;
+}
+
+.cell-type {
+	padding: 2px 8px;
+	border-radius: 12px;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.cell-type.code {
+	background: #e3f2fd;
+	color: #1976d2;
+}
+
+.cell-type.markdown {
+	background: #e8f5e8;
+	color: #2e7d32;
+}
+
+.execution-count {
+	color: #666;
+	font-family: "Monaco", "Consolas", monospace;
+}
+
+.cell-content {
+	padding: 16px;
+}
+
+.cell-content pre {
+	margin: 0;
+	background: #f8f9fa;
+	border: 1px solid #e9ecef;
+	border-radius: 6px;
+	padding: 12px;
+	font-size: 0.8125rem;
+	line-height: 1.5;
+	overflow-x: auto;
+}
+
+.cell-content code {
+	background: transparent;
+	padding: 0;
+	border: none;
+	font-size: inherit;
+}
+
+.markdown-content {
+	line-height: 1.6;
+	color: #333;
+}
+
+.cell-output {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid #e9ecef;
+}
+
+.output-label {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: #666;
+	margin-bottom: 8px;
+	display: block;
+}
+
+.output-stream {
+	background: #f5f5f5;
+	border: 1px solid #e0e0e0;
+	border-radius: 4px;
+	padding: 8px;
+	font-family: "Monaco", "Consolas", monospace;
+	font-size: 0.75rem;
+	color: #333;
+}
+
+.output-result {
+	background: #e8f5e8;
+	border: 1px solid #c8e6c9;
+	border-radius: 4px;
+	padding: 8px;
+	font-family: "Monaco", "Consolas", monospace;
+	font-size: 0.75rem;
+	color: #2e7d32;
+}
+
+/* Make modal larger for previews */
+#filePreviewModal .modal-dialog {
+	max-width: var(--modal-max-width);
+}
+
+/* Main Navigation styles are handled by base.html */
+
+/* Actions Bar (scoped) */
+.files-actions-bar {
+	margin: 24px 16px; /* Keep the margin */
+	display: flex;
+	justify-content: flex-start; /* Align to the left */
+	align-items: center;
+}
+
+/* New Button & Menu */
+.new-button {
+	background-color: var(--color-background);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font-family: var(--font-family);
+	font-size: 0.875rem;
+	font-weight: 500;
+	height: var(--button-height);
+	padding: 0 16px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	transition: var(--transition-default);
+	min-width: 100px; /* Give the button a minimum width */
+	justify-content: center; /* Center the button content */
+}
+
+.new-button:hover {
+	background-color: var(--color-background-hover);
+	box-shadow: var(--shadow-small);
+}
+
+.new-button i {
+	font-size: 1.25rem;
+	color: var(--color-text-primary);
+}
+
+.new-menu {
+	border-radius: 8px;
+	box-shadow: var(--shadow-medium);
+	padding: 8px 0;
+	min-width: 200px;
+	border: 1px solid var(--color-border);
+	margin-top: 4px;
+	background-color: var(--color-background);
+}
+
+.new-menu .dropdown-item {
+	color: var(--color-text-primary);
+	font-size: 0.875rem;
+	padding: 8px 16px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-family: var(--font-family);
+}
+
+.new-menu .dropdown-item:hover {
+	background-color: var(--color-background-hover);
+}
+
+.new-menu .dropdown-item i {
+	font-size: 1.25rem;
+	color: var(--color-text-secondary);
+	width: 20px;
+	text-align: center;
+	margin-right: 12px;
+	flex-shrink: 0;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.new-menu .dropdown-item:hover i {
+	color: var(--color-text-primary);
+}
+
+/* Ensure Material Icons align properly in dropdown */
+.new-menu .dropdown-item .material-icons {
+	font-size: 1.25rem;
+	line-height: 1;
+	vertical-align: middle;
+	color: var(--color-text-secondary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 767.98px) {
+	/* Containers and spacing */
+	.files-actions-bar {
+		margin: 16px 8px;
+	}
+	.files-grid {
+		margin: 0 8px;
+	}
+
+	/* Compact file rows */
+	.file-card {
+		padding: 8px 12px;
+		gap: 8px;
+	}
+	.file-name {
+		padding-right: 0;
+	}
+
+	/* Hide secondary columns to prevent overflow */
+	.file-meta,
+	.file-shared {
+		display: none;
+	}
+	.file-card.header .file-meta,
+	.file-card.header .file-shared {
+		display: none;
+	}
+
+	/* Upload area sizing */
+	.upload-zone {
+		padding: 1rem;
+	}
+	.upload-zone-icon {
+		font-size: 2.4rem;
+	}
+	.selected-files-list {
+		max-height: 220px;
+	}
+
+	/* Breadcrumbs wrap nicely */
+	.breadcrumb {
+		flex-wrap: wrap;
+		height: auto;
+		row-gap: 4px;
+	}
+	.breadcrumb-item {
+		height: auto;
+	}
+}
+
+@media (max-width: 575.98px) {
+	/* Modal paddings on very small screens */
+	.modal-header,
+	.modal-footer {
+		padding: 12px 16px;
+	}
+	.modal-body {
+		padding: 16px;
+	}
+	.modal-dialog {
+		margin: 0.5rem;
+	}
+}
+
+/* Global Drop Zone Overlay */
+.global-drop-zone {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba(0, 123, 255, 0.1);
+	border: 3px dashed #007bff;
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	backdrop-filter: blur(2px);
+}
+
+.global-drop-zone-content {
+	text-align: center;
+	background: white;
+	padding: 3rem;
+	border-radius: 1rem;
+	box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);
+}
+
+.global-drop-zone-icon {
+	font-size: 4rem;
+	color: #007bff;
+	margin-bottom: 1rem;
+}
+
+.global-drop-zone-text {
+	font-size: 1.5rem;
+	font-weight: 600;
+	color: #333;
+	margin-bottom: 0.5rem;
+}
+
+.global-drop-zone-subtext {
+	font-size: 1rem;
+	color: #666;
+}
