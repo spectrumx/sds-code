@@ -101,7 +101,7 @@
                          data-is-shared="{{ item.is_shared|yesno:'true,false' }}"
                          data-capture-uuid="{{ item.capture_uuid|default:'' }}"
                          data-description="{{ item.description|default:'' }}"
-                         {% if item.type == 'file' and item.name|lower|slice:'-3:' == '.h5' or item.type == 'file' and item.name|lower|slice:'-5:' == '.hdf5' %}data-h5-file="true"{% endif %}>
+                         {% if item.type == 'file' and item.is_h5_file %}data-h5-file="true"{% endif %}>
                         <div class="file-card-content">
                             {% if item.type == "directory" %}
                                 <i class="bi bi-folder folder-icon"></i>
@@ -127,7 +127,7 @@
                                 {% if item.shared_by %}{{ item.shared_by }}{% endif %}
                             </div>
                             <div class="file-actions">
-                                {% if item.type == 'file' and item.name|lower|slice:'-3:' == '.h5' or item.type == 'file' and item.name|lower|slice:'-5:' == '.hdf5' %}
+                                {% if item.type == 'file' and item.is_h5_file %}
                                     <!-- No actions for H5 files -->
                                 {% else %}
                                     <!-- Show actions for captures and individual files -->

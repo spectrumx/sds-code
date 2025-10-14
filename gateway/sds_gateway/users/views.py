@@ -66,6 +66,8 @@ from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.users.file_utils import get_file_content_response
+from sds_gateway.users.file_utils import validate_file_preview_request
 from sds_gateway.users.files_utils import add_capture_files
 from sds_gateway.users.files_utils import add_root_items
 from sds_gateway.users.files_utils import add_shared_items
@@ -1161,53 +1163,24 @@ class FileContentView(Auth0LoginRequiredMixin, View):
 
     MAX_BYTES = 1024 * 1024  # 1 MiB safety limit for previews
 
-    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:  # noqa: PLR0911
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """Get file content for preview."""
         file_uuid = kwargs.get("uuid")
         if not file_uuid:
             return JsonResponse({"error": "File UUID required"}, status=400)
 
         file_obj = get_object_or_404(File, uuid=file_uuid, is_deleted=False)
 
-        # Access control: owner or shared via capture/dataset
-        has_access = user_has_access_to_file(request.user, file_obj)
+        # Validate request (access control and size checks)
+        error_response = validate_file_preview_request(
+            request.user, file_obj, self.MAX_BYTES
+        )
+        if error_response is not None:
+            return error_response
 
-        if not has_access:
-            return JsonResponse({"error": "Not found or access denied"}, status=404)
-
+        # Get file content response
         try:
-            # Size guard
-            if file_obj.size and int(file_obj.size) > self.MAX_BYTES:
-                return JsonResponse({"error": "File too large to preview"}, status=413)
-
-            # Read content
-            file_obj.file.open("rb")
-            raw = file_obj.file.read(self.MAX_BYTES + 1)
-            file_obj.file.close()
-
-            if len(raw) > self.MAX_BYTES:
-                return JsonResponse({"error": "File too large to preview"}, status=413)
-
-            # Detect JSON by extension
-            name_lower = (file_obj.name or "").lower()
-            if name_lower.endswith(".json"):
-                try:
-                    parsed = json.loads(raw.decode("utf-8"))
-                    pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
-                    return HttpResponse(
-                        pretty, content_type="text/plain; charset=utf-8"
-                    )
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    # fall through to plain text rendering below
-                    pass
-
-            # Default: return UTF-8 text
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                # Replace undecodable bytes
-                text = raw.decode("utf-8", errors="replace")
-
-            return HttpResponse(text, content_type="text/plain; charset=utf-8")
+            return get_file_content_response(file_obj, self.MAX_BYTES)
         except OSError as e:
             logger.warning("Error reading file content for preview: %s", e)
             return JsonResponse({"error": "Error reading file"}, status=500)

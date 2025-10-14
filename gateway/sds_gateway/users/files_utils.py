@@ -43,7 +43,7 @@ class DirItemParams:
     is_owner: bool = False
     capture_uuid: str = ""
     modified_at_display: str = "N/A"
-    item_count: int | None = None
+    item_count: int = 0
     is_shared: bool = False
     shared_by: str = ""
 
@@ -192,6 +192,7 @@ def make_dir_item(params: DirItemParams) -> DirectoryItem:
         modified_at=params.modified_at_display,
         item_count=params.item_count,
         is_shared=params.is_shared,
+        is_capture=params.is_capture,
         shared_by=params.shared_by,
     )
 
@@ -208,7 +209,6 @@ def make_file_item(
         name=file_obj.name,
         path=f"/users/files/{file_obj.uuid}/",
         uuid=str(file_obj.uuid),
-        is_capture=False,
         is_shared=is_shared,
         capture_uuid=capture_uuid,
         description=getattr(file_obj, "description", ""),
@@ -468,11 +468,18 @@ def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
 
     # Add child directories first
     directory_items = _add_child_directories(
-        child_dirs, capture_uuid, current_subpath, capture, is_shared, shared_by
+        child_dirs,
+        capture_uuid,
+        current_subpath,
+        capture,
+        is_shared=is_shared,
+        shared_by=shared_by,
     )
 
     # Then add files that live directly in this level
-    file_items = _add_child_files(child_files, capture_uuid, is_shared, shared_by)
+    file_items = _add_child_files(
+        child_files, capture_uuid, is_shared=is_shared, shared_by=shared_by
+    )
 
     return directory_items + file_items
 

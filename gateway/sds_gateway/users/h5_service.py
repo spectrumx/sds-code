@@ -4,6 +4,7 @@ import logging
 
 from django.http import JsonResponse
 
+from .file_utils import PreviewFileTooLargeError
 from .file_utils import check_file_access
 from .file_utils import temp_h5_file_context
 from .file_utils import validate_h5_file
@@ -52,10 +53,8 @@ class H5PreviewService:
                         ),
                     }
                 )
-        except ValueError as e:
-            if "File too large" in str(e):
-                return JsonResponse({"error": "File too large to preview"}, status=413)
-            raise
+        except PreviewFileTooLargeError:
+            return JsonResponse({"error": "File too large to preview"}, status=413)
         except OSError as e:
             logger.warning("Error creating H5 preview: %s", e)
             return JsonResponse({"error": "Error reading HDF5 file"}, status=500)

@@ -1,13 +1,13 @@
 """Navigation models for file system browsing."""
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 # Constants for path parsing
 MIN_PATH_PARTS_FOR_UUID = 2
 
 
-class NavigationType(Enum):
+class NavigationType(StrEnum):
     """Types of navigation contexts in the file system."""
 
     ROOT = "root"

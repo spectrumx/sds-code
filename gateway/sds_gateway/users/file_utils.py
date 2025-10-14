@@ -1,15 +1,21 @@
 """File utility functions for user views."""
 
 import contextlib
+import json
 import logging
 import tempfile
 from pathlib import Path
 
+from django.http import HttpResponse
 from django.http import JsonResponse
 
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
 
 logger = logging.getLogger(__name__)
+
+
+class PreviewFileTooLargeError(Exception):
+    """Raised when a file is too large to generate a preview."""
 
 
 @contextlib.contextmanager
@@ -25,7 +31,7 @@ def temp_h5_file_context(file_obj, max_bytes=200 * 1024 * 1024):
         str: Path to the temporary file
 
     Raises:
-        ValueError: If file is too large to preview
+        PreviewFileTooLargeError: If file is too large to preview
         OSError: If file operations fail
     """
     temp_file = None
@@ -44,7 +50,7 @@ def temp_h5_file_context(file_obj, max_bytes=200 * 1024 * 1024):
                 bytes_written += len(chunk)
                 if bytes_written > max_bytes:
                     error_msg = "File too large to preview"
-                    raise ValueError(error_msg)
+                    raise PreviewFileTooLargeError(error_msg)
                 temp_file.write(chunk)
 
             temp_file.flush()
@@ -119,3 +125,72 @@ def validate_h5_file(file_obj, max_bytes=200 * 1024 * 1024):
         return False, JsonResponse({"error": "Invalid file size"}, status=400)
 
     return True, None
+
+
+def validate_file_preview_request(user, file_obj, max_bytes):
+    """
+    Validate a file preview request.
+
+    Args:
+        user: The user requesting the preview
+        file_obj: The file object to preview
+        max_bytes: Maximum file size allowed for preview
+
+    Returns:
+        JsonResponse or None: Error response if validation fails, None if valid
+    """
+    # Access control: owner or shared via capture/dataset
+    has_access = user_has_access_to_file(user, file_obj)
+    if not has_access:
+        return JsonResponse({"error": "Not found or access denied"}, status=404)
+
+    # Size guard
+    if file_obj.size and int(file_obj.size) > max_bytes:
+        return JsonResponse({"error": "File too large to preview"}, status=413)
+
+    return None
+
+
+def get_file_content_response(file_obj, max_bytes):
+    """
+    Read file content and return appropriate HTTP response.
+
+    Supports pretty-printing JSON files based on extension.
+
+    Args:
+        file_obj: The file object to read
+        max_bytes: Maximum bytes to read
+
+    Returns:
+        HttpResponse: Response with file content as text
+
+    Raises:
+        OSError: If file reading fails
+    """
+    # Read content
+    file_obj.file.open("rb")
+    raw = file_obj.file.read(max_bytes + 1)
+    file_obj.file.close()
+
+    if len(raw) > max_bytes:
+        return JsonResponse({"error": "File too large to preview"}, status=413)
+
+    # Detect JSON by extension
+    name_lower = (file_obj.name or "").lower()
+    if name_lower.endswith(".json"):
+        try:
+            parsed = json.loads(raw.decode("utf-8"))
+            pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
+            return HttpResponse(pretty, content_type="text/plain; charset=utf-8")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            # fall through to plain text rendering below
+            pass
+
+    # Default: return UTF-8 text
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        # Replace undecodable bytes
+        text = raw.decode("utf-8", errors="replace")
+
+    return HttpResponse(text, content_type="text/plain; charset=utf-8")
