@@ -1,11 +1,24 @@
 """Pydantic models for file system items."""
 
+import uuid
+from typing import Annotated
 from typing import Literal
 
+from pydantic import AfterValidator
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic.types import UUID4
 
 from sds_gateway.api_methods.models import PermissionLevel
+
+
+def validate_uuid_or_empty(value: str) -> str:
+    """Validate UUID4 string or allow empty string."""
+    if value == "":
+        return value
+    # This will raise ValueError if not a valid UUID4
+    uuid.UUID(value, version=4)
+    return value
 
 
 class SharedUser(BaseModel):
@@ -38,9 +51,7 @@ class BaseItem(BaseModel):
     type: Literal["file", "directory", "capture", "dataset"]
     name: str
     path: str
-    uuid: str = (
-        ""  # UUIDv4 string, or empty for items without UUIDs (e.g., subdirectories)
-    )
+    uuid: UUID4 | Annotated[str, AfterValidator(validate_uuid_or_empty)] = ""
     modified_at: str | None = None
 
 
@@ -49,9 +60,7 @@ class FileItem(BaseItem):
 
     type: Literal["file"] = "file"
     is_shared: bool = False
-    capture_uuid: str = (
-        ""  # UUIDv4 string of parent capture, or empty if not part of a capture
-    )
+    capture_uuid: UUID4 | Annotated[str, AfterValidator(validate_uuid_or_empty)] = ""
     shared_by: str = ""
     description: str = ""
 
