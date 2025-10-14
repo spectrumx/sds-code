@@ -227,7 +227,7 @@ class Command(BaseCommand):
 
     def get_indices_stats(self) -> dict[str, dict[str, Any]]:
         """Shows number of docs across stats indices and returns their mapping."""
-        maps = self.client.indices.get_mapping("*")
+        maps = self.client.indices.get_mapping(index="*")
         for index_name in maps:
             doc_count = self._get_doc_count(index_name)
             log.warning(
