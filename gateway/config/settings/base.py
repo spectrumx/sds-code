@@ -111,7 +111,7 @@ LOCALE_PATHS: list[str] = [str(BASE_DIR / "locale")]
 DATABASES: dict[str, Any] = {"default": env.dj_db_url("DATABASE_URL")}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # TODO: enable connection pools when upgrading to Django 5.1+ and psycopg3
-# https://docs.djangoproject.com/en/5.2/ref/databases/#connection-pool
+# https://docs.djangoproject.com/en/dev/ref/databases/#connection-pool
 # DATABASES["default"]["OPTIONS"] = {
 #     "pool": True,
 # }
@@ -181,6 +181,7 @@ AUTHENTICATION_BACKENDS: list[str] = [
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-user-model
+# see sds_gateway/users/models.py
 AUTH_USER_MODEL: str = "users.User"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
 LOGIN_REDIRECT_URL: str = "users:redirect"
@@ -257,7 +258,7 @@ TEMPLATES: list[dict[str, Any]] = [
         # https://docs.djangoproject.com/en/dev/ref/settings/#app-dirs
         "APP_DIRS": True,
         "OPTIONS": {
-            # https://docs.djangoproject.com/en/4.2/topics/templates/#module-django.template.backends.django
+            # https://docs.djangoproject.com/en/dev/topics/templates/#module-django.template.backends.django
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
@@ -406,8 +407,11 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
 ACCOUNT_ALLOW_REGISTRATION: bool = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 
 # https://docs.allauth.org/en/latest/account/configuration.html
+ACCOUNT_LOGIN_METHODS: set[str] = {"email"}
 ACCOUNT_SIGNUP_FIELDS: list[str] = ["email*"]
 ACCOUNT_USER_MODEL_USERNAME_FIELD: str | None = None
+# USERNAME_FIELD in sds_gateway/users/models.py:
+ACCOUNT_USER_MODEL_EMAIL_FIELD: str = "email"
 ACCOUNT_EMAIL_VERIFICATION: str = "none"
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_LOGOUT_ON_GET: bool = True
