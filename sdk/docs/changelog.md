@@ -1,6 +1,8 @@
 # SpectrumX SDK Changelog
 
-## `0.1.14` - 2025-10-xx
+## `0.1.15` - 2025-xx-xx
+
+## `0.1.14` - 2025-10-07
 
 + Documentation:
     + **Added and SDK walkthrough notebook** to the users' guide: [SpectrumX SDK walkthrough](https://github.com/crcresearch/spx-events/blob/main/demos/data_system/walkthrough.ipynb).

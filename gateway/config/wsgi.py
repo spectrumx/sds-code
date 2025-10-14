@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 from django.core.wsgi import get_wsgi_application
+from loguru import logger as log
 
 # This allows easy placement of apps within the interior
 # sds_gateway directory.
@@ -33,3 +34,5 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.production")
 # file. This includes Django's development server, if the WSGI_APPLICATION
 # setting points here.
 application = get_wsgi_application()
+
+log.info("Starting WSGI application")
