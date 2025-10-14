@@ -9,6 +9,10 @@ volumes:
     sds-gateway-prod-app-media: {}
     sds-gateway-prod-temp-zips: {} # for temporary zip files
     sds-gateway-prod-venv: {} # Python virtual environment
+    sds-gateway-local-uv-venv-app: {}
+    sds-gateway-local-uv-venv-worker: {}
+    sds-gateway-local-uv-venv-beat: {}
+    sds-gateway-local-uv-venv-flower: {}
     sds-gateway-prod-minio-files: {}
     sds-gateway-prod-opensearch-data: {}
     sds-gateway-prod-postgres-data-backups: {}
@@ -67,6 +71,12 @@ services:
               read_only: true
             - source: sds-gateway-prod-venv
               target: /opt/uv-cache/
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
+            - source: sds-gateway-local-uv-venv-app
+              target: /opt/uv-cache-app/
               type: volume
               read_only: false
               bind:
@@ -231,6 +241,12 @@ services:
               target: /app/opensearch/data/certs
               type: bind
               read_only: true
+            - source: sds-gateway-local-uv-venv-worker
+              target: /opt/uv-cache-worker/
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
@@ -275,6 +291,12 @@ services:
               target: /app/opensearch/data/certs
               type: bind
               read_only: true
+            - source: sds-gateway-local-uv-venv-beat
+              target: /opt/uv-cache-beat/
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
@@ -312,6 +334,12 @@ services:
                   selinux: z
             - source: sds-gateway-prod-temp-zips
               target: /app/sds_gateway/media/temp_zips
+              type: volume
+              read_only: false
+              bind:
+                  selinux: z
+            - source: sds-gateway-local-uv-venv-flower
+              target: /opt/uv-cache-flower/
               type: volume
               read_only: false
               bind:

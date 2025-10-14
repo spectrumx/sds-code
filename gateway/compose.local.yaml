@@ -8,7 +8,11 @@ volumes:
     # for safety, all local volumes start with "sds-gateway-local-"
     sds-gateway-local-app-media: {} # for Django media files
     sds-gateway-local-temp-zips: {} # for temporary zip files
-    sds-gateway-local-venv: {} # Python virtual environment
+    sds-gateway-local-uv-cache: {} # shared cache for uv
+    sds-gateway-local-uv-venv-app: {}
+    sds-gateway-local-uv-venv-worker: {}
+    sds-gateway-local-uv-venv-beat: {}
+    sds-gateway-local-uv-venv-flower: {}
     sds-gateway-local-minio-files: {}
     sds-gateway-local-opensearch-data: {}
     sds-gateway-local-postgres-data-backups: {}
@@ -22,7 +26,7 @@ networks:
     sds-gateway-local-opensearch-net:
         driver: bridge
     sds-network-local:
-        external: true # make it external if running with traefik on this machine
+        # external: true # make it external if running with traefik on this machine
         driver: bridge
 services:
     sds-gateway-local-app:
@@ -42,7 +46,8 @@ services:
             minio:
                 condition: service_started
         volumes:
-            - sds-gateway-local-venv:/opt/uv-cache/
+            - sds-gateway-local-uv-cache:/opt/uv-cache/
+            - sds-gateway-local-uv-venv-app:/opt/uv-venv/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
@@ -184,7 +189,8 @@ services:
             sds-gateway-local-app:
                 condition: service_started
         volumes:
-            - sds-gateway-local-venv:/opt/uv-cache/
+            - sds-gateway-local-uv-cache:/opt/uv-cache/
+            - sds-gateway-local-uv-venv-worker:/opt/uv-venv/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
         env_file:
@@ -205,15 +211,13 @@ services:
             dockerfile: ./compose/local/django/Dockerfile
         image: sds-gateway-local-app
         container_name: sds-gateway-local-celery-beat
+        tty: true
         depends_on:
-            redis:
-                condition: service_started
-            postgres:
-                condition: service_started
-            minio:
+            sds-gateway-local-app:
                 condition: service_started
         volumes:
-            - sds-gateway-local-venv:/opt/uv-cache/
+            - sds-gateway-local-uv-cache:/opt/uv-cache/
+            - sds-gateway-local-uv-venv-beat:/opt/uv-venv/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
         env_file:
@@ -239,7 +243,8 @@ services:
             sds-gateway-local-app:
                 condition: service_started
         volumes:
-            - sds-gateway-local-venv:/opt/uv-cache/
+            - sds-gateway-local-uv-cache:/opt/uv-cache/
+            - sds-gateway-local-uv-venv-flower:/opt/uv-venv/
             - sds-gateway-local-app-media:/app/sds_gateway/media
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips
         env_file:
@@ -267,7 +272,6 @@ services:
         depends_on:
             - sds-gateway-local-app
         volumes:
-            - sds-gateway-local-venv:/opt/uv-cache/
             # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
             - /app/node_modules
         command: "npm run dev"
