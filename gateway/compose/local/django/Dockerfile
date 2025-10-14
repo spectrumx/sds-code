@@ -22,11 +22,6 @@ ENV BUILD_ENV=${BUILD_ENVIRONMENT}
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# https://docs.astral.sh/uv/guides/integration/docker/
-ENV UV_COMPILE_BYTECODE=1
-ENV UV_LINK_MODE=copy
-ENV UV_CACHE_DIR=/opt/uv-cache/
-
 # install required system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
     # better utils if we need to run a shell in the container
@@ -52,12 +47,21 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
     . $HOME/.cargo/env && \
     echo 'export PATH=$HOME/.cargo/bin:$PATH' >> $HOME/.bashrc
 ENV PATH="/root/.cargo/bin:${PATH}"
+RUN mkdir -p /opt/{uv-cache,uv-venv}/
 
 WORKDIR ${APP_HOME}
 
-# install project dependencies
-COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
-RUN uv sync --frozen --extra ${BUILD_ENVIRONMENT}
+# https://docs.astral.sh/uv/guides/integration/docker/
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_CACHE_DIR=/opt/uv-cache/
+ENV UV_PROJECT_ENVIRONMENT=/opt/uv-venv/
+
+# we can delay the project dependencies installation to reduce
+# the image size: it'll be cached at the compose level. If you
+# wish to include them in the image, uncomment the following lines:
+# COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
+# RUN uv sync --frozen --extra ${BUILD_ENVIRONMENT}
 
 # "entrypoint" only has a production version
 COPY ./compose/production/django/entrypoint         /entrypoint

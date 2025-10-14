@@ -107,7 +107,7 @@ For the local deploy:
 5. Initialize OpenSearch indices
 
     ```bash
-    docker exec -it sds-gateway-local-app python manage.py init_indices
+    docker exec -it sds-gateway-local-app uv run manage.py init_indices
     ```
 
     This also tests the connection between the application and the OpenSearch instance.
