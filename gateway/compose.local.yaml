@@ -31,7 +31,7 @@ services:
             dockerfile: ./compose/local/django/Dockerfile
         image: sds-gateway-local-app
         container_name: sds-gateway-local-app
-        tty: true
+        tty: true # colored logs
         depends_on:
             opensearch:
                 condition: service_healthy
@@ -181,11 +181,7 @@ services:
         container_name: sds-gateway-local-celery-worker
         tty: true
         depends_on:
-            redis:
-                condition: service_started
-            postgres:
-                condition: service_started
-            minio:
+            sds-gateway-local-app:
                 condition: service_started
         volumes:
             - sds-gateway-local-venv:/opt/uv-cache/
@@ -240,13 +236,7 @@ services:
         container_name: sds-gateway-local-celery-flower
         tty: true
         depends_on:
-            redis:
-                condition: service_started
-            postgres:
-                condition: service_started
-            minio:
-                condition: service_started
-            opensearch:
+            sds-gateway-local-app:
                 condition: service_started
         volumes:
             - sds-gateway-local-venv:/opt/uv-cache/
