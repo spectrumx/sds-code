@@ -59,6 +59,11 @@ services:
             - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
             - sds-network-local
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
         develop:
             watch:
                 - action: sync
