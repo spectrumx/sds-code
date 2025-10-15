@@ -6,34 +6,34 @@
 
 volumes:
     # for safety, all production volumes start with "sds-jupyter-prod-"
-    sds-jupyter-prod-jupyter-data: {}
+    sds-jupyter-prod-data: {}
 
 networks:
     # for safety, all production networks start with "sds-jupyter-prod-"
-    sds-jupyter-prod-jupyter-net:
+    sds-jupyter-prod-net-clients:
         driver: bridge
 
 services:
     jupyter:
-        # JupyterHub for interactive data analysis and notebooks (PRODUCTION)
         build:
             context: .
             dockerfile: ./compose/production/jupyter/Dockerfile
             args:
                 JUPYTERHUB_VERSION: latest
-                NB_UID: ${NB_UID}
-                NB_GID: ${NB_GID}
-                DOCKER_GID: ${DOCKER_GID}
+                NB_UID: ${NB_UID:-1000}
+                NB_GID: ${NB_GID:-100}
+                DOCKER_GID: ${DOCKER_GID:-103}
         restart: unless-stopped
-        image: sds-jupyter-prod-jupyter
-        container_name: sds-jupyter-prod-jupyter
+        image: sds-jupyter-prod
+        container_name: sds-jupyter-prod
+        tty: true # for colored logs
         networks:
-            sds-jupyter-prod-jupyter-net:
+            sds-jupyter-prod-net-clients:
                 aliases:
                     - jupyterhub
         volumes:
-            - './compose/production/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
-            - './compose/production/jupyter/sample_scripts:/srv/jupyter/sample_scripts:ro'
+            - "./compose/production/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro"
+            - "./compose/production/jupyter/sample_scripts:/srv/jupyter/sample_scripts:ro"
             - type: volume
               source: sds-jupyter-prod-data
               target: /data
@@ -42,7 +42,9 @@ services:
               source: /var/run/docker.sock
               target: /run/docker.sock
 
-        userns_mode: 'host'
+        privileged: false
+
+        userns_mode: "host"
         user: "${NB_UID:-1000}:${DOCKER_GID:-103}"
         security_opt:
             - no-new-privileges:true
@@ -53,7 +55,7 @@ services:
             - SETUID # Allow changing effective user ID for container operations
             - SETGID # Allow changing effective group ID for container operations
         ports:
-            - '18888:8000'
+            - "18888:8000"
         env_file:
             - ./.envs/production/jupyterhub.env
         environment:
