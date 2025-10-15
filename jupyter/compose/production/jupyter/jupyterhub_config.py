@@ -1,7 +1,33 @@
 # Production JupyterHub configuration file - Adopting SVI approach for simplicity
 import os
 
+from dockerspawner import DockerSpawner
+
+# ruff: noqa: T201
+
 c = get_config()  # noqa: F821 # pyright: ignore[reportUndefinedVariable]
+
+# these have to be 1000 and 100, apparently, otherwise
+# we get Permission denied: '/home/jovyan/.local'
+_nb_uid = 1000
+_nb_gid = 100
+
+
+class MyDockerSpawner(DockerSpawner):
+    def get_env(self):
+        username = self.user.name
+        env = super().get_env()
+        # https://jupyter-docker-stacks.readthedocs.io/en/latest/using/common.html#user-related-configurations
+        env["NB_USER"] = username
+        env["NB_UID"] = _nb_uid
+        env["NB_GID"] = _nb_gid
+        env["NB_GROUP"] = "nb_users"
+        env["CHOWN_HOME"] = "yes"
+        env["CHOWN_HOME_OPTS"] = "-R"
+        env["JUPYTER_ENABLE_LAB"] = "yes"
+        print(f"Spawner environment for user {username}: {env}")
+        return env
+
 
 # === HUB APP ===
 # reference: https://jupyterhub.readthedocs.io/en/stable/reference/api/app.html
@@ -21,7 +47,7 @@ c.JupyterHub.hub_connect_ip = "jupyterhub"
 c.JupyterHub.hub_ip = "0.0.0.0"
 c.JupyterHub.hub_port = 8080
 c.JupyterHub.log_level = "INFO"
-c.JupyterHub.spawner_class = "dockerspawner.DockerSpawner"
+c.JupyterHub.spawner_class = MyDockerSpawner
 
 # === HUB SPAWNER ===
 # reference: https://jupyterhub.readthedocs.io/en/latest/reference/api/spawner.html
@@ -38,17 +64,7 @@ c.Spawner.start_timeout = 60
 # === DOCKER SPAWNER ===
 # reference: https://jupyterhub-dockerspawner.readthedocs.io/en/latest/api/index.html
 
-_nb_uid = os.environ.get("NB_UID", "1000")
-_nb_gid = os.environ.get("NB_GID", "100")
-
 c.DockerSpawner.debug = False
-c.DockerSpawner.environment = {
-    "CHOWN_HOME_OPTS": "-R",
-    "CHOWN_HOME": "yes",
-    "JUPYTER_ENABLE_LAB": "yes",
-    "NB_GID": _nb_gid,
-    "NB_UID": _nb_uid,
-}
 c.DockerSpawner.extra_create_kwargs = {"user": f"{_nb_uid}:{_nb_gid}"}
 c.DockerSpawner.image = os.environ.get(
     "DOCKER_NOTEBOOK_IMAGE", "quay.io/jupyter/base-notebook:latest"
@@ -59,6 +75,7 @@ c.DockerSpawner.network_name = "jupyter_" + os.environ.get(
 c.DockerSpawner.notebook_dir = os.environ.get(
     "DOCKER_NOTEBOOK_DIR", "/home/jovyan/work"
 )
+c.DockerSpawner.prefix = "sds-jupyter-user"
 c.DockerSpawner.post_start_cmd = "pip install ipywidgets spectrumx"
 c.DockerSpawner.remove = True
 c.DockerSpawner.use_internal_ip = True
@@ -68,6 +85,8 @@ c.DockerSpawner.volumes = {
 
 # === AUTHENTICATION AND ACCCESS CONTROL ===
 # reference: https://jupyterhub.readthedocs.io/en/latest/reference/api/auth.html
+# oauthenticator: https://oauthenticator.readthedocs.io/en/stable/reference/api/gen/oauthenticator.auth0.html
+
 c.JupyterHub.authenticator_class = "oauthenticator.auth0.Auth0OAuthenticator"
 c.Authenticator.auto_login = False
 c.Authenticator.enable_auth_state = True
