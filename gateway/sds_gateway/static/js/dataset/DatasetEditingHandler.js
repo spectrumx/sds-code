@@ -230,7 +230,7 @@ class DatasetEditingHandler {
 	 * Populate current captures list
 	 * @param {Array} captures - Captures data
 	 */
-	populateCurrentCapturesList(captures) {
+	async populateCurrentCapturesList(captures) {
 		const currentCapturesList = document.getElementById(
 			"current-captures-list",
 		);
@@ -241,57 +241,61 @@ class DatasetEditingHandler {
 		if (!currentCapturesList) return;
 
 		if (captures && captures.length > 0) {
-			// Show all captures in the dataset, but only allow removal based on permissions
-			const rows = captures
-				.map((capture) => {
-					this.currentCaptures.set(capture.id, capture);
-					// Permission logic: co-owners can remove anyone's captures, contributors can only remove their own
-					const isOwnedByCurrentUser = capture.owner_id === this.currentUserId;
-					const canRemoveThisCapture =
-						this.permissions.canRemoveAnyAssets() ||
-						(this.permissions.canRemoveAsset(capture) && isOwnedByCurrentUser);
-					const rowClass = !canRemoveThisCapture ? "readonly-row" : "";
-
-					return window.HTMLInjectionManager.createTableRow(
-						capture,
-						`
-					<tr data-capture-id="${capture.id}" class="current-capture-row ${rowClass}">
-						<td>{{type}}</td>
-						<td>{{directory}}</td>
-						<td>{{owner_name}}</td>
-						${
-							canRemoveThisCapture
-								? `
-							<td>
-								<button class="btn btn-sm btn-danger mark-for-removal-btn"
-										data-capture-id="${capture.id}"
-										data-capture-type="capture">
-									Remove
-								</button>
-							</td>
-						`
-								: '<td><span class="text-muted">N/A</span></td>'
+			// Normalize for generic table_rows template
+			const rows = captures.map((capture) => {
+				this.currentCaptures.set(capture.id, capture);
+				// Permission logic: co-owners can remove anyone's captures, contributors can only remove their own
+				const isOwnedByCurrentUser = capture.owner_id === this.currentUserId;
+				const canRemoveThisCapture =
+					this.permissions.canRemoveAnyAssets() ||
+					(this.permissions.canRemoveAsset(capture) && isOwnedByCurrentUser);
+				
+				return {
+					css_class: !canRemoveThisCapture ? "readonly-row" : "",
+					data_attrs: { capture_id: capture.id },
+					cells: [
+						{ value: capture.type },
+						{ value: capture.directory },
+						{ value: capture.owner_name }
+					],
+					actions: canRemoveThisCapture ? [{
+						label: "Remove",
+						css_class: "btn-danger",
+						extra_class: "mark-for-removal-btn",
+						data_attrs: {
+							capture_id: capture.id,
+							capture_type: "capture"
 						}
-					</tr>
-				`,
-						{ escape: false },
-					);
-				})
-				.join("");
-
-			window.HTMLInjectionManager.injectHTML(currentCapturesList, rows, {
-				escape: false,
+					}] : [
+						{ html: '<span class="text-muted">N/A</span>' }
+					]
+				};
 			});
+
+			// Render using generic table_rows template
+			try {
+				const response = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/table_rows.html",
+					context: {
+						rows: rows,
+						empty_message: "No captures in dataset",
+						empty_colspan: 4
+					}
+				});
+
+				if (response.html) {
+					currentCapturesList.innerHTML = response.html;
+				}
+			} catch (error) {
+				console.error("Error rendering current captures:", error);
+				currentCapturesList.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading captures</td></tr>';
+			}
 
 			if (currentCapturesCount) {
 				currentCapturesCount.textContent = captures.length;
 			}
 		} else {
-			window.HTMLInjectionManager.injectHTML(
-				currentCapturesList,
-				'<tr><td colspan="4" class="text-center text-muted">No captures in dataset</td></tr>',
-				{ escape: false },
-			);
+			currentCapturesList.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No captures in dataset</td></tr>';
 			if (currentCapturesCount) {
 				currentCapturesCount.textContent = "0";
 			}
@@ -302,7 +306,7 @@ class DatasetEditingHandler {
 	 * Populate current files list
 	 * @param {Array} files - Files data
 	 */
-	populateCurrentFilesList(files) {
+	async populateCurrentFilesList(files) {
 		// Use the existing selected-files-table from file_browser.html
 		const selectedFilesTable = document.getElementById("selected-files-table");
 		const selectedFilesBody = selectedFilesTable?.querySelector("tbody");
@@ -313,61 +317,65 @@ class DatasetEditingHandler {
 		if (!selectedFilesBody) return;
 
 		if (files && files.length > 0) {
-			// Show all files in the dataset, but only allow removal based on permissions
-			const rows = files
-				.map((file) => {
-					this.currentFiles.set(file.id, file);
+			// Normalize for generic table_rows template
+			const rows = files.map((file) => {
+				this.currentFiles.set(file.id, file);
 
-					// Permission logic: co-owners can remove anyone's files, contributors can only remove their own
-					const isOwnedByCurrentUser = file.owner_id === this.currentUserId;
-					const canRemoveThisFile =
-						this.permissions.canRemoveAnyAssets() ||
-						(this.permissions.canRemoveAsset(file) && isOwnedByCurrentUser);
-					const rowClass = !canRemoveThisFile ? "readonly-row" : "";
+				// Permission logic: co-owners can remove anyone's files, contributors can only remove their own
+				const isOwnedByCurrentUser = file.owner_id === this.currentUserId;
+				const canRemoveThisFile =
+					this.permissions.canRemoveAnyAssets() ||
+					(this.permissions.canRemoveAsset(file) && isOwnedByCurrentUser);
 
-					return window.HTMLInjectionManager.createTableRow(
-						file,
-						`
-					<tr data-file-id="${file.id}" class="current-file-row ${rowClass}">
-						<td>{{name}}</td>
-						<td>{{media_type}}</td>
-						<td>{{relative_path}}</td>
-						<td>{{size}}</td>
-						<td>{{owner_name}}</td>
-						${
-							canRemoveThisFile
-								? `
-							<td>
-								<button class="btn btn-sm btn-danger mark-for-removal-btn"
-										data-file-id="${file.id}"
-										data-file-type="file">
-									Remove
-								</button>
-							</td>
-						`
-								: '<td><span class="text-muted">N/A</span></td>'
+				return {
+					css_class: !canRemoveThisFile ? "readonly-row" : "",
+					data_attrs: { file_id: file.id },
+					cells: [
+						{ value: file.name },
+						{ value: file.media_type },
+						{ value: file.relative_path },
+						{ value: file.size },
+						{ value: file.owner_name }
+					],
+					actions: canRemoveThisFile ? [{
+						label: "Remove",
+						css_class: "btn-danger",
+						extra_class: "mark-for-removal-btn",
+						data_attrs: {
+							file_id: file.id,
+							file_type: "file"
 						}
-					</tr>
-				`,
-						{ escape: false },
-					);
-				})
-				.join("");
-
-			window.HTMLInjectionManager.injectHTML(selectedFilesBody, rows, {
-				escape: false,
+					}] : [
+						{ html: '<span class="text-muted">N/A</span>' }
+					]
+				};
 			});
+
+			// Render using generic table_rows template
+			try {
+				const response = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/table_rows.html",
+					context: {
+						rows: rows,
+						empty_message: "No files in dataset",
+						empty_colspan: 6
+					}
+				});
+
+				if (response.html) {
+					selectedFilesBody.innerHTML = response.html;
+				}
+			} catch (error) {
+				console.error("Error rendering current files:", error);
+				selectedFilesBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading files</td></tr>';
+			}
 
 			// Update the display input
 			if (selectedFilesDisplay) {
 				selectedFilesDisplay.value = `${files.length} file(s) selected`;
 			}
 		} else {
-			window.HTMLInjectionManager.injectHTML(
-				selectedFilesBody,
-				'<tr><td colspan="6" class="text-center text-muted">No files in dataset</td></tr>',
-				{ escape: false },
-			);
+			selectedFilesBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No files in dataset</td></tr>';
 			if (selectedFilesDisplay) {
 				selectedFilesDisplay.value = "0 file(s) selected";
 			}
@@ -582,48 +590,60 @@ class DatasetEditingHandler {
 	/**
 	 * Update pending captures list
 	 */
-	updatePendingCapturesList() {
+	async updatePendingCapturesList() {
 		const pendingList = document.getElementById("pending-captures-list");
 		const pendingCount = document.querySelector(".pending-changes-count");
 
 		const allChanges = Array.from(this.pendingCaptures.entries());
 
 		if (allChanges.length === 0) {
-			window.HTMLInjectionManager.injectHTML(
-				pendingList,
-				'<tr><td colspan="3" class="text-center text-muted">No pending capture changes</td></tr>',
-				{ escape: false },
-			);
+			pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No pending capture changes</td></tr>';
 			if (pendingCount) {
 				pendingCount.textContent = "0";
 			}
 			return;
 		}
 
-		const rows = allChanges
-			.map(([id, change]) => {
-				const badgeClass = change.action === "add" ? "bg-success" : "bg-danger";
-				const badgeText = change.action === "add" ? "Add" : "Remove";
+		// Normalize for generic table_rows template
+		const rows = allChanges.map(([id, change]) => ({
+			data_attrs: { change_id: id },
+			cells: [
+				{
+					html: `<span class="badge ${change.action === 'add' ? 'bg-success' : 'bg-danger'}">
+						${change.action === 'add' ? 'Add' : 'Remove'}
+					</span>`
+				},
+				{ value: change.data.type }
+			],
+			actions: [{
+				label: "Cancel",
+				css_class: "btn-secondary",
+				extra_class: "cancel-change",
+				data_attrs: {
+					capture_id: id,
+					change_type: "capture"
+				}
+			}]
+		}));
 
-				return `
-				<tr>
-					<td><span class="badge ${badgeClass}">${badgeText}</span></td>
-					<td>${window.HTMLInjectionManager.escapeHtml(change.data.type)}</td>
-					<td>
-						<button class="btn btn-sm btn-secondary cancel-change"
-								data-capture-id="${id}"
-								data-change-type="capture">
-							Cancel
-						</button>
-					</td>
-				</tr>
-			`;
-			})
-			.join("");
+		// Render using generic table_rows template
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/table_rows.html",
+				context: {
+					rows: rows,
+					empty_message: "No pending capture changes",
+					empty_colspan: 3
+				}
+			});
 
-		window.HTMLInjectionManager.injectHTML(pendingList, rows, {
-			escape: false,
-		});
+			if (response.html) {
+				pendingList.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering pending captures:", error);
+			pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading changes</td></tr>';
+		}
 
 		if (pendingCount) {
 			pendingCount.textContent = allChanges.length;
@@ -636,48 +656,60 @@ class DatasetEditingHandler {
 	/**
 	 * Update pending files list
 	 */
-	updatePendingFilesList() {
+	async updatePendingFilesList() {
 		const pendingList = document.getElementById("pending-files-list");
 		const pendingCount = document.querySelector(".pending-files-changes-count");
 
 		const allChanges = Array.from(this.pendingFiles.entries());
 
 		if (allChanges.length === 0) {
-			window.HTMLInjectionManager.injectHTML(
-				pendingList,
-				'<tr><td colspan="3" class="text-center text-muted">No pending file changes</td></tr>',
-				{ escape: false },
-			);
+			pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No pending file changes</td></tr>';
 			if (pendingCount) {
 				pendingCount.textContent = "0";
 			}
 			return;
 		}
 
-		const rows = allChanges
-			.map(([id, change]) => {
-				const badgeClass = change.action === "add" ? "bg-success" : "bg-danger";
-				const badgeText = change.action === "add" ? "Add" : "Remove";
+		// Normalize for generic table_rows template
+		const rows = allChanges.map(([id, change]) => ({
+			data_attrs: { change_id: id },
+			cells: [
+				{
+					html: `<span class="badge ${change.action === 'add' ? 'bg-success' : 'bg-danger'}">
+						${change.action === 'add' ? 'Add' : 'Remove'}
+					</span>`
+				},
+				{ value: change.data.name }
+			],
+			actions: [{
+				label: "Cancel",
+				css_class: "btn-secondary",
+				extra_class: "cancel-change",
+				data_attrs: {
+					file_id: id,
+					change_type: "file"
+				}
+			}]
+		}));
 
-				return `
-				<tr>
-					<td><span class="badge ${badgeClass}">${badgeText}</span></td>
-					<td>${window.HTMLInjectionManager.escapeHtml(change.data.name)}</td>
-					<td>
-						<button class="btn btn-sm btn-secondary cancel-change"
-								data-file-id="${id}"
-								data-change-type="file">
-							Cancel
-						</button>
-					</td>
-				</tr>
-			`;
-			})
-			.join("");
+		// Render using generic table_rows template
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/table_rows.html",
+				context: {
+					rows: rows,
+					empty_message: "No pending file changes",
+					empty_colspan: 3
+				}
+			});
 
-		window.HTMLInjectionManager.injectHTML(pendingList, rows, {
-			escape: false,
-		});
+			if (response.html) {
+				pendingList.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering pending files:", error);
+			pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading changes</td></tr>';
+		}
 
 		if (pendingCount) {
 			pendingCount.textContent = allChanges.length;
@@ -916,25 +948,6 @@ class DatasetEditingHandler {
 		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 	}
 
-	/**
-	 * Show element
-	 * @param {Element} container - Element to show
-	 * @param {string} showClass - CSS class to add
-	 */
-	show(container, showClass = "display-block") {
-		container.classList.remove("display-none");
-		container.classList.add(showClass);
-	}
-
-	/**
-	 * Hide element
-	 * @param {Element} container - Element to hide
-	 * @param {string} showClass - CSS class to remove
-	 */
-	hide(container, showClass = "display-block") {
-		container.classList.remove(showClass);
-		container.classList.add("display-none");
-	}
 
 	/**
 	 * Update hidden fields (no-op for editing mode)
@@ -1075,7 +1088,6 @@ class DatasetEditingHandler {
 		window.updateDatasetAuthors = (authorsField) =>
 			this.updateDatasetAuthors(authorsField);
 		window.formatAuthors = (authors) => this.formatAuthors(authors);
-		window.escapeHtml = (text) => window.HTMLInjectionManager.escapeHtml(text);
 
 		const authorsContainer = document.getElementById("authors-container");
 		const authorsList = authorsContainer?.querySelector(".authors-list");
@@ -1178,72 +1190,45 @@ class DatasetEditingHandler {
 		/**
 		 * Update authors display
 		 */
-		const updateAuthorsDisplay = () => {
-			// Clear the entire authors list
-			authorsList.innerHTML = "";
-			// Rebuild the display from the current authors array
-			for (const [index, author] of authors.entries()) {
-				const authorDiv = document.createElement("div");
-				authorDiv.className = "author-item mb-3 p-3 border rounded";
-				authorDiv.id = author._stableId;
+		const updateAuthorsDisplay = async () => {
+			try {
+				// Normalize authors for server-side rendering
+				const normalizedAuthors = authors.map((author, index) => {
+					const authorName = typeof author === "string" ? author : author.name || "";
+					const authorOrcid = typeof author === "string" ? "" : author.orcid_id || "";
+					const isMarkedForRemoval = authorChanges.removed.includes(index);
+					
+					// Use existing stable ID or generate one
+					const stableId = author._stableId || `author-${index}-${Date.now()}`;
+					
+					// Store stable ID back to author object
+					if (!author._stableId) {
+						author._stableId = stableId;
+					}
+					
+					return {
+						index: index,
+						name: authorName,
+						orcid_id: authorOrcid,
+						stable_id: stableId,
+						is_primary: index === 0,
+						is_marked_for_removal: isMarkedForRemoval
+					};
+				});
 
-				// Check if this author is marked for removal
-				const isMarkedForRemoval = authorChanges.removed.includes(index);
+				// Render using server-side template
+				const response = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/author_list_items.html",
+					context: { authors: normalizedAuthors }
+				});
 
-				// Apply visual styling for marked authors
-				if (isMarkedForRemoval) {
-					authorDiv.classList.add("marked-for-removal");
-					authorDiv.classList.add("border-danger");
+				if (response.html) {
+					authorsList.innerHTML = response.html;
 				}
-
-				const authorName =
-					typeof author === "string" ? author : author.name || "";
-				const authorOrcid =
-					typeof author === "string" ? "" : author.orcid_id || "";
-
-				authorDiv.innerHTML = `
-					<div class="position-relative">
-						<div class="d-flex justify-content-between align-items-start mb-2">
-							<div class="flex-grow-1">
-								<!-- Empty space for alignment -->
-							</div>
-							<div class="d-flex align-items-center gap-2">
-								${
-									index === 0
-										? '<span class="badge bg-primary">Primary</span><i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>'
-										: isMarkedForRemoval
-											? `<button type="button" class="btn btn-sm btn-outline-secondary cancel-remove-author" data-index="${index}" title="Cancel removal"><i class="bi bi-arrow-counterclockwise"></i></button>`
-											: `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="Mark for removal"><i class="bi bi-trash"></i></button>`
-								}
-							</div>
-						</div>
-						<div class="row g-2">
-							<div class="col-6">
-								<label class="form-label small">Author Name</label>
-								<input type="text"
-									   class="form-control author-name-input"
-									   value="${window.HTMLInjectionManager.escapeHtml(authorName)}"
-									   placeholder="Enter full name"
-									   ${index === 0 ? "readonly" : ""}
-									   ${isMarkedForRemoval ? "disabled" : ""}
-									   data-index="${index}"
-									   data-field="name">
-							</div>
-							<div class="col-6">
-								<label class="form-label small">ORCID ID</label>
-								<input type="text"
-									   class="form-control author-orcid-input"
-									   value="${window.HTMLInjectionManager.escapeHtml(authorOrcid)}"
-									   placeholder="0000-0000-0000-0000"
-									   ${index === 0 ? "readonly" : ""}
-									   ${isMarkedForRemoval ? "disabled" : ""}
-									   data-index="${index}"
-									   data-field="orcid_id">
-							</div>
-						</div>
-					</div>
-				`;
-				authorsList.appendChild(authorDiv);
+			} catch (error) {
+				console.error("Error rendering authors:", error);
+				// Fallback: show error message
+				authorsList.innerHTML = '<div class="alert alert-danger">Error loading authors</div>';
 			}
 
 			// Update hidden field
@@ -1251,9 +1236,11 @@ class DatasetEditingHandler {
 
 			// Show/hide add button based on permissions
 			if (addAuthorBtn) {
-				addAuthorBtn.style.display = this.permissions?.canEditMetadata
-					? ""
-					: "none";
+				if (this.permissions?.canEditMetadata) {
+					window.DOMUtils.show(addAuthorBtn);
+				} else {
+					window.DOMUtils.hide(addAuthorBtn);
+				}
 			}
 		};
 
@@ -1371,16 +1358,14 @@ class DatasetEditingHandler {
 		};
 
 		/**
-		 * Show notification using HTMLInjectionManager
+		 * Show notification using DOMUtils
 		 */
 		this.showNotification = (message, type = "info") => {
-			window.HTMLInjectionManager.showNotification(message, type, {
-				containerId: "formErrors",
-				autoHide: true,
-				autoHideDelay: 5000,
-				scrollTo: true,
-				replace: true,
-			});
+			if (window.showAlert) {
+				window.showAlert(message, type);
+			} else {
+				console.error("Global showAlert function not available");
+			}
 		};
 
 		// Event listeners
@@ -1551,7 +1536,7 @@ class DatasetEditingHandler {
 	/**
 	 * Update dataset authors with pending changes (for review display)
 	 */
-	updateDatasetAuthors(authorsField) {
+	async updateDatasetAuthors(authorsField) {
 		const authorsElement = document.querySelector(".dataset-authors");
 		if (!authorsElement) return;
 
@@ -1560,14 +1545,11 @@ class DatasetEditingHandler {
 			const originalAuthors =
 				window.datasetModeManager?.originalDatasetData?.authors || [];
 			const originalAuthorNames = this.formatAuthors(originalAuthors);
-			authorsElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalAuthorNames)}</span>`;
+			authorsElement.textContent = originalAuthorNames;
 			return;
 		}
 
 		try {
-			// Get all authors from form field
-			const allAuthors = JSON.parse(authorsField.value || "[]");
-
 			// Get current authors with DOM-based stable IDs
 			const currentAuthorsWithIds = this.getCurrentAuthorsWithDOMIds();
 			// Get original authors from DatasetModeManager's captured data
@@ -1576,53 +1558,76 @@ class DatasetEditingHandler {
 
 			// Format original authors for display
 			const originalAuthorNames = this.formatAuthors(originalAuthors);
-			// Always show original value in black
-			authorsElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalAuthorNames)}</span>`;
+			
+			// Always show original value
+			authorsElement.innerHTML = `<span class="current-value">${originalAuthorNames}</span>`;
 
 			// Calculate changes using DOM-based IDs
 			const changes = this.calculateAuthorChanges(
 				originalAuthors,
 				currentAuthorsWithIds,
 			);
-			// Add pending changes if there are any
+			
+			// If there are changes, request server-side rendering
 			if (changes.length > 0) {
-				const changesList =
-					authorsElement.querySelector(".pending-changes") ||
-					document.createElement("ul");
-				changesList.className = "pending-changes list-unstyled mt-2";
-				changesList.innerHTML = changes
-					.map((change) => {
+				try {
+					// Normalize for generic change_list template
+					const normalizedChanges = changes.map((change) => {
 						if (change.type === "add") {
-							return `<li class="text-success">
-							<i class="bi bi-plus-circle me-1"></i>
-							Add: <span class="text-success">${window.HTMLInjectionManager.escapeHtml(change.name)}</span>
-						</li>`;
+							return {
+								type: "add",
+								parts: [
+									{ text: "Add: " },
+									{ text: change.name, css_class: "text-success" }
+								]
+							};
+						} else if (change.type === "remove") {
+							return {
+								type: "remove",
+								parts: [
+									{ text: "Remove: " },
+									{ text: change.name, css_class: "text-danger" }
+								]
+							};
+						} else if (change.type === "change") {
+							return {
+								type: "change",
+								parts: [
+									{ text: 'Change Name: "' },
+									{ text: change.oldName },
+									{ text: '" → ' },
+									{ text: `"${change.newName}"`, css_class: "text-warning" }
+								]
+							};
 						}
-						if (change.type === "remove") {
-							return `<li class="text-danger">
-						<i class="bi bi-dash-circle me-1"></i>
-						Remove: <span class="text-danger">${window.HTMLInjectionManager.escapeHtml(change.name)}</span>
-					</li>`;
+						return change;
+					});
+
+					// Request server to render using generic change_list
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: { changes: normalizedChanges }
 						}
-						if (change.type === "change") {
-							return `<li class="text-warning">
-							<i class="bi bi-pencil me-1"></i>
-							Change Name: "${window.HTMLInjectionManager.escapeHtml(change.oldName)}" → <span class="text-warning">"${window.HTMLInjectionManager.escapeHtml(change.newName)}"</span>
-						</li>`;
-						}
-					})
-					.join("");
-				authorsElement.appendChild(changesList);
-			} else {
-				// Remove pending changes if no changes
-				const changesList = authorsElement.querySelector(".pending-changes");
-				if (changesList) {
-					changesList.remove();
+					);
+
+					// Insert the server-rendered HTML
+					if (response.html) {
+						authorsElement.insertAdjacentHTML('beforeend', response.html);
+					}
+				} catch (error) {
+					console.error("Error rendering author changes:", error);
+					// Fallback: show error message
+					authorsElement.insertAdjacentHTML(
+						'beforeend',
+						'<div class="text-danger mt-2"><small>Error loading changes</small></div>'
+					);
 				}
 			}
 		} catch (e) {
-			authorsElement.innerHTML =
-				'<span class="current-value">Error parsing authors.</span>';
+			console.error("Error in updateDatasetAuthors:", e);
+			authorsElement.innerHTML = '<span class="current-value">Error parsing authors.</span>';
 		}
 	}
 

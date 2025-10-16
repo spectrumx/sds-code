@@ -42,14 +42,15 @@ class ShareGroupManager {
 	 */
 	initializeCreateGroupForm() {
 		const createGroupForm = document.getElementById("createGroupForm");
-		if (createGroupForm) {
-			createGroupForm.addEventListener("submit", (e) => {
-				e.preventDefault();
-				this.handleCreateGroup(createGroupForm);
-			});
-		} else {
+		if (!createGroupForm) {
 			console.error("Create group form not found");
+			return;
 		}
+
+		createGroupForm.addEventListener("submit", (e) => {
+			e.preventDefault();
+			this.handleCreateGroup(createGroupForm);
+		});
 	}
 
 	/**
@@ -122,12 +123,12 @@ class ShareGroupManager {
 	 */
 	initializeAddMembersForm() {
 		const addMembersForm = document.getElementById("addMembersForm");
-		if (addMembersForm) {
-			addMembersForm.addEventListener("submit", (e) => {
-				e.preventDefault();
-				this.handleAddMembers(addMembersForm);
-			});
-		}
+		if (!addMembersForm) return;
+
+		addMembersForm.addEventListener("submit", (e) => {
+			e.preventDefault();
+			this.handleAddMembers(addMembersForm);
+		});
 	}
 
 	/**
@@ -443,9 +444,7 @@ class ShareGroupManager {
 				</td>
 			</tr>
 		`;
-		window.HTMLInjectionManager.injectHTML(membersList, loadingHtml, {
-			escape: false,
-		});
+		membersList.innerHTML = loadingHtml;
 
 		try {
 			const response = await window.APIClient.request(
@@ -458,74 +457,70 @@ class ShareGroupManager {
 			);
 
 			if (response.success) {
-				if (response.members.length === 0) {
-					// Clear member count for empty group
-					const memberCountElement = document.getElementById("memberCount");
-					if (memberCountElement) {
+				// Render members using generic table_rows template
+				try {
+					const rows = response.members.map(member => ({
+						cells: [{
+							html: `
+								<div class="row">
+									<div class="col-md-10">
+										<div>
+											<h5 class="mb-1">${member.name || 'No name'}</h5>
+											<p class="mb-0">
+												<small class="text-muted">${member.email}</small>
+											</p>
+										</div>
+									</div>
+								</div>
+							`
+						}],
+						actions: [{
+							label: "Remove",
+							icon: "bi-person-slash",
+							css_class: "btn-outline-danger",
+							extra_class: "remove-member-btn",
+							data_attrs: {
+								user_email: member.email,
+								user_name: member.name || 'No name'
+							},
+							onclick: `shareGroupManager.removeMemberFromGroup(event, '${member.email}', '${member.name || "No name"}')`
+						}]
+					}));
+
+					const renderResponse = await window.APIClient.post("/users/render-html/", {
+						template: "users/components/table_rows.html",
+						context: {
+							rows: rows,
+							empty_message: "No members in this group",
+							empty_colspan: 1
+						}
+					});
+
+					if (renderResponse.html) {
+						membersList.innerHTML = renderResponse.html;
+					}
+				} catch (renderError) {
+					console.error("Error rendering members:", renderError);
+					membersList.innerHTML = '<tr><td class="p-2 shadow-sm"><div class="text-center text-danger">Error loading members</div></td></tr>';
+				}
+
+				// Update member count
+				const memberCountElement = document.getElementById("memberCount");
+				if (memberCountElement) {
+					if (response.members.length > 0) {
+						memberCountElement.textContent = `${response.count} member${response.count !== 1 ? "s" : ""}`;
+					} else {
 						memberCountElement.textContent = "";
 					}
-
-					const emptyHtml = `
-						<tr>
-							<td class="p-2 shadow-sm">
-								<div class="text-center text-muted mb-1 mt-1">
-									<i class="bi bi-people"></i>
-									<p>No members in this group</p>
-								</div>
-							</td>
-						</tr>
-					`;
-					window.HTMLInjectionManager.injectHTML(membersList, emptyHtml, {
-						escape: false,
-					});
-				} else {
-					// Update the display list with table structure like share modal
-					const memberHtml = response.members
-						.map(
-							(member) => `
-								<tr>
-									<td class="p-2 shadow-sm">
-										<div class="row">
-											<div class="col-md-10">
-												<div>
-													<h5 class="mb-1">${member.name || "No name"}</h5>
-													<p class="mb-0">
-														<small class="text-muted">${member.email}</small>
-													</p>
-												</div>
-											</div>
-											<div class="col-md-2 d-flex justify-content-end align-items-center">
-												<button type="button"
-														class="btn btn-sm btn-outline-danger remove-member-btn"
-														data-user-email="${member.email}"
-														data-user-name="${member.name || "No name"}"
-														onclick="shareGroupManager.removeMemberFromGroup(event, '${member.email}', '${member.name || "No name"}')">
-													<i class="bi bi-person-slash me-1"></i>Remove
-												</button>
-											</div>
-										</div>
-									</td>
-								</tr>
-							`,
-						)
-						.join("");
-
-					window.HTMLInjectionManager.injectHTML(membersList, memberHtml, {
-						escape: false,
-					});
-
-					// Update member count above the title
-					const memberCountElement = document.getElementById("memberCount");
-					if (memberCountElement) {
-						memberCountElement.textContent = `${response.count} member${response.count !== 1 ? "s" : ""}`;
-					}
-
-					// Update table member info
-					this.updateTableMemberInfo(this.currentGroupUuid, response.members);
-
-					// Update save button state after loading members
-					this.updateSaveButtonState();
 				}
+
+				// Update table member info
+				if (response.members.length > 0) {
+					this.updateTableMemberInfo(this.currentGroupUuid, response.members);
+				}
+
+				// Update save button state after loading members
+				this.updateSaveButtonState();
 			} else {
 				const errorHtml = `
 					<div class="text-center text-danger">
@@ -533,9 +528,7 @@ class ShareGroupManager {
 						<p class="mb-0">Error loading members</p>
 					</div>
 				`;
-				window.HTMLInjectionManager.injectHTML(membersList, errorHtml, {
-					escape: false,
-				});
+				membersList.innerHTML = errorHtml;
 			}
 		} catch (error) {
 			const errorHtml = `
@@ -544,9 +537,7 @@ class ShareGroupManager {
 					<p class="mb-0">Error loading members</p>
 				</div>
 			`;
-			window.HTMLInjectionManager.injectHTML(membersList, errorHtml, {
-				escape: false,
-			});
+			membersList.innerHTML = errorHtml;
 		}
 	}
 
@@ -706,13 +697,7 @@ class ShareGroupManager {
 						</div>
 					</div>
 				`;
-				window.HTMLInjectionManager.injectHTML(
-					sharedAssetsSection,
-					sharedAssetsHtml,
-					{
-						escape: false,
-					},
-				);
+				sharedAssetsSection.innerHTML = sharedAssetsHtml;
 				sharedAssetsSection.classList.remove("d-none");
 			} else {
 				const noAssetsHtml = `
@@ -726,13 +711,7 @@ class ShareGroupManager {
 						</div>
 					</div>
 				`;
-				window.HTMLInjectionManager.injectHTML(
-					sharedAssetsSection,
-					noAssetsHtml,
-					{
-						escape: false,
-					},
-				);
+				sharedAssetsSection.innerHTML = noAssetsHtml;
 				sharedAssetsSection.classList.remove("d-none");
 			}
 		}
@@ -832,37 +811,22 @@ class ShareGroupManager {
 			},
 
 			// Display search results (adapted from ShareActionManager)
-			displayResults: (users, dropdown, query) => {
+			displayResults: async (users, dropdown, query) => {
 				const listGroup = dropdown.querySelector(".list-group");
 
-				if (users.length === 0) {
-					listGroup.innerHTML =
-						'<div class="list-group-item no-results">No users found</div>';
-				} else {
-					const items = users
-						.map((user) => {
-							const icon = "bi-person-fill text-primary";
-							const subtitle = `<div class="user-email">${this.highlightMatch(user.email, query)}</div>`;
-
-							return `
-							<div class="list-group-item"
-								 data-user-name="${window.HTMLInjectionManager.escapeHtml(user.name)}"
-								 data-user-email="${window.HTMLInjectionManager.escapeHtml(user.email)}">
-								<div class="user-search-item">
-									<div class="user-name">
-										<i class="bi ${icon} me-2"></i>
-										${this.highlightMatch(user.name, query)}
-									</div>
-									${subtitle}
-								</div>
-							</div>
-						`;
-						})
-						.join("");
-
-					window.HTMLInjectionManager.injectHTML(listGroup, items, {
-						escape: false,
+				// Use server-side rendering for user results
+				try {
+					const response = await window.APIClient.post("/users/render-html/", {
+						template: "users/components/user_search_results.html",
+						context: { users: users }
 					});
+
+					if (response.html) {
+						listGroup.innerHTML = response.html;
+					}
+				} catch (error) {
+					console.error("Error rendering user search results:", error);
+					listGroup.innerHTML = '<div class="list-group-item no-results">Error loading users</div>';
 				}
 
 				this.showDropdown(dropdown);
@@ -990,18 +954,17 @@ class ShareGroupManager {
 	 */
 
 	/**
-	 * Highlight search matches
+	 * Highlight search matches - No longer needed, server-side rendering handles this
 	 * @param {string} text - Text to highlight
 	 * @param {string} query - Search query
 	 * @returns {string} Highlighted text
+	 * @deprecated Server-side rendering now handles text display
 	 */
 	highlightMatch(text, query) {
-		if (!query) return window.HTMLInjectionManager.escapeHtml(text);
-		const regex = new RegExp(`(${query})`, "gi");
-		return window.HTMLInjectionManager.escapeHtml(text).replace(
-			regex,
-			"<mark>$1</mark>",
-		);
+		// This method is kept for backwards compatibility but is no longer used
+		// Server-side rendering via Django templates handles all HTML generation
+		console.warn("highlightMatch is deprecated, use server-side rendering instead");
+		return text;
 	}
 
 	/**
@@ -1320,20 +1283,20 @@ class ShareGroupManager {
 			memberCountElement.textContent = `${count} member${count !== 1 ? "s" : ""}`;
 		}
 
-		if (memberEmailsElement) {
-			if (members.length === 0) {
-				memberEmailsElement.style.display = "none";
-				memberEmailsElement.innerHTML = "";
-			} else {
-				memberEmailsElement.style.display = "block";
-				const emails = members.slice(0, 3).map((member) => member.email);
-				let emailsHtml = emails.join(", ");
-				if (members.length > 3) {
-					emailsHtml += `<span class="text-muted"> and ${members.length - 3} more</span>`;
-				}
-				memberEmailsElement.innerHTML = emailsHtml;
+	if (memberEmailsElement) {
+		if (members.length === 0) {
+			window.DOMUtils.hide(memberEmailsElement);
+			memberEmailsElement.innerHTML = "";
+		} else {
+			window.DOMUtils.show(memberEmailsElement);
+			const emails = members.slice(0, 3).map((member) => member.email);
+			let emailsHtml = emails.join(", ");
+			if (members.length > 3) {
+				emailsHtml += `<span class="text-muted"> and ${members.length - 3} more</span>`;
 			}
+			memberEmailsElement.innerHTML = emailsHtml;
 		}
+	}
 	}
 
 	/**
@@ -1393,22 +1356,22 @@ class ShareGroupManager {
 			}
 		}
 
-		// Update the count
-		memberCountElement.textContent = `${newCount} member${newCount !== 1 ? "s" : ""}`;
+	// Update the count
+	memberCountElement.textContent = `${newCount} member${newCount !== 1 ? "s" : ""}`;
 
-		// Update the emails display
-		if (newCount === 0) {
-			memberEmailsElement.style.display = "none";
-			memberEmailsElement.innerHTML = "";
-		} else {
-			memberEmailsElement.style.display = "block";
-			const displayEmails = newEmails.slice(0, 3);
-			let emailsHtml = displayEmails.join(", ");
-			if (newEmails.length > 3) {
-				emailsHtml += `<span class="text-muted"> and ${newEmails.length - 3} more</span>`;
-			}
-			memberEmailsElement.innerHTML = emailsHtml;
+	// Update the emails display
+	if (newCount === 0) {
+		window.DOMUtils.hide(memberEmailsElement);
+		memberEmailsElement.innerHTML = "";
+	} else {
+		window.DOMUtils.show(memberEmailsElement);
+		const displayEmails = newEmails.slice(0, 3);
+		let emailsHtml = displayEmails.join(", ");
+		if (newEmails.length > 3) {
+			emailsHtml += `<span class="text-muted"> and ${newEmails.length - 3} more</span>`;
 		}
+		memberEmailsElement.innerHTML = emailsHtml;
+	}
 	}
 
 	/**
@@ -1417,7 +1380,7 @@ class ShareGroupManager {
 	 * @param {string} type - Alert type (info, success, warning, error)
 	 */
 	showAlert(message, type = "info") {
-		// Use the global showAlert function from HTMLInjectionManager
+		// Use the global showAlert function from DOMUtils
 		if (window.showAlert) {
 			window.showAlert(message, type);
 		} else {
@@ -1491,18 +1454,16 @@ class ShareGroupManager {
 			</td>
 		`;
 
-		window.HTMLInjectionManager.injectHTML(newRow, newRowHtml, {
-			escape: false,
-		});
+		newRow.innerHTML = newRowHtml;
 
 		// Add the new row to the table
 		tableBody.appendChild(newRow);
 
-		// Hide the "no groups" message if it exists
-		const noGroupsMessage = document.querySelector(".text-center.py-5");
-		if (noGroupsMessage) {
-			noGroupsMessage.style.display = "none";
-		}
+	// Hide the "no groups" message if it exists
+	const noGroupsMessage = document.querySelector(".text-center.py-5");
+	if (noGroupsMessage) {
+		window.DOMUtils.hide(noGroupsMessage);
+	}
 	}
 
 	/**

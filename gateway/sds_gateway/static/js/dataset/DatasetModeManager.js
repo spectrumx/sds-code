@@ -180,9 +180,9 @@ class DatasetModeManager {
 
 		// Update submit button text for edit mode
 		const submitBtn = document.getElementById("submitForm");
-		if (submitBtn) {
-			submitBtn.textContent = "Update Dataset";
-		}
+		if (!submitBtn) return;
+
+		submitBtn.textContent = "Update Dataset";
 	}
 
 	/**
@@ -331,9 +331,9 @@ class DatasetModeManager {
 		// Update navigation buttons
 		if (this.prevBtn) {
 			if (this.currentStep === this.step1) {
-				this.prevBtn.style.display = "none";
+				window.HTMLInjectionManager.hide(this.prevBtn, "display-inline-block");
 			} else {
-				this.prevBtn.style.display = "inline-block";
+				window.HTMLInjectionManager.show(this.prevBtn, "display-inline-block");
 				this.prevBtn.disabled = false;
 			}
 		}
@@ -341,19 +341,28 @@ class DatasetModeManager {
 		if (this.nextBtn) {
 			if (this.isEditMode) {
 				// In edit mode, always show next button (no validation needed)
-				this.nextBtn.style.display =
-					this.currentStep < this.steps.length - 1 ? "inline-block" : "none";
+				if (this.currentStep < this.steps.length - 1) {
+					window.HTMLInjectionManager.show(this.nextBtn, "display-inline-block");
+				} else {
+					window.HTMLInjectionManager.hide(this.nextBtn, "display-inline-block");
+				}
 			} else {
 				// In create mode, validate current step before allowing next
-				this.nextBtn.style.display =
-					this.currentStep < this.steps.length - 1 ? "inline-block" : "none";
+				if (this.currentStep < this.steps.length - 1) {
+					window.HTMLInjectionManager.show(this.nextBtn, "display-inline-block");
+				} else {
+					window.HTMLInjectionManager.hide(this.nextBtn, "display-inline-block");
+				}
 			}
 		}
 
 		// Update submit button
 		if (this.submitBtn) {
-			this.submitBtn.style.display =
-				this.currentStep === this.steps.length - 1 ? "inline-block" : "none";
+			if (this.currentStep === this.steps.length - 1) {
+				window.HTMLInjectionManager.show(this.submitBtn, "display-inline-block");
+			} else {
+				window.HTMLInjectionManager.hide(this.submitBtn, "display-inline-block");
+			}
 		}
 	}
 
@@ -412,13 +421,13 @@ class DatasetModeManager {
 	/**
 	 * Update dataset name with pending changes
 	 */
-	updateDatasetName(nameField) {
+	async updateDatasetName(nameField) {
 		const nameElement = document.querySelector(".dataset-name");
 		if (!nameElement) return;
 
 		if (!nameField) {
 			if (this.isEditMode) {
-				nameElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(this.originalDatasetData?.name || "Untitled Dataset")}</span>`;
+				nameElement.textContent = this.originalDatasetData?.name || "Untitled Dataset";
 			}
 			return;
 		}
@@ -427,44 +436,52 @@ class DatasetModeManager {
 		const originalValue = this.originalDatasetData?.name || currentValue;
 
 		if (this.isEditMode) {
-			// Always show original value in black
-			nameElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
+			// Always show original value
+			const currentSpan = document.createElement("span");
+			currentSpan.className = "current-value";
+			currentSpan.textContent = originalValue;
+			nameElement.innerHTML = "";
+			nameElement.appendChild(currentSpan);
 
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
-				const changesList =
-					nameElement.querySelector(".pending-changes") ||
-					document.createElement("ul");
-				changesList.className = "pending-changes list-unstyled mt-2";
-				changesList.innerHTML = `
-					<li class="text-warning">
-						<i class="bi bi-pencil me-1"></i>
-						Change Name: "${window.HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${window.HTMLInjectionManager.escapeHtml(currentValue)}"</span>
-					</li>
-				`;
-				nameElement.appendChild(changesList);
-			} else {
-				// Remove pending changes if no changes
-				const changesList = nameElement.querySelector(".pending-changes");
-				if (changesList) {
-					changesList.remove();
+				try {
+					const response = await window.APIClient.post("/users/render-html/", {
+						template: "users/components/change_list.html",
+						context: {
+							changes: [{
+								type: "change",
+								parts: [
+									{ text: 'Change Name: "' },
+									{ text: originalValue },
+									{ text: '" → ' },
+									{ text: `"${currentValue}"`, css_class: "text-warning" }
+								]
+							}]
+						}
+					});
+					if (response.html) {
+						nameElement.insertAdjacentHTML('beforeend', response.html);
+					}
+				} catch (error) {
+					console.error("Error rendering name change:", error);
 				}
 			}
 		} else {
-			nameElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
+			nameElement.textContent = currentValue;
 		}
 	}
 
 	/**
 	 * Update dataset status with pending changes
 	 */
-	updateDatasetStatus(statusField) {
+	async updateDatasetStatus(statusField) {
 		const statusElement = document.querySelector(".dataset-status");
 		if (!statusElement) return;
 
 		if (!statusField) {
 			if (this.isEditMode) {
-				statusElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(this.originalDatasetData?.status || "Unknown")}</span>`;
+				statusElement.textContent = this.originalDatasetData?.status || "Unknown";
 			}
 			return;
 		}
@@ -474,44 +491,52 @@ class DatasetModeManager {
 		const originalValue = this.originalDatasetData?.status || currentValue;
 
 		if (this.isEditMode) {
-			// Always show original value in black
-			statusElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
+			// Always show original value
+			const currentSpan = document.createElement("span");
+			currentSpan.className = "current-value";
+			currentSpan.textContent = originalValue;
+			statusElement.innerHTML = "";
+			statusElement.appendChild(currentSpan);
 
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
-				const changesList =
-					statusElement.querySelector(".pending-changes") ||
-					document.createElement("ul");
-				changesList.className = "pending-changes list-unstyled mt-2";
-				changesList.innerHTML = `
-					<li class="text-warning">
-						<i class="bi bi-pencil me-1"></i>
-						Change Status: "${window.HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${window.HTMLInjectionManager.escapeHtml(currentValue)}"</span>
-					</li>
-				`;
-				statusElement.appendChild(changesList);
-			} else {
-				// Remove pending changes if no changes
-				const changesList = statusElement.querySelector(".pending-changes");
-				if (changesList) {
-					changesList.remove();
+				try {
+					const response = await window.APIClient.post("/users/render-html/", {
+						template: "users/components/change_list.html",
+						context: {
+							changes: [{
+								type: "change",
+								parts: [
+									{ text: 'Change Status: "' },
+									{ text: originalValue },
+									{ text: '" → ' },
+									{ text: `"${currentValue}"`, css_class: "text-warning" }
+								]
+							}]
+						}
+					});
+					if (response.html) {
+						statusElement.insertAdjacentHTML('beforeend', response.html);
+					}
+				} catch (error) {
+					console.error("Error rendering status change:", error);
 				}
 			}
 		} else {
-			statusElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
+			statusElement.textContent = currentValue;
 		}
 	}
 
 	/**
 	 * Update dataset description with pending changes
 	 */
-	updateDatasetDescription(descriptionField) {
+	async updateDatasetDescription(descriptionField) {
 		const descriptionElement = document.querySelector(".dataset-description");
 		if (!descriptionElement) return;
 
 		if (!descriptionField) {
 			if (this.isEditMode) {
-				descriptionElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(this.originalDatasetData?.description || "No description provided.")}</span>`;
+				descriptionElement.textContent = this.originalDatasetData?.description || "No description provided.";
 			}
 			return;
 		}
@@ -520,32 +545,39 @@ class DatasetModeManager {
 		const originalValue = this.originalDatasetData?.description || currentValue;
 
 		if (this.isEditMode) {
-			// Always show original value in black
-			descriptionElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(originalValue)}</span>`;
+			// Always show original value
+			const currentSpan = document.createElement("span");
+			currentSpan.className = "current-value";
+			currentSpan.textContent = originalValue;
+			descriptionElement.innerHTML = "";
+			descriptionElement.appendChild(currentSpan);
 
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
-				const changesList =
-					descriptionElement.querySelector(".pending-changes") ||
-					document.createElement("ul");
-				changesList.className = "pending-changes list-unstyled mt-2";
-				changesList.innerHTML = `
-					<li class="text-warning">
-						<i class="bi bi-pencil me-1"></i>
-						Change Description: "${window.HTMLInjectionManager.escapeHtml(originalValue)}" → <span class="text-warning">"${window.HTMLInjectionManager.escapeHtml(currentValue)}"</span>
-					</li>
-				`;
-				descriptionElement.appendChild(changesList);
-			} else {
-				// Remove pending changes if no changes
-				const changesList =
-					descriptionElement.querySelector(".pending-changes");
-				if (changesList) {
-					changesList.remove();
+				try {
+					const response = await window.APIClient.post("/users/render-html/", {
+						template: "users/components/change_list.html",
+						context: {
+							changes: [{
+								type: "change",
+								parts: [
+									{ text: 'Change Description: "' },
+									{ text: originalValue },
+									{ text: '" → ' },
+									{ text: `"${currentValue}"`, css_class: "text-warning" }
+								]
+							}]
+						}
+					});
+					if (response.html) {
+						descriptionElement.insertAdjacentHTML('beforeend', response.html);
+					}
+				} catch (error) {
+					console.error("Error rendering description change:", error);
 				}
 			}
 		} else {
-			descriptionElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(currentValue)}</span>`;
+			descriptionElement.textContent = currentValue;
 		}
 	}
 
@@ -606,7 +638,7 @@ class DatasetModeManager {
 	/**
 	 * Update pending changes for edit mode
 	 */
-	updatePendingChanges() {
+	async updatePendingChanges() {
 		if (!this.handler || typeof this.handler.getPendingChanges !== "function") {
 			return;
 		}
@@ -617,67 +649,81 @@ class DatasetModeManager {
 
 		if (!pendingTable) return;
 
-		// Clear existing rows
-		pendingTable.innerHTML = "";
-
-		// Count total changes
-		let totalChanges = 0;
+		// Normalize for generic table_rows template
+		const rows = [];
 
 		// Add capture changes
 		for (const [id, change] of pendingChanges.captures) {
-			const row = document.createElement("tr");
-			const badgeClass = change.action === "add" ? "bg-success" : "bg-danger";
-			const badgeText = change.action === "add" ? "Add" : "Remove";
-
-			row.innerHTML = `
-				<td>Capture</td>
-				<td><span class="badge ${badgeClass}">${badgeText}</span></td>
-				<td>${window.HTMLInjectionManager.escapeHtml(change.data.type || "Unknown")}</td>
-				<td>${window.HTMLInjectionManager.escapeHtml(change.data.directory || "")}</td>
-				<td>
-					<button class="btn btn-sm btn-outline-secondary cancel-change"
-							data-capture-id="${id}"
-							data-change-type="capture">
-						Cancel
-					</button>
-				</td>
-			`;
-			pendingTable.appendChild(row);
-			totalChanges++;
+			rows.push({
+				cells: [
+					{ value: "Capture" },
+					{
+						html: `<span class="badge ${change.action === 'add' ? 'bg-success' : 'bg-danger'}">
+							${change.action === 'add' ? 'Add' : 'Remove'}
+						</span>`
+					},
+					{ value: change.data.type || "Unknown" },
+					{ value: change.data.directory || "" }
+				],
+				actions: [{
+					label: "Cancel",
+					css_class: "btn-outline-secondary",
+					extra_class: "cancel-change",
+					data_attrs: {
+						capture_id: id,
+						change_type: "capture"
+					}
+				}]
+			});
 		}
 
 		// Add file changes
 		for (const [id, change] of pendingChanges.files) {
-			const row = document.createElement("tr");
-			const badgeClass = change.action === "add" ? "bg-success" : "bg-danger";
-			const badgeText = change.action === "add" ? "Add" : "Remove";
+			rows.push({
+				cells: [
+					{ value: "File" },
+					{
+						html: `<span class="badge ${change.action === 'add' ? 'bg-success' : 'bg-danger'}">
+							${change.action === 'add' ? 'Add' : 'Remove'}
+						</span>`
+					},
+					{ value: change.data.name || "Unknown" },
+					{ value: change.data.path || "" }
+				],
+				actions: [{
+					label: "Cancel",
+					css_class: "btn-outline-secondary",
+					extra_class: "cancel-change",
+					data_attrs: {
+						file_id: id,
+						change_type: "file"
+					}
+				}]
+			});
+		}
 
-			row.innerHTML = `
-				<td>File</td>
-				<td><span class="badge ${badgeClass}">${badgeText}</span></td>
-				<td>${window.HTMLInjectionManager.escapeHtml(change.data.name || "Unknown")}</td>
-				<td>${window.HTMLInjectionManager.escapeHtml(change.data.path || "")}</td>
-				<td>
-					<button class="btn btn-sm btn-outline-secondary cancel-change"
-							data-file-id="${id}"
-							data-change-type="file">
-						Cancel
-					</button>
-				</td>
-			`;
-			pendingTable.appendChild(row);
-			totalChanges++;
+		// Render using generic table_rows template
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/table_rows.html",
+				context: {
+					rows: rows,
+					empty_message: "No pending asset changes",
+					empty_colspan: 5
+				}
+			});
+
+			if (response.html) {
+				pendingTable.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering pending changes:", error);
+			pendingTable.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading changes</td></tr>';
 		}
 
 		// Update count
 		if (pendingCount) {
-			pendingCount.textContent = `${totalChanges} change${totalChanges !== 1 ? "s" : ""}`;
-		}
-
-		// Show empty message if no changes
-		if (totalChanges === 0) {
-			pendingTable.innerHTML =
-				'<tr><td colspan="5" class="text-center text-muted">No pending asset changes</td></tr>';
+			pendingCount.textContent = `${rows.length} change${rows.length !== 1 ? "s" : ""}`;
 		}
 	}
 
@@ -760,12 +806,13 @@ class DatasetModeManager {
 				: 0;
 			capturesCount.textContent = `${count} selected`;
 		}
-		if (filesCount) {
-			const count = this.handler?.selectedFiles
-				? this.handler.selectedFiles.size
-				: 0;
-			filesCount.textContent = `${count} selected`;
-		}
+
+		if (!filesCount) return;
+
+		const count = this.handler?.selectedFiles
+			? this.handler.selectedFiles.size
+			: 0;
+		filesCount.textContent = `${count} selected`;
 	}
 
 	/**
@@ -837,18 +884,16 @@ class DatasetModeManager {
 	updateActionButtonsForPermissions() {
 		// Share button
 		const shareButton = document.getElementById("share-dataset-btn");
-		if (shareButton) {
-			if (!this.permissions.canShare()) {
-				shareButton.style.display = "none";
-			}
+		if (shareButton && !this.permissions.canShare()) {
+			window.HTMLInjectionManager.hide(shareButton, "display-inline-block");
 		}
 
 		// Download button
 		const downloadButton = document.getElementById("download-dataset-btn");
-		if (downloadButton) {
-			if (!this.permissions.canDownload()) {
-				downloadButton.style.display = "none";
-			}
+		if (!downloadButton) return;
+
+		if (!this.permissions.canDownload()) {
+			window.HTMLInjectionManager.hide(downloadButton, "display-inline-block");
 		}
 	}
 

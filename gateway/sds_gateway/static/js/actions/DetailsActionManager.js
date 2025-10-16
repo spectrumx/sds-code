@@ -58,7 +58,7 @@ class DetailsActionManager {
 		for (const button of detailsButtons) {
 			// Prevent duplicate event listener attachment
 			if (button.dataset.detailsSetup === "true") {
-				return;
+				continue;
 			}
 			button.dataset.detailsSetup = "true";
 
@@ -424,11 +424,7 @@ class DetailsActionManager {
 		if (!authorsContainer) return;
 
 		if (!authors || authors.length === 0) {
-			window.HTMLInjectionManager.injectHTML(
-				authorsContainer,
-				'<span class="text-muted">No authors specified</span>',
-				{ escape: false },
-			);
+			authorsContainer.innerHTML = '<span class="text-muted">No authors specified</span>';
 			return;
 		}
 
@@ -441,10 +437,7 @@ class DetailsActionManager {
 			})
 			.join(", ");
 
-		window.HTMLInjectionManager.injectHTML(
-			authorsContainer,
-			window.HTMLInjectionManager.escapeHtml(authorsText),
-		);
+		authorsContainer.textContent = authorsText; // textContent auto-escapes
 	}
 
 	/**
@@ -452,38 +445,23 @@ class DetailsActionManager {
 	 * @param {Element} modal - Modal element
 	 * @param {Array} captures - Captures array
 	 */
-	updateCapturesTable(modal, captures) {
+	async updateCapturesTable(modal, captures) {
 		const tableBody = modal.querySelector("#dataset-captures-table tbody");
 		if (!tableBody) return;
 
-		if (captures.length === 0) {
-			window.HTMLInjectionManager.injectHTML(
-				tableBody,
-				'<tr><td colspan="5" class="text-center text-muted">No captures in dataset</td></tr>',
-				{ escape: false },
-			);
-			return;
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/modal_captures_table.html",
+				context: { captures: captures }
+			});
+
+			if (response.html) {
+				tableBody.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering captures table:", error);
+			tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading captures</td></tr>';
 		}
-
-		const rows = captures
-			.map((capture) => {
-				return window.HTMLInjectionManager.createTableRow(
-					capture,
-					`
-				<tr>
-					<td>{{type}}</td>
-					<td>{{directory}}</td>
-					<td>{{channel}}</td>
-					<td>{{scan_group}}</td>
-					<td>{{created_at}}</td>
-				</tr>
-			`,
-					{ dateFormat: "en-US" },
-				);
-			})
-			.join("");
-
-		window.HTMLInjectionManager.injectHTML(tableBody, rows, { escape: false });
 	}
 
 	/**
@@ -491,36 +469,23 @@ class DetailsActionManager {
 	 * @param {Element} modal - Modal element
 	 * @param {Array} files - Files array
 	 */
-	updateFilesTable(modal, files) {
+	async updateFilesTable(modal, files) {
 		const tableBody = modal.querySelector("#dataset-files-table tbody");
 		if (!tableBody) return;
 
-		if (files.length === 0) {
-			window.HTMLInjectionManager.injectHTML(
-				tableBody,
-				'<tr><td colspan="4" class="text-center text-muted">No files in dataset</td></tr>',
-				{ escape: false },
-			);
-			return;
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/modal_files_table.html",
+				context: { files: files }
+			});
+
+			if (response.html) {
+				tableBody.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering files table:", error);
+			tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading files</td></tr>';
 		}
-
-		const rows = files
-			.map((file) => {
-				return window.HTMLInjectionManager.createTableRow(
-					file,
-					`
-				<tr>
-					<td>{{name}}</td>
-					<td>{{media_type}}</td>
-					<td>{{relative_path}}</td>
-					<td>{{size}}</td>
-				</tr>
-			`,
-				);
-			})
-			.join("");
-
-		window.HTMLInjectionManager.injectHTML(tableBody, rows, { escape: false });
 	}
 
 	/**
@@ -528,47 +493,30 @@ class DetailsActionManager {
 	 * @param {Element} modal - Modal element
 	 * @param {Array} permissions - Permissions array
 	 */
-	updatePermissionsSection(modal, permissions) {
+	async updatePermissionsSection(modal, permissions) {
 		const permissionsContainer = modal.querySelector("#dataset-permissions");
 		if (!permissionsContainer) return;
 
-		if (permissions.length === 0) {
-			window.HTMLInjectionManager.injectHTML(
-				permissionsContainer,
-				'<span class="text-muted">No shared permissions</span>',
-				{ escape: false },
-			);
-			return;
+		try {
+			// Normalize permissions with badge class and display name
+			const normalizedPermissions = permissions.map(permission => ({
+				...permission,
+				badge_class: this.permissions.getPermissionBadgeClass(permission.permission_level),
+				display_name: this.permissions.getPermissionDisplayName(permission.permission_level)
+			}));
+
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/modal_permissions.html",
+				context: { permissions: normalizedPermissions }
+			});
+
+			if (response.html) {
+				permissionsContainer.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering permissions:", error);
+			permissionsContainer.innerHTML = '<span class="text-danger">Error loading permissions</span>';
 		}
-
-		const permissionsHtml = permissions
-			.map((permission) => {
-				const badgeClass = this.permissions.getPermissionBadgeClass(
-					permission.permission_level,
-				);
-				const displayName = this.permissions.getPermissionDisplayName(
-					permission.permission_level,
-				);
-				const userInfo = permission.user_name
-					? `${window.HTMLInjectionManager.escapeHtml(permission.user_name)} (${window.HTMLInjectionManager.escapeHtml(permission.user_email)})`
-					: window.HTMLInjectionManager.escapeHtml(permission.user_email);
-
-				return `
-				<div class="d-flex justify-content-between align-items-center mb-2">
-					<span>${userInfo}</span>
-					<span class="badge ${badgeClass}">${displayName}</span>
-				</div>
-			`;
-			})
-			.join("");
-
-		window.HTMLInjectionManager.injectHTML(
-			permissionsContainer,
-			permissionsHtml,
-			{
-				escape: false,
-			},
-		);
 	}
 
 	/**
@@ -576,7 +524,7 @@ class DetailsActionManager {
 	 * @param {Element} modal - Modal element
 	 * @param {Object} captureData - Capture data
 	 */
-	updateTechnicalDetails(modal, captureData) {
+	async updateTechnicalDetails(modal, captureData) {
 		const technicalDetails = modal.querySelector("#capture-technical-details");
 		if (!technicalDetails) return;
 
@@ -598,18 +546,18 @@ class DetailsActionManager {
 			details.push(`Duration: ${captureData.duration_seconds} seconds`);
 		}
 
-		if (details.length === 0) {
-			window.HTMLInjectionManager.injectHTML(
-				technicalDetails,
-				'<span class="text-muted">No technical details available</span>',
-				{ escape: false },
-			);
-		} else {
-			window.HTMLInjectionManager.injectHTML(
-				technicalDetails,
-				`<ul class="list-unstyled mb-0">${details.map((detail) => `<li>${window.HTMLInjectionManager.escapeHtml(detail)}</li>`).join("")}</ul>`,
-				{ escape: false },
-			);
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/modal_technical_details.html",
+				context: { details: details }
+			});
+
+			if (response.html) {
+				technicalDetails.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering technical details:", error);
+			technicalDetails.innerHTML = '<span class="text-danger">Error loading details</span>';
 		}
 	}
 
@@ -621,36 +569,36 @@ class DetailsActionManager {
 	updateActionButtons(modal, datasetData) {
 		// Share button
 		const shareButton = modal.querySelector("#share-dataset-btn");
-		if (shareButton) {
-			if (!this.permissions.canShare()) {
-				shareButton.style.display = "none";
-			} else {
-				shareButton.style.display = "inline-block";
-				shareButton.setAttribute("data-dataset-uuid", datasetData.uuid);
-			}
+		if (!shareButton) {
+			// Continue to next button
+		} else if (!this.permissions.canShare()) {
+			window.DOMUtils.hide(shareButton, "display-inline-block");
+		} else {
+			window.DOMUtils.show(shareButton, "display-inline-block");
+			shareButton.setAttribute("data-dataset-uuid", datasetData.uuid);
 		}
 
 		// Download button
 		const downloadButton = modal.querySelector("#download-dataset-btn");
-		if (downloadButton) {
-			if (!this.permissions.canDownload()) {
-				downloadButton.style.display = "none";
-			} else {
-				downloadButton.style.display = "inline-block";
-				downloadButton.setAttribute("data-dataset-uuid", datasetData.uuid);
-				downloadButton.setAttribute("data-dataset-name", datasetData.name);
-			}
+		if (!downloadButton) {
+			// Continue to next button
+		} else if (!this.permissions.canDownload()) {
+			window.DOMUtils.hide(downloadButton, "display-inline-block");
+		} else {
+			window.DOMUtils.show(downloadButton, "display-inline-block");
+			downloadButton.setAttribute("data-dataset-uuid", datasetData.uuid);
+			downloadButton.setAttribute("data-dataset-name", datasetData.name);
 		}
 
 		// Edit button
 		const editButton = modal.querySelector("#edit-dataset-btn");
-		if (editButton) {
-			if (!this.permissions.canEditMetadata()) {
-				editButton.style.display = "none";
-			} else {
-				editButton.style.display = "inline-block";
-				editButton.href = `/users/edit-dataset/${datasetData.uuid}/`;
-			}
+		if (!editButton) return;
+
+		if (!this.permissions.canEditMetadata()) {
+			window.DOMUtils.hide(editButton, "display-inline-block");
+		} else {
+			window.DOMUtils.show(editButton, "display-inline-block");
+			editButton.href = `/users/edit-dataset/${datasetData.uuid}/`;
 		}
 	}
 
@@ -662,25 +610,25 @@ class DetailsActionManager {
 	updateCaptureActionButtons(modal, captureData) {
 		// Download button
 		const downloadButton = modal.querySelector("#download-capture-btn");
-		if (downloadButton) {
-			if (!this.permissions.canDownload()) {
-				downloadButton.style.display = "none";
-			} else {
-				downloadButton.style.display = "inline-block";
-				downloadButton.setAttribute("data-capture-uuid", captureData.uuid);
-				downloadButton.setAttribute("data-capture-name", captureData.name);
-			}
+		if (!downloadButton) {
+			// Continue to next button
+		} else if (!this.permissions.canDownload()) {
+			window.DOMUtils.hide(downloadButton, "display-inline-block");
+		} else {
+			window.DOMUtils.show(downloadButton, "display-inline-block");
+			downloadButton.setAttribute("data-capture-uuid", captureData.uuid);
+			downloadButton.setAttribute("data-capture-name", captureData.name);
 		}
 
 		// Visualize button
 		const visualizeButton = modal.querySelector("#visualize-capture-btn");
-		if (visualizeButton) {
-			if (!this.permissions.canView()) {
-				visualizeButton.style.display = "none";
-			} else {
-				visualizeButton.style.display = "inline-block";
-				visualizeButton.setAttribute("data-capture-uuid", captureData.uuid);
-			}
+		if (!visualizeButton) return;
+
+		if (!this.permissions.canView()) {
+			window.DOMUtils.hide(visualizeButton, "display-inline-block");
+		} else {
+			window.DOMUtils.show(visualizeButton, "display-inline-block");
+			visualizeButton.setAttribute("data-capture-uuid", captureData.uuid);
 		}
 	}
 
@@ -701,12 +649,13 @@ class DetailsActionManager {
 
 			const loadingHtml = `
 				<div class="text-center py-4">
-					${window.HTMLInjectionManager.createLoadingSpinner("Loading details...", { size: "lg" })}
+					<div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+						<span class="visually-hidden">Loading details...</span>
+					</div>
+					<p class="mt-3 text-muted">Loading details...</p>
 				</div>
 			`;
-			window.HTMLInjectionManager.injectHTML(modalBody, loadingHtml, {
-				escape: false,
-			});
+			modalBody.innerHTML = loadingHtml;
 		}
 	}
 
@@ -721,11 +670,7 @@ class DetailsActionManager {
 		const modalBody = modal.querySelector(".modal-body");
 		if (modalBody?.dataset.originalContent) {
 			// Restore original content
-			window.HTMLInjectionManager.injectHTML(
-				modalBody,
-				modalBody.dataset.originalContent,
-				{ escape: false },
-			);
+			modalBody.innerHTML = modalBody.dataset.originalContent;
 			// Clean up the stored content
 			delete modalBody.dataset.originalContent;
 		}
@@ -736,21 +681,30 @@ class DetailsActionManager {
 	 * @param {string} modalId - Modal ID
 	 * @param {string} message - Error message
 	 */
-	showModalError(modalId, message) {
+	async showModalError(modalId, message) {
 		const modal = document.getElementById(modalId);
 		if (!modal) return;
 
 		const modalBody = modal.querySelector(".modal-body");
 		if (modalBody) {
-			const errorHtml = `
-				<div class="alert alert-danger" role="alert">
-					<i class="bi bi-exclamation-triangle me-2"></i>
-					${window.HTMLInjectionManager.escapeHtml(message)}
-				</div>
-			`;
-			window.HTMLInjectionManager.injectHTML(modalBody, errorHtml, {
-				escape: false,
-			});
+			try {
+				const response = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/error_alert.html",
+					context: {
+						message: message,
+						alert_type: "danger",
+						icon: "exclamation-triangle"
+					}
+				});
+
+				if (response.html) {
+					modalBody.innerHTML = response.html;
+				}
+			} catch (error) {
+				console.error("Error rendering error message:", error);
+				// Fallback
+				modalBody.textContent = message;
+			}
 		}
 
 		// Show modal even with error
@@ -763,10 +717,10 @@ class DetailsActionManager {
 	 */
 	openModal(modalId) {
 		const modal = document.getElementById(modalId);
-		if (modal) {
-			const bootstrapModal = new bootstrap.Modal(modal);
-			bootstrapModal.show();
-		}
+		if (!modal) return;
+
+		const bootstrapModal = new bootstrap.Modal(modal);
+		bootstrapModal.show();
 	}
 
 	/**
@@ -775,12 +729,12 @@ class DetailsActionManager {
 	 */
 	closeModal(modalId) {
 		const modal = document.getElementById(modalId);
-		if (modal) {
-			const bootstrapModal = bootstrap.Modal.getInstance(modal);
-			if (bootstrapModal) {
-				bootstrapModal.hide();
-			}
-		}
+		if (!modal) return;
+
+		const bootstrapModal = bootstrap.Modal.getInstance(modal);
+		if (!bootstrapModal) return;
+
+		bootstrapModal.hide();
 	}
 
 	/**
@@ -849,85 +803,73 @@ class DetailsActionManager {
 	 * @param {Element} modal - Modal element
 	 * @param {Object} tree - File tree data
 	 */
-	updateFileTree(modal, tree) {
+	async updateFileTree(modal, tree) {
 		const tableBody = modal.querySelector("#dataset-file-tree-table tbody");
 		if (!tableBody || !tree) return;
 
-		// Clear existing content
-		tableBody.innerHTML = "";
+		// Build normalized rows for server-side rendering
+		const rows = this.buildTreeRows(tree, 0);
 
-		// Render the tree structure
-		const rows = this.renderTreeNode(tree, 0);
-
-		if (rows.length === 0) {
-			window.HTMLInjectionManager.injectHTML(
-				tableBody,
-				'<tr><td colspan="5" class="text-center text-muted py-4">No files found</td></tr>',
-				{ escape: false },
-			);
-		} else {
-			window.HTMLInjectionManager.injectHTML(tableBody, rows.join(""), {
-				escape: false,
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/modal_file_tree.html",
+				context: { rows: rows }
 			});
+
+			if (response.html) {
+				tableBody.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering file tree:", error);
+			tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading file tree</td></tr>';
 		}
 	}
 
 	/**
-	 * Render a tree node and its children recursively
+	 * Build tree rows for server-side rendering
 	 * @param {Object} node - Tree node
 	 * @param {number} depth - Current depth for indentation
-	 * @returns {Array<string>} Array of HTML row strings
+	 * @returns {Array<Object>} Array of row objects for template
 	 */
-	renderTreeNode(node, depth = 0) {
+	buildTreeRows(node, depth = 0) {
 		const rows = [];
-		const indent = "&nbsp;".repeat(depth * 4);
 
-		// Render files in this directory first
+		// Add files in this directory first
 		if (node.files && Array.isArray(node.files)) {
 			for (const file of node.files) {
-				const icon = '<i class="bi bi-file-earmark text-primary"></i>';
-				const name = `${indent}${icon} ${window.HTMLInjectionManager.escapeHtml(file.name)}`;
-				const type = window.HTMLInjectionManager.escapeHtml(
-					file.media_type || file.type || "File",
-				);
-				const size = this.formatFileSize(file.size || 0);
-				const createdAt = this.formatDate(file.created_at);
-
-				rows.push(`
-					<tr>
-						<td></td>
-						<td>${name}</td>
-						<td>${type}</td>
-						<td>${size}</td>
-						<td>${createdAt}</td>
-					</tr>
-				`);
+				rows.push({
+					indent_level: depth,
+					indent_range: [...Array(depth).keys()], // For template loop
+					icon: "bi-file-earmark",
+					icon_color: "text-primary",
+					name: file.name,
+					type: file.media_type || file.type || "File",
+					size: this.formatFileSize(file.size || 0),
+					created_at: this.formatDate(file.created_at),
+					has_chevron: false
+				});
 			}
 		}
 
-		// Render child directories
+		// Add child directories
 		if (node.children && typeof node.children === "object") {
 			for (const childNode of Object.values(node.children)) {
 				if (childNode.type === "directory") {
-					// Render directory row
-					const icon = '<i class="bi bi-folder text-warning"></i>';
-					const name = `${indent}${icon} ${window.HTMLInjectionManager.escapeHtml(childNode.name)}/`;
-					const type = "Directory";
-					const size = this.formatFileSize(childNode.size || 0);
-					const createdAt = this.formatDate(childNode.created_at);
+					// Add directory row
+					rows.push({
+						indent_level: depth,
+						indent_range: [...Array(depth).keys()], // For template loop
+						icon: "bi-folder",
+						icon_color: "text-warning",
+						name: childNode.name + "/",
+						type: "Directory",
+						size: this.formatFileSize(childNode.size || 0),
+						created_at: this.formatDate(childNode.created_at),
+						has_chevron: true
+					});
 
-					rows.push(`
-						<tr>
-							<td><i class="bi bi-chevron-down text-muted"></i></td>
-							<td>${name}</td>
-							<td>${type}</td>
-							<td>${size}</td>
-							<td>${createdAt}</td>
-						</tr>
-					`);
-
-					// Recursively render children
-					const childRows = this.renderTreeNode(childNode, depth + 1);
+					// Recursively add children
+					const childRows = this.buildTreeRows(childNode, depth + 1);
 					rows.push(...childRows);
 				}
 			}

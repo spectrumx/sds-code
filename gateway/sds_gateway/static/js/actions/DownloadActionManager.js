@@ -107,60 +107,60 @@ class DownloadActionManager {
 
 		// Handle confirm download
 		const confirmBtn = document.getElementById("confirmDownloadBtn");
-		if (confirmBtn) {
-			// Remove any existing event listeners
-			const newConfirmBtn = confirmBtn.cloneNode(true);
-			confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+		if (!confirmBtn) return;
 
-			newConfirmBtn.onclick = async () => {
-				// Close modal first
-				this.closeCustomModal("downloadModal");
+		// Remove any existing event listeners
+		const newConfirmBtn = confirmBtn.cloneNode(true);
+		confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
-				// Show loading state
-				const originalContent = button.innerHTML;
-				button.innerHTML =
-					window.HTMLInjectionManager.createLoadingSpinner("Processing...");
-				button.disabled = true;
+		newConfirmBtn.onclick = async () => {
+			// Close modal first
+			this.closeCustomModal("downloadModal");
 
-				try {
-					const response = await window.APIClient.post(
-						`/users/download-item/dataset/${datasetUuid}/`,
-						{},
+			// Show loading state
+			const originalContent = button.innerHTML;
+			button.innerHTML =
+				window.HTMLInjectionManager.createLoadingSpinner("Processing...");
+			button.disabled = true;
+
+			try {
+				const response = await window.APIClient.post(
+					`/users/download-item/dataset/${datasetUuid}/`,
+					{},
+				);
+
+				if (response.success === true) {
+					button.innerHTML =
+						'<i class="bi bi-check-circle text-success"></i> Download Requested';
+					this.showToast(
+						response.message ||
+							"Download request submitted successfully! You will receive an email when ready.",
+						"success",
 					);
-
-					if (response.success === true) {
-						button.innerHTML =
-							'<i class="bi bi-check-circle text-success"></i> Download Requested';
-						this.showToast(
-							response.message ||
-								"Download request submitted successfully! You will receive an email when ready.",
-							"success",
-						);
-					} else {
-						button.innerHTML =
-							'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-						this.showToast(
-							response.message || "Download request failed. Please try again.",
-							"danger",
-						);
-					}
-				} catch (error) {
-					console.error("Download error:", error);
+				} else {
 					button.innerHTML =
 						'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
 					this.showToast(
-						error.message || "An error occurred while processing your request.",
+						response.message || "Download request failed. Please try again.",
 						"danger",
 					);
-				} finally {
-					// Reset button after 3 seconds
-					setTimeout(() => {
-						button.innerHTML = originalContent;
-						button.disabled = false;
-					}, 3000);
 				}
-			};
-		}
+			} catch (error) {
+				console.error("Download error:", error);
+				button.innerHTML =
+					'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+				this.showToast(
+					error.message || "An error occurred while processing your request.",
+					"danger",
+				);
+			} finally {
+				// Reset button after 3 seconds
+				setTimeout(() => {
+					button.innerHTML = originalContent;
+					button.disabled = false;
+				}, 3000);
+			}
+		};
 	}
 
 	/**
@@ -171,60 +171,61 @@ class DownloadActionManager {
 	 */
 	async handleCaptureDownload(captureUuid, captureName, button) {
 		// Use the web download modal (same as datasets)
-		if (window.showWebDownloadModal) {
-			// Update modal content for capture
-			const modalTitleElement = document.getElementById(
-				"webDownloadModalLabel",
-			);
-			const modalNameElement = document.getElementById(
-				"webDownloadDatasetName",
-			);
-			const confirmBtn = document.getElementById("confirmWebDownloadBtn");
-
-			if (modalTitleElement) {
-				modalTitleElement.innerHTML =
-					'<i class="bi bi-download"></i> Download Capture';
-			}
-
-			if (modalNameElement) {
-				modalNameElement.textContent = captureName || "Unnamed Capture";
-			}
-
-			if (confirmBtn) {
-				// Update button text for capture
-				confirmBtn.innerHTML =
-					'<i class="bi bi-download"></i> Yes, Download Capture';
-
-				// Update the dataset UUID to capture UUID for the API call
-				confirmBtn.dataset.datasetUuid = captureUuid;
-				confirmBtn.dataset.datasetName = captureName;
-
-				// Override the API endpoint for captures by temporarily modifying the fetch URL
-				const originalFetch = window.fetch;
-				window.fetch = (url, options) => {
-					const modifiedUrl = url.includes(
-						`/users/download-item/dataset/${captureUuid}/`,
-					)
-						? `/users/download-item/capture/${captureUuid}/`
-						: url;
-					return originalFetch(modifiedUrl, options);
-				};
-
-				// Restore fetch after modal is hidden
-				const modal = document.getElementById("webDownloadModal");
-				const restoreFetch = () => {
-					window.fetch = originalFetch;
-					modal.removeEventListener("hidden.bs.modal", restoreFetch);
-				};
-				modal.addEventListener("hidden.bs.modal", restoreFetch);
-			}
-
-			// Show the modal
-			window.showWebDownloadModal(captureUuid, captureName);
-		} else {
+		if (!window.showWebDownloadModal) {
 			console.error("Web download modal not available");
 			this.showToast("Download functionality not available", "error");
+			return;
 		}
+
+		// Update modal content for capture
+		const modalTitleElement = document.getElementById(
+			"webDownloadModalLabel",
+		);
+		const modalNameElement = document.getElementById(
+			"webDownloadDatasetName",
+		);
+		const confirmBtn = document.getElementById("confirmWebDownloadBtn");
+
+		if (modalTitleElement) {
+			modalTitleElement.innerHTML =
+				'<i class="bi bi-download"></i> Download Capture';
+		}
+
+		if (modalNameElement) {
+			modalNameElement.textContent = captureName || "Unnamed Capture";
+		}
+
+		if (confirmBtn) {
+			// Update button text for capture
+			confirmBtn.innerHTML =
+				'<i class="bi bi-download"></i> Yes, Download Capture';
+
+			// Update the dataset UUID to capture UUID for the API call
+			confirmBtn.dataset.datasetUuid = captureUuid;
+			confirmBtn.dataset.datasetName = captureName;
+
+			// Override the API endpoint for captures by temporarily modifying the fetch URL
+			const originalFetch = window.fetch;
+			window.fetch = (url, options) => {
+				const modifiedUrl = url.includes(
+					`/users/download-item/dataset/${captureUuid}/`,
+				)
+					? `/users/download-item/capture/${captureUuid}/`
+					: url;
+				return originalFetch(modifiedUrl, options);
+			};
+
+			// Restore fetch after modal is hidden
+			const modal = document.getElementById("webDownloadModal");
+			const restoreFetch = () => {
+				window.fetch = originalFetch;
+				modal.removeEventListener("hidden.bs.modal", restoreFetch);
+			};
+			modal.addEventListener("hidden.bs.modal", restoreFetch);
+		}
+
+		// Show the modal
+		window.showWebDownloadModal(captureUuid, captureName);
 	}
 
 	/**
@@ -233,10 +234,10 @@ class DownloadActionManager {
 	 */
 	openCustomModal(modalId) {
 		const modal = document.getElementById(modalId);
-		if (modal) {
-			const bootstrapModal = new bootstrap.Modal(modal);
-			bootstrapModal.show();
-		}
+		if (!modal) return;
+
+		const bootstrapModal = new bootstrap.Modal(modal);
+		bootstrapModal.show();
 	}
 
 	/**
@@ -245,12 +246,12 @@ class DownloadActionManager {
 	 */
 	closeCustomModal(modalId) {
 		const modal = document.getElementById(modalId);
-		if (modal) {
-			const bootstrapModal = bootstrap.Modal.getInstance(modal);
-			if (bootstrapModal) {
-				bootstrapModal.hide();
-			}
-		}
+		if (!modal) return;
+
+		const bootstrapModal = bootstrap.Modal.getInstance(modal);
+		if (!bootstrapModal) return;
+
+		bootstrapModal.hide();
 	}
 
 	/**
