@@ -88,6 +88,7 @@ from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.navigation_models import NavigationContext
 from sds_gateway.users.navigation_models import NavigationType
 from sds_gateway.users.utils import deduplicate_composite_captures
+from sds_gateway.users.utils import render_html_fragment
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 from sds_gateway.visualizations.config import get_visualization_compatibility
 
@@ -2496,17 +2497,6 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
         
         Returns:
             JsonResponse with rendered HTML
-            
-        Example JavaScript:
-            const response = await window.APIClient.post("/users/render-html/", {
-                template: "users/components/user_chips.html",
-                context: {
-                    users: [...],
-                    show_permission_select: true,
-                    show_remove_button: true,
-                    permission_levels: ["viewer", "contributor", "co-owner"]
-                }
-            });
         """
         try:
             data = json.loads(request.body)
@@ -2522,11 +2512,12 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
                     {"error": "Invalid template path. Only users/components/ templates are allowed."},
                     status=400
                 )
-            
-            # Use the generic render_html_fragment function
-            from sds_gateway.users.html_utils import render_html_fragment
-            
-            html = render_html_fragment(template_name, context, request)
+
+            html = render_html_fragment(
+                template_name=template_name,
+                context=context,
+                request=request,
+            )
             
             return JsonResponse({"html": html})
         except json.JSONDecodeError:

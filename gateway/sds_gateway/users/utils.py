@@ -1,6 +1,8 @@
 from typing import Any
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User  # type: ignore
+from django.http import HttpRequest  # type: ignore
+from django.template.loader import render_to_string  # type: ignore
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import ItemType
@@ -142,3 +144,27 @@ def update_or_create_user_group_share_permissions(
         existing_individual.permission_level = permission_level
         existing_individual.share_groups.add(group)
         existing_individual.save()
+
+
+def render_html_fragment(
+    template_name: str,
+    context: dict[str, Any] | None = None,
+    request: HttpRequest | None = None,
+) -> str:
+    """
+    Render HTML fragment from Django template.
+    
+    Args:
+        template_name: Path to Django template
+        (e.g., "users/components/my_component.html")
+        context: Dictionary of variables to pass to the template
+        request: HttpRequest object for context processors
+        
+    Returns:
+        HTML string
+    """
+
+    full_context = context or {}
+    if request:
+        full_context["request"] = request
+    return render_to_string(template_name, full_context)
