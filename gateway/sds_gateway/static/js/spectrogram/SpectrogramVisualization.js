@@ -161,7 +161,7 @@ export class SpectrogramVisualization {
 
 		this.pollingInterval = setInterval(async () => {
 			await this.checkJobStatus();
-		}, 2000); // Poll every 2 seconds
+		}, 3000); // Poll every 3 seconds
 	}
 
 	/**
