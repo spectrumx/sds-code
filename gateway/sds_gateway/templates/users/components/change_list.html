@@ -1,0 +1,44 @@
+{% comment %}
+Generic Change List Component
+Renders a list of changes with icons and styling
+
+Context structure:
+{
+    "changes": [
+        {
+            "type": "add" | "remove" | "change",
+            "message": "Full message to display",
+            "icon": "bi-plus-circle",  // Optional, defaults based on type
+            "css_class": "text-success",  // Optional, defaults based on type
+            "parts": [  // Optional: for complex messages with highlights
+                {"text": "Add: ", "css_class": ""},
+                {"text": "John Doe", "css_class": "text-success"}
+            ]
+        }
+    ],
+    "list_class": "pending-changes list-unstyled mt-2"
+}
+
+Default styling by type:
+- add: green (text-success), bi-plus-circle
+- remove: red (text-danger), bi-dash-circle
+- change: yellow (text-warning), bi-pencil
+{% endcomment %}
+
+{% if changes %}
+<ul class="{{ list_class|default:'pending-changes list-unstyled mt-2' }}">
+    {% for change in changes %}
+    <li class="{{ change.css_class|default_if_none:'' }}{% if not change.css_class %}{% if change.type == 'add' %}text-success{% elif change.type == 'remove' %}text-danger{% elif change.type == 'change' %}text-warning{% endif %}{% endif %}">
+        <i class="bi {{ change.icon|default_if_none:'' }}{% if not change.icon %}{% if change.type == 'add' %}bi-plus-circle{% elif change.type == 'remove' %}bi-dash-circle{% elif change.type == 'change' %}bi-pencil{% endif %}{% endif %} me-1"></i>
+        {% if change.parts %}
+            {% for part in change.parts %}
+                {% if part.css_class %}<span class="{{ part.css_class }}">{{ part.text }}</span>{% else %}{{ part.text }}{% endif %}
+            {% endfor %}
+        {% else %}
+            {{ change.message }}
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+

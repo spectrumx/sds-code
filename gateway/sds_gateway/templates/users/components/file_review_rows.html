@@ -1,0 +1,31 @@
+{% comment %}
+File Review Rows Component
+Renders file rows for dataset review step
+{% endcomment %}
+
+{% if files %}
+    {% for file in files %}
+    <tr>
+        <td>{{ file.name }}</td>
+        <td>{{ file.media_type }}</td>
+        <td>{{ file.relative_path }}</td>
+        <td>{{ file.size }}</td>
+        {% if show_remove_button %}
+        <td>
+            <button class="btn btn-sm btn-danger remove-file" 
+                    data-id="{{ file.id }}"
+                    type="button">
+                Remove
+            </button>
+        </td>
+        {% endif %}
+    </tr>
+    {% endfor %}
+{% else %}
+    <tr>
+        <td colspan="{% if show_remove_button %}5{% else %}4{% endif %}" class="text-center">
+            No files selected
+        </td>
+    </tr>
+{% endif %}
+

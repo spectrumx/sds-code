@@ -1,0 +1,25 @@
+{% comment %}
+Error Alert Component
+Renders error messages in an alert box
+{% endcomment %}
+
+<div class="alert alert-{{ alert_type }} alert-dismissible fade show" role="alert">
+    <i class="bi bi-{{ icon }} me-2"></i>
+    {% if message %}
+        {{ message }}
+    {% else %}
+        <strong>Please correct the following errors:</strong>
+        <ul class="mb-0 mt-2">
+            {% for field, msg in error_list %}
+                <li>
+                    {% if show_field_names and field and field != "non_field_errors" %}
+                        <strong>{{ field }}:</strong> 
+                    {% endif %}
+                    {{ msg }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+

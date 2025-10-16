@@ -1,0 +1,12 @@
+{% comment %}
+Error Messages Component
+Renders error messages with optional field names
+{% endcomment %}
+<ul class="mb-0 list-unstyled">
+    {% for field, message in error_list %}
+        <li>
+            {% if show_field_names and field and field != "non_field_errors" %}<strong>{{ field }}:</strong> {% endif %}{{ message }}
+        </li>
+    {% endfor %}
+</ul>
+

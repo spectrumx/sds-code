@@ -1,0 +1,15 @@
+{% comment %}
+Modal Technical Details Component
+Renders technical details for capture details modal
+{% endcomment %}
+
+{% if details %}
+<ul class="list-unstyled mb-0">
+    {% for detail in details %}
+    <li>{{ detail }}</li>
+    {% endfor %}
+</ul>
+{% else %}
+<span class="text-muted">No technical details available</span>
+{% endif %}
+

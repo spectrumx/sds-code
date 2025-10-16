@@ -1,0 +1,32 @@
+{% comment %}
+Pagination Component
+Renders Bootstrap pagination controls
+{% endcomment %}
+<ul class="pagination justify-content-center">
+    {% if show_arrows and page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link"
+               href="#"
+               data-page="{{ page_obj.previous_page_number }}"
+               aria-label="Previous">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+    {% endif %}
+    {% for page_num in page_range %}
+        <li class="page-item {% if page_num == page_obj.number %}active{% endif %}">
+            <a class="page-link" href="#" data-page="{{ page_num }}">{{ page_num }}</a>
+        </li>
+    {% endfor %}
+    {% if show_arrows and page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link"
+               href="#"
+               data-page="{{ page_obj.next_page_number }}"
+               aria-label="Next">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+    {% endif %}
+</ul>
+
