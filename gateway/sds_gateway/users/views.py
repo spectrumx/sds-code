@@ -2478,6 +2478,67 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 user_dataset_details_view = DatasetDetailsView.as_view()
 
 
+class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
+    """Generic view to render any HTML fragment from a Django template."""
+    
+    def post(self, request: HttpRequest) -> JsonResponse:
+        """
+        Render HTML fragment using server-side templates.
+        
+        Expects JSON body with:
+        {
+            "template": "users/components/my_component.html",
+            "context": {
+                "key": "value",
+                ...
+            }
+        }
+        
+        Returns:
+            JsonResponse with rendered HTML
+            
+        Example JavaScript:
+            const response = await window.APIClient.post("/users/render-html/", {
+                template: "users/components/user_chips.html",
+                context: {
+                    users: [...],
+                    show_permission_select: true,
+                    show_remove_button: true,
+                    permission_levels: ["viewer", "contributor", "co-owner"]
+                }
+            });
+        """
+        try:
+            data = json.loads(request.body)
+            template_name = data.get("template")
+            context = data.get("context", {})
+            
+            if not template_name:
+                return JsonResponse({"error": "Template name is required"}, status=400)
+            
+            # Security: Only allow templates from users/components/ directory
+            if not template_name.startswith("users/components/"):
+                return JsonResponse(
+                    {"error": "Invalid template path. Only users/components/ templates are allowed."},
+                    status=400
+                )
+            
+            # Use the generic render_html_fragment function
+            from sds_gateway.users.html_utils import render_html_fragment
+            
+            html = render_html_fragment(template_name, context, request)
+            
+            return JsonResponse({"html": html})
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            logger.exception(f"Error rendering template {data.get('template', 'unknown')}")
+            return JsonResponse({"error": str(e)}, status=500)
+
+
+render_html_fragment_view = RenderHTMLFragmentView.as_view()
+
+
 class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     """
     View to handle ShareGroup management functionality.
