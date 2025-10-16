@@ -97,21 +97,21 @@ class AssetSearchHandler {
 		const selectAllCheckbox = document.getElementById(
 			"select-all-files-checkbox",
 		);
-		if (selectAllCheckbox) {
-			selectAllCheckbox.addEventListener("change", () => {
-				const isChecked = selectAllCheckbox.checked;
-				const fileCheckboxes = document.querySelectorAll(
-					'#file-tree-table tbody input[type="checkbox"]',
-				);
+		if (!selectAllCheckbox) return;
 
-				for (const checkbox of fileCheckboxes) {
-					if (checkbox.checked !== isChecked) {
-						checkbox.checked = isChecked;
-						checkbox.dispatchEvent(new Event("change"));
-					}
+		selectAllCheckbox.addEventListener("change", () => {
+			const isChecked = selectAllCheckbox.checked;
+			const fileCheckboxes = document.querySelectorAll(
+				'#file-tree-table tbody input[type="checkbox"]',
+			);
+
+			for (const checkbox of fileCheckboxes) {
+				if (checkbox.checked !== isChecked) {
+					checkbox.checked = isChecked;
+					checkbox.dispatchEvent(new Event("change"));
 				}
-			});
-		}
+			}
+		});
 	}
 
 	/**
@@ -121,27 +121,27 @@ class AssetSearchHandler {
 		const removeAllButton = document.getElementById(
 			"remove-all-selected-files-button",
 		);
-		if (removeAllButton) {
-			removeAllButton.addEventListener("click", () => {
-				// Check if formHandler has a custom removal handler for edit mode
-				if (this.formHandler?.handleRemoveAllFiles) {
-					this.formHandler.handleRemoveAllFiles();
-				} else {
-					// Default behavior for create mode
-					// Deselect all files
-					const fileCheckboxes = document.querySelectorAll(
-						'#file-tree-table tbody input[type="checkbox"]',
-					);
-					for (const checkbox of fileCheckboxes) {
-						checkbox.checked = false;
-						checkbox.dispatchEvent(new Event("change"));
-					}
+		if (!removeAllButton) return;
 
-					this.selectedFiles.clear();
-					this.updateSelectedFilesList();
+		removeAllButton.addEventListener("click", () => {
+			// Check if formHandler has a custom removal handler for edit mode
+			if (this.formHandler?.handleRemoveAllFiles) {
+				this.formHandler.handleRemoveAllFiles();
+			} else {
+				// Default behavior for create mode
+				// Deselect all files
+				const fileCheckboxes = document.querySelectorAll(
+					'#file-tree-table tbody input[type="checkbox"]',
+				);
+				for (const checkbox of fileCheckboxes) {
+					checkbox.checked = false;
+					checkbox.dispatchEvent(new Event("change"));
 				}
-			});
-		}
+
+				this.selectedFiles.clear();
+				this.updateSelectedFilesList();
+			}
+		});
 	}
 
 	/**
@@ -152,42 +152,42 @@ class AssetSearchHandler {
 		const searchButton = document.getElementById("search-captures");
 		const clearButton = document.getElementById("clear-captures-search");
 
-		if (searchButton && clearButton) {
-			// Add click handler for search button
-			searchButton.addEventListener("click", () => {
-				this.currentFilters = {
-					directory: document.getElementById("search_directory_captures").value,
-					capture_type: document.getElementById("search_capture_type").value,
-					scan_group: document.getElementById("search_scan_group").value,
-					channel: document.getElementById("search_channel").value,
-				};
-				this.fetchCaptures(this.currentFilters).then((data) =>
-					this.updateCapturesTable(data),
-				);
-			});
+		if (!searchButton || !clearButton) return;
 
-			// Add click handler for clear button
-			clearButton.addEventListener("click", () => {
-				document.getElementById("search_directory_captures").value = "";
-				document.getElementById("search_capture_type").value = "";
-				document.getElementById("search_scan_group").value = "";
-				document.getElementById("search_channel").value = "";
-				this.currentFilters = {};
-				this.fetchCaptures().then((data) => this.updateCapturesTable(data));
-			});
+		// Add click handler for search button
+		searchButton.addEventListener("click", () => {
+			this.currentFilters = {
+				directory: document.getElementById("search_directory_captures").value,
+				capture_type: document.getElementById("search_capture_type").value,
+				scan_group: document.getElementById("search_scan_group").value,
+				channel: document.getElementById("search_channel").value,
+			};
+			this.fetchCaptures(this.currentFilters).then((data) =>
+				this.updateCapturesTable(data),
+			);
+		});
 
-			// Check if the selected captures pane exists and we're not in edit mode
-			if (
-				!document.getElementById("selected-captures-pane") &&
-				!this.formHandler?.datasetUuid
-			) {
-				// Create selected captures pane only for create mode
-				this.createSelectedCapturesPane();
-			}
-
-			// Load initial data
+		// Add click handler for clear button
+		clearButton.addEventListener("click", () => {
+			document.getElementById("search_directory_captures").value = "";
+			document.getElementById("search_capture_type").value = "";
+			document.getElementById("search_scan_group").value = "";
+			document.getElementById("search_channel").value = "";
+			this.currentFilters = {};
 			this.fetchCaptures().then((data) => this.updateCapturesTable(data));
+		});
+
+		// Check if the selected captures pane exists and we're not in edit mode
+		if (
+			!document.getElementById("selected-captures-pane") &&
+			!this.formHandler?.datasetUuid
+		) {
+			// Create selected captures pane only for create mode
+			this.createSelectedCapturesPane();
 		}
+
+		// Load initial data
+		this.fetchCaptures().then((data) => this.updateCapturesTable(data));
 	}
 
 	/**

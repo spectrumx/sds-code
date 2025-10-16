@@ -160,9 +160,9 @@ class DatasetCreationHandler {
 	 */
 	initializeErrorContainer() {
 		const errorContainer = document.getElementById("formErrors");
-		if (errorContainer) {
-			this.hide(errorContainer);
-		}
+		if (!errorContainer) return;
+
+		window.DOMUtils.hide(errorContainer);
 	}
 
 	/**
@@ -251,11 +251,11 @@ class DatasetCreationHandler {
 		const removeAllButton = document.getElementById(
 			"remove-all-selected-files-button",
 		);
-		if (removeAllButton) {
-			removeAllButton.addEventListener("click", () => {
-				this.removeAllSelectedFiles();
-			});
-		}
+		if (!removeAllButton) return;
+
+		removeAllButton.addEventListener("click", () => {
+			this.removeAllSelectedFiles();
+		});
 	}
 
 	/**
@@ -298,25 +298,6 @@ class DatasetCreationHandler {
 		this.updateSelectedCapturesPanel();
 	}
 
-	/**
-	 * Show element
-	 * @param {Element} container - Element to show
-	 * @param {string} showClass - CSS class to add
-	 */
-	show(container, showClass = "display-block") {
-		container.classList.remove("display-none");
-		container.classList.add(showClass);
-	}
-
-	/**
-	 * Hide element
-	 * @param {Element} container - Element to hide
-	 * @param {string} showClass - CSS class to remove
-	 */
-	hide(container, showClass = "display-block") {
-		container.classList.remove(showClass);
-		container.classList.add("display-none");
-	}
 
 	/**
 	 * Handle modal file selection (intermediate state)
@@ -467,11 +448,10 @@ class DatasetCreationHandler {
 	 */
 	updateSelectedFilesDisplay() {
 		const displayInput = document.getElementById("selected-files-display");
-		const count = this.selectedFiles.size;
+		if (!displayInput) return;
 
-		if (displayInput) {
-			displayInput.value = `${count} file(s) selected`;
-		}
+		const count = this.selectedFiles.size;
+		displayInput.value = `${count} file(s) selected`;
 
 		// Update selected files table
 		this.updateSelectedFilesTable();
@@ -618,24 +598,32 @@ class DatasetCreationHandler {
 
 		// Update navigation buttons
 		if (this.prevBtn) {
-			this.currentStep > 0 ? this.show(this.prevBtn) : this.hide(this.prevBtn);
+			if (this.currentStep > 0) {
+				window.DOMUtils.show(this.prevBtn);
+			} else {
+				window.DOMUtils.hide(this.prevBtn);
+			}
 		}
 
 		const isValid = this.validateCurrentStep();
 
 		if (this.nextBtn) {
 			const isLastStep = this.currentStep === this.steps.length - 1;
-			isLastStep ? this.hide(this.nextBtn) : this.show(this.nextBtn);
+			if (isLastStep) {
+				window.DOMUtils.hide(this.nextBtn);
+			} else {
+				window.DOMUtils.show(this.nextBtn);
+			}
 			this.nextBtn.disabled = !isValid;
 		}
 
 		if (this.submitBtn) {
 			const isLastStep = this.currentStep === this.steps.length - 1;
 			if (isLastStep) {
-				this.show(this.submitBtn);
+				window.DOMUtils.show(this.submitBtn);
 				this.submitBtn.disabled = !isValid;
 			} else {
-				this.hide(this.submitBtn);
+				window.DOMUtils.hide(this.submitBtn);
 			}
 		}
 	}
@@ -757,34 +745,62 @@ class DatasetCreationHandler {
 	 * Handle submission error
 	 * @param {Error} error - Error object
 	 */
-	handleSubmissionError(error) {
-		let errorMessage;
+	async handleSubmissionError(error) {
+		const errorContainer = document.getElementById("formErrors");
+		if (!errorContainer) return;
 
-		if (error instanceof APIError && error.data.errors) {
-			// Use HTMLInjectionManager to create error message HTML
-			errorMessage = window.HTMLInjectionManager.createErrorMessage(
-				error.data.errors,
+		try {
+			// Normalize error context
+			const context = {};
+			
+			if (error instanceof APIError && error.data.errors) {
+				// Normalize field errors into list format for template
+				context.error_list = [];
+				for (const [field, messages] of Object.entries(error.data.errors)) {
+					const messageList = Array.isArray(messages) ? messages : [messages];
+					for (const msg of messageList) {
+						context.error_list.push([field, msg]);
+					}
+				}
+				context.show_field_names = true;
+			} else {
+				context.message = "An unexpected error occurred. Please try again.";
+			}
+			
+			context.alert_type = "danger";
+			context.icon = "exclamation-triangle-fill";
+
+			// Use generic render endpoint
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/error_alert.html",
+					context: context
+				}
 			);
-		} else {
-			errorMessage = "An unexpected error occurred. Please try again.";
-		}
 
-		// Use the new notification system
-		window.HTMLInjectionManager.showNotification(errorMessage, "danger", {
-			containerId: "formErrors",
-			autoHide: false, // Don't auto-hide error messages
-			scrollTo: true,
-			replace: true,
-			icon: true,
-			dismissible: true,
-		});
+			if (response.html) {
+				errorContainer.innerHTML = response.html;
+				window.DOMUtils.show(errorContainer);
+				errorContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+			}
+		} catch (renderError) {
+			console.error("Error rendering error message:", renderError);
+			// Fallback to simple text
+			errorContainer.textContent = "An error occurred. Please try again.";
+			window.DOMUtils.show(errorContainer);
+		}
 	}
 
 	/**
 	 * Clear form errors
 	 */
 	clearErrors() {
-		window.HTMLInjectionManager.clearNotifications("formErrors");
+		const errorContainer = document.getElementById("formErrors");
+		if (errorContainer) {
+			errorContainer.innerHTML = '';
+			window.DOMUtils.hide(errorContainer);
+		}
 	}
 
 	/**
@@ -797,8 +813,10 @@ class DatasetCreationHandler {
 		if (isLoading) {
 			this.submitBtn.dataset.originalText = this.submitBtn.textContent;
 			this.submitBtn.disabled = true;
-			this.submitBtn.innerHTML =
-				window.HTMLInjectionManager.createLoadingSpinner("Creating...");
+			this.submitBtn.innerHTML = `
+				<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+				Creating...
+			`;
 		} else {
 			this.submitBtn.disabled = false;
 			if (this.submitBtn.dataset.originalText) {
@@ -819,7 +837,7 @@ class DatasetCreationHandler {
 	/**
 	 * Update selected captures table
 	 */
-	updateSelectedCapturesTable() {
+	async updateSelectedCapturesTable() {
 		const capturesTableBody = document.querySelector(
 			"#step4 .captures-table tbody",
 		);
@@ -827,56 +845,64 @@ class DatasetCreationHandler {
 		if (!capturesTableBody) return;
 
 		if (this.selectedCaptures.size > 0 && this.capturesSearchHandler) {
-			const rows = Array.from(this.selectedCaptures)
-				.map((captureId) => {
-					const data = this.capturesSearchHandler.selectedCaptureDetails.get(
-						captureId,
-					) || {
-						type: "Unknown",
-						directory: "Unknown",
-						channel: "-",
-						scan_group: "-",
-						created_at: new Date().toISOString(),
-					};
-
-					return window.HTMLInjectionManager.createTableRow(
-						data,
-						`
-					<tr>
-						<td>{{type}}</td>
-						<td>{{directory}}</td>
-						<td>{{channel}}</td>
-						<td>{{scan_group}}</td>
-						<td>{{created_at}}</td>
-						<td>
-							<button class="btn btn-sm btn-danger remove-capture" data-id="${captureId}">
-								Remove
-							</button>
-						</td>
-					</tr>
-				`,
-						{ dateFormat: "en-US" },
-					);
-				})
-				.join("");
-
-			window.HTMLInjectionManager.injectHTML(capturesTableBody, rows, {
-				escape: false,
+			const capturesArray = Array.from(this.selectedCaptures).map(captureId => {
+				const data = this.capturesSearchHandler.selectedCaptureDetails.get(captureId) || {
+					type: "Unknown",
+					directory: "Unknown",
+					channel: "-",
+					scan_group: "-",
+					created_at: new Date().toISOString(),
+				};
+				return { ...data, id: captureId };
 			});
-			this.attachCaptureRemoveHandlers();
+
+			try {
+				// Normalize for generic table_rows template
+				const rows = capturesArray.map(capture => ({
+					cells: [
+						{ value: capture.type },
+						{ value: capture.directory },
+						{ value: capture.channel },
+						{ value: capture.scan_group },
+						{ value: capture.created_at }
+					],
+					actions: [{
+						label: "Remove",
+						css_class: "btn-danger",
+						extra_class: "remove-capture",
+						data_attrs: { id: capture.id }
+					}]
+				}));
+
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/table_rows.html",
+						context: {
+							rows: rows,
+							empty_message: "No captures selected",
+							empty_colspan: 6
+						}
+					}
+				);
+
+				if (response.html) {
+					capturesTableBody.innerHTML = response.html;
+					this.attachCaptureRemoveHandlers();
+				}
+			} catch (error) {
+				console.error("Error rendering captures table:", error);
+				capturesTableBody.innerHTML = "<tr><td colspan='6' class='text-center text-danger'>Error loading captures</td></tr>";
+			}
 		} else {
-			window.HTMLInjectionManager.injectHTML(
-				capturesTableBody,
-				"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>",
-				{ escape: false },
-			);
+			capturesTableBody.innerHTML = "<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
 		}
 	}
 
 	/**
 	 * Update selected captures side panel
 	 */
-	updateSelectedCapturesPanel() {
+	async updateSelectedCapturesPanel() {
 		const selectedCapturesTable = document.getElementById(
 			"selected-captures-table",
 		);
@@ -888,52 +914,62 @@ class DatasetCreationHandler {
 		if (!selectedCapturesBody) return;
 
 		if (this.selectedCaptures.size > 0 && this.capturesSearchHandler) {
-			const rows = Array.from(this.selectedCaptures)
-				.map((captureId) => {
-					const data = this.capturesSearchHandler.selectedCaptureDetails.get(
-						captureId,
-					) || {
-						type: "Unknown",
-						directory: "Unknown",
-					};
-
-					return window.HTMLInjectionManager.createTableRow(
-						data,
-						`
-					<tr>
-						<td>{{type}}</td>
-						<td>{{directory}}</td>
-						<td>
-							<button class="btn btn-sm btn-outline-danger remove-selected-capture" data-id="${captureId}" title="Remove from selection">
-								<i class="bi bi-x"></i>
-							</button>
-						</td>
-					</tr>
-				`,
-					);
-				})
-				.join("");
-
-			window.HTMLInjectionManager.injectHTML(selectedCapturesBody, rows, {
-				escape: false,
+			const capturesArray = Array.from(this.selectedCaptures).map(captureId => {
+				const data = this.capturesSearchHandler.selectedCaptureDetails.get(captureId) || {
+					type: "Unknown",
+					directory: "Unknown",
+				};
+				return { ...data, id: captureId };
 			});
 
-			// Add event listeners for remove buttons
-			const removeButtons = selectedCapturesBody.querySelectorAll(
-				".remove-selected-capture",
-			);
-			for (const button of removeButtons) {
-				button.addEventListener("click", (e) => {
-					const captureId = e.target.closest("button").dataset.id;
-					this.removeCapture(captureId);
-				});
+			try {
+				// Normalize for generic table_rows template
+				const rows = capturesArray.map(capture => ({
+					cells: [
+						{ value: capture.type },
+						{ value: capture.directory }
+					],
+					actions: [{
+						icon: "bi-x",
+						css_class: "btn-outline-danger",
+						extra_class: "remove-selected-capture",
+						data_attrs: { id: capture.id },
+						title: "Remove from selection"
+					}]
+				}));
+
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/table_rows.html",
+						context: {
+							rows: rows,
+							empty_message: "No captures selected",
+							empty_colspan: 3
+						}
+					}
+				);
+
+				if (response.html) {
+					selectedCapturesBody.innerHTML = response.html;
+
+					// Add event listeners for remove buttons
+					const removeButtons = selectedCapturesBody.querySelectorAll(
+						".remove-selected-capture",
+					);
+					for (const button of removeButtons) {
+						button.addEventListener("click", (e) => {
+							const captureId = e.target.closest("button").dataset.id;
+							this.removeCapture(captureId);
+						});
+					}
+				}
+			} catch (error) {
+				console.error("Error rendering captures panel:", error);
+				selectedCapturesBody.innerHTML = "<tr><td colspan='3' class='text-center text-danger'>Error loading captures</td></tr>";
 			}
 		} else {
-			window.HTMLInjectionManager.injectHTML(
-				selectedCapturesBody,
-				"<tr><td colspan='3' class='text-center text-muted'>No captures selected</td></tr>",
-				{ escape: false },
-			);
+			selectedCapturesBody.innerHTML = "<tr><td colspan='3' class='text-center text-muted'>No captures selected</td></tr>";
 		}
 
 		// Update count badge
@@ -945,43 +981,53 @@ class DatasetCreationHandler {
 	/**
 	 * Update selected files table
 	 */
-	updateSelectedFilesTable() {
+	async updateSelectedFilesTable() {
 		const filesTableBody = document.querySelector("#step4 .files-table tbody");
 
 		if (!filesTableBody) return;
 
 		if (this.selectedFiles.size > 0) {
-			const rows = Array.from(this.selectedFiles)
-				.map((file) => {
-					return window.HTMLInjectionManager.createTableRow(
-						file,
-						`
-					<tr>
-						<td>{{name}}</td>
-						<td>{{media_type}}</td>
-						<td>{{relative_path}}</td>
-						<td>{{size}}</td>
-						<td>
-							<button class="btn btn-sm btn-danger remove-file" data-id="{{id}}">
-								Remove
-							</button>
-						</td>
-					</tr>
-				`,
-					);
-				})
-				.join("");
+			const filesArray = Array.from(this.selectedFiles);
 
-			window.HTMLInjectionManager.injectHTML(filesTableBody, rows, {
-				escape: false,
-			});
-			this.attachFileRemoveHandlers();
+			try {
+				// Normalize for generic table_rows template
+				const rows = filesArray.map(file => ({
+					cells: [
+						{ value: file.name },
+						{ value: file.media_type },
+						{ value: file.relative_path },
+						{ value: file.size }
+					],
+					actions: [{
+						label: "Remove",
+						css_class: "btn-danger",
+						extra_class: "remove-file",
+						data_attrs: { id: file.id }
+					}]
+				}));
+
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/table_rows.html",
+						context: {
+							rows: rows,
+							empty_message: "No files selected",
+							empty_colspan: 5
+						}
+					}
+				);
+
+				if (response.html) {
+					filesTableBody.innerHTML = response.html;
+					this.attachFileRemoveHandlers();
+				}
+			} catch (error) {
+				console.error("Error rendering files table:", error);
+				filesTableBody.innerHTML = "<tr><td colspan='5' class='text-center text-danger'>Error loading files</td></tr>";
+			}
 		} else {
-			window.HTMLInjectionManager.injectHTML(
-				filesTableBody,
-				"<tr><td colspan='5' class='text-center'>No files selected</td></tr>",
-				{ escape: false },
-			);
+			filesTableBody.innerHTML = "<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
 		}
 	}
 
@@ -1179,59 +1225,39 @@ class DatasetCreationHandler {
 		/**
 		 * Update authors display
 		 */
-		const updateAuthorsDisplay = () => {
-			// Clear the entire authors list
-			authorsList.innerHTML = "";
+		const updateAuthorsDisplay = async () => {
+			try {
+				// Normalize authors for server-side rendering
+				const normalizedAuthors = authors.map((author, index) => {
+					const authorName = typeof author === "string" ? author : author.name || "";
+					const authorOrcid = typeof author === "string" ? "" : author.orcid_id || "";
+					
+					// Generate stable ID for each author
+					const stableId = `author-${index}-${Date.now()}`;
+					
+					return {
+						index: index,
+						name: authorName,
+						orcid_id: authorOrcid,
+						stable_id: stableId,
+						is_primary: index === 0,
+						is_marked_for_removal: false
+					};
+				});
 
-			// Rebuild the display from the current authors array
-			for (const [index, author] of authors.entries()) {
-				const authorDiv = document.createElement("div");
-				authorDiv.className = "author-item mb-3 p-3 border rounded";
+				// Render using server-side template
+				const response = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/author_list_items.html",
+					context: { authors: normalizedAuthors }
+				});
 
-				const authorName =
-					typeof author === "string" ? author : author.name || "";
-				const authorOrcid =
-					typeof author === "string" ? "" : author.orcid_id || "";
-
-				authorDiv.innerHTML = `
-					<div class="position-relative">
-						<div class="d-flex justify-content-between align-items-start mb-2">
-							<div class="flex-grow-1">
-								<!-- Empty space for alignment -->
-							</div>
-							<div class="d-flex align-items-center gap-2">
-								${
-									index === 0
-										? '<span class="badge bg-primary">Primary</span><i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>'
-										: `<button type="button" class="btn btn-sm btn-outline-danger remove-author" data-index="${index}" title="Remove author"><i class="bi bi-trash"></i></button>`
-								}
-							</div>
-						</div>
-						<div class="row g-2">
-							<div class="col-6">
-								<label class="form-label small">Author Name</label>
-								<input type="text"
-									   class="form-control author-name-input"
-									   value="${window.HTMLInjectionManager.escapeHtml(authorName)}"
-									   placeholder="Enter full name"
-									   ${index === 0 ? "readonly" : ""}
-									   data-index="${index}"
-									   data-field="name">
-							</div>
-							<div class="col-6">
-								<label class="form-label small">ORCID ID</label>
-								<input type="text"
-									   class="form-control author-orcid-input"
-									   value="${window.HTMLInjectionManager.escapeHtml(authorOrcid)}"
-									   placeholder="0000-0000-0000-0000"
-									   ${index === 0 ? "readonly" : ""}
-									   data-index="${index}"
-									   data-field="orcid_id">
-							</div>
-						</div>
-					</div>
-				`;
-				authorsList.appendChild(authorDiv);
+				if (response.html) {
+					authorsList.innerHTML = response.html;
+				}
+			} catch (error) {
+				console.error("Error rendering authors:", error);
+				// Fallback: show error message
+				authorsList.innerHTML = '<div class="alert alert-danger">Error loading authors</div>';
 			}
 
 			// Update hidden field
@@ -1239,7 +1265,7 @@ class DatasetCreationHandler {
 
 			// Show add button in create mode (always available)
 			if (addAuthorBtn) {
-				addAuthorBtn.style.display = "";
+				window.DOMUtils.show(addAuthorBtn);
 			}
 		};
 
@@ -1291,16 +1317,47 @@ class DatasetCreationHandler {
 		};
 
 		/**
-		 * Show notification using HTMLInjectionManager
+		 * Show notification using alert system
 		 */
-		this.showNotification = (message, type = "info") => {
-			window.HTMLInjectionManager.showNotification(message, type, {
-				containerId: "formErrors",
-				autoHide: true,
-				autoHideDelay: 5000,
-				scrollTo: true,
-				replace: true,
-			});
+		this.showNotification = async (message, type = "info") => {
+			const errorContainer = document.getElementById("formErrors");
+			if (!errorContainer) return;
+			
+			try {
+				// Map type to Bootstrap alert class
+				const alertType = type === "danger" ? "danger" : type === "success" ? "success" : type === "warning" ? "warning" : "info";
+				const icon = type === "danger" ? "exclamation-triangle" : type === "success" ? "check-circle" : type === "warning" ? "exclamation-circle" : "info-circle";
+				
+				const response = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/notification.html",
+					context: {
+						message: message,
+						alert_type: alertType,
+						icon: icon,
+						dismissible: true
+					}
+				});
+
+				if (response.html) {
+					errorContainer.innerHTML = response.html;
+					window.DOMUtils.show(errorContainer);
+					errorContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+					
+					// Auto-hide after 5 seconds
+					setTimeout(() => {
+						const alert = errorContainer.querySelector('.alert');
+						if (alert) {
+							const bsAlert = new bootstrap.Alert(alert);
+							bsAlert.close();
+						}
+					}, 5000);
+				}
+			} catch (error) {
+				console.error("Error rendering notification:", error);
+				// Fallback: show simple text
+				errorContainer.textContent = message;
+				window.DOMUtils.show(errorContainer);
+			}
 		};
 
 		// Event listeners
@@ -1375,7 +1432,6 @@ class DatasetCreationHandler {
 		window.updateDatasetAuthors = (authorsField) =>
 			this.updateDatasetAuthors(authorsField);
 		window.formatAuthors = (authors) => this.formatAuthors(authors);
-		window.escapeHtml = (text) => window.HTMLInjectionManager.escapeHtml(text);
 	}
 
 	/**
@@ -1389,10 +1445,10 @@ class DatasetCreationHandler {
 			const authors = JSON.parse(authorsField.value || "[]");
 			const authorNames = this.formatAuthors(authors);
 			// In creation mode, just show current authors (no original/changes logic)
-			authorsElement.innerHTML = `<span class="current-value">${window.HTMLInjectionManager.escapeHtml(authorNames)}</span>`;
+			// Use textContent for automatic escaping
+			authorsElement.textContent = authorNames;
 		} catch (e) {
-			authorsElement.innerHTML =
-				'<span class="current-value">Error parsing authors.</span>';
+			authorsElement.textContent = 'Error parsing authors.';
 		}
 	}
 

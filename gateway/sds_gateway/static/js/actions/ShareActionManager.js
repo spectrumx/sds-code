@@ -68,18 +68,18 @@ class ShareActionManager {
 		}
 
 		// Setup notify checkbox functionality
-		if (typeof setupNotifyCheckbox === "function") {
-			const notifyCheckbox = document.getElementById(
-				`notify-users-checkbox-${this.itemUuid}`,
-			);
-			const textareaContainer = document.getElementById(
-				`notify-message-textarea-container-${this.itemUuid}`,
-			);
+		if (!setupNotifyCheckbox || typeof setupNotifyCheckbox !== "function") return;
 
-			if (notifyCheckbox && textareaContainer) {
-				setupNotifyCheckbox(this.itemUuid);
-			}
-		}
+		const notifyCheckbox = document.getElementById(
+			`notify-users-checkbox-${this.itemUuid}`,
+		);
+		const textareaContainer = document.getElementById(
+			`notify-message-textarea-container-${this.itemUuid}`,
+		);
+
+		if (!notifyCheckbox || !textareaContainer) return;
+
+		setupNotifyCheckbox(this.itemUuid);
 	}
 
 	/**
@@ -287,12 +287,12 @@ class ShareActionManager {
 
 		try {
 			this.currentRequest = new AbortController();
-			const users = await window.APIClient.get(
+			const response = await window.APIClient.get(
 				`/users/share-item/${this.itemType}/${this.itemUuid}/`,
 				{ q: query, limit: 10 },
 				null, // No loading state for search
 			);
-			this.displayResults(users, dropdown, query);
+			this.displayResults(response, dropdown);
 		} catch (error) {
 			if (error.name === "AbortError") {
 				return;
@@ -306,49 +306,23 @@ class ShareActionManager {
 
 	/**
 	 * Display search results
-	 * @param {Array} users - User results
+	 * @param {Object} response - Response from server with html and results
 	 * @param {Element} dropdown - Dropdown element
-	 * @param {string} query - Search query
 	 */
-	displayResults(users, dropdown, query) {
+	displayResults(response, dropdown) {
 		const listGroup = dropdown.querySelector(".list-group");
 
-		if (users.length === 0) {
+		// Use server-rendered HTML
+		if (response.html) {
+			listGroup.innerHTML = response.html;
+		} else if (response.results && response.results.length === 0) {
+			// Fallback for empty results
 			listGroup.innerHTML =
 				'<div class="list-group-item no-results">No users or groups found</div>';
 		} else {
-			const items = users
-				.map((user) => {
-					const isGroup = user.type === "group";
-					const icon = isGroup
-						? "bi-people-fill text-info"
-						: "bi-person-fill text-primary";
-					const subtitle = isGroup
-						? `<div class="user-email">Group • ${user.member_count} members</div>`
-						: `<div class="user-email">${this.highlightMatch(user.email, query)}</div>`;
-
-					return `
-					<div class="list-group-item"
-						 data-user-id="${window.HTMLInjectionManager.escapeHtml(user.url || "")}"
-						 data-user-name="${window.HTMLInjectionManager.escapeHtml(user.name)}"
-						 data-user-email="${window.HTMLInjectionManager.escapeHtml(user.email)}"
-						 data-user-type="${window.HTMLInjectionManager.escapeHtml(user.type || "user")}"
-						 data-member-count="${user.member_count || 0}">
-						<div class="user-search-item">
-							<div class="user-name">
-								<i class="bi ${icon} me-2"></i>
-								${this.highlightMatch(user.name, query)}
-							</div>
-							${subtitle}
-						</div>
-					</div>
-				`;
-				})
-				.join("");
-
-			window.HTMLInjectionManager.injectHTML(listGroup, items, {
-				escape: false,
-			});
+			// Fallback for error case
+			listGroup.innerHTML =
+				'<div class="list-group-item no-results">Error loading results</div>';
 		}
 
 		this.showDropdown(dropdown);
@@ -363,21 +337,6 @@ class ShareActionManager {
 		listGroup.innerHTML =
 			'<div class="list-group-item no-results">Error loading users</div>';
 		this.showDropdown(dropdown);
-	}
-
-	/**
-	 * Highlight search matches
-	 * @param {string} text - Text to highlight
-	 * @param {string} query - Search query
-	 * @returns {string} Highlighted text
-	 */
-	highlightMatch(text, query) {
-		if (!query) return window.HTMLInjectionManager.escapeHtml(text);
-		const regex = new RegExp(`(${query})`, "gi");
-		return window.HTMLInjectionManager.escapeHtml(text).replace(
-			regex,
-			"<mark>$1</mark>",
-		);
 	}
 
 	/**
@@ -542,7 +501,7 @@ class ShareActionManager {
 	 * Render user chips
 	 * @param {Element} input - Search input
 	 */
-	renderChips(input) {
+	async renderChips(input) {
 		const inputId = input.id;
 
 		// Try to find the chip container
@@ -564,52 +523,79 @@ class ShareActionManager {
 			return;
 		}
 
+		// Clear container
 		chipContainer.innerHTML = "";
-		for (const user of this.selectedUsersMap[inputId]) {
-			const chip = window.HTMLInjectionManager.createUserChip(user, {
-				showPermissionSelect: true,
-				showRemoveButton: true,
-				permissionLevels: ["viewer", "contributor", "co-owner"],
-			});
 
-			window.HTMLInjectionManager.injectHTML(chipContainer, chip, {
-				escape: false,
-			});
+		// If no users selected, toggle sections and return
+		if (!this.selectedUsersMap[inputId] || this.selectedUsersMap[inputId].length === 0) {
+			this.toggleModalSections(inputId);
+			return;
+		}
 
-			// Add click handler for removal
-			const removeBtn = chipContainer
-				.querySelector(`[data-user-email="${user.email}"]`)
-				.closest(".user-chip")
-				.querySelector(".remove-chip");
-			if (removeBtn) {
-				removeBtn.onclick = () => {
-					this.selectedUsersMap[inputId] = this.selectedUsersMap[
-						inputId
-					].filter((u) => u.email !== user.email);
-					this.renderChips(input);
-				};
-			}
-
-			// Add change handler for permission level
-			const permissionSelect = chipContainer.querySelector(
-				`[data-user-email="${user.email}"]`,
-			);
-			if (permissionSelect) {
-				permissionSelect.onchange = (e) => {
-					// Update the user's permission level in the selectedUsersMap
-					const userIndex = this.selectedUsersMap[inputId].findIndex(
-						(u) => u.email === user.email,
-					);
-					if (userIndex !== -1) {
-						this.selectedUsersMap[inputId][userIndex].permission_level =
-							e.target.value;
+		try {
+			// Request server to render using generic endpoint
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/user_chips.html",
+					context: {
+						users: this.selectedUsersMap[inputId],
+						show_permission_select: true,
+						show_remove_button: true,
+						permission_levels: ["viewer", "contributor", "co-owner"]
 					}
-				};
+				}
+			);
+
+			// Insert the server-rendered HTML
+			if (response.html) {
+				chipContainer.innerHTML = response.html;
+
+				// Add event handlers after rendering
+				this.attachChipEventHandlers(chipContainer, inputId, input);
 			}
+		} catch (error) {
+			console.error("Error rendering user chips:", error);
+			// Fallback: show error message
+			chipContainer.innerHTML = '<div class="text-danger">Error loading users</div>';
 		}
 
 		// Toggle notify/message and users-with-access sections
 		this.toggleModalSections(inputId);
+	}
+
+	/**
+	 * Attach event handlers to rendered chips
+	 * @param {Element} chipContainer - Chip container element
+	 * @param {string} inputId - Input ID
+	 * @param {Element} input - Search input element
+	 */
+	attachChipEventHandlers(chipContainer, inputId, input) {
+		// Add click handlers for removal buttons
+		const removeButtons = chipContainer.querySelectorAll(".remove-chip");
+		for (const removeBtn of removeButtons) {
+			const userEmail = removeBtn.closest(".user-chip").dataset.userEmail;
+			removeBtn.onclick = () => {
+				this.selectedUsersMap[inputId] = this.selectedUsersMap[inputId].filter(
+					(u) => u.email !== userEmail
+				);
+				this.renderChips(input);
+			};
+		}
+
+		// Add change handlers for permission selects
+		const permissionSelects = chipContainer.querySelectorAll(".permission-select");
+		for (const permissionSelect of permissionSelects) {
+			permissionSelect.onchange = (e) => {
+				const userEmail = e.target.dataset.userEmail;
+				const userIndex = this.selectedUsersMap[inputId].findIndex(
+					(u) => u.email === userEmail
+				);
+				if (userIndex !== -1) {
+					this.selectedUsersMap[inputId][userIndex].permission_level = e.target.value;
+				}
+			};
+		}
 	}
 
 	/**
@@ -1112,7 +1098,7 @@ class ShareActionManager {
 		// Map ShareActionManager types to showAlert types
 		const mappedType = type === "danger" ? "error" : type;
 
-		// Use the global showAlert function from HTMLInjectionManager
+		// Use the global showAlert function from DOMUtils
 		if (window.showAlert) {
 			window.showAlert(message, mappedType);
 		} else {
