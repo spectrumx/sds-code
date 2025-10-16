@@ -9,3 +9,4 @@ ipywidgets
 spectrumx
 dockerspawner
 oauthenticator
+jupyterhub-idle-culler
