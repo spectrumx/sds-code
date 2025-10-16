@@ -1,0 +1,44 @@
+{% comment %}
+Modal File Tree Component
+Renders file tree for dataset details modal
+
+Context:
+{
+    "rows": [
+        {
+            "indent_level": 0,
+            "icon": "bi-file-earmark",
+            "icon_color": "text-primary",
+            "name": "file.txt",
+            "type": "File",
+            "size": "1.2 MB",
+            "created_at": "Jan 1, 2024",
+            "has_chevron": false
+        }
+    ]
+}
+{% endcomment %}
+
+{% for row in rows %}
+<tr>
+    <td>
+        {% if row.has_chevron %}
+            <i class="bi bi-chevron-down text-muted"></i>
+        {% endif %}
+    </td>
+    <td>
+        {% for i in row.indent_range %}
+            &nbsp;&nbsp;&nbsp;&nbsp;
+        {% endfor %}
+        <i class="bi {{ row.icon }} {{ row.icon_color }}"></i> {{ row.name }}
+    </td>
+    <td>{{ row.type }}</td>
+    <td>{{ row.size }}</td>
+    <td>{{ row.created_at }}</td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="5" class="text-center text-muted py-4">No files found</td>
+</tr>
+{% endfor %}
+

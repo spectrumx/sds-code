@@ -1,0 +1,8 @@
+{% comment %}
+Loading Spinner Component
+Renders Bootstrap spinner with text
+{% endcomment %}
+<span class="spinner-border {% if size == 'sm' %}spinner-border-sm{% endif %} me-2 {% if color %}text-{{ color }}{% endif %}"
+      role="status"
+      aria-hidden="true"></span>{{ text }}
+

@@ -1,0 +1,18 @@
+{% comment %}
+Modal Files Table Component
+Renders files for dataset details modal
+{% endcomment %}
+
+{% for file in files %}
+<tr>
+    <td>{{ file.name }}</td>
+    <td>{{ file.media_type }}</td>
+    <td>{{ file.relative_path }}</td>
+    <td>{{ file.size }}</td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="4" class="text-center text-muted">No files in dataset</td>
+</tr>
+{% endfor %}
+
