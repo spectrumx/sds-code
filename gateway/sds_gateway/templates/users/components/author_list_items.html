@@ -1,0 +1,76 @@
+{% comment %}
+Author List Items Component
+Renders editable author list items for dataset forms
+
+Context:
+{
+    "authors": [
+        {
+            "index": 0,
+            "name": "John Doe",
+            "orcid_id": "0000-0000-0000-0000",
+            "stable_id": "author-1",
+            "is_primary": true,
+            "is_marked_for_removal": false
+        }
+    ]
+}
+{% endcomment %}
+
+{% for author in authors %}
+<div class="author-item mb-3 p-3 border rounded{% if author.is_marked_for_removal %} marked-for-removal border-danger{% endif %}" 
+     id="{{ author.stable_id }}">
+    <div class="position-relative">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="flex-grow-1">
+                <!-- Empty space for alignment -->
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                {% if author.is_primary %}
+                    <span class="badge bg-primary">Primary</span>
+                    <i class="bi bi-lock-fill text-muted" title="Primary author cannot be removed"></i>
+                {% elif author.is_marked_for_removal %}
+                    <button type="button" 
+                            class="btn btn-sm btn-outline-secondary cancel-remove-author" 
+                            data-index="{{ author.index }}" 
+                            title="Cancel removal">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                {% else %}
+                    <button type="button" 
+                            class="btn btn-sm btn-outline-danger remove-author" 
+                            data-index="{{ author.index }}" 
+                            title="Mark for removal">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label small">Author Name</label>
+                <input type="text"
+                       class="form-control author-name-input"
+                       value="{{ author.name }}"
+                       placeholder="Enter full name"
+                       {% if author.is_primary %}readonly{% endif %}
+                       {% if author.is_marked_for_removal %}disabled{% endif %}
+                       data-index="{{ author.index }}"
+                       data-field="name">
+            </div>
+            <div class="col-6">
+                <label class="form-label small">ORCID ID</label>
+                <input type="text"
+                       class="form-control author-orcid-input"
+                       value="{{ author.orcid_id }}"
+                       placeholder="0000-0000-0000-0000"
+                       {% if author.is_primary %}readonly{% endif %}
+                       {% if author.is_marked_for_removal %}disabled{% endif %}
+                       data-index="{{ author.index }}"
+                       data-field="orcid_id">
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
