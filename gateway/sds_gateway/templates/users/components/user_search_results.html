@@ -2,35 +2,33 @@
 User Search Results Component
 Renders search results for user/group sharing
 {% endcomment %}
-
 {% if users %}
     {% for user in users %}
-    <div class="list-group-item"
-         data-user-id="{{ user.url|default:'' }}"
-         data-user-name="{{ user.name }}"
-         data-user-email="{{ user.email }}"
-         data-user-type="{{ user.type|default:'user' }}"
-         data-member-count="{{ user.member_count|default:0 }}">
-        <div class="user-search-item">
-            <div class="user-name">
-                {% if user.type == "group" %}
-                    <i class="bi bi-people-fill text-info me-2"></i>
-                {% else %}
-                    <i class="bi bi-person-fill text-primary me-2"></i>
-                {% endif %}
-                {{ user.name }}
-            </div>
-            <div class="user-email">
-                {% if user.type == "group" %}
-                    Group • {{ user.member_count }} members
-                {% else %}
-                    {{ user.email }}
-                {% endif %}
+        <div class="list-group-item"
+             data-user-id="{{ user.url|default:'' }}"
+             data-user-name="{{ user.name }}"
+             data-user-email="{{ user.email }}"
+             data-user-type="{{ user.type|default:'user' }}"
+             data-member-count="{{ user.member_count|default:0 }}">
+            <div class="user-search-item">
+                <div class="user-name">
+                    {% if user.type == "group" %}
+                        <i class="bi bi-people-fill text-info me-2"></i>
+                    {% else %}
+                        <i class="bi bi-person-fill text-primary me-2"></i>
+                    {% endif %}
+                    {{ user.name }}
+                </div>
+                <div class="user-email">
+                    {% if user.type == "group" %}
+                        Group • {{ user.member_count }} members
+                    {% else %}
+                        {{ user.email }}
+                    {% endif %}
+                </div>
             </div>
         </div>
-    </div>
     {% endfor %}
 {% else %}
     <div class="list-group-item no-results">No users or groups found</div>
 {% endif %}
-

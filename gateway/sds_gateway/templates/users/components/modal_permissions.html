@@ -2,19 +2,17 @@
 Modal Permissions Component
 Renders permissions list for dataset details modal
 {% endcomment %}
-
 {% for permission in permissions %}
-<div class="d-flex justify-content-between align-items-center mb-2">
-    <span>
-        {% if permission.user_name %}
-            {{ permission.user_name }} ({{ permission.user_email }})
-        {% else %}
-            {{ permission.user_email }}
-        {% endif %}
-    </span>
-    <span class="badge {{ permission.badge_class }}">{{ permission.display_name }}</span>
-</div>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span>
+            {% if permission.user_name %}
+                {{ permission.user_name }} ({{ permission.user_email }})
+            {% else %}
+                {{ permission.user_email }}
+            {% endif %}
+        </span>
+        <span class="badge {{ permission.badge_class }}">{{ permission.display_name }}</span>
+    </div>
 {% empty %}
-<span class="text-muted">No shared permissions</span>
+    <span class="text-muted">No shared permissions</span>
 {% endfor %}
-

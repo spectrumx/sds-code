@@ -25,7 +25,6 @@ Context:
     ]
 }
 {% endcomment %}
-
 <div class="dropdown">
     <button class="btn btn-icon-dropdown dropdown-toggle {{ button_class|default:'btn-sm btn-light' }}"
             type="button"
@@ -39,17 +38,19 @@ Context:
         {% for item in items %}
             <li>
                 {% if item.type == "link" %}
-                    <a class="dropdown-item" href="{{ item.href }}"
-                       {% for key, value in item.data_attrs.items %}data-{{ key }}="{{ value }}" {% endfor %}
+                    <a class="dropdown-item"
+                       href="{{ item.href }}"
+                       {% for key, value in item.data_attrs.items %}data-{{ key }}="{{ value }}"{% endfor %}
                        {% if item.onclick %}onclick="{{ item.onclick }}"{% endif %}>
                         {% if item.icon %}<i class="bi bi-{{ item.icon }} me-1"></i>{% endif %}
                         {{ item.label }}
                     </a>
                 {% else %}
-                    <button type="button" class="dropdown-item"
+                    <button type="button"
+                            class="dropdown-item"
                             {% if item.modal_toggle %}data-bs-toggle="modal"{% endif %}
                             {% if item.modal_target %}data-bs-target="{{ item.modal_target }}"{% endif %}
-                            {% for key, value in item.data_attrs.items %}data-{{ key }}="{{ value }}" {% endfor %}
+                            {% for key, value in item.data_attrs.items %}data-{{ key }}="{{ value }}"{% endfor %}
                             {% if item.onclick %}onclick="{{ item.onclick }}"{% endif %}>
                         {% if item.icon %}<i class="bi bi-{{ item.icon }} me-1"></i>{% endif %}
                         {{ item.label }}
@@ -57,9 +58,10 @@ Context:
                 {% endif %}
             </li>
             {% if item.divider %}
-                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <hr class="dropdown-divider" />
+                </li>
             {% endif %}
         {% endfor %}
     </ul>
 </div>
-

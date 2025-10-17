@@ -1,8 +1,8 @@
 from typing import Any
 
-from django.contrib.auth.models import User  # type: ignore
-from django.http import HttpRequest  # type: ignore
-from django.template.loader import render_to_string  # type: ignore
+from django.contrib.auth.models import User  # type: ignore[import-untyped]
+from django.http import HttpRequest  # type: ignore[import-untyped]
+from django.template.loader import render_to_string  # type: ignore[import-untyped]
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import ItemType
@@ -153,13 +153,13 @@ def render_html_fragment(
 ) -> str:
     """
     Render HTML fragment from Django template.
-    
+
     Args:
         template_name: Path to Django template
         (e.g., "users/components/my_component.html")
         context: Dictionary of variables to pass to the template
         request: HttpRequest object for context processors
-        
+
     Returns:
         HTML string
     """

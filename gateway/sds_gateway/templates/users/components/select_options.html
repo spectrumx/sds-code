@@ -2,8 +2,7 @@
 Select Options Component
 Renders option elements for a select dropdown
 {% endcomment %}
-
 {% for choice in choices %}
-<option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>
+    <option value="{{ choice.value }}"
+            {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
 {% endfor %}
-

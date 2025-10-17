@@ -235,7 +235,6 @@ class PermissionsManager {
 		return (hierarchy[level1] || 0) > (hierarchy[level2] || 0);
 	}
 
-
 	/**
 	 * Get permission summary for display
 	 * @returns {Object} Permission summary
@@ -243,16 +242,10 @@ class PermissionsManager {
 	getPermissionSummary() {
 		return {
 			userPermissionLevel: this.userPermissionLevel,
-			displayName: this.getPermissionDisplayName(
-				this.userPermissionLevel,
-			),
-			description: this.getPermissionDescription(
-				this.userPermissionLevel,
-			),
+			displayName: this.getPermissionDisplayName(this.userPermissionLevel),
+			description: this.getPermissionDescription(this.userPermissionLevel),
 			icon: this.getPermissionIcon(this.userPermissionLevel),
-			badgeClass: this.getPermissionBadgeClass(
-				this.userPermissionLevel,
-			),
+			badgeClass: this.getPermissionBadgeClass(this.userPermissionLevel),
 			isEditMode: this.isEditMode,
 			isOwner: this.isOwner,
 			permissions: {

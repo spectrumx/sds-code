@@ -392,7 +392,7 @@ class DetailsActionManager {
 		// Update button appearance temporarily
 		const icon = type === "success" ? "check" : "x";
 		const color = type === "success" ? "success" : "danger";
-		
+
 		await window.DOMUtils.renderContent(copyButton, { icon, color });
 		copyButton.setAttribute("title", message);
 
@@ -422,7 +422,11 @@ class DetailsActionManager {
 		if (!authorsContainer) return;
 
 		if (!authors || authors.length === 0) {
-			await window.DOMUtils.renderError(authorsContainer, "No authors specified", { format: "inline" });
+			await window.DOMUtils.renderError(
+				authorsContainer,
+				"No authors specified",
+				{ format: "inline" },
+			);
 			return;
 		}
 
@@ -448,23 +452,26 @@ class DetailsActionManager {
 		if (!tableBody) return;
 
 		// Transform captures into rows format for generalized table template
-		const rows = captures.map(capture => ({
+		const rows = captures.map((capture) => ({
 			cells: [
 				{ value: capture.type },
 				{ value: capture.directory },
 				{ value: capture.channel },
 				{ value: capture.scan_group },
-				{ value: capture.created_at }
-			]
+				{ value: capture.created_at },
+			],
 		}));
 
 		const success = await window.DOMUtils.renderTable(tableBody, rows, {
 			empty_colspan: 5,
-			empty_message: "No captures in dataset"
+			empty_message: "No captures in dataset",
 		});
 
 		if (!success) {
-			await window.DOMUtils.renderError(tableBody, "Error loading captures", { format: "table", colspan: 5 });
+			await window.DOMUtils.renderError(tableBody, "Error loading captures", {
+				format: "table",
+				colspan: 5,
+			});
 		}
 	}
 
@@ -478,22 +485,25 @@ class DetailsActionManager {
 		if (!tableBody) return;
 
 		// Transform files into rows format for generalized table template
-		const rows = files.map(file => ({
+		const rows = files.map((file) => ({
 			cells: [
 				{ value: file.name },
 				{ value: file.media_type },
 				{ value: file.relative_path },
-				{ value: file.size }
-			]
+				{ value: file.size },
+			],
 		}));
 
 		const success = await window.DOMUtils.renderTable(tableBody, rows, {
 			empty_colspan: 4,
-			empty_message: "No files in dataset"
+			empty_message: "No files in dataset",
 		});
 
 		if (!success) {
-			await window.DOMUtils.renderError(tableBody, "Error loading files", { format: "table", colspan: 4 });
+			await window.DOMUtils.renderError(tableBody, "Error loading files", {
+				format: "table",
+				colspan: 4,
+			});
 		}
 	}
 
@@ -508,15 +518,19 @@ class DetailsActionManager {
 
 		try {
 			// Normalize permissions with badge class and display name
-			const normalizedPermissions = permissions.map(permission => ({
+			const normalizedPermissions = permissions.map((permission) => ({
 				...permission,
-				badge_class: this.permissions.getPermissionBadgeClass(permission.permission_level),
-				display_name: this.permissions.getPermissionDisplayName(permission.permission_level)
+				badge_class: this.permissions.getPermissionBadgeClass(
+					permission.permission_level,
+				),
+				display_name: this.permissions.getPermissionDisplayName(
+					permission.permission_level,
+				),
 			}));
 
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/modal_permissions.html",
-				context: { permissions: normalizedPermissions }
+				context: { permissions: normalizedPermissions },
 			});
 
 			if (response.html) {
@@ -524,7 +538,11 @@ class DetailsActionManager {
 			}
 		} catch (error) {
 			console.error("Error rendering permissions:", error);
-			await window.DOMUtils.renderError(permissionsContainer, "Error loading permissions", { format: "inline" });
+			await window.DOMUtils.renderError(
+				permissionsContainer,
+				"Error loading permissions",
+				{ format: "inline" },
+			);
 		}
 	}
 
@@ -558,7 +576,7 @@ class DetailsActionManager {
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/modal_technical_details.html",
-				context: { details: details }
+				context: { details: details },
 			});
 
 			if (response.html) {
@@ -566,7 +584,11 @@ class DetailsActionManager {
 			}
 		} catch (error) {
 			console.error("Error rendering technical details:", error);
-			await window.DOMUtils.renderError(technicalDetails, "Error loading details", { format: "inline" });
+			await window.DOMUtils.renderError(
+				technicalDetails,
+				"Error loading details",
+				{ format: "inline" },
+			);
 		}
 	}
 
@@ -656,7 +678,9 @@ class DetailsActionManager {
 				modalBody.dataset.originalContent = modalBody.innerHTML;
 			}
 
-			await window.DOMUtils.renderLoading(modalBody, "Loading details...", { format: "modal" });
+			await window.DOMUtils.renderLoading(modalBody, "Loading details...", {
+				format: "modal",
+			});
 		}
 	}
 
@@ -691,7 +715,7 @@ class DetailsActionManager {
 			await window.DOMUtils.renderError(modalBody, message, {
 				format: "alert",
 				alert_type: "danger",
-				icon: "exclamation-triangle"
+				icon: "exclamation-triangle",
 			});
 		}
 
@@ -801,7 +825,7 @@ class DetailsActionManager {
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/modal_file_tree.html",
-				context: { rows: rows }
+				context: { rows: rows },
 			});
 
 			if (response.html) {
@@ -809,7 +833,10 @@ class DetailsActionManager {
 			}
 		} catch (error) {
 			console.error("Error rendering file tree:", error);
-			await window.DOMUtils.renderError(tableBody, "Error loading file tree", { format: "table", colspan: 5 });
+			await window.DOMUtils.renderError(tableBody, "Error loading file tree", {
+				format: "table",
+				colspan: 5,
+			});
 		}
 	}
 
@@ -834,7 +861,7 @@ class DetailsActionManager {
 					type: file.media_type || file.type || "File",
 					size: this.formatFileSize(file.size || 0),
 					created_at: this.formatDate(file.created_at),
-					has_chevron: false
+					has_chevron: false,
 				});
 			}
 		}
@@ -849,11 +876,11 @@ class DetailsActionManager {
 						indent_range: [...Array(depth).keys()], // For template loop
 						icon: "bi-folder",
 						icon_color: "text-warning",
-						name: childNode.name + "/",
+						name: `${childNode.name}/`,
 						type: "Directory",
 						size: this.formatFileSize(childNode.size || 0),
 						created_at: this.formatDate(childNode.created_at),
-						has_chevron: true
+						has_chevron: true,
 					});
 
 					// Recursively add children

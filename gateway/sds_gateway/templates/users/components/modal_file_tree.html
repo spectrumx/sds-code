@@ -18,27 +18,21 @@ Context:
     ]
 }
 {% endcomment %}
-
 {% for row in rows %}
-<tr>
-    <td>
-        {% if row.has_chevron %}
-            <i class="bi bi-chevron-down text-muted"></i>
-        {% endif %}
-    </td>
-    <td>
-        {% for i in row.indent_range %}
-            &nbsp;&nbsp;&nbsp;&nbsp;
-        {% endfor %}
-        <i class="bi {{ row.icon }} {{ row.icon_color }}"></i> {{ row.name }}
-    </td>
-    <td>{{ row.type }}</td>
-    <td>{{ row.size }}</td>
-    <td>{{ row.created_at }}</td>
-</tr>
+    <tr>
+        <td>
+            {% if row.has_chevron %}<i class="bi bi-chevron-down text-muted"></i>{% endif %}
+        </td>
+        <td>
+            {% for i in row.indent_range %}&nbsp;&nbsp;&nbsp;&nbsp;{% endfor %}
+            <i class="bi {{ row.icon }} {{ row.icon_color }}"></i> {{ row.name }}
+        </td>
+        <td>{{ row.type }}</td>
+        <td>{{ row.size }}</td>
+        <td>{{ row.created_at }}</td>
+    </tr>
 {% empty %}
-<tr>
-    <td colspan="5" class="text-center text-muted py-4">No files found</td>
-</tr>
+    <tr>
+        <td colspan="5" class="text-center text-muted py-4">No files found</td>
+    </tr>
 {% endfor %}
-

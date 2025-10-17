@@ -371,27 +371,35 @@ class AssetSearchHandler {
 		this.updateResultsCount(data.results.length);
 
 		// Transform captures data for table_rows.html template
-		const rows = data.results.map(capture => {
-			const isSelected = this.formHandler?.selectedCaptures.has(capture.id.toString());
-			const isOwnedByCurrentUser = capture.owner_id === this.formHandler?.currentUserId;
+		const rows = data.results.map((capture) => {
+			const isSelected = this.formHandler?.selectedCaptures.has(
+				capture.id.toString(),
+			);
+			const isOwnedByCurrentUser =
+				capture.owner_id === this.formHandler?.currentUserId;
 			const canSelect = isOwnedByCurrentUser;
-			const ownerName = capture.owner ? capture.owner.name || capture.owner.email || "-" : "-";
-			const createdAt = new Date(capture.created_at).toLocaleDateString("en-US", { 
-				month: "2-digit", 
-				day: "2-digit", 
-				year: "numeric" 
-			});
-			
+			const ownerName = capture.owner
+				? capture.owner.name || capture.owner.email || "-"
+				: "-";
+			const createdAt = new Date(capture.created_at).toLocaleDateString(
+				"en-US",
+				{
+					month: "2-digit",
+					day: "2-digit",
+					year: "numeric",
+				},
+			);
+
 			return {
 				id: capture.id,
 				css_class: `capture-row${isSelected ? " table-warning" : ""}${!canSelect ? " readonly-row" : ""}`,
 				data_attrs: {
-					"capture-id": capture.id
+					"capture-id": capture.id,
 				},
 				cells: [
-					{ 
-						html: `<input type="checkbox" class="form-check-input capture-checkbox" name="captures" value="${capture.id}" 
-							${isSelected ? "checked" : ""} 
+					{
+						html: `<input type="checkbox" class="form-check-input capture-checkbox" name="captures" value="${capture.id}"
+							${isSelected ? "checked" : ""}
 							${!canSelect ? "disabled" : ""}
 							data-capture-type="${capture.type}"
 							data-capture-directory="${capture.directory}"
@@ -399,29 +407,32 @@ class AssetSearchHandler {
 							data-capture-scan-group="${capture.scan_group}"
 							data-capture-created-at="${capture.created_at}"
 							data-capture-owner-id="${capture.owner_id}"
-							data-capture-owner-name="${ownerName}" />`
+							data-capture-owner-name="${ownerName}" />`,
 					},
 					{ value: capture.type },
 					{ value: capture.directory },
 					{ value: capture.channel },
 					{ value: capture.scan_group },
 					{ value: ownerName },
-					{ value: createdAt }
-				]
+					{ value: createdAt },
+				],
 			};
 		});
 
 		// Render using DOMUtils
 		const success = await window.DOMUtils.renderTable(tbody, rows, {
 			empty_message: "No captures found",
-			empty_colspan: 7
+			empty_colspan: 7,
 		});
 
 		if (success) {
 			// Attach event handlers to rendered rows
 			this.attachCaptureRowHandlers(tbody);
 		} else {
-			await window.DOMUtils.renderError(tbody, "Error loading captures", { format: "table", colspan: 7 });
+			await window.DOMUtils.renderError(tbody, "Error loading captures", {
+				format: "table",
+				colspan: 7,
+			});
 		}
 
 		// Update pagination with current filters
@@ -437,9 +448,9 @@ class AssetSearchHandler {
 	 */
 	attachCaptureRowHandlers(tbody) {
 		const rows = tbody.querySelectorAll("tr[data-capture-id]");
-		
+
 		for (const row of rows) {
-			const checkbox = row.querySelector('input.capture-checkbox');
+			const checkbox = row.querySelector("input.capture-checkbox");
 			if (!checkbox) continue;
 
 			const captureId = checkbox.value;
@@ -450,7 +461,7 @@ class AssetSearchHandler {
 				scan_group: checkbox.dataset.captureScanGroup,
 				created_at: checkbox.dataset.captureCreatedAt,
 				owner_id: checkbox.dataset.captureOwnerId,
-				owner_name: checkbox.dataset.captureOwnerName
+				owner_name: checkbox.dataset.captureOwnerName,
 			};
 
 			const handleSelection = (e) => {
@@ -511,8 +522,11 @@ class AssetSearchHandler {
 		const paginationContainer = document.querySelector(`#${type}-pagination`);
 		if (!paginationContainer) return;
 
-		const success = await window.DOMUtils.renderPagination(paginationContainer, pagination);
-		
+		const success = await window.DOMUtils.renderPagination(
+			paginationContainer,
+			pagination,
+		);
+
 		if (success && pagination && pagination.num_pages > 1) {
 			// Attach click handlers after rendering
 			this.attachPaginationHandlers(type, paginationContainer);
@@ -614,7 +628,11 @@ class AssetSearchHandler {
 					const extensionSelect = document.getElementById("file-extension");
 					if (extensionSelect && data.extension_choices) {
 						const currentValue = extensionSelect.value;
-						await this.renderSelectOptions(extensionSelect, data.extension_choices, currentValue);
+						await this.renderSelectOptions(
+							extensionSelect,
+							data.extension_choices,
+							currentValue,
+						);
 					}
 
 					// Restore search values if they exist
@@ -748,7 +766,10 @@ class AssetSearchHandler {
 
 			// Update file extension select options
 			if (extensionSelect && data.extension_choices) {
-				await window.DOMUtils.renderSelectOptions(extensionSelect, data.extension_choices);
+				await window.DOMUtils.renderSelectOptions(
+					extensionSelect,
+					data.extension_choices,
+				);
 			}
 
 			// Pass the search parameters to renderFileTree
@@ -1029,7 +1050,9 @@ class AssetSearchHandler {
 		const errorContainer = document.getElementById("formErrors");
 		const errorContent = errorContainer?.querySelector(".error-content");
 		if (errorContainer && errorContent) {
-			await window.DOMUtils.renderError(errorContent, message, { format: "list" });
+			await window.DOMUtils.renderError(errorContent, message, {
+				format: "list",
+			});
 			this.formHandler.show(errorContainer);
 			errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
 		}
@@ -1043,44 +1066,50 @@ class AssetSearchHandler {
 		// Transform files data for table_rows.html template
 		const rows = Array.from(this.selectedFiles.entries()).map(([id, file]) => {
 			const isExistingFile = file.owner_id !== undefined;
-			const canRemove = !isExistingFile || 
+			const canRemove =
+				!isExistingFile ||
 				(isExistingFile && this.formHandler.permissions?.canRemoveAsset(file));
-			
+
 			return {
 				id: id,
 				css_class: !canRemove ? "readonly-row" : "",
 				data_attrs: {
-					"file-id": id
+					"file-id": id,
 				},
 				cells: [
 					{ value: file.name },
 					{ value: file.media_type },
 					{ value: file.relative_path },
 					{ value: this.formHandler.formatFileSize(file.size) },
-					{ value: file.owner_name || "Unknown" }
+					{ value: file.owner_name || "Unknown" },
 				],
-				actions: canRemove ? [
-					{
-						label: "Remove",
-						css_class: "btn-danger",
-						extra_class: "remove-selected-file",
-						data_attrs: { "id": id }
-					}
-				] : []
+				actions: canRemove
+					? [
+							{
+								label: "Remove",
+								css_class: "btn-danger",
+								extra_class: "remove-selected-file",
+								data_attrs: { id: id },
+							},
+						]
+					: [],
 			};
 		});
 
 		// Render using DOMUtils
 		const success = await window.DOMUtils.renderTable(tbody, rows, {
 			empty_message: "No files selected",
-			empty_colspan: 6
+			empty_colspan: 6,
 		});
 
 		if (success) {
 			// Attach event handlers to remove buttons
 			this.attachFileRemovalHandlers(tbody);
 		} else {
-			await window.DOMUtils.renderError(tbody, "Error loading files", { format: "table", colspan: 6 });
+			await window.DOMUtils.renderError(tbody, "Error loading files", {
+				format: "table",
+				colspan: 6,
+			});
 		}
 	}
 
@@ -1119,7 +1148,6 @@ class AssetSearchHandler {
 			});
 		}
 	}
-
 
 	/**
 	 * Update select all checkbox state
