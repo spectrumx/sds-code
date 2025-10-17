@@ -1100,11 +1100,11 @@ class ShareActionManager {
 		// Map ShareActionManager types to showAlert types
 		const mappedType = type === "danger" ? "error" : type;
 
-		// Use the global showAlert function from DOMUtils
-		if (window.showAlert) {
-			window.showAlert(message, mappedType);
+		// Use DOMUtils.showAlert for toast notifications
+		if (window.DOMUtils) {
+			window.DOMUtils.showAlert(message, mappedType);
 		} else {
-			console.error("Global showAlert function not available");
+			console.error("DOMUtils not available");
 		}
 	}
 }
