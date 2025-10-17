@@ -88,6 +88,7 @@ from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.navigation_models import NavigationContext
 from sds_gateway.users.navigation_models import NavigationType
 from sds_gateway.users.utils import deduplicate_composite_captures
+from sds_gateway.users.utils import render_html_fragment
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 from sds_gateway.visualizations.config import get_visualization_compatibility
 
@@ -2476,6 +2477,63 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 
 
 user_dataset_details_view = DatasetDetailsView.as_view()
+
+
+class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
+    """Generic view to render any HTML fragment from a Django template."""
+
+    def post(self, request: HttpRequest) -> JsonResponse:
+        """
+        Render HTML fragment using server-side templates.
+
+        Expects JSON body with:
+        {
+            "template": "users/components/my_component.html",
+            "context": {
+                "key": "value",
+                ...
+            }
+        }
+
+        Returns:
+            JsonResponse with rendered HTML
+        """
+        try:
+            data = json.loads(request.body)
+            template_name = data.get("template")
+            context = data.get("context", {})
+
+            if not template_name:
+                return JsonResponse({"error": "Template name is required"}, status=400)
+
+            # Security: Only allow templates from users/components/ directory
+            if not template_name.startswith("users/components/"):
+                logger.error(
+                    "Invalid template path: %s",
+                    template_name,
+                )
+                return JsonResponse(
+                    {"error": "Cannot render component."},
+                    status=400,
+                )
+
+            html = render_html_fragment(
+                template_name=template_name,
+                context=context,
+                request=request,
+            )
+
+            return JsonResponse({"html": html})
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        except Exception as e:
+            logger.exception(
+                "Error rendering template %s", data.get("template", "unknown")
+            )
+            return JsonResponse({"error": str(e)}, status=500)
+
+
+render_html_fragment_view = RenderHTMLFragmentView.as_view()
 
 
 class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
