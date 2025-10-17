@@ -3,7 +3,8 @@ User Chips Component
 Renders user/group chips with optional permission selects and remove buttons
 {% endcomment %}
 {% for user in users %}
-    <div class="user-chip d-flex align-items-center justify-content-between mb-2 p-2 border rounded" data-user-email="{{ user.email }}">
+    <div class="user-chip d-flex align-items-center justify-content-between mb-2 p-2 border rounded"
+         data-user-email="{{ user.email }}">
         <div class="d-flex align-items-center flex-grow-1">
             {% if user.type == "group" or user.email|slice:":6" == "group:" %}
                 <i class="bi bi-people-fill me-2"></i>
@@ -23,25 +24,22 @@ Renders user/group chips with optional permission selects and remove buttons
         </div>
         <div class="d-flex align-items-center gap-2">
             {% if show_permission_select %}
-            <select class="form-select form-select-sm permission-select" 
-                    data-user-email="{{ user.email }}" 
-                    style="width: auto;">
-                {% for level in permission_levels %}
-                <option value="{{ level }}" {% if user.permission_level == level %}selected{% endif %}>
-                    {{ level|title }}
-                </option>
-                {% endfor %}
-            </select>
+                <select class="form-select form-select-sm permission-select w-auto"
+                        data-user-email="{{ user.email }}">
+                    {% for level in permission_levels %}
+                        <option value="{{ level }}"
+                                {% if user.permission_level == level %}selected{% endif %}>{{ level|title }}</option>
+                    {% endfor %}
+                </select>
             {% endif %}
             {% if show_remove_button %}
-            <button type="button" 
-                    class="btn btn-sm btn-outline-danger remove-chip" 
-                    data-user-email="{{ user.email }}"
-                    aria-label="Remove {{ user.name }}">
-                <i class="bi bi-x"></i>
-            </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger remove-chip"
+                        data-user-email="{{ user.email }}"
+                        aria-label="Remove {{ user.name }}">
+                    <i class="bi bi-x"></i>
+                </button>
             {% endif %}
         </div>
     </div>
 {% endfor %}
-

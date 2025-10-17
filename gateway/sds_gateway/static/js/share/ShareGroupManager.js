@@ -435,15 +435,23 @@ class ShareGroupManager {
 		}
 
 		// Show loading state using table_rows template
-		await window.DOMUtils.renderTable(membersList, [{
-			cells: [{
-				html: '<div class="text-center text-muted"><i class="bi bi-people"></i><p class="mb-0">Loading members...</p></div>',
-				css_class: "p-2 shadow-sm"
-			}]
-		}], {
-			empty_message: "",
-			empty_colspan: 1
-		});
+		await window.DOMUtils.renderTable(
+			membersList,
+			[
+				{
+					cells: [
+						{
+							html: '<div class="text-center text-muted"><i class="bi bi-people"></i><p class="mb-0">Loading members...</p></div>',
+							css_class: "p-2 shadow-sm",
+						},
+					],
+				},
+			],
+			{
+				empty_message: "",
+				empty_colspan: 1,
+			},
+		);
 
 		try {
 			const response = await window.APIClient.request(
@@ -458,41 +466,46 @@ class ShareGroupManager {
 			if (response.success) {
 				// Render members using generic table_rows template
 				try {
-					const rows = response.members.map(member => ({
-						cells: [{
-							html: `
+					const rows = response.members.map((member) => ({
+						cells: [
+							{
+								html: `
 								<div class="row">
 									<div class="col-md-10">
 										<div>
-											<h5 class="mb-1">${member.name || 'No name'}</h5>
+											<h5 class="mb-1">${member.name || "No name"}</h5>
 											<p class="mb-0">
 												<small class="text-muted">${member.email}</small>
 											</p>
 										</div>
 									</div>
 								</div>
-							`
-						}],
-						actions: [{
-							label: "Remove",
-							icon: "bi-person-slash",
-							css_class: "btn-outline-danger",
-							extra_class: "remove-member-btn",
-							data_attrs: {
-								user_email: member.email,
-								user_name: member.name || 'No name'
+							`,
 							},
-							onclick: `shareGroupManager.removeMemberFromGroup(event, '${member.email}', '${member.name || "No name"}')`
-						}]
+						],
+						actions: [
+							{
+								label: "Remove",
+								icon: "bi-person-slash",
+								css_class: "btn-outline-danger",
+								extra_class: "remove-member-btn",
+								data_attrs: {
+									user_email: member.email,
+									user_name: member.name || "No name",
+								},
+								onclick: `shareGroupManager.removeMemberFromGroup(event, '${member.email}', '${member.name || "No name"}')`,
+							},
+						],
 					}));
 
 					await window.DOMUtils.renderTable(membersList, rows, {
 						empty_message: "No members in this group",
-						empty_colspan: 1
+						empty_colspan: 1,
 					});
 				} catch (renderError) {
 					console.error("Error rendering members:", renderError);
-					membersList.innerHTML = '<tr><td class="p-2 shadow-sm"><div class="text-center text-danger">Error loading members</div></td></tr>';
+					membersList.innerHTML =
+						'<tr><td class="p-2 shadow-sm"><div class="text-center text-danger">Error loading members</div></td></tr>';
 				}
 
 				// Update member count
@@ -514,21 +527,21 @@ class ShareGroupManager {
 				this.updateSaveButtonState();
 			} else {
 				// Show error state using centralized renderError
-				const errorDiv = document.createElement('div');
+				const errorDiv = document.createElement("div");
 				await window.DOMUtils.renderError(errorDiv, "Error loading members", {
 					format: "alert",
 					alert_type: "danger",
-					icon: "exclamation-triangle"
+					icon: "exclamation-triangle",
 				});
 				membersList.innerHTML = `<tr><td class="p-2 shadow-sm">${errorDiv.innerHTML}</td></tr>`;
 			}
 		} catch (error) {
 			// Show error state using centralized renderError
-			const errorDiv = document.createElement('div');
+			const errorDiv = document.createElement("div");
 			await window.DOMUtils.renderError(errorDiv, "Error loading members", {
 				format: "alert",
 				alert_type: "danger",
-				icon: "exclamation-triangle"
+				icon: "exclamation-triangle",
 			});
 			membersList.innerHTML = `<tr><td class="p-2 shadow-sm">${errorDiv.innerHTML}</td></tr>`;
 		}
@@ -608,12 +621,12 @@ class ShareGroupManager {
 					has_more_datasets: hasMoreDatasets,
 					has_more_captures: hasMoreCaptures,
 					remaining_datasets: totalDatasets - 3,
-					remaining_captures: totalCaptures - 3
+					remaining_captures: totalCaptures - 3,
 				};
 
 				const response = await window.APIClient.post("/users/render-html/", {
 					template: "users/components/shared_assets_display.html",
-					context: context
+					context: context,
 				});
 
 				if (response.html) {
@@ -623,7 +636,7 @@ class ShareGroupManager {
 			} else {
 				const response = await window.APIClient.post("/users/render-html/", {
 					template: "users/components/shared_assets_display.html",
-					context: { has_assets: false }
+					context: { has_assets: false },
 				});
 
 				if (response.html) {
@@ -633,7 +646,8 @@ class ShareGroupManager {
 			}
 		} catch (error) {
 			console.error("Error rendering shared assets:", error);
-			sharedAssetsSection.innerHTML = '<div class="alert alert-danger">Error loading shared assets</div>';
+			sharedAssetsSection.innerHTML =
+				'<div class="alert alert-danger">Error loading shared assets</div>';
 			sharedAssetsSection.classList.remove("d-none");
 		}
 	}
@@ -739,7 +753,7 @@ class ShareGroupManager {
 				try {
 					const response = await window.APIClient.post("/users/render-html/", {
 						template: "users/components/user_search_results.html",
-						context: { users: users }
+						context: { users: users },
 					});
 
 					if (response.html) {
@@ -747,7 +761,8 @@ class ShareGroupManager {
 					}
 				} catch (error) {
 					console.error("Error rendering user search results:", error);
-					listGroup.innerHTML = '<div class="list-group-item no-results">Error loading users</div>';
+					listGroup.innerHTML =
+						'<div class="list-group-item no-results">Error loading users</div>';
 				}
 
 				this.showDropdown(dropdown);
@@ -884,7 +899,9 @@ class ShareGroupManager {
 	highlightMatch(text, query) {
 		// This method is kept for backwards compatibility but is no longer used
 		// Server-side rendering via Django templates handles all HTML generation
-		console.warn("highlightMatch is deprecated, use server-side rendering instead");
+		console.warn(
+			"highlightMatch is deprecated, use server-side rendering instead",
+		);
 		return text;
 	}
 
@@ -1204,20 +1221,20 @@ class ShareGroupManager {
 			memberCountElement.textContent = `${count} member${count !== 1 ? "s" : ""}`;
 		}
 
-	if (memberEmailsElement) {
-		if (members.length === 0) {
-			window.DOMUtils.hide(memberEmailsElement);
-			memberEmailsElement.innerHTML = "";
-		} else {
-			window.DOMUtils.show(memberEmailsElement);
-			const emails = members.slice(0, 3).map((member) => member.email);
-			let emailsHtml = emails.join(", ");
-			if (members.length > 3) {
-				emailsHtml += `<span class="text-muted"> and ${members.length - 3} more</span>`;
+		if (memberEmailsElement) {
+			if (members.length === 0) {
+				window.DOMUtils.hide(memberEmailsElement);
+				memberEmailsElement.innerHTML = "";
+			} else {
+				window.DOMUtils.show(memberEmailsElement);
+				const emails = members.slice(0, 3).map((member) => member.email);
+				let emailsHtml = emails.join(", ");
+				if (members.length > 3) {
+					emailsHtml += `<span class="text-muted"> and ${members.length - 3} more</span>`;
+				}
+				memberEmailsElement.innerHTML = emailsHtml;
 			}
-			memberEmailsElement.innerHTML = emailsHtml;
 		}
-	}
 	}
 
 	/**
@@ -1277,22 +1294,22 @@ class ShareGroupManager {
 			}
 		}
 
-	// Update the count
-	memberCountElement.textContent = `${newCount} member${newCount !== 1 ? "s" : ""}`;
+		// Update the count
+		memberCountElement.textContent = `${newCount} member${newCount !== 1 ? "s" : ""}`;
 
-	// Update the emails display
-	if (newCount === 0) {
-		window.DOMUtils.hide(memberEmailsElement);
-		memberEmailsElement.innerHTML = "";
-	} else {
-		window.DOMUtils.show(memberEmailsElement);
-		const displayEmails = newEmails.slice(0, 3);
-		let emailsHtml = displayEmails.join(", ");
-		if (newEmails.length > 3) {
-			emailsHtml += `<span class="text-muted"> and ${newEmails.length - 3} more</span>`;
+		// Update the emails display
+		if (newCount === 0) {
+			window.DOMUtils.hide(memberEmailsElement);
+			memberEmailsElement.innerHTML = "";
+		} else {
+			window.DOMUtils.show(memberEmailsElement);
+			const displayEmails = newEmails.slice(0, 3);
+			let emailsHtml = displayEmails.join(", ");
+			if (newEmails.length > 3) {
+				emailsHtml += `<span class="text-muted"> and ${newEmails.length - 3} more</span>`;
+			}
+			memberEmailsElement.innerHTML = emailsHtml;
 		}
-		memberEmailsElement.innerHTML = emailsHtml;
-	}
 	}
 
 	/**
@@ -1343,39 +1360,47 @@ class ShareGroupManager {
 						modal_target: "#share-modal-sharegroup",
 						data_attrs: {
 							"group-uuid": groupData.uuid,
-							"group-name": groupData.name
-						}
+							"group-name": groupData.name,
+						},
 					},
 					{
 						label: "Delete",
 						icon: "trash",
 						type: "button",
-						onclick: `shareGroupManager.deleteGroup('${groupData.uuid}', '${groupData.name}')`
-					}
-				]
+						onclick: `shareGroupManager.deleteGroup('${groupData.uuid}', '${groupData.name}')`,
+					},
+				],
 			});
 
 			// Create a temporary container for the table
-			const tempDiv = document.createElement('div');
-			await window.DOMUtils.renderTable(tempDiv, [{
-				data_attrs: { group_uuid: groupData.uuid },
-				cells: [
-					{ html: `<strong>${groupData.name}</strong>` },
-					{ html: `
+			const tempDiv = document.createElement("div");
+			await window.DOMUtils.renderTable(
+				tempDiv,
+				[
+					{
+						data_attrs: { group_uuid: groupData.uuid },
+						cells: [
+							{ html: `<strong>${groupData.name}</strong>` },
+							{
+								html: `
 						<span class="badge bg-secondary member-count" data-group-uuid="${groupData.uuid}">0 members</span>
 						<div class="small text-muted mt-1 member-emails" data-group-uuid="${groupData.uuid}" style="display: none;"></div>
-					` },
-					{ value: createdDate },
-					{ html: dropdownHtml }
-				]
-			}], {
-				empty_message: "",
-				empty_colspan: 4
-			});
+					`,
+							},
+							{ value: createdDate },
+							{ html: dropdownHtml },
+						],
+					},
+				],
+				{
+					empty_message: "",
+					empty_colspan: 4,
+				},
+			);
 
 			// Insert the rendered HTML directly
-			tableBody.insertAdjacentHTML('beforeend', tempDiv.innerHTML);
-			
+			tableBody.insertAdjacentHTML("beforeend", tempDiv.innerHTML);
+
 			// Hide the "no groups" message if it exists
 			const noGroupsMessage = document.querySelector(".text-center.py-5");
 			if (noGroupsMessage) {

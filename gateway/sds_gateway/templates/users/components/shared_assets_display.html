@@ -23,76 +23,73 @@ Context:
     "remaining_captures": 1
 }
 {% endcomment %}
-
 {% if has_assets %}
-<h6>
-    <i class="bi bi-share me-2"></i>Shared Assets ({{ total_datasets|add:total_captures }})
-</h6>
-<div class="alert alert-info">
-    <div class="mb-2">
-        <strong>New members will automatically have access to these shared assets:</strong>
-    </div>
-    <div class="row">
-        {% if show_datasets %}
-        <div class="col-md-6">
-            <h6>
-                <i class="bi bi-collection me-2"></i>Datasets ({{ total_datasets }})
-            </h6>
-            <div class="shared-datasets-list">
-                {% for dataset in datasets %}
-                <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-collection me-2"></i>
-                    <div class="flex-grow-1">
-                        <div class="fw-bold">{{ dataset.name }}</div>
-                        <div class="text-muted small">Dataset • Shared by {{ dataset.owner_name }}</div>
+    <h6>
+        <i class="bi bi-share me-2"></i>Shared Assets ({{ total_datasets|add:total_captures }})
+    </h6>
+    <div class="alert alert-info">
+        <div class="mb-2">
+            <strong>New members will automatically have access to these shared assets:</strong>
+        </div>
+        <div class="row">
+            {% if show_datasets %}
+                <div class="col-md-6">
+                    <h6>
+                        <i class="bi bi-collection me-2"></i>Datasets ({{ total_datasets }})
+                    </h6>
+                    <div class="shared-datasets-list">
+                        {% for dataset in datasets %}
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-collection me-2"></i>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold">{{ dataset.name }}</div>
+                                    <div class="text-muted small">Dataset • Shared by {{ dataset.owner_name }}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                        {% if has_more_datasets %}
+                            <div class="text-muted small mt-2">
+                                <i class="bi bi-three-dots me-1"></i>
+                                and {{ remaining_datasets }} more dataset{{ remaining_datasets|pluralize }}
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
-                {% endfor %}
-                {% if has_more_datasets %}
-                <div class="text-muted small mt-2">
-                    <i class="bi bi-three-dots me-1"></i>
-                    and {{ remaining_datasets }} more dataset{{ remaining_datasets|pluralize }}
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
-        
-        {% if show_captures %}
-        <div class="col-md-6">
-            <h6>
-                <i class="bi bi-folder me-2"></i>Captures ({{ total_captures }})
-            </h6>
-            <div class="shared-captures-list">
-                {% for capture in captures %}
-                <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-folder me-2"></i>
-                    <div class="flex-grow-1">
-                        <div class="fw-bold">{{ capture.name }}</div>
-                        <div class="text-muted small">Capture • Shared by {{ capture.owner_name }}</div>
+            {% endif %}
+            {% if show_captures %}
+                <div class="col-md-6">
+                    <h6>
+                        <i class="bi bi-folder me-2"></i>Captures ({{ total_captures }})
+                    </h6>
+                    <div class="shared-captures-list">
+                        {% for capture in captures %}
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-folder me-2"></i>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold">{{ capture.name }}</div>
+                                    <div class="text-muted small">Capture • Shared by {{ capture.owner_name }}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                        {% if has_more_captures %}
+                            <div class="text-muted small mt-2">
+                                <i class="bi bi-three-dots me-1"></i>
+                                and {{ remaining_captures }} more capture{{ remaining_captures|pluralize }}
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
-                {% endfor %}
-                {% if has_more_captures %}
-                <div class="text-muted small mt-2">
-                    <i class="bi bi-three-dots me-1"></i>
-                    and {{ remaining_captures }} more capture{{ remaining_captures|pluralize }}
-                </div>
-                {% endif %}
-            </div>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
-</div>
 {% else %}
-<h6 class="text-muted">
-    <i class="bi bi-share me-2"></i>Shared Assets
-</h6>
-<div class="alert alert-light">
-    <div class="text-muted">
-        <i class="bi bi-info-circle me-1"></i>
-        No assets are currently shared with this group. New members will not have access to any shared assets.
+    <h6 class="text-muted">
+        <i class="bi bi-share me-2"></i>Shared Assets
+    </h6>
+    <div class="alert alert-light">
+        <div class="text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            No assets are currently shared with this group. New members will not have access to any shared assets.
+        </div>
     </div>
-</div>
 {% endif %}
-

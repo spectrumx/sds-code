@@ -249,44 +249,55 @@ class DatasetEditingHandler {
 				const canRemoveThisCapture =
 					this.permissions.canRemoveAnyAssets() ||
 					(this.permissions.canRemoveAsset(capture) && isOwnedByCurrentUser);
-				
+
 				return {
 					css_class: !canRemoveThisCapture ? "readonly-row" : "",
 					data_attrs: { capture_id: capture.id },
 					cells: [
 						{ value: capture.type },
 						{ value: capture.directory },
-						{ value: capture.owner_name }
+						{ value: capture.owner_name },
 					],
-					actions: canRemoveThisCapture ? [{
-						label: "Remove",
-						css_class: "btn-danger",
-						extra_class: "mark-for-removal-btn",
-						data_attrs: {
-							capture_id: capture.id,
-							capture_type: "capture"
-						}
-					}] : [
-						{ html: '<span class="text-muted">N/A</span>' }
-					]
+					actions: canRemoveThisCapture
+						? [
+								{
+									label: "Remove",
+									css_class: "btn-danger",
+									extra_class: "mark-for-removal-btn",
+									data_attrs: {
+										capture_id: capture.id,
+										capture_type: "capture",
+									},
+								},
+							]
+						: [{ html: '<span class="text-muted">N/A</span>' }],
 				};
 			});
 
-		// Render using DOMUtils
-		const success = await window.DOMUtils.renderTable(currentCapturesList, rows, {
-			empty_message: "No captures in dataset",
-			empty_colspan: 4
-		});
+			// Render using DOMUtils
+			const success = await window.DOMUtils.renderTable(
+				currentCapturesList,
+				rows,
+				{
+					empty_message: "No captures in dataset",
+					empty_colspan: 4,
+				},
+			);
 
-		if (!success) {
-			await window.DOMUtils.renderError(currentCapturesList, "Error loading captures", { format: "table", colspan: 4 });
-		}
+			if (!success) {
+				await window.DOMUtils.renderError(
+					currentCapturesList,
+					"Error loading captures",
+					{ format: "table", colspan: 4 },
+				);
+			}
 
 			if (currentCapturesCount) {
 				currentCapturesCount.textContent = captures.length;
 			}
 		} else {
-			currentCapturesList.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No captures in dataset</td></tr>';
+			currentCapturesList.innerHTML =
+				'<tr><td colspan="4" class="text-center text-muted">No captures in dataset</td></tr>';
 			if (currentCapturesCount) {
 				currentCapturesCount.textContent = "0";
 			}
@@ -326,38 +337,49 @@ class DatasetEditingHandler {
 						{ value: file.media_type },
 						{ value: file.relative_path },
 						{ value: file.size },
-						{ value: file.owner_name }
+						{ value: file.owner_name },
 					],
-					actions: canRemoveThisFile ? [{
-						label: "Remove",
-						css_class: "btn-danger",
-						extra_class: "mark-for-removal-btn",
-						data_attrs: {
-							file_id: file.id,
-							file_type: "file"
-						}
-					}] : [
-						{ html: '<span class="text-muted">N/A</span>' }
-					]
+					actions: canRemoveThisFile
+						? [
+								{
+									label: "Remove",
+									css_class: "btn-danger",
+									extra_class: "mark-for-removal-btn",
+									data_attrs: {
+										file_id: file.id,
+										file_type: "file",
+									},
+								},
+							]
+						: [{ html: '<span class="text-muted">N/A</span>' }],
 				};
 			});
 
-		// Render using DOMUtils
-		const success = await window.DOMUtils.renderTable(selectedFilesBody, rows, {
-			empty_message: "No files in dataset",
-			empty_colspan: 6
-		});
+			// Render using DOMUtils
+			const success = await window.DOMUtils.renderTable(
+				selectedFilesBody,
+				rows,
+				{
+					empty_message: "No files in dataset",
+					empty_colspan: 6,
+				},
+			);
 
-		if (!success) {
-			await window.DOMUtils.renderError(selectedFilesBody, "Error loading files", { format: "table", colspan: 6 });
-		}
+			if (!success) {
+				await window.DOMUtils.renderError(
+					selectedFilesBody,
+					"Error loading files",
+					{ format: "table", colspan: 6 },
+				);
+			}
 
 			// Update the display input
 			if (selectedFilesDisplay) {
 				selectedFilesDisplay.value = `${files.length} file(s) selected`;
 			}
 		} else {
-			selectedFilesBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No files in dataset</td></tr>';
+			selectedFilesBody.innerHTML =
+				'<tr><td colspan="6" class="text-center text-muted">No files in dataset</td></tr>';
 			if (selectedFilesDisplay) {
 				selectedFilesDisplay.value = "0 file(s) selected";
 			}
@@ -579,7 +601,8 @@ class DatasetEditingHandler {
 		const allChanges = Array.from(this.pendingCaptures.entries());
 
 		if (allChanges.length === 0) {
-			pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No pending capture changes</td></tr>';
+			pendingList.innerHTML =
+				'<tr><td colspan="3" class="text-center text-muted">No pending capture changes</td></tr>';
 			if (pendingCount) {
 				pendingCount.textContent = "0";
 			}
@@ -591,32 +614,37 @@ class DatasetEditingHandler {
 			data_attrs: { change_id: id },
 			cells: [
 				{
-					html: `<span class="badge ${change.action === 'add' ? 'bg-success' : 'bg-danger'}">
-						${change.action === 'add' ? 'Add' : 'Remove'}
-					</span>`
+					html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
+						${change.action === "add" ? "Add" : "Remove"}
+					</span>`,
 				},
-				{ value: change.data.type }
+				{ value: change.data.type },
 			],
-			actions: [{
-				label: "Cancel",
-				css_class: "btn-secondary",
-				extra_class: "cancel-change",
-				data_attrs: {
-					capture_id: id,
-					change_type: "capture"
-				}
-			}]
+			actions: [
+				{
+					label: "Cancel",
+					css_class: "btn-secondary",
+					extra_class: "cancel-change",
+					data_attrs: {
+						capture_id: id,
+						change_type: "capture",
+					},
+				},
+			],
 		}));
 
-	// Render using DOMUtils
-	const success = await window.DOMUtils.renderTable(pendingList, rows, {
-		empty_message: "No pending capture changes",
-		empty_colspan: 3
-	});
+		// Render using DOMUtils
+		const success = await window.DOMUtils.renderTable(pendingList, rows, {
+			empty_message: "No pending capture changes",
+			empty_colspan: 3,
+		});
 
-	if (!success) {
-		await window.DOMUtils.renderError(pendingList, "Error loading changes", { format: "table", colspan: 3 });
-	}
+		if (!success) {
+			await window.DOMUtils.renderError(pendingList, "Error loading changes", {
+				format: "table",
+				colspan: 3,
+			});
+		}
 
 		if (pendingCount) {
 			pendingCount.textContent = allChanges.length;
@@ -636,7 +664,8 @@ class DatasetEditingHandler {
 		const allChanges = Array.from(this.pendingFiles.entries());
 
 		if (allChanges.length === 0) {
-			pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No pending file changes</td></tr>';
+			pendingList.innerHTML =
+				'<tr><td colspan="3" class="text-center text-muted">No pending file changes</td></tr>';
 			if (pendingCount) {
 				pendingCount.textContent = "0";
 			}
@@ -648,31 +677,36 @@ class DatasetEditingHandler {
 			data_attrs: { change_id: id },
 			cells: [
 				{
-					html: `<span class="badge ${change.action === 'add' ? 'bg-success' : 'bg-danger'}">
-						${change.action === 'add' ? 'Add' : 'Remove'}
-					</span>`
+					html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
+						${change.action === "add" ? "Add" : "Remove"}
+					</span>`,
 				},
-				{ value: change.data.name }
+				{ value: change.data.name },
 			],
-			actions: [{
-				label: "Cancel",
-				css_class: "btn-secondary",
-				extra_class: "cancel-change",
-				data_attrs: {
-					file_id: id,
-					change_type: "file"
-				}
-			}]
+			actions: [
+				{
+					label: "Cancel",
+					css_class: "btn-secondary",
+					extra_class: "cancel-change",
+					data_attrs: {
+						file_id: id,
+						change_type: "file",
+					},
+				},
+			],
 		}));
 
 		// Render using DOMUtils
 		const success = await window.DOMUtils.renderTable(pendingList, rows, {
 			empty_message: "No pending file changes",
-			empty_colspan: 3
+			empty_colspan: 3,
 		});
 
 		if (!success) {
-			await window.DOMUtils.renderError(pendingList, "Error loading changes", { format: "table", colspan: 3 });
+			await window.DOMUtils.renderError(pendingList, "Error loading changes", {
+				format: "table",
+				colspan: 3,
+			});
 		}
 
 		if (pendingCount) {
@@ -911,7 +945,6 @@ class DatasetEditingHandler {
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 	}
-
 
 	/**
 	 * Update hidden fields (no-op for editing mode)
@@ -1158,32 +1191,34 @@ class DatasetEditingHandler {
 			try {
 				// Normalize authors for server-side rendering
 				const normalizedAuthors = authors.map((author, index) => {
-					const authorName = typeof author === "string" ? author : author.name || "";
-					const authorOrcid = typeof author === "string" ? "" : author.orcid_id || "";
+					const authorName =
+						typeof author === "string" ? author : author.name || "";
+					const authorOrcid =
+						typeof author === "string" ? "" : author.orcid_id || "";
 					const isMarkedForRemoval = authorChanges.removed.includes(index);
-					
+
 					// Use existing stable ID or generate one
 					const stableId = author._stableId || `author-${index}-${Date.now()}`;
-					
+
 					// Store stable ID back to author object
 					if (!author._stableId) {
 						author._stableId = stableId;
 					}
-					
+
 					return {
 						index: index,
 						name: authorName,
 						orcid_id: authorOrcid,
 						stable_id: stableId,
 						is_primary: index === 0,
-						is_marked_for_removal: isMarkedForRemoval
+						is_marked_for_removal: isMarkedForRemoval,
 					};
 				});
 
 				// Render using server-side template
 				const response = await window.APIClient.post("/users/render-html/", {
 					template: "users/components/author_list_items.html",
-					context: { authors: normalizedAuthors }
+					context: { authors: normalizedAuthors },
 				});
 
 				if (response.html) {
@@ -1192,7 +1227,8 @@ class DatasetEditingHandler {
 			} catch (error) {
 				console.error("Error rendering authors:", error);
 				// Fallback: show error message
-				authorsList.innerHTML = '<div class="alert alert-danger">Error loading authors</div>';
+				authorsList.innerHTML =
+					'<div class="alert alert-danger">Error loading authors</div>';
 			}
 
 			// Update hidden field
@@ -1522,7 +1558,7 @@ class DatasetEditingHandler {
 
 			// Format original authors for display
 			const originalAuthorNames = this.formatAuthors(originalAuthors);
-			
+
 			// Always show original value
 			authorsElement.innerHTML = `<span class="current-value">${originalAuthorNames}</span>`;
 
@@ -1531,7 +1567,7 @@ class DatasetEditingHandler {
 				originalAuthors,
 				currentAuthorsWithIds,
 			);
-			
+
 			// If there are changes, request server-side rendering
 			if (changes.length > 0) {
 				try {
@@ -1542,56 +1578,56 @@ class DatasetEditingHandler {
 								type: "add",
 								parts: [
 									{ text: "Add: " },
-									{ text: change.name, css_class: "text-success" }
-								]
+									{ text: change.name, css_class: "text-success" },
+								],
 							};
-						} else if (change.type === "remove") {
+						}
+						if (change.type === "remove") {
 							return {
 								type: "remove",
 								parts: [
 									{ text: "Remove: " },
-									{ text: change.name, css_class: "text-danger" }
-								]
+									{ text: change.name, css_class: "text-danger" },
+								],
 							};
-						} else if (change.type === "change") {
+						}
+						if (change.type === "change") {
 							return {
 								type: "change",
 								parts: [
 									{ text: 'Change Name: "' },
 									{ text: change.oldName },
 									{ text: '" → ' },
-									{ text: `"${change.newName}"`, css_class: "text-warning" }
-								]
+									{ text: `"${change.newName}"`, css_class: "text-warning" },
+								],
 							};
 						}
 						return change;
 					});
 
 					// Request server to render using generic change_list
-					const response = await window.APIClient.post(
-						"/users/render-html/",
-						{
-							template: "users/components/change_list.html",
-							context: { changes: normalizedChanges }
-						}
-					);
+					const response = await window.APIClient.post("/users/render-html/", {
+						template: "users/components/change_list.html",
+						context: { changes: normalizedChanges },
+					});
 
 					// Insert the server-rendered HTML
 					if (response.html) {
-						authorsElement.insertAdjacentHTML('beforeend', response.html);
+						authorsElement.insertAdjacentHTML("beforeend", response.html);
 					}
 				} catch (error) {
 					console.error("Error rendering author changes:", error);
 					// Fallback: show error message
 					authorsElement.insertAdjacentHTML(
-						'beforeend',
-						'<div class="text-danger mt-2"><small>Error loading changes</small></div>'
+						"beforeend",
+						'<div class="text-danger mt-2"><small>Error loading changes</small></div>',
 					);
 				}
 			}
 		} catch (e) {
 			console.error("Error in updateDatasetAuthors:", e);
-			authorsElement.innerHTML = '<span class="current-value">Error parsing authors.</span>';
+			authorsElement.innerHTML =
+				'<span class="current-value">Error parsing authors.</span>';
 		}
 	}
 

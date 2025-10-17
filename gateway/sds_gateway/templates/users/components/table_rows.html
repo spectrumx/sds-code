@@ -25,41 +25,40 @@ Context structure:
     "empty_colspan": 5
 }
 {% endcomment %}
-
 {% if rows %}
     {% for row in rows %}
-    <tr {% if row.css_class %}class="{{ row.css_class }}"{% endif %}
-        {% for key, value in row.data_attrs.items %}data-{{ key }}="{{ value }}" {% endfor %}>
-        {% for cell in row.cells %}
-        <td {% if cell.css_class %}class="{{ cell.css_class }}"{% endif %}>
-            {% if cell.html %}
-                {{ cell.html|safe }}
-            {% else %}
-                {{ cell.value }}
-            {% endif %}
-        </td>
-        {% endfor %}
-        {% if row.actions %}
-        <td>
-            {% for action in row.actions %}
-            <button type="button"
-                    class="btn btn-sm {{ action.css_class|default:'btn-outline-secondary' }} {{ action.extra_class|default:'' }}"
-                    {% for key, value in action.data_attrs.items %}data-{{ key }}="{{ value }}" {% endfor %}
-                    {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}
-                    {% if action.title %}title="{{ action.title }}"{% endif %}>
-                {% if action.icon %}<i class="bi {{ action.icon }} {% if action.label %}me-1{% endif %}"></i>{% endif %}
-                {% if action.label %}{{ action.label }}{% endif %}
-            </button>
+        <tr {% if row.css_class %}class="{{ row.css_class }}"{% endif %}
+            {% for key, value in row.data_attrs.items %}data-{{ key }}="{{ value }}"{% endfor %}>
+            {% for cell in row.cells %}
+                <td {% if cell.css_class %}class="{{ cell.css_class }}"{% endif %}>
+                    {% if cell.html %}
+                        {{ cell.html|safe }}
+                    {% else %}
+                        {{ cell.value }}
+                    {% endif %}
+                </td>
             {% endfor %}
-        </td>
-        {% endif %}
-    </tr>
+            {% if row.actions %}
+                <td>
+                    {% for action in row.actions %}
+                        <button type="button"
+                                class="btn btn-sm {{ action.css_class|default:'btn-outline-secondary' }} {{ action.extra_class|default:'' }}"
+                                {% for key, value in action.data_attrs.items %}data-{{ key }}="{{ value }}"{% endfor %}
+                                {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}
+                                {% if action.title %}title="{{ action.title }}"{% endif %}>
+                            {% if action.icon %}
+                                <i class="bi {{ action.icon }} {% if action.label %}me-1{% endif %}"></i>
+                            {% endif %}
+                            {% if action.label %}{{ action.label }}{% endif %}
+                        </button>
+                    {% endfor %}
+                </td>
+            {% endif %}
+        </tr>
     {% endfor %}
 {% else %}
     <tr>
-        <td colspan="{{ empty_colspan|default:5 }}" class="text-center text-muted">
-            {{ empty_message|default:"No items found" }}
-        </td>
+        <td colspan="{{ empty_colspan|default:5 }}"
+            class="text-center text-muted">{{ empty_message|default:"No items found" }}</td>
     </tr>
 {% endif %}
-

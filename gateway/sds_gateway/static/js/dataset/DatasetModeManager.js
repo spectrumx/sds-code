@@ -342,16 +342,28 @@ class DatasetModeManager {
 			if (this.isEditMode) {
 				// In edit mode, always show next button (no validation needed)
 				if (this.currentStep < this.steps.length - 1) {
-					window.HTMLInjectionManager.show(this.nextBtn, "display-inline-block");
+					window.HTMLInjectionManager.show(
+						this.nextBtn,
+						"display-inline-block",
+					);
 				} else {
-					window.HTMLInjectionManager.hide(this.nextBtn, "display-inline-block");
+					window.HTMLInjectionManager.hide(
+						this.nextBtn,
+						"display-inline-block",
+					);
 				}
 			} else {
 				// In create mode, validate current step before allowing next
 				if (this.currentStep < this.steps.length - 1) {
-					window.HTMLInjectionManager.show(this.nextBtn, "display-inline-block");
+					window.HTMLInjectionManager.show(
+						this.nextBtn,
+						"display-inline-block",
+					);
 				} else {
-					window.HTMLInjectionManager.hide(this.nextBtn, "display-inline-block");
+					window.HTMLInjectionManager.hide(
+						this.nextBtn,
+						"display-inline-block",
+					);
 				}
 			}
 		}
@@ -359,9 +371,15 @@ class DatasetModeManager {
 		// Update submit button
 		if (this.submitBtn) {
 			if (this.currentStep === this.steps.length - 1) {
-				window.HTMLInjectionManager.show(this.submitBtn, "display-inline-block");
+				window.HTMLInjectionManager.show(
+					this.submitBtn,
+					"display-inline-block",
+				);
 			} else {
-				window.HTMLInjectionManager.hide(this.submitBtn, "display-inline-block");
+				window.HTMLInjectionManager.hide(
+					this.submitBtn,
+					"display-inline-block",
+				);
 			}
 		}
 	}
@@ -427,7 +445,8 @@ class DatasetModeManager {
 
 		if (!nameField) {
 			if (this.isEditMode) {
-				nameElement.textContent = this.originalDatasetData?.name || "Untitled Dataset";
+				nameElement.textContent =
+					this.originalDatasetData?.name || "Untitled Dataset";
 			}
 			return;
 		}
@@ -449,19 +468,21 @@ class DatasetModeManager {
 					const response = await window.APIClient.post("/users/render-html/", {
 						template: "users/components/change_list.html",
 						context: {
-							changes: [{
-								type: "change",
-								parts: [
-									{ text: 'Change Name: "' },
-									{ text: originalValue },
-									{ text: '" → ' },
-									{ text: `"${currentValue}"`, css_class: "text-warning" }
-								]
-							}]
-						}
+							changes: [
+								{
+									type: "change",
+									parts: [
+										{ text: 'Change Name: "' },
+										{ text: originalValue },
+										{ text: '" → ' },
+										{ text: `"${currentValue}"`, css_class: "text-warning" },
+									],
+								},
+							],
+						},
 					});
 					if (response.html) {
-						nameElement.insertAdjacentHTML('beforeend', response.html);
+						nameElement.insertAdjacentHTML("beforeend", response.html);
 					}
 				} catch (error) {
 					console.error("Error rendering name change:", error);
@@ -481,7 +502,8 @@ class DatasetModeManager {
 
 		if (!statusField) {
 			if (this.isEditMode) {
-				statusElement.textContent = this.originalDatasetData?.status || "Unknown";
+				statusElement.textContent =
+					this.originalDatasetData?.status || "Unknown";
 			}
 			return;
 		}
@@ -504,19 +526,21 @@ class DatasetModeManager {
 					const response = await window.APIClient.post("/users/render-html/", {
 						template: "users/components/change_list.html",
 						context: {
-							changes: [{
-								type: "change",
-								parts: [
-									{ text: 'Change Status: "' },
-									{ text: originalValue },
-									{ text: '" → ' },
-									{ text: `"${currentValue}"`, css_class: "text-warning" }
-								]
-							}]
-						}
+							changes: [
+								{
+									type: "change",
+									parts: [
+										{ text: 'Change Status: "' },
+										{ text: originalValue },
+										{ text: '" → ' },
+										{ text: `"${currentValue}"`, css_class: "text-warning" },
+									],
+								},
+							],
+						},
 					});
 					if (response.html) {
-						statusElement.insertAdjacentHTML('beforeend', response.html);
+						statusElement.insertAdjacentHTML("beforeend", response.html);
 					}
 				} catch (error) {
 					console.error("Error rendering status change:", error);
@@ -536,7 +560,8 @@ class DatasetModeManager {
 
 		if (!descriptionField) {
 			if (this.isEditMode) {
-				descriptionElement.textContent = this.originalDatasetData?.description || "No description provided.";
+				descriptionElement.textContent =
+					this.originalDatasetData?.description || "No description provided.";
 			}
 			return;
 		}
@@ -558,19 +583,21 @@ class DatasetModeManager {
 					const response = await window.APIClient.post("/users/render-html/", {
 						template: "users/components/change_list.html",
 						context: {
-							changes: [{
-								type: "change",
-								parts: [
-									{ text: 'Change Description: "' },
-									{ text: originalValue },
-									{ text: '" → ' },
-									{ text: `"${currentValue}"`, css_class: "text-warning" }
-								]
-							}]
-						}
+							changes: [
+								{
+									type: "change",
+									parts: [
+										{ text: 'Change Description: "' },
+										{ text: originalValue },
+										{ text: '" → ' },
+										{ text: `"${currentValue}"`, css_class: "text-warning" },
+									],
+								},
+							],
+						},
 					});
 					if (response.html) {
-						descriptionElement.insertAdjacentHTML('beforeend', response.html);
+						descriptionElement.insertAdjacentHTML("beforeend", response.html);
 					}
 				} catch (error) {
 					console.error("Error rendering description change:", error);
@@ -658,22 +685,24 @@ class DatasetModeManager {
 				cells: [
 					{ value: "Capture" },
 					{
-						html: `<span class="badge ${change.action === 'add' ? 'bg-success' : 'bg-danger'}">
-							${change.action === 'add' ? 'Add' : 'Remove'}
-						</span>`
+						html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
+							${change.action === "add" ? "Add" : "Remove"}
+						</span>`,
 					},
 					{ value: change.data.type || "Unknown" },
-					{ value: change.data.directory || "" }
+					{ value: change.data.directory || "" },
 				],
-				actions: [{
-					label: "Cancel",
-					css_class: "btn-outline-secondary",
-					extra_class: "cancel-change",
-					data_attrs: {
-						capture_id: id,
-						change_type: "capture"
-					}
-				}]
+				actions: [
+					{
+						label: "Cancel",
+						css_class: "btn-outline-secondary",
+						extra_class: "cancel-change",
+						data_attrs: {
+							capture_id: id,
+							change_type: "capture",
+						},
+					},
+				],
 			});
 		}
 
@@ -683,34 +712,39 @@ class DatasetModeManager {
 				cells: [
 					{ value: "File" },
 					{
-						html: `<span class="badge ${change.action === 'add' ? 'bg-success' : 'bg-danger'}">
-							${change.action === 'add' ? 'Add' : 'Remove'}
-						</span>`
+						html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
+							${change.action === "add" ? "Add" : "Remove"}
+						</span>`,
 					},
 					{ value: change.data.name || "Unknown" },
-					{ value: change.data.path || "" }
+					{ value: change.data.path || "" },
 				],
-				actions: [{
-					label: "Cancel",
-					css_class: "btn-outline-secondary",
-					extra_class: "cancel-change",
-					data_attrs: {
-						file_id: id,
-						change_type: "file"
-					}
-				}]
+				actions: [
+					{
+						label: "Cancel",
+						css_class: "btn-outline-secondary",
+						extra_class: "cancel-change",
+						data_attrs: {
+							file_id: id,
+							change_type: "file",
+						},
+					},
+				],
 			});
 		}
 
-	// Render using DOMUtils
-	const success = await window.DOMUtils.renderTable(pendingTable, rows, {
-		empty_message: "No pending asset changes",
-		empty_colspan: 5
-	});
+		// Render using DOMUtils
+		const success = await window.DOMUtils.renderTable(pendingTable, rows, {
+			empty_message: "No pending asset changes",
+			empty_colspan: 5,
+		});
 
-	if (!success) {
-		await window.DOMUtils.renderError(pendingTable, "Error loading changes", { format: "table", colspan: 5 });
-	}
+		if (!success) {
+			await window.DOMUtils.renderError(pendingTable, "Error loading changes", {
+				format: "table",
+				colspan: 5,
+			});
+		}
 
 		// Update count
 		if (pendingCount) {

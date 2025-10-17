@@ -5,7 +5,7 @@ Renders Bootstrap button with optional icon and loading state
 <button type="{{ button_type }}"
         class="btn btn-{{ variant }} {% if size %}btn-{{ size }}{% endif %} {{ custom_class }}"
         {% if disabled %}disabled{% endif %}
-        {% for attr, value in attributes.items %}{{ attr }}="{{ value }}" {% endfor %}>
+        {% for attr, value in attributes.items %}{{ attr }}="{{ value }}"{% endfor %}>
     {% if loading %}
         <span class="spinner-border spinner-border-sm me-2"
               role="status"
@@ -14,4 +14,3 @@ Renders Bootstrap button with optional icon and loading state
     {% if icon %}<i class="bi {{ icon }} me-1"></i>{% endif %}
     {{ text }}
 </button>
-

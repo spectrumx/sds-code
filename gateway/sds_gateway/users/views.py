@@ -2481,11 +2481,11 @@ user_dataset_details_view = DatasetDetailsView.as_view()
 
 class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
     """Generic view to render any HTML fragment from a Django template."""
-    
+
     def post(self, request: HttpRequest) -> JsonResponse:
         """
         Render HTML fragment using server-side templates.
-        
+
         Expects JSON body with:
         {
             "template": "users/components/my_component.html",
@@ -2494,7 +2494,7 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
                 ...
             }
         }
-        
+
         Returns:
             JsonResponse with rendered HTML
         """
@@ -2502,15 +2502,19 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
             data = json.loads(request.body)
             template_name = data.get("template")
             context = data.get("context", {})
-            
+
             if not template_name:
                 return JsonResponse({"error": "Template name is required"}, status=400)
-            
+
             # Security: Only allow templates from users/components/ directory
             if not template_name.startswith("users/components/"):
+                logger.error(
+                    "Invalid template path: %s",
+                    template_name,
+                )
                 return JsonResponse(
-                    {"error": "Invalid template path. Only users/components/ templates are allowed."},
-                    status=400
+                    {"error": "Cannot render component."},
+                    status=400,
                 )
 
             html = render_html_fragment(
@@ -2518,12 +2522,14 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
                 context=context,
                 request=request,
             )
-            
+
             return JsonResponse({"html": html})
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON"}, status=400)
         except Exception as e:
-            logger.exception(f"Error rendering template {data.get('template', 'unknown')}")
+            logger.exception(
+                "Error rendering template %s", data.get("template", "unknown")
+            )
             return JsonResponse({"error": str(e)}, status=500)
 
 

@@ -298,7 +298,6 @@ class DatasetCreationHandler {
 		this.updateSelectedCapturesPanel();
 	}
 
-
 	/**
 	 * Handle modal file selection (intermediate state)
 	 * @param {Element} checkbox - Checkbox element
@@ -752,7 +751,7 @@ class DatasetCreationHandler {
 		try {
 			// Normalize error context
 			const context = {};
-			
+
 			if (error instanceof APIError && error.data.errors) {
 				// Normalize field errors into list format for template
 				context.error_list = [];
@@ -766,16 +765,20 @@ class DatasetCreationHandler {
 			} else {
 				context.message = "An unexpected error occurred. Please try again.";
 			}
-			
+
 			context.format = "alert";
 			context.alert_type = "danger";
 			context.icon = "exclamation-triangle-fill";
 
 			// Use DOMUtils to render error
-			const success = await window.DOMUtils.renderError(errorContainer, context.message, context);
+			const success = await window.DOMUtils.renderError(
+				errorContainer,
+				context.message,
+				context,
+			);
 			if (success) {
 				window.DOMUtils.show(errorContainer);
-				errorContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				errorContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
 			}
 		} catch (renderError) {
 			console.error("Error rendering error message:", renderError);
@@ -791,7 +794,7 @@ class DatasetCreationHandler {
 	clearErrors() {
 		const errorContainer = document.getElementById("formErrors");
 		if (errorContainer) {
-			errorContainer.innerHTML = '';
+			errorContainer.innerHTML = "";
 			window.DOMUtils.hide(errorContainer);
 		}
 	}
@@ -838,49 +841,64 @@ class DatasetCreationHandler {
 		if (!capturesTableBody) return;
 
 		if (this.selectedCaptures.size > 0 && this.capturesSearchHandler) {
-			const capturesArray = Array.from(this.selectedCaptures).map(captureId => {
-				const data = this.capturesSearchHandler.selectedCaptureDetails.get(captureId) || {
-					type: "Unknown",
-					directory: "Unknown",
-					channel: "-",
-					scan_group: "-",
-					created_at: new Date().toISOString(),
-				};
-				return { ...data, id: captureId };
-			});
+			const capturesArray = Array.from(this.selectedCaptures).map(
+				(captureId) => {
+					const data = this.capturesSearchHandler.selectedCaptureDetails.get(
+						captureId,
+					) || {
+						type: "Unknown",
+						directory: "Unknown",
+						channel: "-",
+						scan_group: "-",
+						created_at: new Date().toISOString(),
+					};
+					return { ...data, id: captureId };
+				},
+			);
 
 			try {
 				// Normalize for generic table_rows template
-				const rows = capturesArray.map(capture => ({
+				const rows = capturesArray.map((capture) => ({
 					cells: [
 						{ value: capture.type },
 						{ value: capture.directory },
 						{ value: capture.channel },
 						{ value: capture.scan_group },
-						{ value: capture.created_at }
+						{ value: capture.created_at },
 					],
-					actions: [{
-						label: "Remove",
-						css_class: "btn-danger",
-						extra_class: "remove-capture",
-						data_attrs: { id: capture.id }
-					}]
+					actions: [
+						{
+							label: "Remove",
+							css_class: "btn-danger",
+							extra_class: "remove-capture",
+							data_attrs: { id: capture.id },
+						},
+					],
 				}));
 
-				const success = await window.DOMUtils.renderTable(capturesTableBody, rows, {
-					empty_message: "No captures selected",
-					empty_colspan: 6
-				});
+				const success = await window.DOMUtils.renderTable(
+					capturesTableBody,
+					rows,
+					{
+						empty_message: "No captures selected",
+						empty_colspan: 6,
+					},
+				);
 
 				if (success) {
 					this.attachCaptureRemoveHandlers();
 				}
 			} catch (error) {
 				console.error("Error rendering captures table:", error);
-				await window.DOMUtils.renderError(capturesTableBody, "Error loading captures", { format: "table", colspan: 6 });
+				await window.DOMUtils.renderError(
+					capturesTableBody,
+					"Error loading captures",
+					{ format: "table", colspan: 6 },
+				);
 			}
 		} else {
-			capturesTableBody.innerHTML = "<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
+			capturesTableBody.innerHTML =
+				"<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
 		}
 	}
 
@@ -899,34 +917,41 @@ class DatasetCreationHandler {
 		if (!selectedCapturesBody) return;
 
 		if (this.selectedCaptures.size > 0 && this.capturesSearchHandler) {
-			const capturesArray = Array.from(this.selectedCaptures).map(captureId => {
-				const data = this.capturesSearchHandler.selectedCaptureDetails.get(captureId) || {
-					type: "Unknown",
-					directory: "Unknown",
-				};
-				return { ...data, id: captureId };
-			});
+			const capturesArray = Array.from(this.selectedCaptures).map(
+				(captureId) => {
+					const data = this.capturesSearchHandler.selectedCaptureDetails.get(
+						captureId,
+					) || {
+						type: "Unknown",
+						directory: "Unknown",
+					};
+					return { ...data, id: captureId };
+				},
+			);
 
 			try {
 				// Normalize for generic table_rows template
-				const rows = capturesArray.map(capture => ({
-					cells: [
-						{ value: capture.type },
-						{ value: capture.directory }
+				const rows = capturesArray.map((capture) => ({
+					cells: [{ value: capture.type }, { value: capture.directory }],
+					actions: [
+						{
+							icon: "bi-x",
+							css_class: "btn-outline-danger",
+							extra_class: "remove-selected-capture",
+							data_attrs: { id: capture.id },
+							title: "Remove from selection",
+						},
 					],
-					actions: [{
-						icon: "bi-x",
-						css_class: "btn-outline-danger",
-						extra_class: "remove-selected-capture",
-						data_attrs: { id: capture.id },
-						title: "Remove from selection"
-					}]
 				}));
 
-				const success = await window.DOMUtils.renderTable(selectedCapturesBody, rows, {
-					empty_message: "No captures selected",
-					empty_colspan: 3
-				});
+				const success = await window.DOMUtils.renderTable(
+					selectedCapturesBody,
+					rows,
+					{
+						empty_message: "No captures selected",
+						empty_colspan: 3,
+					},
+				);
 
 				if (success) {
 					// Add event listeners for remove buttons
@@ -942,10 +967,15 @@ class DatasetCreationHandler {
 				}
 			} catch (error) {
 				console.error("Error rendering captures panel:", error);
-				await window.DOMUtils.renderError(selectedCapturesBody, "Error loading captures", { format: "table", colspan: 3 });
+				await window.DOMUtils.renderError(
+					selectedCapturesBody,
+					"Error loading captures",
+					{ format: "table", colspan: 3 },
+				);
 			}
 		} else {
-			selectedCapturesBody.innerHTML = "<tr><td colspan='3' class='text-center text-muted'>No captures selected</td></tr>";
+			selectedCapturesBody.innerHTML =
+				"<tr><td colspan='3' class='text-center text-muted'>No captures selected</td></tr>";
 		}
 
 		// Update count badge
@@ -967,35 +997,46 @@ class DatasetCreationHandler {
 
 			try {
 				// Normalize for generic table_rows template
-				const rows = filesArray.map(file => ({
+				const rows = filesArray.map((file) => ({
 					cells: [
 						{ value: file.name },
 						{ value: file.media_type },
 						{ value: file.relative_path },
-						{ value: file.size }
+						{ value: file.size },
 					],
-					actions: [{
-						label: "Remove",
-						css_class: "btn-danger",
-						extra_class: "remove-file",
-						data_attrs: { id: file.id }
-					}]
+					actions: [
+						{
+							label: "Remove",
+							css_class: "btn-danger",
+							extra_class: "remove-file",
+							data_attrs: { id: file.id },
+						},
+					],
 				}));
 
-				const success = await window.DOMUtils.renderTable(filesTableBody, rows, {
-					empty_message: "No files selected",
-					empty_colspan: 5
-				});
+				const success = await window.DOMUtils.renderTable(
+					filesTableBody,
+					rows,
+					{
+						empty_message: "No files selected",
+						empty_colspan: 5,
+					},
+				);
 
 				if (success) {
 					this.attachFileRemoveHandlers();
 				}
 			} catch (error) {
 				console.error("Error rendering files table:", error);
-				await window.DOMUtils.renderError(filesTableBody, "Error loading files", { format: "table", colspan: 5 });
+				await window.DOMUtils.renderError(
+					filesTableBody,
+					"Error loading files",
+					{ format: "table", colspan: 5 },
+				);
 			}
 		} else {
-			filesTableBody.innerHTML = "<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
+			filesTableBody.innerHTML =
+				"<tr><td colspan='5' class='text-center'>No files selected</td></tr>";
 		}
 	}
 
@@ -1197,26 +1238,28 @@ class DatasetCreationHandler {
 			try {
 				// Normalize authors for server-side rendering
 				const normalizedAuthors = authors.map((author, index) => {
-					const authorName = typeof author === "string" ? author : author.name || "";
-					const authorOrcid = typeof author === "string" ? "" : author.orcid_id || "";
-					
+					const authorName =
+						typeof author === "string" ? author : author.name || "";
+					const authorOrcid =
+						typeof author === "string" ? "" : author.orcid_id || "";
+
 					// Generate stable ID for each author
 					const stableId = `author-${index}-${Date.now()}`;
-					
+
 					return {
 						index: index,
 						name: authorName,
 						orcid_id: authorOrcid,
 						stable_id: stableId,
 						is_primary: index === 0,
-						is_marked_for_removal: false
+						is_marked_for_removal: false,
 					};
 				});
 
 				// Render using server-side template
 				const response = await window.APIClient.post("/users/render-html/", {
 					template: "users/components/author_list_items.html",
-					context: { authors: normalizedAuthors }
+					context: { authors: normalizedAuthors },
 				});
 
 				if (response.html) {
@@ -1225,7 +1268,8 @@ class DatasetCreationHandler {
 			} catch (error) {
 				console.error("Error rendering authors:", error);
 				// Fallback: show error message
-				authorsList.innerHTML = '<div class="alert alert-danger">Error loading authors</div>';
+				authorsList.innerHTML =
+					'<div class="alert alert-danger">Error loading authors</div>';
 			}
 
 			// Update hidden field
@@ -1290,30 +1334,47 @@ class DatasetCreationHandler {
 		this.showNotification = async (message, type = "info") => {
 			const errorContainer = document.getElementById("formErrors");
 			if (!errorContainer) return;
-			
+
 			try {
 				// Map type to Bootstrap alert class
-				const alertType = type === "danger" ? "danger" : type === "success" ? "success" : type === "warning" ? "warning" : "info";
-				const icon = type === "danger" ? "exclamation-triangle" : type === "success" ? "check-circle" : type === "warning" ? "exclamation-circle" : "info-circle";
-				
+				const alertType =
+					type === "danger"
+						? "danger"
+						: type === "success"
+							? "success"
+							: type === "warning"
+								? "warning"
+								: "info";
+				const icon =
+					type === "danger"
+						? "exclamation-triangle"
+						: type === "success"
+							? "check-circle"
+							: type === "warning"
+								? "exclamation-circle"
+								: "info-circle";
+
 				const response = await window.APIClient.post("/users/render-html/", {
 					template: "users/components/notification.html",
 					context: {
 						message: message,
 						alert_type: alertType,
 						icon: icon,
-						dismissible: true
-					}
+						dismissible: true,
+					},
 				});
 
 				if (response.html) {
 					errorContainer.innerHTML = response.html;
 					window.DOMUtils.show(errorContainer);
-					errorContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-					
+					errorContainer.scrollIntoView({
+						behavior: "smooth",
+						block: "nearest",
+					});
+
 					// Auto-hide after 5 seconds
 					setTimeout(() => {
-						const alert = errorContainer.querySelector('.alert');
+						const alert = errorContainer.querySelector(".alert");
 						if (alert) {
 							const bsAlert = new bootstrap.Alert(alert);
 							bsAlert.close();
@@ -1416,7 +1477,7 @@ class DatasetCreationHandler {
 			// Use textContent for automatic escaping
 			authorsElement.textContent = authorNames;
 		} catch (e) {
-			authorsElement.textContent = 'Error parsing authors.';
+			authorsElement.textContent = "Error parsing authors.";
 		}
 	}
 
