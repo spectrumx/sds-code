@@ -331,9 +331,9 @@ class DatasetModeManager {
 		// Update navigation buttons
 		if (this.prevBtn) {
 			if (this.currentStep === this.step1) {
-				window.HTMLInjectionManager.hide(this.prevBtn, "display-inline-block");
+				window.DOMUtils.hide(this.prevBtn, "display-inline-block");
 			} else {
-				window.HTMLInjectionManager.show(this.prevBtn, "display-inline-block");
+				window.DOMUtils.show(this.prevBtn, "display-inline-block");
 				this.prevBtn.disabled = false;
 			}
 		}
@@ -342,28 +342,16 @@ class DatasetModeManager {
 			if (this.isEditMode) {
 				// In edit mode, always show next button (no validation needed)
 				if (this.currentStep < this.steps.length - 1) {
-					window.HTMLInjectionManager.show(
-						this.nextBtn,
-						"display-inline-block",
-					);
+					window.DOMUtils.show(this.nextBtn, "display-inline-block");
 				} else {
-					window.HTMLInjectionManager.hide(
-						this.nextBtn,
-						"display-inline-block",
-					);
+					window.DOMUtils.hide(this.nextBtn, "display-inline-block");
 				}
 			} else {
 				// In create mode, validate current step before allowing next
 				if (this.currentStep < this.steps.length - 1) {
-					window.HTMLInjectionManager.show(
-						this.nextBtn,
-						"display-inline-block",
-					);
+					window.DOMUtils.show(this.nextBtn, "display-inline-block");
 				} else {
-					window.HTMLInjectionManager.hide(
-						this.nextBtn,
-						"display-inline-block",
-					);
+					window.DOMUtils.hide(this.nextBtn, "display-inline-block");
 				}
 			}
 		}
@@ -371,15 +359,9 @@ class DatasetModeManager {
 		// Update submit button
 		if (this.submitBtn) {
 			if (this.currentStep === this.steps.length - 1) {
-				window.HTMLInjectionManager.show(
-					this.submitBtn,
-					"display-inline-block",
-				);
+				window.DOMUtils.show(this.submitBtn, "display-inline-block");
 			} else {
-				window.HTMLInjectionManager.hide(
-					this.submitBtn,
-					"display-inline-block",
-				);
+				window.DOMUtils.hide(this.submitBtn, "display-inline-block");
 			}
 		}
 	}
@@ -910,7 +892,7 @@ class DatasetModeManager {
 		// Share button
 		const shareButton = document.getElementById("share-dataset-btn");
 		if (shareButton && !this.permissions.canShare()) {
-			window.HTMLInjectionManager.hide(shareButton, "display-inline-block");
+			window.DOMUtils.hide(shareButton, "display-inline-block");
 		}
 
 		// Download button
@@ -918,7 +900,7 @@ class DatasetModeManager {
 		if (!downloadButton) return;
 
 		if (!this.permissions.canDownload()) {
-			window.HTMLInjectionManager.hide(downloadButton, "display-inline-block");
+			window.DOMUtils.hide(downloadButton, "display-inline-block");
 		}
 	}
 

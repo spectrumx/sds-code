@@ -271,14 +271,14 @@ class DownloadActionManager {
 	 * @param {string} type - Toast type (success, danger, warning, info)
 	 */
 	showToast(message, type = "success") {
-		// Map DownloadActionManager types to showAlert types
+		// Map DownloadActionManager types to DOMUtils.showAlert types
 		const mappedType = type === "danger" ? "error" : type;
 
-		// Use the global showAlert function from HTMLInjectionManager
-		if (window.showAlert) {
-			window.showAlert(message, mappedType);
+		// Use DOMUtils.showAlert for toast notifications
+		if (window.DOMUtils) {
+			window.DOMUtils.showAlert(message, mappedType);
 		} else {
-			console.error("Global showAlert function not available");
+			console.error("DOMUtils not available");
 		}
 	}
 
