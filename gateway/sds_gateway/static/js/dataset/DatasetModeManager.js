@@ -702,24 +702,15 @@ class DatasetModeManager {
 			});
 		}
 
-		// Render using generic table_rows template
-		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/table_rows.html",
-				context: {
-					rows: rows,
-					empty_message: "No pending asset changes",
-					empty_colspan: 5
-				}
-			});
+	// Render using DOMUtils
+	const success = await window.DOMUtils.renderTable(pendingTable, rows, {
+		empty_message: "No pending asset changes",
+		empty_colspan: 5
+	});
 
-			if (response.html) {
-				pendingTable.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering pending changes:", error);
-			pendingTable.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading changes</td></tr>';
-		}
+	if (!success) {
+		await window.DOMUtils.renderError(pendingTable, "Error loading changes", { format: "table", colspan: 5 });
+	}
 
 		// Update count
 		if (pendingCount) {

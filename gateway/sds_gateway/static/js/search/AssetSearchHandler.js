@@ -198,7 +198,7 @@ class AssetSearchHandler {
 		const capturesContainer = document.querySelector("#step2 .row");
 		if (!capturesContainer) return;
 
-		// Create the selected captures pane
+		// Create the pane with static structure (no need for server-side rendering for a one-time static element)
 		const selectedPane = document.createElement("div");
 		selectedPane.className = "col-md-4";
 		selectedPane.innerHTML = `
@@ -225,8 +225,6 @@ class AssetSearchHandler {
 				</div>
 			</div>
 		`;
-
-		// Add the selected pane
 		capturesContainer.appendChild(selectedPane);
 	}
 
@@ -366,129 +364,64 @@ class AssetSearchHandler {
 	 * Update captures table
 	 * @param {Object} data - Captures data
 	 */
-	updateCapturesTable(data) {
+	async updateCapturesTable(data) {
 		const tbody = document.querySelector("#captures-table tbody");
-		tbody.innerHTML = "";
 
 		// Update the results count
 		this.updateResultsCount(data.results.length);
 
-		if (data.results.length === 0) {
-			tbody.innerHTML =
-				'<tr><td colspan="7" class="text-center">No captures found</td></tr>';
-			return;
-		}
-
-		for (const capture of data.results) {
-			const row = document.createElement("tr");
-			const isSelected = this.formHandler?.selectedCaptures.has(
-				capture.id.toString(),
-			);
-
-			// Add hover class and selected class if applicable
-			row.classList.add("capture-row");
-			if (isSelected) {
-				row.classList.add("table-warning");
-			}
-
-			// Check if this is an existing capture (has owner_id) or a new capture being added
-			const isExistingCapture = capture.owner_id !== undefined;
-			const isOwnedByCurrentUser =
-				capture.owner_id === this.formHandler?.currentUserId;
-			const canSelect = isOwnedByCurrentUser; // Only allow selection of captures owned by current user
-			const rowClass = !canSelect ? "readonly-row" : "";
-
-			row.innerHTML = `
-				<td>
-					<input type="checkbox" class="form-check-input" name="captures" value="${capture.id}" ${isSelected ? "checked" : ""} ${!canSelect ? "disabled" : ""} />
-				</td>
-				<td>${capture.type}</td>
-				<td>${capture.directory}</td>
-				<td>${capture.channel}</td>
-				<td>${capture.scan_group}</td>
-				<td>${capture.owner ? capture.owner.name || capture.owner.email || "-" : "-"}</td>
-				<td>${new Date(capture.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
-			`;
-
-			if (rowClass) {
-				row.classList.add(rowClass);
-			}
-
-			const handleSelection = (e) => {
-				const checkbox = row.querySelector('input[type="checkbox"]');
-				if (e.target.type !== "checkbox") {
-					checkbox.checked = !checkbox.checked;
-				}
-
-				const captureId = capture.id.toString();
-				if (checkbox.checked) {
-					// Check if this is an editing handler
-					if (this.formHandler.addCaptureToPending) {
-						// Add to pending changes for editing
-						this.formHandler.addCaptureToPending(captureId, {
-							type: capture.type,
-							directory: capture.directory,
-							channel: capture.channel,
-							scan_group: capture.scan_group,
-							created_at: capture.created_at,
-							owner_id: capture.owner_id,
-							owner_name:
-								capture.owner?.name || capture.owner?.email || "Unknown",
-						});
-					} else {
-						// Regular selection for creation
-						this.formHandler.selectedCaptures.add(captureId);
-						row.classList.add("table-warning");
-						// Store capture details when selected, using the serialized data directly
-						this.selectedCaptureDetails.set(captureId, {
-							type: capture.type,
-							directory: capture.directory,
-							channel: capture.channel,
-							scan_group: capture.scan_group,
-							created_at: capture.created_at,
-							owner_id: capture.owner_id,
-							owner_name:
-								capture.owner?.name || capture.owner?.email || "Unknown",
-						});
-						this.formHandler.updateHiddenFields();
-						this.updateSelectedCapturesPane();
-					}
-
-					// Update current captures list if in edit mode
-					if (this.formHandler.updateCurrentCapturesList) {
-						this.formHandler.updateCurrentCapturesList();
-					}
-				} else {
-					if (this.formHandler.addCaptureToPending) {
-						// Remove from pending changes for editing
-						this.formHandler.cancelCaptureChange(captureId);
-					} else {
-						// Regular deselection for creation
-						this.formHandler.selectedCaptures.delete(captureId);
-						row.classList.remove("table-warning");
-						this.selectedCaptureDetails.delete(captureId);
-						this.formHandler.updateHiddenFields();
-						this.updateSelectedCapturesPane();
-					}
-
-					// Update current captures list if in edit mode
-					if (this.formHandler.updateCurrentCapturesList) {
-						this.formHandler.updateCurrentCapturesList();
-					}
-				}
-			};
-
-			// Add click handler for the row
-			row.addEventListener("click", handleSelection);
-
-			// Add specific handler for checkbox to prevent double-triggering
-			const checkbox = row.querySelector('input[type="checkbox"]');
-			checkbox.addEventListener("change", (e) => {
-				e.stopPropagation();
-				handleSelection(e);
+		// Transform captures data for table_rows.html template
+		const rows = data.results.map(capture => {
+			const isSelected = this.formHandler?.selectedCaptures.has(capture.id.toString());
+			const isOwnedByCurrentUser = capture.owner_id === this.formHandler?.currentUserId;
+			const canSelect = isOwnedByCurrentUser;
+			const ownerName = capture.owner ? capture.owner.name || capture.owner.email || "-" : "-";
+			const createdAt = new Date(capture.created_at).toLocaleDateString("en-US", { 
+				month: "2-digit", 
+				day: "2-digit", 
+				year: "numeric" 
 			});
+			
+			return {
+				id: capture.id,
+				css_class: `capture-row${isSelected ? " table-warning" : ""}${!canSelect ? " readonly-row" : ""}`,
+				data_attrs: {
+					"capture-id": capture.id
+				},
+				cells: [
+					{ 
+						html: `<input type="checkbox" class="form-check-input capture-checkbox" name="captures" value="${capture.id}" 
+							${isSelected ? "checked" : ""} 
+							${!canSelect ? "disabled" : ""}
+							data-capture-type="${capture.type}"
+							data-capture-directory="${capture.directory}"
+							data-capture-channel="${capture.channel}"
+							data-capture-scan-group="${capture.scan_group}"
+							data-capture-created-at="${capture.created_at}"
+							data-capture-owner-id="${capture.owner_id}"
+							data-capture-owner-name="${ownerName}" />`
+					},
+					{ value: capture.type },
+					{ value: capture.directory },
+					{ value: capture.channel },
+					{ value: capture.scan_group },
+					{ value: ownerName },
+					{ value: createdAt }
+				]
+			};
+		});
 
-			tbody.appendChild(row);
+		// Render using DOMUtils
+		const success = await window.DOMUtils.renderTable(tbody, rows, {
+			empty_message: "No captures found",
+			empty_colspan: 7
+		});
+
+		if (success) {
+			// Attach event handlers to rendered rows
+			this.attachCaptureRowHandlers(tbody);
+		} else {
+			await window.DOMUtils.renderError(tbody, "Error loading captures", { format: "table", colspan: 7 });
 		}
 
 		// Update pagination with current filters
@@ -499,58 +432,100 @@ class AssetSearchHandler {
 	}
 
 	/**
+	 * Attach event handlers to capture table rows
+	 * @param {Element} tbody - Table body element
+	 */
+	attachCaptureRowHandlers(tbody) {
+		const rows = tbody.querySelectorAll("tr[data-capture-id]");
+		
+		for (const row of rows) {
+			const checkbox = row.querySelector('input.capture-checkbox');
+			if (!checkbox) continue;
+
+			const captureId = checkbox.value;
+			const captureData = {
+				type: checkbox.dataset.captureType,
+				directory: checkbox.dataset.captureDirectory,
+				channel: checkbox.dataset.captureChannel,
+				scan_group: checkbox.dataset.captureScanGroup,
+				created_at: checkbox.dataset.captureCreatedAt,
+				owner_id: checkbox.dataset.captureOwnerId,
+				owner_name: checkbox.dataset.captureOwnerName
+			};
+
+			const handleSelection = (e) => {
+				if (e.target.type !== "checkbox") {
+					checkbox.checked = !checkbox.checked;
+				}
+
+				if (checkbox.checked) {
+					// Check if this is an editing handler
+					if (this.formHandler.addCaptureToPending) {
+						this.formHandler.addCaptureToPending(captureId, captureData);
+					} else {
+						// Regular selection for creation
+						this.formHandler.selectedCaptures.add(captureId);
+						row.classList.add("table-warning");
+						this.selectedCaptureDetails.set(captureId, captureData);
+						this.formHandler.updateHiddenFields();
+						this.updateSelectedCapturesPane();
+					}
+
+					if (this.formHandler.updateCurrentCapturesList) {
+						this.formHandler.updateCurrentCapturesList();
+					}
+				} else {
+					if (this.formHandler.addCaptureToPending) {
+						this.formHandler.cancelCaptureChange(captureId);
+					} else {
+						this.formHandler.selectedCaptures.delete(captureId);
+						row.classList.remove("table-warning");
+						this.selectedCaptureDetails.delete(captureId);
+						this.formHandler.updateHiddenFields();
+						this.updateSelectedCapturesPane();
+					}
+
+					if (this.formHandler.updateCurrentCapturesList) {
+						this.formHandler.updateCurrentCapturesList();
+					}
+				}
+			};
+
+			// Add click handler for the row
+			row.addEventListener("click", handleSelection);
+
+			// Add specific handler for checkbox to prevent double-triggering
+			checkbox.addEventListener("change", (e) => {
+				e.stopPropagation();
+				handleSelection(e);
+			});
+		}
+	}
+
+	/**
 	 * Update pagination
 	 * @param {string} type - Type of pagination (captures or files)
 	 * @param {Object} pagination - Pagination data
 	 */
-	updatePagination(type, pagination) {
+	async updatePagination(type, pagination) {
 		const paginationContainer = document.querySelector(`#${type}-pagination`);
 		if (!paginationContainer) return;
 
-		paginationContainer.innerHTML = "";
-		if (pagination.num_pages <= 1) return;
-
-		const ul = document.createElement("ul");
-		ul.className = "pagination justify-content-center";
-
-		// Add Previous button with arrow
-		if (pagination.has_previous) {
-			ul.innerHTML += `
-				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.number - 1}" aria-label="Previous">
-						<span aria-hidden="true">&laquo;</span>
-					</a>
-				</li>
-			`;
+		const success = await window.DOMUtils.renderPagination(paginationContainer, pagination);
+		
+		if (success && pagination && pagination.num_pages > 1) {
+			// Attach click handlers after rendering
+			this.attachPaginationHandlers(type, paginationContainer);
 		}
+	}
 
-		// Add page numbers
-		const startPage = Math.max(1, pagination.number - 2);
-		const endPage = Math.min(pagination.num_pages, pagination.number + 2);
-
-		for (let i = startPage; i <= endPage; i++) {
-			ul.innerHTML += `
-				<li class="page-item ${i === pagination.number ? "active" : ""}">
-					<a class="page-link" href="#" data-page="${i}">${i}</a>
-				</li>
-			`;
-		}
-
-		// Add Next button with arrow
-		if (pagination.has_next) {
-			ul.innerHTML += `
-				<li class="page-item">
-					<a class="page-link" href="#" data-page="${pagination.number + 1}" aria-label="Next">
-						<span aria-hidden="true">&raquo;</span>
-					</a>
-				</li>
-			`;
-		}
-
-		paginationContainer.appendChild(ul);
-
-		// Add click handlers for pagination
-		const links = paginationContainer.querySelectorAll("a.page-link");
+	/**
+	 * Attach pagination click handlers
+	 * @param {string} type - Type of pagination (captures or files)
+	 * @param {Element} container - Pagination container element
+	 */
+	attachPaginationHandlers(type, container) {
+		const links = container.querySelectorAll("a.page-link");
 		for (const link of links) {
 			link.addEventListener("click", async (e) => {
 				e.preventDefault();
@@ -639,12 +614,7 @@ class AssetSearchHandler {
 					const extensionSelect = document.getElementById("file-extension");
 					if (extensionSelect && data.extension_choices) {
 						const currentValue = extensionSelect.value;
-						extensionSelect.innerHTML = data.extension_choices
-							.map(
-								([value, label]) =>
-									`<option value="${value}" ${value === currentValue ? "selected" : ""}>${label}</option>`,
-							)
-							.join("");
+						await this.renderSelectOptions(extensionSelect, data.extension_choices, currentValue);
 					}
 
 					// Restore search values if they exist
@@ -743,76 +713,7 @@ class AssetSearchHandler {
 			);
 			const selectedFilesBody = selectedFilesTable?.querySelector("tbody");
 			if (selectedFilesBody) {
-				if (this.selectedFiles.size === 0) {
-					selectedFilesBody.innerHTML =
-						'<tr><td colspan="6" class="text-center">No files selected</td></tr>';
-				} else {
-					selectedFilesBody.innerHTML = Array.from(this.selectedFiles.entries())
-						.map(([id, file]) => {
-							// Check if this is an existing file (has owner_id) or a new file being added
-							const isExistingFile = file.owner_id !== undefined;
-							const isOwnedByCurrentUser =
-								file.owner_id === this.formHandler.currentUserId;
-							const canRemove =
-								!isExistingFile ||
-								(isExistingFile &&
-									this.formHandler.permissions?.canRemoveAsset(file));
-							const rowClass = !canRemove ? "readonly-row" : "";
-
-							return `
-						<tr data-file-id="${id}" class="${rowClass}">
-							<td>${file.name}</td>
-							<td>${file.media_type}</td>
-							<td>${file.relative_path}</td>
-							<td>${this.formHandler.formatFileSize(file.size)}</td>
-							<td>${file.owner_name || "Unknown"}</td>
-							<td>
-								${
-									canRemove
-										? `<button type="button" class="btn btn-sm btn-danger remove-selected-file" data-id="${id}">
-										Remove
-									</button>`
-										: '<span class="text-muted">-</span>'
-								}
-							</td>
-						</tr>
-					`;
-						})
-						.join("");
-
-					// Add event listeners for file removal
-					const removeSelectedFileButtons = selectedFilesBody.querySelectorAll(
-						".remove-selected-file",
-					);
-					for (const button of removeSelectedFileButtons) {
-						button.addEventListener("click", (e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							const fileId = button.dataset.id;
-
-							// Check if formHandler has a custom removal handler for edit mode
-							if (this.formHandler?.handleFileRemoval) {
-								this.formHandler.handleFileRemoval(fileId);
-							} else {
-								// Default behavior for create mode
-								this.selectedFiles.delete(fileId);
-								// Update checkbox in file tree if visible
-								const checkbox = document.querySelector(
-									`input[name="files"][value="${fileId}"]`,
-								);
-								if (checkbox) {
-									checkbox.checked = false;
-								}
-								// Update the selected files list
-								this.updateSelectedFilesList();
-								// Update form handler's hidden fields
-								if (this.formHandler) {
-									this.formHandler.updateHiddenFields();
-								}
-							}
-						});
-					}
-				}
+				this.renderSelectedFilesTable(selectedFilesBody);
 			}
 		}
 
@@ -847,9 +748,7 @@ class AssetSearchHandler {
 
 			// Update file extension select options
 			if (extensionSelect && data.extension_choices) {
-				extensionSelect.innerHTML = data.extension_choices
-					.map(([value, label]) => `<option value="${value}">${label}</option>`)
-					.join("");
+				await window.DOMUtils.renderSelectOptions(extensionSelect, data.extension_choices);
 			}
 
 			// Pass the search parameters to renderFileTree
@@ -1126,15 +1025,101 @@ class AssetSearchHandler {
 	 * Show error message
 	 * @param {string} message - Error message
 	 */
-	showError(message) {
+	async showError(message) {
 		const errorContainer = document.getElementById("formErrors");
 		const errorContent = errorContainer?.querySelector(".error-content");
 		if (errorContainer && errorContent) {
-			errorContent.innerHTML = `<ul class="mb-0 list-unstyled"><li>${message}</li></ul>`;
+			await window.DOMUtils.renderError(errorContent, message, { format: "list" });
 			this.formHandler.show(errorContainer);
 			errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
 		}
 	}
+
+	/**
+	 * Render selected files table
+	 * @param {Element} tbody - Table body element
+	 */
+	async renderSelectedFilesTable(tbody) {
+		// Transform files data for table_rows.html template
+		const rows = Array.from(this.selectedFiles.entries()).map(([id, file]) => {
+			const isExistingFile = file.owner_id !== undefined;
+			const canRemove = !isExistingFile || 
+				(isExistingFile && this.formHandler.permissions?.canRemoveAsset(file));
+			
+			return {
+				id: id,
+				css_class: !canRemove ? "readonly-row" : "",
+				data_attrs: {
+					"file-id": id
+				},
+				cells: [
+					{ value: file.name },
+					{ value: file.media_type },
+					{ value: file.relative_path },
+					{ value: this.formHandler.formatFileSize(file.size) },
+					{ value: file.owner_name || "Unknown" }
+				],
+				actions: canRemove ? [
+					{
+						label: "Remove",
+						css_class: "btn-danger",
+						extra_class: "remove-selected-file",
+						data_attrs: { "id": id }
+					}
+				] : []
+			};
+		});
+
+		// Render using DOMUtils
+		const success = await window.DOMUtils.renderTable(tbody, rows, {
+			empty_message: "No files selected",
+			empty_colspan: 6
+		});
+
+		if (success) {
+			// Attach event handlers to remove buttons
+			this.attachFileRemovalHandlers(tbody);
+		} else {
+			await window.DOMUtils.renderError(tbody, "Error loading files", { format: "table", colspan: 6 });
+		}
+	}
+
+	/**
+	 * Attach event handlers to file removal buttons
+	 * @param {Element} tbody - Table body element
+	 */
+	attachFileRemovalHandlers(tbody) {
+		const removeButtons = tbody.querySelectorAll(".remove-selected-file");
+		for (const button of removeButtons) {
+			button.addEventListener("click", (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				const fileId = button.dataset.id;
+
+				// Check if formHandler has a custom removal handler for edit mode
+				if (this.formHandler?.handleFileRemoval) {
+					this.formHandler.handleFileRemoval(fileId);
+				} else {
+					// Default behavior for create mode
+					this.selectedFiles.delete(fileId);
+					// Update checkbox in file tree if visible
+					const checkbox = document.querySelector(
+						`input[name="files"][value="${fileId}"]`,
+					);
+					if (checkbox) {
+						checkbox.checked = false;
+					}
+					// Update the selected files list
+					this.updateSelectedFilesList();
+					// Update form handler's hidden fields
+					if (this.formHandler) {
+						this.formHandler.updateHiddenFields();
+					}
+				}
+			});
+		}
+	}
+
 
 	/**
 	 * Update select all checkbox state

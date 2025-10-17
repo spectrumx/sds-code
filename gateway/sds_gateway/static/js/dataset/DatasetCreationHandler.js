@@ -767,20 +767,13 @@ class DatasetCreationHandler {
 				context.message = "An unexpected error occurred. Please try again.";
 			}
 			
+			context.format = "alert";
 			context.alert_type = "danger";
 			context.icon = "exclamation-triangle-fill";
 
-			// Use generic render endpoint
-			const response = await window.APIClient.post(
-				"/users/render-html/",
-				{
-					template: "users/components/error_alert.html",
-					context: context
-				}
-			);
-
-			if (response.html) {
-				errorContainer.innerHTML = response.html;
+			// Use DOMUtils to render error
+			const success = await window.DOMUtils.renderError(errorContainer, context.message, context);
+			if (success) {
 				window.DOMUtils.show(errorContainer);
 				errorContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 			}
@@ -874,25 +867,17 @@ class DatasetCreationHandler {
 					}]
 				}));
 
-				const response = await window.APIClient.post(
-					"/users/render-html/",
-					{
-						template: "users/components/table_rows.html",
-						context: {
-							rows: rows,
-							empty_message: "No captures selected",
-							empty_colspan: 6
-						}
-					}
-				);
+				const success = await window.DOMUtils.renderTable(capturesTableBody, rows, {
+					empty_message: "No captures selected",
+					empty_colspan: 6
+				});
 
-				if (response.html) {
-					capturesTableBody.innerHTML = response.html;
+				if (success) {
 					this.attachCaptureRemoveHandlers();
 				}
 			} catch (error) {
 				console.error("Error rendering captures table:", error);
-				capturesTableBody.innerHTML = "<tr><td colspan='6' class='text-center text-danger'>Error loading captures</td></tr>";
+				await window.DOMUtils.renderError(capturesTableBody, "Error loading captures", { format: "table", colspan: 6 });
 			}
 		} else {
 			capturesTableBody.innerHTML = "<tr><td colspan='6' class='text-center'>No captures selected</td></tr>";
@@ -938,21 +923,12 @@ class DatasetCreationHandler {
 					}]
 				}));
 
-				const response = await window.APIClient.post(
-					"/users/render-html/",
-					{
-						template: "users/components/table_rows.html",
-						context: {
-							rows: rows,
-							empty_message: "No captures selected",
-							empty_colspan: 3
-						}
-					}
-				);
+				const success = await window.DOMUtils.renderTable(selectedCapturesBody, rows, {
+					empty_message: "No captures selected",
+					empty_colspan: 3
+				});
 
-				if (response.html) {
-					selectedCapturesBody.innerHTML = response.html;
-
+				if (success) {
 					// Add event listeners for remove buttons
 					const removeButtons = selectedCapturesBody.querySelectorAll(
 						".remove-selected-capture",
@@ -966,7 +942,7 @@ class DatasetCreationHandler {
 				}
 			} catch (error) {
 				console.error("Error rendering captures panel:", error);
-				selectedCapturesBody.innerHTML = "<tr><td colspan='3' class='text-center text-danger'>Error loading captures</td></tr>";
+				await window.DOMUtils.renderError(selectedCapturesBody, "Error loading captures", { format: "table", colspan: 3 });
 			}
 		} else {
 			selectedCapturesBody.innerHTML = "<tr><td colspan='3' class='text-center text-muted'>No captures selected</td></tr>";
@@ -1006,25 +982,17 @@ class DatasetCreationHandler {
 					}]
 				}));
 
-				const response = await window.APIClient.post(
-					"/users/render-html/",
-					{
-						template: "users/components/table_rows.html",
-						context: {
-							rows: rows,
-							empty_message: "No files selected",
-							empty_colspan: 5
-						}
-					}
-				);
+				const success = await window.DOMUtils.renderTable(filesTableBody, rows, {
+					empty_message: "No files selected",
+					empty_colspan: 5
+				});
 
-				if (response.html) {
-					filesTableBody.innerHTML = response.html;
+				if (success) {
 					this.attachFileRemoveHandlers();
 				}
 			} catch (error) {
 				console.error("Error rendering files table:", error);
-				filesTableBody.innerHTML = "<tr><td colspan='5' class='text-center text-danger'>Error loading files</td></tr>";
+				await window.DOMUtils.renderError(filesTableBody, "Error loading files", { format: "table", colspan: 5 });
 			}
 		} else {
 			filesTableBody.innerHTML = "<tr><td colspan='5' class='text-center'>No files selected</td></tr>";

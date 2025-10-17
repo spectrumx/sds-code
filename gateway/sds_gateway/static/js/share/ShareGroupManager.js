@@ -434,17 +434,16 @@ class ShareGroupManager {
 			memberCountElement.textContent = "";
 		}
 
-		const loadingHtml = `
-			<tr>
-				<td class="p-2 shadow-sm">
-					<div class="text-center text-muted">
-						<i class="bi bi-people"></i>
-						<p class="mb-0">Loading members...</p>
-					</div>
-				</td>
-			</tr>
-		`;
-		membersList.innerHTML = loadingHtml;
+		// Show loading state using table_rows template
+		await window.DOMUtils.renderTable(membersList, [{
+			cells: [{
+				html: '<div class="text-center text-muted"><i class="bi bi-people"></i><p class="mb-0">Loading members...</p></div>',
+				css_class: "p-2 shadow-sm"
+			}]
+		}], {
+			empty_message: "",
+			empty_colspan: 1
+		});
 
 		try {
 			const response = await window.APIClient.request(
@@ -487,18 +486,10 @@ class ShareGroupManager {
 						}]
 					}));
 
-					const renderResponse = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/table_rows.html",
-						context: {
-							rows: rows,
-							empty_message: "No members in this group",
-							empty_colspan: 1
-						}
+					await window.DOMUtils.renderTable(membersList, rows, {
+						empty_message: "No members in this group",
+						empty_colspan: 1
 					});
-
-					if (renderResponse.html) {
-						membersList.innerHTML = renderResponse.html;
-					}
 				} catch (renderError) {
 					console.error("Error rendering members:", renderError);
 					membersList.innerHTML = '<tr><td class="p-2 shadow-sm"><div class="text-center text-danger">Error loading members</div></td></tr>';
@@ -522,22 +513,24 @@ class ShareGroupManager {
 				// Update save button state after loading members
 				this.updateSaveButtonState();
 			} else {
-				const errorHtml = `
-					<div class="text-center text-danger">
-						<i class="bi bi-exclamation-triangle"></i>
-						<p class="mb-0">Error loading members</p>
-					</div>
-				`;
-				membersList.innerHTML = errorHtml;
+				// Show error state using centralized renderError
+				const errorDiv = document.createElement('div');
+				await window.DOMUtils.renderError(errorDiv, "Error loading members", {
+					format: "alert",
+					alert_type: "danger",
+					icon: "exclamation-triangle"
+				});
+				membersList.innerHTML = `<tr><td class="p-2 shadow-sm">${errorDiv.innerHTML}</td></tr>`;
 			}
 		} catch (error) {
-			const errorHtml = `
-				<div class="text-center text-danger">
-					<i class="bi bi-exclamation-triangle"></i>
-					<p class="mb-0">Error loading members</p>
-				</div>
-			`;
-			membersList.innerHTML = errorHtml;
+			// Show error state using centralized renderError
+			const errorDiv = document.createElement('div');
+			await window.DOMUtils.renderError(errorDiv, "Error loading members", {
+				format: "alert",
+				alert_type: "danger",
+				icon: "exclamation-triangle"
+			});
+			membersList.innerHTML = `<tr><td class="p-2 shadow-sm">${errorDiv.innerHTML}</td></tr>`;
 		}
 	}
 
@@ -577,11 +570,13 @@ class ShareGroupManager {
 	 * Display shared assets info
 	 * @param {Array} sharedAssets - Array of shared assets
 	 */
-	displaySharedAssetsInfo(sharedAssets) {
+	async displaySharedAssetsInfo(sharedAssets) {
 		// Find the shared assets section in the modal
 		const sharedAssetsSection = document.getElementById("sharedAssetsSection");
 
-		if (sharedAssetsSection) {
+		if (!sharedAssetsSection) return;
+
+		try {
 			if (sharedAssets && sharedAssets.length > 0) {
 				// Separate assets by type
 				const datasets = sharedAssets
@@ -601,119 +596,45 @@ class ShareGroupManager {
 				const hasMoreDatasets = totalDatasets > 3;
 				const hasMoreCaptures = totalCaptures > 3;
 
-				// Build datasets column
-				let datasetsHtml = "";
-				if (displayDatasets.length > 0) {
-					const datasetsList = displayDatasets
-						.map(
-							(asset) => `
-								<div class="d-flex align-items-center mb-2">
-									<i class="bi bi-collection me-2"></i>
-									<div class="flex-grow-1">
-										<div class="fw-bold">${asset.name}</div>
-										<div class="text-muted small">Dataset • Shared by ${asset.owner_name}</div>
-									</div>
-								</div>
-							`,
-						)
-						.join("");
+				// Prepare context for template
+				const context = {
+					has_assets: true,
+					datasets: displayDatasets,
+					captures: displayCaptures,
+					total_datasets: totalDatasets,
+					total_captures: totalCaptures,
+					show_datasets: displayDatasets.length > 0,
+					show_captures: displayCaptures.length > 0,
+					has_more_datasets: hasMoreDatasets,
+					has_more_captures: hasMoreCaptures,
+					remaining_datasets: totalDatasets - 3,
+					remaining_captures: totalCaptures - 3
+				};
 
-					let moreDatasetsText = "";
-					if (hasMoreDatasets) {
-						const remainingDatasets = totalDatasets - 3;
-						moreDatasetsText = `
-							<div class="text-muted small mt-2">
-								<i class="bi bi-three-dots me-1"></i>
-								and ${remainingDatasets} more dataset${remainingDatasets !== 1 ? "s" : ""}
-							</div>
-						`;
-					}
+				const response = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/shared_assets_display.html",
+					context: context
+				});
 
-					datasetsHtml = `
-						<div class="col-md-6">
-							<h6>
-								<i class="bi bi-collection me-2"></i>Datasets (${totalDatasets})
-							</h6>
-							<div class="shared-datasets-list">
-								${datasetsList}
-								${moreDatasetsText}
-							</div>
-						</div>
-					`;
+				if (response.html) {
+					sharedAssetsSection.innerHTML = response.html;
+					sharedAssetsSection.classList.remove("d-none");
 				}
-
-				// Build captures column
-				let capturesHtml = "";
-				if (displayCaptures.length > 0) {
-					const capturesList = displayCaptures
-						.map(
-							(asset) => `
-								<div class="d-flex align-items-center mb-2">
-									<i class="bi bi-folder me-2"></i>
-									<div class="flex-grow-1">
-										<div class="fw-bold">${asset.name}</div>
-										<div class="text-muted small">Capture • Shared by ${asset.owner_name}</div>
-									</div>
-								</div>
-							`,
-						)
-						.join("");
-
-					let moreCapturesText = "";
-					if (hasMoreCaptures) {
-						const remainingCaptures = totalCaptures - 3;
-						moreCapturesText = `
-							<div class="text-muted small mt-2">
-								<i class="bi bi-three-dots me-1"></i>
-								and ${remainingCaptures} more capture${remainingCaptures !== 1 ? "s" : ""}
-							</div>
-						`;
-					}
-
-					capturesHtml = `
-						<div class="col-md-6">
-							<h6>
-								<i class="bi bi-folder me-2"></i>Captures (${totalCaptures})
-							</h6>
-							<div class="shared-captures-list">
-								${capturesList}
-								${moreCapturesText}
-							</div>
-						</div>
-					`;
-				}
-
-				const sharedAssetsHtml = `
-					<h6>
-						<i class="bi bi-share me-2"></i>Shared Assets (${totalDatasets + totalCaptures})
-					</h6>
-					<div class="alert alert-info">
-						<div class="mb-2">
-							<strong>New members will automatically have access to these shared assets:</strong>
-						</div>
-						<div class="row">
-							${datasetsHtml}
-							${capturesHtml}
-						</div>
-					</div>
-				`;
-				sharedAssetsSection.innerHTML = sharedAssetsHtml;
-				sharedAssetsSection.classList.remove("d-none");
 			} else {
-				const noAssetsHtml = `
-					<h6 class="text-muted">
-						<i class="bi bi-share me-2"></i>Shared Assets
-					</h6>
-					<div class="alert alert-light">
-						<div class="text-muted">
-							<i class="bi bi-info-circle me-1"></i>
-							No assets are currently shared with this group. New members will not have access to any shared assets.
-						</div>
-					</div>
-				`;
-				sharedAssetsSection.innerHTML = noAssetsHtml;
-				sharedAssetsSection.classList.remove("d-none");
+				const response = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/shared_assets_display.html",
+					context: { has_assets: false }
+				});
+
+				if (response.html) {
+					sharedAssetsSection.innerHTML = response.html;
+					sharedAssetsSection.classList.remove("d-none");
+				}
 			}
+		} catch (error) {
+			console.error("Error rendering shared assets:", error);
+			sharedAssetsSection.innerHTML = '<div class="alert alert-danger">Error loading shared assets</div>';
+			sharedAssetsSection.classList.remove("d-none");
 		}
 	}
 
@@ -1392,17 +1313,14 @@ class ShareGroupManager {
 	 * Add new group to the table dynamically
 	 * @param {Object} groupData - Group data object
 	 */
-	addNewGroupToTable(groupData) {
+	async addNewGroupToTable(groupData) {
 		const tableBody = document.querySelector(".table-responsive .table tbody");
 		if (!tableBody) {
 			console.error("Table body not found");
 			return;
 		}
 
-		// Create the new row HTML
-		const newRow = document.createElement("tr");
-		newRow.setAttribute("data-group-uuid", groupData.uuid);
-
+		// Format date
 		const createdDate = new Date(groupData.created_at).toLocaleDateString(
 			"en-US",
 			{
@@ -1412,58 +1330,62 @@ class ShareGroupManager {
 			},
 		);
 
-		const newRowHtml = `
-			<td>
-				<strong>${groupData.name}</strong>
-			</td>
-			<td>
-				<span class="badge bg-secondary member-count" data-group-uuid="${groupData.uuid}">0 members</span>
-				<div class="small text-muted mt-1 member-emails" data-group-uuid="${groupData.uuid}" style="display: none;"></div>
-			</td>
-			<td>${createdDate}</td>
-			<td>
-				<div class="dropdown">
-					<button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
-							type="button"
-							data-bs-toggle="dropdown"
-							data-bs-popper="static"
-							aria-expanded="false"
-							aria-label="Actions for ${groupData.name}">
-						<i class="bi bi-three-dots-vertical"></i>
-					</button>
-					<ul class="dropdown-menu">
-						<li>
-							<button type="button"
-									class="dropdown-item"
-									data-bs-toggle="modal"
-									data-bs-target="#share-modal-sharegroup"
-									data-group-uuid="${groupData.uuid}"
-									data-group-name="${groupData.name}">
-								<i class="bi bi-person-plus me-1"></i>Manage
-							</button>
-						</li>
-						<li>
-							<button type="button"
-									class="dropdown-item"
-									onclick="shareGroupManager.deleteGroup('${groupData.uuid}', '${groupData.name}')">
-								<i class="bi bi-trash me-1"></i>Delete
-							</button>
-						</li>
-					</ul>
-				</div>
-			</td>
-		`;
+		try {
+			// Render dropdown menu using centralized template
+			const dropdownHtml = await window.DOMUtils.renderDropdown({
+				button_label: `Actions for ${groupData.name}`,
+				items: [
+					{
+						label: "Manage",
+						icon: "person-plus",
+						type: "button",
+						modal_toggle: true,
+						modal_target: "#share-modal-sharegroup",
+						data_attrs: {
+							"group-uuid": groupData.uuid,
+							"group-name": groupData.name
+						}
+					},
+					{
+						label: "Delete",
+						icon: "trash",
+						type: "button",
+						onclick: `shareGroupManager.deleteGroup('${groupData.uuid}', '${groupData.name}')`
+					}
+				]
+			});
 
-		newRow.innerHTML = newRowHtml;
+			// Create a temporary container for the table
+			const tempDiv = document.createElement('div');
+			await window.DOMUtils.renderTable(tempDiv, [{
+				data_attrs: { group_uuid: groupData.uuid },
+				cells: [
+					{ html: `<strong>${groupData.name}</strong>` },
+					{ html: `
+						<span class="badge bg-secondary member-count" data-group-uuid="${groupData.uuid}">0 members</span>
+						<div class="small text-muted mt-1 member-emails" data-group-uuid="${groupData.uuid}" style="display: none;"></div>
+					` },
+					{ value: createdDate },
+					{ html: dropdownHtml }
+				]
+			}], {
+				empty_message: "",
+				empty_colspan: 4
+			});
 
-		// Add the new row to the table
-		tableBody.appendChild(newRow);
-
-	// Hide the "no groups" message if it exists
-	const noGroupsMessage = document.querySelector(".text-center.py-5");
-	if (noGroupsMessage) {
-		window.DOMUtils.hide(noGroupsMessage);
-	}
+			// Insert the rendered HTML directly
+			tableBody.insertAdjacentHTML('beforeend', tempDiv.innerHTML);
+			
+			// Hide the "no groups" message if it exists
+			const noGroupsMessage = document.querySelector(".text-center.py-5");
+			if (noGroupsMessage) {
+				window.DOMUtils.hide(noGroupsMessage);
+			}
+		} catch (error) {
+			console.error("Error rendering new group row:", error);
+			// Fallback: reload the page
+			window.location.reload();
+		}
 	}
 
 	/**

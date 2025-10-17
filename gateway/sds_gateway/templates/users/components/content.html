@@ -1,0 +1,17 @@
+{% comment %}
+Content Component - Generalized
+Renders icon and/or text content (for buttons, spans, etc.)
+Context:
+  - icon: Bootstrap icon name (e.g., 'download', 'check')
+  - text: Text content
+  - color: Bootstrap color class for icon (e.g., 'success', 'danger')
+  - icon_position: 'left' | 'right' (default: 'left')
+  - spacing: Add spacing between icon and text (default: True)
+{% endcomment %}
+
+{% if icon and icon_position == 'right' %}
+    {% if text %}{{ text }}{% if spacing|default:True %} {% endif %}{% endif %}<i class="bi bi-{{ icon }}{% if color %} text-{{ color }}{% endif %}"></i>
+{% else %}
+    {% if icon %}<i class="bi bi-{{ icon }}{% if color %} text-{{ color }}{% endif %}"></i>{% if text and spacing|default:True %} {% endif %}{% endif %}{% if text %}{{ text }}{% endif %}
+{% endif %}
+
