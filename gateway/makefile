@@ -65,8 +65,14 @@ test:
 	@echo "Validating templates"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) uv run manage.py validate_templates
 
-	@echo "Running tests"
+	@echo "Running python tests"
 	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) uv run pytest $(ARGS)
+
+	@echo "Running JavaScript tests"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run --rm $(NODE_CONTAINER) npm test
+
+	@echo "Running JavaScript tests with coverage"
+	@COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run --rm $(NODE_CONTAINER) npm run test:coverage
 
 	@# Django's test runner: obsolete, subset of pytest tests, left as reference.
 	@# @COMPOSE_FILE=$(COMPOSE_FILE) docker compose --env-file $(ENV_FILE) run $(APP_CONTAINER) uv run manage.py test --no-input --force-color --verbosity 0
