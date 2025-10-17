@@ -272,24 +272,15 @@ class DatasetEditingHandler {
 				};
 			});
 
-			// Render using generic table_rows template
-			try {
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/table_rows.html",
-					context: {
-						rows: rows,
-						empty_message: "No captures in dataset",
-						empty_colspan: 4
-					}
-				});
+		// Render using DOMUtils
+		const success = await window.DOMUtils.renderTable(currentCapturesList, rows, {
+			empty_message: "No captures in dataset",
+			empty_colspan: 4
+		});
 
-				if (response.html) {
-					currentCapturesList.innerHTML = response.html;
-				}
-			} catch (error) {
-				console.error("Error rendering current captures:", error);
-				currentCapturesList.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading captures</td></tr>';
-			}
+		if (!success) {
+			await window.DOMUtils.renderError(currentCapturesList, "Error loading captures", { format: "table", colspan: 4 });
+		}
 
 			if (currentCapturesCount) {
 				currentCapturesCount.textContent = captures.length;
@@ -351,24 +342,15 @@ class DatasetEditingHandler {
 				};
 			});
 
-			// Render using generic table_rows template
-			try {
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/table_rows.html",
-					context: {
-						rows: rows,
-						empty_message: "No files in dataset",
-						empty_colspan: 6
-					}
-				});
+		// Render using DOMUtils
+		const success = await window.DOMUtils.renderTable(selectedFilesBody, rows, {
+			empty_message: "No files in dataset",
+			empty_colspan: 6
+		});
 
-				if (response.html) {
-					selectedFilesBody.innerHTML = response.html;
-				}
-			} catch (error) {
-				console.error("Error rendering current files:", error);
-				selectedFilesBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading files</td></tr>';
-			}
+		if (!success) {
+			await window.DOMUtils.renderError(selectedFilesBody, "Error loading files", { format: "table", colspan: 6 });
+		}
 
 			// Update the display input
 			if (selectedFilesDisplay) {
@@ -626,24 +608,15 @@ class DatasetEditingHandler {
 			}]
 		}));
 
-		// Render using generic table_rows template
-		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/table_rows.html",
-				context: {
-					rows: rows,
-					empty_message: "No pending capture changes",
-					empty_colspan: 3
-				}
-			});
+	// Render using DOMUtils
+	const success = await window.DOMUtils.renderTable(pendingList, rows, {
+		empty_message: "No pending capture changes",
+		empty_colspan: 3
+	});
 
-			if (response.html) {
-				pendingList.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering pending captures:", error);
-			pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading changes</td></tr>';
-		}
+	if (!success) {
+		await window.DOMUtils.renderError(pendingList, "Error loading changes", { format: "table", colspan: 3 });
+	}
 
 		if (pendingCount) {
 			pendingCount.textContent = allChanges.length;
@@ -692,23 +665,14 @@ class DatasetEditingHandler {
 			}]
 		}));
 
-		// Render using generic table_rows template
-		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/table_rows.html",
-				context: {
-					rows: rows,
-					empty_message: "No pending file changes",
-					empty_colspan: 3
-				}
-			});
+		// Render using DOMUtils
+		const success = await window.DOMUtils.renderTable(pendingList, rows, {
+			empty_message: "No pending file changes",
+			empty_colspan: 3
+		});
 
-			if (response.html) {
-				pendingList.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering pending files:", error);
-			pendingList.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading changes</td></tr>';
+		if (!success) {
+			await window.DOMUtils.renderError(pendingList, "Error loading changes", { format: "table", colspan: 3 });
 		}
 
 		if (pendingCount) {
@@ -1795,15 +1759,6 @@ class DatasetEditingHandler {
 		}
 
 		return changes;
-	}
-
-	/**
-	 * Escape HTML to prevent XSS
-	 */
-	escapeHtml(text) {
-		const div = document.createElement("div");
-		div.textContent = text;
-		return div.innerHTML;
 	}
 }
 

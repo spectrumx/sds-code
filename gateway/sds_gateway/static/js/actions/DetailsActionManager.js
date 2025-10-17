@@ -381,7 +381,7 @@ class DetailsActionManager {
 	 * @param {string} message - Feedback message
 	 * @param {string} type - Feedback type ('success' or 'error')
 	 */
-	showCopyFeedback(button, message, type = "success") {
+	async showCopyFeedback(button, message, type = "success") {
 		// Find the button element (might be the icon inside)
 		const copyButton = button.closest(".copy-uuid-btn") || button;
 
@@ -390,13 +390,11 @@ class DetailsActionManager {
 		const originalIcon = copyButton.innerHTML;
 
 		// Update button appearance temporarily
-		if (type === "success") {
-			copyButton.innerHTML = '<i class="bi bi-check text-success"></i>';
-			copyButton.setAttribute("title", message);
-		} else {
-			copyButton.innerHTML = '<i class="bi bi-x text-danger"></i>';
-			copyButton.setAttribute("title", message);
-		}
+		const icon = type === "success" ? "check" : "x";
+		const color = type === "success" ? "success" : "danger";
+		
+		await window.DOMUtils.renderContent(copyButton, { icon, color });
+		copyButton.setAttribute("title", message);
 
 		// Reset after 2 seconds
 		setTimeout(() => {
@@ -419,12 +417,12 @@ class DetailsActionManager {
 	 * @param {Element} modal - Modal element
 	 * @param {Array} authors - Authors array
 	 */
-	updateAuthors(modal, authors) {
+	async updateAuthors(modal, authors) {
 		const authorsContainer = modal.querySelector(".dataset-details-author");
 		if (!authorsContainer) return;
 
 		if (!authors || authors.length === 0) {
-			authorsContainer.innerHTML = '<span class="text-muted">No authors specified</span>';
+			await window.DOMUtils.renderError(authorsContainer, "No authors specified", { format: "inline" });
 			return;
 		}
 
@@ -437,7 +435,7 @@ class DetailsActionManager {
 			})
 			.join(", ");
 
-		authorsContainer.textContent = authorsText; // textContent auto-escapes
+		authorsContainer.textContent = authorsText;
 	}
 
 	/**
@@ -449,18 +447,24 @@ class DetailsActionManager {
 		const tableBody = modal.querySelector("#dataset-captures-table tbody");
 		if (!tableBody) return;
 
-		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/modal_captures_table.html",
-				context: { captures: captures }
-			});
+		// Transform captures into rows format for generalized table template
+		const rows = captures.map(capture => ({
+			cells: [
+				{ value: capture.type },
+				{ value: capture.directory },
+				{ value: capture.channel },
+				{ value: capture.scan_group },
+				{ value: capture.created_at }
+			]
+		}));
 
-			if (response.html) {
-				tableBody.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering captures table:", error);
-			tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading captures</td></tr>';
+		const success = await window.DOMUtils.renderTable(tableBody, rows, {
+			empty_colspan: 5,
+			empty_message: "No captures in dataset"
+		});
+
+		if (!success) {
+			await window.DOMUtils.renderError(tableBody, "Error loading captures", { format: "table", colspan: 5 });
 		}
 	}
 
@@ -473,18 +477,23 @@ class DetailsActionManager {
 		const tableBody = modal.querySelector("#dataset-files-table tbody");
 		if (!tableBody) return;
 
-		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/modal_files_table.html",
-				context: { files: files }
-			});
+		// Transform files into rows format for generalized table template
+		const rows = files.map(file => ({
+			cells: [
+				{ value: file.name },
+				{ value: file.media_type },
+				{ value: file.relative_path },
+				{ value: file.size }
+			]
+		}));
 
-			if (response.html) {
-				tableBody.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering files table:", error);
-			tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading files</td></tr>';
+		const success = await window.DOMUtils.renderTable(tableBody, rows, {
+			empty_colspan: 4,
+			empty_message: "No files in dataset"
+		});
+
+		if (!success) {
+			await window.DOMUtils.renderError(tableBody, "Error loading files", { format: "table", colspan: 4 });
 		}
 	}
 
@@ -515,7 +524,7 @@ class DetailsActionManager {
 			}
 		} catch (error) {
 			console.error("Error rendering permissions:", error);
-			permissionsContainer.innerHTML = '<span class="text-danger">Error loading permissions</span>';
+			await window.DOMUtils.renderError(permissionsContainer, "Error loading permissions", { format: "inline" });
 		}
 	}
 
@@ -557,7 +566,7 @@ class DetailsActionManager {
 			}
 		} catch (error) {
 			console.error("Error rendering technical details:", error);
-			technicalDetails.innerHTML = '<span class="text-danger">Error loading details</span>';
+			await window.DOMUtils.renderError(technicalDetails, "Error loading details", { format: "inline" });
 		}
 	}
 
@@ -636,7 +645,7 @@ class DetailsActionManager {
 	 * Show modal loading state
 	 * @param {string} modalId - Modal ID
 	 */
-	showModalLoading(modalId) {
+	async showModalLoading(modalId) {
 		const modal = document.getElementById(modalId);
 		if (!modal) return;
 
@@ -647,15 +656,7 @@ class DetailsActionManager {
 				modalBody.dataset.originalContent = modalBody.innerHTML;
 			}
 
-			const loadingHtml = `
-				<div class="text-center py-4">
-					<div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
-						<span class="visually-hidden">Loading details...</span>
-					</div>
-					<p class="mt-3 text-muted">Loading details...</p>
-				</div>
-			`;
-			modalBody.innerHTML = loadingHtml;
+			await window.DOMUtils.renderLoading(modalBody, "Loading details...", { format: "modal" });
 		}
 	}
 
@@ -687,24 +688,11 @@ class DetailsActionManager {
 
 		const modalBody = modal.querySelector(".modal-body");
 		if (modalBody) {
-			try {
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/error_alert.html",
-					context: {
-						message: message,
-						alert_type: "danger",
-						icon: "exclamation-triangle"
-					}
-				});
-
-				if (response.html) {
-					modalBody.innerHTML = response.html;
-				}
-			} catch (error) {
-				console.error("Error rendering error message:", error);
-				// Fallback
-				modalBody.textContent = message;
-			}
+			await window.DOMUtils.renderError(modalBody, message, {
+				format: "alert",
+				alert_type: "danger",
+				icon: "exclamation-triangle"
+			});
 		}
 
 		// Show modal even with error
@@ -821,7 +809,7 @@ class DetailsActionManager {
 			}
 		} catch (error) {
 			console.error("Error rendering file tree:", error);
-			tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading file tree</td></tr>';
+			await window.DOMUtils.renderError(tableBody, "Error loading file tree", { format: "table", colspan: 5 });
 		}
 	}
 

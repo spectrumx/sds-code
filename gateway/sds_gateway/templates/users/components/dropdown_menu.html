@@ -1,0 +1,65 @@
+{% comment %}
+Dropdown Menu Component
+Renders a Bootstrap dropdown menu with configurable actions
+
+Context:
+{
+    "button_icon": "three-dots-vertical",  # Bootstrap icon name
+    "button_class": "btn-sm btn-light",    # Button classes
+    "button_label": "Actions",              # Aria label
+    "items": [
+        {
+            "label": "Manage",
+            "icon": "person-plus",          # Optional icon
+            "type": "button",               # button or link
+            "modal_target": "#modal-id",    # For data-bs-toggle="modal"
+            "modal_toggle": true,           # Set data-bs-toggle="modal"
+            "data_attrs": {                 # Optional data attributes
+                "group-uuid": "123",
+                "group-name": "Test"
+            },
+            "onclick": "function()",        # Optional onclick
+            "href": "/path",                # For link type
+            "divider": false                # Show divider after this item
+        }
+    ]
+}
+{% endcomment %}
+
+<div class="dropdown">
+    <button class="btn btn-icon-dropdown dropdown-toggle {{ button_class|default:'btn-sm btn-light' }}"
+            type="button"
+            data-bs-toggle="dropdown"
+            data-bs-popper="static"
+            aria-expanded="false"
+            aria-label="{{ button_label|default:'Actions' }}">
+        <i class="bi bi-{{ button_icon|default:'three-dots-vertical' }}"></i>
+    </button>
+    <ul class="dropdown-menu">
+        {% for item in items %}
+            <li>
+                {% if item.type == "link" %}
+                    <a class="dropdown-item" href="{{ item.href }}"
+                       {% for key, value in item.data_attrs.items %}data-{{ key }}="{{ value }}" {% endfor %}
+                       {% if item.onclick %}onclick="{{ item.onclick }}"{% endif %}>
+                        {% if item.icon %}<i class="bi bi-{{ item.icon }} me-1"></i>{% endif %}
+                        {{ item.label }}
+                    </a>
+                {% else %}
+                    <button type="button" class="dropdown-item"
+                            {% if item.modal_toggle %}data-bs-toggle="modal"{% endif %}
+                            {% if item.modal_target %}data-bs-target="{{ item.modal_target }}"{% endif %}
+                            {% for key, value in item.data_attrs.items %}data-{{ key }}="{{ value }}" {% endfor %}
+                            {% if item.onclick %}onclick="{{ item.onclick }}"{% endif %}>
+                        {% if item.icon %}<i class="bi bi-{{ item.icon }} me-1"></i>{% endif %}
+                        {{ item.label }}
+                    </button>
+                {% endif %}
+            </li>
+            {% if item.divider %}
+                <li><hr class="dropdown-divider"></li>
+            {% endif %}
+        {% endfor %}
+    </ul>
+</div>
+
