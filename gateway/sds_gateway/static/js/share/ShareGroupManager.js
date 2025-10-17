@@ -1318,11 +1318,11 @@ class ShareGroupManager {
 	 * @param {string} type - Alert type (info, success, warning, error)
 	 */
 	showAlert(message, type = "info") {
-		// Use the global showAlert function from DOMUtils
-		if (window.showAlert) {
-			window.showAlert(message, type);
+		// Use DOMUtils.showAlert for toast notifications
+		if (window.DOMUtils) {
+			window.DOMUtils.showAlert(message, type);
 		} else {
-			console.error("Global showAlert function not available");
+			console.error("DOMUtils not available");
 		}
 	}
 

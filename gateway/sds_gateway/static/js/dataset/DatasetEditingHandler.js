@@ -1361,10 +1361,10 @@ class DatasetEditingHandler {
 		 * Show notification using DOMUtils
 		 */
 		this.showNotification = (message, type = "info") => {
-			if (window.showAlert) {
-				window.showAlert(message, type);
+			if (window.DOMUtils) {
+				window.DOMUtils.showAlert(message, type);
 			} else {
-				console.error("Global showAlert function not available");
+				console.error("DOMUtils not available");
 			}
 		};
 
