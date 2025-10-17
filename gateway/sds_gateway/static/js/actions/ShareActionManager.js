@@ -68,7 +68,8 @@ class ShareActionManager {
 		}
 
 		// Setup notify checkbox functionality
-		if (!setupNotifyCheckbox || typeof setupNotifyCheckbox !== "function") return;
+		if (!setupNotifyCheckbox || typeof setupNotifyCheckbox !== "function")
+			return;
 
 		const notifyCheckbox = document.getElementById(
 			`notify-users-checkbox-${this.itemUuid}`,
@@ -527,25 +528,25 @@ class ShareActionManager {
 		chipContainer.innerHTML = "";
 
 		// If no users selected, toggle sections and return
-		if (!this.selectedUsersMap[inputId] || this.selectedUsersMap[inputId].length === 0) {
+		if (
+			!this.selectedUsersMap[inputId] ||
+			this.selectedUsersMap[inputId].length === 0
+		) {
 			this.toggleModalSections(inputId);
 			return;
 		}
 
 		try {
 			// Request server to render using generic endpoint
-			const response = await window.APIClient.post(
-				"/users/render-html/",
-				{
-					template: "users/components/user_chips.html",
-					context: {
-						users: this.selectedUsersMap[inputId],
-						show_permission_select: true,
-						show_remove_button: true,
-						permission_levels: ["viewer", "contributor", "co-owner"]
-					}
-				}
-			);
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/user_chips.html",
+				context: {
+					users: this.selectedUsersMap[inputId],
+					show_permission_select: true,
+					show_remove_button: true,
+					permission_levels: ["viewer", "contributor", "co-owner"],
+				},
+			});
 
 			// Insert the server-rendered HTML
 			if (response.html) {
@@ -557,7 +558,8 @@ class ShareActionManager {
 		} catch (error) {
 			console.error("Error rendering user chips:", error);
 			// Fallback: show error message
-			chipContainer.innerHTML = '<div class="text-danger">Error loading users</div>';
+			chipContainer.innerHTML =
+				'<div class="text-danger">Error loading users</div>';
 		}
 
 		// Toggle notify/message and users-with-access sections
@@ -577,22 +579,24 @@ class ShareActionManager {
 			const userEmail = removeBtn.closest(".user-chip").dataset.userEmail;
 			removeBtn.onclick = () => {
 				this.selectedUsersMap[inputId] = this.selectedUsersMap[inputId].filter(
-					(u) => u.email !== userEmail
+					(u) => u.email !== userEmail,
 				);
 				this.renderChips(input);
 			};
 		}
 
 		// Add change handlers for permission selects
-		const permissionSelects = chipContainer.querySelectorAll(".permission-select");
+		const permissionSelects =
+			chipContainer.querySelectorAll(".permission-select");
 		for (const permissionSelect of permissionSelects) {
 			permissionSelect.onchange = (e) => {
 				const userEmail = e.target.dataset.userEmail;
 				const userIndex = this.selectedUsersMap[inputId].findIndex(
-					(u) => u.email === userEmail
+					(u) => u.email === userEmail,
 				);
 				if (userIndex !== -1) {
-					this.selectedUsersMap[inputId][userIndex].permission_level = e.target.value;
+					this.selectedUsersMap[inputId][userIndex].permission_level =
+						e.target.value;
 				}
 			};
 		}
@@ -761,8 +765,7 @@ class ShareActionManager {
 		}
 
 		// Update the dropdown button text and icon
-		const iconClass =
-			this.permissions.getPermissionIcon(permissionLevel);
+		const iconClass = this.permissions.getPermissionIcon(permissionLevel);
 		dropdownButton.innerHTML = `<i class="bi ${iconClass} me-1"></i>${permissionLevel.charAt(0).toUpperCase() + permissionLevel.slice(1)}`;
 		dropdownButton.setAttribute("data-current-permission", permissionLevel);
 
@@ -1083,8 +1086,7 @@ class ShareActionManager {
 				: permissionLevel;
 
 		const iconClass =
-			this.permissions?.getPermissionIcon(level) ||
-			"bi-question-circle";
+			this.permissions?.getPermissionIcon(level) || "bi-question-circle";
 		const displayText = level.charAt(0).toUpperCase() + level.slice(1);
 		return `<i class="bi ${iconClass} me-1"></i>${displayText}`;
 	}

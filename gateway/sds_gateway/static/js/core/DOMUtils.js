@@ -1,10 +1,10 @@
 /**
  * DOM Utility Functions
  * Provides basic DOM manipulation utilities (show, hide, showAlert)
- * 
+ *
  * NOTE: This class does NOT generate HTML from user data.
  * All HTML containing server data should be rendered server-side using Django templates.
- * 
+ *
  * Available methods:
  * - show(element, displayClass) - Show element with CSS class
  * - hide(element, displayClass) - Hide element with CSS class
@@ -20,7 +20,7 @@ class DOMUtils {
 		const el =
 			typeof element === "string" ? document.querySelector(element) : element;
 		if (!el) {
-			console.warn(`Element not found for show():`, element);
+			console.warn("Element not found for show():", element);
 			return;
 		}
 
@@ -37,7 +37,7 @@ class DOMUtils {
 		const el =
 			typeof element === "string" ? document.querySelector(element) : element;
 		if (!el) {
-			console.warn(`Element not found for hide():`, element);
+			console.warn("Element not found for hide():", element);
 			return;
 		}
 
@@ -114,7 +114,10 @@ class DOMUtils {
 	 * @returns {Promise<boolean>} Success status
 	 */
 	async renderError(container, message, options = {}) {
-		const el = typeof container === "string" ? document.querySelector(container) : container;
+		const el =
+			typeof container === "string"
+				? document.querySelector(container)
+				: container;
 		if (!el) {
 			console.warn("Container not found for renderError:", container);
 			return false;
@@ -123,13 +126,13 @@ class DOMUtils {
 		const context = {
 			message: message,
 			format: options.format || "inline",
-			...options
+			...options,
 		};
 
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/error.html",
-				context: context
+				context: context,
 			});
 
 			if (response.html) {
@@ -161,7 +164,10 @@ class DOMUtils {
 	 * @returns {Promise<boolean>} Success status
 	 */
 	async renderLoading(container, text = "Loading...", options = {}) {
-		const el = typeof container === "string" ? document.querySelector(container) : container;
+		const el =
+			typeof container === "string"
+				? document.querySelector(container)
+				: container;
 		if (!el) {
 			console.warn("Container not found for renderLoading:", container);
 			return false;
@@ -172,13 +178,13 @@ class DOMUtils {
 			format: options.format || "spinner",
 			size: options.size || "md",
 			color: options.color || "primary",
-			...options
+			...options,
 		};
 
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/loading.html",
-				context: context
+				context: context,
 			});
 
 			if (response.html) {
@@ -202,7 +208,10 @@ class DOMUtils {
 	 * @returns {Promise<boolean>} Success status
 	 */
 	async renderContent(container, options = {}) {
-		const el = typeof container === "string" ? document.querySelector(container) : container;
+		const el =
+			typeof container === "string"
+				? document.querySelector(container)
+				: container;
 		if (!el) {
 			console.warn("Container not found for renderContent:", container);
 			return false;
@@ -211,7 +220,7 @@ class DOMUtils {
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/content.html",
-				context: options
+				context: options,
 			});
 
 			if (response.html) {
@@ -222,10 +231,16 @@ class DOMUtils {
 		} catch (error) {
 			console.error("Error rendering content template:", error);
 			// Fallback
-			const iconHtml = options.icon ? `<i class="bi bi-${options.icon}${options.color ? ` text-${options.color}` : ""}"></i>` : "";
+			const iconHtml = options.icon
+				? `<i class="bi bi-${options.icon}${options.color ? ` text-${options.color}` : ""}"></i>`
+				: "";
 			const textHtml = options.text || "";
-			const spacing = options.spacing !== false && iconHtml && textHtml ? " " : "";
-			el.innerHTML = options.icon_position === "right" ? `${textHtml}${spacing}${iconHtml}` : `${iconHtml}${spacing}${textHtml}`;
+			const spacing =
+				options.spacing !== false && iconHtml && textHtml ? " " : "";
+			el.innerHTML =
+				options.icon_position === "right"
+					? `${textHtml}${spacing}${iconHtml}`
+					: `${iconHtml}${spacing}${textHtml}`;
 			return false;
 		}
 	}
@@ -238,7 +253,10 @@ class DOMUtils {
 	 * @returns {Promise<boolean>} Success status
 	 */
 	async renderTable(container, rows, options = {}) {
-		const el = typeof container === "string" ? document.querySelector(container) : container;
+		const el =
+			typeof container === "string"
+				? document.querySelector(container)
+				: container;
 		if (!el) {
 			console.warn("Container not found for renderTable:", container);
 			return false;
@@ -248,13 +266,13 @@ class DOMUtils {
 			rows: rows,
 			empty_message: options.empty_message || "No items found",
 			empty_colspan: options.colspan || options.empty_colspan || 5,
-			...options
+			...options,
 		};
 
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/table_rows.html",
-				context: context
+				context: context,
 			});
 
 			if (response.html) {
@@ -278,33 +296,39 @@ class DOMUtils {
 	 * @returns {Promise<boolean>} Success status
 	 */
 	async renderSelectOptions(selectElement, choices, currentValue = null) {
-		const el = typeof selectElement === "string" ? document.querySelector(selectElement) : selectElement;
+		const el =
+			typeof selectElement === "string"
+				? document.querySelector(selectElement)
+				: selectElement;
 		if (!el) {
-			console.warn("Select element not found for renderSelectOptions:", selectElement);
+			console.warn(
+				"Select element not found for renderSelectOptions:",
+				selectElement,
+			);
 			return false;
 		}
 
 		// Normalize choices to object format
-		const formattedChoices = choices.map(choice => {
+		const formattedChoices = choices.map((choice) => {
 			if (Array.isArray(choice)) {
 				// [value, label] tuple format
 				return {
 					value: choice[0],
 					label: choice[1],
-					selected: currentValue !== null && choice[0] === currentValue
+					selected: currentValue !== null && choice[0] === currentValue,
 				};
 			}
 			// Already object format
 			return {
 				...choice,
-				selected: currentValue !== null && choice.value === currentValue
+				selected: currentValue !== null && choice.value === currentValue,
 			};
 		});
 
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/select_options.html",
-				context: { choices: formattedChoices }
+				context: { choices: formattedChoices },
 			});
 
 			if (response.html) {
@@ -316,7 +340,10 @@ class DOMUtils {
 			console.error("Error rendering select options template:", error);
 			// Fallback
 			el.innerHTML = formattedChoices
-				.map(choice => `<option value="${choice.value}"${choice.selected ? ' selected' : ''}>${choice.label}</option>`)
+				.map(
+					(choice) =>
+						`<option value="${choice.value}"${choice.selected ? " selected" : ""}>${choice.label}</option>`,
+				)
 				.join("");
 			return false;
 		}
@@ -329,7 +356,10 @@ class DOMUtils {
 	 * @returns {Promise<boolean>} Success status
 	 */
 	async renderPagination(container, pagination) {
-		const el = typeof container === "string" ? document.querySelector(container) : container;
+		const el =
+			typeof container === "string"
+				? document.querySelector(container)
+				: container;
 		if (!el) {
 			console.warn("Container not found for renderPagination:", container);
 			return false;
@@ -344,12 +374,12 @@ class DOMUtils {
 		// Normalize pagination data for template
 		const startPage = Math.max(1, pagination.number - 2);
 		const endPage = Math.min(pagination.num_pages, pagination.number + 2);
-		
+
 		const pages = [];
 		for (let i = startPage; i <= endPage; i++) {
 			pages.push({
 				number: i,
-				is_current: i === pagination.number
+				is_current: i === pagination.number,
 			});
 		}
 
@@ -359,13 +389,13 @@ class DOMUtils {
 			previous_page: pagination.number - 1,
 			has_next: pagination.has_next,
 			next_page: pagination.number + 1,
-			pages: pages
+			pages: pages,
 		};
 
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/pagination.html",
-				context: context
+				context: context,
 			});
 
 			if (response.html) {
@@ -391,13 +421,13 @@ class DOMUtils {
 			button_icon: options.button_icon || "three-dots-vertical",
 			button_class: options.button_class || "btn-sm btn-light",
 			button_label: options.button_label || "Actions",
-			items: options.items || []
+			items: options.items || [],
 		};
 
 		try {
 			const response = await window.APIClient.post("/users/render-html/", {
 				template: "users/components/dropdown_menu.html",
-				context: context
+				context: context,
 			});
 
 			if (response.html) {
@@ -407,10 +437,14 @@ class DOMUtils {
 		} catch (error) {
 			console.error("Error rendering dropdown template:", error);
 			// Fallback to basic dropdown
-			const items = context.items.map(item => {
-				const icon = item.icon ? `<i class="bi bi-${item.icon} me-1"></i>` : '';
-				return `<li><button type="button" class="dropdown-item">${icon}${item.label}</button></li>`;
-			}).join('');
+			const items = context.items
+				.map((item) => {
+					const icon = item.icon
+						? `<i class="bi bi-${item.icon} me-1"></i>`
+						: "";
+					return `<li><button type="button" class="dropdown-item">${icon}${item.label}</button></li>`;
+				})
+				.join("");
 			return `<div class="dropdown"><button class="btn ${context.button_class} dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-${context.button_icon}"></i></button><ul class="dropdown-menu">${items}</ul></div>`;
 		}
 	}
@@ -424,4 +458,3 @@ window.showAlert = window.DOMUtils.showAlert.bind(window.DOMUtils);
 
 // Export for ES6 modules
 export { DOMUtils };
-

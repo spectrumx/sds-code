@@ -119,7 +119,10 @@ class DownloadActionManager {
 
 			// Show loading state
 			const originalContent = button.innerHTML;
-			await window.DOMUtils.renderLoading(button, "Processing...", { format: "spinner", size: "sm" });
+			await window.DOMUtils.renderLoading(button, "Processing...", {
+				format: "spinner",
+				size: "sm",
+			});
 			button.disabled = true;
 
 			try {
@@ -129,14 +132,22 @@ class DownloadActionManager {
 				);
 
 				if (response.success === true) {
-					await window.DOMUtils.renderContent(button, { icon: "check-circle", color: "success", text: "Download Requested" });
+					await window.DOMUtils.renderContent(button, {
+						icon: "check-circle",
+						color: "success",
+						text: "Download Requested",
+					});
 					this.showToast(
 						response.message ||
 							"Download request submitted successfully! You will receive an email when ready.",
 						"success",
 					);
 				} else {
-					await window.DOMUtils.renderContent(button, { icon: "exclamation-triangle", color: "danger", text: "Request Failed" });
+					await window.DOMUtils.renderContent(button, {
+						icon: "exclamation-triangle",
+						color: "danger",
+						text: "Request Failed",
+					});
 					this.showToast(
 						response.message || "Download request failed. Please try again.",
 						"danger",
@@ -144,7 +155,11 @@ class DownloadActionManager {
 				}
 			} catch (error) {
 				console.error("Download error:", error);
-				await window.DOMUtils.renderContent(button, { icon: "exclamation-triangle", color: "danger", text: "Request Failed" });
+				await window.DOMUtils.renderContent(button, {
+					icon: "exclamation-triangle",
+					color: "danger",
+					text: "Request Failed",
+				});
 				this.showToast(
 					error.message || "An error occurred while processing your request.",
 					"danger",
@@ -174,16 +189,15 @@ class DownloadActionManager {
 		}
 
 		// Update modal content for capture
-		const modalTitleElement = document.getElementById(
-			"webDownloadModalLabel",
-		);
-		const modalNameElement = document.getElementById(
-			"webDownloadDatasetName",
-		);
+		const modalTitleElement = document.getElementById("webDownloadModalLabel");
+		const modalNameElement = document.getElementById("webDownloadDatasetName");
 		const confirmBtn = document.getElementById("confirmWebDownloadBtn");
 
 		if (modalTitleElement) {
-			await window.DOMUtils.renderContent(modalTitleElement, { icon: "download", text: "Download Capture" });
+			await window.DOMUtils.renderContent(modalTitleElement, {
+				icon: "download",
+				text: "Download Capture",
+			});
 		}
 
 		if (modalNameElement) {
@@ -192,7 +206,10 @@ class DownloadActionManager {
 
 		if (confirmBtn) {
 			// Update button text for capture
-			await window.DOMUtils.renderContent(confirmBtn, { icon: "download", text: "Yes, Download Capture" });
+			await window.DOMUtils.renderContent(confirmBtn, {
+				icon: "download",
+				text: "Yes, Download Capture",
+			});
 
 			// Update the dataset UUID to capture UUID for the API call
 			confirmBtn.dataset.datasetUuid = captureUuid;
