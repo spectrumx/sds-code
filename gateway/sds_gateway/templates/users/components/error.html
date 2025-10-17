@@ -1,0 +1,72 @@
+{% comment %}
+Error Component - Generalized
+Renders errors in various formats: inline, table, alert, or list
+Context:
+  - message: Simple error message string
+  - error_list: List of tuples [(field, message), ...]
+  - format: 'inline' | 'table' | 'alert' | 'list' (default: 'inline')
+  - icon: Icon name (default: 'exclamation-triangle')
+  - alert_type: Alert variant for alert format (default: 'danger')
+  - colspan: Number of columns for table format (default: 5)
+  - show_field_names: Show field names in list/alert (default: False)
+  - dismissible: Show close button for alert format (default: True)
+{% endcomment %}
+
+{% if format == 'table' %}
+    {# Table row error format #}
+    <tr>
+        <td colspan="{{ colspan|default:5 }}" class="text-center text-danger">
+            {% if message %}
+                {{ message }}
+            {% else %}
+                Error loading data
+            {% endif %}
+        </td>
+    </tr>
+
+{% elif format == 'alert' %}
+    {# Alert box error format #}
+    <div class="alert alert-{{ alert_type|default:'danger' }}{% if dismissible|default:True %} alert-dismissible fade show{% endif %}" role="alert">
+        <i class="bi bi-{{ icon|default:'exclamation-triangle' }} me-2"></i>
+        {% if message %}
+            {{ message }}
+        {% elif error_list %}
+            <strong>Please correct the following errors:</strong>
+            <ul class="mb-0 mt-2">
+                {% for field, msg in error_list %}
+                    <li>
+                        {% if show_field_names and field and field != "non_field_errors" %}
+                            <strong>{{ field }}:</strong> 
+                        {% endif %}
+                        {{ msg }}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% if dismissible|default:True %}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        {% endif %}
+    </div>
+
+{% elif format == 'list' %}
+    {# List error format #}
+    <ul class="mb-0 list-unstyled">
+        {% if error_list %}
+            {% for field, msg in error_list %}
+                <li class="text-danger">
+                    {% if show_field_names and field and field != "non_field_errors" %}
+                        <strong>{{ field }}:</strong> 
+                    {% endif %}
+                    {{ msg }}
+                </li>
+            {% endfor %}
+        {% elif message %}
+            <li class="text-danger">{{ message }}</li>
+        {% endif %}
+    </ul>
+
+{% else %}
+    {# Inline error format (default) #}
+    <span class="text-danger">{{ message|default:"Error loading data" }}</span>
+{% endif %}
+

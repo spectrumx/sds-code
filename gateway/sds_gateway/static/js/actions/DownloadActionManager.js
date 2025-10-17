@@ -119,8 +119,7 @@ class DownloadActionManager {
 
 			// Show loading state
 			const originalContent = button.innerHTML;
-			button.innerHTML =
-				window.HTMLInjectionManager.createLoadingSpinner("Processing...");
+			await window.DOMUtils.renderLoading(button, "Processing...", { format: "spinner", size: "sm" });
 			button.disabled = true;
 
 			try {
@@ -130,16 +129,14 @@ class DownloadActionManager {
 				);
 
 				if (response.success === true) {
-					button.innerHTML =
-						'<i class="bi bi-check-circle text-success"></i> Download Requested';
+					await window.DOMUtils.renderContent(button, { icon: "check-circle", color: "success", text: "Download Requested" });
 					this.showToast(
 						response.message ||
 							"Download request submitted successfully! You will receive an email when ready.",
 						"success",
 					);
 				} else {
-					button.innerHTML =
-						'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+					await window.DOMUtils.renderContent(button, { icon: "exclamation-triangle", color: "danger", text: "Request Failed" });
 					this.showToast(
 						response.message || "Download request failed. Please try again.",
 						"danger",
@@ -147,8 +144,7 @@ class DownloadActionManager {
 				}
 			} catch (error) {
 				console.error("Download error:", error);
-				button.innerHTML =
-					'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
+				await window.DOMUtils.renderContent(button, { icon: "exclamation-triangle", color: "danger", text: "Request Failed" });
 				this.showToast(
 					error.message || "An error occurred while processing your request.",
 					"danger",
@@ -187,8 +183,7 @@ class DownloadActionManager {
 		const confirmBtn = document.getElementById("confirmWebDownloadBtn");
 
 		if (modalTitleElement) {
-			modalTitleElement.innerHTML =
-				'<i class="bi bi-download"></i> Download Capture';
+			await window.DOMUtils.renderContent(modalTitleElement, { icon: "download", text: "Download Capture" });
 		}
 
 		if (modalNameElement) {
@@ -197,8 +192,7 @@ class DownloadActionManager {
 
 		if (confirmBtn) {
 			// Update button text for capture
-			confirmBtn.innerHTML =
-				'<i class="bi bi-download"></i> Yes, Download Capture';
+			await window.DOMUtils.renderContent(confirmBtn, { icon: "download", text: "Yes, Download Capture" });
 
 			// Update the dataset UUID to capture UUID for the API call
 			confirmBtn.dataset.datasetUuid = captureUuid;
