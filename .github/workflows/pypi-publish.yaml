@@ -60,6 +60,13 @@ jobs:
                   # Custom path to set UV_TOOL_BIN_DIR to.
                   # tool-bin-dir: # optional
 
+            - name: Install just on ubuntu
+              if: matrix.platform == 'ubuntu-latest'
+              working-directory: ./sdk
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y just
+
             - name: Install dependencies for testing
               working-directory: ./sdk
               run: uv sync --frozen --link-mode=copy --dev
@@ -72,7 +79,7 @@ jobs:
               # test everything, as we don't know if the
               # sdk-checks ran on this commit being released
               working-directory: ./sdk
-              run: make test-all
+              run: just test-all
 
             - name: Install dependencies for releasing
               working-directory: ./sdk

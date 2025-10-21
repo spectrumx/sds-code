@@ -25,12 +25,24 @@ jobs:
               working-directory: ./sdk
               run: uv python install ${{ matrix.python-version }}
 
-            - name: Install make on Windows
+            - name: Install just on Windows
               if: matrix.platform == 'windows-latest'
               working-directory: ./sdk
-              run: choco install make
+              run: choco install just
+
+            - name: Install just on ubuntu
+              if: matrix.platform == 'ubuntu-latest'
+              working-directory: ./sdk
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y just
+
+            - name: Install just on macOS
+              if: matrix.platform == 'macos-latest'
+              working-directory: ./sdk
+              run: brew install just
 
             - name: Run test
               working-directory: ./sdk
-              # the uv command invoked by make will take care of project dependencies
-              run: make test PYTHON_VERSION=${{ matrix.python-version }}
+              # the uv command invoked by just will take care of project dependencies
+              run: just test ${{ matrix.python-version }}
