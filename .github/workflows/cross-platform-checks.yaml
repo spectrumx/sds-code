@@ -34,8 +34,7 @@ jobs:
               if: matrix.platform == 'ubuntu-latest'
               working-directory: ./sdk
               run: |
-                  sudo apt-get update
-                  sudo apt-get install -y just
+                  npm install -g rust-just
 
             - name: Install just on macOS
               if: matrix.platform == 'macos-latest'
