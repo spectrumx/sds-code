@@ -36,7 +36,7 @@ clean:
     declare -a recursive_directories
     recursive_directories=('__pycache__' '.pytest_cache' '.ruff_cache' 'node_modules')
     for dir in "${recursive_directories[@]}"; do
-        find . -type d -name "${dir}" -exec rm -rfv {} \;
+        find . -type d -name "${dir}" -prune -exec rm -rfv {} +
     done
     single_directories=('tests/coverage')
     for dir in "${single_directories[@]}"; do
@@ -58,8 +58,8 @@ dc +args='':
 # sets up the development environment
 dev-setup:
     @echo -e "Setting up development environment\n"
-    uv run pre-commit install
     uv sync --extra local --frozen
+    uv run pre-commit install
     @echo -e "\nFor recommended VS Code extensions, see ../sds-code.code-workspace"
 
 # prints currently selected environment, for debugging and validation purposes

@@ -46,8 +46,8 @@ gact:
 
 # installs the development environment with pre-commit hooks and synced deps
 dev-setup:
-    uv run pre-commit install --install-hooks
     uv sync --dev --frozen
+    uv run pre-commit install --install-hooks
 
 # runs pre-commit checks locally
 pre-commit:
@@ -150,7 +150,7 @@ publish:
       echo "Error: config/secrets.env does not exist."; \
       exit 1; \
     fi
-    export UV_PUBLISH_TOKEN=$$(grep PYPI_API_TOKEN config/secrets.env | cut -d '=' -f2)
+    export UV_PUBLISH_TOKEN=$$(grep PYPI_API_TOKEN config/secrets.env | cut -d '=' -f2- | xargs)
     uv publish
     unset UV_PUBLISH_TOKEN
 
