@@ -15,6 +15,9 @@ Metadata management and web interface for SDS.
     + [More docs](#more-docs)
         + [Development](#development)
 
+> [!TIP]
+> Deploying SDS in production? Start with the [`network`](../network/README.md) component.
+
 ## Just targets
 
 We are using [Just](https://github.com/casey/just#installation/) as a command runner to simplify common tasks. Here's a quick lookup of available commands:

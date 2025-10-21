@@ -73,7 +73,7 @@
 [certificatesResolvers]
     [certificatesResolvers.letsencrypt]
         [certificatesResolvers.letsencrypt.acme]
-            email   = "crcsupport@nd.edu"
+            email   = "crc-sds-list@nd.edu"
             storage = "/etc/traefik/acme/acme.json" # in traefik v3 this file doesn't need to be created manually
             [certificatesResolvers.letsencrypt.acme.httpChallenge]
                 entryPoint = "web"
@@ -81,7 +81,7 @@
 [http.routers]
 
     # Traefik dashboard will be served, behind authentication, at
-    # https://sds-dev.crc.nd.edu/dashboard/
+    # https://sds-dev.example.com/dashboard/
     # (trailing slash is important when accessing it)
     [http.routers.traefik-api]
         middlewares = ["auth"]
@@ -90,7 +90,7 @@
         [http.routers.traefik-api.tls]
             certResolver = "letsencrypt"
 
-    # LOCAL router
+    # LOCAL routers (names match compose.local.yaml file in gateway/)
     [http.routers.sds-gateway-local-app]
         entryPoints = ["web", "web-secure"]
         middlewares = ["csrf"]
@@ -100,6 +100,7 @@
             certResolver = "letsencrypt"
 
     # ⚠️ PROD router - SVI endpoints /users/get-svi-api-key/
+    # service name matches compose.production.yaml file in gateway/
     [http.routers.sds-gateway-prod-app-secure]
         entryPoints = ["web", "web-secure"]
         middlewares = ["csrf", "whitelist-svi-domains"]
@@ -110,6 +111,7 @@
             certResolver = "letsencrypt"
 
     # ⚠️ PROD router - public-facing
+    # service name matches compose.production.yaml file in gateway/
     [http.routers.sds-gateway-prod-app]
         entryPoints = ["web", "web-secure"]
         middlewares = ["csrf"]
@@ -119,6 +121,7 @@
             certResolver = "letsencrypt"
 
     # LOCAL router for static files
+    # service name matches compose.local.yaml file in gateway/
     [http.routers.sds-gateway-local-nginx]
         entryPoints = ["web", "web-secure"]
         rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
@@ -127,6 +130,7 @@
             certResolver = "letsencrypt"
 
     # ⚠️ PROD router for static files
+    # service name matches compose.production.yaml file in gateway/
     [http.routers.sds-gateway-prod-nginx]
         entryPoints = ["web", "web-secure"]
         rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/static/`)"
@@ -134,7 +138,13 @@
         [http.routers.sds-gateway-prod-nginx.tls]
             certResolver = "letsencrypt"
 
-            # "whoami" service to debug Traefik
+            # TIP: if you are debugging Traefik config, it might be useful to enable the
+            # 'whoami' service below, which simply prints out the request information it
+            # receives. You can then point a router to it and see if the requests are
+            # reaching it as expected.
+
+            # The whoami service is defined in network/compose.yaml
+
             # [http.routers.whoami]
             #     entryPoints = ["web", "web-secure"]
             #     rule    = "Host(`sds-dev.crc.nd.edu`)"
@@ -153,7 +163,8 @@
 
         [http.middlewares.whitelist-svi-domains.ipWhiteList]
             sourceRange = [
-                "127.0.0.1/32",    # localhost
+                "127.0.0.1/32", # localhost
+                # these svi variables may be omitted in self-hosted deployments
                 "129.74.246.5/32", # svi server
                 "10.32.8.29/32",   # svi qa
             ]
@@ -166,7 +177,7 @@
             # Generate the credentials file with bcrypt hashes for the users:
             #     $ htpasswd -nB your-user-name >> traefik/credentials.htpasswd
             # Try it out:
-            #     $ e.g. curl -u your-user-name:your-password http://your-sds-hostname/dashboard/
+            #     $ e.g. curl -u your-user-name:your-password http://sds.example.com/dashboard/
             # https://doc.traefik.io/traefik/middlewares/http/basicauth/#usersfile
             usersFile = "/etc/traefik/dashboard/credentials.htpasswd"
 
@@ -177,25 +188,30 @@
     # ------------- WEB APP SERVERS
 
     # LOCAL service
+    # URL matches the service name and port in compose.local.yaml
     [[http.services.sds-gateway-local-app.loadBalancer.servers]]
         url = "http://sds-gateway-local-app:8000"
 
     # ⚠️ PROD service
+    # URL matches the service name and port in compose.production.yaml
     [[http.services.sds-gateway-prod-app.loadBalancer.servers]]
         url = "http://sds-gateway-prod-app:18000"
 
         # ------------- STATIC SERVERS
 
     # LOCAL service
+    # URL matches the service name and port in compose.local.yaml
     [[http.services.sds-gateway-local-nginx.loadBalancer.servers]]
         url = "http://sds-gateway-local-nginx:80"
 
     # ⚠️ PROD service
+    # URL matches the service name and port in compose.production.yaml
     [[http.services.sds-gateway-prod-nginx.loadBalancer.servers]]
         url = "http://sds-gateway-prod-nginx:80"
 
         # ------------- NETWORK STACK / DEBUGGING
 
     # Network stack service
+    # The whoami service is defined in network/compose.yaml
     [[http.services.whoami.loadBalancer.servers]]
         url = "http://whoami:2001"

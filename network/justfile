@@ -1,0 +1,51 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+compose_file := "compose.yaml"
+docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose"
+
+alias run := up
+
+# pulls the required images and rebuilds services with your local changes.
+build *args:
+    @echo "Pulling and building sds-network"
+    {{docker_compose}} pull {{args}}
+    {{docker_compose}} build {{args}}
+
+# forces a rebuild without cache for troubleshooting persistent container issues.
+build-full *args:
+    @echo "Pulling and building sds-network WITHOUT CACHE"
+    {{docker_compose}} pull {{args}}
+    {{docker_compose}} build --no-cache {{args}}
+
+# forwards arguments to `docker compose` for ad-hoc commands e.g. `just dc ps`
+dc *args:
+    @echo "Running docker compose command: {{args}}"
+    {{docker_compose}} {{args}}
+
+# stops and removes the compose stack
+down *args:
+    @echo "Stopping sds-network"
+    {{docker_compose}} down {{args}}
+
+# tails the logs; use `just logs-once` for a single snapshot
+logs *args:
+    @echo "Showing sds-network logs..."
+    {{docker_compose}} logs --tail 10000 -f {{args}} || true
+
+# shows the logs without tailing
+logs-once *args:
+    @echo "Showing sds-network logs once..."
+    {{docker_compose}} logs {{args}}
+
+# chains build, down, up, and logs for a full refresh after updates
+redeploy: build down up logs
+
+# restarts running services without rebuilding
+restart *args:
+    @echo "Restarting sds-network"
+    {{docker_compose}} restart {{args}}
+
+# starts the stack in detached mode, creating the network if needed
+up *args:
+    @echo "Starting sds-network"
+    {{docker_compose}} up -d --remove-orphans {{args}}
