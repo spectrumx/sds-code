@@ -6,6 +6,7 @@ Metadata management and web interface for SDS.
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 + [SpectrumX Data System | Gateway](#spectrumx-data-system--gateway)
+    + [Just targets](#just-targets)
     + [Development environment](#development-environment)
     + [Local deploy](#local-deploy)
     + [Debugging tips](#debugging-tips)
@@ -13,6 +14,34 @@ Metadata management and web interface for SDS.
     + [OpenSearch Query Tips](#opensearch-query-tips)
     + [More docs](#more-docs)
         + [Development](#development)
+
+## Just targets
+
+We are using [Just](https://github.com/casey/just#installation/) as a command runner to simplify common tasks. Here's a quick lookup of available commands:
+
+```bash
+just --list
+```
+
+```bash
+Available recipes:
+    build args=''      # pulls and rebuild the compose services with optional args
+    build-full args='' # pulls and rebuilds from scratch without cache
+    clean              # remove python caches for a clean workspace
+    dc +args=''        # runs a generic docker compose command e.g. `just dc ps`
+    down args=''       # stops and remove compose services; args are passed to compose down
+    env                # prints currently selected environment, for debugging and validation purposes
+    logs args=''       # streams logs until interrupted (tails 10k lines); args are passed to compose logs
+    logs-once args=''  # prints all recent logs once; args are passed to compose logs
+    pre-commit         # runs the pre-commit hooks with dev dependencies
+    redeploy           # rebuilds then restarts services and shows logs
+    restart args=''    # restarts running compose services
+    serve-coverage     # serves pytest coverage HTML locally
+    snapshot           # captures a snapshot of the configured environment
+    test args=''       # validates templates and runs pytest inside the container; args are passed to pytest
+    up args=''         # starts services in detached mode [alias: run]
+    update             # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
+```
 
 ## Development environment
 
@@ -127,10 +156,10 @@ For the local deploy:
     For a local deploy:
 
     ```bash
-    make test
+    just test
     ```
 
-    Template checks are also run as part of `make test`.
+    Template checks are also run as part of `just test`.
 
     Alternatively, run them as:
 
@@ -197,7 +226,17 @@ Keep this in mind, however:
     + In `django.env`, set the `SVI_SERVER_EMAIL` and `SVI_SERVER_API_KEY` to match the values in the SVI's environment variables. Important: `SVI_SERVER_API_KEY` must be 40 characters.
     + In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user, password, and database name** in that file.
 
-2. **Deploy** with Docker (recommended):
+2. Add the machine's hostname to `./scripts/prod-hostnames.env`:
+
+    ```bash
+    cp ./scripts/prod-hostnames.example.env ./scripts/prod-hostnames.env
+    hostname >> ./scripts/prod-hostnames.env
+
+    # to check the selected environment:
+    just env
+    ```
+
+3. **Deploy** with Docker (recommended):
 
     Either create an `sds-network-prod` network manually, or run the [Traefik service](../network/compose.yaml) that creates it:
 
@@ -244,7 +283,7 @@ Keep this in mind, however:
     > # tip: save this command for repeated use (alias) as you get everything set up
     > ```
 
-3. Make Django **migrations** and run them:
+4. Make Django **migrations** and run them:
 
     Optionally, just run them in case you have a staging deploy and would like to test new migrations first.
 
@@ -252,7 +291,7 @@ Keep this in mind, however:
     docker exec -it sds-gateway-prod-app bash -c "uv run manage.py makemigrations && uv run manage.py migrate"
     ```
 
-4. Create the first **superuser**:
+5. Create the first **superuser**:
 
     ```bash
     docker exec -it sds-gateway-prod-app uv run manage.py createsuperuser
@@ -261,13 +300,13 @@ Keep this in mind, however:
     docker exec -it sds-gateway-prod-app uv run manage.py changepassword <email>
     ```
 
-5. Try the **web interface** and **admin panel**:
+6. Try the **web interface** and **admin panel**:
 
     Open the web interface at [localhost:18000](http://localhost:18000). You can create regular users by signing up there.
 
     You can sign in with the superuser credentials at `localhost:18000/<admin path set in django.env>` to access the admin interface.
 
-6. MinIO setup:
+7. MinIO setup:
 
     This is a multi-drive, single-node setup of MinIO. For a distributed setup (multi-node), see the [MinIO documentation](https://min.io/docs/minio/linux/operations/install-deploy-manage/deploy-minio-multi-node-multi-drive.html#deploy-minio-distributed).
 
@@ -276,86 +315,86 @@ Keep this in mind, however:
     > We're using `local` in the example commands below as our MinIO alias. Change it
     > accordingly if you're using a different alias in your MinIO configuration.
 
-    6.1 Establish the connection alias:
+    1. Establish the connection alias:
 
-    ```bash
-    docker exec -it sds-gateway-prod-minio mc alias set local http://127.0.0.1:9000 minioadmin
-    # paste your MinIO credentials from .envs/production/minio.env;
-    # change `minioadmin` above to match that file, if needed.
-    ```
+        ```bash
+        docker exec -it sds-gateway-prod-minio mc alias set local http://127.0.0.1:9000 minioadmin
+        # paste your MinIO credentials from .envs/production/minio.env;
+        # change `minioadmin` above to match that file, if needed.
+        ```
 
-    Optionally, set up a local `mc` client if you're managing the cluster remotely:
+        Optionally, set up a local `mc` client if you're managing the cluster remotely:
 
-    ```bash
-    mc alias set local http://<minio_host>:19000 <minio_user> <minio_password>
-    ```
+        ```bash
+        mc alias set local http://<minio_host>:19000 <minio_user> <minio_password>
+        ```
 
-    6.2 Set admin settings:
+    2. Set admin settings:
 
-    + [MinIO reference document](https://github.com/minio/minio/blob/master/docs/config/README.md)
+        + [MinIO reference document](https://github.com/minio/minio/blob/master/docs/config/README.md)
 
-    ```bash
-    # enable object compression for all objects, except the ones excluded by default
-    # NOTE: compression is not recommended by MinIO when also using encryption.
-    mc admin config set local compression enable=on extensions= mime_types=
+        ```bash
+        # enable object compression for all objects, except the ones excluded by default
+        # NOTE: compression is not recommended by MinIO when also using encryption.
+        mc admin config set local compression enable=on extensions= mime_types=
 
-    # https://min.io/docs/minio/container/administration/object-management/data-compression.html#id6
+        # https://min.io/docs/minio/container/administration/object-management/data-compression.html#id6
 
-    # erasure coding settings
-    # refer to the docs for these erasure coding settings, if:
-    #   1. You are using multiple nodes; or
-    #   2. Targeting a number of disks different than 8; or
-    #   3. Targeting a different failure tolerance than 2 failed disks; or
-    #   4. Targeting a storage efficiency (usable storage ratio) different than 75%.
-    # References:
-    # https://min.io/docs/minio/linux/reference/minio-server/settings/storage-class.html#mc-conf.storage_class.standard
-    # https://min.io/product/erasure-code-calculator
-    mc admin config set local storage_class standard=EC:2
-    mc admin config set local storage_class rrs=EC:1
+        # erasure coding settings
+        # refer to the docs for these erasure coding settings, if:
+        #   1. You are using multiple nodes; or
+        #   2. Targeting a number of disks different than 8; or
+        #   3. Targeting a different failure tolerance than 2 failed disks; or
+        #   4. Targeting a storage efficiency (usable storage ratio) different than 75%.
+        # References:
+        # https://min.io/docs/minio/linux/reference/minio-server/settings/storage-class.html#mc-conf.storage_class.standard
+        # https://min.io/product/erasure-code-calculator
+        mc admin config set local storage_class standard=EC:2
+        mc admin config set local storage_class rrs=EC:1
 
-    ```
+        ```
 
-    6.3 Create the MinIO bucket:
+    3. Create the MinIO bucket:
 
-    ```bash
-    mc mb local/spectrumx
-    ```
+        ```bash
+        mc mb local/spectrumx
+        ```
 
-    6.4 (Optional) Diagnostic checks:
+    4. (Optional) Diagnostic checks:
 
-    Check the output of these commands to make sure everything is as expected:
+        Check the output of these commands to make sure everything is as expected:
 
-    ```bash
-    mc admin info local
-    mc admin config get local
+        ```bash
+        mc admin info local
+        mc admin config get local
 
-    # --- cluster health
+        # --- cluster health
 
-    # liveness check
-    curl -I "http://localhost:19000/minio/health/live"
-    # A response code of 200 OK indicates the MinIO server is online and functional.
-    # Any other HTTP codes indicate an issue with reaching the server, such as a
-    # transient network issue or potential downtime.
+        # liveness check
+        curl -I "http://localhost:19000/minio/health/live"
+        # A response code of 200 OK indicates the MinIO server is online and functional.
+        # Any other HTTP codes indicate an issue with reaching the server, such as a
+        # transient network issue or potential downtime.
 
-    # write quorum check
-    curl -I "http://localhost:19000/minio/health/cluster"
-    # a response code of 200 OK indicates that the MinIO cluster has sufficient MinIO
-    # servers online to meet write quorum. A response code of 503 Service Unavailable
-    # indicates the cluster does not currently have write quorum.
+        # write quorum check
+        curl -I "http://localhost:19000/minio/health/cluster"
+        # a response code of 200 OK indicates that the MinIO cluster has sufficient MinIO
+        # servers online to meet write quorum. A response code of 503 Service Unavailable
+        # indicates the cluster does not currently have write quorum.
 
-    # --- watching logs
-    mc admin trace local
-    # press Ctrl-C to stop watching
-    ```
+        # --- watching logs
+        mc admin trace local
+        # press Ctrl-C to stop watching
+        ```
 
-    6.5 (Optional) Prometheus monitoring
+    5. (Optional) Prometheus monitoring
 
-    ```bash
-    mc admin prometheus generate local
-    # paste output to your `prometheus.yaml`
-    ```
+        ```bash
+        mc admin prometheus generate local
+        # paste output to your `prometheus.yaml`
+        ```
 
-7. Set correct **permissions for the media volume**:
+8. Set correct **permissions for the media volume**:
 
     The app container uses a different pair of UID and GID than the host machine, which
     prevents the app from writing to the media volume when users upload files. To fix
@@ -369,7 +408,7 @@ Keep this in mind, however:
     docker exec -it -u 0 sds-gateway-prod-app chown -R 100:101 /app/sds_gateway/media/
     ```
 
-8. OpenSearch adjustments
+9. OpenSearch adjustments
 
     If you would like to modify the OpenSearch user permissions setup (through the security configuration), see the files in `compose/production/opensearch/config` (and reference the [OpenSearch documentation for these files](https://opensearch.org/docs/latest/security/configuration/yaml/)):
 
@@ -396,13 +435,13 @@ Keep this in mind, however:
     >
     > If you would like to preserve changes to your `.opendistro_security` (e.g. users or roles you have added through the API), add the `-backup` flag before running the script. Use the `-f` flag instead of the `-cd` flag if you would like to only update one of the config files. See the [OpenSearch documentation](https://opensearch.org/docs/latest/security/configuration/security-admin/#a-word-of-caution) on the nuances of this script for more information.
 
-9. Run the **test** suite:
+10. Run the **test** suite:
 
     ```bash
     docker exec -it sds-gateway-prod-app uv run manage.py test
     ```
 
-10. Don't forget to **approve users** to allow them to create API keys.
+11. Don't forget to **approve users** to allow them to create API keys.
 
     You can do this by logging in as a superuser in the admin panel and enabling the `is_approved` flag in the user's entry.
 

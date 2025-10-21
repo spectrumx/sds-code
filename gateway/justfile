@@ -1,0 +1,133 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+# TIP: Looking into running a production setting?
+#   Add your machine hostname to ./scripts/prod-hostnames.env
+
+# constants
+env_selection_script := "./scripts/env-selection.sh"
+snapshot_log_dir := "./logs/snapshots"
+
+# variables | run `just env` to see current values
+app_container := shell(env_selection_script + ' $1', "app_container")
+compose_file := shell(env_selection_script + ' $1', "compose_file")
+env := shell(env_selection_script + ' $1', "env")
+env_file := shell(env_selection_script + ' $1', "env_file")
+docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file
+uv_runner := docker_compose + " run '" + app_container + "' uv run"
+
+alias run := up
+alias upgrade := update
+
+# pulls and rebuild the compose services with optional args
+build args='':
+    @echo "Pulling and building sds-gateway"
+    {{docker_compose}} pull --ignore-buildable
+    {{docker_compose}} build {{args}}
+
+# pulls and rebuilds from scratch without cache
+build-full args='':
+    @echo "Pulling and building sds-gateway WITHOUT CACHE"
+    {{docker_compose}} pull --ignore-buildable
+    {{docker_compose}} build --no-cache {{args}}
+
+# removes ephemeral files, like python caches and test coverage reports
+clean:
+    #!/usr/bin/env bash
+    declare -a recursive_directories
+    recursive_directories=('__pycache__' '.pytest_cache' '.ruff_cache' 'node_modules')
+    for dir in "${recursive_directories[@]}"; do
+        find . -type d -name "${dir}" -exec rm -rfv {} \;
+    done
+    single_directories=('tests/coverage')
+    for dir in "${single_directories[@]}"; do
+        rm -rfv "${dir}"
+    done
+    single_files=(
+        'celerybeat-schedule' # legacy; should only be in container
+    )
+    for file in "${single_files[@]}"; do
+        rm -rfv "${file}"
+    done
+    echo "Removed ephemeral files"
+
+# runs a generic docker compose command e.g. `just dc ps`
+dc +args='':
+    @echo "Running docker compose command: {{args}}"
+    {{docker_compose}} {{args}}
+
+# sets up the development environment
+dev-setup:
+    @echo -e "Setting up development environment\n"
+    uv run pre-commit install
+    uv sync --extra local --frozen
+    @echo -e "\nFor recommended VS Code extensions, see ../sds-code.code-workspace"
+
+# prints currently selected environment, for debugging and validation purposes
+env:
+    @echo -e "\nSelected env:\n"
+    @echo -e "\tEnvironment: \e[34m             '{{env}}'\e[0m"
+    @echo -e "\tEnvironment file: \e[34m        '{{env_file}}'\e[0m"
+    @echo -e "\tCompose file: \e[34m            '{{compose_file}}'\e[0m"
+    @echo -e "\tDocker compose command: \e[34m  '{{docker_compose}}'\e[0m"
+    @echo -e "\tUV runner command: \e[34m       '{{uv_runner}}'\e[0m"
+
+# streams logs until interrupted (tails 10k lines); args are passed to compose logs
+logs args='':
+    @echo "Showing sds-gateway logs..."
+    {{docker_compose}} logs --tail 10000 -f {{args}} || true
+
+# prints all recent logs once; args are passed to compose logs
+logs-once args='':
+    @echo "Showing gateway logs once..."
+    {{docker_compose}} logs {{args}}
+
+# stops and remove compose services; args are passed to compose down
+down args='':
+    @echo "Stopping sds-gateway"
+    {{docker_compose}} down {{args}}
+
+# runs the pre-commit hooks with dev dependencies
+pre-commit:
+    uv run pre-commit install
+    uv run --dev pre-commit run --all-files
+
+# rebuilds then restarts services and shows logs
+redeploy: build down up logs
+
+# restarts running compose services
+restart args='':
+    @echo "Restarting sds-gateway"
+    {{docker_compose}} restart {{args}}
+
+# serves pytest coverage HTML locally
+serve-coverage:
+    @echo "Serving coverage reports"
+    COMPOSE_FILE={{compose_file}} uv run -m http.server 1313 -d "./htmlcov"
+
+# captures a snapshot of the configured environment
+snapshot:
+    @echo "Creating a snapshot of '{{env}}' data"
+    mkdir -p {{snapshot_log_dir}}
+    log_file="{{snapshot_log_dir}}/{{env}}-snapshot-$(date +%Y-%m-%d_%H-%M-%S).log"
+    ./scripts/create-snapshot.sh {{env}} 2>&1 | tee "$log_file"
+    @echo "Snapshot created. See '${log_file}'"
+
+# validates templates and runs pytest inside the container; args are passed to pytest
+test args='':
+    @echo "Validating templates"
+    {{uv_runner}} manage.py validate_templates
+    @echo "Running tests"
+    {{uv_runner}} pytest {{args}}
+
+# starts services in detached mode
+up args='':
+    @echo "Starting sds-gateway"
+    {{docker_compose}} up -d --remove-orphans {{args}}
+
+# upgrades pre-commit hooks and gateway dependencies to their latest compatible versions
+update:
+    # these run on the host machine, so uv_runner is not used
+    @echo "Upgrading pre-commit hooks"
+    uv run pre-commit autoupdate
+    @echo "Upgrading gateway dependencies"
+    uv sync --upgrade --all-extras

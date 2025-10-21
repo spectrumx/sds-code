@@ -104,7 +104,7 @@ services:
               bind:
                   selinux: z
             # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
-            # - This path in app is: ./staticfiles/:/app/staticfiles/:z
+            # - This path in app is: /app/staticfiles/ mounted as a managed volume
             - source: sds-gateway-prod-static
               target: /usr/share/nginx/static/
               type: volume
