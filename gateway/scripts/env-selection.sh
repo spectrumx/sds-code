@@ -10,7 +10,8 @@ is_production_host() {
     local prod_hosts_file="${script_dir}/prod-hostnames.env"
 
     if [[ ! -f "${prod_hosts_file}" ]]; then
-        printf 'production host list not found at %s\n' "${prod_hosts_file}" >&2
+        printf '\033[33mProduction host list not found at %s: defaulting to local\033[0m\n' "${prod_hosts_file}" >&2
+        printf 'Create this file to make the warning go away:\n\n\tcp %s/prod-hostnames.env.example %s\n\n' "${script_dir}" "${prod_hosts_file}" >&2
         return 1
     fi
 
@@ -33,34 +34,35 @@ get_target_value() {
     local is_prod=$2
     local local_env_file=".envs/local/opensearch.env"
     local production_env_file=".envs/production/opensearch.env"
+    local value
 
     case "${target}" in
         env)
             if [[ "${is_prod}" == true ]]; then
-                printf 'production\n'
+                value='production'
             else
-                printf 'local\n'
+                value='local'
             fi
             ;;
         compose_file)
             if [[ "${is_prod}" == true ]]; then
-                printf 'compose.production.yaml\n'
+                value='compose.production.yaml'
             else
-                printf 'compose.local.yaml\n'
+                value='compose.local.yaml'
             fi
             ;;
         app_container)
             if [[ "${is_prod}" == true ]]; then
-                printf 'sds-gateway-prod-app\n'
+                value='sds-gateway-prod-app'
             else
-                printf 'sds-gateway-local-app\n'
+                value='sds-gateway-local-app'
             fi
             ;;
         env_file)
             if [[ "${is_prod}" == true ]]; then
-                printf '%s\n' "${production_env_file}"
+                value="${production_env_file}"
             else
-                printf '%s\n' "${local_env_file}"
+                value="${local_env_file}"
             fi
             ;;
         *)
@@ -68,6 +70,15 @@ get_target_value() {
             exit 1
             ;;
     esac
+
+    if [[ "${target}" == "compose_file" && ! -f "${value}" ]]; then
+        printf '\033[31mERROR: selected compose file "%s" does not exist\033[0m\n' "${value}" >&2
+    fi
+    if [[ "${target}" == "env_file" && ! -f "${value}" ]]; then
+        printf '\033[31mERROR: selected env file "%s" does not exist\033[0m\n' "${value}" >&2
+    fi
+
+    printf '%s\n' "${value}"
 }
 
 main() {

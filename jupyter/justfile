@@ -1,0 +1,60 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+env_selection_script := "./scripts/env-selection.sh"
+
+env := shell(env_selection_script + ' $1', "env")
+compose_file := shell(env_selection_script + ' $1', "compose_file")
+env_file := shell(env_selection_script + ' $1', "env_file")
+client_network := shell(env_selection_script + ' $1', "client_network")
+compose_project_name := shell(env_selection_script + ' $1', "compose_project_name")
+docker_compose := "COMPOSE_FILE=" + compose_file + " COMPOSE_PROJECT_NAME=" + compose_project_name + " docker compose --env-file " + env_file
+
+alias run := up
+
+all: build up logs
+redeploy: build down up logs
+
+build args='':
+    @if [[ "{{env}}" == "local" && -n "{{client_network}}" ]]; then docker network create "{{client_network}}" || true; fi
+    @echo "Pulling and building sds-jupyter"
+    {{docker_compose}} pull --ignore-buildable
+    {{docker_compose}} build {{args}}
+
+build-full args='':
+    @if [[ "{{env}}" == "local" && -n "{{client_network}}" ]]; then docker network create "{{client_network}}" || true; fi
+    @echo "Pulling and building sds-jupyter WITHOUT CACHE"
+    {{docker_compose}} pull --ignore-buildable
+    {{docker_compose}} build --no-cache {{args}}
+
+up args='':
+    @echo "Starting sds-jupyter"
+    {{docker_compose}} up -d --remove-orphans {{args}}
+
+logs args='':
+    @echo "Showing sds-jupyter logs..."
+    {{docker_compose}} logs -f {{args}} || true
+
+logs-once args='':
+    @echo "Showing sds-jupyter logs once..."
+    {{docker_compose}} logs {{args}}
+
+down args='':
+    @echo "Stopping sds-jupyter"
+    {{docker_compose}} down {{args}}
+
+restart args='':
+    @echo "Restarting sds-jupyter"
+    {{docker_compose}} restart {{args}}
+
+dc +args='':
+    @echo "Running docker compose command: {{args}}"
+    {{docker_compose}} {{args}}
+
+env:
+    @echo -e "\nSelected env:\n"
+    @echo -e "\tEnvironment: \e[34m             '{{env}}'\e[0m"
+    @echo -e "\tEnvironment file: \e[34m        '{{env_file}}'\e[0m"
+    @echo -e "\tCompose file: \e[34m            '{{compose_file}}'\e[0m"
+    @echo -e "\tCompose project name: \e[34m    '{{compose_project_name}}'\e[0m"
+    @echo -e "\tDocker compose command: \e[34m  '{{docker_compose}}'\e[0m"
+    @echo -e "\tClient network: \e[34m          '{{client_network}}'\e[0m"
