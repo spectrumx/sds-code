@@ -12,7 +12,7 @@ DIR_SCRIPT="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 DIR_GATEWAY="$(dirname "${DIR_SCRIPT}")"
 DIR_BACKUP="${DIR_GATEWAY}/data/backups/${BACKUP_DATE}/"
 DIR_POSTGRES_BACKUP="${DIR_BACKUP}/postgres"
-# DIR_OPENSEARCH_BACKUP="${DIR_BACKUP}/opensearch"
+DIR_OPENSEARCH_BACKUP="${DIR_BACKUP}/opensearch"
 
 COMMON_SCRIPT="${DIR_SCRIPT}/common.sh"
 COMMON_VARS="${DIR_SCRIPT}/.env.sh"
@@ -73,7 +73,10 @@ function snapshot_postgres() {
         exit 1
     fi
 
-    mkdir -p "${DIR_POSTGRES_BACKUP}"
+    mkdir -p "${DIR_POSTGRES_BACKUP}" || {
+        log_error "Failed to create backup directory: ${DIR_POSTGRES_BACKUP}"
+        exit 1
+    }
     dump_name="pg_dumpall.sql"
     dump_file="${DIR_POSTGRES_BACKUP}/${dump_name}"
 
@@ -118,13 +121,68 @@ function snapshot_postgres() {
 
 }
 
+function snapshot_opensearch() {
+    log_header "Snapshotting OpenSearch…"
+    TARGET_SERVICE="${service_prefixes[$ENVIRONMENT]}opensearch"
+    if ! docker ps --format '{{.Names}}' | grep -q "${TARGET_SERVICE}"; then
+        log_error "OpenSearch service '${TARGET_SERVICE}' is not running."
+        exit 1
+    fi
+
+    snapshot_repo="my-fs-repository"
+    snapshot_name="snapshot_${BACKUP_NAME}"
+
+    snapshot_repo_status=$(docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" https://localhost:9200/_snapshot/${snapshot_repo}/" | jq .)
+    if [[ "$(echo "${snapshot_repo_status}" | jq -r '._shards.successful')" != "$(echo "${snapshot_repo_status}" | jq -r '._shards.total')" ]]; then
+        log_error "Snapshot repository '${snapshot_repo}' is not healthy."
+        log_error "Response: ${snapshot_repo_status}"
+        exit 1
+    fi
+
+    snapshot_status=$(docker exec -it sds-gateway-prod-opensearch bash -c \
+        "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" https://localhost:9200/_cat/snapshots/${snapshot_repo}?v&s=id" | grep "${snapshot_name}" || true)
+
+    if [[ -z "${snapshot_status}" ]]; then
+        log_msg "No existing snapshot named '${snapshot_name}' found. Proceeding to create a new snapshot."
+        output_json=$(docker exec -it sds-gateway-prod-opensearch bash -c \
+            "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" -X PUT https://localhost:9200/_snapshot/${snapshot_repo}/${snapshot_name}?wait_for_completion=true")
+
+        result=$(echo "${output_json}" | jq -r '.snapshot.state')
+
+        if [[ "${result}" != "SUCCESS" ]]; then
+            log_error "OpenSearch snapshot failed with state: ${result}"
+            log_error "Response: ${output_json}"
+            exit 1
+        fi
+    else
+        log_msg "Snapshot named '${snapshot_name}' already exists. Compressing existing snapshot files."
+    fi
+
+    log_msg "Transferring snapshot files to backup directory..."
+
+    mkdir -p "${DIR_OPENSEARCH_BACKUP}" || {
+        log_error "Failed to create OpenSearch backup directory: ${DIR_OPENSEARCH_BACKUP}"
+        exit 1
+    }
+    OPENSEARCH_SNAPSHOT_ZIP="${DIR_OPENSEARCH_BACKUP}/snapshot_${BACKUP_NAME}.zip"
+
+    if [[ -f "${OPENSEARCH_SNAPSHOT_ZIP}" ]]; then
+        log_msg "Existing snapshot zip file found at '${OPENSEARCH_SNAPSHOT_ZIP}'"
+    else
+        log_msg "No existing snapshot zip file found at '${OPENSEARCH_SNAPSHOT_ZIP}'. Proceeding to create a new one."
+        zip -r "${OPENSEARCH_SNAPSHOT_ZIP}" "${DIR_GATEWAY}/opensearch/data/snapshots"
+    fi
+
+    log_success "OpenSearch snapshot completed successfully."
+}
+
 function make_read_only_when_prod() {
     if [[ "${ENVIRONMENT}" != "production" ]]; then
         log_msg "Skipping read-only permissions for non-production environment."
         return
     fi
     log_msg "Making backed files and dir read-only..."
-    chmod -R a-w "${DIR_BACKUP}"
+    chmod -R a-w "${DIR_BACKUP}/"
     find "${DIR_BACKUP}" -type d -exec chmod a-w {} \;
     find "${DIR_BACKUP}" -type f -exec chmod a-w {} \;
 }
@@ -179,6 +237,7 @@ function main() {
     log_warning "Data of MinIO objects is not included or planned to be in this snapshot."
     pre_checks || log_fatal_and_exit "Pre-checks failed."
     snapshot_postgres || log_fatal_and_exit "Postgres snapshot failed."
+    snapshot_opensearch || log_fatal_and_exit "OpenSearch snapshot failed."
     make_read_only_when_prod || log_error "Failed to set read-only permissions."
     snapshot_stats || log_error "Snapshot stats failed."
     transfer_to_qa_when_prod || log_fatal_and_exit "Transfer to QA failed."

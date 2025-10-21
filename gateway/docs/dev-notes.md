@@ -9,6 +9,11 @@
         + [Cluster stats](#cluster-stats)
         + [Disk allocation](#disk-allocation)
         + [Cluster settings](#cluster-settings)
+    + [OpenSearch Snapshots](#opensearch-snapshots)
+        + [Register the snapshots repository](#register-the-snapshots-repository)
+        + [Verify the snapshot repository](#verify-the-snapshot-repository)
+        + [Take a snapshot](#take-a-snapshot)
+        + [Get a snapshot status](#get-a-snapshot-status)
     + [OpenSearch Indices and Documents](#opensearch-indices-and-documents)
         + [List OpenSearch indices](#list-opensearch-indices)
         + [List all documents of an index](#list-all-documents-of-an-index)
@@ -87,12 +92,78 @@ docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARC
 docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cluster/settings?include_defaults=false" | jq .
 ```
 
+## OpenSearch Snapshots
+
+### Register the snapshots repository
+
+See [Snapshot APIs](https://docs.opensearch.org/latest/api-reference/snapshots/create-repository/#example-requests) for more details.
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" -X PUT https://localhost:9200/_snapshot/my-fs-repository -H 'Content-Type: application/json' -d '{\"type\": \"fs\",\"settings\": {\"location\": \"/mnt/snapshots\"}}'" | jq .
+```
+
+### Verify the snapshot repository
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" https://localhost:9200/_snapshot/my-fs-repository/" | jq .
+```
+
+### Take a snapshot
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" -X PUT https://localhost:9200/_snapshot/my-fs-repository/snapshot_1?wait_for_completion=true" | jq .
+```
+
+Output example
+
+```json
+{
+  "snapshot": {
+    "snapshot": "snapshot_1",
+    "uuid": "FvqZA8zeRcCfvTUq7J32sA",
+    "version_id": 136397827,
+    "version": "2.18.0",
+    "remote_store_index_shallow_copy": false,
+    "indices": [
+      ".opensearch-sap-log-types-config",
+      ".opensearch-observability",
+      "captures-rh",
+      ".plugins-ml-config",
+      ".opendistro_security",
+      "captures-drf"
+    ],
+    "data_streams": [],
+    "include_global_state": true,
+    "state": "SUCCESS",
+    "start_time": "2025-10-21T13:02:35.193Z",
+    "start_time_in_millis": 1761051755193,
+    "end_time": "2025-10-21T13:02:35.393Z",
+    "end_time_in_millis": 1761051755393,
+    "duration_in_millis": 200,
+    "failures": [],
+    "shards": {
+      "total": 10,
+      "failed": 0,
+      "successful": 10
+    }
+  }
+}
+```
+
+### Get a snapshot status
+
+See [snapshot status](https://docs.opensearch.org/latest/api-reference/snapshots/get-snapshot-status/).
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" https://localhost:9200/_snapshot/my-fs-repository/snapshot_1/_status" | jq .
+```
+
 ## OpenSearch Indices and Documents
 
 ### List OpenSearch indices
 
 ```bash
-docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cat/indices?v"
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cat/indices?v" | jq .
 ```
 
 ### List all documents of an index

@@ -25,7 +25,10 @@ plugins.security.ssl.http.pemkey_filepath: /usr/share/opensearch/config/certs/op
 plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/opensearch/config/certs/root-ca.pem
 plugins.security.allow_unsafe_democertificates: false
 plugins.security.authcz.admin_dn:
-  - 'CN=admin,OU=CRC,O=UNIVERSITY OF NOTRE DAME,L=SOUTH BEND,ST=INDIANA,C=US'
+    - "CN=admin,OU=CRC,O=UNIVERSITY OF NOTRE DAME,L=SOUTH BEND,ST=INDIANA,C=US"
 #  - 'CN=opensearch,OU=CRC,O=UNIVERSITY OF NOTRE DAME,L=SOUTH BEND,ST=INDIANA,C=US'
 plugins.security.nodes_dn:
-  - 'CN=opensearch,OU=CRC,O=UNIVERSITY OF NOTRE DAME,L=SOUTH BEND,ST=INDIANA,C=US'
+    - "CN=opensearch,OU=CRC,O=UNIVERSITY OF NOTRE DAME,L=SOUTH BEND,ST=INDIANA,C=US"
+
+# snapshots
+path.repo: ["/mnt/snapshots"]

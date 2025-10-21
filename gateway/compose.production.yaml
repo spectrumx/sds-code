@@ -156,6 +156,12 @@ services:
               read_only: true
               bind:
                   selinux: z
+            - source: ./opensearch/data/snapshots
+              target: /mnt/snapshots
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
         env_file:
             - ./.envs/production/opensearch.env
         ulimits:

@@ -4,12 +4,11 @@ set -euo pipefail
 
 # common variables
 ENVIRONMENT=${1:-"production"} # QA uses the "production" env
-COMMON_SCRIPT="./common.sh"
 POSTGRES_DUMP_NAME="pg_dumpall.sql.gz"
-DIR_SCRIPT=
 DIR_SCRIPT="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 DIR_GATEWAY="$(dirname "${DIR_SCRIPT}")"
 DIR_ALL_BACKUPS="${DIR_GATEWAY}/data/backups"
+COMMON_SCRIPT="${DIR_SCRIPT}/common.sh"
 
 # source environment variables (contains HOSTNAME_QA)
 # shellcheck disable=SC1091
@@ -153,6 +152,8 @@ function restore_postgres() {
 function main() {
     echo "Starting $(basename "$0")..."
     check_environment
+
+    log_warning "NOTE: OpenSearch restoration is NOT implemented. Please refer to https://docs.opensearch.org/latest/api-reference/snapshots/restore-snapshot/"
 
     local latest_backup
     latest_backup=$(get_latest_backup)
