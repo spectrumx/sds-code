@@ -11,7 +11,7 @@ is_production_host() {
 
     if [[ ! -f "${prod_hosts_file}" ]]; then
         printf '\033[33mProduction host list not found at %s: defaulting to local\033[0m\n' "${prod_hosts_file}" >&2
-        printf 'Create this file to make the warning go away:\n\n\tcp %s/prod-hostnames.env.example %s\n\n' "${script_dir}" "${prod_hosts_file}" >&2
+        printf 'Create this file to make the warning go away:\n\n\tcp %s/prod-hostnames.example.env %s\n\n' "${script_dir}" "${prod_hosts_file}" >&2
         return 1
     fi
 
