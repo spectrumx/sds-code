@@ -110,7 +110,7 @@ Available recipes:
     documentation](https://doc.traefik.io/traefik/reference/install-configuration/tls/certificate-resolvers/acme/).
     Note this requires your domain to be publicly reachable.
 
-    Alternatively 1: obtain valid certificates from a trusted Certificate Authority,
+    Alternative 1: obtain valid certificates from a trusted Certificate Authority,
     place them in `traefik/data/certs/`, and make sure [Traefik's
     configuration](./traefik/traefik.toml) matches the filenames.
 
