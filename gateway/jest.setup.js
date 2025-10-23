@@ -170,10 +170,45 @@ global.URLSearchParams = class URLSearchParams {
 
 // Mock Bootstrap
 global.bootstrap = {
-	Modal: {
-		getInstance: jest.fn(),
-		Modal: jest.fn(),
-	},
+	Modal: jest.fn().mockImplementation((element) => ({
+		show: jest.fn(),
+		hide: jest.fn(),
+		element: element,
+	})),
+	Toast: jest.fn().mockImplementation((element) => ({
+		show: jest.fn(),
+		hide: jest.fn(),
+		element: element,
+	})),
+};
+
+// Mock window.bootstrap (some code uses window.bootstrap)
+global.window.bootstrap = global.bootstrap;
+
+// Mock APIClient for template rendering
+global.window.APIClient = {
+	get: jest.fn().mockResolvedValue({ success: true }),
+	post: jest.fn().mockResolvedValue({ html: "<div>Mock HTML</div>" }),
+	put: jest.fn().mockResolvedValue({ success: true }),
+	patch: jest.fn().mockResolvedValue({ success: true }),
+	delete: jest.fn().mockResolvedValue({ success: true }),
+	request: jest.fn().mockResolvedValue({ success: true }),
+	getCSRFToken: jest.fn().mockReturnValue("mock-csrf-token"),
+	getCookie: jest.fn().mockReturnValue(null),
+};
+
+// Mock DOMUtils
+global.window.DOMUtils = {
+	show: jest.fn(),
+	hide: jest.fn(),
+	showAlert: jest.fn(),
+	renderError: jest.fn().mockResolvedValue(true),
+	renderLoading: jest.fn().mockResolvedValue(true),
+	renderContent: jest.fn().mockResolvedValue(true),
+	renderTable: jest.fn().mockResolvedValue(true),
+	renderSelectOptions: jest.fn().mockResolvedValue(true),
+	renderPagination: jest.fn().mockResolvedValue(true),
+	renderDropdown: jest.fn().mockResolvedValue("<div>Mock Dropdown</div>"),
 };
 
 // Mock global showAlert function

@@ -11,11 +11,15 @@ global.APIClient = {
 	get: jest.fn(),
 };
 
-// Mock HTMLInjectionManager
-global.HTMLInjectionManager = {
-	injectHTML: jest.fn(),
-	createTableRow: jest.fn(),
-	createLoadingSpinner: jest.fn(),
+// Mock DOMUtils (replaces HTMLInjectionManager)
+global.window.DOMUtils = {
+	show: jest.fn(),
+	hide: jest.fn(),
+	showAlert: jest.fn(),
+	renderError: jest.fn().mockResolvedValue(true),
+	renderLoading: jest.fn().mockResolvedValue(true),
+	renderContent: jest.fn().mockResolvedValue(true),
+	renderTable: jest.fn().mockResolvedValue(true),
 };
 
 describe("AssetSearchHandler", () => {
