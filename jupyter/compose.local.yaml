@@ -10,13 +10,10 @@ volumes:
 
 networks:
     # for safety, all local networks start with "sds-jupyter-local-"
-    sds-jupyter-local-net:
-        driver: bridge
     sds-jupyter-local-net-clients:
         driver: bridge
 
 services:
-
     jupyter:
         build:
             context: .
@@ -29,14 +26,14 @@ services:
         restart: unless-stopped
         image: sds-jupyter-local
         container_name: sds-jupyter-local
+        tty: true # for colored logs
         networks:
             sds-jupyter-local-net-clients:
                 aliases:
                     - jupyterhub
-            # sds-jupyter-local-net:
         volumes:
-            - './compose/local/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro'
-            - './compose/local/jupyter/sample_scripts:/srv/jupyter/sample_scripts:ro'
+            - "./compose/local/jupyter/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py:ro"
+            - "./compose/local/jupyter/sample_scripts:/srv/jupyter/sample_scripts:ro"
             - type: volume
               source: sds-jupyter-local-data
               target: /data
@@ -44,13 +41,14 @@ services:
             - type: bind
               source: /var/run/docker.sock
               target: /run/docker.sock
+              read_only: false
 
-        privileged: true
+        privileged: false
 
         user: "${NB_UID:-1000}:${DOCKER_GID:-103}"
-        userns_mode: 'host'
+        userns_mode: "host"
         ports:
-            - '8888:8000'
+            - "8888:8000"
         env_file:
             - ./.envs/local/jupyterhub.env
         environment:
