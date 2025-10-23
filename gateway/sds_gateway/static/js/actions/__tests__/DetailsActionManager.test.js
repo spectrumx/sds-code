@@ -3,7 +3,6 @@
  * Tests details functionality for captures and datasets
  */
 
-import { HTMLInjectionManager } from "../../core/HTMLInjectionManager.js";
 import { PermissionsManager } from "../../core/PermissionsManager.js";
 // Import the DetailsActionManager class
 import { DetailsActionManager } from "../DetailsActionManager.js";
@@ -107,8 +106,15 @@ describe("DetailsActionManager", () => {
 			})),
 		};
 
-		// Set up global instances
-		global.window.HTMLInjectionManager = new HTMLInjectionManager();
+		// Set up global instances - DOMUtils is now used instead of HTMLInjectionManager
+		global.window.DOMUtils = {
+			show: jest.fn(),
+			hide: jest.fn(),
+			showAlert: jest.fn(),
+			renderError: jest.fn().mockResolvedValue(true),
+			renderLoading: jest.fn().mockResolvedValue(true),
+			renderContent: jest.fn().mockResolvedValue(true),
+		};
 
 		// Mock window.APIClient (what the actual code uses)
 		global.window.APIClient = {
@@ -120,6 +126,7 @@ describe("DetailsActionManager", () => {
 					channel: "Channel 1",
 				},
 			}),
+			post: jest.fn().mockResolvedValue({ html: "<div>Test HTML</div>" }),
 		};
 
 		// Mock browser APIs
@@ -267,18 +274,19 @@ describe("DetailsActionManager", () => {
 		});
 
 		test("should show modal loading state", () => {
-			// Spy on the real HTMLInjectionManager method
-			const createLoadingSpinnerSpy = jest.spyOn(
-				global.window.HTMLInjectionManager,
-				"createLoadingSpinner",
+			// DOMUtils.renderLoading should be called instead of HTMLInjectionManager
+			const renderLoadingSpy = jest.spyOn(
+				global.window.DOMUtils,
+				"renderLoading",
 			);
 
 			// The method exists but requires a modalId parameter
 			detailsManager.showModalLoading("test-modal");
 
-			expect(createLoadingSpinnerSpy).toHaveBeenCalled();
+			// Verify the appropriate DOMUtils method was called
+			expect(renderLoadingSpy).toHaveBeenCalled();
 
-			createLoadingSpinnerSpy.mockRestore();
+			renderLoadingSpy.mockRestore();
 		});
 
 		test("should handle modal event handlers", () => {

@@ -84,10 +84,14 @@ describe("DownloadActionManager", () => {
 			),
 			showWebDownloadModal: jest.fn(),
 			showAlert: jest.fn(),
-			HTMLInjectionManager: {
-				createLoadingSpinner: jest.fn(
-					(text) => `<span class="spinner">${text}</span>`,
-				),
+			DOMUtils: {
+				show: jest.fn(),
+				hide: jest.fn(),
+				showAlert: jest.fn(),
+				renderError: jest.fn().mockResolvedValue(true),
+				renderLoading: jest.fn().mockResolvedValue(true),
+				renderContent: jest.fn().mockResolvedValue(true),
+				renderTable: jest.fn().mockResolvedValue(true),
 			},
 			APIClient: {
 				post: jest.fn().mockResolvedValue({
@@ -198,7 +202,8 @@ describe("DownloadActionManager", () => {
 				"warning",
 			);
 
-			expect(global.window.showAlert).toHaveBeenCalledWith(
+			// showToast calls DOMUtils.showAlert, not window.showAlert directly
+			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
 				"You don't have permission to download this dataset",
 				"warning",
 			);
@@ -254,7 +259,8 @@ describe("DownloadActionManager", () => {
 				"warning",
 			);
 
-			expect(global.window.showAlert).toHaveBeenCalledWith(
+			// showToast calls DOMUtils.showAlert, not window.showAlert directly
+			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
 				"You don't have permission to download this capture",
 				"warning",
 			);
