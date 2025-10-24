@@ -116,8 +116,10 @@ snapshot:
 test args='':
     @echo "Validating templates"
     {{uv_runner}} manage.py validate_templates
-    @echo "Running tests"
+    @echo "Running Python tests"
     {{uv_runner}} pytest {{args}}
+    @echo "Running JavaScript tests"
+    {{docker_compose}} run node npm run test {{args}}
 
 # starts services in detached mode
 up args='':
