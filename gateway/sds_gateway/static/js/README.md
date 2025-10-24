@@ -400,7 +400,7 @@ The JavaScript codebase uses Jest for comprehensive testing with coverage report
 
 Tests are organized by component in `__tests__/` directories:
 
-```
+```text
 static/js/
 ├── core/__tests__/
 │   ├── PermissionsManager.test.js
