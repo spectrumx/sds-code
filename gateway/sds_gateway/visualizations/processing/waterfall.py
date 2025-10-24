@@ -11,6 +11,8 @@ from loguru import logger
 from pydantic import Field
 from pydantic import computed_field
 
+from sds_gateway.visualizations.errors import SourceDataError
+
 from .utils import DigitalRFParams
 from .utils import validate_digitalrf_data
 
@@ -160,8 +162,6 @@ def convert_drf_to_waterfall_json(
         slice_params = base_params.model_copy(
             update={
                 "slice_idx": slice_idx,
-                "samples_per_slice": SAMPLES_PER_SLICE,
-                "fft_size": base_params.fft_size,
             },
             deep=True,
         )
@@ -171,15 +171,19 @@ def convert_drf_to_waterfall_json(
         else:
             skipped_slices += 1
 
-        # Log progress every 2 seconds
+        # Log progress every 3 seconds
         current_time = time.time()
-        log_interval = 2.0
+        log_interval = 3.0
         if current_time - last_log_time >= log_interval:
             logger.debug(
                 f"Processed {slice_idx + 1}/{slices_to_process} slices "
                 f"(skipped: {skipped_slices})"
             )
             last_log_time = current_time
+
+    if len(waterfall_data) == 0:
+        msg = "No valid waterfall slices found"
+        raise SourceDataError(msg)
 
     # Log final summary
     logger.info(
@@ -201,8 +205,6 @@ def convert_drf_to_waterfall_json(
     }
 
     return {
-        "status": "success",
-        "message": "Waterfall data converted to JSON successfully",
         "json_data": waterfall_data,
         "metadata": metadata,
     }
