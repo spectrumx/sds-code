@@ -3,14 +3,15 @@
 import json
 import tempfile
 import time
+import traceback
 from pathlib import Path
 from typing import Any
 
 from django_cog import cog
 from django_cog import cog_error_handler
-from django_cog import defaultCogErrorHandler
 from loguru import logger
 
+from sds_gateway.visualizations.errors import ConfigurationError
 from sds_gateway.visualizations.processing.waterfall import (
     convert_drf_to_waterfall_json,
 )
@@ -103,7 +104,7 @@ def get_pipeline_config(pipeline_type: str) -> dict[str, Any]:
     config_func = PIPELINE_CONFIGS.get(pipeline_type)
     if not config_func:
         error_msg = f"Unknown pipeline type: {pipeline_type}"
-        raise ValueError(error_msg)
+        raise ConfigurationError(error_msg)
 
     return config_func()
 
@@ -166,12 +167,12 @@ def setup_post_processing_cog(
         # Validate capture type
         if capture.capture_type != CaptureType.DigitalRF:
             error_msg = f"Capture {capture_uuid} is not a DigitalRF capture"
-            raise ValueError(error_msg)  # noqa: TRY301
+            raise ConfigurationError(error_msg)  # noqa: TRY301
 
         # Validate processing config
         if not processing_config:
             error_msg = "No processing config specified"
-            raise ValueError(error_msg)  # noqa: TRY301
+            raise ConfigurationError(error_msg)  # noqa: TRY301
 
         # PostProcessedData records should be created before the pipeline starts
         # This function just validates the capture and config
@@ -191,7 +192,7 @@ def setup_post_processing_cog(
                     f"PostProcessedData records must be created before starting the "
                     f"pipeline."
                 )
-                raise ValueError(error_msg)  # noqa: TRY301
+                raise ConfigurationError(error_msg)  # noqa: TRY301
 
         logger.info(f"Completed setup for capture {capture_uuid}")
     except Exception as e:
@@ -208,24 +209,16 @@ def _process_waterfall_json_data(capture, processed_data_obj, temp_path):
     capture_files = capture.files.filter(is_deleted=False)
     reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
 
-    if not reconstructed_path:
-        error_msg = "Failed to reconstruct DigitalRF directory structure"
-        processed_data_obj.mark_processing_failed(error_msg)
-        raise ValueError(error_msg)
-
     waterfall_result = convert_drf_to_waterfall_json(
         reconstructed_path,
         capture.channel,
+        max_slices=500000,
     )
-
-    if waterfall_result["status"] != "success":
-        processed_data_obj.mark_processing_failed(waterfall_result["message"])
-        raise ValueError(waterfall_result["message"])
 
     return waterfall_result
 
 
-def _store_waterfall_json_file(capture_uuid, waterfall_result, processed_data_obj):
+def _store_waterfall_json_file(capture_uuid, waterfall_result):
     """Store waterfall JSON file and return result."""
     from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
     from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
@@ -241,7 +234,7 @@ def _store_waterfall_json_file(capture_uuid, waterfall_result, processed_data_ob
 
     try:
         new_filename = f"waterfall_{capture_uuid}.json"
-        store_result = store_processed_data(
+        store_processed_data(
             capture_uuid,
             ProcessingType.Waterfall.value,
             temp_file_path,
@@ -249,11 +242,7 @@ def _store_waterfall_json_file(capture_uuid, waterfall_result, processed_data_ob
             waterfall_result["metadata"],
         )
 
-        if store_result["status"] != "success":
-            processed_data_obj.mark_processing_failed(store_result["message"])
-            raise ValueError(store_result["message"])  # noqa: TRY301
-
-        return store_result, temp_file_path  # noqa: TRY300
+        return temp_file_path  # noqa: TRY300
     except Exception:
         if temp_file_path:
             Path(temp_file_path).unlink(missing_ok=True)
@@ -264,7 +253,7 @@ def _store_waterfall_json_file(capture_uuid, waterfall_result, processed_data_ob
 def process_waterfall_data_cog(
     capture_uuid: str,
     processing_config: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
+) -> None:
     """Process waterfall data for a capture.
 
     Args:
@@ -272,18 +261,14 @@ def process_waterfall_data_cog(
         processing_config: Dict with processing configurations
 
     Returns:
-        Dict with status and processed data info
+        None
     """
     processing_types = list(processing_config.keys()) if processing_config else []
     if "waterfall" not in processing_types:
         logger.info(
             f"Skipping waterfall processing for capture {capture_uuid} - not requested"
         )
-        return {
-            "status": "skipped",
-            "message": "Waterfall processing not requested",
-            "capture_uuid": capture_uuid,
-        }
+        return
 
     logger.info(f"Processing waterfall JSON data for capture {capture_uuid}")
 
@@ -323,21 +308,11 @@ def process_waterfall_data_cog(
             waterfall_result = _process_waterfall_json_data(
                 capture, processed_data_obj, temp_path
             )
-            store_result, temp_file_path = _store_waterfall_json_file(
-                capture_uuid, waterfall_result, processed_data_obj
-            )
+            temp_file_path = _store_waterfall_json_file(capture_uuid, waterfall_result)
 
             processed_data_obj.mark_processing_completed()
             logger.info(f"Completed waterfall processing for capture {capture_uuid}")
 
-            return {
-                "status": "success",
-                "capture_uuid": capture_uuid,
-                "message": "Waterfall JSON data processed and stored successfully",
-                "json_data": waterfall_result["json_data"],
-                "metadata": waterfall_result["metadata"],
-                "store_result": store_result,
-            }
         finally:
             if temp_file_path:
                 Path(temp_file_path).unlink(missing_ok=True)
@@ -347,7 +322,7 @@ def process_waterfall_data_cog(
 @cog
 def process_spectrogram_data_cog(
     capture_uuid: str, processing_config: dict[str, dict[str, Any]]
-) -> dict[str, Any]:
+) -> None:
     """Process spectrogram data for a capture.
 
     Args:
@@ -355,7 +330,7 @@ def process_spectrogram_data_cog(
         processing_config: Dict with processing configurations
 
     Returns:
-        Dict with status and processed data info
+        None
     """
 
     # imports to run when the app is ready
@@ -375,11 +350,7 @@ def process_spectrogram_data_cog(
             f"Skipping spectrogram processing for capture {capture_uuid} - not "
             f"requested"
         )
-        return {
-            "status": "skipped",
-            "message": "Spectrogram processing not requested",
-            "capture_uuid": capture_uuid,
-        }
+        return
 
     logger.info(f"Processing spectrogram data for capture {capture_uuid}")
 
@@ -421,11 +392,6 @@ def process_spectrogram_data_cog(
         capture_files = capture.files.filter(is_deleted=False)
         reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
 
-        if not reconstructed_path:
-            error_msg = "Failed to reconstruct DigitalRF directory structure"
-            processed_data_obj.mark_processing_failed(error_msg)
-            raise ValueError(error_msg)
-
         # Generate spectrogram
         from sds_gateway.visualizations.processing.spectrogram import (  # noqa: PLC0415
             generate_spectrogram_from_drf,
@@ -437,16 +403,12 @@ def process_spectrogram_data_cog(
             processing_config["spectrogram"],
         )
 
-        if spectrogram_result["status"] != "success":
-            processed_data_obj.mark_processing_failed(spectrogram_result["message"])
-            raise ValueError(spectrogram_result["message"])
-
         # Store the spectrogram image
         from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
             store_processed_data,
         )
 
-        store_result = store_processed_data(
+        store_processed_data(
             capture_uuid,
             ProcessingType.Spectrogram.value,
             spectrogram_result["image_path"],
@@ -454,21 +416,10 @@ def process_spectrogram_data_cog(
             spectrogram_result["metadata"],
         )
 
-        if store_result["status"] != "success":
-            processed_data_obj.mark_processing_failed(store_result["message"])
-            raise ValueError(store_result["message"])
-
         # Mark processing as completed
         processed_data_obj.mark_processing_completed()
 
         logger.info(f"Completed spectrogram processing for capture {capture_uuid}")
-        return {
-            "status": "success",
-            "capture_uuid": capture_uuid,
-            "message": "Spectrogram processed and stored successfully",
-            "metadata": spectrogram_result["metadata"],
-            "store_result": store_result,
-        }
 
 
 @cog_error_handler
@@ -535,11 +486,26 @@ def visualization_error_handler(error, task_run=None):
                     return
 
                 for record in failed_records:
-                    error_message = f"COG task '{task_run.task.name}' failed: {error}"
-                    record.mark_processing_failed(error_message)
+                    # Create a CogError record for detailed error tracking
+                    from django_cog.models import CogError  # noqa: PLC0415
+
+                    error_type = type(error).__name__
+                    error_info = "".join(
+                        traceback.format_exception(
+                            type(error), value=error, tb=error.__traceback__
+                        )
+                    )
+                    cog_error = CogError.objects.create(
+                        task_run=task_run, traceback=error_info, error_type=error_type
+                    )
+
+                    # For COG errors, we only store the CogError reference
+                    # The processing_error field remains empty for COG errors
+                    record.mark_processing_failed(None, cog_error)
                     logger.warning(
                         f"Marked PostProcessedData record {record.uuid} as failed "
-                        f"due to COG task failure"
+                        f"due to COG task failure ({error_type}) - "
+                        f"CogError ID: {cog_error.id}"
                     )
 
             else:
@@ -551,6 +517,3 @@ def visualization_error_handler(error, task_run=None):
             logger.error(f"Failed to update PostProcessedData records: {cleanup_error}")
     else:
         logger.warning("No task_run object provided to error handler")
-
-    # Run the default error handler as well
-    defaultCogErrorHandler(error, task_run)
