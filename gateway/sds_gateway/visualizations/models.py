@@ -2,11 +2,15 @@
 
 import datetime
 import re
+import traceback
 import uuid
 from enum import StrEnum
 from pathlib import Path
 
 from django.db import models
+from django_cog.models import CogError
+
+from sds_gateway.visualizations.errors import ProcessingError
 
 
 class ProcessingType(StrEnum):
@@ -101,9 +105,17 @@ class PostProcessedData(BaseModel):
         default=ProcessingStatus.Pending.value,
         help_text="Current processing status",
     )
-    processing_error = models.TextField(
+    processing_error = models.JSONField(
+        null=True,
         blank=True,
-        help_text="Error message if processing failed",
+        help_text="Error information if processing failed",
+    )
+    cog_error = models.ForeignKey(
+        CogError,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Django COG error record, if available",
     )
     processed_at = models.DateTimeField(
         null=True,
@@ -146,17 +158,63 @@ class PostProcessedData(BaseModel):
         self.processed_at = datetime.datetime.now(datetime.UTC)
         self.save(update_fields=["processing_status", "processed_at"])
 
-    def mark_processing_failed(self, error_message: str) -> None:
-        """Mark processing as failed with error message."""
+    def mark_processing_failed(
+        self,
+        processing_error: Exception | None = None,
+        cog_error: CogError | None = None,
+    ) -> None:
+        """Mark processing as failed with error data and optional COG error.
+
+        Args:
+            processing_error: Exception for non-COG errors (regular Python exceptions)
+            cog_error: CogError instance for COG-related errors
+        """
         self.processing_status = ProcessingStatus.Failed.value
-        self.processing_error = error_message
-        self.save(update_fields=["processing_status", "processing_error"])
+
+        if cog_error:
+            # COG error - store only the CogError reference
+            self.processing_error = None
+            self.cog_error = cog_error
+        elif processing_error:
+            # Non-COG error - store error data in JSON field
+            error_traceback = "".join(
+                traceback.format_exception(
+                    type(processing_error),
+                    value=processing_error,
+                    tb=processing_error.__traceback__,
+                )
+            )
+
+            self.processing_error = {
+                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                "error_type": type(processing_error).__name__,
+                "traceback": error_traceback,
+            }
+            self.cog_error = None
+        else:
+            msg = "No error data provided"
+            raise ProcessingError(msg)
+
+        self.save(
+            update_fields=[
+                "processing_status",
+                "processing_error",
+                "cog_error",
+            ]
+        )
 
     def set_processed_data_file(self, file_path: str, filename: str) -> None:
         """Set the processed data file."""
         with Path(file_path).open("rb") as f:
             self.data_file.save(filename, f, save=False)
-        self.save(update_fields=["data_file"])
+
+    def get_error_type(self) -> str | None:
+        """Get the error type from either COG error or processing error."""
+        if self.cog_error:
+            return self.cog_error.error_type
+        if self.processing_error:
+            return self.processing_error["error_type"]
+        return None
 
 
 def get_latest_pipeline_by_base_name(base_name: str):
