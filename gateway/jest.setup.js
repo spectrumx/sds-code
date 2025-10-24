@@ -36,6 +36,7 @@ const mockDOM = {
 const mockWindow = {
 	location: {
 		href: "http://localhost:8000",
+		origin: "http://localhost:8000",
 		pathname: "/",
 		search: "",
 		hash: "",
@@ -118,10 +119,26 @@ Object.defineProperty(window, "matchMedia", {
 // Mock URL and URLSearchParams
 global.URL = class URL {
 	constructor(url, base) {
-		this.href = url;
-		this.pathname = url.split("?")[0];
-		this.search = url.includes("?") ? "?" + url.split("?")[1] : "";
-		this.hash = url.includes("#") ? "#" + url.split("#")[1] : "";
+		// Handle base URL for relative URLs
+		// e.g. URL("api/test", "http://localhost:8000") -> "http://localhost:8000/api/test"
+		if (base) {
+			this.href = base + (url.startsWith("/") ? url : "/" + url);
+		} else {
+			this.href = url;
+		}
+
+		// Simple parsing (original approach)
+		this.pathname = this.href.split("?")[0];
+		this.search = this.href.includes("?") ? "?" + this.href.split("?")[1] : "";
+		this.hash = this.href.includes("#") ? "#" + this.href.split("#")[1] : "";
+
+		// Add missing properties
+		this.origin = base || this.href.match(/^(https?:\/\/[^\/]+)/)?.[1] || "";
+		this.searchParams = new global.URLSearchParams(this.search.substring(1));
+	}
+
+	toString() {
+		return this.href;
 	}
 };
 
