@@ -11,9 +11,16 @@ describe("DatasetCreationHandler", () => {
 	let creationHandler;
 	let mockForm;
 	let mockConfig;
-	let mockPrevBtn, mockNextBtn, mockSubmitBtn, mockStepTab;
-	let mockNameField, mockAuthorsField, mockStatusField, mockDescriptionField;
-	let mockSelectedCapturesField, mockSelectedFilesField;
+	let mockPrevBtn;
+	let mockNextBtn;
+	let mockSubmitBtn;
+	let mockStepTab;
+	let mockNameField;
+	let mockAuthorsField;
+	let mockStatusField;
+	let mockDescriptionField;
+	let mockSelectedCapturesField;
+	let mockSelectedFilesField;
 
 	beforeAll(() => {
 		// Helper function to create a mock classList that actually tracks classes
@@ -25,7 +32,9 @@ describe("DatasetCreationHandler", () => {
 						classes.add(className);
 					} else if (typeof className === "object" && className.length) {
 						// Handle multiple classes
-						className.forEach((cls) => classes.add(cls));
+						for (const cls of className) {
+							classes.add(cls);
+						}
 					}
 				}),
 				remove: jest.fn((className) => {
@@ -33,7 +42,9 @@ describe("DatasetCreationHandler", () => {
 						classes.delete(className);
 					} else if (typeof className === "object" && className.length) {
 						// Handle multiple classes
-						className.forEach((cls) => classes.delete(cls));
+						for (const cls of className) {
+							classes.delete(cls);
+						}
 					}
 				}),
 				contains: jest.fn((className) => classes.has(className)),
@@ -503,7 +514,7 @@ describe("DatasetCreationHandler", () => {
 		});
 
 		test("should handle missing search handlers gracefully", () => {
-			delete global.window.AssetSearchHandler;
+			global.window.AssetSearchHandler = undefined;
 
 			expect(() => {
 				new DatasetCreationHandler(mockConfig);
