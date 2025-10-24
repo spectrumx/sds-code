@@ -238,14 +238,14 @@ describe("DatasetModeManager", () => {
 	describe("Backward Compatibility", () => {
 		test("should set global reference only in edit mode", () => {
 			// Clear any existing global reference
-			delete window.datasetEditingHandler;
+			window.datasetEditingHandler = undefined;
 
 			// Test edit mode
 			const editManager = new DatasetModeManager({ datasetUuid: "test-uuid" });
 			expect(window.datasetEditingHandler).toBeDefined();
 
 			// Clear global reference
-			delete window.datasetEditingHandler;
+			window.datasetEditingHandler = undefined;
 
 			// Test creation mode
 			const creationManager = new DatasetModeManager({ datasetUuid: null });
