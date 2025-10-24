@@ -5,6 +5,7 @@ from typing import Any
 from loguru import logger
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.visualizations.errors import ConfigurationError
 from sds_gateway.visualizations.models import PostProcessedData
 from sds_gateway.visualizations.models import ProcessingStatus
 from sds_gateway.visualizations.models import ProcessingType
@@ -36,7 +37,7 @@ def launch_visualization_processing(
         # Validate processing config
         if not processing_config:
             error_msg = "No processing config specified"
-            raise ValueError(error_msg)  # noqa: TRY301
+            raise ConfigurationError(error_msg)  # noqa: TRY301
 
         # Get the capture
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
@@ -92,7 +93,7 @@ def launch_visualization_processing(
             error_msg = (
                 f"No {pipeline_name} pipeline found. Please run setup_pipelines."
             )
-            raise ValueError(error_msg)  # noqa: TRY301
+            raise ConfigurationError(error_msg)  # noqa: TRY301
 
         # Launch the visualization pipeline with updated processing config
         logger.info(
@@ -105,12 +106,6 @@ def launch_visualization_processing(
         logger.info(f"Pipeline launched successfully for capture {capture_uuid}")
 
         return {
-            "status": "success",
-            "message": (
-                f"Visualization processing started for {len(processing_config)} "
-                f"processing types"
-            ),
-            "capture_uuid": capture_uuid,
             "processing_config": updated_processing_config,
         }
     except Exception as e:

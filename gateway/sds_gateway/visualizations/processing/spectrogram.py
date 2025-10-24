@@ -158,8 +158,6 @@ def generate_spectrogram_from_drf(
     }
 
     return {
-        "status": "success",
-        "message": "Spectrogram generated successfully",
         "image_path": image_path,
         "metadata": metadata,
     }

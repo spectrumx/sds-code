@@ -18,6 +18,7 @@ from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.visualizations.errors import VisualizationsError
 
 from .config import get_available_visualizations
 from .models import PostProcessedData
@@ -210,8 +211,14 @@ class VisualizationViewSet(ViewSet):
 
             return Response(response_data, status=status.HTTP_200_OK)
 
+        except VisualizationsError as e:
+            log.error(f"Visualization error creating spectrogram: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:  # noqa: BLE001
-            log.error(f"Error creating spectrogram: {e}")
+            log.error(f"Unexpected error creating spectrogram: {e}")
             return Response(
                 {"error": "Failed to create spectrogram"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -419,8 +426,14 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_200_OK,
             )
 
+        except VisualizationsError as e:
+            log.error(f"Visualization error getting compatibility: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:  # noqa: BLE001
-            log.error(f"Error getting visualization compatibility: {e}")
+            log.error(f"Unexpected error getting visualization compatibility: {e}")
             return Response(
                 {"error": "Failed to get visualization compatibility"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
