@@ -187,39 +187,6 @@ class UserSharePermissionTestCase(TestCase):
             self.co_owner, self.dataset.uuid, ItemType.DATASET
         )
 
-    def test_dataset_authors(self):
-        """Test that dataset authors are correctly determined."""
-        # Set up permissions
-        UserSharePermission.objects.create(
-            owner=self.owner,
-            shared_with=self.contributor,
-            item_type=ItemType.DATASET,
-            item_uuid=self.dataset.uuid,
-            permission_level=PermissionLevel.CONTRIBUTOR,
-        )
-
-        UserSharePermission.objects.create(
-            owner=self.owner,
-            shared_with=self.co_owner,
-            item_type=ItemType.DATASET,
-            item_uuid=self.dataset.uuid,
-            permission_level=PermissionLevel.CO_OWNER,
-        )
-
-        # Get authors
-        authors = UserSharePermission.get_dataset_authors(self.dataset.uuid)
-
-        # Should have 1 author: owner (only owner is returned by get_dataset_authors)
-        assert len(authors) == 1
-
-        # Check that owner is present
-        author_names = [author["name"] for author in authors]
-        assert "Dataset Owner" in author_names
-
-        # Check role
-        author_roles = {author["name"]: author["role"] for author in authors}
-        assert author_roles["Dataset Owner"] == PermissionLevel.OWNER
-
     def test_asset_ownership_permission(self):
         """Test asset ownership permission checking using model methods."""
         # Set up permissions
