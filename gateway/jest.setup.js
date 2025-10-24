@@ -122,15 +122,15 @@ global.URL = class URL {
 		// Handle base URL for relative URLs
 		// e.g. URL("api/test", "http://localhost:8000") -> "http://localhost:8000/api/test"
 		if (base) {
-			this.href = base + (url.startsWith("/") ? url : "/" + url);
+			this.href = base + (url.startsWith("/") ? url : `/${url}`);
 		} else {
 			this.href = url;
 		}
 
 		// Simple parsing (original approach)
 		this.pathname = this.href.split("?")[0];
-		this.search = this.href.includes("?") ? "?" + this.href.split("?")[1] : "";
-		this.hash = this.href.includes("#") ? "#" + this.href.split("#")[1] : "";
+		this.search = this.href.includes("?") ? `?${this.href.split("?")[1]}` : "";
+		this.hash = this.href.includes("#") ? `#${this.href.split("#")[1]}` : "";
 
 		// Add missing properties
 		this.origin = base || this.href.match(/^(https?:\/\/[^\/]+)/)?.[1] || "";
@@ -146,10 +146,10 @@ global.URLSearchParams = class URLSearchParams {
 	constructor(search) {
 		this.params = new Map();
 		if (search) {
-			search.split("&").forEach((param) => {
+			for (const param of search.split("&")) {
 				const [key, value] = param.split("=");
 				this.params.set(key, value);
-			});
+			}
 		}
 	}
 
@@ -172,7 +172,7 @@ global.URLSearchParams = class URLSearchParams {
 	append(name, value) {
 		const existing = this.params.get(name);
 		if (existing) {
-			this.params.set(name, existing + "," + value);
+			this.params.set(name, `${existing},${value}`);
 		} else {
 			this.params.set(name, value);
 		}

@@ -179,11 +179,11 @@ describe("PageLifecycleManager", () => {
 		test("should cleanup all managers", () => {
 			lifecycleManager.cleanup();
 
-			lifecycleManager.managers.forEach((manager) => {
+			for (const manager of lifecycleManager.managers) {
 				if (manager.cleanup) {
 					expect(manager.cleanup).toHaveBeenCalled();
 				}
-			});
+			}
 		});
 
 		test("should handle cleanup errors gracefully", () => {
