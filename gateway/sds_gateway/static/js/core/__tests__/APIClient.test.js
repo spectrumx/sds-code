@@ -291,16 +291,16 @@ describe("APIClient", () => {
 
 			await apiClient.get("/api/test");
 
-			// Verify fetch was called and check the URL (it's a URL object)
-			expect(mockFetch).toHaveBeenCalled();
-			const callArgs = mockFetch.mock.calls[0];
-			const url = callArgs[0];
-			// URL could be a string or URL object
-			const urlString =
-				typeof url === "string" ? url : url.href || url.toString();
-			expect(urlString).toContain("/api/test");
-			expect(callArgs[1].method).toBe("GET");
-			expect(callArgs[1].headers["X-Requested-With"]).toBe("XMLHttpRequest");
+			// Verify fetch was called with correct URL and parameters
+			expect(mockFetch).toHaveBeenCalledWith(
+				"http://localhost:8000/api/test",
+				expect.objectContaining({
+					method: "GET",
+					headers: expect.objectContaining({
+						"X-Requested-With": "XMLHttpRequest",
+					}),
+				}),
+			);
 		});
 
 		test("should make POST request", async () => {
