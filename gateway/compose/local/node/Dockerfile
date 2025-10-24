@@ -8,4 +8,6 @@ COPY ./sds_gateway/static/ /app/sds_gateway/static/
 
 RUN npm install && npm cache clean --force
 
+COPY . /app
+
 ENV PATH=./node_modules/.bin/:$PATH
