@@ -1,6 +1,6 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-python_version := "3.14"    # same as in .python-version
+python_version := `cat .python-version`
 supported_python_versions := "3.10 3.11 3.12 3.14"
 test_marker_default := "not integration"
 test_marker_integration := "integration"
