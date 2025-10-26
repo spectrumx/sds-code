@@ -1,7 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-python_version := "3.13"    # same as in .python-version
-supported_python_versions := "3.10 3.11 3.12 3.13"
+python_version := "3.14"    # same as in .python-version
+supported_python_versions := "3.10 3.11 3.12 3.14"
 test_marker_default := "not integration"
 test_marker_integration := "integration"
 sdk_root := justfile_directory()
@@ -108,7 +108,7 @@ test-integration python=python_version *pytest_args:
 # runs tests against the lowest dependency versions
 test-lowest python=python_version *pytest_args:
     @echo "Running lowest dep resolution tests for Python '{{python}}'"
-    uv run -v --resolution lowest-direct -p '{{python}}' pytest \
+    uv run --resolution lowest-direct -p '{{python}}' pytest \
         -m '{{test_marker_default}}' \
         {{pytest_args}} \
         tests
