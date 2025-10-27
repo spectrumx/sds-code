@@ -263,8 +263,8 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get the processing job
-        processing_job = get_object_or_404(
+        # Get the post processed data record
+        post_processed_data = get_object_or_404(
             PostProcessedData,
             uuid=job_id,
             capture__uuid=pk,
@@ -272,7 +272,7 @@ class VisualizationViewSet(ViewSet):
         )
 
         try:
-            serializer = PostProcessedDataSerializer(processing_job)
+            serializer = PostProcessedDataSerializer(post_processed_data)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except ValidationError as e:
@@ -319,28 +319,30 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get the processing job
-        processing_job = get_object_or_404(
+        # Get the post processed data record
+        post_processed_data = get_object_or_404(
             PostProcessedData,
             uuid=job_id,
             capture__uuid=pk,
             processing_type=ProcessingType.Spectrogram.value,
         )
 
-        if processing_job.processing_status != ProcessingStatus.Completed.value:
+        if post_processed_data.processing_status != ProcessingStatus.Completed.value:
             return Response(
                 {"error": "Spectrogram processing not completed"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if not processing_job.data_file:
+        if not post_processed_data.data_file:
             return Response(
                 {"error": "No spectrogram file found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         # Return the file
-        file_response = FileResponse(processing_job.data_file, content_type="image/png")
+        file_response = FileResponse(
+            post_processed_data.data_file, content_type="image/png"
+        )
         file_response["Content-Disposition"] = (
             f'attachment; filename="spectrogram_{pk}.png"'
         )

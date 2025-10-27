@@ -6,11 +6,13 @@ import traceback
 import uuid
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 from django.db import models
 from django_cog.models import CogError
 
 from sds_gateway.visualizations.errors import ProcessingError
+from sds_gateway.visualizations.errors import SourceDataError
 
 
 class ProcessingType(StrEnum):
@@ -208,13 +210,21 @@ class PostProcessedData(BaseModel):
         with Path(file_path).open("rb") as f:
             self.data_file.save(filename, f, save=False)
 
-    def get_error_type(self) -> str | None:
-        """Get the error type from either COG error or processing error."""
+    def get_error_info(self) -> dict[str, Any] | None:
+        """Get the error information from either COG error or processing error."""
         if self.cog_error:
-            return self.cog_error.error_type
+            return self.cog_error.to_dict()
         if self.processing_error:
-            return self.processing_error["error_type"]
+            return self.processing_error
         return None
+
+    def has_source_data_error(self) -> bool:
+        """Check if the error is a data error."""
+        error_info = self.get_error_info()
+        if error_info is None:
+            return False
+        error_type = error_info.get("error_type")
+        return error_type is not None and error_type == SourceDataError.__name__
 
 
 def get_latest_pipeline_by_base_name(base_name: str):
