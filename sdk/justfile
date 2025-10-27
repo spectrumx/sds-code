@@ -85,17 +85,17 @@ test-all *args:
     echo -e "\n\t\033[34mRunning tests against the highest dep versions and generating reports\033[0m\n"
     just test {{python_version}} {{args}}
 
-    # # lower bound tests
-    # echo -e "\n\t\033[34mRunning tests against the lowest dep versions vs. all supported python versions\033[0m\n"
-    # echo -e "\tall supported python versions: '{{supported_python_versions}}'"
-    # for version in {{supported_python_versions}}; do
-    #     echo -e "\n\t\033[34mRunning lower bound tests against Python ${version}\033[0m\n";
-    #     just test-lowest ${version}
-    # done
-    # echo -e "\n\t\033[34mRestoring highest dep versions\033[0m\n"
+    # lower bound tests
+    echo -e "\n\t\033[34mRunning tests against the lowest dep versions vs. all supported python versions\033[0m\n"
+    echo -e "\tall supported python versions: '{{supported_python_versions}}'"
+    for version in {{supported_python_versions}}; do
+        echo -e "\n\t\033[34mRunning lower bound tests against Python ${version}\033[0m\n";
+        just test-lowest ${version}
+    done
+    echo -e "\n\t\033[34mRestoring highest dep versions\033[0m\n"
 
-    # # restore highest deps for local development
-    # uv sync --resolution highest --dev
+    # restore highest deps for local development
+    uv sync --resolution highest --dev
 
 # runs integration tests using the default dependency resolution
 test-integration python=python_version *pytest_args:
