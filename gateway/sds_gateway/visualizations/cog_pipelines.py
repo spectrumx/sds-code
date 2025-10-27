@@ -209,13 +209,11 @@ def _process_waterfall_json_data(capture, processed_data_obj, temp_path):
     capture_files = capture.files.filter(is_deleted=False)
     reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
 
-    waterfall_result = convert_drf_to_waterfall_json(
+    return convert_drf_to_waterfall_json(
         reconstructed_path,
         capture.channel,
         max_slices=500000,
     )
-
-    return waterfall_result
 
 
 def _store_waterfall_json_file(capture_uuid, waterfall_result):
