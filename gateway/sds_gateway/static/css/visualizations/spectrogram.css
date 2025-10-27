@@ -50,10 +50,9 @@
 	z-index: 5;
 }
 
-#statusMessage p {
+.spectrogram-status-message p {
 	margin: 0;
 	font-size: 1.1rem;
-	color: #6c757d;
 }
 
 /* Control Panel Styles */
