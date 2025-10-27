@@ -98,7 +98,7 @@
         log_date_format      = "%Y-%m-%d %H:%M:%S"
         minversion           = "8.0"
         testpaths            = ["sds_gateway"]
-        verbosity_test_cases = 2
+        verbosity_test_cases = 0
 
 [tool.coverage]
 
@@ -127,6 +127,12 @@
             "class .*\\bProtocol\\):",
             "@(abc\\.)?abstractmethod",
         ]
+        # https://coverage.readthedocs.io/en/latest/config.html#report-format
+        # coverage report formats for stdout
+        # markdown: shows the table in markdown format
+        # text:     shows a simple table with source file coverage
+        # total:    shows only the total coverage percentage
+        format = "text"
 
 # ==== LINTING AND FORMATTING ====
 [tool.django-stubs]

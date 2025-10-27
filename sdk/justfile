@@ -1,7 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-python_version := "3.13"    # same as in .python-version
-supported_python_versions := "3.10 3.11 3.12 3.13"
+python_version := `cat .python-version`
+supported_python_versions := "3.10 3.11 3.12 3.13 3.14"
 test_marker_default := "not integration"
 test_marker_integration := "integration"
 sdk_root := justfile_directory()
@@ -36,13 +36,14 @@ clean:
         *.egg-info *.egg-info/
 
 # runs GitHub Actions locally
-gact:
+gact *args:
     @echo "Running GitHub Actions locally for {{git_root}}"
     cd "{{git_root}}" && \
         gh act \
             --rm \
             --workflows "{{git_root}}/.github/workflows" \
-            --secret-file config/secrets.env
+            --secret-file config/secrets.env \
+            {{args}}
 
 # installs the development environment with pre-commit hooks and synced deps
 dev-setup:
@@ -71,17 +72,18 @@ test python=python_version *pytest_args:
         --cov-report=html \
         --cov-report=html:tests/htmlcov \
         --cov-fail-under=75 \
+        --no-cov-on-fail \
         {{pytest_args}} \
         tests
 
 # tests against all supported python versions and dep lower bounds (no integration tests)
-test-all:
+test-all *args:
     #!/usr/bin/env bash
     echo -e "\n\t\033[34mRunning all local (non-integration) tests\033[0m\n"
 
     # run higher bound tests against default python version
     echo -e "\n\t\033[34mRunning tests against the highest dep versions and generating reports\033[0m\n"
-    just test
+    just test {{python_version}} {{args}}
 
     # lower bound tests
     echo -e "\n\t\033[34mRunning tests against the lowest dep versions vs. all supported python versions\033[0m\n"
@@ -108,7 +110,7 @@ test-integration python=python_version *pytest_args:
 # runs tests against the lowest dependency versions
 test-lowest python=python_version *pytest_args:
     @echo "Running lowest dep resolution tests for Python '{{python}}'"
-    uv run -v --resolution lowest-direct -p '{{python}}' pytest \
+    uv run --resolution lowest-direct -p '{{python}}' pytest \
         -m '{{test_marker_default}}' \
         {{pytest_args}} \
         tests

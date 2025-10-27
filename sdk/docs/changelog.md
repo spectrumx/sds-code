@@ -2,6 +2,9 @@
 
 ## `0.1.15` - 2025-xx-xx
 
++ Features:
+    + [**Added support for Python 3.14**](https://github.com/spectrumx/sds-code/pull/210): the SDK is now compatible with Python 3.14.
+
 ## `0.1.14` - 2025-10-07
 
 + Documentation:
