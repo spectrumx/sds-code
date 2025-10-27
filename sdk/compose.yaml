@@ -1,0 +1,23 @@
+services:
+    sds-sdk-docs:
+        image: docker.io/nginx:latest
+        container_name: sds-sdk-docs
+        restart: unless-stopped
+        volumes:
+            - type: bind
+              source: ./docs/site
+              target: /usr/share/nginx/html/sdk
+              read_only: true
+            - type: bind
+              source: ./config/nginx
+              target: /etc/nginx
+              read_only: true
+        ports:
+            - "1313:80"
+        networks:
+            - sds-network-local
+
+networks:
+    sds-network-local:
+        driver: bridge
+        external: false

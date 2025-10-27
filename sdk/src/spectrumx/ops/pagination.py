@@ -41,7 +41,7 @@ class Paginator(Generic[T]):
 
     ## Usage example
 
-    ```
+    ```py
     # For file listings
     file_paginator = Paginator[File](
         Entry=File,

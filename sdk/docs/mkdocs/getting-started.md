@@ -1,40 +1,6 @@
-# SpectrumX Data System | SDK
+# Getting Started
 
-[![PyPI -
-Version](https://img.shields.io/pypi/v/spectrumx)](https://pypi.org/project/spectrumx/)
-[![PyPI - Python
-Versions](https://img.shields.io/pypi/pyversions/spectrumx)](https://pypi.org/project/spectrumx/)
-[![Pepy Total
-Downloads](https://img.shields.io/pepy/dt/spectrumx)](https://pypi.org/project/spectrumx/)
-
-+ [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)
-    + [Getting Started](#getting-started)
-        + [Installation](#installation)
-        + [Example notebook](#example-notebook)
-        + [Basic Usage](#basic-usage)
-        + [Error Handling](#error-handling)
-    + [Concurrent Access](#concurrent-access)
-
-The SpectrumX Data System (SDS) SDK is a Python package that provides a simple interface
-for interacting with the SDS Gateway. The SDK is designed to be easy to use and to
-provide a high-level interface for common tasks, such as uploading and downloading
-files, searching for files, and managing RF datasets.
-
-> [!NOTE]
->
-> **SDS is not meant for personal files or as a backup tool.** Files may be rejected by
-> the Gateway when uploaded, or deleted without warning. All uploaded files have an
-> expiration date. Do not upload sensitive, personally identifiable, confidential
-> information, or any file that you do not have permission to share. Do not upload
-> binary executables.
->
-> If you own data in `https://sds.crc.nd.edu` that needs to be permanently deleted,
-> please reach out to the team at `crc-sds-list [·at·] nd.edu`, as SDS may retain
-> uploaded data for a period of time after deletion.
-
-## Getting Started
-
-### Installation
+## Installation
 
 ```bash
 uv add spectrumx
@@ -45,12 +11,11 @@ uv add spectrumx
 #   ...
 ```
 
-### Example notebook
+### Example Notebooks
 
-+ [SpectrumX SDK
-    walkthrough](https://github.com/crcresearch/spx-events/blob/main/demos/data_system/walkthrough.ipynb)
++ [SpectrumX SDK walkthrough](https://github.com/crcresearch/spx-events/blob/main/demos/data_system/walkthrough.ipynb)
 
-### Basic Usage
+## Basic Usage
 
 1. In a file named `.env`, enter the `secret_token` provided to you:
 
@@ -67,9 +32,7 @@ uv add spectrumx
 
 2. Then, in your Python script or Jupyter notebook
 
-    > See
-    > [`./tests/e2e_examples/check_build_acceptance.py`](https://github.com/spectrumx/sds-code/blob/master/sdk/tests/e2e_examples/check_build_acceptance.py)
-    > for more examples.
+    > See [`./tests/e2e_examples/check_build_acceptance.py`](https://github.com/spectrumx/sds-code/blob/master/sdk/tests/e2e_examples/check_build_acceptance.py) for a live up-to-date example.
 
     ```python
     from pathlib import Path
@@ -232,34 +195,3 @@ while not is_success and retries_left > 0:
 
 log.debug(f"Uploaded files: {uploaded_files}")
 ```
-
-## Concurrent Access
-
-The SDS client-server interaction is stateless, meaning that each request contains all
-the information needed to complete that request. One positive outcome is that it allows
-multiple clients to interact with the SDS Gateway at the same time. However, this opens
-up the possibility of having multiple clients writing to the same locations
-simultaneously, causing loss of data by overruling each other's writes (race condition).
-
-> For example, if two clients are uploading files with the same directory, file names,
-> and at the same time, only the last file successfully uploaded (from the Gateway's
-> perspective) is guaranteed to be kept, which might not be aligned with the user's
-> expectations.
-
-To avoid potential race conditions, it is not recommended to have multiple clients
-writing to the same locations simultaneously. Neither the SDK nor the Gateway currently
-take any measure to detect this, in part, because any measure towards it would either be
-incomplete, or it would make our APIs stateful and significantly increase code
-complexity.
-
-If this is needed, SDK users have a few options:
-
-1. Restructure their architecture to forward writes to a single centralized client
-   responsible for them.
-2. Restructure the code by writing to different locations and/or at different
-    application stages. The latter assumes all conflicting clients are part of the same
-    application.
-3. Implement a custom locking mechanism for writes to serve their specific use case.
-
-One writer (an SDK client that creates, updates, and/or deletes contents) and multiple
-readers are generally safe.

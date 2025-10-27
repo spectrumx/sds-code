@@ -1,0 +1,60 @@
+name: Build and deploy
+
+on:
+    workflow_dispatch: # Allow manual triggers
+    push:
+        tags-ignore:
+            - "**" # Ignore any tags here
+        branches:
+            - main
+            - master
+        # Trigger when either files in the docs dir
+        paths:
+            - "sdk/docs/**"
+
+# These permissions are required for it to work
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+# Makes sure only one workflow runs at a time.
+concurrency:
+    group: "pages"
+    cancel-in-progress: false
+
+jobs:
+    buildAndDeploy:
+        runs-on: ubuntu-latest
+        # This environment is required!
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.pages_url }}
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v5
+              # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Install just on ubuntu
+              working-directory: ./sdk
+              run: |
+                  npm install -g rust-just
+
+            - name: Build SDK Docs
+              working-directory: ./sdk
+              run: just docs-build
+
+            - name: Configure GitHub Pages
+              uses: actions/configure-pages@v3
+
+            - name: Upload artifact
+              uses: actions/upload-pages-artifact@v2
+              with:
+                  path: "sdk/docs/site/" # MkDocs builds to site/ by default
+
+            - name: Deploy to GitHub Pages
+              id: deployment # This is required for environment
+              uses: actions/deploy-pages@v2
