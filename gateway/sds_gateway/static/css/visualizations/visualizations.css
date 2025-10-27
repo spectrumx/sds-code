@@ -1,0 +1,31 @@
+/**
+ * Common styles for visualizations
+ */
+
+.error-message-text {
+	color: #dc3545;
+	font-weight: 500;
+	white-space: pre-wrap;
+}
+
+.error-details-container {
+	text-align: center;
+}
+
+.error-details-content {
+	display: none;
+	margin-top: 10px;
+	padding: 10px;
+	background-color: #f8f9fa;
+	border-radius: 5px;
+	font-family: monospace;
+	font-size: 0.875rem;
+	white-space: pre-wrap;
+	max-height: 400px;
+	overflow-y: auto;
+	text-align: left;
+}
+
+.error-details-content.visible {
+	display: block;
+}
