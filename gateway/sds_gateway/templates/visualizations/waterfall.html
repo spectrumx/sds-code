@@ -7,7 +7,10 @@
 {% endblock title %}
 {% block css %}
     {{ block.super }}
-    <link rel="stylesheet" href="{% static 'css/waterfall.css' %}" />
+    <link rel="stylesheet"
+          href="{% static 'css/visualizations/visualizations.css' %}" />
+    <link rel="stylesheet"
+          href="{% static 'css/visualizations/waterfall.css' %}" />
 {% endblock css %}
 {% block content %}
     {% csrf_token %}
@@ -124,8 +127,16 @@
                             <div id="waterfallPlot">
                                 <canvas id="waterfallCanvas" class="d-none" width="800" height="400"></canvas>
                                 <canvas id="waterfallOverlayCanvas" class="d-none" width="800" height="400"></canvas>
-                                <div id="waterfallErrorDisplay" class="text-center p-4 d-none">
-                                    <p class="text-muted"></p>
+                                <div id="waterfallErrorDisplay" class="waterfall-error-display d-none">
+                                    <p class="error-message-text"></p>
+                                    <div class="error-details-container mt-3">
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-sm"
+                                                id="waterfallErrorDetailsToggle">
+                                            <i class="bi bi-chevron-down"></i> Show Error Details
+                                        </button>
+                                        <div class="error-details-content" id="waterfallErrorDetailsContent"></div>
+                                    </div>
                                 </div>
                                 <div id="colorLegend" class="color-legend d-none">
                                     <div class="legend-gradient"></div>
@@ -178,5 +189,6 @@
     <!-- CanvasJS -->
     <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
     <!-- Waterfall Visualization Module -->
-    <script type="module" src="{% static 'js/waterfall/index.js' %}"></script>
+    <script type="module"
+            src="{% static 'js/visualizations/waterfall/index.js' %}"></script>
 {% endblock javascript %}

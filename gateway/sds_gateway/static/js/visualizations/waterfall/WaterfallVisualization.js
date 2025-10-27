@@ -3,6 +3,7 @@
  * Main orchestrator that coordinates all waterfall components
  */
 
+import { generateErrorMessage, setupErrorDisplay } from "../errorHandler.js";
 import {
 	DEFAULT_COLOR_MAP,
 	ERROR_MESSAGES,
@@ -575,7 +576,7 @@ class WaterfallVisualization {
 			} else if (data.processing_status === "failed") {
 				// Job failed
 				this.stopStatusPolling();
-				this.showError(data.processing_error || "Waterfall generation failed");
+				this.handleProcessingError(data);
 				this.setGeneratingState(false);
 			}
 			// If still processing, continue polling
@@ -841,6 +842,57 @@ class WaterfallVisualization {
 		const colorLegend = document.getElementById("colorLegend");
 		if (colorLegend) {
 			colorLegend.classList.remove("d-none");
+		}
+	}
+
+	/**
+	 * Handle processing error with detailed information
+	 */
+	handleProcessingError(data) {
+		const errorInfo = data.error_info || {};
+		const hasSourceDataError = data.has_source_data_error || false;
+		const userMessage = generateErrorMessage(errorInfo, hasSourceDataError);
+		this.showErrorWithDetails(userMessage, errorInfo);
+	}
+
+	/**
+	 * Show error message with collapsible details
+	 */
+	showErrorWithDetails(message, errorInfo = {}) {
+		// Clear data state first
+		this.waterfallData = [];
+		this.parsedWaterfallData = [];
+		this.totalSlices = 0;
+		this.scaleMin = null;
+		this.scaleMax = null;
+
+		// Hide all visualization components
+		this.hideVisualizationComponents();
+
+		// Update error display with details
+		const errorDisplay = document.getElementById("waterfallErrorDisplay");
+		if (errorDisplay) {
+			const messageElement = errorDisplay.querySelector("p.error-message-text");
+			const detailsContainer = errorDisplay.querySelector(
+				".error-details-container",
+			);
+			const detailsContent = document.getElementById(
+				"waterfallErrorDetailsContent",
+			);
+			const toggleButton = document.getElementById(
+				"waterfallErrorDetailsToggle",
+			);
+
+			setupErrorDisplay({
+				messageElement,
+				detailsContainer,
+				detailsContent,
+				toggleButton,
+				message,
+				errorInfo,
+			});
+
+			errorDisplay.classList.remove("d-none");
 		}
 	}
 

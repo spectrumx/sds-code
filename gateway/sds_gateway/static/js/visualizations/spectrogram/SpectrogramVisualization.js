@@ -3,6 +3,7 @@
  * Orchestrates all spectrogram components and handles the main functionality
  */
 
+import { generateErrorMessage, setupErrorDisplay } from "../errorHandler.js";
 import { SpectrogramControls } from "./SpectrogramControls.js";
 import { SpectrogramRenderer } from "./SpectrogramRenderer.js";
 import {
@@ -193,9 +194,7 @@ export class SpectrogramVisualization {
 			} else if (data.processing_status === "failed") {
 				// Job failed
 				this.stopStatusPolling();
-				this.showError(
-					data.processing_error || "Spectrogram generation failed",
-				);
+				this.handleProcessingError(data);
 				this.setGeneratingState(false);
 			}
 			// If still processing, continue polling
@@ -356,6 +355,59 @@ export class SpectrogramVisualization {
 		this.updateStatus(message);
 		if (this.renderer) {
 			this.renderer.clearImage();
+		}
+	}
+
+	/**
+	 * Handle processing error with detailed information
+	 */
+	handleProcessingError(data) {
+		const errorInfo = data.error_info || {};
+		const hasSourceDataError = data.has_source_data_error || false;
+		const userMessage = generateErrorMessage(errorInfo, hasSourceDataError);
+		this.showErrorWithDetails(userMessage, errorInfo);
+	}
+
+	/**
+	 * Show error message with collapsible details
+	 */
+	showErrorWithDetails(message, errorInfo = {}) {
+		// Update status message with main error
+		if (this.statusMessage) {
+			const statusText = this.statusMessage.querySelector("p");
+			if (statusText) {
+				statusText.textContent = message;
+				statusText.classList.add("error-message-text");
+			}
+		}
+
+		// Clear image
+		if (this.renderer) {
+			this.renderer.clearImage();
+		}
+
+		// Setup error details if we have error info
+		const statusMessage = document.getElementById("statusMessage");
+		if (statusMessage) {
+			const messageElement = statusMessage.querySelector("p");
+			const detailsContainer = statusMessage.querySelector(
+				".error-details-container",
+			);
+			const detailsContent = document.getElementById(
+				"spectrogramErrorDetailsContent",
+			);
+			const toggleButton = document.getElementById(
+				"spectrogramErrorDetailsToggle",
+			);
+
+			setupErrorDisplay({
+				messageElement,
+				detailsContainer,
+				detailsContent,
+				toggleButton,
+				message,
+				errorInfo,
+			});
 		}
 	}
 
