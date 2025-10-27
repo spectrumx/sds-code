@@ -42,6 +42,21 @@ def launch_visualization_processing(
         # Get the capture
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
+        # Get the appropriate pipeline from the database
+        from sds_gateway.visualizations.models import (  # noqa: PLC0415
+            get_latest_pipeline_by_base_name,
+        )
+
+        # Always use the visualization pipeline - individual cogs will check if they
+        # should run
+        pipeline_name = "visualization_processing"
+        pipeline = get_latest_pipeline_by_base_name(pipeline_name)
+        if not pipeline:
+            error_msg = (
+                f"No {pipeline_name} pipeline found. Please run setup_pipelines."
+            )
+            raise ConfigurationError(error_msg)  # noqa: TRY301
+
         # Create PostProcessedData records for each processing type
         logger.info(
             f"Creating PostProcessedData records for {len(processing_config)} "
@@ -67,6 +82,7 @@ def launch_visualization_processing(
                     processing_parameters=parameters,
                     processing_status=ProcessingStatus.Pending.value,
                     metadata={},
+                    pipeline_id=pipeline.name,
                 )
 
                 # Add processed_data_id to the config
@@ -79,21 +95,6 @@ def launch_visualization_processing(
                     f"Created PostProcessedData record {processed_data.uuid} "
                     f"for {processing_type}"
                 )
-
-        # Get the appropriate pipeline from the database
-        from sds_gateway.visualizations.models import (  # noqa: PLC0415
-            get_latest_pipeline_by_base_name,
-        )
-
-        # Always use the visualization pipeline - individual cogs will check if they
-        # should run
-        pipeline_name = "visualization_processing"
-        pipeline = get_latest_pipeline_by_base_name(pipeline_name)
-        if not pipeline:
-            error_msg = (
-                f"No {pipeline_name} pipeline found. Please run setup_pipelines."
-            )
-            raise ConfigurationError(error_msg)  # noqa: TRY301
 
         # Launch the visualization pipeline with updated processing config
         logger.info(
