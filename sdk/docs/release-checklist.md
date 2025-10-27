@@ -8,7 +8,7 @@ Follow these steps to create a new `0.*.*` release of the SDK:
 + Update documentation and dependencies
     + [ ] Review the experimental features and see which ones are ready for release.
     + [ ] List new changes in [docs/changelog.md](changelog.md); choose a semver version number `$NEW_VERSION`.
-    + [ ] Update usage guide in [docs/README.md](README.md) with new features and breaking changes.
+    + [ ] Update usage guide in `docs/README.md` with new features and breaking changes.
     + [ ] Upgrade dependencies with `make update`.
 + Checks and tests (on failure, fix it, then restart this section)
     + [ ] Run pre-commit checks on everything with `make pre-commit`.

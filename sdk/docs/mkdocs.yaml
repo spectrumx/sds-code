@@ -1,0 +1,43 @@
+# Reference: https://www.mkdocs.org/user-guide/configuration/
+docs_dir: "./mkdocs"
+markdown_extensions:
+    # https://facelessuser.github.io/pymdown-extensions/extensions/blocks/plugins/admonition/
+    - pymdownx.blocks.admonition
+    # https://facelessuser.github.io/pymdown-extensions/extensions/highlight/
+    - pymdownx.highlight:
+          anchor_linenums: true
+    # https://facelessuser.github.io/pymdown-extensions/extensions/superfences/
+    - pymdownx.superfences
+    # https://facelessuser.github.io/pymdown-extensions/extensions/smartsymbols/
+    - pymdownx.smartsymbols
+    # https://facelessuser.github.io/pymdown-extensions/extensions/tasklist/
+    - pymdownx.tasklist
+nav:
+    - "Home": index.md
+    - "Basics":
+          - "Getting Started": getting-started.md
+          - "Terminology": terminology.md
+          - "Common Workflows": common-workflows.md
+    - "Changelog": changelog.md
+    - "Advanced":
+          - "Concurrent Access": advanced/concurrent-access.md
+    - "API Reference":
+          - "Client": client.md
+    - "Contributing":
+          - "Contributing": dev-notes/contributing.md
+          - "Design Notes": dev-notes/dev-notes.md
+    - "FAQ": faq.md
+repo_name: "GitHub | SpectrumX Python SDK"
+repo_url: "https://github.com/spectrumx/sds-code/tree/master/sdk/"
+site_author: "SpectrumX | Center for Research Computing | University of Notre Dame"
+site_name: "SpectrumX Python SDK"
+site_url: "https://sds.crc.nd.edu/sdk/"
+theme:
+    # material theme customization:
+    # https://squidfunk.github.io/mkdocs-material/customization/
+    name: material
+validation:
+    omitted_files: warn
+    absolute_links: warn # or 'relative_to_docs'
+    unrecognized_links: warn
+    anchors: warn

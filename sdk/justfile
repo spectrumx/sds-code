@@ -35,6 +35,19 @@ clean:
         ./**/*.py.cover \
         *.egg-info *.egg-info/
 
+# build SDK documentation
+[working-directory: 'docs']
+docs-build:
+    uv run mkdocs build
+    @echo -e "\n\t\033[32mSDK documentation built at 'docs/site/'\033[0m\n"
+
+# serve SDK documentation locally
+[working-directory: 'docs']
+docs-serve port="1314" *args="":
+    just docs-build
+    @echo -e "\n\t\033[34mServing SDK documentation at http://localhost:{{port}}\033[0m\n"
+    uv run mkdocs serve --dev-addr "0.0.0.0:{{port}}" {{args}}
+
 # runs GitHub Actions locally
 gact *args:
     @echo "Running GitHub Actions locally for {{git_root}}"
