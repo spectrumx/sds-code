@@ -145,7 +145,7 @@ class Result(Generic[T]):
 
     ### CREATING a `Result`
 
-    ```
+    ```py
     def dangerous_fn(asset_id: str) -> int:
         if random.random() < 0.1:
             raise KnownError("Something went wrong")
@@ -164,7 +164,7 @@ class Result(Generic[T]):
 
     #### These examples will raise
 
-    ```
+    ```py
     Result()                                    # empty result
     Result(value=123, exception=RuntimeError()) # both value and exception
     Result(value=123, error_info={})            # error_info without exception
@@ -174,7 +174,7 @@ class Result(Generic[T]):
 
     #### These are valid
 
-    ```
+    ```py
     Result(value=123)                               # success
     Result(value=None)                              # success with None
     Result(exception=RuntimeError())                # simple failure

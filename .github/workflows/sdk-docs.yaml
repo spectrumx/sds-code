@@ -8,20 +8,15 @@ on:
         branches:
             - main
             - master
-        #
-        # Trigger when either files in the docs folder,
-        # the requirements.txt file or the mkdocs.yml file
-        # are edited and commited.
+        # Trigger when either files in the docs dir
         paths:
-            - "docs/**"
-            - "requirements.txt"
-            - "mkdocs.yml"
+            - "sdk/docs/**"
 
 # These permissions are required for it to work
 permissions:
     contents: read
     pages: write
-    id-token: wite
+    id-token: write
 
 # Makes sure only one workflow runs at a time.
 concurrency:
@@ -42,6 +37,12 @@ jobs:
             - name: Install uv
               uses: astral-sh/setup-uv@v5
               # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Install just on ubuntu
+              if: matrix.platform == 'ubuntu-latest'
+              working-directory: ./sdk
+              run: |
+                  npm install -g rust-just
 
             - name: Build SDK Docs
               working-directory: ./sdk
