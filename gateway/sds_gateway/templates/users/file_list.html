@@ -8,7 +8,8 @@
 {% endblock bodyclass %}
 {% block css %}
     {{ block.super }}
-    <link rel="stylesheet" href="{% static 'css/visualization_modal.css' %}" />
+    <link rel="stylesheet"
+          href="{% static 'css/visualizations/visualization_modal.css' %}" />
     <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
 {% endblock css %}
 {% block body %}
@@ -383,14 +384,14 @@
     <!-- Capture Details Modal -->
     {% include "users/partials/capture_modal.html" %}
     <!-- Visualization Selection Modal -->
-    {% include "users/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
+    {% include "users/partials/visualizations/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
     <script src="{% static 'js/userSearchComponent.js' %}"></script>
-    <script src="{% static 'js/visualizationModal.js' %}"></script>
+    <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
     <!-- Pass Django context data to JavaScript -->
     {# djlint:off #}
     <script>
