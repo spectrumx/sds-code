@@ -38,29 +38,24 @@ clean:
 # build SDK documentation
 [working-directory: 'docs']
 docs-build:
+    @echo -e "\n\t\033[34mBuilding SDK documentation...\033[0m\n"
     uv run mkdocs build
     @echo -e "\n\t\033[32mSDK documentation built at 'docs/site/'\033[0m\n"
 
 # serve SDK documentation locally
 [working-directory: 'docs']
-docs-serve port="1314" *args="":
-    just docs-build
+docs-serve port="1314" *args="": docs-build
     @echo -e "\n\t\033[34mServing SDK documentation at http://localhost:{{port}}\033[0m\n"
     uv run mkdocs serve --dev-addr "0.0.0.0:{{port}}" {{args}}
 
 # builds and serves SDK documentation via nginx in docker compose
 docs-serve-compose: docs-build
-    @echo -e "\n\t\033[34mStarting SDK documentation service at http://localhost:8080/sdk\033[0m\n"
+    @echo -e "\n\t\033[34mStarting SDK documentation service"
     docker compose up -d
-    @echo -e "\n\t\033[32mSDK documentation is running\033[0m\n"
-    @echo -e "\t\033[33mTo view logs, run: docker compose logs -f\033[0m"
-    @echo -e "\t\033[33mTo stop, run: just docs-stop-compose\033[0m\n"
-
-# stops the nginx documentation service
-docs-stop-compose:
-    @echo -e "\n\t\033[34mStopping SDK documentation service\033[0m\n"
-    docker compose down
-    @echo -e "\n\t\033[32mSDK documentation service stopped\033[0m\n"
+    @echo -e "\n\t\033[32mSDK documentation is running:\033[0m " \
+        $(docker ps --all --format "table {{{{.Names}},{{{{.Ports}}" | grep sds-sdk-docs | cut -d, -f2 || true)
+    @echo -e "\t\033[34mTo view logs, run:      docker compose logs -f\033[0m"
+    @echo -e "\t\033[34mTo stop, run:           docker compose down\033[0m\n"
 
 # runs GitHub Actions locally
 gact *args:
