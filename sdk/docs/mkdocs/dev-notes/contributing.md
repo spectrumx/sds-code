@@ -1,4 +1,4 @@
-# Contributing to the SpectumX SDK
+# Contributing to the SpectrumX SDK
 
 Please refer to out
 [CONTRIBUTING](https://github.com/lucaspar/sds-code/blob/master/contributing.md) guide
