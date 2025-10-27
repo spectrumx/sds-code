@@ -39,7 +39,6 @@ jobs:
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Install just on ubuntu
-              if: matrix.platform == 'ubuntu-latest'
               working-directory: ./sdk
               run: |
                   npm install -g rust-just
