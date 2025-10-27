@@ -1,6 +1,6 @@
 # Workflow to run pre-commit checks and tests against multiple Python versions
 # GitHub Action Workflow validator: https://rhysd.github.io/actionlint/
-name: sdk-checks
+name: sdk-code-quality
 
 on:
     workflow_dispatch:
@@ -25,12 +25,22 @@ on:
             - ready_for_review
             - synchronize
 
+env:
+    PYTHON_VERSION: "3.13" # pre-commit and pyright don't seem to work well with 3.14 yet
+
 jobs:
     # Run pre-commit checks on all files using the project's python version
-    pre-commit:
+    sdk-pre-commit:
         runs-on: ubuntu-latest
+        env:
+            UV_LINK_MODE: copy
         steps:
             - uses: actions/checkout@v4
+
+            # this ubuntu-latest version ships node 18, which was causing issues
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
 
             - name: Install uv
               uses: astral-sh/setup-uv@v5
@@ -38,7 +48,7 @@ jobs:
 
             - name: Install pre-commit
               working-directory: ./sdk
-              run: uv tool install pre-commit
+              run: uv tool install -p ${{ env.PYTHON_VERSION }} pre-commit
 
             - name: Cache pre-commit hooks
               id: cache-pre-commit
@@ -48,20 +58,26 @@ jobs:
                   key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
                   path: ~/.cache/pre-commit/
 
+            - name: Install Python
+              working-directory: ./sdk
+              run: uv python install ${{ env.PYTHON_VERSION }}
+
             - name: Install hooks
               working-directory: ./sdk
-              run: uv run -p 3.13 pre-commit install --install-hooks
+              run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit install --install-hooks
 
             - name: Run pre-commit
               working-directory: ./sdk
               # make sure default_language_version in .pre-commit-config.yaml
               # matches the one installed with uv, which is the most recent
               # stable python version that meets project requirements.
-              run: uv run -p 3.13 pre-commit run --all-files
+              run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit run --all-files
 
     # Run static analysis with pyright
     #   - Install the pylance extension for VS Code to have these warnings in the editor
-    pyright:
+    sdk-pyright:
+        env:
+            UV_LINK_MODE: copy
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -69,9 +85,13 @@ jobs:
             - name: Install uv
               uses: astral-sh/setup-uv@v5
 
+            - name: Install Python
+              working-directory: ./sdk
+              run: uv python install ${{ env.PYTHON_VERSION }}
+
             - name: Install packages
               working-directory: ./sdk
-              run: uv sync --frozen --dev
+              run: uv sync -p ${{ env.PYTHON_VERSION }} --frozen --dev
 
             - uses: jakebailey/pyright-action@v2
               # https://github.com/jakebailey/pyright-action#options
@@ -81,8 +101,10 @@ jobs:
                   python-path: ./.venv/bin/python
 
     # Run tests against multiple Python versions
-    coverage:
+    sdk-simple-coverage:
         runs-on: ${{ matrix.platform }}
+        env:
+            UV_LINK_MODE: copy
         strategy:
             matrix:
                 # uv will take care of installing other python versions,

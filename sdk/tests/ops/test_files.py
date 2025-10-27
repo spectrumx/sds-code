@@ -15,7 +15,9 @@ from loguru import logger as log
 from spectrumx import Client
 from spectrumx.api.sds_files import delete_file
 from spectrumx.gateway import API_TARGET_VERSION
-from spectrumx.ops.files import _load_undesired_globs
+from spectrumx.ops.files import (
+    _load_undesired_globs,  # pyright: ignore[reportPrivateUsage]
+)
 from spectrumx.ops.files import get_file_permissions
 from spectrumx.ops.files import is_valid_file
 

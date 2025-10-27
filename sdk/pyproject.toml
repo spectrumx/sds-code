@@ -296,6 +296,12 @@
             "class .*\\bProtocol\\):",
             "@(abc\\.)?abstractmethod",
         ]
+        # https://coverage.readthedocs.io/en/latest/config.html#report-format
+        # coverage report formats for stdout
+        # markdown: shows the table in markdown format
+        # text:     shows a simple table with source file coverage
+        # total:    shows only the total coverage percentage
+        format = "text"
 
 # ====== Pytest
 # ==== TESTING ====
@@ -310,9 +316,10 @@
         # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
         # less verbose:
         addopts = "--maxfail=10 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --tb=short"
-        console_output_style = "progress"
+        # capture = "no" # "fd", "sys", "no", "tee-sys"
+        console_output_style = "count" # "classic", "progress", "count", "progress-even-when-capture-no"
         log_auto_indent = true
-        log_cli = true
+        log_cli = false
         log_cli_level = "WARN"
         log_date_format = "%Y-%m-%d %H:%M:%S"
         markers = [
@@ -323,7 +330,7 @@
         ]
         minversion = "8.0"
         testpaths = ["tests"]
-        verbosity_test_cases = 2
+        verbosity_test_cases = 0
 
 # ====== UV
 [tool.uv]

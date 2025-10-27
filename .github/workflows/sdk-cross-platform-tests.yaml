@@ -1,17 +1,17 @@
 # Workflow to see how (and if) these tests run on different platforms
 # GitHub Action Workflow validator: https://rhysd.github.io/actionlint/
-name: cross-platform-tests
+name: sdk-cross-platform-tests
 
 on:
     workflow_dispatch: # to manually trigger the workflow
 
 jobs:
     # Run tests against multiple Python versions using tox
-    coverage:
+    sdk-cpt-coverage:
         runs-on: ${{ matrix.platform }}
         strategy:
             matrix:
-                python-version: ["3.12", "3.13"]
+                python-version: ["3.11", "3.12", "3.13", "3.14"]
                 platform: [ubuntu-latest, windows-latest, macos-latest]
 
         steps:
