@@ -1,6 +1,6 @@
 # Contributing to the SpectrumX SDK
 
-Please refer to out
+Please refer to our
 [CONTRIBUTING](https://github.com/lucaspar/sds-code/blob/master/contributing.md) guide
 for general contribution guidelines.
 
