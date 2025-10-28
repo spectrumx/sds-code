@@ -11,45 +11,56 @@ docker_compose := "COMPOSE_FILE=" + compose_file + " COMPOSE_PROJECT_NAME=" + co
 
 alias run := up
 
+# builds, starts, and shows logs for all services
 all: build up logs
+# redeploys by building, stopping, starting, and showing logs
 redeploy: build down up logs
 
+# builds the docker compose services
 build args='':
     @if [[ "{{env}}" == "local" && -n "{{client_network}}" ]]; then docker network create "{{client_network}}" || true; fi
     @echo "Pulling and building sds-jupyter"
     {{docker_compose}} pull --ignore-buildable
     {{docker_compose}} build {{args}}
 
+# builds the docker compose services without cache
 build-full args='':
     @if [[ "{{env}}" == "local" && -n "{{client_network}}" ]]; then docker network create "{{client_network}}" || true; fi
     @echo "Pulling and building sds-jupyter WITHOUT CACHE"
     {{docker_compose}} pull --ignore-buildable
     {{docker_compose}} build --no-cache {{args}}
 
+# starts the docker compose services
 up args='':
     @echo "Starting sds-jupyter"
     {{docker_compose}} up -d --remove-orphans {{args}}
 
+# shows and follows docker compose logs
 logs args='':
     @echo "Showing sds-jupyter logs..."
     {{docker_compose}} logs -f {{args}} || true
 
+# shows docker compose logs once
 logs-once args='':
     @echo "Showing sds-jupyter logs once..."
     {{docker_compose}} logs {{args}}
 
+# stops the docker compose services
 down args='':
     @echo "Stopping sds-jupyter"
     {{docker_compose}} down {{args}}
 
+# restarts the docker compose services
 restart args='':
     @echo "Restarting sds-jupyter"
     {{docker_compose}} restart {{args}}
 
+# runs arbitrary docker compose commands
 dc +args='':
     @echo "Running docker compose command: {{args}}"
     {{docker_compose}} {{args}}
 
+# displays selected environment information
 env:
     @echo -e "\nSelected env:\n"
     @echo -e "\tEnvironment: \e[34m             '{{env}}'\e[0m"

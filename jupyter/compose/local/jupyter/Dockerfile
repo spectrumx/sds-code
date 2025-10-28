@@ -9,38 +9,44 @@ FROM quay.io/jupyterhub/jupyterhub:$JUPYTERHUB_VERSION
 ARG NB_UID=1000
 ARG NB_GID=100
 ARG DOCKER_GID=999
+ARG JUPYTER_USER=jupyter
+ARG JUPYTER_HOME=/home/${JUPYTER_USER}
 
-# Install packages and create users in one layer
+# Install packages
 RUN apt-get update && \
     apt-get install -y docker.io sudo curl && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* && \
-    (groupadd -g ${DOCKER_GID} docker || groupmod -g ${DOCKER_GID} docker) && \
-    useradd -m -u ${NB_UID} -g ${DOCKER_GID} -s /bin/bash jupyter && \
-    usermod -aG ${NB_GID} jupyter && \
-    useradd -m -u 1001 -g ${NB_GID} -s /bin/bash admin && \
-    usermod -aG ${NB_GID} admin && \
-    echo "jupyter ALL=(ALL) NOPASSWD: /bin/chown, /bin/chmod" >> /etc/sudoers
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Python packages
-COPY ./compose/local/jupyter/requirements.txt /tmp/requirements.txt
-RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
+# create user and set groups
+RUN (groupadd -g ${DOCKER_GID} docker || groupmod -g ${DOCKER_GID} docker || true) && \
+    (groupadd -g ${NB_GID} nb_group || groupmod -g ${NB_GID} nb_group || true) && \
+    useradd -m -u ${NB_UID} -g ${DOCKER_GID} -s /bin/bash ${JUPYTER_USER} && \
+    usermod -aG ${NB_GID} ${JUPYTER_USER} && \
+    useradd -m -u 1001 -g ${NB_GID} -s /bin/bash admin && \
+    usermod -aG ${DOCKER_GID} admin && \
+    usermod -aG ${DOCKER_GID} ${JUPYTER_USER} && \
+    echo "${JUPYTER_USER} ALL=(ALL) NOPASSWD: /bin/chown, /bin/chmod" >> /etc/sudoers
 
 # Setup directories, permissions, and cookie secret
-RUN mkdir -p /data /home/jupyter/work /home/jupyter/.local/share/jupyter/runtime && \
-    chown -R jupyter:${DOCKER_GID} /data /home/jupyter && \
-    chmod -R 755 /home/jupyter /data && \
+RUN mkdir -p /data ${JUPYTER_HOME}/work ${JUPYTER_HOME}/.local/share/jupyter/runtime && \
+    chown -R ${JUPYTER_USER}:${DOCKER_GID} /data ${JUPYTER_HOME} && \
+    chmod -R 755 ${JUPYTER_HOME} /data && \
     python3 -c "import secrets; open('/data/jupyterhub_cookie_secret', 'w').write(secrets.token_hex(32))" && \
-    chown jupyter:${DOCKER_GID} /data/jupyterhub_cookie_secret && \
+    chown ${JUPYTER_USER}:${DOCKER_GID} /data/jupyterhub_cookie_secret && \
     chmod 600 /data/jupyterhub_cookie_secret
 
 # Create startup script
 RUN echo '#!/bin/bash\n\
     set -e\n\
-    [ -d "/data" ] && sudo chown -R jupyter:${DOCKER_GID} /data\n\
+    [ -d "/data" ] && sudo chown -R ${JUPYTER_USER}:${DOCKER_GID} /data\n\
     exec jupyterhub -f /srv/jupyterhub/jupyterhub_config.py' > /start-jupyterhub.sh && \
     chmod +x /start-jupyterhub.sh
 
 # Switch to non-root user
-USER jupyter
+USER ${JUPYTER_USER}
+
+# Install Python packages
+COPY ./compose/local/jupyter/requirements.txt /tmp/requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
 
 CMD ["/start-jupyterhub.sh"]
