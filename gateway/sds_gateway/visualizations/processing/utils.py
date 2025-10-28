@@ -106,6 +106,7 @@ def validate_digitalrf_data(
     # Initialize DigitalRF reader
     try:
         reader = DigitalRFReader(str(drf_path))
+        # raise ValueError("Test error")
     except Exception as e:
         msg = f"Could not initialize DigitalRF reader: {e}"
         raise SourceDataError(msg) from e

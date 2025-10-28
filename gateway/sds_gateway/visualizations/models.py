@@ -83,6 +83,8 @@ class PostProcessedData(BaseModel):
     # Processing parameters (stored as JSON for flexibility)
     processing_parameters = models.JSONField(
         default=dict,
+        blank=True,
+        null=True,
         help_text="Processing parameters (FFT size, window type, etc.)",
     )
 
@@ -97,6 +99,8 @@ class PostProcessedData(BaseModel):
     # Metadata (stored as JSON for flexibility)
     metadata = models.JSONField(
         default=dict,
+        blank=True,
+        null=True,
         help_text="Processing metadata (frequencies, timestamps, etc.)",
     )
 
@@ -107,11 +111,13 @@ class PostProcessedData(BaseModel):
         default=ProcessingStatus.Pending.value,
         help_text="Current processing status",
     )
+
     processing_error = models.JSONField(
         null=True,
         blank=True,
         help_text="Error information if processing failed",
     )
+
     cog_error = models.ForeignKey(
         CogError,
         on_delete=models.SET_NULL,
@@ -119,6 +125,7 @@ class PostProcessedData(BaseModel):
         blank=True,
         help_text="Django COG error record, if available",
     )
+
     processed_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -213,7 +220,14 @@ class PostProcessedData(BaseModel):
     def get_error_info(self) -> dict[str, Any] | None:
         """Get the error information from either COG error or processing error."""
         if self.cog_error:
-            return self.cog_error.to_dict()
+            timestamp = None
+            if hasattr(self.cog_error, "created_at"):
+                timestamp = self.cog_error.created_at.isoformat()
+            return {
+                "error_type": self.cog_error.error_type,
+                "traceback": self.cog_error.traceback,
+                "timestamp": timestamp,
+            }
         if self.processing_error:
             return self.processing_error
         return None

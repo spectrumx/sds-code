@@ -13,7 +13,6 @@
 }
 
 .error-details-content {
-	display: none;
 	margin-top: 10px;
 	padding: 10px;
 	background-color: #f8f9fa;
@@ -24,8 +23,4 @@
 	max-height: 400px;
 	overflow-y: auto;
 	text-align: left;
-}
-
-.error-details-content.visible {
-	display: block;
 }

@@ -384,7 +384,7 @@
     <!-- Capture Details Modal -->
     {% include "users/partials/capture_modal.html" %}
     <!-- Visualization Selection Modal -->
-    {% include "users/partials/visualizations/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
+    {% include "visualizations/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}
