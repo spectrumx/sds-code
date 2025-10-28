@@ -55,8 +55,15 @@ Then, build and start the JupyterHub service:
 just redeploy
 ```
 
+### Sign in
+
 And navigate to `http://localhost:8888` (or `http://localhost:18888` for production).
 
 Your default user is `admin` and the password is what you set in the env file as
 `JUPYTERHUB_DUMMY_PASSWORD`. The default when missing is `admin`. Use a less predictable
 password in production.
+
+### Spawn a notebook server
+
+Navigate to `http://localhost:8888/hub/spawn-pending/admin` to spawn your notebook
+server.

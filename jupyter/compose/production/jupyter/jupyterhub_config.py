@@ -64,12 +64,19 @@ c.Spawner.start_timeout = 60
 # === DOCKER SPAWNER ===
 # reference: https://jupyterhub-dockerspawner.readthedocs.io/en/latest/api/index.html
 
+# prefix that docker prepends to this docker compose stack: e.g.
+# use `docker network ls` to see which network is created after standing jupyterhub
+# It might look like:
+#   sds-jupyter-prod_sds-jupyter-prod-net-clients
+# for that, the network_name_prefix is `sds-jupyter-prod_`
+network_name_prefix = "sds-jupyter-prod_"
+
 c.DockerSpawner.debug = True
 c.DockerSpawner.extra_create_kwargs = {"user": f"{_nb_uid}:{_nb_gid}"}
 c.DockerSpawner.image = os.environ.get(
     "DOCKER_NOTEBOOK_IMAGE", "quay.io/jupyter/base-notebook:latest"
 )
-c.DockerSpawner.network_name = "jupyter_" + os.environ.get(
+c.DockerSpawner.network_name = network_name_prefix + os.environ.get(
     "DOCKER_NETWORK_NAME", "sds-jupyter-prod-net-clients"
 )
 c.DockerSpawner.notebook_dir = os.environ.get(
