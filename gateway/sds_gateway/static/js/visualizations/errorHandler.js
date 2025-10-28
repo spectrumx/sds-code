@@ -22,7 +22,7 @@ export function generateErrorMessage(errorInfo, hasSourceDataError) {
 	if (hasSourceDataError) {
 		const traceback = errorInfo.traceback || "";
 		const lastLine = extractLastTracebackLine(traceback);
-		return `There may be an issue with your capture data.\n\n${lastLine}`;
+		return `An error occurred while processing. It may be due to an issue with the capture data.\n\n${lastLine}`;
 	}
 	return "A server error occurred during processing. Please try again.";
 }
@@ -46,26 +46,32 @@ export function formatErrorDetails(errorInfo) {
 }
 
 /**
- * Setup error details toggle button and content
+ * Setup error details toggle button and content using Bootstrap Collapse
  */
 export function setupErrorDetailsToggle(toggleButton, detailsContent) {
-	// Remove existing event listeners by cloning the button
-	const newToggleButton = toggleButton.cloneNode(true);
-	toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
-
-	// Add toggle functionality
-	newToggleButton.addEventListener("click", () => {
-		const isVisible = detailsContent.classList.contains("visible");
-		if (isVisible) {
-			detailsContent.classList.remove("visible");
-			newToggleButton.innerHTML =
-				'<i class="bi bi-chevron-down"></i> Show Error Details';
-		} else {
-			detailsContent.classList.add("visible");
-			newToggleButton.innerHTML =
-				'<i class="bi bi-chevron-up"></i> Hide Error Details';
-		}
+	// Initialize Bootstrap Collapse (initialized but controlled via data attributes on button)
+	const _collapse = new bootstrap.Collapse(detailsContent, {
+		toggle: false,
 	});
+
+	// Update button icon based on collapse state
+	const updateButtonIcon = (isExpanded) => {
+		toggleButton.innerHTML = isExpanded
+			? '<i class="bi bi-chevron-up"></i> Hide Error Details'
+			: '<i class="bi bi-chevron-down"></i> Show Error Details';
+	};
+
+	// Listen to collapse events to update button state
+	detailsContent.addEventListener("shown.bs.collapse", () => {
+		updateButtonIcon(true);
+	});
+
+	detailsContent.addEventListener("hidden.bs.collapse", () => {
+		updateButtonIcon(false);
+	});
+
+	// Initial state
+	updateButtonIcon(false);
 }
 
 /**

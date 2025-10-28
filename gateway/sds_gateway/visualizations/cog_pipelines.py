@@ -58,6 +58,7 @@ def get_visualization_pipeline_config() -> dict[str, Any]:
                         "cog": "setup_post_processing_cog",
                         "args": {},
                         "description": "Setup post-processing",
+                        "prevent_overlapping_calls": False,
                     }
                 ],
             },
@@ -72,12 +73,14 @@ def get_visualization_pipeline_config() -> dict[str, Any]:
                         "cog": "process_waterfall_data_cog",
                         "args": {},
                         "description": "Process waterfall data",
+                        "prevent_overlapping_calls": False,
                     },
                     {
                         "name": "process_spectrogram",
                         "cog": "process_spectrogram_data_cog",
                         "args": {},
                         "description": "Process spectrogram data",
+                        "prevent_overlapping_calls": False,
                     },
                 ],
             },
@@ -212,7 +215,6 @@ def _process_waterfall_json_data(capture, processed_data_obj, temp_path):
     return convert_drf_to_waterfall_json(
         reconstructed_path,
         capture.channel,
-        max_slices=500000,
     )
 
 
@@ -261,18 +263,16 @@ def process_waterfall_data_cog(
     Returns:
         None
     """
-    processing_types = list(processing_config.keys()) if processing_config else []
-    if "waterfall" not in processing_types:
+    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
+
+    if ProcessingType.Waterfall.value not in processing_config:
         logger.info(
             f"Skipping waterfall processing for capture {capture_uuid} - not requested"
         )
         return
 
-    logger.info(f"Processing waterfall JSON data for capture {capture_uuid}")
-
     from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
     from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
-    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
 
     capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
@@ -297,7 +297,8 @@ def process_waterfall_data_cog(
     except PostProcessedData.DoesNotExist:
         error_msg = f"PostProcessedData with ID {processed_data_id} not found"
         raise ValueError(error_msg) from None
-    processed_data_obj.mark_processing_started(pipeline_id="django_cog_pipeline")
+
+    processed_data_obj.mark_processing_started()
 
     with tempfile.TemporaryDirectory(prefix=f"waterfall_{capture_uuid}_") as temp_dir:
         temp_path = Path(temp_dir)
@@ -330,17 +331,7 @@ def process_spectrogram_data_cog(
     Returns:
         None
     """
-
-    # imports to run when the app is ready
-    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
-    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
     from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        reconstruct_drf_files,
-    )
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        store_processed_data,
-    )
 
     # Check if spectrogram processing is requested
     if ProcessingType.Spectrogram.value not in processing_config:
@@ -349,6 +340,15 @@ def process_spectrogram_data_cog(
             f"requested"
         )
         return
+
+    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
+    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        reconstruct_drf_files,
+    )
+    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
+        store_processed_data,
+    )
 
     logger.info(f"Processing spectrogram data for capture {capture_uuid}")
 
@@ -375,8 +375,8 @@ def process_spectrogram_data_cog(
     except PostProcessedData.DoesNotExist:
         error_msg = f"PostProcessedData with ID {processed_data_id} not found"
         raise ValueError(error_msg) from None
-    # Mark processing as started
-    processed_data_obj.mark_processing_started(pipeline_id="django_cog_pipeline")
+
+    processed_data_obj.mark_processing_started()
 
     # Use built-in temporary directory context manager
     with tempfile.TemporaryDirectory(prefix=f"spectrogram_{capture_uuid}_") as temp_dir:

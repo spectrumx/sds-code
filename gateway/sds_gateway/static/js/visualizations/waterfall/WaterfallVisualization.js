@@ -749,29 +749,6 @@ class WaterfallVisualization {
 	}
 
 	/**
-	 * Show error message
-	 */
-	showError(message) {
-		// Clear data state first
-		this.waterfallData = [];
-		this.parsedWaterfallData = [];
-		this.totalSlices = 0;
-		this.scaleMin = null;
-		this.scaleMax = null;
-
-		// Hide all visualization components
-		this.hideVisualizationComponents();
-
-		// Display error message in the main plot area
-		this.displayErrorInPlot(message);
-
-		// Update controls to reflect empty state
-		if (this.controls) {
-			this.controls.setTotalSlices(0);
-		}
-	}
-
-	/**
 	 * Hide all visualization components
 	 */
 	hideVisualizationComponents() {
@@ -793,20 +770,6 @@ class WaterfallVisualization {
 		const colorLegend = document.getElementById("colorLegend");
 		if (colorLegend) {
 			colorLegend.classList.add("d-none");
-		}
-	}
-
-	/**
-	 * Display error message in the plot area
-	 */
-	displayErrorInPlot(message) {
-		const errorDisplay = document.getElementById("waterfallErrorDisplay");
-		if (errorDisplay) {
-			const errorText = errorDisplay.querySelector("p");
-			if (errorText) {
-				errorText.textContent = message;
-			}
-			errorDisplay.classList.remove("d-none");
 		}
 	}
 
@@ -852,13 +815,13 @@ class WaterfallVisualization {
 		const errorInfo = data.error_info || {};
 		const hasSourceDataError = data.has_source_data_error || false;
 		const userMessage = generateErrorMessage(errorInfo, hasSourceDataError);
-		this.showErrorWithDetails(userMessage, errorInfo);
+		this.showError(userMessage, errorInfo);
 	}
 
 	/**
 	 * Show error message with collapsible details
 	 */
-	showErrorWithDetails(message, errorInfo = {}) {
+	showError(message, errorInfo = {}) {
 		// Clear data state first
 		this.waterfallData = [];
 		this.parsedWaterfallData = [];
@@ -868,6 +831,11 @@ class WaterfallVisualization {
 
 		// Hide all visualization components
 		this.hideVisualizationComponents();
+
+		// Update controls to reflect empty state
+		if (this.controls) {
+			this.controls.setTotalSlices(0);
+		}
 
 		// Update error display with details
 		const errorDisplay = document.getElementById("waterfallErrorDisplay");

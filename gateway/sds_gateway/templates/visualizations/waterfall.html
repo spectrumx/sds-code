@@ -132,10 +132,15 @@
                                     <div class="error-details-container mt-3">
                                         <button type="button"
                                                 class="btn btn-outline-secondary btn-sm"
-                                                id="waterfallErrorDetailsToggle">
+                                                id="waterfallErrorDetailsToggle"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#waterfallErrorDetailsContent"
+                                                aria-expanded="false"
+                                                aria-controls="waterfallErrorDetailsContent">
                                             <i class="bi bi-chevron-down"></i> Show Error Details
                                         </button>
-                                        <div class="error-details-content" id="waterfallErrorDetailsContent"></div>
+                                        <div class="collapse error-details-content"
+                                             id="waterfallErrorDetailsContent"></div>
                                     </div>
                                 </div>
                                 <div id="colorLegend" class="color-legend d-none">

@@ -163,6 +163,9 @@ class Command(BaseCommand):
                     arguments_as_json=json.dumps(task_config["args"]),
                     queue=default_queue,
                     error_handler=error_handler_cog,
+                    prevent_overlapping_calls=task_config.get(
+                        "prevent_overlapping_calls", True
+                    ),
                 )
 
         return stage_objects

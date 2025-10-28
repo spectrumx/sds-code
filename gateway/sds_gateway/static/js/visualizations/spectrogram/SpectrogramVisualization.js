@@ -349,44 +349,25 @@ export class SpectrogramVisualization {
 	}
 
 	/**
-	 * Show error message
-	 */
-	showError(message) {
-		this.updateStatus(message);
-		if (this.renderer) {
-			this.renderer.clearImage();
-		}
-	}
-
-	/**
 	 * Handle processing error with detailed information
 	 */
 	handleProcessingError(data) {
 		const errorInfo = data.error_info || {};
 		const hasSourceDataError = data.has_source_data_error || false;
 		const userMessage = generateErrorMessage(errorInfo, hasSourceDataError);
-		this.showErrorWithDetails(userMessage, errorInfo);
+		this.showError(userMessage, errorInfo);
 	}
 
 	/**
 	 * Show error message with collapsible details
 	 */
-	showErrorWithDetails(message, errorInfo = {}) {
-		// Update status message with main error
-		if (this.statusMessage) {
-			const statusText = this.statusMessage.querySelector("p");
-			if (statusText) {
-				statusText.textContent = message;
-				statusText.classList.add("error-message-text");
-			}
-		}
-
+	showError(message, errorInfo = {}) {
 		// Clear image
 		if (this.renderer) {
 			this.renderer.clearImage();
 		}
 
-		// Setup error details if we have error info
+		// Setup error details using the centralized handler
 		const statusMessage = document.getElementById("statusMessage");
 		if (statusMessage) {
 			const messageElement = statusMessage.querySelector("p");
