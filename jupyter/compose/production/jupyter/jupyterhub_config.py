@@ -64,7 +64,7 @@ c.Spawner.start_timeout = 60
 # === DOCKER SPAWNER ===
 # reference: https://jupyterhub-dockerspawner.readthedocs.io/en/latest/api/index.html
 
-c.DockerSpawner.debug = False
+c.DockerSpawner.debug = True
 c.DockerSpawner.extra_create_kwargs = {"user": f"{_nb_uid}:{_nb_gid}"}
 c.DockerSpawner.image = os.environ.get(
     "DOCKER_NOTEBOOK_IMAGE", "quay.io/jupyter/base-notebook:latest"
