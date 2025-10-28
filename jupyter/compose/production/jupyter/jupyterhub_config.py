@@ -136,6 +136,40 @@ c.Auth0OAuthenticator.oauth_callback_url = (
 c.Auth0OAuthenticator.scope = ["openid", "email", "profile"]
 c.Auth0OAuthenticator.username_key = "email"
 
+# === IDLE CULLER CONFIGURATION ===
+# Configure jupyterhub-idle-culler service following JupyterHub 2.0+ scopes
+
+# Define the idle culler service as a hub managed service
+c.JupyterHub.services = [
+    {
+        "name": "jupyterhub-idle-culler-service",
+        "command": [
+            "python",
+            "-m",
+            "jupyterhub_idle_culler",
+            "--timeout=43200",  # 12 hours timeout for idle servers
+            "--cull-every=3600",  # Check every hour
+            "--remove-named-servers",  # Remove named servers
+            "--concurrency=10",  # Limit concurrent operations
+            "--max-age=43200",  # Maximum age of 12 hours (hard limit)
+        ],
+    }
+]
+
+# Configure idle culler permissions using JupyterHub 2.0+ scopes
+c.JupyterHub.load_roles = [
+    {
+        "name": "jupyterhub-idle-culler-role",
+        "scopes": [
+            "list:users",  # Access to the user list API
+            "read:users:activity",  # Read users' last_activity field
+            "read:servers",  # Read users' servers field
+            "delete:servers",  # Stop users' servers and delete named servers
+        ],
+        "services": ["jupyterhub-idle-culler-service"],
+    }
+]
+
 # === OTHER CONFIGURATION ===
 
 # Configure proxy PID file to use writable directory

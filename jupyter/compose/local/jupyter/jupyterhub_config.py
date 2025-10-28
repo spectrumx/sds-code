@@ -118,11 +118,11 @@ c.JupyterHub.services = [
             "python",
             "-m",
             "jupyterhub_idle_culler",
-            "--timeout=30",  # 30s timeout for idle servers for testing
-            "--cull-every=10",  # Check every 10s for testing
+            "--timeout=43200",  # 12 hours timeout for idle servers
+            "--cull-every=3600",  # Check every hour
             "--remove-named-servers",  # Remove named servers
             "--concurrency=10",  # Limit concurrent operations
-            "--max-age=60",  # Maximum age of 60s for testing.
+            "--max-age=43200",  # Maximum age of 12 hours (hard limit)
         ],
     }
 ]
