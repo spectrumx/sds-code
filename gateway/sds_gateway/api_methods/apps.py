@@ -35,4 +35,4 @@ def silence_unwanted_logs() -> None:
     for log_level, loggers in log_map.items():
         for logger in loggers:
             logging.getLogger(logger).setLevel(log_level)
-            log.debug(f"Silencing {logger} at level {log_level}.")
+            log.trace(f"Silencing {logger} at level {log_level}.")

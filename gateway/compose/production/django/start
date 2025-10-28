@@ -49,7 +49,7 @@ function main() {
     }
 
     echo "Starting Gunicorn server..."
-    exec /usr/local/bin/gunicorn config.asgi \
+    exec uv run gunicorn config.asgi \
         --bind 0.0.0.0:18000 \
         --chdir=/app -k uvicorn_worker.UvicornWorker || {
             echo_wait_and_quit "Gunicorn server failed."

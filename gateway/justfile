@@ -92,7 +92,11 @@ pre-commit:
     uv run --dev pre-commit run --all-files
 
 # rebuilds then restarts services and shows logs
-redeploy: build down up logs
+redeploy services='':
+    just build {{services}}
+    just down {{services}}
+    just up {{services}}
+    just logs {{services}}
 
 # restarts running compose services
 restart args='':

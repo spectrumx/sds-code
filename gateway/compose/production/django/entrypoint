@@ -5,6 +5,8 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+echo "$(date) | Starting sds-gateway-app entrypoint script..."
+
 export CELERY_BROKER_URL="${REDIS_URL}"
 
 if [ -z "${POSTGRES_USER}" ]; then
@@ -13,11 +15,46 @@ if [ -z "${POSTGRES_USER}" ]; then
 fi
 export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
 
-uv cache dir
-uv sync --frozen --extra "${BUILD_ENV:-production}"
+# Mounted managed volumes are not writeable immediately after container start.
+# We need to wait for the post_start script to complete, which is not guaranteed
+# to run before this entrypoint script. So we test writeability on that location
+# here before proceeding with the package sync.
+function test_writeable() {
+    local file="$1"
+    if [ -f "${file}" ] && [ -w "${file}" ]; then
+        return 0
+    else
+        touch "${file}" 2>/dev/null && rm "${file}" 2>/dev/null
+        return $?
+    fi
+}
 
-echo "Waiting for PostgreSQL to become available..."
-uv run python <<END
+function test_uv_cache_writeable() {
+    retries=5
+    uv_cache_dir="$(uv cache dir)"
+    while ! test_writeable "${uv_cache_dir}/.cache-test-file"; do
+        if [[ ${retries} -eq 5 ]]; then
+            echo -n "$(date) | Waiting for uv cache directory to become writable (see post_start in compose.yaml)"
+        else
+            echo -n "."
+        fi
+        if [ ${retries} -le 0 ]; then
+            echo >&2 "$(date) | uv cache directory is not writable, exiting."
+            exit 1
+        fi
+        sleep 1
+        retries=$((retries - 1))
+    done
+}
+
+function install_project() {
+    uv sync --frozen --extra "${BUILD_ENV:-production}"
+}
+
+function wait_for_postgres() {
+
+    echo "Waiting for PostgreSQL to become available..."
+    uv run python <<END
 import sys
 import time
 
@@ -45,6 +82,25 @@ while True:
     time.sleep(1)
 END
 
-echo >&2 'PostgreSQL is available'
+    echo >&2 "$(date) | PostgreSQL is available"
 
-exec "$@"
+}
+
+function main() {
+    test_uv_cache_writeable || {
+        echo >&2 "$(date) | uv cache directory is not writable after retries, exiting."
+        exit 1
+    }
+    install_project || {
+        echo >&2 "$(date) | Project installation failed, exiting."
+        exit 1
+    }
+    wait_for_postgres || {
+        echo >&2 "$(date) | PostgreSQL did not become available, exiting."
+        exit 1
+    }
+    echo "$(date) | Running main command..."
+    exec "$@"
+}
+
+main "$@"

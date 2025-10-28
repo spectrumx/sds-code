@@ -22,11 +22,6 @@ ENV BUILD_ENV=${BUILD_ENVIRONMENT}
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# https://docs.astral.sh/uv/guides/integration/docker/
-ENV UV_COMPILE_BYTECODE=1
-ENV UV_LINK_MODE=copy
-ENV UV_CACHE_DIR=/opt/uv-cache/
-
 # install required system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
     # better utils if we need to run a shell in the container
@@ -55,19 +50,26 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR ${APP_HOME}
 
+# https://docs.astral.sh/uv/guides/integration/docker/
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_CACHE_DIR=/opt/uv-cache/
+
 RUN addgroup --system django \
     && adduser --system --ingroup django django
 
-# install project dependencies
-COPY --chown=django:django ./pyproject.toml ./uv.lock ${APP_HOME}/
-RUN uv sync --frozen --extra ${BUILD_ENVIRONMENT}
+# we can delay the project dependencies installation to reduce
+# the image size: it'll be cached at the compose level. If you
+# wish to include them in the image, uncomment the following lines:
+# COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
+# RUN uv sync --frozen --extra ${BUILD_ENVIRONMENT}
 
 # copy command scripts and set exec flag
-COPY --chown=django:django ./compose/production/django/entrypoint   /entrypoint
-COPY --chown=django:django ./compose/production/django/start        /start
-COPY --chown=django:django ./compose/production/django/worker-start /worker-start
-COPY --chown=django:django ./compose/production/django/flower-start /flower-start
-COPY --chown=django:django ./compose/production/django/beat-start   /beat-start
+COPY --chown=django:django ./compose/production/django/entrypoint           /entrypoint
+COPY --chown=django:django ./compose/production/django/start                /start
+COPY --chown=django:django ./compose/production/django/celery/worker-start  /worker-start
+COPY --chown=django:django ./compose/production/django/celery/flower-start  /flower-start
+COPY --chown=django:django ./compose/production/django/celery/beat-start    /beat-start
 
 RUN chmod +x /entrypoint /start /worker-start /flower-start /beat-start
 

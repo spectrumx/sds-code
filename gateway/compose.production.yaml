@@ -8,7 +8,7 @@ volumes:
     # for safety, all gateway production volumes start with "sds-gateway-prod-"
     sds-gateway-prod-app-media: {}
     sds-gateway-prod-temp-zips: {} # for temporary zip files
-    sds-gateway-prod-venv: {} # Python virtual environment
+    sds-gateway-prod-uv-cache: {} # Python virtual environment
     sds-gateway-prod-uv-venv-app: {}
     sds-gateway-prod-uv-venv-worker: {}
     sds-gateway-prod-uv-venv-beat: {}
@@ -65,14 +65,17 @@ services:
               read_only: true
               bind:
                   selinux: z
-            - source: sds-gateway-prod-venv
+            - source: sds-gateway-prod-uv-cache
               target: /opt/uv-cache/
               type: volume
               read_only: false
             - source: sds-gateway-prod-uv-venv-app
-              target: /opt/uv-cache-app/
+              target: /opt/uv-venv/
               type: volume
               read_only: false
+        post_start:
+            - command: chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/ /opt/uv-venv/
+              user: root
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
@@ -173,15 +176,16 @@ services:
             - "19600:9600"
         networks:
             - sds-gateway-prod-opensearch-net
+        tty: true
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
                     'curl -k -u "$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWORD" https://localhost:9200/_cluster/health || exit 1',
                 ]
-            interval: 30s
-            timeout: 10s
-            retries: 3
+            interval: 5s
+            timeout: 5s
+            retries: 10
 
     postgres:
         # main database for the gateway app
@@ -221,7 +225,7 @@ services:
             sds-gateway-prod-app:
                 condition: service_started
         volumes:
-            - source: sds-gateway-prod-venv
+            - source: sds-gateway-prod-uv-cache
               target: /opt/uv-cache/
               type: volume
               read_only: false
@@ -240,9 +244,12 @@ services:
               bind:
                   selinux: z
             - source: sds-gateway-prod-uv-venv-worker
-              target: /opt/uv-cache-worker/
+              target: /opt/uv-venv/
               type: volume
               read_only: false
+        post_start:
+            - command: chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/ /opt/uv-venv/
+              user: root
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
@@ -265,7 +272,7 @@ services:
             sds-gateway-prod-app:
                 condition: service_started
         volumes:
-            - source: sds-gateway-prod-venv
+            - source: sds-gateway-prod-uv-cache
               target: /opt/uv-cache/
               type: volume
               read_only: false
@@ -284,9 +291,12 @@ services:
               bind:
                   selinux: z
             - source: sds-gateway-prod-uv-venv-beat
-              target: /opt/uv-cache-beat/
+              target: /opt/uv-venv/
               type: volume
               read_only: false
+        post_start:
+            - command: chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/ /opt/uv-venv/
+              user: root
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
@@ -310,7 +320,7 @@ services:
             sds-gateway-prod-app:
                 condition: service_started
         volumes:
-            - source: sds-gateway-prod-venv
+            - source: sds-gateway-prod-uv-cache
               target: /opt/uv-cache/
               type: volume
               read_only: false
@@ -323,9 +333,12 @@ services:
               type: volume
               read_only: false
             - source: sds-gateway-prod-uv-venv-flower
-              target: /opt/uv-cache-flower/
+              target: /opt/uv-venv/
               type: volume
               read_only: false
+        post_start:
+            - command: chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/ /opt/uv-venv/
+              user: root
         env_file:
             - ./.envs/production/django.env
             - ./.envs/production/minio.env
