@@ -1,0 +1,15 @@
+{% comment %}
+Empty Table Row Component
+Renders an empty state row for tables
+
+Context:
+{
+    "colspan": 5,
+    "message": "No items found"
+}
+{% endcomment %}
+<tr>
+    <td colspan="{{ colspan|default:5 }}" class="text-center text-muted">
+        {{ message|default:"No items found" }}
+    </td>
+</tr>
