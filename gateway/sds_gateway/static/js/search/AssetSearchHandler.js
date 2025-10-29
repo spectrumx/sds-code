@@ -239,31 +239,20 @@ class AssetSearchHandler {
 		const selectedCaptures = this.formHandler.selectedCaptures;
 		countBadge.textContent = `${selectedCaptures.size} selected`;
 
-		if (selectedCaptures.size === 0) {
-			selectedList.innerHTML =
-				'<tr><td colspan="3" class="text-center">No captures selected</td></tr>';
-			return;
-		}
+		// Prepare captures data for server-side rendering
+		const capturesData = Array.from(selectedCaptures).map((captureId) => {
+			const data = this.selectedCaptureDetails.get(captureId) || {
+				type: "Unknown",
+				directory: "Unknown",
+			};
+			return {
+				id: captureId,
+				type: data.type,
+				directory: data.directory,
+			};
+		});
 
-		selectedList.innerHTML = Array.from(selectedCaptures)
-			.map((captureId) => {
-				const data = this.selectedCaptureDetails.get(captureId) || {
-					type: "Unknown",
-					directory: "Unknown",
-				};
-				return `
-				<tr data-capture-id="${captureId}">
-					<td>${data.type}</td>
-					<td>${data.directory}</td>
-					<td>
-						<button type="button" class="btn btn-sm btn-danger remove-selected-capture" data-id="${captureId}">
-							Remove
-						</button>
-					</td>
-				</tr>
-			`;
-			})
-			.join("");
+		this.renderSelectedCapturesTable(selectedList, capturesData);
 
 		// Add remove handlers
 		const removeSelectedButtons = selectedList.querySelectorAll(
@@ -296,6 +285,46 @@ class AssetSearchHandler {
 					this.formHandler.updateHiddenFields();
 				}
 			});
+		}
+	}
+
+	/**
+	 * Render selected captures table asynchronously
+	 */
+	async renderSelectedCapturesTable(selectedList, capturesData) {
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/selected_captures_table.html",
+				context: {
+					captures: capturesData,
+					empty_message: "No captures selected",
+				},
+			});
+
+			if (response.html) {
+				selectedList.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering selected captures table:", error);
+			// Fallback
+			if (capturesData.length === 0) {
+				selectedList.innerHTML =
+					'<tr><td colspan="3" class="text-center">No captures selected</td></tr>';
+			} else {
+				selectedList.innerHTML = capturesData
+					.map((capture) => `
+						<tr data-capture-id="${capture.id}">
+							<td>${capture.type}</td>
+							<td>${capture.directory}</td>
+							<td>
+								<button type="button" class="btn btn-sm btn-danger remove-selected-capture" data-id="${capture.id}">
+									Remove
+								</button>
+							</td>
+						</tr>
+					`)
+					.join("");
+			}
 		}
 	}
 
@@ -1034,12 +1063,35 @@ class AssetSearchHandler {
 		tbody.innerHTML = "";
 
 		if (!data.tree) {
-			tbody.innerHTML =
-				'<tr><td colspan="5" class="text-center">No files or directories found</td></tr>';
+			this.renderEmptyFilesTable(tbody);
 			return;
 		}
 
 		this.renderFileTree(data.tree);
+	}
+
+	/**
+	 * Render empty files table asynchronously
+	 */
+	async renderEmptyFilesTable(tbody) {
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/empty_table_row.html",
+				context: {
+					colspan: 5,
+					message: "No files or directories found",
+				},
+			});
+
+			if (response.html) {
+				tbody.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering empty files table:", error);
+			// Fallback
+			tbody.innerHTML =
+				'<tr><td colspan="5" class="text-center">No files or directories found</td></tr>';
+		}
 	}
 
 	/**
