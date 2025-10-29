@@ -26,7 +26,7 @@ export class SpectrogramVisualization {
 		this.pollingInterval = null;
 
 		// DOM elements
-		this.statusMessage = null;
+		this.errorDisplay = null;
 		this.loadingOverlay = null;
 		this.saveButton = null;
 
@@ -59,7 +59,7 @@ export class SpectrogramVisualization {
 		this.renderer = new SpectrogramRenderer();
 
 		// Get DOM elements
-		this.statusMessage = document.getElementById("statusMessage");
+		this.errorDisplay = document.getElementById("visualizationErrorDisplay");
 		this.loadingOverlay = document.getElementById("loadingOverlay");
 		this.saveButton = document.getElementById("saveSpectrogramBtn");
 
@@ -286,9 +286,19 @@ export class SpectrogramVisualization {
 			}
 		}
 
-		// Hide status message during generation, show transparent overlay instead
-		if (this.statusMessage) {
-			this.statusMessage.style.display = isGenerating ? "none" : "block";
+		// Hide error display during generation, show transparent overlay instead
+		if (this.errorDisplay) {
+			if (isGenerating) {
+				this.errorDisplay.classList.add("d-none");
+			} else {
+				// Only show if it has content (error), otherwise keep hidden
+				const hasContent = this.errorDisplay
+					.querySelector("p.error-message-text")
+					?.textContent.trim();
+				if (hasContent) {
+					this.errorDisplay.classList.remove("d-none");
+				}
+			}
 		}
 	}
 
@@ -340,11 +350,21 @@ export class SpectrogramVisualization {
 	 * Update status message
 	 */
 	updateStatus(message) {
-		if (this.statusMessage) {
-			const statusText = this.statusMessage.querySelector("p");
+		if (this.errorDisplay) {
+			const statusText = this.errorDisplay.querySelector("p");
 			if (statusText) {
 				statusText.textContent = message;
 			}
+		}
+	}
+
+	/**
+	 * Show error message
+	 */
+	showError(message) {
+		this.updateStatus(message);
+		if (this.renderer) {
+			this.renderer.clearImage();
 		}
 	}
 
@@ -354,41 +374,38 @@ export class SpectrogramVisualization {
 	handleProcessingError(data) {
 		const errorInfo = data.error_info || {};
 		const hasSourceDataError = data.has_source_data_error || false;
-		const userMessage = generateErrorMessage(errorInfo, hasSourceDataError);
-		this.showError(userMessage, errorInfo);
+		const { message, errorDetail } = generateErrorMessage(
+			errorInfo,
+			hasSourceDataError,
+		);
+		this.showErrorWithDetails(message, errorDetail);
 	}
 
 	/**
-	 * Show error message with collapsible details
+	 * Show error message with details
 	 */
-	showError(message, errorInfo = {}) {
+	showErrorWithDetails(message, errorDetail = null) {
 		// Clear image
 		if (this.renderer) {
 			this.renderer.clearImage();
 		}
 
-		// Setup error details using the centralized handler
-		const statusMessage = document.getElementById("statusMessage");
-		if (statusMessage) {
-			const messageElement = statusMessage.querySelector("p");
-			const detailsContainer = statusMessage.querySelector(
-				".error-details-container",
-			);
-			const detailsContent = document.getElementById(
-				"spectrogramErrorDetailsContent",
-			);
-			const toggleButton = document.getElementById(
-				"spectrogramErrorDetailsToggle",
+		// Setup error display using the centralized handler
+		const errorDisplay = document.getElementById("visualizationErrorDisplay");
+		if (errorDisplay) {
+			const messageElement = errorDisplay.querySelector("p.error-message-text");
+			const errorDetailElement = errorDisplay.querySelector(
+				"p.error-detail-line",
 			);
 
 			setupErrorDisplay({
 				messageElement,
-				detailsContainer,
-				detailsContent,
-				toggleButton,
+				errorDetailElement,
 				message,
-				errorInfo,
+				errorDetail,
 			});
+
+			errorDisplay.classList.remove("d-none");
 		}
 	}
 

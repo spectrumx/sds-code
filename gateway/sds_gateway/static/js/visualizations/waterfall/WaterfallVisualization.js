@@ -777,7 +777,7 @@ class WaterfallVisualization {
 	 * Hide error display
 	 */
 	hideErrorDisplay() {
-		const errorDisplay = document.getElementById("waterfallErrorDisplay");
+		const errorDisplay = document.getElementById("visualizationErrorDisplay");
 		if (errorDisplay) {
 			errorDisplay.classList.add("d-none");
 		}
@@ -814,14 +814,17 @@ class WaterfallVisualization {
 	handleProcessingError(data) {
 		const errorInfo = data.error_info || {};
 		const hasSourceDataError = data.has_source_data_error || false;
-		const userMessage = generateErrorMessage(errorInfo, hasSourceDataError);
-		this.showError(userMessage, errorInfo);
+		const { message, errorDetail } = generateErrorMessage(
+			errorInfo,
+			hasSourceDataError,
+		);
+		this.showError(message, errorDetail);
 	}
 
 	/**
-	 * Show error message with collapsible details
+	 * Show error message
 	 */
-	showError(message, errorInfo = {}) {
+	showError(message, errorDetail = null) {
 		// Clear data state first
 		this.waterfallData = [];
 		this.parsedWaterfallData = [];
@@ -837,27 +840,19 @@ class WaterfallVisualization {
 			this.controls.setTotalSlices(0);
 		}
 
-		// Update error display with details
-		const errorDisplay = document.getElementById("waterfallErrorDisplay");
+		// Update error display
+		const errorDisplay = document.getElementById("visualizationErrorDisplay");
 		if (errorDisplay) {
 			const messageElement = errorDisplay.querySelector("p.error-message-text");
-			const detailsContainer = errorDisplay.querySelector(
-				".error-details-container",
-			);
-			const detailsContent = document.getElementById(
-				"waterfallErrorDetailsContent",
-			);
-			const toggleButton = document.getElementById(
-				"waterfallErrorDetailsToggle",
+			const errorDetailElement = errorDisplay.querySelector(
+				"p.error-detail-line",
 			);
 
 			setupErrorDisplay({
 				messageElement,
-				detailsContainer,
-				detailsContent,
-				toggleButton,
+				errorDetailElement,
 				message,
-				errorInfo,
+				errorDetail,
 			});
 
 			errorDisplay.classList.remove("d-none");
