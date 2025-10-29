@@ -275,6 +275,8 @@ services:
             dockerfile: ./compose/local/node/Dockerfile
         image: sds-gateway-local-node
         container_name: sds-gateway-local-node
+        networks:
+            - sds-network-local
         depends_on:
             - sds-gateway-local-app
         volumes:
@@ -283,6 +285,11 @@ services:
         command: "npm run dev"
         ports:
             - "3000:3000"
+        develop:
+            watch:
+                - action: sync
+                  path: ./
+                  target: /app/
 
     mailhog:
         # email testing service for local development

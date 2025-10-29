@@ -116,17 +116,32 @@ snapshot:
     ./scripts/create-snapshot.sh {{env}} 2>&1 | tee "$log_file"
     @echo "Snapshot created. See '${log_file}'"
 
-# validates templates and runs pytest inside the container; args are passed to pytest
+# runs all tests (python and javascript); args are passed to pytest
 test args='':
+    @echo "Running all tests"
+    @just test-py '{{args}}'
+    @just test-js
+
+# validates templates and runs pytest inside the app container
+test-py args='':
     @echo "Validating templates"
     {{uv_runner}} manage.py validate_templates
     @echo "Running tests"
     {{uv_runner}} pytest {{args}}
 
-# starts services in detached mode
+# runs javascript tests inside the app container
+test-js args='':
+    @echo "Running JavaScript tests"
+    {{docker_compose}} run node npm run test {{args}}
+
+# starts services in detached mode; if env is local, starts process to watch files
 up args='':
-    @echo "Starting sds-gateway"
-    {{docker_compose}} up -d --remove-orphans {{args}}
+    #!/usr/bin/env bash
+    echo "Starting sds-gateway"
+    {{docker_compose}} up --detach --remove-orphans {{args}}
+    if [ "{{env}}" = "local" ]; then
+        {{docker_compose}} watch --no-up {{args}}
+    fi
 
 # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions
 update:

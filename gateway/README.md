@@ -6,7 +6,7 @@ Metadata management and web interface for SDS.
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 + [SpectrumX Data System | Gateway](#spectrumx-data-system--gateway)
-    + [Just targets](#just-targets)
+    + [Just recipes](#just-recipes)
     + [Development environment](#development-environment)
     + [Local deploy](#local-deploy)
     + [Debugging tips](#debugging-tips)
@@ -18,7 +18,7 @@ Metadata management and web interface for SDS.
 > [!TIP]
 > Deploying SDS in production? Start with the [`network`](../network/README.md) component.
 
-## Just targets
+## Just recipes
 
 We are using [Just](https://github.com/casey/just#installation/) as a command runner to simplify common tasks. Here's a quick lookup of available commands:
 
@@ -28,22 +28,25 @@ just --list
 
 ```bash
 Available recipes:
-    build args=''      # pulls and rebuild the compose services with optional args
-    build-full args='' # pulls and rebuilds from scratch without cache
-    clean              # remove python caches for a clean workspace
-    dc +args=''        # runs a generic docker compose command e.g. `just dc ps`
-    down args=''       # stops and remove compose services; args are passed to compose down
-    env                # prints currently selected environment, for debugging and validation purposes
-    logs args=''       # streams logs until interrupted (tails 10k lines); args are passed to compose logs
-    logs-once args=''  # prints all recent logs once; args are passed to compose logs
-    pre-commit         # runs the pre-commit hooks with dev dependencies
-    redeploy           # rebuilds then restarts services and shows logs
-    restart args=''    # restarts running compose services
-    serve-coverage     # serves pytest coverage HTML locally
-    snapshot           # captures a snapshot of the configured environment
-    test args=''       # validates templates and runs pytest inside the container; args are passed to pytest
-    up args=''         # starts services in detached mode [alias: run]
-    update             # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
+    build args=''        # pulls and rebuild the compose services with optional args
+    build-full args=''   # pulls and rebuilds from scratch without cache
+    clean                # removes ephemeral files, like python caches and test coverage reports
+    dc +args=''          # runs a generic docker compose command e.g. `just dc ps`
+    dev-setup            # sets up the development environment
+    down args=''         # stops and remove compose services; args are passed to compose down
+    env                  # prints currently selected environment, for debugging and validation purposes
+    logs args=''         # streams logs until interrupted (tails 10k lines); args are passed to compose logs
+    logs-once args=''    # prints all recent logs once; args are passed to compose logs
+    pre-commit           # runs the pre-commit hooks with dev dependencies
+    redeploy services='' # rebuilds then restarts services and shows logs
+    restart args=''      # restarts running compose services
+    serve-coverage       # serves pytest coverage HTML locally
+    snapshot             # captures a snapshot of the configured environment
+    test args=''         # runs all tests (python and javascript); args are passed to pytest
+    test-js args=''      # runs javascript tests inside the app container
+    test-py args=''      # validates templates and runs pytest inside the app container
+    up args=''           # starts services in detached mode; if env is local, starts process to watch files [alias: run]
+    update               # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
 ```
 
 ## Development environment

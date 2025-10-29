@@ -9,7 +9,7 @@ module.exports = merge(commonConfig, {
 		proxy: [
 			{
 				context: ["/"],
-				target: "http://localhost:8000",
+				target: "http://sds-gateway-local-app:8000",
 			},
 		],
 		client: {
