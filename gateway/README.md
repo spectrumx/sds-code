@@ -47,6 +47,7 @@ Available recipes:
     test-py args=''      # validates templates and runs pytest inside the app container
     up args=''           # starts services in detached mode; if env is local, starts process to watch files [alias: run]
     update               # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
+    watch args=''        # watch file changes when in local env mode
 ```
 
 ## Development environment

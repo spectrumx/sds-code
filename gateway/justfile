@@ -140,7 +140,7 @@ up args='':
     echo "Starting sds-gateway"
     {{docker_compose}} up --detach --remove-orphans {{args}}
     if [ "{{env}}" = "local" ]; then
-        {{docker_compose}} watch --no-up {{args}}
+        just watch &
     fi
 
 # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions
@@ -150,3 +150,12 @@ update:
     uv run pre-commit autoupdate
     @echo "Upgrading gateway dependencies"
     uv sync --upgrade --all-extras
+
+# watch file changes when in local env mode
+watch args='':
+    @if [ "{{env}}" != "local" ]; then \
+        echo "The 'watch' command is only available in the 'local' environment" \
+        exit 1 \
+    fi
+    @echo "Watching for file changes..."
+    {{docker_compose}} watch {{args}}
