@@ -52,6 +52,25 @@ services:
             - sds-gateway-local-uv-venv-app:/opt/uv-venv/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - source: ./sds_gateway/api_methods/migrations
+              target: /app/sds_gateway/api_methods/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/users/migrations
+              target: /app/sds_gateway/users/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/visualizations/migrations
+              target: /app/sds_gateway/visualizations/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/local/django.env
@@ -199,6 +218,24 @@ services:
             - sds-gateway-local-uv-venv-worker:/opt/uv-venv/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - source: ./sds_gateway/api_methods/migrations
+              target: /app/sds_gateway/api_methods/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/users/migrations
+              target: /app/sds_gateway/users/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/visualizations/migrations
+              target: /app/sds_gateway/visualizations/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
         env_file:
             - ./.envs/local/django.env
             - ./.envs/local/minio.env
@@ -226,6 +263,24 @@ services:
             - sds-gateway-local-uv-venv-beat:/opt/uv-venv/
             - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - source: ./sds_gateway/api_methods/migrations
+              target: /app/sds_gateway/api_methods/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/users/migrations
+              target: /app/sds_gateway/users/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/visualizations/migrations
+              target: /app/sds_gateway/visualizations/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
         env_file:
             - ./.envs/local/django.env
             - ./.envs/local/minio.env
@@ -253,6 +308,24 @@ services:
             - sds-gateway-local-uv-venv-flower:/opt/uv-venv/
             - sds-gateway-local-app-media:/app/sds_gateway/media
             - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips
+            - source: ./sds_gateway/api_methods/migrations
+              target: /app/sds_gateway/api_methods/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/users/migrations
+              target: /app/sds_gateway/users/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/visualizations/migrations
+              target: /app/sds_gateway/visualizations/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
         env_file:
             - ./.envs/local/django.env
             - ./.envs/local/minio.env
