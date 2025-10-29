@@ -1,0 +1,21 @@
+{% comment %}
+Permission Display Component
+Renders user permission information with icon, badge, and description
+
+Context:
+{
+    "permission_summary": {
+        "icon": "bi-person-circle",
+        "badge_class": "bg-owner",
+        "display_name": "Owner",
+        "description": "Full control over the dataset"
+    }
+}
+{% endcomment %}
+<div class="d-flex align-items-center">
+    <i class="bi {{ permission_summary.icon }} me-2"></i>
+    <span class="badge {{ permission_summary.badge_class }} me-2">
+        {{ permission_summary.display_name }}
+    </span>
+    <small class="text-muted">{{ permission_summary.description }}</small>
+</div>

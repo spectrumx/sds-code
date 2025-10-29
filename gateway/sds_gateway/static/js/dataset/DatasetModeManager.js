@@ -50,6 +50,7 @@ class DatasetModeManager {
 		// Initialize original dataset data for change tracking
 		this.originalDatasetData = this.captureOriginalDatasetData();
 
+		// Initialize UI
 		this.initializeUI();
 	}
 
@@ -784,8 +785,7 @@ class DatasetModeManager {
 			// Fallback for empty state
 			const capturesTable = document.querySelector(".captures-table tbody");
 			if (capturesTable) {
-				capturesTable.innerHTML =
-					'<tr><td colspan="6" class="text-center text-muted">No captures selected</td></tr>';
+				this.renderEmptyTableRow(capturesTable, 6, "No captures selected");
 			}
 		}
 
@@ -798,8 +798,7 @@ class DatasetModeManager {
 			// Fallback for empty state
 			const filesTable = document.querySelector(".files-table tbody");
 			if (filesTable) {
-				filesTable.innerHTML =
-					'<tr><td colspan="5" class="text-center text-muted">No files selected</td></tr>';
+				this.renderEmptyTableRow(filesTable, 5, "No files selected");
 			}
 		}
 
@@ -823,6 +822,29 @@ class DatasetModeManager {
 	}
 
 	/**
+	 * Render empty table row asynchronously
+	 */
+	async renderEmptyTableRow(tableElement, colspan, message) {
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/empty_table_row.html",
+				context: {
+					colspan: colspan,
+					message: message,
+				},
+			});
+
+			if (response.html) {
+				tableElement.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering empty table row:", error);
+			// Fallback
+			tableElement.innerHTML = `<tr><td colspan="${colspan}" class="text-center text-muted">${message}</td></tr>`;
+		}
+	}
+
+	/**
 	 * Update UI based on user permissions
 	 */
 	updateUIForPermissions() {
@@ -833,6 +855,32 @@ class DatasetModeManager {
 			"user-permission-display",
 		);
 		if (permissionDisplay) {
+			this.renderPermissionDisplay(permissionSummary, permissionDisplay);
+		}
+
+		// Disable/hide elements based on permissions
+		this.updateFormElementsForPermissions();
+		this.updateActionButtonsForPermissions();
+	}
+
+	/**
+	 * Render permission display asynchronously
+	 */
+	async renderPermissionDisplay(permissionSummary, permissionDisplay) {
+		try {
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/permission_display.html",
+				context: {
+					permission_summary: permissionSummary,
+				},
+			});
+
+			if (response.html) {
+				permissionDisplay.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering permission display:", error);
+			// Fallback
 			permissionDisplay.innerHTML = `
 				<div class="d-flex align-items-center">
 					<i class="bi ${permissionSummary.icon} me-2"></i>
@@ -843,10 +891,6 @@ class DatasetModeManager {
 				</div>
 			`;
 		}
-
-		// Disable/hide elements based on permissions
-		this.updateFormElementsForPermissions();
-		this.updateActionButtonsForPermissions();
 	}
 
 	/**
