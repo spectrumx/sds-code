@@ -383,7 +383,12 @@ function snapshot_stats() {
     total_size=$(du -sh "${DIR_BACKUP}" | cut -f1)
     file_count=$(find "${DIR_BACKUP}" -type f | wc -l)
 
-    tree "${DIR_BACKUP}"
+    tree -DCpsh "${DIR_BACKUP}"
+    # -D: print modification date
+    # -C: colorize
+    # -p: print file permissions
+    # -s: print size
+    # -h: human-readable sizes
     log_success "Snapshot ${BACKUP_NAME} created in '${DIR_BACKUP}'"
     log_success " - Number of files:    ${file_count}"
     log_success " - Storage used:       ${total_size}"
