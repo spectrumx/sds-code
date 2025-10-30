@@ -668,19 +668,27 @@ class DatasetCreationHandler {
 		const authorsValue = this.authorsField?.value.trim() || "";
 		const statusValue = this.statusField?.value || "";
 
-		// Validate authors JSON
+		// Validate authors JSON and first author name
 		if (authorsValue) {
 			try {
 				const authors = JSON.parse(authorsValue);
 				if (!Array.isArray(authors) || authors.length === 0) {
 					return false;
 				}
+				
+				// Check that the first author has a name
+				const firstAuthor = authors[0];
+				if (!firstAuthor || !firstAuthor.name || firstAuthor.name.trim() === "") {
+					return false;
+				}
 			} catch (e) {
 				return false;
 			}
+		} else {
+			return false; // Authors field is required
 		}
 
-		return nameValue !== "" && authorsValue !== "" && statusValue !== "";
+		return nameValue !== "" && statusValue !== "";
 	}
 
 	/**
@@ -1300,6 +1308,9 @@ class DatasetCreationHandler {
 				newInput.focus();
 			}
 
+			// Validate current step to update button states
+			this.validateCurrentStep();
+
 			// Update review display
 			if (window.updateReviewDatasetDisplay) {
 				window.updateReviewDatasetDisplay();
@@ -1314,6 +1325,9 @@ class DatasetCreationHandler {
 				// Don't remove the primary author
 				authors.splice(index, 1);
 				updateAuthorsDisplay();
+
+				// Validate current step to update button states
+				this.validateCurrentStep();
 
 				// Update review display
 				if (window.updateReviewDatasetDisplay) {
@@ -1430,6 +1444,9 @@ class DatasetCreationHandler {
 				if (needsUpdate) {
 					updateAuthorsDisplay();
 				}
+
+				// Validate current step to update button states
+				this.validateCurrentStep();
 
 				// Update review display if we're on the review step
 				if (window.updateReviewDatasetDisplay) {

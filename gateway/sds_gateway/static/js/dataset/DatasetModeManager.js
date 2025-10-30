@@ -19,13 +19,30 @@ class DatasetModeManager {
 
 		// Initialize permissions manager
 		if (window.PermissionsManager) {
-			this.permissions = new window.PermissionsManager({
+			// In creation mode, user should have full permissions
+			const permissionsConfig = {
 				userPermissionLevel: config.userPermissionLevel,
 				datasetUuid: config.datasetUuid,
 				currentUserId: config.currentUserId,
 				isOwner: config.isOwner,
 				datasetPermissions: config.datasetPermissions,
-			});
+			};
+
+			// For creation mode, ensure user has full permissions
+			if (!this.isEditMode) {
+				permissionsConfig.isOwner = true;
+				permissionsConfig.userPermissionLevel = window.PermissionLevels?.OWNER || 'owner';
+				permissionsConfig.datasetPermissions = {
+					canEditMetadata: true,
+					canAddAssets: true,
+					canRemoveAssets: true,
+					canShare: true,
+					canDownload: true,
+					...config.datasetPermissions,
+				};
+			}
+
+			this.permissions = new window.PermissionsManager(permissionsConfig);
 		}
 
 		// Initialize appropriate handler based on mode
@@ -203,7 +220,7 @@ class DatasetModeManager {
 			submitBtn &&
 			this.handler.currentStep !== this.handler.steps.length - 1
 		) {
-			this.handler.hide(submitBtn);
+			window.DOMUtils.hide(submitBtn, "display-inline-block");
 		}
 	}
 

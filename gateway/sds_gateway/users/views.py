@@ -1682,14 +1682,20 @@ class GroupCapturesView(
                 ),
                 "permission_level": permission_level,
                 "is_owner": is_owner,
-                "can_edit_metadata": UserSharePermission.user_can_edit_dataset(
-                    self.request.user, dataset_uuid, ItemType.DATASET
+                "can_edit_metadata": (
+                    True if not dataset_uuid else UserSharePermission.user_can_edit_dataset(
+                        self.request.user, dataset_uuid, ItemType.DATASET
+                    )
                 ),
-                "can_add_assets": UserSharePermission.user_can_add_assets(
-                    self.request.user, dataset_uuid, ItemType.DATASET
+                "can_add_assets": (
+                    True if not dataset_uuid else UserSharePermission.user_can_add_assets(
+                        self.request.user, dataset_uuid, ItemType.DATASET
+                    )
                 ),
-                "can_remove_assets": UserSharePermission.user_can_remove_assets(
-                    self.request.user, dataset_uuid, ItemType.DATASET
+                "can_remove_assets": (
+                    True if not dataset_uuid else UserSharePermission.user_can_remove_assets(
+                        self.request.user, dataset_uuid, ItemType.DATASET
+                    )
                 ),
             }
         )
