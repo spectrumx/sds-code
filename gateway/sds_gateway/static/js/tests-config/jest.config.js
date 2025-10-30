@@ -32,10 +32,12 @@ module.exports = {
 	coverageReporters: ["text", "html", "lcov"],
 
 	// Coverage directory
-	coverageDirectory: "coverage",
+	coverageDirectory: "./.coverage",
 
 	// Setup files
-	setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
+	setupFilesAfterEnv: [
+		"<rootDir>/sds_gateway/static/js/tests-config/jest.setup.js",
+	],
 
 	// Module name mapping for imports
 	moduleNameMapper: {

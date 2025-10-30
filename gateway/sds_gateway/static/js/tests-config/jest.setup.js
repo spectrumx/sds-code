@@ -127,12 +127,13 @@ global.URL = class URL {
 			this.href = url;
 		}
 
-		// Simple parsing (original approach)
-		this.pathname = this.href.split("?")[0];
-		this.search = this.href.includes("?") ? `?${this.href.split("?")[1]}` : "";
-		this.hash = this.href.includes("#") ? `#${this.href.split("#")[1]}` : "";
+		const urlMatch = this.href.match(
+			/^(https?:\/\/[^\/]+)?(\/[^?#]*)?(\?[^#]*)?(#.*)?$/,
+		);
+		this.pathname = urlMatch?.[2] ? urlMatch[2] : "/";
+		this.search = urlMatch?.[3] ? urlMatch[3] : "";
+		this.hash = urlMatch?.[4] ? urlMatch[4] : "";
 
-		// Add missing properties
 		this.origin = base || this.href.match(/^(https?:\/\/[^\/]+)/)?.[1] || "";
 		this.searchParams = new global.URLSearchParams(this.search.substring(1));
 	}
