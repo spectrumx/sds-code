@@ -624,20 +624,30 @@ class ShareGroupManager {
 					remaining_captures: totalCaptures - 3,
 				};
 
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/shared_assets_display.html",
-					context: context,
-				}, null, true); // true = send as JSON
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/shared_assets_display.html",
+						context: context,
+					},
+					null,
+					true,
+				); // true = send as JSON
 
 				if (response.html) {
 					sharedAssetsSection.innerHTML = response.html;
 					sharedAssetsSection.classList.remove("d-none");
 				}
 			} else {
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/shared_assets_display.html",
-					context: { has_assets: false },
-				}, null, true); // true = send as JSON
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/shared_assets_display.html",
+						context: { has_assets: false },
+					},
+					null,
+					true,
+				); // true = send as JSON
 
 				if (response.html) {
 					sharedAssetsSection.innerHTML = response.html;
@@ -751,10 +761,15 @@ class ShareGroupManager {
 
 				// Use server-side rendering for user results
 				try {
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/user_search_results.html",
-						context: { users: users },
-					}, null, true); // true = send as JSON
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/user_search_results.html",
+							context: { users: users },
+						},
+						null,
+						true,
+					); // true = send as JSON
 
 					if (response.html) {
 						listGroup.innerHTML = response.html;
@@ -1339,10 +1354,15 @@ class ShareGroupManager {
 
 		try {
 			// Use server-side rendering for the new group row
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/share_group_table_row.html",
-				context: { group: groupData },
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/share_group_table_row.html",
+					context: { group: groupData },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				// Insert the rendered HTML directly
@@ -1409,6 +1429,6 @@ window.ShareGroupManager = ShareGroupManager;
 
 // Export for ES6 modules (Jest testing)
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ShareGroupManager };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { ShareGroupManager };
 }

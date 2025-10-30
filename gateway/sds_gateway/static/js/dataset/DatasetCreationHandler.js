@@ -675,10 +675,14 @@ class DatasetCreationHandler {
 				if (!Array.isArray(authors) || authors.length === 0) {
 					return false;
 				}
-				
+
 				// Check that the first author has a name
 				const firstAuthor = authors[0];
-				if (!firstAuthor || !firstAuthor.name || firstAuthor.name.trim() === "") {
+				if (
+					!firstAuthor ||
+					!firstAuthor.name ||
+					firstAuthor.name.trim() === ""
+				) {
 					return false;
 				}
 			} catch (e) {
@@ -1265,10 +1269,15 @@ class DatasetCreationHandler {
 				});
 
 				// Render using server-side template
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/author_list_items.html",
-					context: { authors: normalizedAuthors },
-				}, null, true); // true = send as JSON
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/author_list_items.html",
+						context: { authors: normalizedAuthors },
+					},
+					null,
+					true,
+				); // true = send as JSON
 
 				if (response.html) {
 					authorsList.innerHTML = response.html;
@@ -1368,15 +1377,20 @@ class DatasetCreationHandler {
 								? "exclamation-circle"
 								: "info-circle";
 
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/notification.html",
-					context: {
-						message: message,
-						alert_type: alertType,
-						icon: icon,
-						dismissible: true,
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/notification.html",
+						context: {
+							message: message,
+							alert_type: alertType,
+							icon: icon,
+							dismissible: true,
+						},
 					},
-				}, null, true); // true = send as JSON
+					null,
+					true,
+				); // true = send as JSON
 
 				if (response.html) {
 					errorContainer.innerHTML = response.html;
@@ -1519,6 +1533,6 @@ window.DatasetCreationHandler = DatasetCreationHandler;
 
 // Export for ES6 modules (Jest testing)
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { DatasetCreationHandler };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DatasetCreationHandler };
 }

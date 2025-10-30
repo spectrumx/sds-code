@@ -144,10 +144,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/error.html",
-				context: context,
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/error.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -196,10 +201,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/loading.html",
-				context: context,
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/loading.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -232,10 +242,15 @@ class DOMUtils {
 		}
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/content.html",
-				context: options,
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/content.html",
+					context: options,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -284,10 +299,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/table_rows.html",
-				context: context,
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/table_rows.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -340,10 +360,15 @@ class DOMUtils {
 		});
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/select_options.html",
-				context: { choices: formattedChoices },
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/select_options.html",
+					context: { choices: formattedChoices },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -407,10 +432,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/pagination.html",
-				context: context,
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/pagination.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -439,10 +469,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/dropdown_menu.html",
-				context: context,
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/dropdown_menu.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				return response.html;
@@ -472,6 +507,6 @@ window.showAlert = window.DOMUtils.showAlert.bind(window.DOMUtils);
 
 // Export for ES6 modules
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { DOMUtils };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DOMUtils };
 }

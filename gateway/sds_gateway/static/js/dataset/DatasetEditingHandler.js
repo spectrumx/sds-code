@@ -1209,10 +1209,15 @@ class DatasetEditingHandler {
 				});
 
 				// Render using server-side template
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/author_list_items.html",
-					context: { authors: normalizedAuthors },
-				}, null, true); // true = send as JSON
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/author_list_items.html",
+						context: { authors: normalizedAuthors },
+					},
+					null,
+					true,
+				); // true = send as JSON
 
 				if (response.html) {
 					authorsList.innerHTML = response.html;
@@ -1586,7 +1591,10 @@ class DatasetEditingHandler {
 						}
 						if (change.type === "change") {
 							// Handle name changes
-							if (change.oldName !== undefined && change.newName !== undefined) {
+							if (
+								change.oldName !== undefined &&
+								change.newName !== undefined
+							) {
 								return {
 									type: "change",
 									parts: [
@@ -1598,7 +1606,10 @@ class DatasetEditingHandler {
 								};
 							}
 							// Handle ORCID changes
-							if (change.oldOrcid !== undefined && change.newOrcid !== undefined) {
+							if (
+								change.oldOrcid !== undefined &&
+								change.newOrcid !== undefined
+							) {
 								const oldOrcidDisplay = change.oldOrcid || "";
 								const newOrcidDisplay = change.newOrcid || "";
 								return {
@@ -1616,10 +1627,15 @@ class DatasetEditingHandler {
 					});
 
 					// Request server to render using generic change_list
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/change_list.html",
-						context: { changes: normalizedChanges },
-					}, null, true); // true = send as JSON
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: { changes: normalizedChanges },
+						},
+						null,
+						true,
+					); // true = send as JSON
 
 					// Insert the server-rendered HTML
 					if (response.html) {
@@ -1813,6 +1829,6 @@ window.DatasetEditingHandler = DatasetEditingHandler;
 
 // Export for ES6 modules (Jest testing)
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { DatasetEditingHandler };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DatasetEditingHandler };
 }
