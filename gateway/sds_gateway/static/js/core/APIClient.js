@@ -339,7 +339,10 @@ class ListRefreshManager {
 			if (extractSharedUsers) {
 				const sharedUsers = this.extractSharedUsersFromModal(modal, itemUuid);
 				item.shared_users = sharedUsers;
-				item.owner_name = sharedUsers.find((u) => u.isOwner)?.name || "Owner";
+				item.owner = {
+					name: sharedUsers.find((u) => u.isOwner)?.name || "Owner",
+					email: sharedUsers.find((u) => u.isOwner)?.email || null,
+				};
 				item.owner_email = sharedUsers.find((u) => u.isOwner)?.email || "";
 			}
 

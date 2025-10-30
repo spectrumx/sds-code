@@ -256,7 +256,7 @@ class DatasetEditingHandler {
 					cells: [
 						{ value: capture.type },
 						{ value: capture.directory },
-						{ value: capture.owner_name },
+						{ value: capture.owner?.name || capture.owner?.email || "Unknown" },
 					],
 					actions: canRemoveThisCapture
 						? [
@@ -340,7 +340,7 @@ class DatasetEditingHandler {
 						{ value: file.media_type },
 						{ value: file.relative_path },
 						{ value: file.size },
-						{ value: file.owner_name },
+						{ value: file.owner?.name || file.owner?.email || "Unknown" },
 					],
 					actions: canRemoveThisFile
 						? [

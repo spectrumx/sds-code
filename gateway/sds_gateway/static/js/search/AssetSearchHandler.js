@@ -1134,7 +1134,7 @@ class AssetSearchHandler {
 					{ value: file.media_type },
 					{ value: file.relative_path },
 					{ value: window.DOMUtils.formatFileSize(file.size) },
-					{ value: file.owner_name || "Unknown" },
+					{ value: file.owner?.name || file.owner?.email || "Unknown" },
 				],
 				actions: canRemove
 					? [
