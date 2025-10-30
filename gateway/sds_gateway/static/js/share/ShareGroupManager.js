@@ -627,7 +627,7 @@ class ShareGroupManager {
 				const response = await window.APIClient.post("/users/render-html/", {
 					template: "users/components/shared_assets_display.html",
 					context: context,
-				});
+				}, null, true); // true = send as JSON
 
 				if (response.html) {
 					sharedAssetsSection.innerHTML = response.html;
@@ -637,7 +637,7 @@ class ShareGroupManager {
 				const response = await window.APIClient.post("/users/render-html/", {
 					template: "users/components/shared_assets_display.html",
 					context: { has_assets: false },
-				});
+				}, null, true); // true = send as JSON
 
 				if (response.html) {
 					sharedAssetsSection.innerHTML = response.html;
@@ -754,7 +754,7 @@ class ShareGroupManager {
 					const response = await window.APIClient.post("/users/render-html/", {
 						template: "users/components/user_search_results.html",
 						context: { users: users },
-					});
+					}, null, true); // true = send as JSON
 
 					if (response.html) {
 						listGroup.innerHTML = response.html;
@@ -1337,74 +1337,26 @@ class ShareGroupManager {
 			return;
 		}
 
-		// Format date
-		const createdDate = new Date(groupData.created_at).toLocaleDateString(
-			"en-US",
-			{
-				year: "numeric",
-				month: "short",
-				day: "numeric",
-			},
-		);
-
 		try {
-			// Render dropdown menu using centralized template
-			const dropdownHtml = await window.DOMUtils.renderDropdown({
-				button_label: `Actions for ${groupData.name}`,
-				items: [
-					{
-						label: "Manage",
-						icon: "person-plus",
-						type: "button",
-						modal_toggle: true,
-						modal_target: "#share-modal-sharegroup",
-						data_attrs: {
-							"group-uuid": groupData.uuid,
-							"group-name": groupData.name,
-						},
-					},
-					{
-						label: "Delete",
-						icon: "trash",
-						type: "button",
-						onclick: `shareGroupManager.deleteGroup('${groupData.uuid}', '${groupData.name}')`,
-					},
-				],
-			});
+			// Use server-side rendering for the new group row
+			const response = await window.APIClient.post("/users/render-html/", {
+				template: "users/components/share_group_table_row.html",
+				context: { group: groupData },
+			}, null, true); // true = send as JSON
 
-			// Create a temporary container for the table
-			const tempDiv = document.createElement("div");
-			await window.DOMUtils.renderTable(
-				tempDiv,
-				[
-					{
-						data_attrs: { group_uuid: groupData.uuid },
-						cells: [
-							{ html: `<strong>${groupData.name}</strong>` },
-							{
-								html: `
-						<span class="badge bg-secondary member-count" data-group-uuid="${groupData.uuid}">0 members</span>
-						<div class="small text-muted mt-1 member-emails" data-group-uuid="${groupData.uuid}" style="display: none;"></div>
-					`,
-							},
-							{ value: createdDate },
-							{ html: dropdownHtml },
-						],
-					},
-				],
-				{
-					empty_message: "",
-					empty_colspan: 4,
-				},
-			);
+			if (response.html) {
+				// Insert the rendered HTML directly
+				tableBody.insertAdjacentHTML("beforeend", response.html);
 
-			// Insert the rendered HTML directly
-			tableBody.insertAdjacentHTML("beforeend", tempDiv.innerHTML);
-
-			// Hide the "no groups" message if it exists
-			const noGroupsMessage = document.querySelector(".text-center.py-5");
-			if (noGroupsMessage) {
-				window.DOMUtils.hide(noGroupsMessage);
+				// Hide the "no groups" message if it exists
+				const noGroupsMessage = document.querySelector(".text-center.py-5");
+				if (noGroupsMessage) {
+					window.DOMUtils.hide(noGroupsMessage);
+				}
+			} else {
+				console.error("No HTML returned from server for new group row");
+				// Fallback: reload the page
+				window.location.reload();
 			}
 		} catch (error) {
 			console.error("Error rendering new group row:", error);
@@ -1456,4 +1408,7 @@ class ShareGroupManager {
 window.ShareGroupManager = ShareGroupManager;
 
 // Export for ES6 modules (Jest testing)
-export { ShareGroupManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { ShareGroupManager };
+}

@@ -377,5 +377,7 @@ class DownloadActionManager {
 // Make class available globally
 window.DownloadActionManager = DownloadActionManager;
 
-// Export for ES6 modules (Jest testing)
-export { DownloadActionManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { DownloadActionManager };
+}

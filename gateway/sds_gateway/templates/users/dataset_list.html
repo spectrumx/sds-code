@@ -275,6 +275,12 @@
 {% block javascript %}
     {# djlint:off #}
     {{ block.super }}
+    <!-- Search components -->
+    <script src="{% static 'js/search/AssetSearchHandler.js' %}"></script>
+    <!-- Dataset components -->
+    <script src="{% static 'js/dataset/DatasetCreationHandler.js' %}"></script>
+    <script src="{% static 'js/dataset/DatasetEditingHandler.js' %}"></script>
+    <script src="{% static 'js/dataset/DatasetModeManager.js' %}"></script>
     <!-- Action components -->
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
