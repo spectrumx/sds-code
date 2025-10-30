@@ -16,7 +16,7 @@ function ts() {
 
 function log_msg() {
     local msg="$1"
-    echo "$(ts) | INFO    | ${msg}"
+    echo -e "$(ts) | INFO    | ${msg}"
 }
 
 function log_header() {
@@ -31,12 +31,12 @@ function log_success() {
 
 function log_error() {
     local msg="$1"
-    echo -e "$(ts) | \033[0;31mERROR\033[0m   | ${msg}" >&2
+    echo -e "$(ts) | \033[0;31mERROR   | ${msg}\033[0m" >&2
 }
 
 function log_warning() {
     local msg="$1"
-    echo -e "$(ts) | \033[0;33mWARNING\033[0m | ${msg}" >&2
+    echo -e "$(ts) | \033[0;33mWARNING | ${msg}\033[0m" >&2
 }
 
 function log_fatal_and_exit() {

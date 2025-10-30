@@ -13,6 +13,8 @@ DIR_GATEWAY="$(dirname "${DIR_SCRIPT}")"
 DIR_BACKUP="${DIR_GATEWAY}/data/backups/${BACKUP_DATE}/"
 DIR_POSTGRES_BACKUP="${DIR_BACKUP}/postgres"
 DIR_OPENSEARCH_BACKUP="${DIR_BACKUP}/opensearch"
+DIR_SECRETS_BACKUP="${DIR_BACKUP}/secrets"
+DIR_GIT_BACKUP="${DIR_BACKUP}/git"
 
 COMMON_SCRIPT="${DIR_SCRIPT}/common.sh"
 COMMON_VARS="${DIR_SCRIPT}/.env.sh"
@@ -150,9 +152,13 @@ function snapshot_opensearch() {
         result=$(echo "${output_json}" | jq -r '.snapshot.state')
 
         if [[ "${result}" != "SUCCESS" ]]; then
-            log_error "OpenSearch snapshot failed with state: ${result}"
-            log_error "Response: ${output_json}"
-            exit 1
+            if echo "${output_json}" | grep -q "snapshot with the same name already exists"; then
+                log_msg "Snapshot named '${snapshot_name}' already exists. Skipping recreation."
+            else
+                log_error "OpenSearch snapshot failed with state: ${result}"
+                log_error "Response: ${output_json}"
+                exit 1
+            fi
         fi
     else
         log_msg "Snapshot named '${snapshot_name}' already exists. Compressing existing snapshot files."
@@ -168,12 +174,197 @@ function snapshot_opensearch() {
 
     if [[ -f "${OPENSEARCH_SNAPSHOT_ZIP}" ]]; then
         log_msg "Existing snapshot zip file found at '${OPENSEARCH_SNAPSHOT_ZIP}'"
+        size=$(du -h "${OPENSEARCH_SNAPSHOT_ZIP}" | cut -f1)
+        log_msg "Snapshot zip size: ${size}"
+        log_msg "Skipping re-creation of snapshot zip."
     else
         log_msg "No existing snapshot zip file found at '${OPENSEARCH_SNAPSHOT_ZIP}'. Proceeding to create a new one."
-        zip -r "${OPENSEARCH_SNAPSHOT_ZIP}" "${DIR_GATEWAY}/opensearch/data/snapshots"
+        mkdir -p "$(dirname "${OPENSEARCH_SNAPSHOT_ZIP}")"
+        pushd "${DIR_GATEWAY}" || {
+            log_error "Failed to change directory to '${DIR_GATEWAY}'"
+            return 1
+        }
+        zip -qr "${OPENSEARCH_SNAPSHOT_ZIP}" "opensearch/data/snapshots"
+        popd || true
     fi
 
     log_success "OpenSearch snapshot completed successfully."
+}
+
+function snapshot_secrets() {
+    log_header "Snapshotting gateway secrets..."
+
+    mkdir -p "${DIR_BACKUP}" || {
+        log_error "Failed to create backup directory: ${DIR_BACKUP}"
+        return 1
+    }
+
+    SECRETS_ZIP="${DIR_SECRETS_BACKUP}/secrets.zip"
+    tmp_items=()
+
+    # candidate secret locations (only include if they exist)
+    candidates=(
+        "${DIR_GATEWAY}/.envs"
+        "${DIR_GATEWAY}/.envs/local"
+        "${DIR_GATEWAY}/.envs/production"
+        "${DIR_SCRIPT}/.env.sh"
+        "${DIR_GATEWAY}/scripts/prod-hostnames.env"
+        "${DIR_GATEWAY}/scripts/prod-hostnames.example.env"
+        "${DIR_GATEWAY}/config/*.env"
+    )
+
+    for path in "${candidates[@]}"; do
+        # expand globs
+        for match in $(shopt -s nullglob; echo "${path}"); do
+            if [[ -e "${match}" ]]; then
+                tmp_items+=("${match}")
+            fi
+        done
+    done
+
+    if [[ ${#tmp_items[@]} -eq 0 ]]; then
+        log_warning "No gateway secret files found to archive. Skipping secrets snapshot."
+        return 0
+    fi
+
+    # prefer zip if available, otherwise fallback to tar.gz
+    # build list of relative paths (relative to DIR_GATEWAY) so archives are portable
+    rel_items=()
+    for abs in "${tmp_items[@]}"; do
+        # if path is under DIR_GATEWAY, make relative, otherwise copy absolute
+        case "${abs}" in
+            "${DIR_GATEWAY}"/*)
+                rel_items+=("${abs#"${DIR_GATEWAY}"/}")
+                ;;
+            *)
+                rel_items+=("${abs}")
+                ;;
+        esac
+    done
+
+    pushd "${DIR_GATEWAY}" || {
+        log_error "Failed to change directory to '${DIR_GATEWAY}'"
+        return 1
+    }
+
+    if command -v zip >/dev/null 2>&1; then
+        log_msg "Creating secrets archive at ${SECRETS_ZIP}"
+        # overwrite if exists
+        if [[ -f "${SECRETS_ZIP}" ]]; then
+            rm -f "${SECRETS_ZIP}"
+        fi
+        # zip preserves relative paths; run from DIR_GATEWAY to keep paths readable
+        mkdir -p "$(dirname "${SECRETS_ZIP}")"
+        zip -r "${SECRETS_ZIP}" "${rel_items[@]}"
+    else
+        TARBALL="${DIR_BACKUP}/secrets.tar.gz"
+        log_msg "zip not available, creating tarball at '${TARBALL}'"
+        # tar accepts multiple args; run from DIR_GATEWAY for relative paths
+        mkdir -p "$(dirname "${TARBALL}")"
+        tar -czf "${TARBALL}" "${rel_items[@]}" || {
+            log_error "Failed to create tarball '${TARBALL}'"
+            popd || true
+            return 1
+        }
+        log_success "Secrets snapshot created at '${TARBALL}'"
+        popd || true
+        return 0
+    fi
+
+    if [[ -f "${SECRETS_ZIP}" ]]; then
+        size=$(du -h "${SECRETS_ZIP}" | cut -f1)
+        log_success "Secrets snapshot created at '${SECRETS_ZIP}' (${size})"
+    else
+        log_error "Secrets archive was not created: ${SECRETS_ZIP}"
+        popd || true
+        return 1
+    fi
+
+    popd || true
+}
+
+function snapshot_git() {
+    log_header "Snapshotting Git repository state..."
+
+    # determine if we're inside a git repo
+    if ! command -v git >/dev/null 2>&1; then
+        log_warning "git command not found; skipping git snapshot."
+        return 0
+    fi
+
+    # find repository root (if any)
+    pushd "${DIR_GATEWAY}" >/dev/null 2>&1 || {
+        log_warning "Failed to cd to gateway dir (${DIR_GATEWAY}); skipping git snapshot."
+        return 0
+    }
+
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        log_msg "Not a git repository: ${DIR_GATEWAY}. Skipping git snapshot."
+        popd >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    mkdir -p "${DIR_GIT_BACKUP}" || {
+        log_error "Failed to create git backup dir: ${DIR_GIT_BACKUP}"
+        popd >/dev/null 2>&1 || true
+        return 1
+    }
+
+    # capture branch and commit info
+    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "DETACHED")
+    commit_sha=$(git rev-parse --verify HEAD 2>/dev/null || echo "none")
+    git_log_file="${DIR_GIT_BACKUP}/git_info.txt"
+    {
+        echo "branch: ${branch}"
+        echo "commit: ${commit_sha}"
+        echo "date: $(date --rfc-3339=seconds)"
+        echo
+        git status --porcelain --branch || true
+        echo
+        git show --name-only --pretty=format:'%h %an %ad %s' -1 || true
+    } >"${git_log_file}"
+
+    # create an archive of the current commit (HEAD) if available
+    if [[ "${commit_sha}" != "none" ]]; then
+        archive_path="${DIR_GIT_BACKUP}/repo_${commit_sha}.tar.gz"
+        # create archive of tracked files at HEAD
+        git archive --format=tar "${commit_sha}" | gzip -c >"${archive_path}" || {
+            log_warning "git archive failed; continuing without commit archive."
+        }
+    else
+        log_msg "No HEAD commit found; skipping commit archive."
+    fi
+
+    # save uncommitted changes as a patch
+    diff_file="${DIR_GIT_BACKUP}/uncommitted_changes.patch"
+    git diff >"${diff_file}" || {
+        log_warning "Failed to write git diff to ${diff_file}."
+    }
+
+    # also save staged but uncommitted changes (if any)
+    staged_diff_file="${DIR_GIT_BACKUP}/staged_changes.patch"
+    git diff --staged >"${staged_diff_file}" || true
+
+    # record sizes
+    if [[ -f "${archive_path}" ]]; then
+        archive_size=$(du -h "${archive_path}" | cut -f1)
+        log_success "Saved git commit archive: ${archive_path} (${archive_size})"
+    fi
+    if [[ -s "${diff_file}" ]]; then
+        diff_size=$(du -h "${diff_file}" | cut -f1)
+        log_success "Saved uncommitted changes patch: ${diff_file} (${diff_size})"
+    else
+        log_msg "No uncommitted changes detected."
+        rm -f "${diff_file}"
+    fi
+    if [[ -s "${staged_diff_file}" ]]; then
+        staged_size=$(du -h "${staged_diff_file}" | cut -f1)
+        log_success "Saved staged changes patch: ${staged_diff_file} (${staged_size})"
+    else
+        rm -f "${staged_diff_file}" || true
+    fi
+
+    popd >/dev/null 2>&1 || true
 }
 
 function make_read_only_when_prod() {
@@ -182,7 +373,7 @@ function make_read_only_when_prod() {
         return
     fi
     log_msg "Making backed files and dir read-only..."
-    chmod -R a-w "${DIR_BACKUP}/"
+    chmod -R a-w "${DIR_BACKUP}/*"
     find "${DIR_BACKUP}" -type d -exec chmod a-w {} \;
     find "${DIR_BACKUP}" -type f -exec chmod a-w {} \;
 }
@@ -238,6 +429,8 @@ function main() {
     pre_checks || log_fatal_and_exit "Pre-checks failed."
     snapshot_postgres || log_fatal_and_exit "Postgres snapshot failed."
     snapshot_opensearch || log_fatal_and_exit "OpenSearch snapshot failed."
+    snapshot_secrets || log_fatal_and_exit "Secrets snapshot failed."
+    snapshot_git || log_fatal_and_exit "Git snapshot failed."
     make_read_only_when_prod || log_error "Failed to set read-only permissions."
     snapshot_stats || log_error "Snapshot stats failed."
     transfer_to_qa_when_prod || log_fatal_and_exit "Transfer to QA failed."

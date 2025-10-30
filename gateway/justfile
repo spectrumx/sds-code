@@ -110,11 +110,12 @@ serve-coverage:
 
 # captures a snapshot of the configured environment
 snapshot:
-    @echo "Creating a snapshot of '{{env}}' data"
+    #!/usr/bin/env bash
+    echo "Creating a snapshot of '{{env}}' data"
     mkdir -p {{snapshot_log_dir}}
     log_file="{{snapshot_log_dir}}/{{env}}-snapshot-$(date +%Y-%m-%d_%H-%M-%S).log"
-    ./scripts/create-snapshot.sh {{env}} 2>&1 | tee "$log_file"
-    @echo "Snapshot created. See '${log_file}'"
+    ./scripts/create-snapshot.sh {{env}} 2>&1 | tee "${log_file}"
+    echo "See logs at '${log_file}'"
 
 # runs all tests (python and javascript); args are passed to pytest
 test args='':

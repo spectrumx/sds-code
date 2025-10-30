@@ -73,12 +73,14 @@ function ask_confirmation_or_exit() {
     backup_date=$(basename "${backup_file}" | sed 's/\.sql\.gz$//')
 
     log_warning "WARNING: This will REPLACE the current database with backup from: ${backup_date}"
-    log_error "DO NOT RUN IN PRODUCTION | This machine is: '$(hostname)'"
-    log_warning "All current data will be lost!"
+    log_error "Unless you know what you are doing, do NOT run this in production! | This machine is: '$(hostname)'"
+    log_warning "All data being replaced in this restoration (e.g. postgres databases) will be lost!"
+    log_warning "\n\n\tTo CONTINUE, type '$(hostname)' to proceed, or press ENTER to cancel:\n"
 
-    read -rp "Are you sure you want to continue? (y/N): " confirmation
+    read -rp "_> " confirmation
+    echo ""
 
-    if [[ "${confirmation}" != "y" ]]; then
+    if [[ "${confirmation}" != "$(hostname)" ]]; then
         log_msg "Restoration canceled by user."
         exit 0
     fi
@@ -153,7 +155,13 @@ function main() {
     echo "Starting $(basename "$0")..."
     check_environment
 
-    log_warning "NOTE: OpenSearch restoration is NOT implemented. Please refer to https://docs.opensearch.org/latest/api-reference/snapshots/restore-snapshot/"
+    log_warning "NOTE: The following restoration operations are NOT available:"
+    log_warning "\t- OpenSearch. Please refer to https://docs.opensearch.org/latest/api-reference/snapshots/restore-snapshot/"
+    log_warning "\t- Secrets files."
+    log_warning "\t- Git state."
+
+    log_msg "The following operations will be performed:"
+    log_msg "\t- PostgreSQL database restoration from latest backup."
 
     local latest_backup
     latest_backup=$(get_latest_backup)
