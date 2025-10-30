@@ -283,7 +283,7 @@ class DetailsActionManager {
 		this.updateElementText(
 			modal,
 			"#capture-owner",
-			captureData.owner_name || "Unknown",
+			captureData.owner?.name || captureData.owner?.email || "Unknown",
 		);
 
 		// Update technical details
