@@ -456,9 +456,9 @@ function main() {
     }
 
     if [ "${has_failed}" = true ]; then
-        log_fatal_and_exit "One or more snapshot steps failed."
         snapshot_stats || log_error "Snapshot stats failed."
-        return 1
+        transfer_to_qa_when_prod || log_error "Transfer to QA failed."
+        log_fatal_and_exit "One or more snapshot steps failed."
     else
         make_read_only_when_prod || log_error "Failed to set read-only permissions."
         snapshot_stats || log_error "Snapshot stats failed."
