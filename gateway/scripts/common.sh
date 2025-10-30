@@ -44,3 +44,9 @@ function log_fatal_and_exit() {
     log_error "${msg}"
     exit 1
 }
+
+function log_error_and_skip() {
+    local msg="$1"
+    log_error "${msg}"
+    log_msg "Skipping this step and continuing..."
+}

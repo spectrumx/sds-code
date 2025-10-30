@@ -423,17 +423,43 @@ function transfer_to_qa_when_prod() {
 }
 
 function main() {
+
     log_header "Starting $(basename "$0")…"
     log_warning "This script is under development and might not snapshot all SDS services at the moment."
     log_warning "Data of MinIO objects is not included or planned to be in this snapshot."
+
+    # pre-checks
     pre_checks || log_fatal_and_exit "Pre-checks failed."
-    snapshot_postgres || log_fatal_and_exit "Postgres snapshot failed."
-    snapshot_opensearch || log_fatal_and_exit "OpenSearch snapshot failed."
-    snapshot_secrets || log_fatal_and_exit "Secrets snapshot failed."
-    snapshot_git || log_fatal_and_exit "Git snapshot failed."
+
+    # snapshot steps
+    has_failed=false
+    snapshot_postgres || {
+        log_error_and_skip "Postgres snapshot failed."
+        has_failed=true
+    }
+    snapshot_opensearch || {
+        log_error_and_skip "OpenSearch snapshot failed."
+        has_failed=true
+    }
+    snapshot_secrets || {
+        log_error_and_skip "Secrets snapshot failed."
+        has_failed=true
+    }
+    snapshot_git || {
+        log_error_and_skip "Git snapshot failed."
+        has_failed=true
+    }
+
+    # post-snapshot steps
     make_read_only_when_prod || log_error "Failed to set read-only permissions."
     snapshot_stats || log_error "Snapshot stats failed."
-    transfer_to_qa_when_prod || log_fatal_and_exit "Transfer to QA failed."
+    transfer_to_qa_when_prod || log_error "Transfer to QA failed."
+
+    if [ "$has_failed" = true ]; then
+        log_fatal_and_exit "One or more snapshot steps failed."
+        return 1
+    fi
+
 }
 
 main "$@"
