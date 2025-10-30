@@ -346,5 +346,7 @@ window.PermissionsManager = class PermissionsManager {
 // Make class available globally
 window.PermissionsManager = PermissionsManager;
 
-// Export for ES6 modules (Jest testing)
-export { PermissionsManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { PermissionsManager };
+}

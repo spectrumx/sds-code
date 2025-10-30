@@ -1,0 +1,74 @@
+{% load i18n %}
+
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>{% translate "Group Name" %}</th>
+                <th>{% translate "Members" %}</th>
+                <th>{% translate "Created" %}</th>
+                <th>{% translate "Actions" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for group in share_groups %}
+                <tr data-group-uuid="{{ group.uuid }}">
+                    <td>
+                        <strong>{{ group.name }}</strong>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary member-count"
+                              data-group-uuid="{{ group.uuid }}">{{ group.members.count }} member{{ group.members.count|pluralize }}</span>
+                        {% if group.members.all %}
+                            <div class="small text-muted mt-1 member-emails"
+                                 data-group-uuid="{{ group.uuid }}">
+                                {% for member in group.members.all|slice:":3" %}
+                                    {{ member.email }}
+                                    {% if not forloop.last %},{% endif %}
+                                {% endfor %}
+                                {% if group.members.count > 3 %}
+                                    <span class="text-muted">and {{ group.members.count|add:"-3" }} more</span>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="small text-muted mt-1 member-emails d-none"
+                                 data-group-uuid="{{ group.uuid }}"></div>
+                        {% endif %}
+                    </td>
+                    <td>{{ group.created_at|date:"M j, Y" }}</td>
+                    <td>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-popper="static"
+                                    aria-expanded="false"
+                                    aria-label="Actions for {{ group.name }}">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <button type="button"
+                                            class="dropdown-item"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#share-modal-sharegroup"
+                                            data-group-uuid="{{ group.uuid }}"
+                                            data-group-name="{{ group.name }}">
+                                        <i class="bi bi-person-plus me-1"></i>{% translate "Manage" %}
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button"
+                                            class="dropdown-item"
+                                            onclick="window.shareGroupManager.deleteGroup('{{ group.uuid }}', '{{ group.name }}')">
+                                        <i class="bi bi-trash me-1"></i>{% translate "Delete" %}
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
