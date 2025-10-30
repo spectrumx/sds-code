@@ -54,11 +54,11 @@ function pre_checks() {
     log_header "Running pre-checks…"
     if [[ ! -f "${compose_files[$ENVIRONMENT]}" ]]; then
         log_error "Compose file for environment '${ENVIRONMENT}' does not exist."
-        exit 1
+        return 1
     fi
     if [[ -z "${compose_files[$ENVIRONMENT]+x}" || -z "${service_prefixes[$ENVIRONMENT]+x}" ]]; then
         log_error "Environment '${ENVIRONMENT}' is not properly configured in compose_files or service_prefixes."
-        exit 1
+        return 1
     fi
     if [[ ! -d "${DIR_BACKUP}" ]]; then
         log_msg "Backup directory does not exist. Creating it…"
@@ -72,12 +72,12 @@ function snapshot_postgres() {
     TARGET_SERVICE="${service_prefixes[$ENVIRONMENT]}postgres"
     if ! docker ps --format '{{.Names}}' | grep -q "${TARGET_SERVICE}"; then
         log_error "PostgreSQL service '${TARGET_SERVICE}' is not running."
-        exit 1
+        return 1
     fi
 
     mkdir -p "${DIR_POSTGRES_BACKUP}" || {
         log_error "Failed to create backup directory: ${DIR_POSTGRES_BACKUP}"
-        exit 1
+        return 1
     }
     dump_name="pg_dumpall.sql"
     dump_file="${DIR_POSTGRES_BACKUP}/${dump_name}"
@@ -109,14 +109,14 @@ function snapshot_postgres() {
     # verify backup existence
     if ! [[ -f "${compressed_file}" ]]; then
         log_error "Failed to create database backup at ${compressed_file}"
-        exit 1
+        return 1
     fi
 
     # verify backup size
     backup_size=$(du -h "${compressed_file}" | cut -f1)
     if [[ -z "${backup_size}" ]]; then
         log_error "Failed to determine backup size."
-        exit 1
+        return 1
     fi
 
     log_success "Postgres snapshot of ${backup_size} created at '${compressed_file}'."
@@ -128,7 +128,7 @@ function snapshot_opensearch() {
     TARGET_SERVICE="${service_prefixes[$ENVIRONMENT]}opensearch"
     if ! docker ps --format '{{.Names}}' | grep -q "${TARGET_SERVICE}"; then
         log_error "OpenSearch service '${TARGET_SERVICE}' is not running."
-        exit 1
+        return 1
     fi
 
     snapshot_repo="my-fs-repository"
@@ -138,7 +138,7 @@ function snapshot_opensearch() {
     if [[ "$(echo "${snapshot_repo_status}" | jq -r '._shards.successful')" != "$(echo "${snapshot_repo_status}" | jq -r '._shards.total')" ]]; then
         log_error "Snapshot repository '${snapshot_repo}' is not healthy."
         log_error "Response: ${snapshot_repo_status}"
-        exit 1
+        return 1
     fi
 
     snapshot_status=$(docker exec -it sds-gateway-prod-opensearch bash -c \
@@ -157,7 +157,7 @@ function snapshot_opensearch() {
             else
                 log_error "OpenSearch snapshot failed with state: ${result}"
                 log_error "Response: ${output_json}"
-                exit 1
+                return 1
             fi
         fi
     else
@@ -168,7 +168,7 @@ function snapshot_opensearch() {
 
     mkdir -p "${DIR_OPENSEARCH_BACKUP}" || {
         log_error "Failed to create OpenSearch backup directory: ${DIR_OPENSEARCH_BACKUP}"
-        exit 1
+        return 1
     }
     OPENSEARCH_SNAPSHOT_ZIP="${DIR_OPENSEARCH_BACKUP}/snapshot_${BACKUP_NAME}.zip"
 
@@ -410,13 +410,13 @@ function transfer_to_qa_when_prod() {
     fi
     if [[ ! -d "${DIR_BACKUP}" ]]; then
         log_error "Backup directory does not exist: '${DIR_BACKUP}'"
-        exit 1
+        return 1
     fi
     SOURCE_PATH="$(readlink -f "${DIR_BACKUP}/")"
     DEST_PATH="${QA_BACKUPS_PATH}/${BACKUP_NAME}" # no readlink on remote paths
     if [[ ! -d "${SOURCE_PATH}" ]]; then
         log_error "Source path does not exist: '${SOURCE_PATH}'"
-        exit 1
+        return 1
     fi
     log_msg "Transferring backup to QA server:"
     log_msg " - Src: ${SOURCE_PATH}"
@@ -455,14 +455,14 @@ function main() {
         has_failed=true
     }
 
-    # post-snapshot steps
-    make_read_only_when_prod || log_error "Failed to set read-only permissions."
-    snapshot_stats || log_error "Snapshot stats failed."
-    transfer_to_qa_when_prod || log_error "Transfer to QA failed."
-
-    if [ "$has_failed" = true ]; then
+    if [ "${has_failed}" = true ]; then
         log_fatal_and_exit "One or more snapshot steps failed."
+        snapshot_stats || log_error "Snapshot stats failed."
         return 1
+    else
+        make_read_only_when_prod || log_error "Failed to set read-only permissions."
+        snapshot_stats || log_error "Snapshot stats failed."
+        transfer_to_qa_when_prod || log_error "Transfer to QA failed."
     fi
 
 }
