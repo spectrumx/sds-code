@@ -3,13 +3,17 @@
 	"version": "0.0.1",
 	"devDependencies": {
 		"@babel/core": "^7.25.2",
+		"@babel/plugin-transform-runtime": "^7.25.4",
 		"@babel/preset-env": "^7.25.4",
 		"@biomejs/biome": "2.0.0-beta.5",
 		"@popperjs/core": "^2.11.8",
 		"autoprefixer": "^10.4.20",
+		"babel-jest": "^29.7.0",
 		"babel-loader": "^9.2.1",
 		"bootstrap": "^5.3.3",
 		"css-loader": "^6.5.1",
+		"jest": "^29.7.0",
+		"jest-environment-jsdom": "^29.7.0",
 		"mini-css-extract-plugin": "^2.9.1",
 		"node-sass-tilde-importer": "^1.0.2",
 		"pixrem": "^5.0.0",
@@ -24,12 +28,16 @@
 		"webpack-dev-server": "^5.2.1",
 		"webpack-merge": "^5.8.0"
 	},
+	"dependencies": {
+		"@babel/runtime": "^7.28.4"
+	},
 	"engines": {
 		"node": "20"
 	},
 	"browserslist": ["last 2 versions"],
 	"babel": {
-		"presets": ["@babel/preset-env"]
+		"presets": ["@babel/preset-env"],
+		"plugins": ["@babel/plugin-transform-runtime"]
 	},
 	"parser": "babel-eslint",
 	"parserOptions": {
@@ -38,6 +46,10 @@
 	},
 	"scripts": {
 		"dev": "webpack --config webpack/dev.config.js; webpack serve --config webpack/dev.config.js",
-		"build": "webpack --config webpack/prod.config.js"
+		"build": "webpack --config webpack/prod.config.js",
+		"test": "jest --config sds_gateway/static/js/tests-config/jest.config.js",
+		"test:watch": "jest --config sds_gateway/static/js/tests-config/jest.config.js --watch",
+		"test:coverage": "jest --config sds_gateway/static/js/tests-config/jest.config.js --coverage",
+		"test:ci": "jest --config sds_gateway/static/js/tests-config/jest.config.js --ci --coverage --watchAll=false"
 	}
 }
