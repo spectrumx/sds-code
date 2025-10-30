@@ -59,22 +59,22 @@ class PageLifecycleManager {
 	 */
 	initializeCoreManagers() {
 		// Initialize permissions manager
-		if (this.config.permissions) {
-			this.permissions = new PermissionsManager(this.config.permissions);
+		if (this.config.permissions && window.PermissionsManager) {
+			this.permissions = new window.PermissionsManager(this.config.permissions);
 			this.managers.push(this.permissions);
 		}
 
 		// Initialize download action manager
-		if (this.permissions) {
-			this.downloadActionManager = new DownloadActionManager({
+		if (this.permissions && window.DownloadActionManager) {
+			this.downloadActionManager = new window.DownloadActionManager({
 				permissions: this.permissions,
 			});
 			this.managers.push(this.downloadActionManager);
 		}
 
 		// Initialize details action manager
-		if (this.permissions) {
-			this.detailsActionManager = new DetailsActionManager({
+		if (this.permissions && window.DetailsActionManager) {
+			this.detailsActionManager = new window.DetailsActionManager({
 				permissions: this.permissions,
 			});
 			this.managers.push(this.detailsActionManager);
@@ -108,13 +108,15 @@ class PageLifecycleManager {
 	 */
 	initializeDatasetCreatePage() {
 		// Initialize dataset mode manager for creation
-		this.datasetModeManager = new DatasetModeManager({
-			...this.config.dataset,
-			userPermissionLevel: this.config.permissions?.userPermissionLevel,
-			currentUserId: this.config.permissions?.currentUserId,
-			isOwner: this.config.permissions?.isOwner,
-			datasetPermissions: this.config.permissions?.datasetPermissions,
-		});
+		if (window.DatasetModeManager) {
+			this.datasetModeManager = new window.DatasetModeManager({
+				...this.config.dataset,
+				userPermissionLevel: this.config.permissions?.userPermissionLevel,
+				currentUserId: this.config.permissions?.currentUserId,
+				isOwner: this.config.permissions?.isOwner,
+				datasetPermissions: this.config.permissions?.datasetPermissions,
+			});
+		}
 		this.managers.push(this.datasetModeManager);
 
 		// Initialize search handlers
@@ -126,21 +128,23 @@ class PageLifecycleManager {
 	 */
 	initializeDatasetEditPage() {
 		// Initialize dataset mode manager for editing
-		this.datasetModeManager = new DatasetModeManager({
-			...this.config.dataset,
-			userPermissionLevel: this.config.permissions?.userPermissionLevel,
-			currentUserId: this.config.permissions?.currentUserId,
-			isOwner: this.config.permissions?.isOwner,
-			datasetPermissions: this.config.permissions?.datasetPermissions,
-		});
+		if (window.DatasetModeManager) {
+			this.datasetModeManager = new window.DatasetModeManager({
+				...this.config.dataset,
+				userPermissionLevel: this.config.permissions?.userPermissionLevel,
+				currentUserId: this.config.permissions?.currentUserId,
+				isOwner: this.config.permissions?.isOwner,
+				datasetPermissions: this.config.permissions?.datasetPermissions,
+			});
+		}
 		this.managers.push(this.datasetModeManager);
 
 		// Initialize search handlers
 		this.initializeSearchHandlers();
 
 		// Initialize share action manager for the dataset
-		if (this.config.dataset?.datasetUuid) {
-			this.shareActionManager = new ShareActionManager({
+		if (this.config.dataset?.datasetUuid && window.ShareActionManager) {
+			this.shareActionManager = new window.ShareActionManager({
 				itemUuid: this.config.dataset.datasetUuid,
 				itemType: "dataset",
 				permissions: this.permissions,
@@ -289,8 +293,8 @@ class PageLifecycleManager {
 			const itemUuid = modal.getAttribute("data-item-uuid");
 
 			// Initialize share action manager for this dataset
-			if (itemUuid && this.permissions) {
-				const shareManager = new ShareActionManager({
+			if (itemUuid && this.permissions && window.ShareActionManager) {
+				const shareManager = new window.ShareActionManager({
 					itemUuid: itemUuid,
 					itemType: "dataset",
 					permissions: this.permissions,
@@ -315,8 +319,8 @@ class PageLifecycleManager {
 			const itemUuid = modal.getAttribute("data-item-uuid");
 
 			// Initialize share action manager for this capture
-			if (itemUuid && this.permissions) {
-				const shareManager = new ShareActionManager({
+			if (itemUuid && this.permissions && window.ShareActionManager) {
+				const shareManager = new window.ShareActionManager({
 					itemUuid: itemUuid,
 					itemType: "capture",
 					permissions: this.permissions,
@@ -512,5 +516,7 @@ class PageLifecycleManager {
 // Make class available globally
 window.PageLifecycleManager = PageLifecycleManager;
 
-// Export for ES6 modules (Jest testing)
-export { PageLifecycleManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { PageLifecycleManager };
+}

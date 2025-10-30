@@ -18,24 +18,28 @@ class DatasetModeManager {
 		this.step4 = 3;
 
 		// Initialize permissions manager
-		this.permissions = new PermissionsManager({
-			userPermissionLevel: config.userPermissionLevel,
-			datasetUuid: config.datasetUuid,
-			currentUserId: config.currentUserId,
-			isOwner: config.isOwner,
-			datasetPermissions: config.datasetPermissions,
-		});
+		if (window.PermissionsManager) {
+			this.permissions = new window.PermissionsManager({
+				userPermissionLevel: config.userPermissionLevel,
+				datasetUuid: config.datasetUuid,
+				currentUserId: config.currentUserId,
+				isOwner: config.isOwner,
+				datasetPermissions: config.datasetPermissions,
+			});
+		}
 
 		// Initialize appropriate handler based on mode
-		this.handler = this.isEditMode
-			? new DatasetEditingHandler({
-					...config,
-					permissions: this.permissions,
-				})
-			: new DatasetCreationHandler({
-					...config,
-					formId: "datasetForm",
-				});
+		if (this.isEditMode && window.DatasetEditingHandler) {
+			this.handler = new window.DatasetEditingHandler({
+				...config,
+				permissions: this.permissions,
+			});
+		} else if (!this.isEditMode && window.DatasetCreationHandler) {
+			this.handler = new window.DatasetCreationHandler({
+				...config,
+				formId: "datasetForm",
+			});
+		}
 
 		// Store reference globally for backward compatibility
 		if (this.isEditMode) {
@@ -463,7 +467,7 @@ class DatasetModeManager {
 								},
 							],
 						},
-					});
+					}, null, true); // true = send as JSON
 					if (response.html) {
 						nameElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -521,7 +525,7 @@ class DatasetModeManager {
 								},
 							],
 						},
-					});
+					}, null, true); // true = send as JSON
 					if (response.html) {
 						statusElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -578,7 +582,7 @@ class DatasetModeManager {
 								},
 							],
 						},
-					});
+					}, null, true); // true = send as JSON
 					if (response.html) {
 						descriptionElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -832,7 +836,7 @@ class DatasetModeManager {
 					colspan: colspan,
 					message: message,
 				},
-			});
+			}, null, true); // true = send as JSON
 
 			if (response.html) {
 				tableElement.innerHTML = response.html;
@@ -873,7 +877,7 @@ class DatasetModeManager {
 				context: {
 					permission_summary: permissionSummary,
 				},
-			});
+			}, null, true); // true = send as JSON
 
 			if (response.html) {
 				permissionDisplay.innerHTML = response.html;
@@ -1045,5 +1049,7 @@ class DatasetModeManager {
 // Make class available globally
 window.DatasetModeManager = DatasetModeManager;
 
-// Export for ES6 modules (Jest testing)
-export { DatasetModeManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { DatasetModeManager };
+}

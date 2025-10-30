@@ -135,9 +135,24 @@ window.APIClient = class APIClient {
 	 * @param {string} url - Request URL
 	 * @param {Object} data - Request data
 	 * @param {Object} loadingState - Loading state management
+	 * @param {boolean} asJson - Whether to send as JSON (default: false, sends as form data)
 	 * @returns {Promise<Object>} Response data
 	 */
-	async post(url, data = {}, loadingState = null) {
+	async post(url, data = {}, loadingState = null, asJson = false) {
+		if (asJson) {
+			return this.request(
+				url,
+				{
+					method: "POST",
+					body: JSON.stringify(data),
+					headers: {
+						"Content-Type": "application/json",
+					},
+				},
+				loadingState,
+			);
+		}
+
 		const formData = new FormData();
 		for (const [key, value] of Object.entries(data)) {
 			if (value !== null && value !== undefined) {
@@ -423,5 +438,7 @@ window.APIError = APIError;
 window.LoadingStateManager = LoadingStateManager;
 window.ListRefreshManager = new ListRefreshManager();
 
-// Export for ES6 modules (Jest testing)
-export { APIClient, APIError, LoadingStateManager, ListRefreshManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { APIClient, APIError, LoadingStateManager, ListRefreshManager };
+}

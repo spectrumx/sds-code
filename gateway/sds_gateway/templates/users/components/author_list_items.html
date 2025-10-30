@@ -53,7 +53,6 @@ Context:
                            class="form-control author-name-input"
                            value="{{ author.name }}"
                            placeholder="Enter full name"
-                           {% if author.is_primary %}readonly{% endif %}
                            {% if author.is_marked_for_removal %}disabled{% endif %}
                            data-index="{{ author.index }}"
                            data-field="name" />
@@ -64,7 +63,6 @@ Context:
                            class="form-control author-orcid-input"
                            value="{{ author.orcid_id }}"
                            placeholder="0000-0000-0000-0000"
-                           {% if author.is_primary %}readonly{% endif %}
                            {% if author.is_marked_for_removal %}disabled{% endif %}
                            data-index="{{ author.index }}"
                            data-field="orcid_id" />

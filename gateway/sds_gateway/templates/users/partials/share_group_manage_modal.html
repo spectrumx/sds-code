@@ -1,0 +1,94 @@
+{% load i18n %}
+
+<!-- Manage Members Modal -->
+<div class="modal fade"
+     id="share-modal-sharegroup"
+     tabindex="-1"
+     aria-labelledby="manageMembersModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="manageMembersModalLabel">
+                    <i class="bi bi-person-plus me-2"></i>{% translate "Manage Group Members" %}
+                </h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Add Members Section -->
+                <div class="mb-4">
+                    <h6>{% translate "Add Members" %}</h6>
+                    <form id="addMembersForm">
+                        <input type="hidden" id="addGroupUuid" name="group_uuid" />
+                        <div class="mb-3">
+                            <div class="user-search-input-container">
+                                <div class="selected-users-chips d-flex flex-wrap align-items-center mb-2"></div>
+                                <input type="text"
+                                       class="form-control user-search-input mb-3"
+                                       placeholder="{% translate 'Search users by name or email...' %}"
+                                       id="user-search-sharegroup"
+                                       name="user-search"
+                                       autocomplete="off" />
+                                <!-- User search dropdown -->
+                                <div class="user-search-dropdown d-none"
+                                     id="user-search-dropdown-sharegroup">
+                                    <div class="list-group">
+                                        <!-- Search results will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit"
+                                class="btn btn-primary btn-sm"
+                                id="add-members-btn"
+                                disabled>
+                            <i class="bi bi-person-plus me-1"></i>{% translate "Add Members" %}
+                        </button>
+                    </form>
+                </div>
+                <!-- Shared Assets Section (will be populated by JavaScript) -->
+                <div id="sharedAssetsSection" class="mb-4 d-none">
+                    <!-- Shared assets information will be inserted here -->
+                </div>
+                <!-- Current Members Section -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">{% translate "Current Members" %}</h6>
+                        <span id="memberCount" class="text-muted small"></span>
+                    </div>
+                    <div id="currentMembersList">
+                        <table class="table table-bordered rounded-3">
+                            <tbody id="currentMembers">
+                                <tr>
+                                    <td class="p-2 shadow-sm">
+                                        <div class="text-center text-muted">
+                                            <i class="bi bi-people"></i>
+                                            <p class="mb-0">{% translate "Loading members..." %}</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Pending Changes Message -->
+                <div class="modal-footer">
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="pending-changes-message-sharegroup-footer"
+                              class="text-muted d-none">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Pending changes
+                        </span>
+                        <button type="button"
+                                class="btn btn-primary"
+                                id="save-sharegroup-btn"
+                                disabled>Save</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Close" %}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
