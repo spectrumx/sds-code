@@ -517,6 +517,6 @@ class PageLifecycleManager {
 window.PageLifecycleManager = PageLifecycleManager;
 
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { PageLifecycleManager };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { PageLifecycleManager };
 }
