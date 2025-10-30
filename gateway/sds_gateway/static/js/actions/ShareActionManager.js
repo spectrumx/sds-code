@@ -70,19 +70,7 @@ window.ShareActionManager = class ShareActionManager {
 		}
 
 		// Setup notify checkbox functionality
-		if (!setupNotifyCheckbox || typeof setupNotifyCheckbox !== "function")
-			return;
-
-		const notifyCheckbox = document.getElementById(
-			`notify-users-checkbox-${this.itemUuid}`,
-		);
-		const textareaContainer = document.getElementById(
-			`notify-message-textarea-container-${this.itemUuid}`,
-		);
-
-		if (!notifyCheckbox || !textareaContainer) return;
-
-		setupNotifyCheckbox(this.itemUuid);
+		this.setupNotifyCheckbox(this.itemUuid);
 	}
 
 	/**
@@ -291,12 +279,29 @@ window.ShareActionManager = class ShareActionManager {
 
 		try {
 			this.currentRequest = new AbortController();
+			// Get the search results from the API
 			const response = await window.APIClient.get(
 				`/users/share-item/${this.itemType}/${this.itemUuid}/`,
 				{ q: query, limit: 10 },
 				null, // No loading state for search
 			);
-			this.displayResults(response, dropdown);
+			console.log(response);
+			// Render the HTML fragment using the template
+			if (response) {
+				const users = response || [];
+				const htmlResponse = await window.APIClient.post("/users/render-html/", {
+					template: "users/components/user_search_results.html",
+					context: {
+						users: users,
+					},
+				}, null, true); // true = send as JSON
+
+				// Pass the rendered HTML to displayResults
+				this.displayResults({ html: htmlResponse.html }, dropdown);
+			} else {
+				// No results found
+				this.displayResults({ html: null, results: [] }, dropdown);
+			}
 		} catch (error) {
 			if (error.name === "AbortError") {
 				return;
@@ -549,7 +554,7 @@ window.ShareActionManager = class ShareActionManager {
 					show_remove_button: true,
 					permission_levels: ["viewer", "contributor", "co-owner"],
 				},
-			});
+			}, null, true); // true = send as JSON
 
 			// Insert the server-rendered HTML
 			if (response.html) {
@@ -651,11 +656,9 @@ window.ShareActionManager = class ShareActionManager {
 			if (saveBtn) saveBtn.textContent = "Share";
 
 			// Setup notify checkbox functionality
-			if (typeof setupNotifyCheckbox === "function") {
-				setTimeout(() => {
-					setupNotifyCheckbox(itemUuid);
-				}, 10);
-			}
+			setTimeout(() => {
+				this.setupNotifyCheckbox(itemUuid);
+			}, 10);
 		} else {
 			// Hide notify section, show users with access section
 			if (notifySection) notifySection.classList.add("d-none");
@@ -1065,9 +1068,7 @@ window.ShareActionManager = class ShareActionManager {
 		)) {
 			checkbox.checked = true;
 			const itemUuid = checkbox.id.replace("notify-users-checkbox-", "");
-			if (typeof setupNotifyCheckbox === "function") {
-				setupNotifyCheckbox(itemUuid);
-			}
+			this.setupNotifyCheckbox(itemUuid);
 		}
 		for (const textarea of document.querySelectorAll(
 			'[id^="notify-message-textarea-"]',
@@ -1095,6 +1096,39 @@ window.ShareActionManager = class ShareActionManager {
 	}
 
 	/**
+	 * Setup notify checkbox functionality
+	 * @param {string} itemUuid - Item UUID
+	 */
+	setupNotifyCheckbox(itemUuid) {
+		const notifyCheckbox = document.getElementById(
+			`notify-users-checkbox-${itemUuid}`,
+		);
+		const textareaContainer = document.getElementById(
+			`notify-message-textarea-container-${itemUuid}`,
+		);
+
+		if (!notifyCheckbox || !textareaContainer) {
+			// Don't log error - this is expected for modals without notify functionality
+			return;
+		}
+
+		function toggleTextarea() {
+			if (notifyCheckbox.checked) {
+				textareaContainer.classList.add("show");
+			} else {
+				textareaContainer.classList.remove("show");
+			}
+		}
+
+		// Remove any existing event listeners to prevent duplicates
+		notifyCheckbox.removeEventListener("change", toggleTextarea);
+		notifyCheckbox.addEventListener("change", toggleTextarea);
+
+		// Call toggleTextarea immediately to set initial state
+		toggleTextarea();
+	}
+
+	/**
 	 * Show toast notification - Wrapper for global showAlert
 	 * @param {string} message - Toast message
 	 * @param {string} type - Toast type (success, danger, warning, info)
@@ -1115,5 +1149,7 @@ window.ShareActionManager = class ShareActionManager {
 // Make class available globally
 window.ShareActionManager = ShareActionManager;
 
-// Export for ES6 modules (Jest testing)
-export { ShareActionManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { ShareActionManager };
+}

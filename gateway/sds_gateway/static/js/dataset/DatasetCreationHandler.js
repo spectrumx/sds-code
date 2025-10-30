@@ -1260,7 +1260,7 @@ class DatasetCreationHandler {
 				const response = await window.APIClient.post("/users/render-html/", {
 					template: "users/components/author_list_items.html",
 					context: { authors: normalizedAuthors },
-				});
+				}, null, true); // true = send as JSON
 
 				if (response.html) {
 					authorsList.innerHTML = response.html;
@@ -1362,7 +1362,7 @@ class DatasetCreationHandler {
 						icon: icon,
 						dismissible: true,
 					},
-				});
+				}, null, true); // true = send as JSON
 
 				if (response.html) {
 					errorContainer.innerHTML = response.html;
@@ -1495,23 +1495,13 @@ class DatasetCreationHandler {
 			)
 			.join(", ");
 	}
-
-	/**
-	 * Format file size
-	 * @param {number} bytes - File size in bytes
-	 * @returns {string} Formatted file size
-	 */
-	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-	}
 }
 
 // Make class available globally
 window.DatasetCreationHandler = DatasetCreationHandler;
 
 // Export for ES6 modules (Jest testing)
-export { DatasetCreationHandler };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { DatasetCreationHandler };
+}
