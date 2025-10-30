@@ -77,6 +77,7 @@ from sds_gateway.users.files_utils import items_to_dicts
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
+from sds_gateway.users.forms import UserUpdateForm
 from sds_gateway.users.h5_service import H5PreviewService
 from sds_gateway.users.item_models import Item
 from sds_gateway.users.mixins import ApprovedUserRequiredMixin
@@ -88,7 +89,6 @@ from sds_gateway.users.models import User
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.users.navigation_models import NavigationContext
 from sds_gateway.users.navigation_models import NavigationType
-from sds_gateway.users.forms import UserUpdateForm
 from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import render_html_fragment
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
@@ -1652,18 +1652,30 @@ class GroupCapturesView(
                 "permission_level": permission_level,
                 "is_owner": is_owner,
                 "can_edit_metadata": (
-                    True if not dataset_uuid else UserSharePermission.user_can_edit_dataset(
-                        self.request.user, dataset_uuid, ItemType.DATASET
+                    True
+                    if not dataset_uuid
+                    else UserSharePermission.user_can_edit_dataset(
+                        self.request.user,
+                        dataset_uuid,
+                        ItemType.DATASET,
                     )
                 ),
                 "can_add_assets": (
-                    True if not dataset_uuid else UserSharePermission.user_can_add_assets(
-                        self.request.user, dataset_uuid, ItemType.DATASET
+                    True
+                    if not dataset_uuid
+                    else UserSharePermission.user_can_add_assets(
+                        self.request.user,
+                        dataset_uuid,
+                        ItemType.DATASET,
                     )
                 ),
                 "can_remove_assets": (
-                    True if not dataset_uuid else UserSharePermission.user_can_remove_assets(
-                        self.request.user, dataset_uuid, ItemType.DATASET
+                    True
+                    if not dataset_uuid
+                    else UserSharePermission.user_can_remove_assets(
+                        self.request.user,
+                        dataset_uuid,
+                        ItemType.DATASET,
                     )
                 ),
             }

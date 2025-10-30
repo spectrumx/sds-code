@@ -293,13 +293,18 @@ class AssetSearchHandler {
 	 */
 	async renderSelectedCapturesTable(selectedList, capturesData) {
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/selected_captures_table.html",
-				context: {
-					captures: capturesData,
-					empty_message: "No captures selected",
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/selected_captures_table.html",
+					context: {
+						captures: capturesData,
+						empty_message: "No captures selected",
+					},
 				},
-			}, null, true); // true = send as JSON
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				selectedList.innerHTML = response.html;
@@ -312,7 +317,8 @@ class AssetSearchHandler {
 					'<tr><td colspan="3" class="text-center">No captures selected</td></tr>';
 			} else {
 				selectedList.innerHTML = capturesData
-					.map((capture) => `
+					.map(
+						(capture) => `
 						<tr data-capture-id="${capture.id}">
 							<td>${capture.type}</td>
 							<td>${capture.directory}</td>
@@ -322,7 +328,8 @@ class AssetSearchHandler {
 								</button>
 							</td>
 						</tr>
-					`)
+					`,
+					)
 					.join("");
 			}
 		}
@@ -1076,13 +1083,18 @@ class AssetSearchHandler {
 	 */
 	async renderEmptyFilesTable(tbody) {
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/empty_table_row.html",
-				context: {
-					colspan: 5,
-					message: "No files or directories found",
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/empty_table_row.html",
+					context: {
+						colspan: 5,
+						message: "No files or directories found",
+					},
 				},
-			}, null, true); // true = send as JSON
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				tbody.innerHTML = response.html;
@@ -1244,6 +1256,6 @@ window.AssetSearchHandler = AssetSearchHandler;
 
 // Export for ES6 modules (Jest testing)
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { AssetSearchHandler };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { AssetSearchHandler };
 }

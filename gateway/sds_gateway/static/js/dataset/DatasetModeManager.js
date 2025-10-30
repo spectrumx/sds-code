@@ -31,7 +31,8 @@ class DatasetModeManager {
 			// For creation mode, ensure user has full permissions
 			if (!this.isEditMode) {
 				permissionsConfig.isOwner = true;
-				permissionsConfig.userPermissionLevel = window.PermissionLevels?.OWNER || 'owner';
+				permissionsConfig.userPermissionLevel =
+					window.PermissionLevels?.OWNER || "owner";
 				permissionsConfig.datasetPermissions = {
 					canEditMetadata: true,
 					canAddAssets: true,
@@ -469,22 +470,27 @@ class DatasetModeManager {
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
 				try {
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/change_list.html",
-						context: {
-							changes: [
-								{
-									type: "change",
-									parts: [
-										{ text: 'Change Name: "' },
-										{ text: originalValue },
-										{ text: '" → ' },
-										{ text: `"${currentValue}"`, css_class: "text-warning" },
-									],
-								},
-							],
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: {
+								changes: [
+									{
+										type: "change",
+										parts: [
+											{ text: 'Change Name: "' },
+											{ text: originalValue },
+											{ text: '" → ' },
+											{ text: `"${currentValue}"`, css_class: "text-warning" },
+										],
+									},
+								],
+							},
 						},
-					}, null, true); // true = send as JSON
+						null,
+						true,
+					); // true = send as JSON
 					if (response.html) {
 						nameElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -527,22 +533,27 @@ class DatasetModeManager {
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
 				try {
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/change_list.html",
-						context: {
-							changes: [
-								{
-									type: "change",
-									parts: [
-										{ text: 'Change Status: "' },
-										{ text: originalValue },
-										{ text: '" → ' },
-										{ text: `"${currentValue}"`, css_class: "text-warning" },
-									],
-								},
-							],
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: {
+								changes: [
+									{
+										type: "change",
+										parts: [
+											{ text: 'Change Status: "' },
+											{ text: originalValue },
+											{ text: '" → ' },
+											{ text: `"${currentValue}"`, css_class: "text-warning" },
+										],
+									},
+								],
+							},
 						},
-					}, null, true); // true = send as JSON
+						null,
+						true,
+					); // true = send as JSON
 					if (response.html) {
 						statusElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -584,22 +595,27 @@ class DatasetModeManager {
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
 				try {
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/change_list.html",
-						context: {
-							changes: [
-								{
-									type: "change",
-									parts: [
-										{ text: 'Change Description: "' },
-										{ text: originalValue },
-										{ text: '" → ' },
-										{ text: `"${currentValue}"`, css_class: "text-warning" },
-									],
-								},
-							],
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: {
+								changes: [
+									{
+										type: "change",
+										parts: [
+											{ text: 'Change Description: "' },
+											{ text: originalValue },
+											{ text: '" → ' },
+											{ text: `"${currentValue}"`, css_class: "text-warning" },
+										],
+									},
+								],
+							},
 						},
-					}, null, true); // true = send as JSON
+						null,
+						true,
+					); // true = send as JSON
 					if (response.html) {
 						descriptionElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -847,13 +863,18 @@ class DatasetModeManager {
 	 */
 	async renderEmptyTableRow(tableElement, colspan, message) {
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/empty_table_row.html",
-				context: {
-					colspan: colspan,
-					message: message,
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/empty_table_row.html",
+					context: {
+						colspan: colspan,
+						message: message,
+					},
 				},
-			}, null, true); // true = send as JSON
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				tableElement.innerHTML = response.html;
@@ -889,12 +910,17 @@ class DatasetModeManager {
 	 */
 	async renderPermissionDisplay(permissionSummary, permissionDisplay) {
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/permission_display.html",
-				context: {
-					permission_summary: permissionSummary,
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/permission_display.html",
+					context: {
+						permission_summary: permissionSummary,
+					},
 				},
-			}, null, true); // true = send as JSON
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				permissionDisplay.innerHTML = response.html;
@@ -1067,6 +1093,6 @@ class DatasetModeManager {
 window.DatasetModeManager = DatasetModeManager;
 
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { DatasetModeManager };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DatasetModeManager };
 }

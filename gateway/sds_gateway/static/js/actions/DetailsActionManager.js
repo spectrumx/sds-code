@@ -528,10 +528,15 @@ class DetailsActionManager {
 				),
 			}));
 
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/modal_permissions.html",
-				context: { permissions: normalizedPermissions },
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/modal_permissions.html",
+					context: { permissions: normalizedPermissions },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				permissionsContainer.innerHTML = response.html;
@@ -574,10 +579,15 @@ class DetailsActionManager {
 		}
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/modal_technical_details.html",
-				context: { details: details },
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/modal_technical_details.html",
+					context: { details: details },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				technicalDetails.innerHTML = response.html;
@@ -823,10 +833,15 @@ class DetailsActionManager {
 		const rows = this.buildTreeRows(tree, 0);
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/modal_file_tree.html",
-				context: { rows: rows },
-			}, null, true); // true = send as JSON
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/modal_file_tree.html",
+					context: { rows: rows },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				tableBody.innerHTML = response.html;
@@ -974,6 +989,6 @@ class DetailsActionManager {
 window.DetailsActionManager = DetailsActionManager;
 
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { DetailsActionManager };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DetailsActionManager };
 }
