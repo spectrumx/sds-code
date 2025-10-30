@@ -9,7 +9,5 @@ Context:
 }
 {% endcomment %}
 <tr>
-    <td colspan="{{ colspan|default:5 }}" class="text-center text-muted">
-        {{ message|default:"No items found" }}
-    </td>
+    <td colspan="{{ colspan|default:5 }}" class="text-center text-muted">{{ message|default:"No items found" }}</td>
 </tr>

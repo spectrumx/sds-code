@@ -442,6 +442,11 @@ window.LoadingStateManager = LoadingStateManager;
 window.ListRefreshManager = new ListRefreshManager();
 
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { APIClient, APIError, LoadingStateManager, ListRefreshManager };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = {
+		APIClient,
+		APIError,
+		LoadingStateManager,
+		ListRefreshManager,
+	};
 }

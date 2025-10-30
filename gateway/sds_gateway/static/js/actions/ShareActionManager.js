@@ -289,12 +289,17 @@ window.ShareActionManager = class ShareActionManager {
 			// Render the HTML fragment using the template
 			if (response) {
 				const users = response || [];
-				const htmlResponse = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/user_search_results.html",
-					context: {
-						users: users,
+				const htmlResponse = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/user_search_results.html",
+						context: {
+							users: users,
+						},
 					},
-				}, null, true); // true = send as JSON
+					null,
+					true,
+				); // true = send as JSON
 
 				// Pass the rendered HTML to displayResults
 				this.displayResults({ html: htmlResponse.html }, dropdown);
@@ -546,15 +551,20 @@ window.ShareActionManager = class ShareActionManager {
 
 		try {
 			// Request server to render using generic endpoint
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/user_chips.html",
-				context: {
-					users: this.selectedUsersMap[inputId],
-					show_permission_select: true,
-					show_remove_button: true,
-					permission_levels: ["viewer", "contributor", "co-owner"],
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/user_chips.html",
+					context: {
+						users: this.selectedUsersMap[inputId],
+						show_permission_select: true,
+						show_remove_button: true,
+						permission_levels: ["viewer", "contributor", "co-owner"],
+					},
 				},
-			}, null, true); // true = send as JSON
+				null,
+				true,
+			); // true = send as JSON
 
 			// Insert the server-rendered HTML
 			if (response.html) {
@@ -1150,6 +1160,6 @@ window.ShareActionManager = class ShareActionManager {
 window.ShareActionManager = ShareActionManager;
 
 // Export for ES6 modules (Jest testing) - only if in module context
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ShareActionManager };
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { ShareActionManager };
 }
