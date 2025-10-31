@@ -1,0 +1,40 @@
+<div class="tab-pane fade" id="step2">
+    {% if existing_dataset %}
+        {% include "users/partials/captures_management.html" %}
+    {% else %}
+        <div class="row g-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            Select Captures for Dataset: "<span class="dataset-name-display">Untitled Dataset</span>"
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3" id="captures-search-form">
+                            <div class="row g-3">
+                                {% for field in capture_search_form %}
+                                    <div class="col-md-3">
+                                        <div class="form-group">
+                                            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                            {{ field }}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                                <div class="col-12 d-flex gap-2">
+                                    <button type="button"
+                                            class="btn btn-primary btn-sm btn-fixed-width"
+                                            id="search-captures">Search Captures</button>
+                                    <button type="button"
+                                            class="btn btn-secondary btn-sm btn-fixed-width"
+                                            id="clear-captures-search">Clear</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% include "users/partials/captures_table.html" %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
