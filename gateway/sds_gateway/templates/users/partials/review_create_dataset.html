@@ -1,12 +1,16 @@
 {% load custom_filters %}
 
+<!-- Publishing Information Alert Banners -->
+<div class="col-12 mb-4" id="publishing-alerts-container">
+    <!-- Alert banners will be dynamically inserted here by JavaScript -->
+</div>
 <!-- Dataset Information -->
 <div class="col-4 mb-4">
     <div class="card">
         <div class="card-header bg-light">
             <h5 class="mb-0">Dataset Information</h5>
         </div>
-        <div class="card-body" id="dataset-info-review-body">
+        <div class="card-body p-4" id="dataset-info-review-body">
             <div class="mb-3">
                 <label class="fw-bold">Dataset Name</label>
                 <p class="mb-0 dataset-name"></p>
@@ -17,18 +21,6 @@
                 <label class="fw-bold">Dataset Authors</label>
                 <div class="mb-0 dataset-authors"></div>
                 <ul class="mb-0 dataset-authors-change-list">
-                </ul>
-            </div>
-            <div class="mb-3">
-                <label class="fw-bold">Status</label>
-                <p class="mb-0 dataset-status"></p>
-                <ul class="mb-0 dataset-status-change-list">
-                </ul>
-            </div>
-            <div class="mb-3">
-                <label class="fw-bold">Visibility</label>
-                <p class="mb-0 dataset-visibility"></p>
-                <ul class="mb-0 dataset-visibility-change-list">
                 </ul>
             </div>
             <div class="mb-0">
@@ -53,7 +45,7 @@
                 <h5 class="mb-0">Pending Asset Changes</h5>
                 <span class="badge bg-warning pending-changes-count">0 changes</span>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-4">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0 pending-changes-table">
                         <thead>
@@ -79,7 +71,7 @@
                 <h5 class="mb-0">Selected Captures</h5>
                 <span class="badge bg-primary captures-count">0 selected</span>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-4">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0 captures-table">
                         <thead>
@@ -105,7 +97,7 @@
                 <h5 class="mb-0">Selected Files</h5>
                 <span class="badge bg-primary files-count">0 selected</span>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-4">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0 files-table">
                         <thead>

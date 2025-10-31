@@ -467,8 +467,8 @@ class DatasetCreationHandler {
 		if (direction < 0 || this.validateCurrentStep()) {
 			const nextStep = this.currentStep + direction;
 
-			// Update review step if moving to it
-			if (nextStep === 3) {
+			// Update review step if moving to it (step 5 = index 4)
+			if (nextStep === 4) {
 				this.updateReviewStep();
 			}
 
@@ -487,7 +487,7 @@ class DatasetCreationHandler {
 	 */
 	updateReviewStep() {
 		// Update dataset name
-		const nameDisplay = document.querySelector("#step4 .dataset-name");
+		const nameDisplay = document.querySelector("#step5 .dataset-name");
 		if (nameDisplay) {
 			nameDisplay.textContent = this.nameField ? this.nameField.value : "";
 		}
@@ -499,37 +499,11 @@ class DatasetCreationHandler {
 			this.updateAuthorsDisplayFallback();
 		}
 
-		// Update status display
-		const statusDisplay = document.querySelector("#step4 .dataset-status");
-		if (statusDisplay) {
-			if (this.statusField?.options && this.statusField.selectedIndex >= 0) {
-				statusDisplay.textContent =
-					this.statusField.options[this.statusField.selectedIndex].text;
-			} else {
-				statusDisplay.textContent = "";
-			}
-		}
-
-		// Update visibility display
-		const visibilityDisplay = document.querySelector(
-			"#step4 .dataset-visibility",
-		);
-		if (visibilityDisplay) {
-			const isPublic =
-				document.querySelector('input[name="is_public"]:checked')?.value ===
-				"true";
-			if (isPublic) {
-				visibilityDisplay.innerHTML =
-					'<span class="badge bg-primary"><i class="bi bi-globe me-1"></i>Public</span>';
-			} else {
-				visibilityDisplay.innerHTML =
-					'<span class="badge bg-danger"><i class="bi bi-lock-fill me-1"></i>Private</span>';
-			}
-		}
+		// Status and visibility are now handled in publishing info panel by DatasetModeManager
 
 		// Update description display
 		const descriptionDisplay = document.querySelector(
-			"#step4 .dataset-description",
+			"#step5 .dataset-description",
 		);
 		if (descriptionDisplay) {
 			descriptionDisplay.textContent = this.descriptionField
@@ -546,7 +520,7 @@ class DatasetCreationHandler {
 	 */
 	updateAuthorsDisplayFallback() {
 		const authorsField = document.getElementById("id_authors");
-		const authorsDisplay = document.querySelector("#step4 .dataset-authors");
+		const authorsDisplay = document.querySelector("#step5 .dataset-authors");
 
 		if (authorsField?.value && authorsDisplay) {
 			try {
@@ -637,12 +611,12 @@ class DatasetCreationHandler {
 		}
 
 		if (this.submitBtn) {
-			const isLastStep = this.currentStep === this.steps.length - 1;
-			if (isLastStep) {
-				window.DOMUtils.show(this.submitBtn);
+			// Only show submit button on final step (step 5, index 4)
+			if (this.currentStep === 4) {
+				window.DOMUtils.show(this.submitBtn, "display-inline-block");
 				this.submitBtn.disabled = !isValid;
 			} else {
-				window.DOMUtils.hide(this.submitBtn);
+				window.DOMUtils.hide(this.submitBtn, "display-inline-block");
 			}
 		}
 	}
@@ -672,7 +646,7 @@ class DatasetCreationHandler {
 		if (this.nextBtn) {
 			this.nextBtn.disabled = !isValid;
 		}
-		if (this.submitBtn && this.currentStep === this.steps.length - 1) {
+		if (this.submitBtn && this.currentStep === 4) {
 			this.submitBtn.disabled = !isValid;
 		}
 
