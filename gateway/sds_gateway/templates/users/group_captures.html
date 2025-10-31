@@ -56,7 +56,12 @@
                                 <button type="button"
                                         class="btn btn-outline-primary inactive-tab"
                                         id="step4-tab">
-                                    <span class="step-number">4</span>
+                                    <span class="step-number">4</span> Publishing Info
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-primary inactive-tab"
+                                        id="step5-tab">
+                                    <span class="step-number">5</span>
                                     {% if existing_dataset %}
                                         Review and Update
                                     {% else %}
@@ -85,6 +90,109 @@
                                 {% include "users/partials/step_1.html" %}
                                 {% include "users/partials/step_2.html" %}
                                 {% include "users/partials/step_3.html" %}
+                                <!-- Step 4: Publishing Info -->
+                                <div class="tab-pane fade" id="step4">
+                                    {% if can_edit_metadata %}
+                                        <div class="row g-4">
+                                            <div class="col-md-2"></div>
+                                            <div class="col-md-8">
+                                                <div class="card" id="publishing-info-card">
+                                                    <div class="card-body">
+                                                        <h5 class="card-title mb-4">Dataset Publishing</h5>
+                                                        
+                                                        <!-- Publish Question -->
+                                                        <div class="mb-4">
+                                                            <label class="form-label fw-bold mb-3">
+                                                                Would you like to publish this dataset (set status to Final)?
+                                                            </label>
+                                                            <div class="mb-2">
+                                                                <span class="badge bg-secondary" id="current-status-badge">Draft</span>
+                                                                <span class="text-muted ms-2">Current status</span>
+                                                            </div>
+                                                            <div class="alert alert-warning mb-3">
+                                                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                                                <strong>Warning:</strong> Publishing the dataset is irreversible. Once published, the dataset status cannot be changed back to Draft.
+                                                            </div>
+                                                            <div class="form-check form-switch form-switch-lg mb-3">
+                                                                <input class="form-check-input"
+                                                                       type="checkbox"
+                                                                       role="switch"
+                                                                       id="publish-dataset-toggle"
+                                                                       {% if existing_dataset and existing_dataset.status == 'final' %}checked{% endif %} />
+                                                                <label class="form-check-label" for="publish-dataset-toggle">
+                                                                    <strong>Yes, publish this dataset</strong>
+                                                                </label>
+                                                            </div>
+                                                            
+                                                            <!-- Public/Private Toggle (only shown when publishing) -->
+                                                            <div id="visibility-toggle-section" class="d-none">
+                                                                <hr class="my-4">
+                                                                <label class="form-label fw-bold mb-3">
+                                                                    Dataset Visibility
+                                                                    <span class="text-danger">*</span>
+                                                                </label>
+                                                                <div class="btn-group w-100 mb-3" role="group" aria-label="Dataset visibility">
+                                                                    <input type="radio"
+                                                                           class="btn-check"
+                                                                           name="{{ dataset_form.is_public.name }}"
+                                                                           id="private-option"
+                                                                           value="false"
+                                                                           {% if not dataset_form.is_public.value %}checked{% endif %} />
+                                                                    <label class="btn btn-outline-danger" for="private-option">
+                                                                        <i class="bi bi-lock-fill me-2"></i>Private
+                                                                    </label>
+                                                                    <input type="radio"
+                                                                           class="btn-check"
+                                                                           name="{{ dataset_form.is_public.name }}"
+                                                                           id="public-option"
+                                                                           value="true"
+                                                                           {% if dataset_form.is_public.value %}checked{% endif %} />
+                                                                    <label class="btn btn-outline-primary" for="public-option">
+                                                                        <i class="bi bi-globe me-2"></i>Public
+                                                                    </label>
+                                                                </div>
+                                                                <div id="public-warning-message" class="alert alert-danger d-none">
+                                                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                                                    <strong>Warning:</strong> Making this dataset public is irreversible and will make it viewable to anyone with access to the site.
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <!-- Hidden status field (will be set via JavaScript) -->
+                                                        <div style="display: none;">
+                                                            {{ dataset_form.status }}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <div class="row g-4">
+                                            <div class="col-md-2"></div>
+                                            <div class="col-md-8">
+                                                <div class="card">
+                                                    <div class="card-body">
+                                                        <h5 class="card-title mb-4">Dataset Publishing</h5>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">Status</label>
+                                                            <input type="text"
+                                                                   class="form-control"
+                                                                   value="{{ existing_dataset.get_status_display }}"
+                                                                   readonly />
+                                                        </div>
+                                                        <div class="mb-0">
+                                                            <label class="form-label fw-bold">Visibility</label>
+                                                            <input type="text"
+                                                                   class="form-control"
+                                                                   value="{% if existing_dataset.is_public %}Public{% else %}Private{% endif %}"
+                                                                   readonly />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
                                 {% include "users/partials/step_4.html" %}
                             </div>
                         </div>
@@ -93,7 +201,7 @@
                         <div class="d-flex justify-content-end">
                             <button type="button" class="btn btn-secondary me-2" id="prevStep">Previous</button>
                             <button type="button" class="btn btn-primary me-2" id="nextStep">Next</button>
-                            <button type="submit" class="btn btn-success" id="submitForm">
+                            <button type="submit" class="btn btn-success d-none" id="submitForm">
                                 {% if existing_dataset %}
                                     Update Dataset
                                 {% else %}
@@ -311,7 +419,9 @@
                     initialFiles: {{ selected_files|safe }},
                     initialCaptureDetails: {{ selected_captures_details_json|safe }},
                     initialFileDetails: {{ selected_files_details_json|safe }},
-                    initialAuthors: {{ existing_dataset.authors|safe|default:"[]" }}
+                    initialAuthors: {{ existing_dataset.authors|safe|default:"[]" }},
+                    existingDatasetStatus: {% if existing_dataset %}'{{ existing_dataset.status }}'{% else %}null{% endif %},
+                    existingDatasetIsPublic: {% if existing_dataset %}{{ existing_dataset.is_public|yesno:"true,false" }}{% else %}false{% endif %}
                 });
 
                 // Make it globally available
@@ -320,80 +430,247 @@
                 // Show the body after basic initialization
                 document.getElementById('body').classList.remove('d-none');
 
-                // Initialize visibility toggle
-                initializeVisibilityToggle();
+                // Initialize publishing info handlers
+                initializePublishingInfo();
             });
 
-            function initializeVisibilityToggle() {
+            function initializePublishingInfo() {
+                const publishToggle = document.getElementById('publish-dataset-toggle');
+                const statusField = document.getElementById('id_status');
+                const visibilitySection = document.getElementById('visibility-toggle-section');
+                const publishingCard = document.getElementById('publishing-info-card');
                 const publicOption = document.getElementById('public-option');
                 const privateOption = document.getElementById('private-option');
+                const publicWarning = document.getElementById('public-warning-message');
+                const statusBadge = document.getElementById('current-status-badge');
 
+                if (!publishToggle || !statusField) return;
+
+                // Initialize status based on existing dataset or default to draft
+                const currentStatus = statusField.value || 'draft';
+                
+                // Check if this is an existing final dataset from database (not current session)
+                // We need to check if existingDatasetStatus was passed from the template
+                const existingStatus = statusField.getAttribute('data-initial-status') || 
+                                     (window.datasetModeManager && window.datasetModeManager.config && 
+                                      window.datasetModeManager.config.existingDatasetStatus) ||
+                                     null;
+                const isExistingFinal = existingStatus === 'final';
+                const isFinalInCurrentSession = currentStatus === 'final';
+                
+                // Only apply restrictions if this is an existing final dataset (from database)
+                // NOT if user is just publishing in current session
+                if (isExistingFinal) {
+                    publishToggle.checked = true;
+                    // Disable publish toggle (can't unpublish existing final dataset)
+                    publishToggle.disabled = true;
+                    
+                    // Show visibility section if published
+                    if (visibilitySection) {
+                        visibilitySection.classList.remove('d-none');
+                    }
+                    updateStatusField('final');
+                    
+                    // Check if dataset is currently public or private (from database)
+                    const existingIsPublic = (window.datasetModeManager && window.datasetModeManager.config && 
+                                             window.datasetModeManager.config.existingDatasetIsPublic) || false;
+                    const isCurrentlyPublic = (publicOption && publicOption.checked) || existingIsPublic;
+                    
+                    if (isCurrentlyPublic) {
+                        // Already public - disable both options (view-only)
+                        if (publicOption) publicOption.disabled = true;
+                        if (privateOption) privateOption.disabled = true;
+                    } else {
+                        // Private - allow changing to public only
+                        if (privateOption) privateOption.disabled = true;
+                        // Public option remains enabled
+                    }
+                } else if (isFinalInCurrentSession) {
+                    // User is publishing in current session - allow editing
+                    publishToggle.checked = true;
+                    // Don't disable publish toggle during current session
+                    if (visibilitySection) {
+                        visibilitySection.classList.remove('d-none');
+                    }
+                    updateStatusField('final');
+                } else {
+                    updateStatusField('draft');
+                }
+                updateStatusBadge(currentStatus);
+
+                // Handle publish toggle change
+                publishToggle.addEventListener('change', function() {
+                    if (this.checked) {
+                        // Publishing - set status to final and show visibility options
+                        updateStatusField('final');
+                        updateStatusBadge('final');
+                        if (visibilitySection) {
+                            visibilitySection.classList.remove('d-none');
+                        }
+                    } else {
+                        // Not publishing - set status to draft and hide visibility options
+                        updateStatusField('draft');
+                        updateStatusBadge('draft');
+                        if (visibilitySection) {
+                            visibilitySection.classList.add('d-none');
+                        }
+                        // Reset visibility to private if unpublished
+                        if (publicOption && publicOption.checked) {
+                            if (privateOption) {
+                                privateOption.checked = true;
+                            }
+                            updateCardBorder(false);
+                            if (publicWarning) {
+                                publicWarning.classList.add('d-none');
+                            }
+                        }
+                    }
+                    // Update review display (submit button will be updated when reaching step 5)
+                    if (window.updateReviewDatasetDisplay) {
+                        window.updateReviewDatasetDisplay();
+                    }
+                    
+                    // Only update button if we're on step 5
+                    if (window.datasetModeManager && window.datasetModeManager.currentStep === window.datasetModeManager.step5) {
+                        updateSubmitButton();
+                    }
+                });
+
+                // Handle visibility toggle changes
                 if (publicOption) {
-                    // Add change event listener for public option
                     publicOption.addEventListener('change', function() {
                         if (this.checked) {
-                            showPublicWarning();
+                            updateCardBorder(true);
+                            if (publicWarning) {
+                                publicWarning.classList.remove('d-none');
+                            }
+                            
+                            // If dataset is final, disable private option permanently
+                            const statusField = document.getElementById('id_status');
+                            const currentStatus = statusField ? statusField.value : 'draft';
+                            if (currentStatus === 'final' && privateOption) {
+                                privateOption.disabled = true;
+                            }
                         }
-                        // Update review display when visibility changes
                         if (window.updateReviewDatasetDisplay) {
                             window.updateReviewDatasetDisplay();
+                        }
+                        // Only update button if we're on step 5
+                        if (window.datasetModeManager && window.datasetModeManager.currentStep === window.datasetModeManager.step5) {
+                            updateSubmitButton();
                         }
                     });
                 }
 
                 if (privateOption) {
-                    // Add change event listener for private option
                     privateOption.addEventListener('change', function() {
-                        // Update review display when visibility changes
+                        // Prevent changing to private if dataset is final and was public
+                        const statusField = document.getElementById('id_status');
+                        const currentStatus = statusField ? statusField.value : 'draft';
+                        if (currentStatus === 'final' && publicOption && publicOption.checked) {
+                            // Don't allow changing back to private for final datasets
+                            this.checked = false;
+                            if (publicOption) {
+                                publicOption.checked = true;
+                            }
+                            return;
+                        }
+                        
+                        if (this.checked) {
+                            updateCardBorder(false);
+                            if (publicWarning) {
+                                publicWarning.classList.add('d-none');
+                            }
+                        }
                         if (window.updateReviewDatasetDisplay) {
                             window.updateReviewDatasetDisplay();
                         }
+                        // Only update button if we're on step 5
+                        if (window.datasetModeManager && window.datasetModeManager.currentStep === window.datasetModeManager.step5) {
+                            updateSubmitButton();
+                        }
                     });
                 }
+
+                // Don't initialize submit button on page load - it will be updated when user reaches step 5
             }
 
-            function showPublicWarning() {
-                // Check if status is Final
-                const statusSelect = document.querySelector('select[name="status"]');
-                if (statusSelect && statusSelect.value !== 'final') {
-                    // Show inline warning message
-                    showInlineWarning('Only datasets with "Final" status can be made public. Please change the status to "Final" first.');
-                    // Switch back to private
-                    const privateOption = document.getElementById('private-option');
-                    if (privateOption) {
-                        privateOption.checked = true;
+            function updateStatusField(status) {
+                const statusField = document.getElementById('id_status');
+                if (statusField) {
+                    statusField.value = status;
+                }
+            }
+
+            function updateStatusBadge(status) {
+                const statusBadge = document.getElementById('current-status-badge');
+                if (statusBadge) {
+                    if (status === 'final') {
+                        statusBadge.textContent = 'Final';
+                        statusBadge.className = 'badge bg-success';
+                    } else {
+                        statusBadge.textContent = 'Draft';
+                        statusBadge.className = 'badge bg-secondary';
                     }
                 }
             }
 
-            function showInlineWarning(message) {
-                // Remove any existing warning
-                const existingWarning = document.querySelector('.visibility-warning');
-                if (existingWarning) {
-                    existingWarning.remove();
-                }
-
-                // Create warning element
-                const warningDiv = document.createElement('div');
-                warningDiv.className = 'alert alert-warning alert-dismissible fade show visibility-warning mt-2';
-                warningDiv.innerHTML = `
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                `;
-
-                // Insert after the button group
-                const buttonGroup = document.querySelector('.btn-group');
-                if (buttonGroup) {
-                    buttonGroup.parentNode.insertBefore(warningDiv, buttonGroup.nextSibling);
-                }
-
-                // Auto-dismiss after 5 seconds
-                setTimeout(() => {
-                    if (warningDiv && warningDiv.parentNode) {
-                        warningDiv.remove();
+            function updateCardBorder(isPublic) {
+                const publishingCard = document.getElementById('publishing-info-card');
+                if (publishingCard) {
+                    if (isPublic) {
+                        publishingCard.classList.add('border-danger', 'border-3');
+                    } else {
+                        publishingCard.classList.remove('border-danger', 'border-3');
                     }
-                }, 5000);
+                }
+            }
+
+            function updateSubmitButton() {
+                const submitBtn = document.getElementById('submitForm');
+                const publishToggle = document.getElementById('publish-dataset-toggle');
+                const publicOption = document.getElementById('public-option');
+                
+                if (!submitBtn) return;
+                
+                // Only update button if we're on step 5 (final review page)
+                // Check if button is actually visible (which means we're on step 5)
+                const isButtonVisible = !submitBtn.classList.contains('d-none') && 
+                                      submitBtn.offsetParent !== null &&
+                                      window.getComputedStyle(submitBtn).display !== 'none';
+                
+                // Don't update if button shouldn't be visible
+                if (!isButtonVisible) {
+                    return;
+                }
+                
+                // Update button text/style based on publishing status
+                // Note: Button visibility is controlled by step navigation (only shown on step 5)
+                if (!publishToggle) {
+                    // Fallback if toggle not found - use default styling
+                    const isEditMode = {{ existing_dataset|yesno:"true,false" }};
+                    submitBtn.className = 'btn btn-success';
+                    submitBtn.textContent = isEditMode ? 'Update Dataset' : 'Create Dataset';
+                    return;
+                }
+
+                const isPublishing = publishToggle.checked;
+                const isPublic = publicOption && publicOption.checked;
+
+                if (isPublishing && isPublic) {
+                    // Publishing and making public - red button with "Publish Dataset"
+                    submitBtn.className = 'btn btn-danger';
+                    submitBtn.textContent = 'Publish Dataset';
+                } else if (isPublishing) {
+                    // Publishing but private - warning style
+                    submitBtn.className = 'btn btn-warning';
+                    submitBtn.textContent = 'Publish Dataset';
+                } else {
+                    // Not publishing - normal style
+                    submitBtn.className = 'btn btn-success';
+                    const isEditMode = {{ existing_dataset|yesno:"true,false" }};
+                    submitBtn.textContent = isEditMode ? 'Update Dataset' : 'Create Dataset';
+                }
             }
 
 </script>
