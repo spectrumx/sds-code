@@ -3,6 +3,7 @@
  * Main orchestrator that coordinates all waterfall components
  */
 
+import { generateErrorMessage, setupErrorDisplay } from "../errorHandler.js";
 import {
 	DEFAULT_COLOR_MAP,
 	ERROR_MESSAGES,
@@ -575,7 +576,7 @@ class WaterfallVisualization {
 			} else if (data.processing_status === "failed") {
 				// Job failed
 				this.stopStatusPolling();
-				this.showError(data.processing_error || "Waterfall generation failed");
+				this.handleProcessingError(data);
 				this.setGeneratingState(false);
 			}
 			// If still processing, continue polling
@@ -748,29 +749,6 @@ class WaterfallVisualization {
 	}
 
 	/**
-	 * Show error message
-	 */
-	showError(message) {
-		// Clear data state first
-		this.waterfallData = [];
-		this.parsedWaterfallData = [];
-		this.totalSlices = 0;
-		this.scaleMin = null;
-		this.scaleMax = null;
-
-		// Hide all visualization components
-		this.hideVisualizationComponents();
-
-		// Display error message in the main plot area
-		this.displayErrorInPlot(message);
-
-		// Update controls to reflect empty state
-		if (this.controls) {
-			this.controls.setTotalSlices(0);
-		}
-	}
-
-	/**
 	 * Hide all visualization components
 	 */
 	hideVisualizationComponents() {
@@ -796,24 +774,10 @@ class WaterfallVisualization {
 	}
 
 	/**
-	 * Display error message in the plot area
-	 */
-	displayErrorInPlot(message) {
-		const errorDisplay = document.getElementById("waterfallErrorDisplay");
-		if (errorDisplay) {
-			const errorText = errorDisplay.querySelector("p");
-			if (errorText) {
-				errorText.textContent = message;
-			}
-			errorDisplay.classList.remove("d-none");
-		}
-	}
-
-	/**
 	 * Hide error display
 	 */
 	hideErrorDisplay() {
-		const errorDisplay = document.getElementById("waterfallErrorDisplay");
+		const errorDisplay = document.getElementById("visualizationErrorDisplay");
 		if (errorDisplay) {
 			errorDisplay.classList.add("d-none");
 		}
@@ -841,6 +805,57 @@ class WaterfallVisualization {
 		const colorLegend = document.getElementById("colorLegend");
 		if (colorLegend) {
 			colorLegend.classList.remove("d-none");
+		}
+	}
+
+	/**
+	 * Handle processing error with detailed information
+	 */
+	handleProcessingError(data) {
+		const errorInfo = data.error_info || {};
+		const hasSourceDataError = data.has_source_data_error || false;
+		const { message, errorDetail } = generateErrorMessage(
+			errorInfo,
+			hasSourceDataError,
+		);
+		this.showError(message, errorDetail);
+	}
+
+	/**
+	 * Show error message
+	 */
+	showError(message, errorDetail = null) {
+		// Clear data state first
+		this.waterfallData = [];
+		this.parsedWaterfallData = [];
+		this.totalSlices = 0;
+		this.scaleMin = null;
+		this.scaleMax = null;
+
+		// Hide all visualization components
+		this.hideVisualizationComponents();
+
+		// Update controls to reflect empty state
+		if (this.controls) {
+			this.controls.setTotalSlices(0);
+		}
+
+		// Update error display
+		const errorDisplay = document.getElementById("visualizationErrorDisplay");
+		if (errorDisplay) {
+			const messageElement = errorDisplay.querySelector("p.error-message-text");
+			const errorDetailElement = errorDisplay.querySelector(
+				"p.error-detail-line",
+			);
+
+			setupErrorDisplay({
+				messageElement,
+				errorDetailElement,
+				message,
+				errorDetail,
+			});
+
+			errorDisplay.classList.remove("d-none");
 		}
 	}
 

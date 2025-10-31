@@ -5,6 +5,7 @@ from typing import Any
 from loguru import logger
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.visualizations.errors import ConfigurationError
 from sds_gateway.visualizations.models import PostProcessedData
 from sds_gateway.visualizations.models import ProcessingStatus
 from sds_gateway.visualizations.models import ProcessingType
@@ -36,10 +37,25 @@ def launch_visualization_processing(
         # Validate processing config
         if not processing_config:
             error_msg = "No processing config specified"
-            raise ValueError(error_msg)  # noqa: TRY301
+            raise ConfigurationError(error_msg)  # noqa: TRY301
 
         # Get the capture
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+
+        # Get the appropriate pipeline from the database
+        from sds_gateway.visualizations.models import (  # noqa: PLC0415
+            get_latest_pipeline_by_base_name,
+        )
+
+        # Always use the visualization pipeline - individual cogs will check if they
+        # should run
+        pipeline_name = "visualization_processing"
+        pipeline = get_latest_pipeline_by_base_name(pipeline_name)
+        if not pipeline:
+            error_msg = (
+                f"No {pipeline_name} pipeline found. Please run setup_pipelines."
+            )
+            raise ConfigurationError(error_msg)  # noqa: TRY301
 
         # Create PostProcessedData records for each processing type
         logger.info(
@@ -66,6 +82,7 @@ def launch_visualization_processing(
                     processing_parameters=parameters,
                     processing_status=ProcessingStatus.Pending.value,
                     metadata={},
+                    pipeline_id=pipeline.name,
                 )
 
                 # Add processed_data_id to the config
@@ -79,21 +96,6 @@ def launch_visualization_processing(
                     f"for {processing_type}"
                 )
 
-        # Get the appropriate pipeline from the database
-        from sds_gateway.visualizations.models import (  # noqa: PLC0415
-            get_latest_pipeline_by_base_name,
-        )
-
-        # Always use the visualization pipeline - individual cogs will check if they
-        # should run
-        pipeline_name = "visualization_processing"
-        pipeline = get_latest_pipeline_by_base_name(pipeline_name)
-        if not pipeline:
-            error_msg = (
-                f"No {pipeline_name} pipeline found. Please run setup_pipelines."
-            )
-            raise ValueError(error_msg)  # noqa: TRY301
-
         # Launch the visualization pipeline with updated processing config
         logger.info(
             f"Launching pipeline {pipeline_name} for capture {capture_uuid} "
@@ -105,12 +107,6 @@ def launch_visualization_processing(
         logger.info(f"Pipeline launched successfully for capture {capture_uuid}")
 
         return {
-            "status": "success",
-            "message": (
-                f"Visualization processing started for {len(processing_config)} "
-                f"processing types"
-            ),
-            "capture_uuid": capture_uuid,
             "processing_config": updated_processing_config,
         }
     except Exception as e:

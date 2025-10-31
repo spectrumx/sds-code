@@ -7,7 +7,10 @@
 {% endblock title %}
 {% block css %}
     {{ block.super }}
-    <link rel="stylesheet" href="{% static 'css/spectrogram.css' %}" />
+    <link rel="stylesheet"
+          href="{% static 'css/visualizations/visualizations.css' %}" />
+    <link rel="stylesheet"
+          href="{% static 'css/visualizations/spectrogram.css' %}" />
 {% endblock css %}
 {% block content %}
     {% csrf_token %}
@@ -119,9 +122,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <!-- Status Messages -->
-                            <div id="statusMessage" class="text-center p-4">
-                                <p class="text-muted"></p>
+                            <div id="visualizationErrorDisplay"
+                                 class="visualization-error-display d-none">
+                                <p class="error-message-text"></p>
+                                <p class="error-detail-line text-muted small mt-2 d-none"></p>
                             </div>
                         </div>
                     </div>
@@ -158,5 +162,6 @@
 {% endblock content %}
 {% block javascript %}
     <!-- Spectrogram Visualization Module -->
-    <script type="module" src="{% static 'js/spectrogram/index.js' %}"></script>
+    <script type="module"
+            src="{% static 'js/visualizations/spectrogram/index.js' %}"></script>
 {% endblock javascript %}

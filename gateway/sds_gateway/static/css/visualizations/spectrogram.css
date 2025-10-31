@@ -42,20 +42,6 @@
 	backdrop-filter: blur(1px);
 }
 
-#statusMessage {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	z-index: 5;
-}
-
-#statusMessage p {
-	margin: 0;
-	font-size: 1.1rem;
-	color: #6c757d;
-}
-
 /* Control Panel Styles */
 .card {
 	box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);

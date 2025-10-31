@@ -16,6 +16,8 @@ from pydantic import field_validator
 from pydantic import model_validator
 
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
+from sds_gateway.visualizations.errors import ConfigurationError
+from sds_gateway.visualizations.errors import SourceDataError
 
 
 class DigitalRFParams(BaseModel):
@@ -45,13 +47,13 @@ class DigitalRFParams(BaseModel):
         channels = self.reader.get_channels()
         if not channels:
             msg = "No channels found in DigitalRF data"
-            raise ValueError(msg)
+            raise SourceDataError(msg)
         if self.channel not in channels:
             msg = (
                 f"Channel {self.channel} not found in DigitalRF data. "
                 f"Available channels: {channels}"
             )
-            raise ValueError(msg)
+            raise ConfigurationError(msg)
         return self
 
     @computed_field
@@ -102,17 +104,23 @@ def validate_digitalrf_data(
         ValidationError: If DigitalRF data is invalid or missing required information
     """
     # Initialize DigitalRF reader
-    reader = DigitalRFReader(str(drf_path))
+    try:
+        reader = DigitalRFReader(str(drf_path))
+    except Exception as e:
+        msg = f"Could not initialize DigitalRF reader: {e}"
+        raise SourceDataError(msg) from e
 
     # Get sample bounds - let this fail naturally if invalid
-    bounds = reader.get_bounds(channel)
-    if bounds is None:
+    try:
+        bounds = reader.get_bounds(channel)
+    except Exception as e:
         msg = "Could not get sample bounds for channel"
-        raise ValueError(msg)
-    start_sample, end_sample = bounds
-    if start_sample is None or end_sample is None:
-        msg = "Invalid sample bounds for channel"
-        raise ValueError(msg)
+        raise SourceDataError(msg) from e
+
+    if bounds is None or bounds[0] is None or bounds[1] is None:
+        msg = "Could not get sample bounds for channel"
+        raise SourceDataError(msg)
+    start_sample, end_sample = bounds[0], bounds[1]
 
     # Get metadata from DigitalRF properties
     drf_props_path = drf_path / channel / "drf_properties.h5"
@@ -121,7 +129,7 @@ def validate_digitalrf_data(
         sample_rate_denominator = f.attrs.get("sample_rate_denominator")
         if sample_rate_numerator is None or sample_rate_denominator is None:
             msg = "Sample rate information missing from DigitalRF properties"
-            raise ValueError(msg)
+            raise SourceDataError(msg)
 
     # Get center frequency from metadata (optional)
     center_freq = 0.0
@@ -145,47 +153,68 @@ def validate_digitalrf_data(
     )
 
 
-def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path | None:
-    """Reconstruct DigitalRF directory structure from SDS files."""
+def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
+    """Reconstruct DigitalRF directory structure from SDS files.
+
+    Returns:
+        Path: Path to the DigitalRF root directory
+
+    Raises:
+        DigitalRFReconstructionError: If reconstruction fails due to data issues
+        DigitalRFInternalError: If there's an internal logic error
+    """
     logger.info("Reconstructing DigitalRF directory structure")
 
-    try:
-        minio_client = get_minio_client()
+    # First, check if we have the required drf_properties.h5 file
+    has_properties_file = any(
+        file_obj.name == "drf_properties.h5" for file_obj in capture_files
+    )
+    if not has_properties_file:
+        error_msg = (
+            "drf_properties.h5 file not found in capture files. "
+            "This file is required for DigitalRF processing."
+        )
+        logger.error(error_msg)
+        raise SourceDataError(error_msg)
 
-        # Create the capture directory structure
-        capture_dir = temp_path / str(capture.uuid)
-        capture_dir.mkdir(parents=True, exist_ok=True)
+    minio_client = get_minio_client()
 
-        # Download and place files in the correct structure
-        for file_obj in capture_files:
-            # Create the directory structure
-            file_path = Path(
-                f"{capture_dir}/{file_obj.directory}/{file_obj.name}"
-            ).resolve()
-            assert file_path.is_relative_to(temp_path), (
-                f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
-            )
-            file_path.parent.mkdir(parents=True, exist_ok=True)
+    # Create the capture directory structure
+    capture_dir = temp_path / str(capture.uuid)
+    capture_dir.mkdir(parents=True, exist_ok=True)
 
-            # Download the file from MinIO
-            minio_client.fget_object(
-                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
-                object_name=file_obj.file.name,
-                file_path=str(file_path),
-            )
+    # Download and place files in the correct structure
+    for file_obj in capture_files:
+        # Create the directory structure
+        file_path = Path(
+            f"{capture_dir}/{file_obj.directory}/{file_obj.name}"
+        ).resolve()
+        assert file_path.is_relative_to(temp_path), (
+            f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
+        )
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        for root, _dirs, files in os.walk(capture_dir):
-            if "drf_properties.h5" in files:
-                # The DigitalRF root is the parent of the channel directory
-                drf_root = Path(root).parent
-                logger.info(f"Found DigitalRF root at: {drf_root}")
-                return drf_root
-        logger.warning("Could not find DigitalRF properties file")
-        return None  # noqa: TRY300
+        # Download the file from MinIO
+        minio_client.fget_object(
+            bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+            object_name=file_obj.file.name,
+            file_path=str(file_path),
+        )
 
-    except Exception as e:  # noqa: BLE001
-        logger.exception(f"Error reconstructing DigitalRF files: {e}")
-        return None
+    # Find the DigitalRF root directory
+    drf_root = None
+    for root, _dirs, files in os.walk(capture_dir):
+        if "drf_properties.h5" in files:
+            # The DigitalRF root is the parent of the channel directory
+            drf_root = Path(root).parent
+            logger.info(f"Found DigitalRF root at: {drf_root}")
+            break
+
+    # This should never happen since we checked for the file above
+    assert drf_root is not None, (
+        "DigitalRF root directory not found after reconstruction"
+    )
+    return drf_root
 
 
 def store_processed_data(
@@ -194,7 +223,7 @@ def store_processed_data(
     curr_file_path: str,
     new_filename: str,
     metadata: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> None:
     """
     Store processed data back to SDS storage as a file.
 
@@ -206,7 +235,7 @@ def store_processed_data(
         metadata: Metadata to store
 
     Returns:
-        dict: Storage result
+        None
     """
     from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
     from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
@@ -243,9 +272,3 @@ def store_processed_data(
     processed_data.save()
 
     logger.info(f"Stored file {new_filename} for {processing_type} data")
-
-    return {
-        "status": "success",
-        "message": f"{processing_type} file stored successfully",
-        "file_name": new_filename,
-    }

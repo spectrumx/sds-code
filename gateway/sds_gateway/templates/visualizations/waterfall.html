@@ -7,7 +7,10 @@
 {% endblock title %}
 {% block css %}
     {{ block.super }}
-    <link rel="stylesheet" href="{% static 'css/waterfall.css' %}" />
+    <link rel="stylesheet"
+          href="{% static 'css/visualizations/visualizations.css' %}" />
+    <link rel="stylesheet"
+          href="{% static 'css/visualizations/waterfall.css' %}" />
 {% endblock css %}
 {% block content %}
     {% csrf_token %}
@@ -124,8 +127,10 @@
                             <div id="waterfallPlot">
                                 <canvas id="waterfallCanvas" class="d-none" width="800" height="400"></canvas>
                                 <canvas id="waterfallOverlayCanvas" class="d-none" width="800" height="400"></canvas>
-                                <div id="waterfallErrorDisplay" class="text-center p-4 d-none">
-                                    <p class="text-muted"></p>
+                                <div id="visualizationErrorDisplay"
+                                     class="visualization-error-display d-none">
+                                    <p class="error-message-text"></p>
+                                    <p class="error-detail-line text-muted small mt-2 d-none"></p>
                                 </div>
                                 <div id="colorLegend" class="color-legend d-none">
                                     <div class="legend-gradient"></div>
@@ -178,5 +183,6 @@
     <!-- CanvasJS -->
     <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
     <!-- Waterfall Visualization Module -->
-    <script type="module" src="{% static 'js/waterfall/index.js' %}"></script>
+    <script type="module"
+            src="{% static 'js/visualizations/waterfall/index.js' %}"></script>
 {% endblock javascript %}

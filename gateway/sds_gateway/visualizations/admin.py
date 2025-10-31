@@ -60,6 +60,7 @@ class PostProcessedDataAdmin(admin.ModelAdmin):
                     "pipeline_id",
                     "processed_at",
                     "processing_error",
+                    "cog_error",
                 )
             },
         ),
