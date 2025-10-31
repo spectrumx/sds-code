@@ -256,7 +256,7 @@ class DatasetEditingHandler {
 					cells: [
 						{ value: capture.type },
 						{ value: capture.directory },
-						{ value: capture.owner_name },
+						{ value: capture.owner?.name || capture.owner?.email || "Unknown" },
 					],
 					actions: canRemoveThisCapture
 						? [
@@ -295,6 +295,9 @@ class DatasetEditingHandler {
 			if (currentCapturesCount) {
 				currentCapturesCount.textContent = captures.length;
 			}
+
+			// Re-attach event listeners for remove buttons
+			this.addRemoveButtonListeners();
 		} else {
 			currentCapturesList.innerHTML =
 				'<tr><td colspan="4" class="text-center text-muted">No captures in dataset</td></tr>';
@@ -337,7 +340,7 @@ class DatasetEditingHandler {
 						{ value: file.media_type },
 						{ value: file.relative_path },
 						{ value: file.size },
-						{ value: file.owner_name },
+						{ value: file.owner?.name || file.owner?.email || "Unknown" },
 					],
 					actions: canRemoveThisFile
 						? [
@@ -377,6 +380,9 @@ class DatasetEditingHandler {
 			if (selectedFilesDisplay) {
 				selectedFilesDisplay.value = `${files.length} file(s) selected`;
 			}
+
+			// Re-attach event listeners for remove buttons
+			this.addRemoveButtonListeners();
 		} else {
 			selectedFilesBody.innerHTML =
 				'<tr><td colspan="6" class="text-center text-muted">No files in dataset</td></tr>';
@@ -410,9 +416,8 @@ class DatasetEditingHandler {
 		for (const button of removeButtons) {
 			button.addEventListener("click", (e) => {
 				e.preventDefault();
-				const captureId = button.dataset.captureId;
-				const fileId = button.dataset.fileId;
-
+				const captureId = button.dataset.capture_id;
+				const fileId = button.dataset.file_id;
 				if (captureId) {
 					this.markCaptureForRemoval(captureId);
 				} else if (fileId) {
@@ -480,6 +485,7 @@ class DatasetEditingHandler {
 	 */
 	markFileForRemoval(fileId) {
 		const file = this.filesSearchHandler?.selectedFiles.get(fileId);
+		console.log(file);
 		if (!file) return;
 
 		// Check if user has permission to remove this specific file
@@ -934,19 +940,6 @@ class DatasetEditingHandler {
 	}
 
 	/**
-	 * Format file size
-	 * @param {number} bytes - File size in bytes
-	 * @returns {string} Formatted file size
-	 */
-	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-	}
-
-	/**
 	 * Update hidden fields (no-op for editing mode)
 	 */
 	updateHiddenFields() {
@@ -1216,10 +1209,15 @@ class DatasetEditingHandler {
 				});
 
 				// Render using server-side template
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/author_list_items.html",
-					context: { authors: normalizedAuthors },
-				});
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/author_list_items.html",
+						context: { authors: normalizedAuthors },
+					},
+					null,
+					true,
+				); // true = send as JSON
 
 				if (response.html) {
 					authorsList.innerHTML = response.html;
@@ -1592,24 +1590,52 @@ class DatasetEditingHandler {
 							};
 						}
 						if (change.type === "change") {
-							return {
-								type: "change",
-								parts: [
-									{ text: 'Change Name: "' },
-									{ text: change.oldName },
-									{ text: '" → ' },
-									{ text: `"${change.newName}"`, css_class: "text-warning" },
-								],
-							};
+							// Handle name changes
+							if (
+								change.oldName !== undefined &&
+								change.newName !== undefined
+							) {
+								return {
+									type: "change",
+									parts: [
+										{ text: 'Change Name: "' },
+										{ text: change.oldName },
+										{ text: '" → ' },
+										{ text: `"${change.newName}"`, css_class: "text-warning" },
+									],
+								};
+							}
+							// Handle ORCID changes
+							if (
+								change.oldOrcid !== undefined &&
+								change.newOrcid !== undefined
+							) {
+								const oldOrcidDisplay = change.oldOrcid || "";
+								const newOrcidDisplay = change.newOrcid || "";
+								return {
+									type: "change",
+									parts: [
+										{ text: 'Change ORCID ID: "' },
+										{ text: oldOrcidDisplay },
+										{ text: '" → ' },
+										{ text: `"${newOrcidDisplay}"`, css_class: "text-warning" },
+									],
+								};
+							}
 						}
 						return change;
 					});
 
 					// Request server to render using generic change_list
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/change_list.html",
-						context: { changes: normalizedChanges },
-					});
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: { changes: normalizedChanges },
+						},
+						null,
+						true,
+					); // true = send as JSON
 
 					// Insert the server-rendered HTML
 					if (response.html) {
@@ -1802,4 +1828,7 @@ class DatasetEditingHandler {
 window.DatasetEditingHandler = DatasetEditingHandler;
 
 // Export for ES6 modules (Jest testing)
-export { DatasetEditingHandler };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DatasetEditingHandler };
+}

@@ -18,24 +18,46 @@ class DatasetModeManager {
 		this.step4 = 3;
 
 		// Initialize permissions manager
-		this.permissions = new PermissionsManager({
-			userPermissionLevel: config.userPermissionLevel,
-			datasetUuid: config.datasetUuid,
-			currentUserId: config.currentUserId,
-			isOwner: config.isOwner,
-			datasetPermissions: config.datasetPermissions,
-		});
+		if (window.PermissionsManager) {
+			// In creation mode, user should have full permissions
+			const permissionsConfig = {
+				userPermissionLevel: config.userPermissionLevel,
+				datasetUuid: config.datasetUuid,
+				currentUserId: config.currentUserId,
+				isOwner: config.isOwner,
+				datasetPermissions: config.datasetPermissions,
+			};
+
+			// For creation mode, ensure user has full permissions
+			if (!this.isEditMode) {
+				permissionsConfig.isOwner = true;
+				permissionsConfig.userPermissionLevel =
+					window.PermissionLevels?.OWNER || "owner";
+				permissionsConfig.datasetPermissions = {
+					canEditMetadata: true,
+					canAddAssets: true,
+					canRemoveAssets: true,
+					canShare: true,
+					canDownload: true,
+					...config.datasetPermissions,
+				};
+			}
+
+			this.permissions = new window.PermissionsManager(permissionsConfig);
+		}
 
 		// Initialize appropriate handler based on mode
-		this.handler = this.isEditMode
-			? new DatasetEditingHandler({
-					...config,
-					permissions: this.permissions,
-				})
-			: new DatasetCreationHandler({
-					...config,
-					formId: "datasetForm",
-				});
+		if (this.isEditMode && window.DatasetEditingHandler) {
+			this.handler = new window.DatasetEditingHandler({
+				...config,
+				permissions: this.permissions,
+			});
+		} else if (!this.isEditMode && window.DatasetCreationHandler) {
+			this.handler = new window.DatasetCreationHandler({
+				...config,
+				formId: "datasetForm",
+			});
+		}
 
 		// Store reference globally for backward compatibility
 		if (this.isEditMode) {
@@ -50,6 +72,7 @@ class DatasetModeManager {
 		// Initialize original dataset data for change tracking
 		this.originalDatasetData = this.captureOriginalDatasetData();
 
+		// Initialize UI
 		this.initializeUI();
 	}
 
@@ -198,7 +221,7 @@ class DatasetModeManager {
 			submitBtn &&
 			this.handler.currentStep !== this.handler.steps.length - 1
 		) {
-			this.handler.hide(submitBtn);
+			window.DOMUtils.hide(submitBtn, "display-inline-block");
 		}
 	}
 
@@ -447,22 +470,27 @@ class DatasetModeManager {
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
 				try {
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/change_list.html",
-						context: {
-							changes: [
-								{
-									type: "change",
-									parts: [
-										{ text: 'Change Name: "' },
-										{ text: originalValue },
-										{ text: '" → ' },
-										{ text: `"${currentValue}"`, css_class: "text-warning" },
-									],
-								},
-							],
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: {
+								changes: [
+									{
+										type: "change",
+										parts: [
+											{ text: 'Change Name: "' },
+											{ text: originalValue },
+											{ text: '" → ' },
+											{ text: `"${currentValue}"`, css_class: "text-warning" },
+										],
+									},
+								],
+							},
 						},
-					});
+						null,
+						true,
+					); // true = send as JSON
 					if (response.html) {
 						nameElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -505,22 +533,27 @@ class DatasetModeManager {
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
 				try {
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/change_list.html",
-						context: {
-							changes: [
-								{
-									type: "change",
-									parts: [
-										{ text: 'Change Status: "' },
-										{ text: originalValue },
-										{ text: '" → ' },
-										{ text: `"${currentValue}"`, css_class: "text-warning" },
-									],
-								},
-							],
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: {
+								changes: [
+									{
+										type: "change",
+										parts: [
+											{ text: 'Change Status: "' },
+											{ text: originalValue },
+											{ text: '" → ' },
+											{ text: `"${currentValue}"`, css_class: "text-warning" },
+										],
+									},
+								],
+							},
 						},
-					});
+						null,
+						true,
+					); // true = send as JSON
 					if (response.html) {
 						statusElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -562,22 +595,27 @@ class DatasetModeManager {
 			// Add pending changes if different from original
 			if (currentValue !== originalValue) {
 				try {
-					const response = await window.APIClient.post("/users/render-html/", {
-						template: "users/components/change_list.html",
-						context: {
-							changes: [
-								{
-									type: "change",
-									parts: [
-										{ text: 'Change Description: "' },
-										{ text: originalValue },
-										{ text: '" → ' },
-										{ text: `"${currentValue}"`, css_class: "text-warning" },
-									],
-								},
-							],
+					const response = await window.APIClient.post(
+						"/users/render-html/",
+						{
+							template: "users/components/change_list.html",
+							context: {
+								changes: [
+									{
+										type: "change",
+										parts: [
+											{ text: 'Change Description: "' },
+											{ text: originalValue },
+											{ text: '" → ' },
+											{ text: `"${currentValue}"`, css_class: "text-warning" },
+										],
+									},
+								],
+							},
 						},
-					});
+						null,
+						true,
+					); // true = send as JSON
 					if (response.html) {
 						descriptionElement.insertAdjacentHTML("beforeend", response.html);
 					}
@@ -784,8 +822,7 @@ class DatasetModeManager {
 			// Fallback for empty state
 			const capturesTable = document.querySelector(".captures-table tbody");
 			if (capturesTable) {
-				capturesTable.innerHTML =
-					'<tr><td colspan="6" class="text-center text-muted">No captures selected</td></tr>';
+				this.renderEmptyTableRow(capturesTable, 6, "No captures selected");
 			}
 		}
 
@@ -798,8 +835,7 @@ class DatasetModeManager {
 			// Fallback for empty state
 			const filesTable = document.querySelector(".files-table tbody");
 			if (filesTable) {
-				filesTable.innerHTML =
-					'<tr><td colspan="5" class="text-center text-muted">No files selected</td></tr>';
+				this.renderEmptyTableRow(filesTable, 5, "No files selected");
 			}
 		}
 
@@ -823,6 +859,34 @@ class DatasetModeManager {
 	}
 
 	/**
+	 * Render empty table row asynchronously
+	 */
+	async renderEmptyTableRow(tableElement, colspan, message) {
+		try {
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/empty_table_row.html",
+					context: {
+						colspan: colspan,
+						message: message,
+					},
+				},
+				null,
+				true,
+			); // true = send as JSON
+
+			if (response.html) {
+				tableElement.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering empty table row:", error);
+			// Fallback
+			tableElement.innerHTML = `<tr><td colspan="${colspan}" class="text-center text-muted">${message}</td></tr>`;
+		}
+	}
+
+	/**
 	 * Update UI based on user permissions
 	 */
 	updateUIForPermissions() {
@@ -833,6 +897,37 @@ class DatasetModeManager {
 			"user-permission-display",
 		);
 		if (permissionDisplay) {
+			this.renderPermissionDisplay(permissionSummary, permissionDisplay);
+		}
+
+		// Disable/hide elements based on permissions
+		this.updateFormElementsForPermissions();
+		this.updateActionButtonsForPermissions();
+	}
+
+	/**
+	 * Render permission display asynchronously
+	 */
+	async renderPermissionDisplay(permissionSummary, permissionDisplay) {
+		try {
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/permission_display.html",
+					context: {
+						permission_summary: permissionSummary,
+					},
+				},
+				null,
+				true,
+			); // true = send as JSON
+
+			if (response.html) {
+				permissionDisplay.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering permission display:", error);
+			// Fallback
 			permissionDisplay.innerHTML = `
 				<div class="d-flex align-items-center">
 					<i class="bi ${permissionSummary.icon} me-2"></i>
@@ -843,10 +938,6 @@ class DatasetModeManager {
 				</div>
 			`;
 		}
-
-		// Disable/hide elements based on permissions
-		this.updateFormElementsForPermissions();
-		this.updateActionButtonsForPermissions();
 	}
 
 	/**
@@ -1001,5 +1092,7 @@ class DatasetModeManager {
 // Make class available globally
 window.DatasetModeManager = DatasetModeManager;
 
-// Export for ES6 modules (Jest testing)
-export { DatasetModeManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DatasetModeManager };
+}

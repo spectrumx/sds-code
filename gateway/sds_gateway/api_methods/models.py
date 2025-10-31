@@ -986,30 +986,13 @@ class UserSharePermission(BaseModel):
         ]
 
     @classmethod
-    def get_dataset_authors(cls, dataset_uuid):
-        """
-        Get all authors for a dataset including owner and contributors.
-
-        Returns:
-            list: List of dictionaries with author information
-        """
-        dataset = Dataset.objects.filter(uuid=dataset_uuid, is_deleted=False).first()
-        if not dataset:
-            return []
-
-        authors = []
-
-        # Add the owner
-        if dataset.owner:
-            authors.append(
-                {
-                    "name": dataset.owner.name or dataset.owner.email,
-                    "email": dataset.owner.email,
-                    "role": PermissionLevel.OWNER,
-                }
-            )
-
-        return authors
+    def user_can_share(cls, user, item_uuid, item_type):
+        """Check if user can share the item with others."""
+        permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
+        return permission_level in [
+            PermissionLevel.OWNER,
+            PermissionLevel.CO_OWNER,
+        ]
 
 
 class DEPRECATEDPostProcessedData(BaseModel):
@@ -1332,6 +1315,13 @@ def user_has_access_to_item(user, item_uuid, item_type):
         bool: True if user has access, False otherwise
     """
     return UserSharePermission.user_can_view(user, item_uuid, item_type)
+
+
+def get_user_permission_level(user, item_uuid, item_type):
+    """
+    Get the permission level for a user on a specific item.
+    """
+    return UserSharePermission.get_user_permission_level(user, item_uuid, item_type)
 
 
 def get_shared_users_for_item(item_uuid, item_type):

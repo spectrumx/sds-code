@@ -668,19 +668,31 @@ class DatasetCreationHandler {
 		const authorsValue = this.authorsField?.value.trim() || "";
 		const statusValue = this.statusField?.value || "";
 
-		// Validate authors JSON
+		// Validate authors JSON and first author name
 		if (authorsValue) {
 			try {
 				const authors = JSON.parse(authorsValue);
 				if (!Array.isArray(authors) || authors.length === 0) {
 					return false;
 				}
+
+				// Check that the first author has a name
+				const firstAuthor = authors[0];
+				if (
+					!firstAuthor ||
+					!firstAuthor.name ||
+					firstAuthor.name.trim() === ""
+				) {
+					return false;
+				}
 			} catch (e) {
 				return false;
 			}
+		} else {
+			return false; // Authors field is required
 		}
 
-		return nameValue !== "" && authorsValue !== "" && statusValue !== "";
+		return nameValue !== "" && statusValue !== "";
 	}
 
 	/**
@@ -1257,10 +1269,15 @@ class DatasetCreationHandler {
 				});
 
 				// Render using server-side template
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/author_list_items.html",
-					context: { authors: normalizedAuthors },
-				});
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/author_list_items.html",
+						context: { authors: normalizedAuthors },
+					},
+					null,
+					true,
+				); // true = send as JSON
 
 				if (response.html) {
 					authorsList.innerHTML = response.html;
@@ -1300,6 +1317,9 @@ class DatasetCreationHandler {
 				newInput.focus();
 			}
 
+			// Validate current step to update button states
+			this.validateCurrentStep();
+
 			// Update review display
 			if (window.updateReviewDatasetDisplay) {
 				window.updateReviewDatasetDisplay();
@@ -1314,6 +1334,9 @@ class DatasetCreationHandler {
 				// Don't remove the primary author
 				authors.splice(index, 1);
 				updateAuthorsDisplay();
+
+				// Validate current step to update button states
+				this.validateCurrentStep();
 
 				// Update review display
 				if (window.updateReviewDatasetDisplay) {
@@ -1354,15 +1377,20 @@ class DatasetCreationHandler {
 								? "exclamation-circle"
 								: "info-circle";
 
-				const response = await window.APIClient.post("/users/render-html/", {
-					template: "users/components/notification.html",
-					context: {
-						message: message,
-						alert_type: alertType,
-						icon: icon,
-						dismissible: true,
+				const response = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/notification.html",
+						context: {
+							message: message,
+							alert_type: alertType,
+							icon: icon,
+							dismissible: true,
+						},
 					},
-				});
+					null,
+					true,
+				); // true = send as JSON
 
 				if (response.html) {
 					errorContainer.innerHTML = response.html;
@@ -1431,6 +1459,9 @@ class DatasetCreationHandler {
 					updateAuthorsDisplay();
 				}
 
+				// Validate current step to update button states
+				this.validateCurrentStep();
+
 				// Update review display if we're on the review step
 				if (window.updateReviewDatasetDisplay) {
 					window.updateReviewDatasetDisplay();
@@ -1495,23 +1526,13 @@ class DatasetCreationHandler {
 			)
 			.join(", ");
 	}
-
-	/**
-	 * Format file size
-	 * @param {number} bytes - File size in bytes
-	 * @returns {string} Formatted file size
-	 */
-	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-	}
 }
 
 // Make class available globally
 window.DatasetCreationHandler = DatasetCreationHandler;
 
 // Export for ES6 modules (Jest testing)
-export { DatasetCreationHandler };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DatasetCreationHandler };
+}

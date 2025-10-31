@@ -24,7 +24,7 @@ class AssetSearchHandler {
 			config.confirmFileSelectionId,
 		);
 		this.currentTree = null;
-		this.formHandler = config.formHandler;
+		this.formHandler = config.formHandler || null;
 		this.isEditMode = config.isEditMode || false;
 		this.currentFilters = {}; // Store current capture filters
 		this.selectedCaptureDetails = new Map(
@@ -239,31 +239,20 @@ class AssetSearchHandler {
 		const selectedCaptures = this.formHandler.selectedCaptures;
 		countBadge.textContent = `${selectedCaptures.size} selected`;
 
-		if (selectedCaptures.size === 0) {
-			selectedList.innerHTML =
-				'<tr><td colspan="3" class="text-center">No captures selected</td></tr>';
-			return;
-		}
+		// Prepare captures data for server-side rendering
+		const capturesData = Array.from(selectedCaptures).map((captureId) => {
+			const data = this.selectedCaptureDetails.get(captureId) || {
+				type: "Unknown",
+				directory: "Unknown",
+			};
+			return {
+				id: captureId,
+				type: data.type,
+				directory: data.directory,
+			};
+		});
 
-		selectedList.innerHTML = Array.from(selectedCaptures)
-			.map((captureId) => {
-				const data = this.selectedCaptureDetails.get(captureId) || {
-					type: "Unknown",
-					directory: "Unknown",
-				};
-				return `
-				<tr data-capture-id="${captureId}">
-					<td>${data.type}</td>
-					<td>${data.directory}</td>
-					<td>
-						<button type="button" class="btn btn-sm btn-danger remove-selected-capture" data-id="${captureId}">
-							Remove
-						</button>
-					</td>
-				</tr>
-			`;
-			})
-			.join("");
+		this.renderSelectedCapturesTable(selectedList, capturesData);
 
 		// Add remove handlers
 		const removeSelectedButtons = selectedList.querySelectorAll(
@@ -296,6 +285,53 @@ class AssetSearchHandler {
 					this.formHandler.updateHiddenFields();
 				}
 			});
+		}
+	}
+
+	/**
+	 * Render selected captures table asynchronously
+	 */
+	async renderSelectedCapturesTable(selectedList, capturesData) {
+		try {
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/selected_captures_table.html",
+					context: {
+						captures: capturesData,
+						empty_message: "No captures selected",
+					},
+				},
+				null,
+				true,
+			); // true = send as JSON
+
+			if (response.html) {
+				selectedList.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering selected captures table:", error);
+			// Fallback
+			if (capturesData.length === 0) {
+				selectedList.innerHTML =
+					'<tr><td colspan="3" class="text-center">No captures selected</td></tr>';
+			} else {
+				selectedList.innerHTML = capturesData
+					.map(
+						(capture) => `
+						<tr data-capture-id="${capture.id}">
+							<td>${capture.type}</td>
+							<td>${capture.directory}</td>
+							<td>
+								<button type="button" class="btn btn-sm btn-danger remove-selected-capture" data-id="${capture.id}">
+									Remove
+								</button>
+							</td>
+						</tr>
+					`,
+					)
+					.join("");
+			}
 		}
 	}
 
@@ -628,7 +664,7 @@ class AssetSearchHandler {
 					const extensionSelect = document.getElementById("file-extension");
 					if (extensionSelect && data.extension_choices) {
 						const currentValue = extensionSelect.value;
-						await this.renderSelectOptions(
+						await window.DOMUtils.renderSelectOptions(
 							extensionSelect,
 							data.extension_choices,
 							currentValue,
@@ -847,9 +883,9 @@ class AssetSearchHandler {
 		const hasFiles = tree.files && tree.files.length > 0;
 		if (selectAllContainer) {
 			if (searchTermEntered && hasFiles) {
-				this.formHandler.show(selectAllContainer);
+				window.DOMUtils.show(selectAllContainer);
 			} else {
-				this.formHandler.hide(selectAllContainer);
+				window.DOMUtils.hide(selectAllContainer);
 			}
 		}
 
@@ -888,7 +924,7 @@ class AssetSearchHandler {
 					${content.name || name}
 				</td>
 				<td>Directory</td>
-				<td>${this.formHandler.formatFileSize(content.size || 0)}</td>
+				<td>${window.DOMUtils.formatFileSize(content.size || 0)}</td>
 				<td>${content.created_at ? new Date(content.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "-"}</td>
 			`;
 			targetElement.appendChild(row);
@@ -897,9 +933,9 @@ class AssetSearchHandler {
 			const nestedContainer = document.createElement("tr");
 			nestedContainer.className = "nested-row";
 			if (!initiallyExpanded) {
-				this.formHandler.hide(nestedContainer);
+				window.DOMUtils.hide(nestedContainer);
 			} else {
-				this.formHandler.show(nestedContainer, "display-table-row");
+				window.DOMUtils.show(nestedContainer, "display-table-row");
 			}
 			nestedContainer.innerHTML = `
 				<td colspan="5">
@@ -927,13 +963,13 @@ class AssetSearchHandler {
 					toggle.textContent = isExpanded ? "▶" : "▼";
 
 					if (isExpanded) {
-						this.formHandler.hide(nestedContainer, "display-table-row");
+						window.DOMUtils.hide(nestedContainer, "display-table-row");
 					} else {
-						this.formHandler.show(nestedContainer, "display-table-row");
+						window.DOMUtils.show(nestedContainer, "display-table-row");
 					}
 				} else {
 					toggle.textContent = "▶";
-					this.formHandler.hide(nestedContainer, "display-table-row");
+					window.DOMUtils.hide(nestedContainer, "display-table-row");
 				}
 
 				// Load nested content if not already loaded
@@ -978,7 +1014,7 @@ class AssetSearchHandler {
 						${file.name}
 					</td>
 					<td>${file.media_type || "Unknown"}</td>
-					<td>${this.formHandler.formatFileSize(file.size)}</td>
+					<td>${window.DOMUtils.formatFileSize(file.size)}</td>
 					<td>${new Date(file.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
 				`;
 
@@ -998,6 +1034,7 @@ class AssetSearchHandler {
 						this.selectedFiles.delete(file.id);
 					}
 					this.updateSelectAllCheckboxState();
+					this.updateSelectedFilesList();
 				});
 
 				// Add click handler for the row
@@ -1034,12 +1071,40 @@ class AssetSearchHandler {
 		tbody.innerHTML = "";
 
 		if (!data.tree) {
-			tbody.innerHTML =
-				'<tr><td colspan="5" class="text-center">No files or directories found</td></tr>';
+			this.renderEmptyFilesTable(tbody);
 			return;
 		}
 
 		this.renderFileTree(data.tree);
+	}
+
+	/**
+	 * Render empty files table asynchronously
+	 */
+	async renderEmptyFilesTable(tbody) {
+		try {
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/empty_table_row.html",
+					context: {
+						colspan: 5,
+						message: "No files or directories found",
+					},
+				},
+				null,
+				true,
+			); // true = send as JSON
+
+			if (response.html) {
+				tbody.innerHTML = response.html;
+			}
+		} catch (error) {
+			console.error("Error rendering empty files table:", error);
+			// Fallback
+			tbody.innerHTML =
+				'<tr><td colspan="5" class="text-center">No files or directories found</td></tr>';
+		}
 	}
 
 	/**
@@ -1053,7 +1118,7 @@ class AssetSearchHandler {
 			await window.DOMUtils.renderError(errorContent, message, {
 				format: "list",
 			});
-			this.formHandler.show(errorContainer);
+			window.DOMUtils.show(errorContainer);
 			errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
 		}
 	}
@@ -1080,8 +1145,8 @@ class AssetSearchHandler {
 					{ value: file.name },
 					{ value: file.media_type },
 					{ value: file.relative_path },
-					{ value: this.formHandler.formatFileSize(file.size) },
-					{ value: file.owner_name || "Unknown" },
+					{ value: window.DOMUtils.formatFileSize(file.size) },
+					{ value: file.owner?.name || file.owner?.email || "Unknown" },
 				],
 				actions: canRemove
 					? [
@@ -1190,4 +1255,7 @@ class AssetSearchHandler {
 window.AssetSearchHandler = AssetSearchHandler;
 
 // Export for ES6 modules (Jest testing)
-export { AssetSearchHandler };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { AssetSearchHandler };
+}

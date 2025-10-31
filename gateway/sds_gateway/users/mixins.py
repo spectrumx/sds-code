@@ -246,6 +246,13 @@ class FormSearchMixin:
                 "media_type": item.media_type,
                 "size": item.size,
                 "relative_path": relative_path,
+                "owner": {
+                    "id": item.owner.id if item.owner else None,
+                    "name": item.owner.name if item.owner else None,
+                    "email": item.owner.email if item.owner else None,
+                }
+                if item.owner
+                else None,
             }
 
         # this should never happen
@@ -370,6 +377,13 @@ class FileTreeMixin:
                 "media_type": file.media_type,
                 "size": file.size,
                 "created_at": file.created_at,
+                "owner": {
+                    "id": file.owner.id if file.owner else None,
+                    "name": file.owner.name if file.owner else None,
+                    "email": file.owner.email if file.owner else None,
+                }
+                if file.owner
+                else None,
             }
             for file in files_in_directory
         ]

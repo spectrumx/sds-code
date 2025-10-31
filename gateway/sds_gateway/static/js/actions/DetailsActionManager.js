@@ -223,7 +223,7 @@ class DetailsActionManager {
 			this.updateElementText(
 				modal,
 				"#total-size",
-				this.formatFileSize(statistics.total_size || 0),
+				window.DOMUtils.formatFileSize(statistics.total_size || 0),
 			);
 		}
 
@@ -283,7 +283,7 @@ class DetailsActionManager {
 		this.updateElementText(
 			modal,
 			"#capture-owner",
-			captureData.owner_name || "Unknown",
+			captureData.owner?.name || captureData.owner?.email || "Unknown",
 		);
 
 		// Update technical details
@@ -528,10 +528,15 @@ class DetailsActionManager {
 				),
 			}));
 
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/modal_permissions.html",
-				context: { permissions: normalizedPermissions },
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/modal_permissions.html",
+					context: { permissions: normalizedPermissions },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				permissionsContainer.innerHTML = response.html;
@@ -574,10 +579,15 @@ class DetailsActionManager {
 		}
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/modal_technical_details.html",
-				context: { details: details },
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/modal_technical_details.html",
+					context: { details: details },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				technicalDetails.innerHTML = response.html;
@@ -823,10 +833,15 @@ class DetailsActionManager {
 		const rows = this.buildTreeRows(tree, 0);
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/modal_file_tree.html",
-				context: { rows: rows },
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/modal_file_tree.html",
+					context: { rows: rows },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				tableBody.innerHTML = response.html;
@@ -859,7 +874,7 @@ class DetailsActionManager {
 					icon_color: "text-primary",
 					name: file.name,
 					type: file.media_type || file.type || "File",
-					size: this.formatFileSize(file.size || 0),
+					size: window.DOMUtils.formatFileSize(file.size || 0),
 					created_at: this.formatDate(file.created_at),
 					has_chevron: false,
 				});
@@ -878,7 +893,7 @@ class DetailsActionManager {
 						icon_color: "text-warning",
 						name: `${childNode.name}/`,
 						type: "Directory",
-						size: this.formatFileSize(childNode.size || 0),
+						size: window.DOMUtils.formatFileSize(childNode.size || 0),
 						created_at: this.formatDate(childNode.created_at),
 						has_chevron: true,
 					});
@@ -891,21 +906,6 @@ class DetailsActionManager {
 		}
 
 		return rows;
-	}
-
-	/**
-	 * Format file size for display
-	 * @param {number} bytes - File size in bytes
-	 * @returns {string} Formatted file size
-	 */
-	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 	}
 
 	/**
@@ -988,5 +988,7 @@ class DetailsActionManager {
 // Make class available globally
 window.DetailsActionManager = DetailsActionManager;
 
-// Export for ES6 modules (Jest testing)
-export { DetailsActionManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DetailsActionManager };
+}

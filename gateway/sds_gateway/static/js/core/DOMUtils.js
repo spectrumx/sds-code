@@ -6,11 +6,25 @@
  * All HTML containing server data should be rendered server-side using Django templates.
  *
  * Available methods:
+ * - formatFileSize(bytes) - Format file size
  * - show(element, displayClass) - Show element with CSS class
  * - hide(element, displayClass) - Hide element with CSS class
  * - showAlert(message, type) - Show Bootstrap toast notification
  */
 class DOMUtils {
+	/**
+	 * Format file size
+	 * @param {number} bytes - File size in bytes
+	 * @returns {string} Formatted file size
+	 */
+	formatFileSize(bytes) {
+		if (bytes === 0) return "0 Bytes";
+		const k = 1024;
+		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+		const i = Math.floor(Math.log(bytes) / Math.log(k));
+		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
+	}
+
 	/**
 	 * Show element using CSS classes
 	 * @param {Element|string} element - Element or selector to show
@@ -130,10 +144,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/error.html",
-				context: context,
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/error.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -182,10 +201,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/loading.html",
-				context: context,
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/loading.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -218,10 +242,15 @@ class DOMUtils {
 		}
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/content.html",
-				context: options,
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/content.html",
+					context: options,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -270,10 +299,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/table_rows.html",
-				context: context,
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/table_rows.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -326,10 +360,15 @@ class DOMUtils {
 		});
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/select_options.html",
-				context: { choices: formattedChoices },
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/select_options.html",
+					context: { choices: formattedChoices },
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -393,10 +432,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/pagination.html",
-				context: context,
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/pagination.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				el.innerHTML = response.html;
@@ -425,10 +469,15 @@ class DOMUtils {
 		};
 
 		try {
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/dropdown_menu.html",
-				context: context,
-			});
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/dropdown_menu.html",
+					context: context,
+				},
+				null,
+				true,
+			); // true = send as JSON
 
 			if (response.html) {
 				return response.html;
@@ -457,4 +506,7 @@ window.DOMUtils = new DOMUtils();
 window.showAlert = window.DOMUtils.showAlert.bind(window.DOMUtils);
 
 // Export for ES6 modules
-export { DOMUtils };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DOMUtils };
+}

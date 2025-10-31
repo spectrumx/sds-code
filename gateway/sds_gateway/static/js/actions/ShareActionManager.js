@@ -1,8 +1,10 @@
+// PermissionLevels is now available globally
+
 /**
  * Share Action Manager
  * Handles all sharing-related actions and user management
  */
-class ShareActionManager {
+window.ShareActionManager = class ShareActionManager {
 	/**
 	 * Initialize share action manager
 	 * @param {Object} config - Configuration object
@@ -68,19 +70,7 @@ class ShareActionManager {
 		}
 
 		// Setup notify checkbox functionality
-		if (!setupNotifyCheckbox || typeof setupNotifyCheckbox !== "function")
-			return;
-
-		const notifyCheckbox = document.getElementById(
-			`notify-users-checkbox-${this.itemUuid}`,
-		);
-		const textareaContainer = document.getElementById(
-			`notify-message-textarea-container-${this.itemUuid}`,
-		);
-
-		if (!notifyCheckbox || !textareaContainer) return;
-
-		setupNotifyCheckbox(this.itemUuid);
+		this.setupNotifyCheckbox(this.itemUuid);
 	}
 
 	/**
@@ -201,7 +191,8 @@ class ShareActionManager {
 		// Create a map of user emails to their permission levels
 		const userPermissions = {};
 		for (const user of selectedUsers) {
-			userPermissions[user.email] = user.permission_level || "viewer";
+			userPermissions[user.email] =
+				user.permission_level || window.PermissionLevels.VIEWER;
 		}
 
 		const userEmails = selectedUsers.map((u) => u.email).join(",");
@@ -288,12 +279,34 @@ class ShareActionManager {
 
 		try {
 			this.currentRequest = new AbortController();
+			// Get the search results from the API
 			const response = await window.APIClient.get(
 				`/users/share-item/${this.itemType}/${this.itemUuid}/`,
 				{ q: query, limit: 10 },
 				null, // No loading state for search
 			);
-			this.displayResults(response, dropdown);
+			console.log(response);
+			// Render the HTML fragment using the template
+			if (response) {
+				const users = response || [];
+				const htmlResponse = await window.APIClient.post(
+					"/users/render-html/",
+					{
+						template: "users/components/user_search_results.html",
+						context: {
+							users: users,
+						},
+					},
+					null,
+					true,
+				); // true = send as JSON
+
+				// Pass the rendered HTML to displayResults
+				this.displayResults({ html: htmlResponse.html }, dropdown);
+			} else {
+				// No results found
+				this.displayResults({ html: null, results: [] }, dropdown);
+			}
 		} catch (error) {
 			if (error.name === "AbortError") {
 				return;
@@ -410,7 +423,7 @@ class ShareActionManager {
 				name: userName,
 				email: userEmail,
 				type: userType,
-				permission_level: "viewer", // Default permission level
+				permission_level: window.PermissionLevels.VIEWER, // Default permission level
 			};
 
 			// For groups, get member count from dataset attribute
@@ -471,7 +484,7 @@ class ShareActionManager {
 					name: userName,
 					email: userEmail,
 					type: "user",
-					permission_level: "viewer", // Default permission level
+					permission_level: window.PermissionLevels.VIEWER, // Default permission level
 				});
 				this.renderChips(input);
 			}
@@ -487,7 +500,7 @@ class ShareActionManager {
 					name: userName,
 					email: userEmail,
 					type: "user",
-					permission_level: "viewer", // Default permission level
+					permission_level: window.PermissionLevels.VIEWER, // Default permission level
 				});
 				this.renderChips(input);
 			}
@@ -538,15 +551,20 @@ class ShareActionManager {
 
 		try {
 			// Request server to render using generic endpoint
-			const response = await window.APIClient.post("/users/render-html/", {
-				template: "users/components/user_chips.html",
-				context: {
-					users: this.selectedUsersMap[inputId],
-					show_permission_select: true,
-					show_remove_button: true,
-					permission_levels: ["viewer", "contributor", "co-owner"],
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/user_chips.html",
+					context: {
+						users: this.selectedUsersMap[inputId],
+						show_permission_select: true,
+						show_remove_button: true,
+						permission_levels: ["viewer", "contributor", "co-owner"],
+					},
 				},
-			});
+				null,
+				true,
+			); // true = send as JSON
 
 			// Insert the server-rendered HTML
 			if (response.html) {
@@ -648,11 +666,9 @@ class ShareActionManager {
 			if (saveBtn) saveBtn.textContent = "Share";
 
 			// Setup notify checkbox functionality
-			if (typeof setupNotifyCheckbox === "function") {
-				setTimeout(() => {
-					setupNotifyCheckbox(itemUuid);
-				}, 10);
-			}
+			setTimeout(() => {
+				this.setupNotifyCheckbox(itemUuid);
+			}, 10);
 		} else {
 			// Hide notify section, show users with access section
 			if (notifySection) notifySection.classList.add("d-none");
@@ -1062,9 +1078,7 @@ class ShareActionManager {
 		)) {
 			checkbox.checked = true;
 			const itemUuid = checkbox.id.replace("notify-users-checkbox-", "");
-			if (typeof setupNotifyCheckbox === "function") {
-				setupNotifyCheckbox(itemUuid);
-			}
+			this.setupNotifyCheckbox(itemUuid);
 		}
 		for (const textarea of document.querySelectorAll(
 			'[id^="notify-message-textarea-"]',
@@ -1082,13 +1096,46 @@ class ShareActionManager {
 		// Handle undefined/null permission levels
 		const level =
 			!permissionLevel || typeof permissionLevel !== "string"
-				? "viewer"
+				? window.PermissionLevels.VIEWER
 				: permissionLevel;
 
 		const iconClass =
 			this.permissions?.getPermissionIcon(level) || "bi-question-circle";
 		const displayText = level.charAt(0).toUpperCase() + level.slice(1);
 		return `<i class="bi ${iconClass} me-1"></i>${displayText}`;
+	}
+
+	/**
+	 * Setup notify checkbox functionality
+	 * @param {string} itemUuid - Item UUID
+	 */
+	setupNotifyCheckbox(itemUuid) {
+		const notifyCheckbox = document.getElementById(
+			`notify-users-checkbox-${itemUuid}`,
+		);
+		const textareaContainer = document.getElementById(
+			`notify-message-textarea-container-${itemUuid}`,
+		);
+
+		if (!notifyCheckbox || !textareaContainer) {
+			// Don't log error - this is expected for modals without notify functionality
+			return;
+		}
+
+		function toggleTextarea() {
+			if (notifyCheckbox.checked) {
+				textareaContainer.classList.add("show");
+			} else {
+				textareaContainer.classList.remove("show");
+			}
+		}
+
+		// Remove any existing event listeners to prevent duplicates
+		notifyCheckbox.removeEventListener("change", toggleTextarea);
+		notifyCheckbox.addEventListener("change", toggleTextarea);
+
+		// Call toggleTextarea immediately to set initial state
+		toggleTextarea();
 	}
 
 	/**
@@ -1107,10 +1154,12 @@ class ShareActionManager {
 			console.error("DOMUtils not available");
 		}
 	}
-}
+};
 
 // Make class available globally
 window.ShareActionManager = ShareActionManager;
 
-// Export for ES6 modules (Jest testing)
-export { ShareActionManager };
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { ShareActionManager };
+}
