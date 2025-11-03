@@ -127,6 +127,12 @@
                             <div id="waterfallPlot">
                                 <canvas id="waterfallCanvas" class="d-none" width="800" height="400"></canvas>
                                 <canvas id="waterfallOverlayCanvas" class="d-none" width="800" height="400"></canvas>
+                                <div id="waterfallLoadingOverlay" class="waterfall-loading-overlay d-none">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <div class="mt-2">Loading waterfall data...</div>
+                                </div>
                                 <div id="visualizationErrorDisplay"
                                      class="visualization-error-display d-none">
                                     <p class="error-message-text"></p>
