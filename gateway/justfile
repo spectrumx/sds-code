@@ -154,9 +154,10 @@ update:
 
 # watch file changes when in local env mode
 watch args='':
-    @if [ "{{env}}" != "local" ]; then \
-        echo "The 'watch' command is only available in the 'local' environment" \
-        exit 1 \
+    #!/usr/bin/env bash
+    if [ "{{env}}" != "local" ]; then
+        echo "The 'watch' command is only available in the 'local' environment"
+        exit 1
     fi
-    @echo "Watching for file changes..."
+    echo "Watching for file changes..."
     {{docker_compose}} watch {{args}}
