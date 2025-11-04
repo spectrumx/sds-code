@@ -18,7 +18,7 @@ from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.models import Capture
-from sds_gateway.visualizations.errors import VisualizationsError
+from sds_gateway.visualizations.errors import SourceDataError
 
 from .config import get_available_visualizations
 from .models import PostProcessedData
@@ -211,8 +211,10 @@ class VisualizationViewSet(ViewSet):
 
             return Response(response_data, status=status.HTTP_200_OK)
 
-        except VisualizationsError as e:
-            log.error(f"Visualization error creating spectrogram: {e}")
+        except SourceDataError as e:
+            log.warning(
+                f"Source data issue while launching spectrogram processing: {e}"
+            )
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -428,8 +430,10 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        except VisualizationsError as e:
-            log.error(f"Visualization error getting compatibility: {e}")
+        except SourceDataError as e:
+            log.warning(
+                f"Source data issue while getting visualization compatibility: {e}"
+            )
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -576,8 +580,14 @@ class VisualizationViewSet(ViewSet):
 
             return Response(response_data, status=status.HTTP_200_OK)
 
+        except SourceDataError as e:
+            log.warning(f"Source data issue while launching waterfall processing: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:  # noqa: BLE001
-            log.error(f"Error creating waterfall: {e}")
+            log.error(f"Unexpected error creating waterfall: {e}")
             return Response(
                 {"error": "Failed to create waterfall"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

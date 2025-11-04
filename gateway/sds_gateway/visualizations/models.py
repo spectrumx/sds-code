@@ -11,7 +11,6 @@ from typing import Any
 from django.db import models
 from django_cog.models import CogError
 
-from sds_gateway.visualizations.errors import ProcessingError
 from sds_gateway.visualizations.errors import SourceDataError
 
 
@@ -172,7 +171,7 @@ class PostProcessedData(BaseModel):
         processing_error: Exception | None = None,
         cog_error: CogError | None = None,
     ) -> None:
-        """Mark processing as failed with error data and optional COG error.
+        """Mark processing as failed with optional error data or COG error.
 
         Args:
             processing_error: Exception for non-COG errors (regular Python exceptions)
@@ -200,9 +199,6 @@ class PostProcessedData(BaseModel):
                 "traceback": error_traceback,
             }
             self.cog_error = None
-        else:
-            msg = "No error data provided"
-            raise ProcessingError(msg)
 
         self.save(
             update_fields=[
@@ -216,6 +212,7 @@ class PostProcessedData(BaseModel):
         """Set the processed data file."""
         with Path(file_path).open("rb") as f:
             self.data_file.save(filename, f, save=False)
+        self.save(update_fields=["data_file"])
 
     def get_error_info(self) -> dict[str, Any] | None:
         """Get the error information from either COG error or processing error."""
