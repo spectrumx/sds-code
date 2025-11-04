@@ -104,12 +104,13 @@ def launch_visualization_processing(
         pipeline.launch(
             capture_uuid=capture_uuid, processing_config=updated_processing_config
         )
+    except Exception as e:
+        error_msg = f"Unexpected error in visualization processing: {e}"
+        logger.exception(error_msg)
+        raise
+    else:
         logger.info(f"Pipeline launched successfully for capture {capture_uuid}")
 
         return {
             "processing_config": updated_processing_config,
         }
-    except Exception as e:
-        error_msg = f"Unexpected error in visualization processing: {e}"
-        logger.exception(error_msg)
-        raise
