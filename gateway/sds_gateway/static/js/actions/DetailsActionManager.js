@@ -181,6 +181,15 @@ class DetailsActionManager {
 			".dataset-details-description",
 			datasetData.description || "No description provided",
 		);
+
+		// Update keywords display
+		// Keywords are now returned as a clean list from the backend
+		const keywordsValue =
+			Array.isArray(datasetData.keywords) && datasetData.keywords.length > 0
+				? datasetData.keywords.join(", ")
+				: "No keywords provided";
+		this.updateElementText(modal, ".dataset-details-keywords", keywordsValue);
+
 		this.updateElementText(
 			modal,
 			".dataset-details-status",
@@ -929,6 +938,14 @@ class DetailsActionManager {
 			return "Invalid date";
 		}
 	}
+
+	/**
+	 * Format keywords for display
+	 * @param {Array|string} keywords - Keywords as array or string
+	 * @returns {string} Formatted keywords as comma-separated string
+	 */
+	// formatKeywords method removed - keywords are now formatted on the backend
+	// Backend returns keywords as a clean array of strings, so we just join them
 
 	/**
 	 * Initialize details buttons for dynamically loaded content

@@ -100,6 +100,20 @@ class DatasetInfoForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-control"}),
         help_text="Draft: Work in progress, Final: Complete and ready for use",
     )
+    keywords = forms.CharField(
+        label="Keywords",
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": (
+                    "Enter keywords separated by commas "
+                    "(e.g., radio, spectrum, analysis)"
+                ),
+            }
+        ),
+        help_text="Enter keywords separated by commas",
+    )
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop("user", None)
@@ -125,6 +139,17 @@ class DatasetInfoForm(forms.Form):
     def clean_description(self):
         """Clean and validate the description."""
         return self.cleaned_data.get("description", "").strip()
+
+    def clean_keywords(self):
+        """Parse keywords from comma-separated string to list."""
+        keywords_str = self.cleaned_data.get("keywords", "").strip()
+        if not keywords_str:
+            return []
+
+        # Split by comma, strip whitespace, and filter out empty strings
+        return [
+            keyword.strip() for keyword in keywords_str.split(",") if keyword.strip()
+        ]
 
 
 class CaptureSearchForm(forms.Form):

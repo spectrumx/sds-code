@@ -123,6 +123,17 @@ class DatasetDetailsModal {
 		document.querySelector(".dataset-details-description").textContent =
 			dataset.description || "No description available";
 
+		// Update keywords display
+		// Keywords are now returned as a clean list from the backend
+		const keywordsElement = document.querySelector(".dataset-details-keywords");
+		if (keywordsElement) {
+			const keywordsValue =
+				Array.isArray(dataset.keywords) && dataset.keywords.length > 0
+					? dataset.keywords.join(", ")
+					: "No keywords available";
+			keywordsElement.textContent = keywordsValue;
+		}
+
 		// Format status with badge using database values
 		const statusElement = document.querySelector(".dataset-details-status");
 		if (dataset.status === "draft") {
@@ -145,6 +156,9 @@ class DatasetDetailsModal {
 		document.querySelector(".dataset-details-created").innerHTML = createdDate;
 		document.querySelector(".dataset-details-updated").innerHTML = updatedDate;
 	}
+
+	// formatKeywords method removed - keywords are now formatted on the backend
+	// Backend returns keywords as a clean array of strings, so we just join them
 
 	/**
 	 * Copy dataset UUID to clipboard

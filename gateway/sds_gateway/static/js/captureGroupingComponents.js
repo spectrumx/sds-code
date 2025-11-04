@@ -35,9 +35,11 @@ class FormHandler {
 		this.nameField = document.getElementById("id_name");
 		this.authorField = document.getElementById("id_author");
 		this.statusField = document.getElementById("id_status");
+		this.keywordsField = document.getElementById("id_keywords");
 
 		this.initializeEventListeners();
 		this.initializeErrorContainer();
+		this.initializeKeywordsAutocomplete();
 		this.validateCurrentStep(); // Initial validation
 		this.updateNavigation(); // Initial navigation button display
 
@@ -126,6 +128,224 @@ class FormHandler {
 		}
 	}
 
+	/**
+	 * Initialize keywords autocomplete functionality
+	 */
+	initializeKeywordsAutocomplete() {
+		if (!this.keywordsField) return;
+
+		// Create dropdown container
+		const dropdown = document.createElement("div");
+		dropdown.className = "keywords-autocomplete-dropdown d-none";
+		dropdown.id = "keywords-autocomplete-dropdown";
+		dropdown.innerHTML = '<div class="list-group"></div>';
+
+		// Insert dropdown after the keywords field
+		const keywordsContainer = this.keywordsField.parentElement;
+		if (keywordsContainer) {
+			keywordsContainer.style.position = "relative";
+			keywordsContainer.appendChild(dropdown);
+		}
+
+		let searchTimeout = null;
+		let allKeywords = [];
+
+		// Fetch all keywords on initialization
+		this.fetchKeywords().then((keywords) => {
+			allKeywords = keywords;
+		});
+
+		// Handle input events
+		this.keywordsField.addEventListener("input", (e) => {
+			clearTimeout(searchTimeout);
+			const query = e.target.value.trim();
+
+			// Get the last keyword being typed (after the last comma)
+			const lastCommaIndex = query.lastIndexOf(",");
+			const currentKeyword =
+				lastCommaIndex >= 0
+					? query.substring(lastCommaIndex + 1).trim()
+					: query.trim();
+
+			if (currentKeyword.length < 1) {
+				this.hideKeywordsDropdown(dropdown);
+				return;
+			}
+
+			searchTimeout = setTimeout(() => {
+				this.searchKeywords(currentKeyword, allKeywords, dropdown);
+			}, 300);
+		});
+
+		// Handle keyboard navigation
+		this.keywordsField.addEventListener("keydown", (e) => {
+			const visibleItems = dropdown.querySelectorAll(
+				".list-group-item:not(.no-results)",
+			);
+			const currentIndex = Array.from(visibleItems).findIndex((item) =>
+				item.classList.contains("selected"),
+			);
+
+			switch (e.key) {
+				case "ArrowDown":
+					e.preventDefault();
+					this.navigateKeywordsDropdown(visibleItems, currentIndex, 1);
+					break;
+				case "ArrowUp":
+					e.preventDefault();
+					this.navigateKeywordsDropdown(visibleItems, currentIndex, -1);
+					break;
+				case "Enter": {
+					e.preventDefault();
+					const selectedItem = dropdown.querySelector(
+						".list-group-item.selected",
+					);
+					if (selectedItem) {
+						this.selectKeyword(selectedItem);
+					}
+					break;
+				}
+				case "Escape":
+					this.hideKeywordsDropdown(dropdown);
+					this.keywordsField.blur();
+					break;
+			}
+		});
+
+		// Handle clicks outside to close dropdown
+		document.addEventListener("click", (e) => {
+			if (
+				!this.keywordsField.contains(e.target) &&
+				!dropdown.contains(e.target)
+			) {
+				this.hideKeywordsDropdown(dropdown);
+			}
+		});
+
+		// Handle dropdown item clicks
+		dropdown.addEventListener("click", (e) => {
+			const item = e.target.closest(".list-group-item");
+			if (item && !item.classList.contains("no-results")) {
+				this.selectKeyword(item);
+			}
+		});
+	}
+
+	/**
+	 * Fetch all keywords from the API
+	 */
+	async fetchKeywords() {
+		try {
+			const response = await fetch("/users/keywords-autocomplete/");
+			if (!response.ok) {
+				console.error("Failed to fetch keywords");
+				return [];
+			}
+			const data = await response.json();
+			return data.keywords || [];
+		} catch (error) {
+			console.error("Error fetching keywords:", error);
+			return [];
+		}
+	}
+
+	/**
+	 * Search keywords based on query
+	 */
+	searchKeywords(query, allKeywords, dropdown) {
+		const queryLower = query.toLowerCase();
+		const filtered = allKeywords
+			.filter((keyword) => keyword.toLowerCase().includes(queryLower))
+			.slice(0, 10); // Limit to 10 suggestions
+
+		this.renderKeywordsDropdown(filtered, dropdown);
+
+		if (filtered.length > 0) {
+			this.showKeywordsDropdown(dropdown);
+		} else {
+			this.hideKeywordsDropdown(dropdown);
+		}
+	}
+
+	/**
+	 * Render keywords dropdown
+	 */
+	renderKeywordsDropdown(keywords, dropdown) {
+		const listGroup = dropdown.querySelector(".list-group");
+		if (!listGroup) return;
+
+		if (keywords.length === 0) {
+			listGroup.innerHTML =
+				'<div class="list-group-item no-results">No suggestions found</div>';
+			return;
+		}
+
+		listGroup.innerHTML = keywords
+			.map(
+				(keyword) =>
+					`<div class="list-group-item keywords-suggestion" data-keyword="${keyword}">${keyword}</div>`,
+			)
+			.join("");
+	}
+
+	/**
+	 * Select a keyword from the dropdown
+	 */
+	selectKeyword(item) {
+		const keyword = item.getAttribute("data-keyword");
+		if (!keyword) return;
+
+		const currentValue = this.keywordsField.value.trim();
+		const lastCommaIndex = currentValue.lastIndexOf(",");
+
+		if (lastCommaIndex >= 0) {
+			// Replace the last keyword being typed
+			const prefix = currentValue.substring(0, lastCommaIndex + 1);
+			this.keywordsField.value = `${prefix} ${keyword}, `;
+		} else {
+			// Replace the entire value
+			this.keywordsField.value = `${keyword}, `;
+		}
+
+		this.hideKeywordsDropdown(
+			document.getElementById("keywords-autocomplete-dropdown"),
+		);
+		this.keywordsField.focus();
+	}
+
+	/**
+	 * Navigate dropdown with keyboard
+	 */
+	navigateKeywordsDropdown(items, currentIndex, direction) {
+		for (const item of items) {
+			item.classList.remove("selected");
+		}
+
+		const nextIndex = currentIndex + direction;
+		if (nextIndex >= 0 && nextIndex < items.length) {
+			items[nextIndex].classList.add("selected");
+			items[nextIndex].scrollIntoView({ block: "nearest" });
+		}
+	}
+
+	/**
+	 * Show dropdown
+	 */
+	showKeywordsDropdown(dropdown) {
+		if (dropdown) {
+			dropdown.classList.remove("d-none");
+		}
+	}
+
+	/**
+	 * Hide dropdown
+	 */
+	hideKeywordsDropdown(dropdown) {
+		if (dropdown) {
+			dropdown.classList.add("d-none");
+		}
+	}
+
 	show(container, showClass = "display-block") {
 		container.classList.remove("display-none");
 		container.classList.add(showClass);
@@ -178,6 +398,10 @@ class FormHandler {
 				document.querySelector("#step4 .dataset-description").textContent =
 					document.getElementById("id_description").value ||
 					"No description provided.";
+				const keywordsValue =
+					document.getElementById("id_keywords")?.value.trim() || "";
+				document.querySelector("#step4 .dataset-keywords").textContent =
+					keywordsValue || "No keywords provided.";
 
 				// Update captures table
 				const capturesTableBody = document.querySelector(

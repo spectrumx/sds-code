@@ -107,6 +107,14 @@
                                                         </label>
                                                         {{ dataset_form.description }}
                                                     </div>
+                                                    <div class="form-group mt-4">
+                                                        <label for="{{ dataset_form.keywords.id_for_label }}" class="form-label">
+                                                            {{ dataset_form.keywords.label }}
+                                                            <span class="text-muted">(Optional)</span>
+                                                        </label>
+                                                        {{ dataset_form.keywords }}
+                                                        {% if dataset_form.keywords.help_text %}<div class="form-text">{{ dataset_form.keywords.help_text }}</div>{% endif %}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div class="text-muted small mt-3">

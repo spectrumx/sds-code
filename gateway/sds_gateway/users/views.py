@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
+from django.core.cache import cache
 from django.core.paginator import EmptyPage
 from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
@@ -1521,11 +1522,19 @@ class GroupCapturesView(
         else:
             initial_data = {}
             if existing_dataset:
+                # Convert keywords list to comma-separated string for form display
+                keywords_str = (
+                    ", ".join(existing_dataset.keywords)
+                    if existing_dataset.keywords
+                    and isinstance(existing_dataset.keywords, list)
+                    else ""
+                )
                 initial_data = {
                     "name": existing_dataset.name,
                     "description": existing_dataset.description,
                     "author": existing_dataset.authors[0],
                     "status": existing_dataset.status,
+                    "keywords": keywords_str,
                 }
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
@@ -1687,6 +1696,7 @@ class GroupCapturesView(
             dataset.description = dataset_form.cleaned_data["description"]
             dataset.authors = [dataset_form.cleaned_data["author"]]
             dataset.status = dataset_form.cleaned_data["status"]
+            dataset.keywords = dataset_form.cleaned_data.get("keywords", [])
             dataset.save()
 
             # Clear existing relationships
@@ -1699,6 +1709,7 @@ class GroupCapturesView(
                 description=dataset_form.cleaned_data["description"],
                 authors=[dataset_form.cleaned_data["author"]],
                 status=dataset_form.cleaned_data["status"],
+                keywords=dataset_form.cleaned_data.get("keywords", []),
                 owner=request.user,
             )
 
@@ -2477,6 +2488,120 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 
 
 user_dataset_details_view = DatasetDetailsView.as_view()
+
+
+class KeywordsAutocompleteView(Auth0LoginRequiredMixin, View):
+    """
+    View to provide keyword autocomplete suggestions.
+    Returns all unique keywords from ALL datasets (all users).
+
+    Uses caching to improve performance. Cache is invalidated when datasets
+    are created, updated, or deleted.
+    """
+
+    # Cache timeout: 1 hour (3600 seconds)
+    # Cache is invalidated on dataset create/update, so this is just a safety timeout
+    CACHE_TIMEOUT = 3600
+
+    # Global cache key (shared across all users)
+    # Note: This key is also used in api_methods/models.py for cache invalidation
+    CACHE_KEY = "keywords_autocomplete_all_users"
+
+    def _fetch_keywords_from_db(self) -> set[str]:
+        """
+        Fetch all unique keywords from ALL non-deleted datasets.
+        This is the expensive operation that we cache.
+        """
+        # Get all keywords directly from database to avoid recursion issues
+        # Using values_list avoids loading full Dataset objects
+        # and from_db deserialization
+        keywords_values = (
+            Dataset.objects.filter(is_deleted=False)
+            .exclude(keywords__isnull=True)
+            .exclude(keywords="")
+            .values_list("keywords", flat=True)
+        )
+
+        # Extract all keywords from all datasets
+        all_keywords = set()
+        for keywords_value in keywords_values:
+            if not keywords_value:
+                continue
+
+            # Keywords are stored as JSON string, need to parse
+            if isinstance(keywords_value, str):
+                try:
+                    keywords_list = json.loads(keywords_value)
+                    if isinstance(keywords_list, list):
+                        all_keywords.update(keywords_list)
+                except (json.JSONDecodeError, TypeError):
+                    # If parsing fails, try to handle as comma-separated string
+                    keywords_str = keywords_value.strip()
+                    if keywords_str:
+                        keywords_list = [
+                            k.strip() for k in keywords_str.split(",") if k.strip()
+                        ]
+                        all_keywords.update(keywords_list)
+            elif isinstance(keywords_value, list):
+                # Already a list (shouldn't happen with values_list, but handle it)
+                all_keywords.update(keywords_value)
+
+        return all_keywords
+
+    def get(self, request: HttpRequest) -> JsonResponse:
+        """
+        Get all unique keywords from ALL datasets (all users).
+
+        Query parameters:
+            - query: Optional search query to filter keywords (case-insensitive)
+            - limit: Optional limit on number of results (default: 50)
+
+        Returns:
+            JsonResponse with list of unique keywords
+        """
+        try:
+            # Get query parameters
+            search_query = request.GET.get("query", "").strip().lower()
+            limit = int(request.GET.get("limit", 50))
+
+            # Try to get from cache first (global cache, same for all users)
+            cached_keywords = cache.get(self.CACHE_KEY)
+
+            if cached_keywords is not None:
+                # Cache hit - use cached keywords
+                all_keywords = cached_keywords
+            else:
+                # Cache miss - fetch from database
+                all_keywords = self._fetch_keywords_from_db()
+                # Cache the result (convert set to list for JSON serialization)
+                cache.set(self.CACHE_KEY, list(all_keywords), self.CACHE_TIMEOUT)
+                # Convert back to set for filtering
+                all_keywords = set(all_keywords)
+
+            # Filter by search query if provided
+            if search_query:
+                filtered_keywords = [
+                    keyword
+                    for keyword in all_keywords
+                    if search_query in keyword.lower()
+                ]
+            else:
+                filtered_keywords = list(all_keywords)
+
+            # Sort and limit
+            filtered_keywords.sort()
+            filtered_keywords = filtered_keywords[:limit]
+
+            return JsonResponse({"keywords": filtered_keywords})
+
+        except Exception:
+            logger.exception("Error retrieving keywords for autocomplete")
+            return JsonResponse(
+                {"error": "Internal server error", "keywords": []}, status=500
+            )
+
+
+keywords_autocomplete_view = KeywordsAutocompleteView.as_view()
 
 
 class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):

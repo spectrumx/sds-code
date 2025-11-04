@@ -11,6 +11,7 @@ from typing import cast
 
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
+from django.core.cache import cache
 from django.db import models
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
@@ -1386,7 +1387,14 @@ def handle_dataset_soft_delete(sender, instance: Dataset, **kwargs) -> None:
     """
     Handle soft deletion of datasets by also
     soft deleting related share permissions.
+    Also invalidates keywords autocomplete cache when datasets are created/updated.
     """
+    # Invalidate global keywords cache (since keywords are now from all users)
+    # This ensures autocomplete shows latest keywords when datasets change
+    # Cache key matches KeywordsAutocompleteView.CACHE_KEY in users/views.py
+    cache_key = "keywords_autocomplete_all_users"
+    cache.delete(cache_key)
+
     if instance.is_deleted:
         # This is a soft delete, so we need to soft delete related share permissions
         # Soft delete all UserSharePermission records for this dataset
