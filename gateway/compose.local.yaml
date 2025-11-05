@@ -355,6 +355,12 @@ services:
         volumes:
             # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
             - /app/node_modules
+            # Bind mount project directory for running tests
+            - source: .
+              target: /app/
+              type: bind
+              bind:
+                  selinux: z
         command: "npm run dev"
         ports:
             - "3000:3000"
