@@ -119,21 +119,22 @@ describe("DatasetEditingHandler", () => {
 			editingHandler = new DatasetEditingHandler(mockConfig);
 		});
 
-		test("should have asset management methods", () => {
-			expect(typeof editingHandler.markCaptureForRemoval).toBe("function");
-			expect(typeof editingHandler.markFileForRemoval).toBe("function");
-			expect(typeof editingHandler.addCaptureToPending).toBe("function");
-			expect(typeof editingHandler.addFileToPending).toBe("function");
+		test.each([
+			["markCaptureForRemoval"],
+			["markFileForRemoval"],
+			["addCaptureToPending"],
+			["addFileToPending"],
+		])("should have %s method", (methodName) => {
+			expect(typeof editingHandler[methodName]).toBe("function");
 		});
 
-		test("should track pending changes", () => {
-			expect(editingHandler.pendingCaptures).toBeInstanceOf(Map);
-			expect(editingHandler.pendingFiles).toBeInstanceOf(Map);
-		});
-
-		test("should track current assets", () => {
-			expect(editingHandler.currentCaptures).toBeInstanceOf(Map);
-			expect(editingHandler.currentFiles).toBeInstanceOf(Map);
+		test.each([
+			["pendingCaptures", Map],
+			["pendingFiles", Map],
+			["currentCaptures", Map],
+			["currentFiles", Map],
+		])("should track %s", (propertyName, expectedType) => {
+			expect(editingHandler[propertyName]).toBeInstanceOf(expectedType);
 		});
 	});
 
@@ -146,23 +147,21 @@ describe("DatasetEditingHandler", () => {
 			expect(editingHandler.hasChanges()).toBe(false);
 		});
 
-		test("should have change tracking methods", () => {
-			expect(typeof editingHandler.hasChanges).toBe("function");
-			expect(typeof editingHandler.getPendingChanges).toBe("function");
+		test.each([
+			["hasChanges"],
+			["getPendingChanges"],
+		])("should have %s method", (methodName) => {
+			expect(typeof editingHandler[methodName]).toBe("function");
 		});
 	});
 
 	describe("Permission Handling", () => {
-		test("should respect add asset permissions", () => {
-			const asset = { owner_id: 1 };
-
-			expect(editingHandler.permissions.canAddAsset(asset)).toBe(true);
-		});
-
-		test("should respect remove asset permissions", () => {
-			const asset = { owner_id: 2 };
-
-			expect(editingHandler.permissions.canRemoveAsset(asset)).toBe(true);
+		test.each([
+			["add", "canAddAsset", { owner_id: 1 }],
+			["remove", "canRemoveAsset", { owner_id: 2 }],
+		])("should respect %s asset permissions", (action, methodName, asset) => {
+			editingHandler = new DatasetEditingHandler(mockConfig);
+			expect(editingHandler.permissions[methodName](asset)).toBe(true);
 		});
 
 		test("should handle contributor permissions correctly", () => {
@@ -223,9 +222,11 @@ describe("DatasetEditingHandler", () => {
 			);
 		});
 
-		test("should have API integration methods", () => {
-			expect(typeof editingHandler.loadCurrentAssets).toBe("function");
-			expect(typeof editingHandler.handleSubmit).toBe("function");
+		test.each([
+			["loadCurrentAssets"],
+			["handleSubmit"],
+		])("should have %s method", (methodName) => {
+			expect(typeof editingHandler[methodName]).toBe("function");
 		});
 
 		test("should handle API errors gracefully", async () => {
@@ -272,12 +273,7 @@ describe("DatasetEditingHandler", () => {
 
 		test("should initialize authors management", () => {
 			expect(editingHandler.initializeAuthorsManagement).toBeDefined();
-		});
-
-		test("should have authors management methods", () => {
-			expect(typeof editingHandler.initializeAuthorsManagement).toBe(
-				"function",
-			);
+			expect(typeof editingHandler.initializeAuthorsManagement).toBe("function");
 		});
 	});
 
@@ -319,9 +315,11 @@ describe("DatasetEditingHandler", () => {
 			}).not.toThrow();
 		});
 
-		test("should have cleanup methods", () => {
-			expect(typeof editingHandler.getPendingChanges).toBe("function");
-			expect(typeof editingHandler.hasChanges).toBe("function");
+		test.each([
+			["getPendingChanges"],
+			["hasChanges"],
+		])("should have %s method", (methodName) => {
+			expect(typeof editingHandler[methodName]).toBe("function");
 		});
 	});
 });

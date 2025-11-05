@@ -195,29 +195,19 @@ describe("DatasetModeManager", () => {
 	});
 
 	describe("Mode Detection", () => {
-		test("should detect edit mode with valid datasetUuid", () => {
-			const editConfig = { datasetUuid: "test-uuid" };
-			const manager = new DatasetModeManager(editConfig);
-			expect(manager.isEditMode).toBe(true);
-		});
-
-		test("should detect creation mode with null datasetUuid", () => {
-			const creationConfig = { datasetUuid: null };
-			const manager = new DatasetModeManager(creationConfig);
-			expect(manager.isEditMode).toBe(false);
-		});
-
-		test("should detect creation mode with undefined datasetUuid", () => {
-			const creationConfig = {};
-			const manager = new DatasetModeManager(creationConfig);
-			expect(manager.isEditMode).toBe(false);
-		});
-
-		test("should detect creation mode with empty string datasetUuid", () => {
-			const creationConfig = { datasetUuid: "" };
-			const manager = new DatasetModeManager(creationConfig);
-			expect(manager.isEditMode).toBe(false);
-		});
+		test.each([
+			["edit", "test-uuid", true],
+			["creation", null, false],
+			["creation", undefined, false],
+			["creation", "", false],
+		])(
+			"should detect %s mode with %s datasetUuid",
+			(modeName, datasetUuid, expectedEditMode) => {
+				const config = datasetUuid === undefined ? {} : { datasetUuid };
+				const manager = new DatasetModeManager(config);
+				expect(manager.isEditMode).toBe(expectedEditMode);
+			},
+		);
 	});
 
 	describe("Configuration Management", () => {

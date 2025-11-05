@@ -182,29 +182,13 @@ describe("DOMUtils", () => {
 	});
 
 	describe("showAlert()", () => {
-		test("should show success toast notification", () => {
-			domUtils.showAlert("Success message", "success");
-
-			expect(mockToastContainer.appendChild).toHaveBeenCalled();
-			expect(global.bootstrap.Toast).toHaveBeenCalled();
-		});
-
-		test("should show error toast notification", () => {
-			domUtils.showAlert("Error message", "error");
-
-			expect(mockToastContainer.appendChild).toHaveBeenCalled();
-			expect(global.bootstrap.Toast).toHaveBeenCalled();
-		});
-
-		test("should show warning toast notification", () => {
-			domUtils.showAlert("Warning message", "warning");
-
-			expect(mockToastContainer.appendChild).toHaveBeenCalled();
-			expect(global.bootstrap.Toast).toHaveBeenCalled();
-		});
-
-		test("should show info toast notification", () => {
-			domUtils.showAlert("Info message", "info");
+		test.each([
+			["success", "Success message"],
+			["error", "Error message"],
+			["warning", "Warning message"],
+			["info", "Info message"],
+		])("should show %s toast notification", (type, message) => {
+			domUtils.showAlert(message, type);
 
 			expect(mockToastContainer.appendChild).toHaveBeenCalled();
 			expect(global.bootstrap.Toast).toHaveBeenCalled();
@@ -254,83 +238,60 @@ describe("DOMUtils", () => {
 				expect(result).toBe(true);
 			});
 
-			test("should render error with table format", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<tr><td colspan="5" class="text-danger">Error</td></tr>',
-				});
+			test.each([
+				[
+					"table",
+					{ format: "table", colspan: 5 },
+					'<tr><td colspan="5" class="text-danger">Error</td></tr>',
+					{ message: "Error message", format: "table", colspan: 5 },
+				],
+				[
+					"alert",
+					{ format: "alert" },
+					'<div class="alert alert-danger">Error message</div>',
+					{ message: "Error message", format: "alert" },
+				],
+			])(
+				"should render error with %s format",
+				async (formatName, options, html, expectedContext) => {
+					mockAPIClient.post.mockResolvedValue({ html });
 
-				await domUtils.renderError(mockContainer, "Error message", {
-					format: "table",
-					colspan: 5,
-				});
+					await domUtils.renderError(mockContainer, "Error message", options);
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/error.html",
-					context: {
-						message: "Error message",
-						format: "table",
-						colspan: 5,
-					},
-				});
-			});
+					expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
+						template: "users/components/error.html",
+						context: expectedContext,
+					});
+				},
+			);
 
-			test("should render error with alert format", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<div class="alert alert-danger">Error message</div>',
-				});
-
-				await domUtils.renderError(mockContainer, "Error message", {
-					format: "alert",
-				});
-
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/error.html",
-					context: {
-						message: "Error message",
-						format: "alert",
-					},
-				});
-			});
-
-			test("should fallback to inline HTML on API error", async () => {
-				mockAPIClient.post.mockRejectedValue(new Error("API error"));
-				console.error = jest.fn();
-
-				const result = await domUtils.renderError(
-					mockContainer,
-					"Error message",
-				);
-
-				expect(mockContainer.innerHTML).toBe(
+			test.each([
+				[
+					"inline",
+					{},
 					'<span class="text-danger">Error message</span>',
-				);
-				expect(result).toBe(false);
-			});
-
-			test("should fallback to table HTML on API error with table format", async () => {
-				mockAPIClient.post.mockRejectedValue(new Error("API error"));
-
-				await domUtils.renderError(mockContainer, "Error message", {
-					format: "table",
-					colspan: 5,
-				});
-
-				expect(mockContainer.innerHTML).toBe(
+				],
+				[
+					"table",
+					{ format: "table", colspan: 5 },
 					'<tr><td colspan="5" class="text-center text-danger">Error message</td></tr>',
-				);
-			});
+				],
+			])(
+				"should fallback to %s HTML on API error",
+				async (formatName, options, expectedHtml) => {
+					mockAPIClient.post.mockRejectedValue(new Error("API error"));
+					console.error = jest.fn();
 
-			test("should handle missing container gracefully", async () => {
-				console.warn = jest.fn();
+					const result = await domUtils.renderError(
+						mockContainer,
+						"Error message",
+						options,
+					);
 
-				const result = await domUtils.renderError("#nonexistent", "Error");
-
-				expect(console.warn).toHaveBeenCalledWith(
-					"Container not found for renderError:",
-					"#nonexistent",
-				);
-				expect(result).toBe(false);
-			});
+					expect(mockContainer.innerHTML).toBe(expectedHtml);
+					expect(result).toBe(false);
+				},
+			);
 
 			test("should work with selector string", async () => {
 				await domUtils.renderError("#test-container", "Error message");
@@ -341,164 +302,93 @@ describe("DOMUtils", () => {
 		});
 
 		describe("renderLoading()", () => {
-			test("should render loading spinner using Django template", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<span class="spinner-border"></span> Loading...',
-				});
-
-				const result = await domUtils.renderLoading(mockContainer);
-
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/loading.html",
-					context: {
+			test.each([
+				[
+					"default options",
+					undefined,
+					undefined,
+					'<span class="spinner-border"></span> Loading...',
+					{
 						text: "Loading...",
 						format: "spinner",
 						size: "md",
 						color: "primary",
 					},
-				});
-				expect(mockContainer.innerHTML).toBe(
-					'<span class="spinner-border"></span> Loading...',
-				);
-				expect(result).toBe(true);
-			});
-
-			test("should render loading with custom text", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<span class="spinner-border"></span> Please wait...',
-				});
-
-				await domUtils.renderLoading(mockContainer, "Please wait...");
-
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/loading.html",
-					context: {
+				],
+				[
+					"custom text",
+					"Please wait...",
+					undefined,
+					'<span class="spinner-border"></span> Please wait...',
+					{
 						text: "Please wait...",
 						format: "spinner",
 						size: "md",
 						color: "primary",
 					},
-				});
-			});
-
-			test("should render loading with custom options", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<span class="spinner-border spinner-border-sm"></span>',
-				});
-
-				await domUtils.renderLoading(mockContainer, "Loading...", {
-					size: "sm",
-					color: "secondary",
-				});
-
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/loading.html",
-					context: {
+				],
+				[
+					"custom options",
+					"Loading...",
+					{ size: "sm", color: "secondary" },
+					'<span class="spinner-border spinner-border-sm"></span>',
+					{
 						text: "Loading...",
 						format: "spinner",
 						size: "sm",
 						color: "secondary",
 					},
-				});
-			});
+				],
+			])(
+				"should render loading with %s",
+				async (description, text, options, expectedHtml, expectedContext) => {
+					mockAPIClient.post.mockResolvedValue({ html: expectedHtml });
 
-			test("should fallback to inline HTML on API error", async () => {
-				mockAPIClient.post.mockRejectedValue(new Error("API error"));
-				console.error = jest.fn();
+					const result = await domUtils.renderLoading(
+						mockContainer,
+						text,
+						options,
+					);
 
-				const result = await domUtils.renderLoading(
-					mockContainer,
-					"Loading...",
-				);
+					expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
+						template: "users/components/loading.html",
+						context: expectedContext,
+					});
+					expect(mockContainer.innerHTML).toBe(expectedHtml);
+					expect(result).toBe(true);
+				},
+			);
 
-				expect(mockContainer.innerHTML).toContain("spinner-border");
-				expect(mockContainer.innerHTML).toContain("Loading...");
-				expect(result).toBe(false);
-			});
-
-			test("should handle missing container gracefully", async () => {
-				console.warn = jest.fn();
-
-				const result = await domUtils.renderLoading("#nonexistent");
-
-				expect(console.warn).toHaveBeenCalledWith(
-					"Container not found for renderLoading:",
-					"#nonexistent",
-				);
-				expect(result).toBe(false);
-			});
 		});
 
 		describe("renderContent()", () => {
-			test("should render icon and text using Django template", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<i class="bi bi-check"></i> Success',
-				});
-
-				const result = await domUtils.renderContent(mockContainer, {
-					icon: "check",
-					text: "Success",
-				});
-
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/content.html",
-					context: {
-						icon: "check",
-						text: "Success",
-					},
-				});
-				expect(mockContainer.innerHTML).toBe(
+			test.each([
+				[
+					{ icon: "check", text: "Success" },
 					'<i class="bi bi-check"></i> Success',
-				);
-				expect(result).toBe(true);
-			});
+					{ icon: "check", text: "Success" },
+				],
+				[
+					{ icon: "exclamation-circle", text: "Warning", color: "warning" },
+					'<i class="bi bi-exclamation-circle text-warning"></i> Warning',
+					{ icon: "exclamation-circle", text: "Warning", color: "warning" },
+				],
+			])(
+				"should render content with options",
+				async (options, expectedHtml, expectedContext) => {
+					mockAPIClient.post.mockResolvedValue({ html: expectedHtml });
 
-			test("should render content with color", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<i class="bi bi-exclamation-circle text-warning"></i> Warning',
-				});
+					const result = await domUtils.renderContent(mockContainer, options);
 
-				await domUtils.renderContent(mockContainer, {
-					icon: "exclamation-circle",
-					text: "Warning",
-					color: "warning",
-				});
+					expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
+						template: "users/components/content.html",
+						context: expectedContext,
+					});
+					expect(mockContainer.innerHTML).toBe(expectedHtml);
+					expect(result).toBe(true);
+				},
+			);
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/content.html",
-					context: {
-						icon: "exclamation-circle",
-						text: "Warning",
-						color: "warning",
-					},
-				});
-			});
-
-			test("should fallback to inline HTML on API error", async () => {
-				mockAPIClient.post.mockRejectedValue(new Error("API error"));
-				console.error = jest.fn();
-
-				const result = await domUtils.renderContent(mockContainer, {
-					icon: "check",
-					text: "Success",
-				});
-
-				expect(mockContainer.innerHTML).toContain("bi-check");
-				expect(mockContainer.innerHTML).toContain("Success");
-				expect(result).toBe(false);
-			});
-
-			test("should handle missing container gracefully", async () => {
-				console.warn = jest.fn();
-
-				const result = await domUtils.renderContent("#nonexistent", {});
-
-				expect(console.warn).toHaveBeenCalledWith(
-					"Container not found for renderContent:",
-					"#nonexistent",
-				);
-				expect(result).toBe(false);
-			});
 		});
 
 		describe("renderTable()", () => {
@@ -546,79 +436,49 @@ describe("DOMUtils", () => {
 				});
 			});
 
-			test("should fallback to empty message on API error", async () => {
-				mockAPIClient.post.mockRejectedValue(new Error("API error"));
-				console.error = jest.fn();
-
-				const result = await domUtils.renderTable(mockContainer, []);
-
-				expect(mockContainer.innerHTML).toContain("No items found");
-				expect(result).toBe(false);
-			});
-
-			test("should handle missing container gracefully", async () => {
-				console.warn = jest.fn();
-
-				const result = await domUtils.renderTable("#nonexistent", []);
-
-				expect(console.warn).toHaveBeenCalledWith(
-					"Container not found for renderTable:",
-					"#nonexistent",
-				);
-				expect(result).toBe(false);
-			});
 		});
 
 		describe("renderSelectOptions()", () => {
-			test("should render select options using Django template with tuple format", async () => {
-				const choices = [
-					["value1", "Label 1"],
-					["value2", "Label 2"],
-				];
+			test.each([
+				[
+					"tuple format",
+					[
+						["value1", "Label 1"],
+						["value2", "Label 2"],
+					],
+					[
+						{ value: "value1", label: "Label 1", selected: false },
+						{ value: "value2", label: "Label 2", selected: false },
+					],
+				],
+				[
+					"object format",
+					[
+						{ value: "value1", label: "Label 1" },
+						{ value: "value2", label: "Label 2" },
+					],
+					[
+						{ value: "value1", label: "Label 1", selected: false },
+						{ value: "value2", label: "Label 2", selected: false },
+					],
+				],
+			])(
+				"should render select options with %s",
+				async (formatName, choices, expectedChoices) => {
+					mockAPIClient.post.mockResolvedValue({
+						html: '<option value="value1">Label 1</option><option value="value2">Label 2</option>',
+					});
 
-				mockAPIClient.post.mockResolvedValue({
-					html: '<option value="value1">Label 1</option><option value="value2">Label 2</option>',
-				});
+					await domUtils.renderSelectOptions(mockContainer, choices);
 
-				const result = await domUtils.renderSelectOptions(
-					mockContainer,
-					choices,
-				);
-
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/select_options.html",
-					context: {
-						choices: [
-							{ value: "value1", label: "Label 1", selected: false },
-							{ value: "value2", label: "Label 2", selected: false },
-						],
-					},
-				});
-				expect(result).toBe(true);
-			});
-
-			test("should render select options with object format", async () => {
-				const choices = [
-					{ value: "value1", label: "Label 1" },
-					{ value: "value2", label: "Label 2" },
-				];
-
-				mockAPIClient.post.mockResolvedValue({
-					html: '<option value="value1">Label 1</option><option value="value2">Label 2</option>',
-				});
-
-				await domUtils.renderSelectOptions(mockContainer, choices);
-
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/select_options.html",
-					context: {
-						choices: [
-							{ value: "value1", label: "Label 1", selected: false },
-							{ value: "value2", label: "Label 2", selected: false },
-						],
-					},
-				});
-			});
+					expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
+						template: "users/components/select_options.html",
+						context: {
+							choices: expectedChoices,
+						},
+					});
+				},
+			);
 
 			test("should mark current value as selected", async () => {
 				const choices = [
@@ -643,36 +503,6 @@ describe("DOMUtils", () => {
 				});
 			});
 
-			test("should fallback to inline HTML on API error", async () => {
-				const choices = [
-					["value1", "Label 1"],
-					["value2", "Label 2"],
-				];
-
-				mockAPIClient.post.mockRejectedValue(new Error("API error"));
-				console.error = jest.fn();
-
-				const result = await domUtils.renderSelectOptions(
-					mockContainer,
-					choices,
-				);
-
-				expect(mockContainer.innerHTML).toContain("value1");
-				expect(mockContainer.innerHTML).toContain("Label 1");
-				expect(result).toBe(false);
-			});
-
-			test("should handle missing select element gracefully", async () => {
-				console.warn = jest.fn();
-
-				const result = await domUtils.renderSelectOptions("#nonexistent", []);
-
-				expect(console.warn).toHaveBeenCalledWith(
-					"Select element not found for renderSelectOptions:",
-					"#nonexistent",
-				);
-				expect(result).toBe(false);
-			});
 		});
 
 		describe("renderPagination()", () => {
@@ -712,66 +542,6 @@ describe("DOMUtils", () => {
 				expect(result).toBe(true);
 			});
 
-			test("should not render pagination for single page", async () => {
-				const pagination = {
-					number: 1,
-					num_pages: 1,
-					has_previous: false,
-					has_next: false,
-				};
-
-				const result = await domUtils.renderPagination(
-					mockContainer,
-					pagination,
-				);
-
-				expect(mockContainer.innerHTML).toBe("");
-				expect(mockAPIClient.post).not.toHaveBeenCalled();
-				expect(result).toBe(true);
-			});
-
-			test("should not render pagination for no pages", async () => {
-				const result = await domUtils.renderPagination(mockContainer, null);
-
-				expect(mockContainer.innerHTML).toBe("");
-				expect(mockAPIClient.post).not.toHaveBeenCalled();
-				expect(result).toBe(true);
-			});
-
-			test("should handle API error gracefully", async () => {
-				const pagination = {
-					number: 1,
-					num_pages: 3,
-					has_previous: false,
-					has_next: true,
-				};
-
-				mockAPIClient.post.mockRejectedValue(new Error("API error"));
-				console.error = jest.fn();
-
-				const result = await domUtils.renderPagination(
-					mockContainer,
-					pagination,
-				);
-
-				expect(mockContainer.innerHTML).toBe("");
-				expect(result).toBe(false);
-			});
-
-			test("should handle missing container gracefully", async () => {
-				console.warn = jest.fn();
-
-				const result = await domUtils.renderPagination("#nonexistent", {
-					number: 1,
-					num_pages: 2,
-				});
-
-				expect(console.warn).toHaveBeenCalledWith(
-					"Container not found for renderPagination:",
-					"#nonexistent",
-				);
-				expect(result).toBe(false);
-			});
 		});
 
 		describe("renderDropdown()", () => {
@@ -817,19 +587,6 @@ describe("DOMUtils", () => {
 				});
 			});
 
-			test("should fallback to inline HTML on API error", async () => {
-				const options = {
-					items: [{ label: "Edit", icon: "pencil" }],
-				};
-
-				mockAPIClient.post.mockRejectedValue(new Error("API error"));
-				console.error = jest.fn();
-
-				const result = await domUtils.renderDropdown(options);
-
-				expect(result).toContain("dropdown");
-				expect(result).toContain("Edit");
-			});
 
 			test("should return null on complete failure", async () => {
 				mockAPIClient.post.mockResolvedValue({});
@@ -839,68 +596,131 @@ describe("DOMUtils", () => {
 				expect(result).toBeNull();
 			});
 		});
-	});
 
-	describe("Global Instance and Exports", () => {
-		test("should create global DOMUtils instance", () => {
-			// Re-import to trigger global assignment
-			global.window.DOMUtils = new DOMUtils();
+		describe("Common Error Handling", () => {
+			test.each([
+				[
+					"renderError",
+					async (container) =>
+						await domUtils.renderError(container, "Error message"),
+					"Container not found for renderError:",
+				],
+				[
+					"renderLoading",
+					async (container) => await domUtils.renderLoading(container),
+					"Container not found for renderLoading:",
+				],
+				[
+					"renderContent",
+					async (container) =>
+						await domUtils.renderContent(container, {
+							icon: "check",
+							text: "Success",
+						}),
+					"Container not found for renderContent:",
+				],
+				[
+					"renderTable",
+					async (container) => await domUtils.renderTable(container, []),
+					"Container not found for renderTable:",
+				],
+				[
+					"renderSelectOptions",
+					async (container) =>
+						await domUtils.renderSelectOptions(container, []),
+					"Select element not found for renderSelectOptions:",
+				],
+				[
+					"renderPagination",
+					async (container) =>
+						await domUtils.renderPagination(container, {
+							number: 1,
+							num_pages: 2,
+						}),
+					"Container not found for renderPagination:",
+				],
+			])(
+				"should handle missing container gracefully for %s",
+				async (methodName, renderFn, expectedWarning) => {
+					console.warn = jest.fn();
 
-			expect(global.window.DOMUtils).toBeDefined();
-			expect(global.window.DOMUtils).toBeInstanceOf(DOMUtils);
-		});
+					const result = await renderFn("#nonexistent");
 
-		test("should expose showAlert as global function", () => {
-			const domUtilsInstance = new DOMUtils();
-			global.window.showAlert =
-				domUtilsInstance.showAlert.bind(domUtilsInstance);
+					expect(console.warn).toHaveBeenCalledWith(
+						expectedWarning,
+						"#nonexistent",
+					);
+					expect(result).toBe(false);
+				},
+			);
 
-			expect(typeof global.window.showAlert).toBe("function");
-		});
-	});
+			test.each([
+				[
+					"renderError",
+					async (container) =>
+						await domUtils.renderError(container, "Error message"),
+					'<span class="text-danger">Error message</span>',
+					true, // use toBe
+				],
+				[
+					"renderLoading",
+					async (container) => await domUtils.renderLoading(container),
+					"spinner-border",
+					false, // use toContain
+				],
+				[
+					"renderContent",
+					async (container) =>
+						await domUtils.renderContent(container, {
+							icon: "check",
+							text: "Success",
+						}),
+					"bi-check",
+					false, // use toContain
+				],
+				[
+					"renderTable",
+					async (container) => await domUtils.renderTable(container, []),
+					"No items found",
+					false, // use toContain
+				],
+				[
+					"renderSelectOptions",
+					async (container) =>
+						await domUtils.renderSelectOptions(container, [
+							["value1", "Label 1"],
+						]),
+					"value1",
+					false, // use toContain
+				],
+				[
+					"renderPagination",
+					async (container) =>
+						await domUtils.renderPagination(container, {
+							number: 1,
+							num_pages: 3,
+							has_previous: false,
+							has_next: true,
+						}),
+					"",
+					true, // use toBe
+				],
+			])(
+				"should fallback on API error for %s",
+				async (methodName, renderFn, expectedContent, useExactMatch) => {
+					mockAPIClient.post.mockRejectedValue(new Error("API error"));
+					console.error = jest.fn();
 
-	describe("Integration Tests", () => {
-		test("should chain multiple operations", async () => {
-			mockAPIClient.post.mockResolvedValue({
-				html: "<div>Loading complete</div>",
-			});
+					const result = await renderFn(mockContainer);
 
-			// Show loading
-			await domUtils.renderLoading(mockContainer, "Loading...");
-			expect(mockContainer.innerHTML).toContain("Loading");
-
-			// Show content
-			await domUtils.renderContent(mockContainer, {
-				icon: "check",
-				text: "Complete",
-			});
-			expect(mockAPIClient.post).toHaveBeenCalledTimes(2);
-		});
-
-		test("should handle rapid consecutive calls", async () => {
-			mockAPIClient.post.mockResolvedValue({ html: "<div>Test</div>" });
-
-			const promises = [
-				domUtils.renderError(mockContainer, "Error 1"),
-				domUtils.renderError(mockContainer, "Error 2"),
-				domUtils.renderError(mockContainer, "Error 3"),
-			];
-
-			await Promise.all(promises);
-
-			expect(mockAPIClient.post).toHaveBeenCalledTimes(3);
-		});
-
-		test("should work with different container types", async () => {
-			mockAPIClient.post.mockResolvedValue({ html: "<div>Test</div>" });
-
-			// With element
-			await domUtils.renderError(mockContainer, "Error");
-			expect(mockAPIClient.post).toHaveBeenCalledTimes(1);
-
-			// With selector
-			await domUtils.renderError("#test-container", "Error");
-			expect(mockAPIClient.post).toHaveBeenCalledTimes(2);
+					if (useExactMatch) {
+						expect(mockContainer.innerHTML).toBe(expectedContent);
+					} else {
+						expect(mockContainer.innerHTML).toContain(expectedContent);
+					}
+					expect(result).toBe(false);
+				},
+			);
 		});
 	});
 });

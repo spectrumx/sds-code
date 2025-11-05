@@ -102,44 +102,28 @@ describe("APIClient", () => {
 	});
 
 	describe("Cookie Management", () => {
-		test("should get cookie value by name", () => {
-			global.document.cookie =
-				"test-cookie=test-value; other-cookie=other-value";
+		test.each([
+			[
+				"test-cookie=test-value; other-cookie=other-value",
+				"test-cookie",
+				"test-value",
+			],
+			["other-cookie=other-value", "test-cookie", null],
+			["", "test-cookie", null],
+			["test-cookie=test%20value%20encoded", "test-cookie", "test value encoded"],
+		])(
+			"should handle cookie '%s' - get '%s' returns '%s'",
+			(cookieString, cookieName, expected) => {
+				Object.defineProperty(global.document, "cookie", {
+					writable: true,
+					value: cookieString,
+				});
 
-			const value = apiClient.getCookie("test-cookie");
+				const value = apiClient.getCookie(cookieName);
 
-			expect(value).toBe("test-value");
-		});
-
-		test("should return null for non-existent cookie", () => {
-			Object.defineProperty(global.document, "cookie", {
-				writable: true,
-				value: "other-cookie=other-value",
-			});
-
-			const value = apiClient.getCookie("test-cookie");
-
-			expect(value).toBeNull();
-		});
-
-		test("should handle empty cookie string", () => {
-			Object.defineProperty(global.document, "cookie", {
-				writable: true,
-				value: "",
-			});
-
-			const value = apiClient.getCookie("test-cookie");
-
-			expect(value).toBeNull();
-		});
-
-		test("should decode URI encoded cookie values", () => {
-			global.document.cookie = "test-cookie=test%20value%20encoded";
-
-			const value = apiClient.getCookie("test-cookie");
-
-			expect(value).toBe("test value encoded");
-		});
+				expect(value).toBe(expected);
+			},
+		);
 	});
 
 	describe("API Requests", () => {
@@ -278,6 +262,32 @@ describe("APIClient", () => {
 	});
 
 	describe("Convenience Methods", () => {
+		beforeEach(() => {
+			// Mock window.location.origin for URL construction
+			// jsdom's location.origin is read-only, so we replace the entire location object
+			if (!global.window) {
+				global.window = {};
+			}
+			// Replace location with a simple object that has origin
+			Object.defineProperty(global.window, "location", {
+				value: {
+					origin: "http://localhost:8000",
+				},
+				writable: true,
+				configurable: true,
+			});
+			// Ensure window is also accessible as window (not just global.window)
+			if (typeof window !== "undefined") {
+				Object.defineProperty(window, "location", {
+					value: {
+						origin: "http://localhost:8000",
+					},
+					writable: true,
+					configurable: true,
+				});
+			}
+		});
+
 		test("should make GET request", async () => {
 			const mockResponse = {
 				ok: true,
@@ -303,7 +313,32 @@ describe("APIClient", () => {
 			);
 		});
 
-		test("should make POST request", async () => {
+		test("should make GET request with query parameters", async () => {
+			const mockResponse = {
+				ok: true,
+				status: 200,
+				headers: {
+					get: jest.fn(() => "application/json"),
+				},
+				json: jest.fn().mockResolvedValue({ success: true }),
+			};
+			mockFetch.mockResolvedValue(mockResponse);
+
+			await apiClient.get("/api/test", { param1: "value1", param2: "value2" });
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining("/api/test?param1=value1&param2=value2"),
+				expect.objectContaining({
+					method: "GET",
+				}),
+			);
+		});
+
+		test.each([
+			["POST", "post"],
+			["PUT", "put"],
+			["PATCH", "patch"],
+		])("should make %s request with FormData and CSRF token", async (method, methodName) => {
 			const mockResponse = {
 				ok: true,
 				status: 200,
@@ -323,67 +358,15 @@ describe("APIClient", () => {
 				return null;
 			});
 
-			await apiClient.post("/api/test", { data: "test" });
+			await apiClient[methodName]("/api/test", { data: "test" });
 
-			// Verify POST request was made with FormData
+			// Verify request was made with FormData and CSRF token
 			expect(mockFetch).toHaveBeenCalled();
 			const callArgs = mockFetch.mock.calls[0];
 			expect(callArgs[0]).toBe("/api/test");
-			expect(callArgs[1].method).toBe("POST");
+			expect(callArgs[1].method).toBe(method);
 			expect(callArgs[1].body).toBeInstanceOf(FormData);
 			expect(callArgs[1].headers["X-CSRFToken"]).toBe("test-csrf-token");
-		});
-
-		test("should make PUT request", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
-
-			// Mock CSRF token
-			const mockMetaToken = {
-				getAttribute: jest.fn(() => "test-csrf-token"),
-			};
-			global.document.querySelector = jest.fn((selector) => {
-				if (selector === 'meta[name="csrf-token"]') return mockMetaToken;
-				return null;
-			});
-
-			await apiClient.put("/api/test", { data: "test" });
-
-			// Verify PUT request was made with FormData
-			expect(mockFetch).toHaveBeenCalled();
-			const callArgs = mockFetch.mock.calls[0];
-			expect(callArgs[0]).toBe("/api/test");
-			expect(callArgs[1].method).toBe("PUT");
-			expect(callArgs[1].body).toBeInstanceOf(FormData);
-			expect(callArgs[1].headers["X-CSRFToken"]).toBe("test-csrf-token");
-		});
-
-		test("should make DELETE request", async () => {
-			// APIClient doesn't have a delete method, so we skip this test
-			// or test that patch method works instead
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
-
-			// Test PATCH as an alternative since DELETE doesn't exist
-			await apiClient.patch("/api/test", { data: "test" });
-
-			expect(mockFetch).toHaveBeenCalled();
-			const callArgs = mockFetch.mock.calls[0];
-			expect(callArgs[1].method).toBe("PATCH");
 		});
 	});
 
@@ -431,59 +414,135 @@ describe("APIClient", () => {
 	});
 
 	describe("URL Parameter Handling", () => {
-		test("should handle empty parameters", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new APIClient();
-			}).not.toThrow();
+		beforeEach(() => {
+			// Mock window.location.origin for URL construction
+			// jsdom's location.origin is read-only, so we replace the entire location object
+			if (!global.window) {
+				global.window = {};
+			}
+			// Replace location with a simple object that has origin
+			Object.defineProperty(global.window, "location", {
+				value: {
+					origin: "http://localhost:8000",
+				},
+				writable: true,
+				configurable: true,
+			});
 		});
 
-		test("should handle multiple parameters", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new APIClient();
-			}).not.toThrow();
+		test("should handle empty parameters", async () => {
+			const mockResponse = {
+				ok: true,
+				status: 200,
+				headers: {
+					get: jest.fn(() => "application/json"),
+				},
+				json: jest.fn().mockResolvedValue({ success: true }),
+			};
+			mockFetch.mockResolvedValue(mockResponse);
+
+			await apiClient.get("/api/test", {});
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				"http://localhost:8000/api/test",
+				expect.any(Object),
+			);
 		});
 
-		test("should encode special characters in parameters", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new APIClient();
-			}).not.toThrow();
+		test("should handle multiple parameters", async () => {
+			const mockResponse = {
+				ok: true,
+				status: 200,
+				headers: {
+					get: jest.fn(() => "application/json"),
+				},
+				json: jest.fn().mockResolvedValue({ success: true }),
+			};
+			mockFetch.mockResolvedValue(mockResponse);
+
+			await apiClient.get("/api/test", {
+				param1: "value1",
+				param2: "value2",
+				param3: "value3",
+			});
+
+			const url = mockFetch.mock.calls[0][0];
+			expect(url).toContain("param1=value1");
+			expect(url).toContain("param2=value2");
+			expect(url).toContain("param3=value3");
+		});
+
+		test("should encode special characters in parameters", async () => {
+			const mockResponse = {
+				ok: true,
+				status: 200,
+				headers: {
+					get: jest.fn(() => "application/json"),
+				},
+				json: jest.fn().mockResolvedValue({ success: true }),
+			};
+			mockFetch.mockResolvedValue(mockResponse);
+
+			await apiClient.get("/api/test", { query: "test value & special=chars" });
+
+			const url = mockFetch.mock.calls[0][0];
+			expect(url).toContain("test%20value");
+			expect(url).toContain("%26");
+			expect(url).toContain("%3D");
+		});
+
+		test("should filter out null and undefined parameters", async () => {
+			const mockResponse = {
+				ok: true,
+				status: 200,
+				headers: {
+					get: jest.fn(() => "application/json"),
+				},
+				json: jest.fn().mockResolvedValue({ success: true }),
+			};
+			mockFetch.mockResolvedValue(mockResponse);
+
+			await apiClient.get("/api/test", {
+				valid: "value",
+				nullParam: null,
+				undefinedParam: undefined,
+			});
+
+			const url = mockFetch.mock.calls[0][0];
+			expect(url).toContain("valid=value");
+			expect(url).not.toContain("nullParam");
+			expect(url).not.toContain("undefinedParam");
 		});
 	});
 
 	describe("Content Type Detection", () => {
-		test("should handle missing content-type header", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => null),
-				},
-				text: jest.fn().mockResolvedValue("plain text"),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+		test.each([
+			[null, "plain text"],
+			["invalid-content-type", "plain text"],
+			["text/plain", "plain text"],
+			["application/json", { success: true }],
+		])(
+			"should handle content-type '%s' correctly",
+			async (contentType, expectedResult) => {
+				const mockResponse = {
+					ok: true,
+					status: 200,
+					headers: {
+						get: jest.fn(() => contentType),
+					},
+					json: jest.fn().mockResolvedValue({ success: true }),
+					text: jest.fn().mockResolvedValue("plain text"),
+				};
+				mockFetch.mockResolvedValue(mockResponse);
 
-			const result = await apiClient.request("/api/test");
+				const result = await apiClient.request("/api/test");
 
-			expect(result).toBe("plain text");
-		});
-
-		test("should handle malformed content-type header", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "invalid-content-type"),
-				},
-				text: jest.fn().mockResolvedValue("plain text"),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
-
-			const result = await apiClient.request("/api/test");
-
-			expect(result).toBe("plain text");
-		});
+				if (contentType?.includes("application/json")) {
+					expect(result).toEqual(expectedResult);
+				} else {
+					expect(result).toBe(expectedResult);
+				}
+			},
+		);
 	});
 });

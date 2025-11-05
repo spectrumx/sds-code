@@ -298,41 +298,22 @@ describe("DatasetCreationHandler", () => {
 	});
 
 	describe("Step Validation", () => {
-		test("should validate info step", () => {
-			creationHandler.currentStep = 0;
-
-			// Set up valid form data
-			if (creationHandler.nameField)
-				creationHandler.nameField.value = "Test Dataset";
-			if (creationHandler.authorsField)
-				creationHandler.authorsField.value =
-					'[{"name": "Test Author", "orcid_id": ""}]';
-			if (creationHandler.statusField)
-				creationHandler.statusField.value = "active";
-
-			const isValid = creationHandler.validateCurrentStep();
-
-			expect(isValid).toBe(true);
-		});
-
-		test("should validate captures step", () => {
-			creationHandler.currentStep = 1;
-
-			const isValid = creationHandler.validateCurrentStep();
-
-			expect(isValid).toBe(true);
-		});
-
-		test("should validate files step", () => {
-			creationHandler.currentStep = 2;
-
-			const isValid = creationHandler.validateCurrentStep();
-
-			expect(isValid).toBe(true);
-		});
-
-		test("should validate review step", () => {
-			creationHandler.currentStep = 3;
+		test.each([
+			["info", 0, () => {
+				if (creationHandler.nameField)
+					creationHandler.nameField.value = "Test Dataset";
+				if (creationHandler.authorsField)
+					creationHandler.authorsField.value =
+						'[{"name": "Test Author", "orcid_id": ""}]';
+				if (creationHandler.statusField)
+					creationHandler.statusField.value = "active";
+			}],
+			["captures", 1, () => {}],
+			["files", 2, () => {}],
+			["review", 3, () => {}],
+		])("should validate %s step", (stepName, stepIndex, setupFn) => {
+			creationHandler.currentStep = stepIndex;
+			setupFn();
 
 			const isValid = creationHandler.validateCurrentStep();
 
@@ -392,23 +373,27 @@ describe("DatasetCreationHandler", () => {
 	});
 
 	describe("Form Submission", () => {
-		test("should set submit button loading state", () => {
-			creationHandler.setSubmitButtonLoading(true);
+		test.each([
+			["set", true, true, "Creating...", "disabled"],
+			["clear", false, false, "Create Dataset", "enabled"],
+		])(
+			"should %s submit button loading state",
+			(action, loading, expectedDisabled, expectedText, stateDescription) => {
+				if (!loading) {
+					// Set loading state first before clearing
+					creationHandler.setSubmitButtonLoading(true);
+				}
 
-			expect(creationHandler.submitBtn.disabled).toBe(true);
-			expect(creationHandler.submitBtn.innerHTML).toContain("Creating...");
-		});
+				creationHandler.setSubmitButtonLoading(loading);
 
-		test("should clear submit button loading state", () => {
-			// Set loading state first
-			creationHandler.setSubmitButtonLoading(true);
-
-			// Clear it
-			creationHandler.setSubmitButtonLoading(false);
-
-			expect(creationHandler.submitBtn.disabled).toBe(false);
-			expect(creationHandler.submitBtn.textContent).toBe("Create Dataset");
-		});
+				expect(creationHandler.submitBtn.disabled).toBe(expectedDisabled);
+				if (loading) {
+					expect(creationHandler.submitBtn.innerHTML).toContain(expectedText);
+				} else {
+					expect(creationHandler.submitBtn.textContent).toBe(expectedText);
+				}
+			},
+		);
 
 		test("should clear errors", () => {
 			// DOMUtils doesn't have a clearNotifications method
@@ -505,20 +490,29 @@ describe("DatasetCreationHandler", () => {
 	});
 
 	describe("Error Handling", () => {
-		test("should handle missing form elements gracefully", () => {
-			document.getElementById.mockReturnValue(null);
+		test.each([
+			[
+				"missing form elements",
+				() => {
+					document.getElementById.mockReturnValue(null);
+				},
+				() => {
+					new DatasetCreationHandler(mockConfig);
+				},
+			],
+			[
+				"missing search handlers",
+				() => {
+					global.window.AssetSearchHandler = undefined;
+				},
+				() => {
+					new DatasetCreationHandler(mockConfig);
+				},
+			],
+		])("should handle %s gracefully", (description, setupFn, testFn) => {
+			setupFn();
 
-			expect(() => {
-				new DatasetCreationHandler(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should handle missing search handlers gracefully", () => {
-			global.window.AssetSearchHandler = undefined;
-
-			expect(() => {
-				new DatasetCreationHandler(mockConfig);
-			}).not.toThrow();
+			expect(testFn).not.toThrow();
 		});
 
 		test("should handle API failures gracefully", async () => {
@@ -555,40 +549,20 @@ describe("DatasetCreationHandler", () => {
 			showSpy.mockRestore();
 		});
 
-		test("should disable previous button on first step", () => {
-			const hideSpy = jest.spyOn(global.window.DOMUtils, "hide");
+		test.each([
+			["hide previous button on first step", 0, "hide"],
+			["hide next button on last step", () => creationHandler.steps.length - 1, "hide"],
+			["show submit button on last step", () => creationHandler.steps.length - 1, "show"],
+		])("should %s", (description, stepOrFn, method) => {
+			const spy = jest.spyOn(global.window.DOMUtils, method);
 
-			creationHandler.currentStep = 0;
+			creationHandler.currentStep =
+				typeof stepOrFn === "function" ? stepOrFn() : stepOrFn;
 			creationHandler.updateNavigation();
 
-			// Verify hide was called on prev button (implementation uses DOMUtils now)
-			expect(hideSpy).toHaveBeenCalled();
+			expect(spy).toHaveBeenCalled();
 
-			hideSpy.mockRestore();
-		});
-
-		test("should hide next button on last step", () => {
-			const hideSpy = jest.spyOn(global.window.DOMUtils, "hide");
-
-			creationHandler.currentStep = creationHandler.steps.length - 1;
-			creationHandler.updateNavigation();
-
-			// Verify hide was called (for next button on last step)
-			expect(hideSpy).toHaveBeenCalled();
-
-			hideSpy.mockRestore();
-		});
-
-		test("should show submit button on last step", () => {
-			const showSpy = jest.spyOn(global.window.DOMUtils, "show");
-
-			creationHandler.currentStep = creationHandler.steps.length - 1;
-			creationHandler.updateNavigation();
-
-			// Verify show was called (for submit button on last step)
-			expect(showSpy).toHaveBeenCalled();
-
-			showSpy.mockRestore();
+			spy.mockRestore();
 		});
 	});
 

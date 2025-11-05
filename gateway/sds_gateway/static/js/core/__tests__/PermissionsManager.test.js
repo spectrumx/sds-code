@@ -147,52 +147,47 @@ describe("PermissionsManager", () => {
 	});
 
 	describe("Permission display names", () => {
-		test("should return correct display names", () => {
-			expect(permissions.getPermissionDisplayName("owner")).toBe("Owner");
-			expect(permissions.getPermissionDisplayName("co-owner")).toBe("Co-Owner");
-			expect(permissions.getPermissionDisplayName("contributor")).toBe(
-				"Contributor",
-			);
-			expect(permissions.getPermissionDisplayName("viewer")).toBe("Viewer");
+		test.each([
+			["owner", "Owner"],
+			["co-owner", "Co-Owner"],
+			["contributor", "Contributor"],
+			["viewer", "Viewer"],
+		])("should return correct display name for %s", (level, expected) => {
+			expect(permissions.getPermissionDisplayName(level)).toBe(expected);
 		});
 	});
 
 	describe("Permission descriptions", () => {
-		test("should return correct descriptions", () => {
-			const ownerDesc = permissions.getPermissionDescription("owner");
-			const coOwnerDesc = permissions.getPermissionDescription("co-owner");
-			const contributorDesc =
-				permissions.getPermissionDescription("contributor");
-			const viewerDesc = permissions.getPermissionDescription("viewer");
-
-			expect(ownerDesc).toContain("Full control");
-			expect(coOwnerDesc).toContain("edit metadata");
-			expect(contributorDesc).toContain("their own");
-			expect(viewerDesc).toContain("only view");
+		test.each([
+			["owner", "Full control"],
+			["co-owner", "edit metadata"],
+			["contributor", "their own"],
+			["viewer", "only view"],
+		])("should return description containing '%s' for %s", (level, expectedText) => {
+			const desc = permissions.getPermissionDescription(level);
+			expect(desc).toContain(expectedText);
 		});
 	});
 
 	describe("Permission icons", () => {
-		test("should return correct icons", () => {
-			expect(permissions.getPermissionIcon("owner")).toBe("bi-person-circle");
-			expect(permissions.getPermissionIcon("co-owner")).toBe("bi-gear");
-			expect(permissions.getPermissionIcon("contributor")).toBe(
-				"bi-plus-circle",
-			);
-			expect(permissions.getPermissionIcon("viewer")).toBe("bi-eye");
+		test.each([
+			["owner", "bi-person-circle"],
+			["co-owner", "bi-gear"],
+			["contributor", "bi-plus-circle"],
+			["viewer", "bi-eye"],
+		])("should return correct icon for %s", (level, expected) => {
+			expect(permissions.getPermissionIcon(level)).toBe(expected);
 		});
 	});
 
 	describe("Permission badge classes", () => {
-		test("should return correct badge classes", () => {
-			expect(permissions.getPermissionBadgeClass("owner")).toBe("bg-owner");
-			expect(permissions.getPermissionBadgeClass("co-owner")).toBe(
-				"bg-co-owner",
-			);
-			expect(permissions.getPermissionBadgeClass("contributor")).toBe(
-				"bg-contributor",
-			);
-			expect(permissions.getPermissionBadgeClass("viewer")).toBe("bg-viewer");
+		test.each([
+			["owner", "bg-owner"],
+			["co-owner", "bg-co-owner"],
+			["contributor", "bg-contributor"],
+			["viewer", "bg-viewer"],
+		])("should return correct badge class for %s", (level, expected) => {
+			expect(permissions.getPermissionBadgeClass(level)).toBe(expected);
 		});
 	});
 
