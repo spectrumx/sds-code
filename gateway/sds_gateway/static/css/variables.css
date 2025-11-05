@@ -4,9 +4,8 @@
 	--secondary-color: #0056b3;
 	--text-color: #333;
 	--light-gray: #f5f5f5;
-	--white: #fff;
 	--mint-green: #d6e9c6;
-	--black: #000;
+	/* Note: --bs-white and --bs-black are provided by Bootstrap */
 	--pink: #f2dede;
 	--dark-pink: #eed3d7;
 	--red: #b94a48;
@@ -42,10 +41,67 @@
 	--spectrumx-remove-hover-color: #b91c1c;
 	--spectrumx-remove-bg: #fef2f2;
 	--spectrumx-remove-border: #dc2626;
+
+	/* SpectrumX Form Colors */
+	--spectrumx-form-select-focus-color: #86b7fe;
+
+	/* Note: Bootstrap 5 already provides these variables:
+	 * --bs-primary, --bs-secondary, --bs-success, --bs-danger, 
+	 * --bs-warning, --bs-info, --bs-light, --bs-dark
+	 * --bs-gray-100 through --bs-gray-900
+	 * --bs-white, --bs-black
+	 * Reference Bootstrap's variables instead of redefining them.
+	 */
+
+	/* Custom extensions to Bootstrap variables */
+	--bs-primary-hover: #0a58ca;
+	--bs-primary-dark: #004b80;
+	--bs-success-hover: #198754;
+	--bs-success-dark: #157347;
+	--bs-danger-hover: #dc3545;
+	--bs-danger-dark: #bb2d3b;
+	--bs-danger-light: #f8d7da;
+	--bs-info-bg: #d1ecf1;
+	--bs-info-dark: #0c5460;
+	--bs-warning-bg: #fff3cd;
+	--bs-warning-dark: #856404;
+	--bs-warning-light: #f9c97d;
+
+	/* Google/Modern UI Colors */
+	--google-blue: #4285f4;
+	--google-blue-shadow: rgba(66, 133, 244, 0.25);
+
+	/* LFS Colors */
+	--lfs-blue: #005a9c;
+	--lfs-yellow: var(--bs-warning);
+	--lfs-grey: var(--bs-gray-600);
+
+	/* Gradient Colors */
+	--gradient-1: #f9c97d;
+	--gradient-2: #f2a2a4;
+	--gradient-3: #e27bb1;
+	--gradient-4: #bf5ce1;
+	--gradient-5: #7f5ae1;
+	--gradient-6: #5ab9e6;
+	--gradient-7: #59d5e0;
+
+	/* Additional UI Colors */
+	--cyan: #0dcaf0;
+	--orange: #fd7e14;
+	--pink-magenta: #e83e8c;
+	--light-gray-text: var(--bs-gray-400);
+	--medium-gray-text: var(--bs-gray-500);
+	--red-text: #c00;
+	--medium-gray-border: #989a9d;
+	--shadow-black: rgba(0, 0, 0, 0.075);
+	--shadow-black-light: rgba(0, 0, 0, 0.1);
+	--shadow-black-medium: rgba(0, 0, 0, 0.15);
+	--shadow-black-very-light: rgba(0, 0, 0, 0.05);
+	--white-transparent: rgba(255, 255, 255, 0.1);
 }
 
 /* External link styling */
 .external-link {
-	color: #005a9c;
+	color: var(--lfs-blue);
 	text-decoration: underline;
 }
