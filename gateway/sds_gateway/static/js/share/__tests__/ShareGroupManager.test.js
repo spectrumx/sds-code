@@ -198,7 +198,6 @@ describe("ShareGroupManager", () => {
 				shareGroupManager.updateTableMemberInfo("test-uuid", members);
 			}).not.toThrow();
 		});
-
 	});
 
 	describe("Helper Methods", () => {
@@ -225,13 +224,13 @@ describe("ShareGroupManager", () => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
 		});
 
-		test.each([
-			["API errors"],
-			["network errors"],
-		])("should handle %s gracefully", (errorType) => {
-			expect(() => {
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
+		test.each([["API errors"], ["network errors"]])(
+			"should handle %s gracefully",
+			(errorType) => {
+				expect(() => {
+					new ShareGroupManager(mockConfig);
+				}).not.toThrow();
+			},
+		);
 	});
 });

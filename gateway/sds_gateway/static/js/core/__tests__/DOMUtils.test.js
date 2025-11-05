@@ -258,19 +258,18 @@ describe("DOMUtils", () => {
 
 					await domUtils.renderError(mockContainer, "Error message", options);
 
-					expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-						template: "users/components/error.html",
-						context: expectedContext,
-					});
+					expect(mockAPIClient.post).toHaveBeenCalledWith(
+						"/users/render-html/",
+						{
+							template: "users/components/error.html",
+							context: expectedContext,
+						},
+					);
 				},
 			);
 
 			test.each([
-				[
-					"inline",
-					{},
-					'<span class="text-danger">Error message</span>',
-				],
+				["inline", {}, '<span class="text-danger">Error message</span>'],
 				[
 					"table",
 					{ format: "table", colspan: 5 },
@@ -350,15 +349,17 @@ describe("DOMUtils", () => {
 						options,
 					);
 
-					expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-						template: "users/components/loading.html",
-						context: expectedContext,
-					});
+					expect(mockAPIClient.post).toHaveBeenCalledWith(
+						"/users/render-html/",
+						{
+							template: "users/components/loading.html",
+							context: expectedContext,
+						},
+					);
 					expect(mockContainer.innerHTML).toBe(expectedHtml);
 					expect(result).toBe(true);
 				},
 			);
-
 		});
 
 		describe("renderContent()", () => {
@@ -380,15 +381,17 @@ describe("DOMUtils", () => {
 
 					const result = await domUtils.renderContent(mockContainer, options);
 
-					expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-						template: "users/components/content.html",
-						context: expectedContext,
-					});
+					expect(mockAPIClient.post).toHaveBeenCalledWith(
+						"/users/render-html/",
+						{
+							template: "users/components/content.html",
+							context: expectedContext,
+						},
+					);
 					expect(mockContainer.innerHTML).toBe(expectedHtml);
 					expect(result).toBe(true);
 				},
 			);
-
 		});
 
 		describe("renderTable()", () => {
@@ -435,7 +438,6 @@ describe("DOMUtils", () => {
 					},
 				});
 			});
-
 		});
 
 		describe("renderSelectOptions()", () => {
@@ -471,12 +473,15 @@ describe("DOMUtils", () => {
 
 					await domUtils.renderSelectOptions(mockContainer, choices);
 
-					expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-						template: "users/components/select_options.html",
-						context: {
-							choices: expectedChoices,
+					expect(mockAPIClient.post).toHaveBeenCalledWith(
+						"/users/render-html/",
+						{
+							template: "users/components/select_options.html",
+							context: {
+								choices: expectedChoices,
+							},
 						},
-					});
+					);
 				},
 			);
 
@@ -502,7 +507,6 @@ describe("DOMUtils", () => {
 					},
 				});
 			});
-
 		});
 
 		describe("renderPagination()", () => {
@@ -541,7 +545,6 @@ describe("DOMUtils", () => {
 				});
 				expect(result).toBe(true);
 			});
-
 		});
 
 		describe("renderDropdown()", () => {
@@ -586,7 +589,6 @@ describe("DOMUtils", () => {
 					},
 				});
 			});
-
 
 			test("should return null on complete failure", async () => {
 				mockAPIClient.post.mockResolvedValue({});

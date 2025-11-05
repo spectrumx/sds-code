@@ -195,7 +195,6 @@ describe("AssetSearchHandler", () => {
 
 			expect(mockInput.value).toBe("");
 		});
-
 	});
 
 	describe("Selection Properties", () => {
@@ -283,5 +282,4 @@ describe("AssetSearchHandler", () => {
 			expect(searchHandler.currentFilters.type).toBe("spectrum");
 		});
 	});
-
 });

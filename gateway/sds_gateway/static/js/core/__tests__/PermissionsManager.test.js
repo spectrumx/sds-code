@@ -163,10 +163,13 @@ describe("PermissionsManager", () => {
 			["co-owner", "edit metadata"],
 			["contributor", "their own"],
 			["viewer", "only view"],
-		])("should return description containing '%s' for %s", (level, expectedText) => {
-			const desc = permissions.getPermissionDescription(level);
-			expect(desc).toContain(expectedText);
-		});
+		])(
+			"should return description containing '%s' for %s",
+			(level, expectedText) => {
+				const desc = permissions.getPermissionDescription(level);
+				expect(desc).toContain(expectedText);
+			},
+		);
 	});
 
 	describe("Permission icons", () => {

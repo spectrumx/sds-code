@@ -110,7 +110,11 @@ describe("APIClient", () => {
 			],
 			["other-cookie=other-value", "test-cookie", null],
 			["", "test-cookie", null],
-			["test-cookie=test%20value%20encoded", "test-cookie", "test value encoded"],
+			[
+				"test-cookie=test%20value%20encoded",
+				"test-cookie",
+				"test value encoded",
+			],
 		])(
 			"should handle cookie '%s' - get '%s' returns '%s'",
 			(cookieString, cookieName, expected) => {
@@ -338,36 +342,39 @@ describe("APIClient", () => {
 			["POST", "post"],
 			["PUT", "put"],
 			["PATCH", "patch"],
-		])("should make %s request with FormData and CSRF token", async (method, methodName) => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+		])(
+			"should make %s request with FormData and CSRF token",
+			async (method, methodName) => {
+				const mockResponse = {
+					ok: true,
+					status: 200,
+					headers: {
+						get: jest.fn(() => "application/json"),
+					},
+					json: jest.fn().mockResolvedValue({ success: true }),
+				};
+				mockFetch.mockResolvedValue(mockResponse);
 
-			// Mock CSRF token
-			const mockMetaToken = {
-				getAttribute: jest.fn(() => "test-csrf-token"),
-			};
-			global.document.querySelector = jest.fn((selector) => {
-				if (selector === 'meta[name="csrf-token"]') return mockMetaToken;
-				return null;
-			});
+				// Mock CSRF token
+				const mockMetaToken = {
+					getAttribute: jest.fn(() => "test-csrf-token"),
+				};
+				global.document.querySelector = jest.fn((selector) => {
+					if (selector === 'meta[name="csrf-token"]') return mockMetaToken;
+					return null;
+				});
 
-			await apiClient[methodName]("/api/test", { data: "test" });
+				await apiClient[methodName]("/api/test", { data: "test" });
 
-			// Verify request was made with FormData and CSRF token
-			expect(mockFetch).toHaveBeenCalled();
-			const callArgs = mockFetch.mock.calls[0];
-			expect(callArgs[0]).toBe("/api/test");
-			expect(callArgs[1].method).toBe(method);
-			expect(callArgs[1].body).toBeInstanceOf(FormData);
-			expect(callArgs[1].headers["X-CSRFToken"]).toBe("test-csrf-token");
-		});
+				// Verify request was made with FormData and CSRF token
+				expect(mockFetch).toHaveBeenCalled();
+				const callArgs = mockFetch.mock.calls[0];
+				expect(callArgs[0]).toBe("/api/test");
+				expect(callArgs[1].method).toBe(method);
+				expect(callArgs[1].body).toBeInstanceOf(FormData);
+				expect(callArgs[1].headers["X-CSRFToken"]).toBe("test-csrf-token");
+			},
+		);
 	});
 
 	describe("Error Handling", () => {
