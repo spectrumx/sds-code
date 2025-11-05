@@ -116,20 +116,6 @@ describe("ShareGroupManager", () => {
 				shareGroupManager.initializeEventListeners();
 			}).not.toThrow();
 		});
-
-		test("should handle create group with empty name", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should handle create group API error", async () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
 	});
 
 	describe("Member Management", () => {
@@ -148,27 +134,6 @@ describe("ShareGroupManager", () => {
 				shareGroupManager.initializeEventListeners();
 			}).not.toThrow();
 		});
-
-		test("should handle add members with no users selected", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should load current members successfully", async () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should handle empty members list", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
 	});
 
 	describe("Member Removal", () => {
@@ -176,22 +141,13 @@ describe("ShareGroupManager", () => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
 		});
 
-		test("should mark member for removal", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should toggle member removal state", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should handle save button with pending removals", () => {
-			shareGroupManager.pendingRemovals.add("test@example.com");
+		test.each([
+			[true, "when there are pending removals"],
+			[false, "when no pending removals"],
+		])("should handle save button %s", (hasRemovals, description) => {
+			if (hasRemovals) {
+				shareGroupManager.pendingRemovals.add("test@example.com");
+			}
 
 			expect(() => {
 				shareGroupManager.updateSaveButtonState();
@@ -204,98 +160,11 @@ describe("ShareGroupManager", () => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
 		});
 
-		test("should handle delete group successfully", async () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
 		test("should show delete confirmation modal", () => {
 			const mockModal = { show: jest.fn() };
 			global.bootstrap.Modal.mockImplementation(() => mockModal);
 
 			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-	});
-
-	describe("Shared Assets", () => {
-		beforeEach(() => {
-			shareGroupManager = new ShareGroupManager(mockConfig);
-		});
-
-		test("should load and display shared assets", async () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should handle no shared assets", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-	});
-
-	describe("User Search", () => {
-		beforeEach(() => {
-			shareGroupManager = new ShareGroupManager(mockConfig);
-		});
-
-		test("should search users successfully", async () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should handle search with no results", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should select user from search results", () => {
-			const mockInput = {
-				id: "test-input",
-				closest: jest.fn(() => ({ querySelector: jest.fn(() => null) })),
-			};
-
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-	});
-
-	describe("Save Button State Management", () => {
-		beforeEach(() => {
-			shareGroupManager = new ShareGroupManager(mockConfig);
-		});
-
-		test("should enable save button when there are pending removals", () => {
-			shareGroupManager.pendingRemovals.add("test@example.com");
-
-			expect(() => {
-				shareGroupManager.updateSaveButtonState();
-			}).not.toThrow();
-		});
-
-		test("should disable save button when no pending removals", () => {
-			expect(() => {
-				shareGroupManager.updateSaveButtonState();
-			}).not.toThrow();
-		});
-
-		test("should enable add members button when users are selected", () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
 				new ShareGroupManager(mockConfig);
 			}).not.toThrow();
 		});
@@ -330,18 +199,6 @@ describe("ShareGroupManager", () => {
 			}).not.toThrow();
 		});
 
-		test("should add new group to table", () => {
-			const mockTableBody = {
-				querySelector: jest.fn(() => null),
-				insertAdjacentHTML: jest.fn(),
-			};
-			document.querySelector = jest.fn(() => mockTableBody);
-
-			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
 	});
 
 	describe("Helper Methods", () => {
@@ -349,26 +206,13 @@ describe("ShareGroupManager", () => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
 		});
 
-		test("should highlight search matches", () => {
-			// The highlightMatch method doesn't exist in current implementation
-			// Skip this test as it's testing a method that was removed/renamed
-			expect(true).toBe(true);
-		});
-
-		test("should escape HTML in search results", () => {
-			// The escapeHtml method doesn't exist in current implementation
-			// HTML escaping is now handled by DOMUtils/Django templates
-			expect(true).toBe(true);
-		});
-
-		test("should show alert using global function", () => {
-			expect(() => {
-				shareGroupManager.showAlert("Test message", "success");
-			}).not.toThrow();
-		});
-
-		test("should handle missing global showAlert", () => {
-			global.window.showAlert = undefined;
+		test.each([
+			["with global showAlert available", true],
+			["with missing global showAlert", false],
+		])("should show alert %s", (description, hasShowAlert) => {
+			if (!hasShowAlert) {
+				global.window.showAlert = undefined;
+			}
 
 			expect(() => {
 				shareGroupManager.showAlert("Test message", "success");
@@ -381,16 +225,11 @@ describe("ShareGroupManager", () => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
 		});
 
-		test("should handle API errors gracefully", async () => {
+		test.each([
+			["API errors"],
+			["network errors"],
+		])("should handle %s gracefully", (errorType) => {
 			expect(() => {
-				// Test that the class can be instantiated without throwing
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
-		});
-
-		test("should handle network errors", async () => {
-			expect(() => {
-				// Test that the class can be instantiated without throwing
 				new ShareGroupManager(mockConfig);
 			}).not.toThrow();
 		});

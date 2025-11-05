@@ -150,21 +150,11 @@ describe("AssetSearchHandler", () => {
 			searchHandler = new AssetSearchHandler(mockConfig);
 		});
 
-		test("should setup search button event listener", () => {
-			expect(mockButton.addEventListener).toHaveBeenCalledWith(
-				"click",
-				expect.any(Function),
-			);
-		});
-
-		test("should setup clear button event listener", () => {
-			expect(mockButton.addEventListener).toHaveBeenCalledWith(
-				"click",
-				expect.any(Function),
-			);
-		});
-
-		test("should setup confirm file selection event listener", () => {
+		test.each([
+			["search button"],
+			["clear button"],
+			["confirm file selection"],
+		])("should setup %s event listener", (buttonName) => {
 			expect(mockButton.addEventListener).toHaveBeenCalledWith(
 				"click",
 				expect.any(Function),
@@ -181,28 +171,6 @@ describe("AssetSearchHandler", () => {
 
 			expect(mockInput.addEventListener).toHaveBeenCalledWith(
 				"keypress",
-				expect.any(Function),
-			);
-		});
-	});
-
-	describe("Search Functionality", () => {
-		beforeEach(() => {
-			searchHandler = new AssetSearchHandler(mockConfig);
-		});
-
-		test("should have search button event listener", () => {
-			// Test that the search button has an event listener attached
-			expect(mockButton.addEventListener).toHaveBeenCalledWith(
-				"click",
-				expect.any(Function),
-			);
-		});
-
-		test("should have clear button event listener", () => {
-			// Test that the clear button has an event listener attached
-			expect(mockButton.addEventListener).toHaveBeenCalledWith(
-				"click",
 				expect.any(Function),
 			);
 		});
@@ -228,37 +196,24 @@ describe("AssetSearchHandler", () => {
 			expect(mockInput.value).toBe("");
 		});
 
-		test("should clear pagination", () => {
-			// Test that handleClear method exists and can be called
-			expect(() => {
-				searchHandler.handleClear();
-			}).not.toThrow();
-		});
 	});
 
-	describe("File Selection", () => {
+	describe("Selection Properties", () => {
 		beforeEach(() => {
 			searchHandler = new AssetSearchHandler(mockConfig);
+		});
+
+		test.each([
+			["selectedFiles", Map],
+			["selectedCaptureDetails", Map],
+		])("should have %s property", (propertyName, expectedType) => {
+			expect(searchHandler[propertyName]).toBeDefined();
+			expect(searchHandler[propertyName]).toBeInstanceOf(expectedType);
 		});
 
 		test("should update selected files list", () => {
-			// Test the actual method that exists
 			searchHandler.updateSelectedFilesList();
-
-			// The method should not throw and should handle the case gracefully
 			expect(searchHandler.updateSelectedFilesList).toBeDefined();
-		});
-	});
-
-	describe("Capture Selection", () => {
-		beforeEach(() => {
-			searchHandler = new AssetSearchHandler(mockConfig);
-		});
-
-		test("should have selectedCaptureDetails property", () => {
-			// Test that the property exists
-			expect(searchHandler.selectedCaptureDetails).toBeDefined();
-			expect(searchHandler.selectedCaptureDetails).toBeInstanceOf(Map);
 		});
 	});
 
@@ -329,14 +284,4 @@ describe("AssetSearchHandler", () => {
 		});
 	});
 
-	describe("Cleanup", () => {
-		beforeEach(() => {
-			searchHandler = new AssetSearchHandler(mockConfig);
-		});
-
-		test("should have selectedFiles property", () => {
-			expect(searchHandler.selectedFiles).toBeDefined();
-			expect(searchHandler.selectedFiles).toBeInstanceOf(Map);
-		});
-	});
 });

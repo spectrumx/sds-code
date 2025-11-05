@@ -1,4 +1,7 @@
 module.exports = {
+	// Root directory for tests (project root where package.json is located)
+	rootDir: "../../../..",
+
 	// Test environment
 	testEnvironment: "jsdom",
 

@@ -73,50 +73,21 @@ describe("PageLifecycleManager", () => {
 	});
 
 	describe("Page-Specific Managers", () => {
-		test("should initialize dataset create page", () => {
-			const createConfig = {
+		test.each([
+			["dataset-create", { formId: "dataset-form" }],
+			["dataset-edit", { datasetUuid: "test-uuid" }],
+			["dataset-list", {}],
+			["capture-list", {}],
+		])("should initialize %s page", (pageType, additionalConfig) => {
+			const config = {
 				...mockConfig,
-				pageType: "dataset-create",
-				formId: "dataset-form",
+				pageType,
+				...additionalConfig,
 			};
 
-			lifecycleManager = new PageLifecycleManager(createConfig);
+			lifecycleManager = new PageLifecycleManager(config);
 
-			expect(lifecycleManager.pageType).toBe("dataset-create");
-		});
-
-		test("should initialize dataset edit page", () => {
-			const editConfig = {
-				...mockConfig,
-				pageType: "dataset-edit",
-				datasetUuid: "test-uuid",
-			};
-
-			lifecycleManager = new PageLifecycleManager(editConfig);
-
-			expect(lifecycleManager.pageType).toBe("dataset-edit");
-		});
-
-		test("should initialize dataset list page", () => {
-			const listConfig = {
-				...mockConfig,
-				pageType: "dataset-list",
-			};
-
-			lifecycleManager = new PageLifecycleManager(listConfig);
-
-			expect(lifecycleManager.pageType).toBe("dataset-list");
-		});
-
-		test("should initialize capture list page", () => {
-			const captureConfig = {
-				...mockConfig,
-				pageType: "capture-list",
-			};
-
-			lifecycleManager = new PageLifecycleManager(captureConfig);
-
-			expect(lifecycleManager.pageType).toBe("capture-list");
+			expect(lifecycleManager.pageType).toBe(pageType);
 		});
 	});
 

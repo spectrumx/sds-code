@@ -139,7 +139,10 @@ global.URL = class URL {
 	}
 
 	toString() {
-		return this.href;
+		// Build href from current state including searchParams
+		const searchString = this.searchParams.toString();
+		const search = searchString ? `?${searchString}` : "";
+		return `${this.origin}${this.pathname}${search}${this.hash}`;
 	}
 };
 
@@ -181,7 +184,7 @@ global.URLSearchParams = class URLSearchParams {
 
 	toString() {
 		return Array.from(this.params.entries())
-			.map(([key, value]) => `${key}=${value}`)
+			.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
 			.join("&");
 	}
 };
