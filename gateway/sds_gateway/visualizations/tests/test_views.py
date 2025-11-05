@@ -157,6 +157,11 @@ class WaterfallAPIViewTestCases(TestCase):
             kwargs={"pk": self.capture.uuid},
         )
 
+        self.get_waterfall_metadata_url = reverse(
+            "api:visualizations-get-waterfall-metadata",
+            kwargs={"pk": self.capture.uuid},
+        )
+
     def test_create_waterfall_api_requires_authentication(self) -> None:
         """Test that create_waterfall API requires authentication."""
         response = self.client.post(self.create_waterfall_url)
@@ -325,6 +330,510 @@ class WaterfallAPIViewTestCases(TestCase):
         assert f"waterfall_{self.capture.uuid}.json" in content_disposition
 
         # Verify file content
+        content = b"".join(response.streaming_content).decode()
+        assert content == test_content
+
+    def test_get_waterfall_metadata_api_requires_authentication(self) -> None:
+        """Test that get_waterfall_metadata API requires authentication."""
+        response = self.client.get(self.get_waterfall_metadata_url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_get_waterfall_metadata_api_missing_job_id(self) -> None:
+        """Test that missing job_id parameter returns 400 for API."""
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.get_waterfall_metadata_url)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        data = response.json()
+        assert "error" in data
+        assert "job_id parameter is required" in data["error"]
+
+    def test_get_waterfall_metadata_api_success_with_existing_metadata(self) -> None:
+        """Test successful waterfall metadata retrieval with existing metadata."""
+        self.client.force_login(self.user)
+
+        # Create test file content (array of slices)
+        test_slices = [{"freq": i, "data": [1, 2, 3]} for i in range(10)]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        # Create completed waterfall with metadata already set
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 10, "sample_rate": 1000000},
+            data_file=test_file,
+        )
+
+        response = self.client.get(
+            self.get_waterfall_metadata_url,
+            {"job_id": str(waterfall_data.uuid)},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["total_slices"] == 10
+        assert data["sample_rate"] == 1000000
+
+    def test_get_waterfall_metadata_api_calculates_slices_from_file(self) -> None:
+        """Test that metadata slices are calculated from file if not present."""
+        self.client.force_login(self.user)
+
+        # Create test file content (array of slices)
+        test_slices = [{"freq": i, "data": [1, 2, 3]} for i in range(15)]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        # Create completed waterfall without total_slices in metadata
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"sample_rate": 1000000},  # No total_slices
+            data_file=test_file,
+        )
+
+        response = self.client.get(
+            self.get_waterfall_metadata_url,
+            {"job_id": str(waterfall_data.uuid)},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["slices_processed"] == 15
+        assert data["sample_rate"] == 1000000
+
+        # Verify that the metadata was saved back to the object
+        waterfall_data.refresh_from_db()
+        assert waterfall_data.metadata["slices_processed"] == 15
+
+    def test_get_waterfall_metadata_api_job_not_found(self) -> None:
+        """Test that non-existent job returns 404."""
+        self.client.force_login(self.user)
+
+        fake_job_id = "00000000-0000-0000-0000-000000000000"
+        response = self.client.get(
+            self.get_waterfall_metadata_url, {"job_id": fake_job_id}
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_waterfall_metadata_api_processing_not_completed(self) -> None:
+        """Test that incomplete processing returns 400."""
+        self.client.force_login(self.user)
+
+        # Create waterfall processing job that's still processing
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Processing.value,
+            metadata={},
+        )
+
+        response = self.client.get(
+            self.get_waterfall_metadata_url,
+            {"job_id": str(waterfall_data.uuid)},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert "error" in data
+        assert "Waterfall processing not completed" in data["error"]
+
+    def test_get_waterfall_metadata_api_capture_not_owned(self) -> None:
+        """Test that users cannot get metadata for others' captures."""
+        other_user = User.objects.create(
+            email="otheruser@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+
+        self.client.force_login(self.user)
+
+        # Create waterfall data for other user's capture
+        other_capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="other-index",
+            owner=other_user,
+            top_level_dir="/other/dir",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=other_capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 10},
+        )
+
+        other_capture_url = reverse(
+            "api:visualizations-get-waterfall-metadata",
+            kwargs={"pk": other_capture.uuid},
+        )
+
+        response = self.client.get(
+            other_capture_url, {"job_id": str(waterfall_data.uuid)}
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_download_waterfall_api_with_start_index(self) -> None:
+        """Test download_waterfall with start_index parameter."""
+        self.client.force_login(self.user)
+
+        # Create test file content with multiple slices
+        test_slices = [
+            {"index": i, "data": [i * 10 + j for j in range(5)]} for i in range(20)
+        ]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 20},
+            data_file=test_file,
+        )
+
+        # Request slices from index 5 to the end
+        response = self.client.get(
+            self.download_waterfall_url,
+            {"job_id": str(waterfall_data.uuid), "start_index": 5},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "data" in data
+        assert "start_index" in data
+        assert "end_index" in data
+        assert "total_slices" in data
+        assert "count" in data
+
+        assert data["start_index"] == 5
+        assert data["end_index"] == 20
+        assert data["total_slices"] == 20
+        assert data["count"] == 15
+        assert len(data["data"]) == 15
+        assert data["data"][0]["index"] == 5
+        assert data["data"][-1]["index"] == 19
+
+    def test_download_waterfall_api_with_end_index(self) -> None:
+        """Test download_waterfall with end_index parameter."""
+        self.client.force_login(self.user)
+
+        # Create test file content with multiple slices
+        test_slices = [
+            {"index": i, "data": [i * 10 + j for j in range(5)]} for i in range(20)
+        ]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 20},
+            data_file=test_file,
+        )
+
+        # Request slices from start to index 10
+        response = self.client.get(
+            self.download_waterfall_url,
+            {"job_id": str(waterfall_data.uuid), "end_index": 10},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["start_index"] == 0
+        assert data["end_index"] == 10
+        assert data["total_slices"] == 20
+        assert data["count"] == 10
+        assert len(data["data"]) == 10
+        assert data["data"][0]["index"] == 0
+        assert data["data"][-1]["index"] == 9
+
+    def test_download_waterfall_api_with_range(self) -> None:
+        """Test download_waterfall with both start_index and end_index."""
+        self.client.force_login(self.user)
+
+        # Create test file content with multiple slices
+        test_slices = [
+            {"index": i, "data": [i * 10 + j for j in range(5)]} for i in range(20)
+        ]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 20},
+            data_file=test_file,
+        )
+
+        # Request slices from index 5 to 15
+        response = self.client.get(
+            self.download_waterfall_url,
+            {
+                "job_id": str(waterfall_data.uuid),
+                "start_index": 5,
+                "end_index": 15,
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["start_index"] == 5
+        assert data["end_index"] == 15
+        assert data["total_slices"] == 20
+        assert data["count"] == 10
+        assert len(data["data"]) == 10
+        assert data["data"][0]["index"] == 5
+        assert data["data"][-1]["index"] == 14
+
+    def test_download_waterfall_api_invalid_range_start_greater_than_end(self) -> None:
+        """Test that start_index > end_index returns 400."""
+        self.client.force_login(self.user)
+
+        # Create test file content
+        test_slices = [{"index": i} for i in range(10)]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 10},
+            data_file=test_file,
+        )
+
+        response = self.client.get(
+            self.download_waterfall_url,
+            {
+                "job_id": str(waterfall_data.uuid),
+                "start_index": 7,
+                "end_index": 5,
+            },
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert "error" in data
+        assert "start_index must be less than or equal to end_index" in data["error"]
+
+    def test_download_waterfall_api_start_index_out_of_bounds(self) -> None:
+        """Test that start_index >= total_slices returns 400."""
+        self.client.force_login(self.user)
+
+        # Create test file content
+        test_slices = [{"index": i} for i in range(10)]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 10},
+            data_file=test_file,
+        )
+
+        response = self.client.get(
+            self.download_waterfall_url,
+            {
+                "job_id": str(waterfall_data.uuid),
+                "start_index": 10,
+            },
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert "error" in data
+        assert "start_index 10 is out of range" in data["error"]
+        assert "Total slices: 10" in data["error"]
+
+    def test_download_waterfall_api_negative_indices(self) -> None:
+        """Test that negative indices return 400."""
+        self.client.force_login(self.user)
+
+        # Create test file content
+        test_slices = [{"index": i} for i in range(10)]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 10},
+            data_file=test_file,
+        )
+
+        response = self.client.get(
+            self.download_waterfall_url,
+            {
+                "job_id": str(waterfall_data.uuid),
+                "start_index": -1,
+            },
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert "error" in data
+        assert "must be non-negative" in data["error"]
+
+    def test_download_waterfall_api_invalid_index_type(self) -> None:
+        """Test that non-integer indices return 400."""
+        self.client.force_login(self.user)
+
+        # Create test file content
+        test_slices = [{"index": i} for i in range(10)]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 10},
+            data_file=test_file,
+        )
+
+        response = self.client.get(
+            self.download_waterfall_url,
+            {
+                "job_id": str(waterfall_data.uuid),
+                "start_index": "not_a_number",
+            },
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert "error" in data
+        assert "Must be integers" in data["error"]
+
+    def test_download_waterfall_api_end_index_clamped_to_total(self) -> None:
+        """Test that end_index is clamped to total_slices."""
+        self.client.force_login(self.user)
+
+        # Create test file content
+        test_slices = [{"index": i} for i in range(10)]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={"total_slices": 10},
+            data_file=test_file,
+        )
+
+        # Request end_index beyond total_slices
+        response = self.client.get(
+            self.download_waterfall_url,
+            {
+                "job_id": str(waterfall_data.uuid),
+                "start_index": 5,
+                "end_index": 20,
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["start_index"] == 5
+        assert data["end_index"] == 10  # Clamped to total_slices
+        assert data["total_slices"] == 10
+        assert data["count"] == 5
+        assert len(data["data"]) == 5
+
+    def test_download_waterfall_api_backward_compatibility_no_params(self) -> None:
+        """Test that download_waterfall without range params returns full file."""
+        self.client.force_login(self.user)
+
+        # Create test file content
+        test_slices = [{"index": i} for i in range(10)]
+        test_content = json.dumps(test_slices)
+        test_file = SimpleUploadedFile(
+            "waterfall_test.json",
+            test_content.encode(),
+            content_type="application/json",
+        )
+
+        waterfall_data = PostProcessedData.objects.create(
+            capture=self.capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_parameters={},
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={},
+            data_file=test_file,
+        )
+
+        # Request without range parameters (backward compatibility)
+        response = self.client.get(
+            self.download_waterfall_url,
+            {"job_id": str(waterfall_data.uuid)},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.get("Content-Type") == "application/json"
+        assert "attachment" in response.get("Content-Disposition", "")
+
+        # Verify it returns the full file content (not JSON response)
         content = b"".join(response.streaming_content).decode()
         assert content == test_content
 
