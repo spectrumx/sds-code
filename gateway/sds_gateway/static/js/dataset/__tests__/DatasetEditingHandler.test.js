@@ -147,12 +147,12 @@ describe("DatasetEditingHandler", () => {
 			expect(editingHandler.hasChanges()).toBe(false);
 		});
 
-		test.each([
-			["hasChanges"],
-			["getPendingChanges"],
-		])("should have %s method", (methodName) => {
-			expect(typeof editingHandler[methodName]).toBe("function");
-		});
+		test.each([["hasChanges"], ["getPendingChanges"]])(
+			"should have %s method",
+			(methodName) => {
+				expect(typeof editingHandler[methodName]).toBe("function");
+			},
+		);
 	});
 
 	describe("Permission Handling", () => {
@@ -222,12 +222,12 @@ describe("DatasetEditingHandler", () => {
 			);
 		});
 
-		test.each([
-			["loadCurrentAssets"],
-			["handleSubmit"],
-		])("should have %s method", (methodName) => {
-			expect(typeof editingHandler[methodName]).toBe("function");
-		});
+		test.each([["loadCurrentAssets"], ["handleSubmit"]])(
+			"should have %s method",
+			(methodName) => {
+				expect(typeof editingHandler[methodName]).toBe("function");
+			},
+		);
 
 		test("should handle API errors gracefully", async () => {
 			global.APIClient.get.mockRejectedValue(new Error("API Error"));
@@ -273,7 +273,9 @@ describe("DatasetEditingHandler", () => {
 
 		test("should initialize authors management", () => {
 			expect(editingHandler.initializeAuthorsManagement).toBeDefined();
-			expect(typeof editingHandler.initializeAuthorsManagement).toBe("function");
+			expect(typeof editingHandler.initializeAuthorsManagement).toBe(
+				"function",
+			);
 		});
 	});
 
@@ -315,11 +317,11 @@ describe("DatasetEditingHandler", () => {
 			}).not.toThrow();
 		});
 
-		test.each([
-			["getPendingChanges"],
-			["hasChanges"],
-		])("should have %s method", (methodName) => {
-			expect(typeof editingHandler[methodName]).toBe("function");
-		});
+		test.each([["getPendingChanges"], ["hasChanges"]])(
+			"should have %s method",
+			(methodName) => {
+				expect(typeof editingHandler[methodName]).toBe("function");
+			},
+		);
 	});
 });

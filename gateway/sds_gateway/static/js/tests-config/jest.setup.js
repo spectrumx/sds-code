@@ -184,7 +184,10 @@ global.URLSearchParams = class URLSearchParams {
 
 	toString() {
 		return Array.from(this.params.entries())
-			.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+			.map(
+				([key, value]) =>
+					`${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+			)
 			.join("&");
 	}
 };

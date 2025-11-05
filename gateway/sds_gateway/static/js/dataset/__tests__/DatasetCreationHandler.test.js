@@ -299,15 +299,19 @@ describe("DatasetCreationHandler", () => {
 
 	describe("Step Validation", () => {
 		test.each([
-			["info", 0, () => {
-				if (creationHandler.nameField)
-					creationHandler.nameField.value = "Test Dataset";
-				if (creationHandler.authorsField)
-					creationHandler.authorsField.value =
-						'[{"name": "Test Author", "orcid_id": ""}]';
-				if (creationHandler.statusField)
-					creationHandler.statusField.value = "active";
-			}],
+			[
+				"info",
+				0,
+				() => {
+					if (creationHandler.nameField)
+						creationHandler.nameField.value = "Test Dataset";
+					if (creationHandler.authorsField)
+						creationHandler.authorsField.value =
+							'[{"name": "Test Author", "orcid_id": ""}]';
+					if (creationHandler.statusField)
+						creationHandler.statusField.value = "active";
+				},
+			],
 			["captures", 1, () => {}],
 			["files", 2, () => {}],
 			["review", 3, () => {}],
@@ -551,8 +555,16 @@ describe("DatasetCreationHandler", () => {
 
 		test.each([
 			["hide previous button on first step", 0, "hide"],
-			["hide next button on last step", () => creationHandler.steps.length - 1, "hide"],
-			["show submit button on last step", () => creationHandler.steps.length - 1, "show"],
+			[
+				"hide next button on last step",
+				() => creationHandler.steps.length - 1,
+				"hide",
+			],
+			[
+				"show submit button on last step",
+				() => creationHandler.steps.length - 1,
+				"show",
+			],
 		])("should %s", (description, stepOrFn, method) => {
 			const spy = jest.spyOn(global.window.DOMUtils, method);
 
