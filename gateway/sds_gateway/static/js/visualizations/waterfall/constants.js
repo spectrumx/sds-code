@@ -22,8 +22,10 @@ export const CANVASJS_RIGHT_MARGIN = 10;
 export const WATERFALL_TOP_MARGIN = 5;
 export const WATERFALL_BOTTOM_MARGIN = 5;
 
-// Window size constants
+// Waterfall window constants
 export const WATERFALL_WINDOW_SIZE = 100;
+export const PREFETCH_TRIGGER = 2;
+export const PREFETCH_DISTANCE = 4;
 
 export const ERROR_MESSAGES = {
 	NO_CAPTURE: "No capture data found",

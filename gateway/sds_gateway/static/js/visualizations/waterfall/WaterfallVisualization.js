@@ -9,6 +9,8 @@ import { WaterfallCacheManager } from "./WaterfallCacheManager.js";
 import {
 	DEFAULT_COLOR_MAP,
 	ERROR_MESSAGES,
+	PREFETCH_DISTANCE,
+	PREFETCH_TRIGGER,
 	WATERFALL_WINDOW_SIZE,
 } from "./constants.js";
 
@@ -294,6 +296,9 @@ class WaterfallVisualization {
 		if (overlay) {
 			overlay.classList.remove("d-none");
 		}
+		if (this.controls) {
+			this.controls.setLoading(true);
+		}
 	}
 
 	/**
@@ -303,6 +308,9 @@ class WaterfallVisualization {
 		const overlay = document.getElementById("waterfallLoadingOverlay");
 		if (overlay) {
 			overlay.classList.add("d-none");
+		}
+		if (this.controls) {
+			this.controls.setLoading(false);
 		}
 	}
 
@@ -601,21 +609,67 @@ class WaterfallVisualization {
 
 	/**
 	 * Ensure slices for a given window or slice index are loaded
+	 * Uses separate prefetch trigger threshold and prefetch distance:
+	 * - Trigger threshold: Only prefetch when within windowSize * PREFETCH_TRIGGER of unfetched data
+	 * - Prefetch distance: Once triggered, load up to windowSize * PREFETCH_DISTANCE on both sides
 	 */
 	async ensureSlicesLoaded(windowStart) {
 		if (this.totalSlices === 0 || !this.jobId || !this.cacheManager) {
 			return;
 		}
 
-		// Calculate the range we need to display
-		const windowSize = WATERFALL_WINDOW_SIZE;
-		const startIndex = Math.max(0, windowStart);
-		const endIndex = Math.min(windowStart + windowSize * 2, this.totalSlices); // Load extra for prefetching
+		const windowEnd = windowStart + WATERFALL_WINDOW_SIZE;
 
-		// Get missing ranges from cache manager
+		// Prefetch trigger threshold: check the range around the window
+		const triggerStart = Math.max(
+			windowStart - WATERFALL_WINDOW_SIZE * PREFETCH_TRIGGER,
+			0,
+		);
+		const triggerEnd = Math.min(
+			windowEnd + WATERFALL_WINDOW_SIZE * PREFETCH_TRIGGER,
+			this.totalSlices,
+		);
+
+		// Check if there's any missing data within the trigger threshold
+		const missingRangesInTrigger = this.cacheManager.getMissingRanges(
+			triggerStart,
+			triggerEnd,
+		);
+
+		// Only proceed with prefetching if we're approaching unfetched data
+		if (missingRangesInTrigger.length === 0) {
+			// No missing data within trigger threshold, no need to prefetch
+			return;
+		}
+
+		// Check if all missing ranges in the trigger area are already being loaded
+		const allMissingRangesAreLoading = missingRangesInTrigger.every(
+			([missingStart, missingEnd]) =>
+				this.cacheManager.isRangeContainedByLoadingRange(
+					missingStart,
+					missingEnd,
+				),
+		);
+
+		if (allMissingRangesAreLoading) {
+			// All missing ranges in trigger area are already being loaded, don't start a new request
+			return;
+		}
+
+		// Prefetch distance: load up to WATERFALL_WINDOW_SIZE * PREFETCH_DISTANCE on both sides when triggered
+		const prefetchStart = Math.max(
+			windowStart - WATERFALL_WINDOW_SIZE * PREFETCH_DISTANCE,
+			0,
+		);
+		const prefetchEnd = Math.min(
+			windowEnd + WATERFALL_WINDOW_SIZE * PREFETCH_DISTANCE,
+			this.totalSlices,
+		);
+
+		// Get all missing ranges in the prefetch range
 		const missingRanges = this.cacheManager.getMissingRanges(
-			startIndex,
-			endIndex,
+			prefetchStart,
+			prefetchEnd,
 		);
 
 		// Load missing ranges (limit concurrent requests)

@@ -91,11 +91,25 @@ export class WaterfallCacheManager {
 	}
 
 	/**
-	 * Check if a range is currently being loaded
+	 * Check if an exact range is currently being loaded
 	 */
 	isRangeLoading(startIndex, endIndex) {
 		const rangeKey = `${startIndex}-${endIndex}`;
 		return this.loadingRanges.has(rangeKey);
+	}
+
+	/**
+	 * Check if the given range is fully contained by any ranges that are currently being loaded
+	 */
+	isRangeContainedByLoadingRange(startIndex, endIndex) {
+		for (const rangeKey of this.loadingRanges) {
+			const [loadingStart, loadingEnd] = rangeKey.split("-").map(Number);
+
+			if (startIndex >= loadingStart && endIndex <= loadingEnd) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
