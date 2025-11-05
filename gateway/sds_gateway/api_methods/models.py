@@ -6,6 +6,7 @@ import logging
 import uuid
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import cast
 
@@ -19,6 +20,9 @@ from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
 from .utils.opensearch_client import get_opensearch_client
+
+if TYPE_CHECKING:
+    from sds_gateway.users.models import User
 
 log = logging.getLogger(__name__)
 
@@ -865,7 +869,7 @@ class UserSharePermission(BaseModel):
         return None
 
     @classmethod
-    def get_shared_items_for_user(cls, user, item_type=None):
+    def get_shared_items_for_user(cls, user: "User", item_type: str | None = None) -> QuerySet["UserSharePermission"]:
         """Get all items shared with a user, optionally filtered by item type."""
         queryset = cls.objects.filter(
             shared_with=user,
@@ -891,7 +895,7 @@ class UserSharePermission(BaseModel):
         self.save()
 
     @classmethod
-    def get_shared_users_for_item(cls, item_uuid, item_type):
+    def get_shared_users_for_item(cls, item_uuid: uuid.UUID, item_type: str) -> QuerySet["UserSharePermission"]:
         """Get all users who have been shared a specific item."""
         return cls.objects.filter(
             item_uuid=item_uuid,
@@ -901,7 +905,7 @@ class UserSharePermission(BaseModel):
         ).select_related("shared_with")
 
     @classmethod
-    def get_user_permission_level(cls, user, item_uuid, item_type):
+    def get_user_permission_level(cls, user: "User", item_uuid: uuid.UUID, item_type: str) -> str | None:
         """
         Get the permission level for a user on a specific item.
 
@@ -942,12 +946,12 @@ class UserSharePermission(BaseModel):
         return None
 
     @classmethod
-    def user_can_view(cls, user, item_uuid, item_type):
+    def user_can_view(cls, user: "User", item_uuid: uuid.UUID, item_type: str) -> bool:
         """Check if user can view the item."""
         return cls.get_user_permission_level(user, item_uuid, item_type) is not None
 
     @classmethod
-    def user_can_add_assets(cls, user, item_uuid, item_type):
+    def user_can_add_assets(cls, user: "User", item_uuid: uuid.UUID, item_type: str) -> bool:
         """Check if user can add assets to the item."""
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
         return permission_level in [
@@ -957,7 +961,7 @@ class UserSharePermission(BaseModel):
         ]
 
     @classmethod
-    def user_can_remove_assets(cls, user, item_uuid, item_type):
+    def user_can_remove_assets(cls, user: "User", item_uuid: uuid.UUID, item_type: str) -> bool:
         """Check if user can remove assets from the item."""
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
         return permission_level in [
@@ -966,7 +970,7 @@ class UserSharePermission(BaseModel):
         ]
 
     @classmethod
-    def user_can_edit_dataset(cls, user, item_uuid, item_type):
+    def user_can_edit_dataset(cls, user: "User", item_uuid: uuid.UUID, item_type: str) -> bool:
         """Check if user can edit dataset metadata (name, description)."""
         if item_type != ItemType.DATASET:
             return False
@@ -977,7 +981,7 @@ class UserSharePermission(BaseModel):
         ]
 
     @classmethod
-    def user_can_remove_others_assets(cls, user, item_uuid, item_type):
+    def user_can_remove_others_assets(cls, user: "User", item_uuid: uuid.UUID, item_type: str) -> bool:
         """Check if user can remove assets owned by other users."""
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
         return permission_level in [
@@ -986,7 +990,7 @@ class UserSharePermission(BaseModel):
         ]
 
     @classmethod
-    def user_can_share(cls, user, item_uuid, item_type):
+    def user_can_share(cls, user: "User", item_uuid: uuid.UUID, item_type: str) -> bool:
         """Check if user can share the item with others."""
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
         return permission_level in [
@@ -1070,7 +1074,7 @@ class DEPRECATEDPostProcessedData(BaseModel):
             models.Index(fields=["pipeline_id"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.processing_type} data for {self.capture.name} "
             f"({self.processing_status})"
@@ -1302,7 +1306,7 @@ def _extract_bulk_frequency_data(
     }
 
 
-def user_has_access_to_item(user, item_uuid, item_type):
+def user_has_access_to_item(user: "User", item_uuid: uuid.UUID, item_type: str) -> bool:
     """
     Check if a user has access to an item (either as owner or shared user).
 
@@ -1317,14 +1321,14 @@ def user_has_access_to_item(user, item_uuid, item_type):
     return UserSharePermission.user_can_view(user, item_uuid, item_type)
 
 
-def get_user_permission_level(user, item_uuid, item_type):
+def get_user_permission_level(user: "User", item_uuid: uuid.UUID, item_type: str) -> str | None:
     """
     Get the permission level for a user on a specific item.
     """
     return UserSharePermission.get_user_permission_level(user, item_uuid, item_type)
 
 
-def get_shared_users_for_item(item_uuid, item_type):
+def get_shared_users_for_item(item_uuid: uuid.UUID, item_type: str) -> QuerySet["UserSharePermission"]:
     """
     Get all users who have been shared a specific item.
 
@@ -1338,7 +1342,7 @@ def get_shared_users_for_item(item_uuid, item_type):
     return UserSharePermission.get_shared_users_for_item(item_uuid, item_type)
 
 
-def get_shared_items_for_user(user, item_type=None):
+def get_shared_items_for_user(user: "User", item_type: str | None = None) -> QuerySet["UserSharePermission"]:
     """
     Get all items shared with a user, optionally filtered by item type.
 
@@ -1391,7 +1395,7 @@ def handle_dataset_soft_delete(sender, instance: Dataset, **kwargs) -> None:
 
 
 @receiver(post_save, sender=ShareGroup)
-def handle_sharegroup_soft_delete(sender, instance: ShareGroup, **kwargs) -> None:
+def handle_sharegroup_soft_delete(sender: type[ShareGroup], instance: ShareGroup, **kwargs: Any) -> None:
     """
     Handle soft deletion of share groups by updating related share permissions.
     """
