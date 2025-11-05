@@ -269,12 +269,16 @@ class WaterfallVisualization {
 		this.hideLoadingOverlay();
 
 		// Get slices for the current window
-		const windowSize = WATERFALL_WINDOW_SIZE;
-		const startIndex = this.waterfallWindowStart;
-		const endIndex = Math.min(startIndex + windowSize, this.totalSlices);
+		const waterfallWindowEnd = Math.min(
+			this.waterfallWindowStart + WATERFALL_WINDOW_SIZE,
+			this.totalSlices,
+		);
 
 		// Since window is fully loaded, all slices should be available
-		const loadedSlices = this.cacheManager.getRangeSlices(startIndex, endIndex);
+		const loadedSlices = this.cacheManager.getRangeSlices(
+			this.waterfallWindowStart,
+			waterfallWindowEnd,
+		);
 		if (loadedSlices.some((slice) => slice === null)) {
 			this.showError("Failed to load waterfall data");
 			return;
@@ -284,7 +288,7 @@ class WaterfallVisualization {
 		this.waterfallRenderer.renderWaterfall(
 			loadedSlices,
 			this.totalSlices,
-			startIndex,
+			this.waterfallWindowStart,
 		);
 	}
 
@@ -566,29 +570,29 @@ class WaterfallVisualization {
 		}
 
 		// Clamp indices
-		startIndex = Math.max(0, startIndex);
-		endIndex = Math.min(endIndex, this.totalSlices);
+		const clampedStart = Math.max(0, startIndex);
+		const clampedEnd = Math.min(endIndex, this.totalSlices);
 
-		if (startIndex >= endIndex) {
+		if (clampedStart >= clampedEnd) {
 			return;
 		}
 
 		// Check if this range is already loaded or loading
-		if (this.cacheManager.isRangeLoading(startIndex, endIndex)) {
+		if (this.cacheManager.isRangeLoading(clampedStart, clampedEnd)) {
 			return; // Already loading this range
 		}
 
-		if (this.cacheManager.isRangeLoaded(startIndex, endIndex)) {
+		if (this.cacheManager.isRangeLoaded(clampedStart, clampedEnd)) {
 			return; // Already loaded
 		}
 
-		this.cacheManager.markRangeLoading(startIndex, endIndex);
+		this.cacheManager.markRangeLoading(clampedStart, clampedEnd);
 
 		try {
 			const slices = await this.apiClient.loadWaterfallRange(
 				this.jobId,
-				startIndex,
-				endIndex,
+				clampedStart,
+				clampedEnd,
 			);
 
 			// Parse slices
@@ -598,12 +602,12 @@ class WaterfallVisualization {
 			}));
 
 			// Store in cache manager
-			this.cacheManager.addLoadedSlices(startIndex, parsedSlices);
+			this.cacheManager.addLoadedSlices(clampedStart, parsedSlices);
 
 			// Trigger render
 			this.render();
 		} finally {
-			this.cacheManager.markRangeLoaded(startIndex, endIndex);
+			this.cacheManager.markRangeLoaded(clampedStart, clampedEnd);
 		}
 	}
 
@@ -699,11 +703,15 @@ class WaterfallVisualization {
 			return false;
 		}
 
-		const windowSize = WATERFALL_WINDOW_SIZE;
-		const startIndex = this.waterfallWindowStart;
-		const endIndex = Math.min(startIndex + windowSize, this.totalSlices);
+		const waterfallWindowEnd = Math.min(
+			this.waterfallWindowStart + WATERFALL_WINDOW_SIZE,
+			this.totalSlices,
+		);
 
-		return this.cacheManager.isRangeLoaded(startIndex, endIndex);
+		return this.cacheManager.isRangeLoaded(
+			this.waterfallWindowStart,
+			waterfallWindowEnd,
+		);
 	}
 
 	/**
