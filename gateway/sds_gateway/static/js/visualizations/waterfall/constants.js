@@ -24,8 +24,10 @@ export const WATERFALL_BOTTOM_MARGIN = 5;
 
 // Waterfall window constants
 export const WATERFALL_WINDOW_SIZE = 100;
-export const PREFETCH_TRIGGER = 2;
-export const PREFETCH_DISTANCE = 4;
+// How close to unfetched data to trigger a prefetch
+export const PREFETCH_TRIGGER = 2 * WATERFALL_WINDOW_SIZE;
+// How much data around the current window to prefetch
+export const PREFETCH_DISTANCE = 4 * WATERFALL_WINDOW_SIZE;
 
 export const ERROR_MESSAGES = {
 	NO_CAPTURE: "No capture data found",

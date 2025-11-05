@@ -610,8 +610,8 @@ class WaterfallVisualization {
 	/**
 	 * Ensure slices for a given window or slice index are loaded
 	 * Uses separate prefetch trigger threshold and prefetch distance:
-	 * - Trigger threshold: Only prefetch when within windowSize * PREFETCH_TRIGGER of unfetched data
-	 * - Prefetch distance: Once triggered, load up to windowSize * PREFETCH_DISTANCE on both sides
+	 * - Trigger threshold: Only prefetch when within PREFETCH_TRIGGER of unfetched data
+	 * - Prefetch distance: Once triggered, load up to PREFETCH_DISTANCE on both sides
 	 */
 	async ensureSlicesLoaded(windowStart) {
 		if (this.totalSlices === 0 || !this.jobId || !this.cacheManager) {
@@ -621,14 +621,8 @@ class WaterfallVisualization {
 		const windowEnd = windowStart + WATERFALL_WINDOW_SIZE;
 
 		// Prefetch trigger threshold: check the range around the window
-		const triggerStart = Math.max(
-			windowStart - WATERFALL_WINDOW_SIZE * PREFETCH_TRIGGER,
-			0,
-		);
-		const triggerEnd = Math.min(
-			windowEnd + WATERFALL_WINDOW_SIZE * PREFETCH_TRIGGER,
-			this.totalSlices,
-		);
+		const triggerStart = Math.max(windowStart - PREFETCH_TRIGGER, 0);
+		const triggerEnd = Math.min(windowEnd + PREFETCH_TRIGGER, this.totalSlices);
 
 		// Check if there's any missing data within the trigger threshold
 		const missingRangesInTrigger = this.cacheManager.getMissingRanges(
@@ -656,13 +650,10 @@ class WaterfallVisualization {
 			return;
 		}
 
-		// Prefetch distance: load up to WATERFALL_WINDOW_SIZE * PREFETCH_DISTANCE on both sides when triggered
-		const prefetchStart = Math.max(
-			windowStart - WATERFALL_WINDOW_SIZE * PREFETCH_DISTANCE,
-			0,
-		);
+		// Prefetch distance: load up to PREFETCH_DISTANCE on both sides when triggered
+		const prefetchStart = Math.max(windowStart - PREFETCH_DISTANCE, 0);
 		const prefetchEnd = Math.min(
-			windowEnd + WATERFALL_WINDOW_SIZE * PREFETCH_DISTANCE,
+			windowEnd + PREFETCH_DISTANCE,
 			this.totalSlices,
 		);
 
