@@ -153,6 +153,8 @@ update:
     uv run pre-commit autoupdate
     @echo "Upgrading gateway dependencies"
     uv sync --upgrade --all-extras
+    @echo "Upgrading node dependencies"
+    {{docker_compose}} run node npm update
 
 # watch file changes when in local env mode
 watch args='':
