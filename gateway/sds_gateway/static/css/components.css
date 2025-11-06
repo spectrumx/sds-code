@@ -112,6 +112,13 @@
 	box-shadow: none;
 }
 
+/* Ensure textarea also has proper padding when disabled */
+textarea.form-control[readonly],
+textarea.form-control:disabled,
+textarea.form-control-plaintext {
+	padding: 0.75rem 1rem;
+}
+
 /* Author management styling */
 .author-item {
 	transition: all 0.3s ease;
@@ -158,6 +165,12 @@
 }
 .readonly-row .badge {
 	opacity: 0.7;
+}
+
+/* Disabled state styling */
+.disabled-element {
+	opacity: 0.5;
+	pointer-events: none;
 }
 
 /* Authors management styling */
@@ -1090,6 +1103,11 @@ body {
 /* Review page specific styles */
 #step4 .card .card-body:not(.p-0) {
 	padding: 1.25rem;
+}
+
+.disable-events {
+	pointer-events: none;
+	cursor: not-allowed;
 }
 
 .display-block {
