@@ -860,7 +860,7 @@ class DatasetEditingHandler {
 				);
 				if (removeAllFilesButton) {
 					removeAllFilesButton.disabled = true;
-					removeAllFilesButton.style.opacity = "0.5";
+					removeAllFilesButton.classList.add("disabled-element");
 				}
 			}
 		}
@@ -888,7 +888,7 @@ class DatasetEditingHandler {
 				const removeButton = row.querySelector(".mark-for-removal-btn");
 				if (removeButton) {
 					removeButton.disabled = true;
-					removeButton.style.opacity = "0.5";
+					removeButton.classList.add("disabled-element");
 				}
 			} else {
 				// Restore normal state
@@ -896,7 +896,7 @@ class DatasetEditingHandler {
 				const removeButton = row.querySelector(".mark-for-removal-btn");
 				if (removeButton) {
 					removeButton.disabled = false;
-					removeButton.style.opacity = "";
+					removeButton.classList.remove("disabled-element");
 				}
 			}
 		}
@@ -925,7 +925,7 @@ class DatasetEditingHandler {
 				const removeButton = row.querySelector(".mark-for-removal-btn");
 				if (removeButton) {
 					removeButton.disabled = true;
-					removeButton.style.opacity = "0.5";
+					removeButton.classList.add("disabled-element");
 				}
 			} else {
 				// Restore normal state
@@ -933,7 +933,7 @@ class DatasetEditingHandler {
 				const removeButton = row.querySelector(".mark-for-removal-btn");
 				if (removeButton) {
 					removeButton.disabled = false;
-					removeButton.style.opacity = "";
+					removeButton.classList.remove("disabled-element");
 				}
 			}
 		}
@@ -1238,6 +1238,34 @@ class DatasetEditingHandler {
 					window.DOMUtils.show(addAuthorBtn);
 				} else {
 					window.DOMUtils.hide(addAuthorBtn);
+				}
+			}
+
+			// Disable author inputs if dataset is final
+			if (
+				window.datasetModeManager &&
+				window.datasetModeManager.isExistingFinalDataset()
+			) {
+				const authorInputs = authorsList.querySelectorAll(
+					".author-name-input, .author-orcid-input",
+				);
+				authorInputs.forEach((input) => {
+					input.disabled = true;
+					input.setAttribute("readonly", "readonly");
+					input.classList.add("form-control-plaintext");
+				});
+				// Also disable remove buttons for authors
+				const removeButtons = authorsList.querySelectorAll(
+					".remove-author, .cancel-remove-author",
+				);
+				removeButtons.forEach((button) => {
+					button.disabled = true;
+					button.classList.add("disabled-element");
+				});
+				// Disable add button if not already disabled
+				if (addAuthorBtn) {
+					addAuthorBtn.disabled = true;
+					addAuthorBtn.classList.add("disabled");
 				}
 			}
 		};
