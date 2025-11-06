@@ -966,6 +966,10 @@ body {
 	width: 5%;
 }
 
+.w-10 {
+	width: 10%;
+}
+
 .w-15 {
 	width: 15%;
 }
@@ -974,12 +978,12 @@ body {
 	width: 20%;
 }
 
-.w-25 {
-	width: 25%;
-}
-
 .w-30 {
 	width: 30%;
+}
+
+.w-35 {
+	width: 35%;
 }
 
 .step-number {

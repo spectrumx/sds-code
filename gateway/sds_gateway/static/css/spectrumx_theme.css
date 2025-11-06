@@ -878,42 +878,6 @@ input[type="number"].form-control-sm {
 	text-overflow: ellipsis;
 }
 
-/* Exception for Actions column - allow dropdown to overflow */
-#dynamic-table-container .table td:last-child {
-	overflow: visible;
-}
-
-#dynamic-table-container .table th:nth-child(1),
-#dynamic-table-container .table td:nth-child(1) {
-	width: 22%;
-}
-
-#dynamic-table-container .table th:nth-child(2),
-#dynamic-table-container .table td:nth-child(2) {
-	width: 37%;
-}
-
-#dynamic-table-container .table th:nth-child(3),
-#dynamic-table-container .table td:nth-child(3) {
-	width: 16%;
-}
-
-#dynamic-table-container .table th:nth-child(4),
-#dynamic-table-container .table td:nth-child(4) {
-	width: 17%;
-}
-
-#dynamic-table-container .table th:nth-child(5),
-#dynamic-table-container .table td:nth-child(5) {
-	width: 8%;
-	min-width: 60px;
-}
-
-#dynamic-table-container .table td:nth-child(2) {
-	white-space: normal;
-	word-wrap: break-word;
-}
-
 /* Ensure buttons in table stay properly sized */
 #dynamic-table-container .table .btn-sm {
 	padding: 0.25rem 0.5rem;
