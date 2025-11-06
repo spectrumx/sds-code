@@ -25,10 +25,13 @@ Renders user/group chips with optional permission selects and remove buttons
         <div class="d-flex align-items-center gap-2">
             {% if show_permission_select %}
                 <select class="form-select form-select-sm permission-select w-auto"
-                        data-user-email="{{ user.email }}">
+                        data-user-email="{{ user.email }}"
+                        {% if item_type == "capture" %}disabled{% endif %}>
                     {% for level in permission_levels %}
                         <option value="{{ level }}"
-                                {% if user.permission_level == level %}selected{% endif %}>{{ level|title }}</option>
+                                {% if user.permission_level == level or item_type == "capture" and level == "viewer" %}selected{% endif %}>
+                            {{ level|title }}
+                        </option>
                     {% endfor %}
                 </select>
             {% endif %}
