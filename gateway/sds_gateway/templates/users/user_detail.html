@@ -22,13 +22,13 @@
                                 <div class="col-sm-3">
                                     <strong>Name:</strong>
                                 </div>
-                                <div class="col-sm-9">{{ object.name|default:"Not provided" }}</div>
+                                <div class="col">{{ object.name|default:"Not provided" }}</div>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-sm-3">
                                     <strong>Email:</strong>
                                 </div>
-                                <div class="col-sm-9">
+                                <div class="col">
                                     {{ object.email }}
                                     <small class="text-muted d-block">Email cannot be changed</small>
                                 </div>
@@ -37,7 +37,7 @@
                                 <div class="col-sm-3">
                                     <strong>ORCID ID:</strong>
                                 </div>
-                                <div class="col-sm-9">
+                                <div class="col">
                                     {% if object.orcid_id %}
                                         <a href="https://orcid.org/{{ object.orcid_id }}"
                                            target="_blank"
