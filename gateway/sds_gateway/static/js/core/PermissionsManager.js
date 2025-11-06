@@ -265,19 +265,6 @@ window.PermissionsManager = class PermissionsManager {
 	}
 
 	/**
-	 * Check if permission level is higher than another
-	 * @param {string} level1 - First permission level
-	 * @param {string} level2 - Second permission level
-	 * @returns {boolean} True if level1 is higher than level2
-	 */
-	static isHigherPermission(level1, level2) {
-		return (
-			window.getPermissionHierarchy(level1) >
-			window.getPermissionHierarchy(level2)
-		);
-	}
-
-	/**
 	 * Get permission summary for display
 	 * @returns {Object} Permission summary
 	 */

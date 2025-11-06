@@ -41,12 +41,3 @@ window.getPermissionHierarchy = (level) => {
 	};
 	return hierarchy[level] || 0;
 };
-
-/**
- * Check if one permission level is higher than another
- * @param {string} level1 - First permission level
- * @param {string} level2 - Second permission level
- * @returns {boolean} - True if level1 is higher than level2
- */
-window.isHigherPermission = (level1, level2) =>
-	window.getPermissionHierarchy(level1) > window.getPermissionHierarchy(level2);
