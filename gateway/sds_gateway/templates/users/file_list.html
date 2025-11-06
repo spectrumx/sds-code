@@ -404,154 +404,151 @@
         // Make visualization compatibility data available to JavaScript
         window.visualizationCompatibility = {{ visualization_compatibility | safe }};
 </script>
-    {# djlint:on #}
     <script>
         // Initialize noUiSlider for frequency range
         document.addEventListener('DOMContentLoaded', function() {
-                    const frequencyRangeSlider = document.getElementById('frequency-range-slider');
-                    if (frequencyRangeSlider) {
-                        noUiSlider.create(frequencyRangeSlider, {
-                            start: [0, 10],
-                            connect: true,
-                            range: {
-                                'min': 0,
-                                'max': 10
-                            },
-                            step: 0.1,
-                            format: {
-                                to: function(value) {
-                                    return parseFloat(value).toFixed(1);
-                                },
-                                from: function(value) {
-                                    return parseFloat(value);
-                                }
-                            }
-                        });
-
-                        const lowerValue = document.getElementById('frequency-range-lower');
-                        const upperValue = document.getElementById('frequency-range-upper');
-                        const minInput = document.getElementById('centerFreqMinInput');
-                        const maxInput = document.getElementById('centerFreqMaxInput');
-
-                        // Track user interaction with slider
-                        let userInteractedWithSlider = false;
-
-                        frequencyRangeSlider.noUiSlider.on('update', function(values, handle) {
-                            const value = parseFloat(values[handle]);
-                            if (handle === 0) {
-                                lowerValue.textContent = value + ' GHz';
-                                minInput.value = value;
-                                frequencyRangeSlider.setAttribute('aria-valuetext', `Frequency range from ${value} GHz to ${parseFloat(values[1])} GHz`);
-                            } else {
-                                upperValue.textContent = value + ' GHz';
-                                maxInput.value = value;
-                                frequencyRangeSlider.setAttribute('aria-valuetext', `Frequency range from ${parseFloat(values[0])} GHz to ${value} GHz`);
-                            }
-                        });
-
-                        // Mark as interacted when user changes slider
-                        frequencyRangeSlider.noUiSlider.on('change', function() {
-                            userInteractedWithSlider = true;
-                            // Trigger the global tracking
-                            if (window.initializeFrequencySlider) {
-                                // Update the global interaction tracking
-                                const event = new Event('change');
-                                minInput.dispatchEvent(event);
-                            }
-                        });
-
-                        // Update slider when input values change
-                        minInput.addEventListener('change', function() {
-                            const value = parseFloat(this.value);
-                            if (!isNaN(value) && value >= 0 && value <= 10) {
-                                frequencyRangeSlider.noUiSlider.set([value, null]);
-                            }
-                        });
-
-                        maxInput.addEventListener('change', function() {
-                            const value = parseFloat(this.value);
-                            if (!isNaN(value) && value >= 0 && value <= 10) {
-                                frequencyRangeSlider.noUiSlider.set([null, value]);
-                            }
-                        });
-
-                        // Initialize from URL parameters after slider is created
-                        if (window.initializeFrequencySlider) {
-                            window.initializeFrequencySlider();
+            const frequencyRangeSlider = document.getElementById('frequency-range-slider');
+            if (frequencyRangeSlider) {
+                noUiSlider.create(frequencyRangeSlider, {
+                    start: [0, 10],
+                    connect: true,
+                    range: {
+                        'min': 0,
+                        'max': 10
+                    },
+                    step: 0.1,
+                    format: {
+                        to: function(value) {
+                            return parseFloat(value).toFixed(1);
+                        },
+                        from: function(value) {
+                            return parseFloat(value);
                         }
                     }
+                });
 
-                    // Initialize PageLifecycleManager for capture list page (download manager only)
-                    document.addEventListener('DOMContentLoaded', function() {
-                        const pageConfig = {
-                            pageType: 'capture-list-minimal', // Custom page type for minimal managers
-                            permissions: {
-                                userPermissionLevel: 'owner',
-                                currentUserId: {
-                                    {
-                                        request.user.id
-                                    }
-                                },
-                                isOwner: true,
-                                capturePermissions: {
-                                    canEditMetadata: false, // Only owners can edit metadata (determined per-capture)
-                                    canAddAssets: false,
-                                    canRemoveAnyAssets: false,
-                                    canRemoveOwnAssets: false,
-                                    canShare: true, // Allow sharing for capture owners (determined per-capture)
-                                    canDownload: true, // Allow downloads for all users (shared and owners)
-                                    canDelete: false
-                                }
-                            }
-                        };
+                const lowerValue = document.getElementById('frequency-range-lower');
+                const upperValue = document.getElementById('frequency-range-upper');
+                const minInput = document.getElementById('centerFreqMinInput');
+                const maxInput = document.getElementById('centerFreqMaxInput');
 
-                        // Initialize managers for captures
-                        const permissionsManager = new PermissionsManager(pageConfig.permissions);
+                // Track user interaction with slider
+                let userInteractedWithSlider = false;
 
-                        // Initialize download manager
-                        const downloadManager = new DownloadActionManager({
-                            permissions: permissionsManager
-                        });
+                frequencyRangeSlider.noUiSlider.on('update', function(values, handle) {
+                    const value = parseFloat(values[handle]);
+                    if (handle === 0) {
+                        lowerValue.textContent = value + ' GHz';
+                        minInput.value = value;
+                        frequencyRangeSlider.setAttribute('aria-valuetext', `Frequency range from ${value} GHz to ${parseFloat(values[1])} GHz`);
+                    } else {
+                        upperValue.textContent = value + ' GHz';
+                        maxInput.value = value;
+                        frequencyRangeSlider.setAttribute('aria-valuetext', `Frequency range from ${parseFloat(values[0])} GHz to ${value} GHz`);
+                    }
+                });
 
-                        // Initialize visualization modal
-                        if (window.VisualizationModal) {
-                            new window.VisualizationModal();
-                        }
+                // Mark as interacted when user changes slider
+                frequencyRangeSlider.noUiSlider.on('change', function() {
+                    userInteractedWithSlider = true;
+                    // Trigger the global tracking
+                    if (window.initializeFrequencySlider) {
+                        // Update the global interaction tracking
+                        const event = new Event('change');
+                        minInput.dispatchEvent(event);
+                    }
+                });
 
-                        window.currentDownloadManager = downloadManager;
+                // Update slider when input values change
+                minInput.addEventListener('change', function() {
+                    const value = parseFloat(this.value);
+                    if (!isNaN(value) && value >= 0 && value <= 10) {
+                        frequencyRangeSlider.noUiSlider.set([value, null]);
+                    }
+                });
 
-                        // Initialize share action managers for each capture modal
-                        for (const modal of document.querySelectorAll('.modal[data-item-uuid]')) {
-                            const itemUuid = modal.getAttribute('data-item-uuid');
-                            const itemType = modal.getAttribute('data-item-type');
+                maxInput.addEventListener('change', function() {
+                    const value = parseFloat(this.value);
+                    if (!isNaN(value) && value >= 0 && value <= 10) {
+                        frequencyRangeSlider.noUiSlider.set([null, value]);
+                    }
+                });
 
-                            if (window.ShareActionManager && itemUuid && itemType === 'capture') {
-                                const shareManager = new ShareActionManager({
-                                    itemUuid: itemUuid,
-                                    itemType: itemType,
-                                    permissions: permissionsManager
-                                });
-                                // Store the handler on the modal element
-                                modal.shareActionManager = shareManager;
-                            }
+                // Initialize from URL parameters after slider is created
+                if (window.initializeFrequencySlider) {
+                    window.initializeFrequencySlider();
+                }
+            }
+        });
 
-                            // Reset selections when modal is hidden
-                            modal.addEventListener('hidden.bs.modal', function() {
-                                if (modal.shareActionManager) {
-                                    modal.shareActionManager.clearSelections();
-                                }
-                            });
-                        }
+        // Initialize PageLifecycleManager for capture list page (download manager only)
+        document.addEventListener('DOMContentLoaded', function() {
+            const pageConfig = {
+                pageType: 'capture-list-minimal', // Custom page type for minimal managers
+                permissions: {
+                    userPermissionLevel: 'owner',
+                    currentUserId: {{ request.user.id }},
+                    isOwner: true,
+                    capturePermissions: {
+                        canEditMetadata: false, // Only owners can edit metadata (determined per-capture)
+                        canAddAssets: false,
+                        canRemoveAnyAssets: false,
+                        canRemoveOwnAssets: false,
+                        canShare: true, // Allow sharing for capture owners (determined per-capture)
+                        canDownload: true, // Allow downloads for all users (shared and owners)
+                        canDelete: false
+                    }
+                }
+            };
 
-                        // Check for download alert messages
-                        const downloadAlert = sessionStorage.getItem('captureDownloadAlert');
-                        if (downloadAlert) {
-                            const alertData = JSON.parse(downloadAlert);
-                            if (window.showAlert) {
-                                window.showAlert(alertData.message, alertData.type);
-                            }
-                            sessionStorage.removeItem('captureDownloadAlert');
-                        }
+            // Initialize managers for captures
+            const permissionsManager = new PermissionsManager(pageConfig.permissions);
+
+            // Initialize download manager
+            const downloadManager = new DownloadActionManager({
+                permissions: permissionsManager
+            });
+
+            // Initialize visualization modal
+            if (window.VisualizationModal) {
+                new window.VisualizationModal();
+            }
+
+            window.currentDownloadManager = downloadManager;
+
+            // Initialize share action managers for each capture modal
+            for (const modal of document.querySelectorAll('.modal[data-item-uuid]')) {
+                const itemUuid = modal.getAttribute('data-item-uuid');
+                const itemType = modal.getAttribute('data-item-type');
+
+                if (window.ShareActionManager && itemUuid && itemType === 'capture') {
+                    const shareManager = new ShareActionManager({
+                        itemUuid: itemUuid,
+                        itemType: itemType,
+                        permissions: permissionsManager
                     });
-    </script>
+                    // Store the handler on the modal element
+                    modal.shareActionManager = shareManager;
+                }
+
+                // Reset selections when modal is hidden
+                modal.addEventListener('hidden.bs.modal', function() {
+                    if (modal.shareActionManager) {
+                        modal.shareActionManager.clearSelections();
+                    }
+                });
+            }
+
+            // Check for download alert messages
+            const downloadAlert = sessionStorage.getItem('captureDownloadAlert');
+            if (downloadAlert) {
+                const alertData = JSON.parse(downloadAlert);
+                if (window.showAlert) {
+                    window.showAlert(alertData.message, alertData.type);
+                }
+                sessionStorage.removeItem('captureDownloadAlert');
+            }
+        });
+</script>
+    {# djlint:on #}
 {% endblock javascript %}

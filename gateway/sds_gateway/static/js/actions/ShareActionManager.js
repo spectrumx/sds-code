@@ -550,6 +550,13 @@ window.ShareActionManager = class ShareActionManager {
 		}
 
 		try {
+			// Filter permission levels based on item type
+			// For captures, only allow viewer permission
+			let allowedPermissionLevels = window.PERMISSION_HIERARCHY;
+			if (this.itemType === "capture") {
+				allowedPermissionLevels = [window.PermissionLevels.VIEWER];
+			}
+
 			// Request server to render using generic endpoint
 			const response = await window.APIClient.post(
 				"/users/render-html/",
@@ -559,7 +566,8 @@ window.ShareActionManager = class ShareActionManager {
 						users: this.selectedUsersMap[inputId],
 						show_permission_select: true,
 						show_remove_button: true,
-						permission_levels: window.PERMISSION_HIERARCHY,
+						permission_levels: allowedPermissionLevels,
+						item_type: this.itemType, // Pass item type to template for conditional rendering
 					},
 				},
 				null,
