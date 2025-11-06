@@ -168,13 +168,15 @@
                                                     </button>
                                                     <ul class="dropdown-menu">
                                                         {% if dataset.can_edit %}
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
-                                                                    <i class="bi bi-pencil me-2"></i>Edit
-                                                                </button>
-                                                            </li>
+                                                            {% if not dataset.dataset.status == 'final' or not dataset.is_public %}
+                                                                <li>
+                                                                    <button class="dropdown-item"
+                                                                            type="button"
+                                                                            onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
+                                                                        <i class="bi bi-pencil me-2"></i>Edit
+                                                                    </button>
+                                                                </li>
+                                                            {% endif %}
                                                             <li>
                                                                 <button class="dropdown-item"
                                                                         type="button"
