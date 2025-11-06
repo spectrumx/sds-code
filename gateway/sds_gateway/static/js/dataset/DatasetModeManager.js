@@ -31,8 +31,7 @@ class DatasetModeManager {
 			// For creation mode, ensure user has full permissions
 			if (!this.isEditMode) {
 				permissionsConfig.isOwner = true;
-				permissionsConfig.userPermissionLevel =
-					window.PermissionLevels?.OWNER || "owner";
+				permissionsConfig.userPermissionLevel = window.PermissionLevels.OWNER;
 				permissionsConfig.datasetPermissions = {
 					canEditMetadata: true,
 					canAddAssets: true,

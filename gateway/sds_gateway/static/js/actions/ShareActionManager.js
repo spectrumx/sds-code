@@ -559,7 +559,7 @@ window.ShareActionManager = class ShareActionManager {
 						users: this.selectedUsersMap[inputId],
 						show_permission_select: true,
 						show_remove_button: true,
-						permission_levels: ["viewer", "contributor", "co-owner"],
+						permission_levels: window.PERMISSION_HIERARCHY,
 					},
 				},
 				null,
