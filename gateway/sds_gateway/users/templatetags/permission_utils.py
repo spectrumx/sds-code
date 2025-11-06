@@ -1,6 +1,7 @@
 from django import template
 
 from sds_gateway.api_methods.models import PermissionLevel
+
 register = template.Library()
 
 
