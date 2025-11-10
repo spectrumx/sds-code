@@ -173,7 +173,7 @@ class DatasetInfoForm(forms.Form):
         required=True,
         choices=Dataset.STATUS_CHOICES,
         initial="draft",
-        widget=forms.Select(attrs={"class": "form-control"}),
+        widget=forms.HiddenInput(),
         help_text="Draft: Work in progress, Final: Complete and ready for use",
     )
 
