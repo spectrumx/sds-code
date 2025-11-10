@@ -1242,26 +1242,23 @@ class DatasetEditingHandler {
 			}
 
 			// Disable author inputs if dataset is final
-			if (
-				window.datasetModeManager &&
-				window.datasetModeManager.isExistingFinalDataset()
-			) {
+			if (window.datasetModeManager?.isExistingFinalDataset()) {
 				const authorInputs = authorsList.querySelectorAll(
 					".author-name-input, .author-orcid-input",
 				);
-				authorInputs.forEach((input) => {
+				for (const input of authorInputs) {
 					input.disabled = true;
 					input.setAttribute("readonly", "readonly");
 					input.classList.add("form-control-plaintext");
-				});
+				}
 				// Also disable remove buttons for authors
 				const removeButtons = authorsList.querySelectorAll(
 					".remove-author, .cancel-remove-author",
 				);
-				removeButtons.forEach((button) => {
+				for (const button of removeButtons) {
 					button.disabled = true;
 					button.classList.add("disabled-element");
-				});
+				}
 				// Disable add button if not already disabled
 				if (addAuthorBtn) {
 					addAuthorBtn.disabled = true;
