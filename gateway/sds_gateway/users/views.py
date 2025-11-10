@@ -63,8 +63,6 @@ from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import user_has_access_to_item
-from sds_gateway.api_methods.models import get_user_permission_level
-from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -1975,9 +1973,6 @@ class GroupCapturesView(
                     },
                     status=403,
                 )
-
-            # Get the dataset to check if it's public
-            dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
 
             # Only validate form if user can edit metadata
             can_edit = UserSharePermission.user_can_edit_dataset(
