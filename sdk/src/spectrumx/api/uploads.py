@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 from typing import Annotated
 from typing import NoReturn
 
-from loguru import logger as log
 from pydantic import BaseModel
 from pydantic import Field
 from tqdm import tqdm
@@ -350,7 +349,6 @@ class UploadWorkload(BaseModel):
     async def _add_skipped(self, skipped: SkippedUpload) -> None:
         """Add a skipped file entry."""
         async with self._state_lock:
-            log.error(skipped)
             self.fq_skipped.append(skipped)
 
     async def run(self, client: Client) -> list[Result[File]]:

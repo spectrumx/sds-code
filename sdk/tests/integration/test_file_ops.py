@@ -236,6 +236,7 @@ def test_upload_files_in_bulk(integration_client: Client, temp_file_tree: Path) 
             local_path=temp_file_tree,
             sds_path=PurePosixPath("/test-tree") / random_subdir_name,
             verbose=True,
+            warn_skipped=False,
         )
     success_uploads = [result for result in results if result]
     failed_uploads = [result for result in results if not result]
