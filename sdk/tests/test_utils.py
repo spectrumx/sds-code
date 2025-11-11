@@ -1,9 +1,19 @@
 """Tests for the utils module."""
 
+import warnings
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+import urllib3
 from spectrumx import utils
+
+
+@contextmanager
+def disable_ssl_warnings():
+    with warnings.catch_warnings():
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        yield None
 
 
 def test_permission_string_invalid_length() -> None:
