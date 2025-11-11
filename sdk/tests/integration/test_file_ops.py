@@ -4,22 +4,20 @@ import time
 import uuid
 from pathlib import Path
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
 from loguru import logger as log
 from spectrumx.client import Client
 from spectrumx.errors import FileError
+from spectrumx.models.files import File
 from spectrumx.ops.files import construct_file
 from spectrumx.ops.files import get_valid_files
 from spectrumx.ops.files import is_valid_file
 from spectrumx.utils import get_random_line
 
 from tests.integration.conftest import PassthruEndpoints
-
-if TYPE_CHECKING:
-    from spectrumx.models.files import File
+from tests.test_utils import disable_ssl_warnings
 
 BLAKE3_HEX_LEN: int = 64
 
@@ -77,10 +75,12 @@ def test_get_valid_files(temp_file_tree: Path) -> None:
         for file_instance in valid_file_instances
     }
 
-    # all test files should be valid and match the local path
+    # test files that are invalid for upload end with the extension
+    extension = ".tmp"
     invalid_file_paths = all_file_paths - valid_file_paths
-    assert invalid_file_paths == set(), (
-        f"All files should be valid. Invalid paths: {invalid_file_paths}"
+    assert all(path.suffix == extension for path in invalid_file_paths), (
+        "Expected invalid files for upload to end with "
+        f"{extension}: {invalid_file_paths}"
     )
 
 
@@ -231,16 +231,25 @@ def test_upload_sibling(
 def test_upload_files_in_bulk(integration_client: Client, temp_file_tree: Path) -> None:
     """Tests uploading multiple files to SDS."""
     random_subdir_name = get_random_line(10, include_punctuation=False)
-    results = integration_client.upload(
-        local_path=temp_file_tree,
-        sds_path=PurePosixPath("/test-tree") / random_subdir_name,
-        verbose=True,
-    )
-    log.info(f"Uploaded {len(results)} files.")
-    for upload_result in results:
-        if upload_result:
-            continue
-        pytest.fail(f"File upload failed: {upload_result}")
+    with disable_ssl_warnings():
+        results = integration_client.upload(
+            local_path=temp_file_tree,
+            sds_path=PurePosixPath("/test-tree") / random_subdir_name,
+            verbose=True,
+        )
+    success_uploads = [result for result in results if result]
+    failed_uploads = [result for result in results if not result]
+    log.info(f"Uploaded {len(success_uploads)} files.")
+    for failed in failed_uploads:
+        sds_file = failed.error_info.get("sds_file", None)
+        if isinstance(sds_file, File):
+            msg = f"Failed to upload '{sds_file.path}'"
+        else:
+            msg = f"Failed upload: {failed.error_info}"
+        log.error(msg)
+    if failed_uploads:
+        log.error(f"Failed to upload {len(failed_uploads)} files.")
+        pytest.fail(f"One or more file uploads failed: {failed_uploads}")
 
 
 @pytest.mark.integration
