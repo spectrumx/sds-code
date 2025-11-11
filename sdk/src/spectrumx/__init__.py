@@ -2,6 +2,8 @@
 
 # ruff: noqa: E402  # imports not at top-level
 
+from tqdm.auto import tqdm
+
 # -------------------
 # better traceback formatting with rich, if available
 try:
@@ -58,6 +60,15 @@ def main() -> None:  # pragma: no cover
 def enable_logging() -> None:
     """Enables loguru logger."""
     try:
+        # configure loguru to work nicely with tqdm
+        _ = log.configure(  # pyright: ignore[reportPossiblyUnboundVariable]
+            handlers=[
+                {
+                    "sink": lambda msg: tqdm.write(msg, end=""),  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+                    "colorize": True,
+                }
+            ]
+        )
         log.enable(LIB_NAME)  # pyright: ignore[reportPossiblyUnboundVariable]
         log.info(f"Enabled logging for '{LIB_NAME}'")  # pyright: ignore[reportPossiblyUnboundVariable]
     except NameError:

@@ -6,6 +6,7 @@ from typing import Any
 from typing import Generic
 from typing import TypeVar
 
+from spectrumx.models.files.file import File
 from spectrumx.utils import log_user_error
 
 # python 3.10 backport
@@ -77,6 +78,24 @@ class DatasetError(SDSError):
 
 class ExperimentError(SDSError):
     """Issue interacting with an experiment in SDS."""
+
+
+class UploadError(FileError):
+    """Represents a file that failed to upload."""
+
+    sds_file: File
+    reason: str | None = None
+
+    def __init__(
+        self,
+        *,
+        message: str,
+        sds_file: File,
+        reason: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.sds_file = sds_file
+        self.reason = reason
 
 
 T = TypeVar("T")
