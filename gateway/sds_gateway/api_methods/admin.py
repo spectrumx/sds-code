@@ -85,3 +85,11 @@ class ShareGroupAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArg
     list_display = ("name", "owner")
     search_fields = ("name", "owner")
     ordering = ("-updated_at",)
+
+
+@admin.register(models.Keyword)
+class KeywordAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
+    list_display = ("name", "dataset", "created_by", "created_at")
+    search_fields = ("name", "dataset__name", "created_by__email")
+    list_filter = ("dataset",)
+    ordering = ("name",)

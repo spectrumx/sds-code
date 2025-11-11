@@ -128,7 +128,7 @@ class FormHandler {
 
 	show(container, showClass = "display-block") {
 		container.classList.remove("display-none");
-		container.classList.remove("d-none"); // ensure Bootstrap's d-none is removed
+		container.classList.remove("d-none"); 
 		container.classList.add(showClass);
 	}
 

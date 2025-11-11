@@ -148,6 +148,17 @@ class DatasetInfoForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 5}),
     )
+    keywords = forms.CharField(
+        label="Keywords",
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "e.g. spectrum, RF, SDR",
+            }
+        ),
+        help_text="Comma-separated list of keywords",
+    )
     authors = forms.CharField(
         label="Authors",
         required=True,
@@ -187,6 +198,21 @@ class DatasetInfoForm(forms.Form):
             raise ValidationError(DATASET_NAME_LENGTH_ERROR)
 
         return name.strip()
+
+    def clean_keywords(self):
+        """Normalize keywords string."""
+        raw = self.cleaned_data.get("keywords", "") or ""
+        # Keep as a string, normalized to comma-separated unique tokens
+        parts = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+        # Preserve original casing but deduplicate preserving order
+        seen = set()
+        unique = []
+        for p in parts:
+            if p.lower() in seen:
+                continue
+            seen.add(p.lower())
+            unique.append(p)
+        return ", ".join(unique)
 
     def clean_authors(self):
         """Validate the authors list."""

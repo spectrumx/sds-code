@@ -51,6 +51,7 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
+from sds_gateway.api_methods.models import Keyword
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import TemporaryZipFile
@@ -1507,6 +1508,44 @@ user_capture_list_view = ListCapturesView.as_view()
 user_captures_api_view = CapturesAPIView.as_view()
 
 
+class KeywordAutocompleteAPIView(Auth0LoginRequiredMixin, View):
+    """Handle API requests for keyword autocomplete suggestions."""
+
+    def get(self, request, *args, **kwargs) -> JsonResponse:
+        """
+        Return keyword suggestions based on search query.
+
+        Returns up to 10 unique keyword suggestions that match the query
+        anywhere in the keyword.
+        """
+        query = request.GET.get("q", "").strip()
+
+        if not query:
+            return JsonResponse({"suggestions": []})
+
+        try:
+            # Search for keywords that contain the query anywhere (case-insensitive)
+            # Use name_lower for efficient case-insensitive search
+            keywords = (
+                Keyword.objects.filter(
+                    name_lower__icontains=query.lower(),
+                    is_deleted=False,
+                )
+                .values_list("name", flat=True)
+                .distinct()[:10]
+            )
+
+            return JsonResponse({"suggestions": list(keywords)})
+
+        except DatabaseError:
+            logger = logging.getLogger(__name__)
+            logger.exception("Database error in keyword autocomplete")
+            return JsonResponse({"error": "Database error occurred"}, status=500)
+
+
+keyword_autocomplete_api_view = KeywordAutocompleteAPIView.as_view()
+
+
 class GroupCapturesView(
     Auth0LoginRequiredMixin, FormSearchMixin, FileTreeMixin, TemplateView
 ):
@@ -1650,6 +1689,9 @@ class GroupCapturesView(
                 initial_data = {
                     "name": existing_dataset.name,
                     "description": existing_dataset.description,
+                    "keywords": ", ".join(
+                        existing_dataset.keywords.values_list("name", flat=True)
+                    ),
                     "authors": authors_json,
                     "status": existing_dataset.status,
                 }
@@ -2047,6 +2089,8 @@ class GroupCapturesView(
             # Clear existing relationships
             dataset.captures.clear()
             dataset.files.clear()
+            # Replace existing keywords
+            dataset.keywords.all().delete()
         else:
             # Create new dataset
             # Parse authors from JSON string
@@ -2058,6 +2102,31 @@ class GroupCapturesView(
                 authors=authors,
                 status=dataset_form.cleaned_data["status"],
                 owner=request.user,
+            )
+
+        # Persist keywords from form (comma-separated)
+        raw_keywords = dataset_form.cleaned_data.get("keywords", "") or ""
+        if raw_keywords:
+            names = [p.strip() for p in raw_keywords.split(",") if p.strip()]
+            # Deduplicate case-insensitively while preserving order
+            seen = set()
+            unique_names = []
+            for n in names:
+                key = n.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                unique_names.append(n)
+            Keyword.objects.bulk_create(
+                [
+                    Keyword(
+                        name=name,
+                        name_lower=name.lower(),
+                        dataset=dataset,
+                        created_by=request.user,
+                    )
+                    for name in unique_names
+                ]
             )
 
         return dataset
@@ -2223,7 +2292,11 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
     def _get_owned_datasets(self, user: User, order_by: str) -> QuerySet[Dataset]:
         """Get datasets owned by the user."""
-        return user.datasets.filter(is_deleted=False).all().order_by(order_by)
+        return (
+            user.datasets.filter(is_deleted=False)
+            .prefetch_related("keywords")
+            .order_by(order_by)
+        )
 
     def _get_shared_datasets(self, user: User, order_by: str) -> QuerySet[Dataset]:
         """Get datasets shared with the user."""
@@ -2238,6 +2311,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         return (
             Dataset.objects.filter(uuid__in=shared_dataset_uuids, is_deleted=False)
             .exclude(owner=user)
+            .prefetch_related("keywords")
             .order_by(order_by)
         )
 

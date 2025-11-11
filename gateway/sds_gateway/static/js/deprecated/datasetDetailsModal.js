@@ -123,6 +123,22 @@ class DatasetDetailsModal {
 		document.querySelector(".dataset-details-description").textContent =
 			dataset.description || "No description available";
 
+		// Populate keywords
+		const keywordsContainer = document.querySelector(
+			".dataset-details-keywords",
+		);
+		if (dataset.keywords && dataset.keywords.length > 0) {
+			keywordsContainer.innerHTML = dataset.keywords
+				.map(
+					(keyword) =>
+						`<span class="badge bg-info text-dark me-1 mb-1">${this.escapeHtml(keyword)}</span>`,
+				)
+				.join("");
+		} else {
+			keywordsContainer.innerHTML =
+				'<span class="text-muted">No keywords</span>';
+		}
+
 		// Format status with badge using database values
 		const statusElement = document.querySelector(".dataset-details-status");
 		if (dataset.status === "draft") {
