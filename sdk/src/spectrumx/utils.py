@@ -7,6 +7,7 @@ import re
 import string
 from collections.abc import Iterable
 from pathlib import Path
+from typing import NoReturn
 from typing import TypeVar
 
 from blake3 import blake3 as Blake3  # noqa: N812
@@ -142,7 +143,9 @@ def clean_local_path(local_path: Path) -> Path:
 T = TypeVar("T")
 
 
-def get_prog_bar(iterable: Iterable[T], *args, **kwargs) -> tqdm:  # pyright: ignore[reportMissingTypeArgument]
+def get_prog_bar(
+    iterable: Iterable[T] | None = None, *args, **kwargs
+) -> tqdm[T] | tqdm[NoReturn]:
     """SDS standard progress bar."""
     default_options = {
         "unit": "files",

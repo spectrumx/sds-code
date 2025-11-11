@@ -42,6 +42,9 @@ class Client:
     _gateway: GatewayClient
     _config: SDSConfig
 
+    # feature flags
+    ENABLE_NEW_UPLOAD_METHOD: bool = True
+
     def __init__(
         self,
         host: None | str,
@@ -50,10 +53,12 @@ class Client:
         env_config: Mapping[str, Any] | None = None,
         verbose: bool = False,
     ) -> None:
-        # avoids circular import
-        from spectrumx.api import sds_files as _sds_files  # noqa: PLC0415
+        # avoids circular imports
+        from spectrumx.api import sds_files as _sds_files_api  # noqa: PLC0415
+        from spectrumx.api import uploads as _uploads_api  # noqa: PLC0415
 
-        self._sds_files = _sds_files
+        self._sds_files = _sds_files_api
+        self._uploads = _uploads_api
 
         self.host = host
         self.is_authenticated = False
@@ -475,7 +480,7 @@ class Client:
             verbose=verbose,
         )
 
-    def upload(
+    def _upload_deprecated(
         self,
         *,
         local_path: Path | str,
@@ -510,6 +515,45 @@ class Client:
                 result = Result(exception=err)
             upload_results.append(result)
         return upload_results
+
+    def _upload_resumable(
+        self,
+        *,
+        local_path: Path | str,
+        sds_path: PurePosixPath | Path | str = "/",
+        verbose: bool = True,
+        warn_skipped: bool = True,
+    ) -> list[Result[File]]:
+        """Uploads a file or directory to SDS using the resumable upload method.
+
+        Args:
+            local_path:     The local path of the file or directory to upload.
+            sds_path:       The virtual directory on SDS to upload the file to, \
+                                where '/' is the user root.
+            verbose:        Show a progress bar.
+            warn_skipped:   Display warnings for skipped files.
+        """
+        return self._uploads.upload_resumable(
+            client=self,
+            local_path=local_path,
+            sds_path=sds_path,
+            verbose=verbose,
+            warn_skipped=warn_skipped,
+        )
+
+    def upload(self, *args, **kwargs) -> list[Result[File]]:
+        """Uploads a file or directory to SDS.
+
+        Args:
+            local_path:     The local path of the file or directory to upload.
+            sds_path:       The virtual directory on SDS to upload the file to, \
+                                where '/' is the user root.
+            verbose:        Show a progress bar.
+            warn_skipped:   Display warnings for skipped files.
+        """
+        if self.ENABLE_NEW_UPLOAD_METHOD:
+            return self._upload_resumable(*args, **kwargs)
+        return self._upload_deprecated(*args, **kwargs)
 
     def upload_file(
         self,
