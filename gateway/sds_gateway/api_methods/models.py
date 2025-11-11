@@ -571,6 +571,57 @@ class Capture(BaseModel):
             return None
 
 
+class Keyword(BaseModel):
+    """
+    Model for user-entered keywords that can be associated with datasets.
+    Each keyword belongs to exactly one dataset via ForeignKey.
+    """
+
+    name = models.CharField(
+        max_length=255,
+        blank=False,
+        db_index=True,
+        help_text="The keyword text",
+    )
+    name_lower = models.CharField(
+        max_length=255,
+        blank=False,
+        db_index=True,
+        editable=False,
+        help_text="Lowercase version of the keyword for case-insensitive queries",
+    )
+    dataset = models.ForeignKey(
+        "Dataset",
+        on_delete=models.CASCADE,
+        related_name="keywords",
+        help_text="The dataset this keyword belongs to",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        null=True,
+        related_name="created_keywords",
+        on_delete=models.SET_NULL,
+        help_text="The user who created this keyword",
+    )
+
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
+        ordering = ["name"]
+        verbose_name = "Keyword"
+        verbose_name_plural = "Keywords"
+        indexes = [
+            models.Index(fields=["dataset", "name"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args, **kwargs) -> None:
+        """Override save to automatically populate name_lower."""
+        self.name_lower = self.name.lower()
+        super().save(*args, **kwargs)
+
+
 class Dataset(BaseModel):
     """
     Model for datasets defined and created through the API.
@@ -578,7 +629,7 @@ class Dataset(BaseModel):
     Schema Definition: https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/abstractions/dataset/README.md
     """
 
-    list_fields = ["authors", "keywords", "institutions"]
+    list_fields = ["authors", "institutions"]
 
     STATUS_CHOICES = [
         (DatasetStatus.DRAFT, "Draft"),
@@ -604,7 +655,6 @@ class Dataset(BaseModel):
     doi = models.CharField(max_length=255, blank=True)
     authors = models.TextField(blank=True)
     license = models.CharField(max_length=255, blank=True)
-    keywords = models.TextField(blank=True)
     institutions = models.TextField(blank=True)
     release_date = models.DateTimeField(blank=True, null=True)
     repository = models.URLField(blank=True)
