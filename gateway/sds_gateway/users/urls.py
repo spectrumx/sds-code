@@ -9,6 +9,7 @@ from .views import FilesView
 from .views import ListCapturesView
 from .views import UploadCaptureView
 from .views import generate_api_key_form_view
+from .views import keyword_autocomplete_api_view
 from .views import new_api_key_view
 from .views import render_html_fragment_view
 from .views import revoke_api_key_view
@@ -44,6 +45,11 @@ urlpatterns = [
     path("files/<uuid:uuid>/h5info/", FileH5InfoView.as_view(), name="file_h5info"),
     path("dataset-list/", user_dataset_list_view, name="dataset_list"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
+    path(
+        "api/keyword-autocomplete/",
+        keyword_autocomplete_api_view,
+        name="keyword_autocomplete",
+    ),
     path("render-html/", render_html_fragment_view, name="render_html"),
     path("group-captures/", user_group_captures_view, name="group_captures"),
     path(
