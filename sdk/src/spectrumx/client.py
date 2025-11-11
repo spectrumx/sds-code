@@ -541,7 +541,14 @@ class Client:
             warn_skipped=warn_skipped,
         )
 
-    def upload(self, *args, **kwargs) -> list[Result[File]]:
+    def upload(
+        self,
+        *,
+        local_path: Path | str,
+        sds_path: PurePosixPath | Path | str = "/",
+        verbose: bool = True,
+        warn_skipped: bool = True,
+    ) -> list[Result[File]]:
         """Uploads a file or directory to SDS.
 
         Args:
@@ -552,8 +559,18 @@ class Client:
             warn_skipped:   Display warnings for skipped files.
         """
         if self.ENABLE_NEW_UPLOAD_METHOD:
-            return self._upload_resumable(*args, **kwargs)
-        return self._upload_deprecated(*args, **kwargs)
+            return self._upload_resumable(
+                local_path=local_path,
+                sds_path=sds_path,
+                verbose=verbose,
+                warn_skipped=warn_skipped,
+            )
+        return self._upload_deprecated(
+            local_path=local_path,
+            sds_path=sds_path,
+            verbose=verbose,
+            warn_skipped=warn_skipped,
+        )
 
     def upload_file(
         self,
