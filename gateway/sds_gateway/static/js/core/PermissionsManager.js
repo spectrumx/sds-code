@@ -1,5 +1,3 @@
-// PermissionLevels and window.getPermissionHierarchy are now available globally
-
 /**
  * Centralized Permissions Manager
  * Handles all permission checking and user access control
