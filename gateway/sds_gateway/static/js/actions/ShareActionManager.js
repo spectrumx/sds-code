@@ -552,7 +552,7 @@ window.ShareActionManager = class ShareActionManager {
 		try {
 			// Filter permission levels based on item type
 			// For captures, only allow viewer permission
-			let allowedPermissionLevels = window.PERMISSION_HIERARCHY;
+			let allowedPermissionLevels = window.PERMISSION_OPTIONS;
 			if (this.itemType === "capture") {
 				allowedPermissionLevels = [window.PermissionLevels.VIEWER];
 			}
