@@ -1827,7 +1827,6 @@ class DatasetEditingHandler {
 // Make class available globally
 window.DatasetEditingHandler = DatasetEditingHandler;
 
-// Export for ES6 modules (Jest testing)
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
 	module.exports = { DatasetEditingHandler };

@@ -1254,7 +1254,6 @@ class AssetSearchHandler {
 // Make class available globally
 window.AssetSearchHandler = AssetSearchHandler;
 
-// Export for ES6 modules (Jest testing)
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
 	module.exports = { AssetSearchHandler };

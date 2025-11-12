@@ -505,7 +505,6 @@ window.DOMUtils = new DOMUtils();
 // Also expose showAlert as global function for convenience
 window.showAlert = window.DOMUtils.showAlert.bind(window.DOMUtils);
 
-// Export for ES6 modules
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
 	module.exports = { DOMUtils };
