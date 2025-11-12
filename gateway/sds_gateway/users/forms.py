@@ -12,6 +12,7 @@ from django.forms import EmailField
 from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
 
+from loguru import logger
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 
@@ -166,6 +167,7 @@ class DatasetInfoForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop("user", None)
+        self.dataset_uuid = kwargs.pop("dataset_uuid", None)
         super().__init__(*args, **kwargs)
         initial_authors = self.initial.get("authors")
         # Check if authors is empty (None, empty string, or "[]")
@@ -191,56 +193,62 @@ class DatasetInfoForm(forms.Form):
         authors_json = self.cleaned_data["authors"]
         try:
             authors = json.loads(authors_json)
-            if not isinstance(authors, list):
-                msg = "Authors must be a list"
-                raise ValidationError(msg)
-
-            if not authors:
-                msg = "At least one author is required"
-                raise ValidationError(msg)
-
-            # Validate each author name
-            cleaned_authors = []
-            for author in authors:
-                # Handle both old string format and new object format
-                if isinstance(author, str):
-                    # Convert old string format to new object format
-                    author_name = author.strip()
-                    if not author_name:
-                        continue
-                    if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
-                        error_msg = (
-                            f"Author name '{author_name}' is too short. "
-                            f"Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
-                        )
-                        raise ValidationError(error_msg)
-                    cleaned_authors.append({"name": author_name, "orcid_id": ""})
-                elif isinstance(author, dict):
-                    # Handle new object format
-                    author_name = author.get("name", "").strip()
-                    if not author_name:
-                        continue
-                    if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
-                        error_msg = (
-                            f"Author name '{author_name}' is too short. "
-                            f"Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
-                        )
-                        raise ValidationError(error_msg)
-                    cleaned_authors.append(
-                        {
-                            "name": author_name,
-                            "orcid_id": author.get("orcid_id", "").strip(),
-                        }
-                    )
-
-            if not cleaned_authors:
-                msg = "At least one valid author is required"
-                raise ValidationError(msg)
-
-            return json.dumps(cleaned_authors)
         except json.JSONDecodeError as e:
             msg = "Invalid authors format"
             raise ValidationError(msg) from e
+
+        if not isinstance(authors, list):
+            msg = "Authors must be a list"
+            raise ValidationError(msg)
+
+        if not authors:
+            msg = "At least one author is required"
+            raise ValidationError(msg)
+
+        # Validate each author name
+        cleaned_authors = []
+        for author in authors:
+            # Handle both old string format and new object format
+            if isinstance(author, str):
+                dataset_uuid_str = (
+                    str(self.dataset_uuid) if self.dataset_uuid else "unknown"
+                )
+                log_msg = (
+                    "Author must be a dictionary with 'name' and 'orcid_id' keys. "
+                    "This should have been done automatically, "
+                    "but if you are seeing this error, it means the migration 0017 failed "
+                    f"for the dataset with UUID: {dataset_uuid_str}."
+                )
+                logger.error(log_msg)
+
+                user_error_msg = (
+                    "Database error encountered while validating authors. "
+                    "Please contact support."
+                )
+                raise ValidationError(user_error_msg)
+            elif isinstance(author, dict):
+                # Handle new object format
+                author_name = author.get("name", "").strip()
+                if not author_name:
+                    continue
+                if len(author_name) < MIN_AUTHOR_NAME_LENGTH:
+                    error_msg = (
+                        f"Author name '{author_name}' is too short. "
+                        f"Minimum length is {MIN_AUTHOR_NAME_LENGTH} characters."
+                    )
+                    raise ValidationError(error_msg)
+                cleaned_authors.append(
+                    {
+                        "name": author_name,
+                        "orcid_id": author.get("orcid_id", "").strip(),
+                    }
+                )
+
+        if not cleaned_authors:
+            msg = "At least one valid author is required"
+            raise ValidationError(msg)
+
+        return json.dumps(cleaned_authors)
 
     def clean_description(self):
         """Clean and validate the description."""

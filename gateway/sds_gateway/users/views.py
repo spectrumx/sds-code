@@ -433,7 +433,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         request_user: User,
         message: str,
         permission_level: PermissionLevel = PermissionLevel.VIEWER,
-    ) -> tuple[list[dict], list[str]]:
+    ) -> tuple[list[str], list[str]]:
         """Add a group to item sharing."""
         group_uuid = group_identifier.split(":")[1]  # Remove "group:" prefix
         shared_users: list[str] = []
@@ -1004,8 +1004,8 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         Returns:
             A tuple containing a list of shared users and a list of errors
         """
-        shared_users = []
-        errors = []
+        shared_users: list[str] = []
+        errors: list[str] = []
 
         for email, permission_level in users.items():
             if email.startswith("group:"):
@@ -1829,74 +1829,65 @@ class GroupCapturesView(
 
     def _handle_dataset_edit(self, request, dataset_uuid: str) -> JsonResponse:
         """Handle dataset editing with asset management."""
-        try:
-            # Get the dataset
-            dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
 
-            # Check permissions
-            permission_level = get_user_permission_level(
-                request.user, dataset_uuid, ItemType.DATASET
-            )
+        # Get the dataset
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
 
-            if not permission_level:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "errors": {"non_field_errors": ["Access denied."]},
-                    },
-                    status=403,
-                )
+        # Check permissions
+        permission_level = get_user_permission_level(
+            request.user, dataset_uuid, ItemType.DATASET
+        )
 
-            # Update metadata if user has permission
-            if UserSharePermission.user_can_edit_dataset(
-                request.user, dataset_uuid, ItemType.DATASET
-            ):
-                dataset_form = DatasetInfoForm(request.POST, user=request.user)
-                if dataset_form.is_valid():
-                    dataset.name = dataset_form.cleaned_data["name"]
-                    dataset.description = dataset_form.cleaned_data["description"]
-
-                    # Handle authors with changes tracking
-                    authors_json = dataset_form.cleaned_data["authors"]
-                    authors = json.loads(authors_json)
-
-                    # Parse author changes if provided
-                    author_changes_json = request.POST.get("author_changes", "")
-                    if author_changes_json:
-                        try:
-                            author_changes = json.loads(author_changes_json)
-                            # Apply author changes
-                            authors = self._apply_author_changes(
-                                authors, author_changes
-                            )
-                        except json.JSONDecodeError:
-                            # Fallback to direct authors if parsing fails
-                            pass
-
-                    dataset.authors = authors
-                    dataset.status = dataset_form.cleaned_data["status"]
-                    dataset.save()
-
-            # Handle asset changes
-            asset_changes = self._parse_asset_changes(request)
-
-            # Apply asset changes based on permissions
-            self._apply_asset_changes(
-                dataset, asset_changes, request.user, permission_level
-            )
-
-            return JsonResponse(
-                {"success": True, "redirect_url": reverse("users:dataset_list")},
-            )
-
-        except Dataset.DoesNotExist:
+        if not permission_level:
             return JsonResponse(
                 {
                     "success": False,
-                    "errors": {"non_field_errors": ["Dataset not found."]},
+                    "errors": {"non_field_errors": ["Access denied."]},
                 },
-                status=404,
+                status=403,
             )
+
+        # Update metadata if user has permission
+        if UserSharePermission.user_can_edit_dataset(
+            request.user, dataset_uuid, ItemType.DATASET
+        ):
+            dataset_form = DatasetInfoForm(request.POST, user=request.user)
+            if dataset_form.is_valid():
+                dataset.name = dataset_form.cleaned_data["name"]
+                dataset.description = dataset_form.cleaned_data["description"]
+
+                # Handle authors with changes tracking
+                authors_json = dataset_form.cleaned_data["authors"]
+                authors = json.loads(authors_json)
+
+                # Parse author changes if provided
+                author_changes_json = request.POST.get("author_changes", "")
+                if author_changes_json:
+                    try:
+                        author_changes = json.loads(author_changes_json)
+                        # Apply author changes
+                        authors = self._apply_author_changes(
+                            authors, author_changes
+                        )
+                    except json.JSONDecodeError:
+                        # Fallback to direct authors if parsing fails
+                        pass
+
+                dataset.authors = authors
+                dataset.status = dataset_form.cleaned_data["status"]
+                dataset.save()
+
+        # Handle asset changes
+        asset_changes = self._parse_asset_changes(request)
+
+        # Apply asset changes based on permissions
+        self._apply_asset_changes(
+            dataset, asset_changes, request.user, permission_level
+        )
+
+        return JsonResponse(
+            {"success": True, "redirect_url": reverse("users:dataset_list")},
+        )
 
     def _parse_asset_changes(self, request) -> dict:
         """Parse asset changes from the request."""
@@ -2023,14 +2014,9 @@ class GroupCapturesView(
             else:
                 result.append(author)
 
-        # Add new authors (only those that are beyond the original authors array)
+        # Add new authors
         for i in changes.get("added", []):
-            if i >= len(authors) and i < len(authors) + len(changes.get("added", [])):
-                # This is a new author that was added beyond the original array
-                # We need to get it from the current authors array
-                # (which includes the new ones)
-                if i < len(authors):
-                    result.append(authors[i])
+            result.append(authors[i])
 
         return result
 
@@ -2322,8 +2308,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "permission_level": perm.permission_level,
                     "owner": group.owner.name,
                     "owner_email": group.owner.email,
-                    "is_group_owner": group.owner
-                    == current_user,  # Check if the current user owns the group
+                    "is_group_owner": group.owner == current_user,
                 }
             group_permissions[group_uuid]["members"].append(
                 {
