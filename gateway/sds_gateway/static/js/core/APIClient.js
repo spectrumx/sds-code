@@ -219,7 +219,7 @@ class APIClient {
 			loadingState,
 		);
 	}
-};
+}
 
 /**
  * Custom API Error class

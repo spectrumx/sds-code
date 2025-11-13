@@ -11,8 +11,8 @@ from django.core.exceptions import ValidationError
 from django.forms import EmailField
 from django.http import HttpRequest
 from django.utils.translation import gettext_lazy as _
-
 from loguru import logger
+
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 
@@ -188,7 +188,7 @@ class DatasetInfoForm(forms.Form):
 
         return name.strip()
 
-    def clean_authors(self):  # noqa: C901
+    def clean_authors(self):
         """Validate the authors list."""
         authors_json = self.cleaned_data["authors"]
         try:
@@ -216,8 +216,8 @@ class DatasetInfoForm(forms.Form):
                 log_msg = (
                     "Author must be a dictionary with 'name' and 'orcid_id' keys. "
                     "This should have been done automatically, "
-                    "but if you are seeing this error, it means the migration 0017 failed "
-                    f"for the dataset with UUID: {dataset_uuid_str}."
+                    "but if you are seeing this error, it means the migration 0017 "
+                    f"failed for the dataset with UUID: {dataset_uuid_str}."
                 )
                 logger.error(log_msg)
 
@@ -226,7 +226,7 @@ class DatasetInfoForm(forms.Form):
                     "Please contact support."
                 )
                 raise ValidationError(user_error_msg)
-            elif isinstance(author, dict):
+            if isinstance(author, dict):
                 # Handle new object format
                 author_name = author.get("name", "").strip()
                 if not author_name:

@@ -24,8 +24,10 @@ class PermissionsManager {
 		this.datasetPermissions = {
 			canEditMetadata: config.datasetPermissions?.canEditMetadata || false,
 			canAddAssets: config.datasetPermissions?.canAddAssets || false,
-			canRemoveAnyAssets: config.datasetPermissions?.canRemoveAnyAssets || false,
-			canRemoveOwnAssets: config.datasetPermissions?.canRemoveOwnAssets || false,
+			canRemoveAnyAssets:
+				config.datasetPermissions?.canRemoveAnyAssets || false,
+			canRemoveOwnAssets:
+				config.datasetPermissions?.canRemoveOwnAssets || false,
 			canShare: config.datasetPermissions?.canShare ?? false,
 			canDownload: config.datasetPermissions?.canDownload ?? false,
 			...(config.datasetPermissions ?? {}),
@@ -327,7 +329,7 @@ class PermissionsManager {
 			return this.datasetPermissions[permission] || false;
 		});
 	}
-};
+}
 
 // Make class available globally
 window.PermissionsManager = PermissionsManager;

@@ -4,10 +4,8 @@ import json
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from sds_gateway.api_methods.models import Dataset
 from sds_gateway.users.forms import DatasetInfoForm
 
 User = get_user_model()
@@ -57,7 +55,8 @@ class TestDatasetAuthors(TestCase):
         form = DatasetInfoForm(data=form_data, user=self.user)
         assert form.is_valid()
         cleaned_authors = json.loads(form.cleaned_data["authors"])
-        assert len(cleaned_authors) == 3
+        expected_author_count = 3
+        assert len(cleaned_authors) == expected_author_count
         assert cleaned_authors[0]["name"] == "John Doe"
         assert cleaned_authors[1]["name"] == "Jane Smith"
         assert cleaned_authors[2]["name"] == "Bob Johnson"
@@ -115,7 +114,7 @@ class TestDatasetAuthors(TestCase):
             assert "migration 0017 failed" in call_args
 
     def test_old_format_string_logs_error_without_dataset_uuid(self):
-        """Test that old string format logs error with 'unknown' when UUID not provided."""
+        """Test old string format logs error with 'unknown' when UUID not provided."""
         form_data = {
             "name": "Test Dataset",
             "description": "A test dataset",
@@ -193,7 +192,8 @@ class TestDatasetAuthors(TestCase):
         assert form.is_valid()
         cleaned_authors = json.loads(form.cleaned_data["authors"])
         # Empty names should be skipped
-        assert len(cleaned_authors) == 2
+        expected_author_count = 2
+        assert len(cleaned_authors) == expected_author_count
         assert cleaned_authors[0]["name"] == "John Doe"
         assert cleaned_authors[1]["name"] == "Jane Smith"
 
@@ -241,7 +241,8 @@ class TestDatasetAuthors(TestCase):
         assert form.is_valid()
         cleaned_authors = json.loads(form.cleaned_data["authors"])
         # Only authors with valid names should be included
-        assert len(cleaned_authors) == 2
+        expected_author_count = 2
+        assert len(cleaned_authors) == expected_author_count
         assert cleaned_authors[0]["name"] == "John Doe"
         assert cleaned_authors[1]["name"] == "Jane Smith"
 
@@ -297,4 +298,3 @@ class TestDatasetAuthors(TestCase):
         # With MIN_AUTHOR_NAME_LENGTH = 0, this should pass
         # If the constant is changed to > 0, this test should fail
         assert form.is_valid()
-
