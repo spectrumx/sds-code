@@ -589,7 +589,7 @@ class DatasetModeManager {
 		if (isFinalInCurrentSession) {
 			// Publishing alert - only show if being set to final in current session
 			const publishingAlert = document.createElement("div");
-			publishingAlert.className = "alert alert-warning mb-3";
+			publishingAlert.className = "alert alert-danger mb-3";
 			publishingAlert.innerHTML =
 				'<div class="d-flex align-items-center">' +
 				'<i class="bi bi-exclamation-triangle-fill me-3 fs-5"></i>' +
@@ -1202,7 +1202,6 @@ class DatasetModeManager {
 		const publicOption = document.getElementById("public-option");
 		const privateOption = document.getElementById("private-option");
 		const publicWarning = document.getElementById("public-warning-message");
-		const statusBadge = document.getElementById("current-status-badge");
 
 		if (!publishToggle || !statusField) return;
 

@@ -53,6 +53,7 @@ from sds_gateway.api_methods.helpers.file_helpers import upload_file_helper_simp
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
@@ -2619,6 +2620,88 @@ def _apply_sorting(
 
 
 user_dataset_list_view = ListDatasetsView.as_view()
+
+
+class PublishDatasetView(Auth0LoginRequiredMixin, View):
+    """View to handle dataset publishing (updating status and is_public)."""
+
+    def post(self, request, dataset_uuid: str) -> JsonResponse:
+        """Handle POST request to publish a dataset."""
+        # Get the dataset
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
+
+        # Check if user has access
+        if not user_has_access_to_item(
+            request.user, dataset_uuid, ItemType.DATASET
+        ):
+            return JsonResponse(
+                {"success": False, "error": "Access denied."}, status=403
+            )
+
+        can_publish = UserSharePermission.user_can_edit_dataset(
+            request.user, dataset_uuid, ItemType.DATASET
+        )
+
+        if not can_publish:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "You do not have permission to publish this dataset.",
+                },
+                status=403,
+            )
+
+        # Get status and is_public from request
+        status_value = request.POST.get("status")
+        is_public_value = request.POST.get("is_public")
+
+        # Validate that at least one field is being updated
+        if not status_value and is_public_value is None:
+            return JsonResponse(
+                {"success": False, "error": "No fields to update."}, status=400
+            )
+
+        # Validate status
+        if status_value and status_value not in [DatasetStatus.DRAFT, DatasetStatus.FINAL]:
+            return JsonResponse(
+                {"success": False, "error": "Invalid status value."}, status=400
+            )
+
+        # Update status if provided and dataset is not already final
+        if status_value:
+            if dataset.status == DatasetStatus.FINAL and status_value == DatasetStatus.DRAFT:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Cannot change published dataset status back to Draft.",
+                    },
+                    status=400,
+                )
+            dataset.status = status_value
+
+        # Update is_public if provided and dataset is not already public
+        if is_public_value is not None and is_public_value != "":
+            is_public_bool = is_public_value.lower() in ("true", "1", "yes")
+            if dataset.is_public and not is_public_bool:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Cannot change public dataset visibility back to Private.",
+                    },
+                    status=400,
+                )
+            dataset.is_public = is_public_bool
+
+        dataset.save()
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": "Dataset updated successfully.",
+                "status": dataset.status,
+                "is_public": dataset.is_public,
+            }
+        )
 
 
 class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):

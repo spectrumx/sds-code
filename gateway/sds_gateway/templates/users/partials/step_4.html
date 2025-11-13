@@ -27,7 +27,7 @@
                                 <span id="current-status-badge" class="badge bg-secondary">Draft</span>
                             </div>
                             <div id="publish-warning"
-                                 class="alert alert-warning mb-3 display-inline-block">
+                                 class="alert alert-danger mb-3 display-inline-block">
                                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
                                 <strong>Warning:</strong> Publishing the dataset is irreversible. Once published, the dataset status cannot be changed back to Draft.
                             </div>
@@ -58,7 +58,7 @@
                                            id="private-option"
                                            value="false"
                                            {% if not dataset_form.is_public.value %}checked{% endif %} />
-                                    <label class="btn btn-outline-danger" for="private-option">
+                                    <label class="btn btn-outline-primary" for="private-option">
                                         <i class="bi bi-lock-fill me-2"></i>Private
                                     </label>
                                     <input type="radio"
@@ -67,7 +67,7 @@
                                            id="public-option"
                                            value="true"
                                            {% if dataset_form.is_public.value %}checked{% endif %} />
-                                    <label class="btn btn-outline-primary" for="public-option">
+                                    <label class="btn btn-outline-danger" for="public-option">
                                         <i class="bi bi-globe me-2"></i>Public
                                     </label>
                                 </div>
