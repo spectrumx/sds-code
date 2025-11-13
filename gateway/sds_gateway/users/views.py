@@ -1220,8 +1220,9 @@ def _get_captures_for_template(
         )
         capture_data["owner_email"] = capture.owner.email if capture.owner.email else ""
 
-        # Add the original model instance for template use
-        capture_data["capture"] = capture
+        # Note: Don't add the capture model instance here as it can't be
+        # JSON serialized for API responses. The serialized data already
+        # contains all needed information.
 
         # Add shared users data for share modal
         if capture.owner == request.user:
@@ -1329,21 +1330,34 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             uuid__in=shared_permissions, is_deleted=False
         ).exclude(owner=request.user)
 
-        # Combine owned and shared captures
-        qs = owned_captures.union(shared_captures)
-
-        # Apply all filters
-        qs = _apply_basic_filters(
-            qs=qs,
+        # Apply filters to each queryset BEFORE union
+        # (filtering after union is not supported)
+        owned_captures = _apply_basic_filters(
+            qs=owned_captures,
             search=params["search"],
             date_start=params["date_start"],
             date_end=params["date_end"],
             cap_type=params["cap_type"],
         )
-        qs = _apply_frequency_filters(
-            qs=qs, min_freq=params["min_freq"], max_freq=params["max_freq"]
+        owned_captures = _apply_frequency_filters(
+            qs=owned_captures, min_freq=params["min_freq"], max_freq=params["max_freq"]
         )
 
+        shared_captures = _apply_basic_filters(
+            qs=shared_captures,
+            search=params["search"],
+            date_start=params["date_start"],
+            date_end=params["date_end"],
+            cap_type=params["cap_type"],
+        )
+        shared_captures = _apply_frequency_filters(
+            qs=shared_captures, min_freq=params["min_freq"], max_freq=params["max_freq"]
+        )
+
+        # Combine owned and shared captures after filtering
+        qs = owned_captures.union(shared_captures)
+
+        # Apply sorting (sorting is supported after union)
         qs = _apply_sorting(
             qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
         )
@@ -1424,21 +1438,38 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                 uuid__in=shared_permissions, is_deleted=False
             ).exclude(owner=request.user)
 
-            # Combine owned and shared captures
-            qs = owned_captures.union(shared_captures)
-
-            # Apply filters
-            qs = _apply_basic_filters(
-                qs=qs,
+            # Apply filters to each queryset BEFORE union
+            # (filtering after union is not supported)
+            owned_captures = _apply_basic_filters(
+                qs=owned_captures,
                 search=params["search"],
                 date_start=params["date_start"],
                 date_end=params["date_end"],
                 cap_type=params["cap_type"],
             )
-            qs = _apply_frequency_filters(
-                qs=qs, min_freq=params["min_freq"], max_freq=params["max_freq"]
+            owned_captures = _apply_frequency_filters(
+                qs=owned_captures,
+                min_freq=params["min_freq"],
+                max_freq=params["max_freq"],
             )
 
+            shared_captures = _apply_basic_filters(
+                qs=shared_captures,
+                search=params["search"],
+                date_start=params["date_start"],
+                date_end=params["date_end"],
+                cap_type=params["cap_type"],
+            )
+            shared_captures = _apply_frequency_filters(
+                qs=shared_captures,
+                min_freq=params["min_freq"],
+                max_freq=params["max_freq"],
+            )
+
+            # Combine owned and shared captures after filtering
+            qs = owned_captures.union(shared_captures)
+
+            # Apply sorting (sorting is supported after union)
             qs = _apply_sorting(
                 qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
             )
