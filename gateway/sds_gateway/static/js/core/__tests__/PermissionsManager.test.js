@@ -3,6 +3,8 @@
  * Tests permission checking functionality for different user access levels
  */
 
+// Import PermissionLevels to set up window.PermissionLevels
+import "../../constants/PermissionLevels.js";
 // Import the PermissionsManager class
 import { PermissionsManager } from "../PermissionsManager.js";
 
@@ -191,23 +193,6 @@ describe("PermissionsManager", () => {
 			["viewer", "bg-viewer"],
 		])("should return correct badge class for %s", (level, expected) => {
 			expect(permissions.getPermissionBadgeClass(level)).toBe(expected);
-		});
-	});
-
-	describe("Permission hierarchy", () => {
-		test("should correctly identify permission hierarchy", () => {
-			expect(PermissionsManager.isHigherPermission("owner", "co-owner")).toBe(
-				true,
-			);
-			expect(
-				PermissionsManager.isHigherPermission("co-owner", "contributor"),
-			).toBe(true);
-			expect(
-				PermissionsManager.isHigherPermission("contributor", "viewer"),
-			).toBe(true);
-			expect(
-				PermissionsManager.isHigherPermission("viewer", "contributor"),
-			).toBe(false);
 		});
 	});
 

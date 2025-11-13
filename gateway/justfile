@@ -129,8 +129,6 @@ test-py args='':
     {{uv_runner}} manage.py validate_templates
     @echo "Running Python tests"
     {{uv_runner}} pytest {{args}}
-    @echo "Running JavaScript tests"
-    {{docker_compose}} run node npm run test {{args}}
 
 # runs javascript tests inside the app container
 test-js args='':

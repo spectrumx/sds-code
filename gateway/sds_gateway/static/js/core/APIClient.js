@@ -4,7 +4,7 @@
  * Centralized API Client for all fetch operations
  * Handles CSRF tokens, error handling, and loading states consistently
  */
-window.APIClient = class APIClient {
+class APIClient {
 	/**
 	 * Get CSRF token from various sources
 	 * @returns {string} CSRF token
@@ -283,8 +283,7 @@ class ListRefreshManager {
 		} = options;
 
 		// Fetch fresh HTML
-		const apiClient = new APIClient();
-		const html = await apiClient.get(url);
+		const html = await window.APIClient.get(url);
 
 		const result = { html };
 

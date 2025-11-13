@@ -35,7 +35,8 @@ class DatasetModeManager {
 				permissionsConfig.datasetPermissions = {
 					canEditMetadata: true,
 					canAddAssets: true,
-					canRemoveAssets: true,
+					canRemoveAnyAssets: true,
+					canRemoveOwnAssets: true,
 					canShare: true,
 					canDownload: true,
 					...config.datasetPermissions,

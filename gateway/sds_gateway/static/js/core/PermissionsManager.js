@@ -2,7 +2,7 @@
  * Centralized Permissions Manager
  * Handles all permission checking and user access control
  */
-window.PermissionsManager = class PermissionsManager {
+class PermissionsManager {
 	/**
 	 * Initialize permissions manager
 	 * @param {Object} config - Configuration object
@@ -14,7 +14,7 @@ window.PermissionsManager = class PermissionsManager {
 	 */
 	constructor(config) {
 		this.userPermissionLevel =
-			config.userPermissionLevel || window.window.PermissionLevels.VIEWER;
+			config.userPermissionLevel || window.PermissionLevels.VIEWER;
 		this.datasetUuid = config.datasetUuid;
 		this.currentUserId = config.currentUserId;
 		this.isOwner = config.isOwner || false;
@@ -24,10 +24,11 @@ window.PermissionsManager = class PermissionsManager {
 		this.datasetPermissions = {
 			canEditMetadata: config.datasetPermissions?.canEditMetadata || false,
 			canAddAssets: config.datasetPermissions?.canAddAssets || false,
-			canRemoveAssets: config.datasetPermissions?.canRemoveAssets || false,
-			canShare: config.datasetPermissions?.canShare || false,
-			canDownload: config.datasetPermissions?.canDownload || false,
-			...config.datasetPermissions,
+			canRemoveAnyAssets: config.datasetPermissions?.canRemoveAnyAssets || false,
+			canRemoveOwnAssets: config.datasetPermissions?.canRemoveOwnAssets || false,
+			canShare: config.datasetPermissions?.canShare ?? false,
+			canDownload: config.datasetPermissions?.canDownload ?? false,
+			...(config.datasetPermissions ?? {}),
 		};
 	}
 
@@ -41,7 +42,7 @@ window.PermissionsManager = class PermissionsManager {
 			this.userPermissionLevel === window.PermissionLevels.CO_OWNER
 		)
 			return true;
-		return this.datasetPermissions.canEditMetadata;
+		return this.datasetPermissions.canEditMetadata || false;
 	}
 
 	/**
@@ -86,7 +87,7 @@ window.PermissionsManager = class PermissionsManager {
 			this.userPermissionLevel === window.PermissionLevels.CO_OWNER
 		)
 			return true;
-		return this.datasetPermissions.canRemoveAnyAssets;
+		return this.datasetPermissions.canRemoveAnyAssets || false;
 	}
 
 	/**
@@ -116,7 +117,7 @@ window.PermissionsManager = class PermissionsManager {
 			].includes(this.userPermissionLevel)
 		)
 			return true;
-		return this.datasetPermissions.canDownload;
+		return this.datasetPermissions.canDownload || false;
 	}
 
 	/**

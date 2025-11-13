@@ -3,6 +3,8 @@
  * Tests dataset creation and editing mode management
  */
 
+// Import PermissionLevels to set up window.PermissionLevels
+import "../../constants/PermissionLevels.js";
 // Mock dependencies first
 jest.mock("../../core/PermissionsManager");
 jest.mock("../DatasetEditingHandler");
@@ -38,7 +40,8 @@ describe("DatasetModeManager", () => {
 		const mockPermissions = {
 			canEditMetadata: jest.fn(() => true),
 			canAddAssets: jest.fn(() => true),
-			canRemoveAssets: jest.fn(() => true),
+			canRemoveAnyAssets: jest.fn(() => true),
+			canRemoveOwnAssets: jest.fn(() => true),
 			canShare: jest.fn(() => true),
 			canDownload: jest.fn(() => true),
 			canView: jest.fn(() => true),

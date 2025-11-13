@@ -231,7 +231,7 @@ describe("DOMUtils", () => {
 						message: "Error message",
 						format: "inline",
 					},
-				});
+				}, null, true);
 				expect(mockContainer.innerHTML).toBe(
 					'<span class="text-danger">Error message</span>',
 				);
@@ -264,6 +264,8 @@ describe("DOMUtils", () => {
 							template: "users/components/error.html",
 							context: expectedContext,
 						},
+						null,
+						true,
 					);
 				},
 			);
@@ -355,6 +357,8 @@ describe("DOMUtils", () => {
 							template: "users/components/loading.html",
 							context: expectedContext,
 						},
+						null,
+						true,
 					);
 					expect(mockContainer.innerHTML).toBe(expectedHtml);
 					expect(result).toBe(true);
@@ -387,6 +391,8 @@ describe("DOMUtils", () => {
 							template: "users/components/content.html",
 							context: expectedContext,
 						},
+						null,
+						true,
 					);
 					expect(mockContainer.innerHTML).toBe(expectedHtml);
 					expect(result).toBe(true);
@@ -414,7 +420,7 @@ describe("DOMUtils", () => {
 						empty_message: "No items found",
 						empty_colspan: 5,
 					},
-				});
+				}, null, true);
 				expect(result).toBe(true);
 			});
 
@@ -436,7 +442,7 @@ describe("DOMUtils", () => {
 						empty_colspan: 3,
 						colspan: 3,
 					},
-				});
+				}, null, true);
 			});
 		});
 
@@ -481,6 +487,8 @@ describe("DOMUtils", () => {
 								choices: expectedChoices,
 							},
 						},
+						null,
+						true,
 					);
 				},
 			);
@@ -505,7 +513,7 @@ describe("DOMUtils", () => {
 							{ value: "value2", label: "Label 2", selected: true },
 						],
 					},
-				});
+				}, null, true);
 			});
 		});
 
@@ -542,7 +550,7 @@ describe("DOMUtils", () => {
 							{ number: 4, is_current: false },
 						]),
 					},
-				});
+				}, null, true);
 				expect(result).toBe(true);
 			});
 		});
@@ -568,7 +576,7 @@ describe("DOMUtils", () => {
 				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
 					template: "users/components/dropdown_menu.html",
 					context: options,
-				});
+				}, null, true);
 				expect(result).toBe('<div class="dropdown">...</div>');
 			});
 
@@ -587,7 +595,7 @@ describe("DOMUtils", () => {
 						button_label: "Actions",
 						items: [],
 					},
-				});
+				}, null, true);
 			});
 
 			test("should return null on complete failure", async () => {
