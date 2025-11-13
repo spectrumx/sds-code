@@ -6,8 +6,12 @@ Version](https://img.shields.io/pypi/v/spectrumx)](https://pypi.org/project/spec
 Versions](https://img.shields.io/pypi/pyversions/spectrumx)](https://pypi.org/project/spectrumx/)
 [![Pepy Total
 Downloads](https://img.shields.io/pepy/dt/spectrumx)](https://pypi.org/project/spectrumx/)
+
+[![GitHub](https://img.shields.io/badge/GitHub-Repo-blue)](https://github.com/spectrumx/sds-code/blob/master/sdk/README.md)
 [![SDK Code Quality
-Checks](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml/badge.svg)](https://github.com/spectrumx/sds-code/actions/workflows/sdk-checks.yaml)
+Checks](https://github.com/spectrumx/sds-code/actions/workflows/sdk-code-quality.yaml/badge.svg)](https://github.com/spectrumx/sds-code/actions/workflows/sdk-code-quality.yaml)
+[![SDK Tests
+Checks](https://github.com/spectrumx/sds-code/actions/workflows/sdk-cross-platform-tests.yaml/badge.svg)](https://github.com/spectrumx/sds-code/actions/workflows/sdk-cross-platform-tests.yaml)
 
 + [SpectrumX Data System | SDK](#spectrumx-data-system--sdk)
     + [SDK Usage Guide](#sdk-usage-guide)
