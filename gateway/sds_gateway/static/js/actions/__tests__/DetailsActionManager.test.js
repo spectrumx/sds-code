@@ -3,6 +3,8 @@
  * Tests details functionality for captures and datasets
  */
 
+// Import PermissionLevels to set up window.PermissionLevels
+import "../../constants/PermissionLevels.js";
 import { PermissionsManager } from "../../core/PermissionsManager.js";
 // Import the DetailsActionManager class
 import { DetailsActionManager } from "../DetailsActionManager.js";
@@ -292,7 +294,6 @@ describe("DetailsActionManager", () => {
 		test("should handle modal event handlers", () => {
 			detailsManager.initializeModalEventHandlers();
 
-			// The method calls document.addEventListener, not modal.addEventListener
 			expect(document.addEventListener).toHaveBeenCalledWith(
 				"show.bs.modal",
 				expect.any(Function),
@@ -368,54 +369,6 @@ describe("DetailsActionManager", () => {
 			expect(() => {
 				detailsManager.initializeCaptureDetailsButtons();
 			}).not.toThrow();
-		});
-	});
-
-	describe("Form Validation", () => {
-		beforeEach(() => {
-			const permissions = new PermissionsManager({
-				capturePermissions: { canEditMetadata: true },
-			});
-			detailsManager = new DetailsActionManager({ permissions });
-		});
-
-		test("should validate capture name input", () => {
-			mockInput.value = "";
-
-			// Note: validateCaptureName method doesn't exist in the actual implementation
-			const isValid = mockInput.value.trim() !== "";
-
-			expect(isValid).toBe(false);
-		});
-
-		test("should accept valid capture name", () => {
-			mockInput.value = "Valid Capture Name";
-
-			// Note: validateCaptureName method doesn't exist in the actual implementation
-			const isValid = mockInput.value.trim() !== "";
-
-			expect(isValid).toBe(true);
-		});
-	});
-
-	describe("Event Handling", () => {
-		beforeEach(() => {
-			const permissions = new PermissionsManager({
-				capturePermissions: { canEditMetadata: true },
-			});
-			detailsManager = new DetailsActionManager({ permissions });
-		});
-
-		test("should prevent event propagation on button click", () => {
-			// Note: handleButtonClick method doesn't exist in the actual implementation
-			// This test should be removed or the method should be implemented
-			expect(true).toBe(true); // Placeholder
-		});
-
-		test("should handle keyboard events in modal", () => {
-			// Note: handleModalKeydown method doesn't exist in the actual implementation
-			// This test should be removed or the method should be implemented
-			expect(true).toBe(true); // Placeholder
 		});
 	});
 });
