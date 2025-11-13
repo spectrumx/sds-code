@@ -1,21 +1,15 @@
 """Custom exceptions for the SDS SDK."""
 
-import sys
 from collections.abc import Sequence
 from typing import Any
 from typing import Generic
+from typing import Self
 from typing import TypeVar
+
+from loguru import logger as log
 
 from spectrumx.models.files.file import File
 from spectrumx.utils import log_user_error
-
-# python 3.10 backport
-if sys.version_info < (3, 11):  # noqa: UP036
-    from typing_extensions import Self  # noqa: UP035 # Required backport
-else:
-    from typing import Self
-
-from loguru import logger as log
 
 log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")
 

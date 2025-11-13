@@ -1,11 +1,4 @@
-import sys
-
-# python 3.10 backport
-if sys.version_info < (3, 11):  # noqa: UP036
-    from backports.strenum import StrEnum  # noqa: UP035 # Required backport
-else:
-    from enum import StrEnum
-
+from enum import StrEnum
 from typing import Annotated
 from typing import Any
 

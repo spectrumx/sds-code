@@ -1,10 +1,13 @@
 """Tests for the uploads API utilities."""
 
+from __future__ import annotations
+
 import asyncio
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -14,10 +17,12 @@ from loguru import logger as log
 from spectrumx.api.uploads import SkippedUpload
 from spectrumx.api.uploads import UploadWorkload
 from spectrumx.api.uploads import create_file_instance
-from spectrumx.client import Client
 from spectrumx.errors import UploadError
 from spectrumx.models.files.file import File
 from spectrumx.ops import files as file_ops
+
+if TYPE_CHECKING:
+    from spectrumx.client import Client
 
 # ruff: noqa: SLF001
 # pyright: reportPrivateUsage=false
