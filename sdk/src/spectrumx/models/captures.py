@@ -1,16 +1,7 @@
 """Capture model for SpectrumX."""
 
-import sys
 from datetime import datetime
-
-from spectrumx.models.base import SDSModel
-
-# python 3.10 backport
-if sys.version_info < (3, 11):  # noqa: UP036
-    from backports.strenum import StrEnum  # noqa: UP035 # Required backport
-else:
-    from enum import StrEnum
-
+from enum import StrEnum
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Annotated
@@ -19,6 +10,8 @@ from typing import Any
 from pydantic import UUID4
 from pydantic import BaseModel
 from pydantic import Field
+
+from spectrumx.models.base import SDSModel
 
 
 class CaptureType(StrEnum):

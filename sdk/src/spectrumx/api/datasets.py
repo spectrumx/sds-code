@@ -14,14 +14,6 @@ from spectrumx.utils import log_user
 if TYPE_CHECKING:
     from spectrumx.gateway import GatewayClient
 
-# python 3.10 backport
-try:
-    from datetime import UTC
-except ImportError:
-    from datetime import timezone
-
-    UTC = timezone.utc  # noqa: UP017
-
 
 class DatasetAPI:
     gateway: GatewayClient

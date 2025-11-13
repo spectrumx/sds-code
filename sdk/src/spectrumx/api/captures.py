@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import random
 import uuid
+from datetime import UTC
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
@@ -25,13 +26,6 @@ if TYPE_CHECKING:
 
     from spectrumx.gateway import GatewayClient
 
-# python 3.10 backport
-try:
-    from datetime import UTC
-except ImportError:
-    from datetime import timezone
-
-    UTC = timezone.utc  # noqa: UP017
 
 index_mapping = {
     CaptureType.DigitalRF: "captures-drf",

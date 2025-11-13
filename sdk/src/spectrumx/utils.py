@@ -1,12 +1,14 @@
 """Utility functions for the SpectrumX SDK."""
 
+from __future__ import annotations
+
 import logging
 import os
 import random
 import re
 import string
-from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import NoReturn
 from typing import TypeVar
 
@@ -14,6 +16,9 @@ from blake3 import blake3 as Blake3  # noqa: N812
 from loguru import logger as log
 from tqdm import auto as auto_tqdm
 from tqdm import tqdm
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 

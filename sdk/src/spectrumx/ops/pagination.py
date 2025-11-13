@@ -2,20 +2,14 @@
 
 import copy
 import json
-import sys
 import time
 import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Generic
+from typing import Self
 from typing import TypeVar
-
-# python 3.10 backport
-if sys.version_info < (3, 11):  # noqa: UP036
-    from typing_extensions import Self  # noqa: UP035 # Required backport
-else:
-    from typing import Self
 
 from loguru import logger as log
 
