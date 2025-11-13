@@ -1,0 +1,109 @@
+<!-- Publish Dataset Modal -->
+<div class="modal fade"
+     id="publish-dataset-modal-{{ dataset.uuid }}"
+     tabindex="-1"
+     aria-labelledby="publishDatasetModalLabel-{{ dataset.uuid }}"
+     aria-hidden="true"
+     data-dataset-uuid="{{ dataset.uuid }}">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="publishDatasetModalLabel-{{ dataset.uuid }}">Publish Dataset</h5>
+            </div>
+            <div class="modal-body">
+                <h5 class="card-title mb-4">Dataset Publishing</h5>
+                <!-- Published Indicator (only shown for final datasets) -->
+                {% if dataset.dataset.status == 'final' %}
+                    <div class="alert alert-success mb-4" id="published-indicator-{{ dataset.uuid }}">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+                            <div class="flex-grow-1">
+                                <strong>This dataset is published.</strong> The dataset status is Final and cannot be changed.
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                {% if dataset.is_public %}
+                    <div class="alert alert-success mb-4" id="public-indicator-{{ dataset.uuid }}">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+                            <div class="flex-grow-1">
+                                <strong>This dataset is public.</strong> The dataset visibility is Public and cannot be changed.
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                <!-- Publish Question -->
+                <div class="mb-4">
+                    <label id="publish-question-{{ dataset.uuid }}" class="form-label fw-bold mb-3">
+                        Would you like to publish this dataset (set status to Final)?
+                    </label>
+                    <div class="mb-2">
+                        <span class="text-muted ms-2">Current Status:</span>
+                        <span id="current-status-badge-{{ dataset.uuid }}" class="badge bg-secondary">{{ dataset.dataset.get_status_display }}</span>
+                    </div>
+                    {% if dataset.dataset.status != 'final' %}
+                        <div id="publish-warning-{{ dataset.uuid }}"
+                                class="alert alert-danger mb-3 display-inline-block">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Warning:</strong> Publishing the dataset is irreversible. Once published, the dataset status cannot be changed back to Draft.
+                        </div>
+                        <div id="publish-toggle-{{ dataset.uuid }}"
+                                class="form-check form-switch form-switch-lg mb-3 display-inline-block">
+                            <input class="form-check-input"
+                                    type="checkbox"
+                                    role="switch"
+                                    id="publish-dataset-toggle-{{ dataset.uuid }}"
+                                    {% if dataset.dataset.status == 'final' %}checked{% endif %} />
+                            <label class="form-check-label" for="publish-dataset-toggle-{{ dataset.uuid }}">
+                                <strong>Yes, publish this dataset</strong>
+                            </label>
+                        </div>
+                    {% endif %}
+                    <!-- Public/Private Toggle (only shown when publishing or if not public) -->
+                    {% if dataset.dataset.status != 'final' or not dataset.is_public %}
+                        <div id="visibility-toggle-section-{{ dataset.uuid }}" class="{% if dataset.dataset.status != 'final' %}d-none{% endif %}">
+                            <hr class="my-4" />
+                            <label class="form-label fw-bold mb-3">
+                                Dataset Visibility
+                                <span class="text-danger">*</span>
+                            </label>
+                            <div class="btn-group w-100 mb-3"
+                                    role="group"
+                                    aria-label="Dataset visibility">
+                                <input type="radio"
+                                        class="btn-check"
+                                        name="is_public-{{ dataset.uuid }}"
+                                        id="private-option-{{ dataset.uuid }}"
+                                        value="false"
+                                        {% if not dataset.is_public %}checked{% endif %} />
+                                <label class="btn btn-outline-primary" for="private-option-{{ dataset.uuid }}">
+                                    <i class="bi bi-lock-fill me-2"></i>Private
+                                </label>
+                                <input type="radio"
+                                        class="btn-check"
+                                        name="is_public-{{ dataset.uuid }}"
+                                        id="public-option-{{ dataset.uuid }}"
+                                        value="true"
+                                        {% if dataset.is_public %}checked{% endif %} />
+                                <label class="btn btn-outline-danger" for="public-option-{{ dataset.uuid }}">
+                                    <i class="bi bi-globe me-2"></i>Public
+                                </label>
+                            </div>
+                            <div id="public-warning-message-{{ dataset.uuid }}" class="alert alert-danger {% if not dataset.is_public %}d-none{% endif %}">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <strong>Warning:</strong> Making this dataset public is irreversible and will make it viewable to anyone with access to the site.
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                {% if dataset.dataset.status != 'final' or not dataset.is_public %}
+                    <button type="button" class="btn btn-primary" id="publishDatasetBtn-{{ dataset.uuid }}" data-dataset-uuid="{{ dataset.uuid }}">Publish</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
