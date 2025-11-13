@@ -1866,9 +1866,7 @@ class GroupCapturesView(
                     try:
                         author_changes = json.loads(author_changes_json)
                         # Apply author changes
-                        authors = self._apply_author_changes(
-                            authors, author_changes
-                        )
+                        authors = self._apply_author_changes(authors, author_changes)
                     except json.JSONDecodeError:
                         # Fallback to direct authors if parsing fails
                         pass
@@ -2015,8 +2013,7 @@ class GroupCapturesView(
                 result.append(author)
 
         # Add new authors
-        for i in changes.get("added", []):
-            result.append(authors[i])
+        result.extend(authors[i] for i in changes.get("added", []))
 
         return result
 

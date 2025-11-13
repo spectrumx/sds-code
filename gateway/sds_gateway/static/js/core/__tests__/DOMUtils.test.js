@@ -225,13 +225,18 @@ describe("DOMUtils", () => {
 					"Error message",
 				);
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/error.html",
-					context: {
-						message: "Error message",
-						format: "inline",
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/error.html",
+						context: {
+							message: "Error message",
+							format: "inline",
+						},
 					},
-				}, null, true);
+					null,
+					true,
+				);
 				expect(mockContainer.innerHTML).toBe(
 					'<span class="text-danger">Error message</span>',
 				);
@@ -413,14 +418,19 @@ describe("DOMUtils", () => {
 
 				const result = await domUtils.renderTable(mockContainer, rows);
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/table_rows.html",
-					context: {
-						rows: rows,
-						empty_message: "No items found",
-						empty_colspan: 5,
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/table_rows.html",
+						context: {
+							rows: rows,
+							empty_message: "No items found",
+							empty_colspan: 5,
+						},
 					},
-				}, null, true);
+					null,
+					true,
+				);
 				expect(result).toBe(true);
 			});
 
@@ -434,15 +444,20 @@ describe("DOMUtils", () => {
 					colspan: 3,
 				});
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/table_rows.html",
-					context: {
-						rows: [],
-						empty_message: "No data",
-						empty_colspan: 3,
-						colspan: 3,
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/table_rows.html",
+						context: {
+							rows: [],
+							empty_message: "No data",
+							empty_colspan: 3,
+							colspan: 3,
+						},
 					},
-				}, null, true);
+					null,
+					true,
+				);
 			});
 		});
 
@@ -505,15 +520,20 @@ describe("DOMUtils", () => {
 
 				await domUtils.renderSelectOptions(mockContainer, choices, "value2");
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/select_options.html",
-					context: {
-						choices: [
-							{ value: "value1", label: "Label 1", selected: false },
-							{ value: "value2", label: "Label 2", selected: true },
-						],
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/select_options.html",
+						context: {
+							choices: [
+								{ value: "value1", label: "Label 1", selected: false },
+								{ value: "value2", label: "Label 2", selected: true },
+							],
+						},
 					},
-				}, null, true);
+					null,
+					true,
+				);
 			});
 		});
 
@@ -535,22 +555,27 @@ describe("DOMUtils", () => {
 					pagination,
 				);
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/pagination.html",
-					context: {
-						show: true,
-						has_previous: true,
-						previous_page: 1,
-						has_next: true,
-						next_page: 3,
-						pages: expect.arrayContaining([
-							{ number: 1, is_current: false },
-							{ number: 2, is_current: true },
-							{ number: 3, is_current: false },
-							{ number: 4, is_current: false },
-						]),
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/pagination.html",
+						context: {
+							show: true,
+							has_previous: true,
+							previous_page: 1,
+							has_next: true,
+							next_page: 3,
+							pages: expect.arrayContaining([
+								{ number: 1, is_current: false },
+								{ number: 2, is_current: true },
+								{ number: 3, is_current: false },
+								{ number: 4, is_current: false },
+							]),
+						},
 					},
-				}, null, true);
+					null,
+					true,
+				);
 				expect(result).toBe(true);
 			});
 		});
@@ -573,10 +598,15 @@ describe("DOMUtils", () => {
 
 				const result = await domUtils.renderDropdown(options);
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/dropdown_menu.html",
-					context: options,
-				}, null, true);
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/dropdown_menu.html",
+						context: options,
+					},
+					null,
+					true,
+				);
 				expect(result).toBe('<div class="dropdown">...</div>');
 			});
 
@@ -587,15 +617,20 @@ describe("DOMUtils", () => {
 
 				await domUtils.renderDropdown();
 
-				expect(mockAPIClient.post).toHaveBeenCalledWith("/users/render-html/", {
-					template: "users/components/dropdown_menu.html",
-					context: {
-						button_icon: "three-dots-vertical",
-						button_class: "btn-sm btn-light",
-						button_label: "Actions",
-						items: [],
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/dropdown_menu.html",
+						context: {
+							button_icon: "three-dots-vertical",
+							button_class: "btn-sm btn-light",
+							button_label: "Actions",
+							items: [],
+						},
 					},
-				}, null, true);
+					null,
+					true,
+				);
 			});
 
 			test("should return null on complete failure", async () => {
