@@ -20,6 +20,7 @@ from factory.django import DjangoModelFactory
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import Keyword
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.tests.factories import UserFactory
 
@@ -42,7 +43,6 @@ class DatasetFactory(DjangoModelFactory):
         doi: Random UUID4 for DOI identifier
         authors: Fixed list of test authors ["John Doe", "Jane Smith"]
         license: Fixed value "MIT"
-        keywords: Fixed list ["RF", "capture", "analysis"]
         institutions: Fixed list ["Example University"]
         release_date: Random datetime
         repository: Random URL
@@ -55,8 +55,14 @@ class DatasetFactory(DjangoModelFactory):
         is_deleted: Fixed value False
         is_public: Fixed value False
 
+    Post-generation Hooks:
+        keywords: Creates Keyword instances after Dataset creation.
+                 Pass keyword names as a list:
+                 DatasetFactory(keywords=["RF", "capture"])
+                 Pass None to skip keyword creation: DatasetFactory(keywords=None)
+
     Example:
-        # Create a basic dataset
+        # Create a basic dataset with default keywords
         dataset = DatasetFactory()
 
         # Create a dataset with custom owner
@@ -65,6 +71,12 @@ class DatasetFactory(DjangoModelFactory):
 
         # Create a public dataset
         dataset = DatasetFactory(is_public=True)
+
+        # Create a dataset with custom keywords
+        dataset = DatasetFactory(keywords=["custom", "keywords"])
+
+        # Create a dataset without keywords
+        dataset = DatasetFactory(keywords=None)
     """
 
     uuid = Faker("uuid4")
@@ -74,7 +86,6 @@ class DatasetFactory(DjangoModelFactory):
     doi = Faker("uuid4")
     authors = ["John Doe", "Jane Smith"]
     license = "MIT"
-    keywords = ["RF", "capture", "analysis"]
     institutions = ["Example University"]
     release_date = Faker("date_time")
     repository = Faker("url")
@@ -86,6 +97,49 @@ class DatasetFactory(DjangoModelFactory):
     owner = Faker("subfactory", factory=UserFactory)
     is_deleted = False
     is_public = False
+
+    @post_generation
+    def keywords(self, create, extracted, **kwargs):
+        """Create Keyword instances for the dataset after creation.
+
+        This post-generation hook creates Keyword objects associated with this
+        dataset. By default, it creates three keywords: "RF", "capture", "analysis".
+
+        Args:
+            create: Boolean indicating if the object is being created
+            extracted: Value passed to the factory for keywords parameter.
+                      If a list is provided, those keyword names will be used.
+                      If None is provided, no keywords will be created.
+                      If not provided, default keywords will be created.
+            **kwargs: Additional keyword arguments
+
+        Example:
+            # Default keywords
+            dataset = DatasetFactory()  # Creates "RF", "capture", "analysis"
+
+            # Custom keywords
+            dataset = DatasetFactory(keywords=["custom", "test"])
+
+            # No keywords
+            dataset = DatasetFactory(keywords=None)
+        """
+        if not create:
+            return
+
+        # If extracted is None, skip keyword creation entirely
+        if extracted is None:
+            return
+
+        # Use extracted keywords or default keywords
+        keyword_names = extracted or ["RF", "capture", "analysis"]
+
+        # Create Keyword instances
+        for keyword_name in keyword_names:
+            Keyword.objects.create(
+                name=keyword_name,
+                dataset=self,
+                created_by=self.owner,
+            )
 
     class Meta:
         model = Dataset
