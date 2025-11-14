@@ -18,7 +18,7 @@
 		"editor.defaultFormatter": "biomejs.biome"
 	},
 	"[jsonc]": {
-		"editor.defaultFormatter": "biomejs.biome"
+		"editor.defaultFormatter": "vscode.json-language-features"
 	},
 	"[properties]": {
 		"editor.defaultFormatter": "foxundermoon.shell-format"
@@ -41,9 +41,8 @@
 	"[typescript]": {
 		"editor.defaultFormatter": "biomejs.biome"
 	},
-	"python.testing.pytestArgs": ["spectrumx"],
-	"python.testing.unittestEnabled": false,
+	"markdownlint.configFile": "../.markdownlint.yaml",
+	"python.testing.pytestArgs": ["-m", "not integration"],
 	"python.testing.pytestEnabled": true,
-	"ruff.format.args": ["--config=pyproject.toml"],
-	"markdownlint.configFile": "../.markdownlint.yaml"
+	"python.testing.unittestEnabled": false
 }

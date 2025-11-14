@@ -1,3 +1,5 @@
 {
-	"markdownlint.configFile": "../.markdownlint.yaml"
+	"markdownlint.configFile": "../.markdownlint.yaml",
+	"python.testing.pytestEnabled": false,
+	"python.testing.unittestEnabled": false
 }
