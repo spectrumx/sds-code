@@ -242,9 +242,7 @@ describe("DOMUtils", () => {
 				null,
 				true,
 			);
-			expect(mockToastContainer.appendChild).toHaveBeenCalledWith(
-				mockToastDiv,
-			);
+			expect(mockToastContainer.appendChild).toHaveBeenCalledWith(mockToastDiv);
 			expect(global.bootstrap.Toast).toHaveBeenCalledWith(mockToastDiv);
 		});
 

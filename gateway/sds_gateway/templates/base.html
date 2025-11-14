@@ -206,21 +206,21 @@
                 // They might be in the body block, so we need to find and move them
                 // Look for toasts that are not already in the toast-container
                 const allToasts = document.querySelectorAll('.toast');
-                
+
                 allToasts.forEach(function(toastEl) {
                     // Only process toasts that are not already in the toast container
                     if (toastEl.closest('#toast-container')) {
                         return; // Already in container, skip
                     }
-                    
+
                     // Move toast to container
                     toastContainer.appendChild(toastEl);
-                    
+
                     // Initialize Bootstrap toast
                     if (window.bootstrap && bootstrap.Toast) {
                         const toast = new bootstrap.Toast(toastEl);
                         toast.show();
-                        
+
                         // Remove element after toast is hidden
                         toastEl.addEventListener('hidden.bs.toast', function() {
                             toastEl.remove();
