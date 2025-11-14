@@ -248,7 +248,9 @@ window.ShareActionManager = class ShareActionManager {
 				this.closeModal();
 
 				// Reload the page to ensure everything is consistent
-				window.location.reload();
+				setTimeout(() => {
+					window.location.reload();
+				}, 2000);
 			} else {
 				// Show error message
 				const errorMessage =

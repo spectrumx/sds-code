@@ -1,0 +1,81 @@
+{% comment %}
+Toast Component - Renders a single Bootstrap toast notification
+Matches the format used by showAlert for unified UI
+
+Context:
+- message: Toast message text
+- type: Toast type (success, error, warning, info) - maps to Bootstrap classes
+{% endcomment %}
+{% comment %} Map type to Bootstrap classes matching showAlert logic {% endcomment %}
+{% if type == "success" %}
+    <div class="toast align-items-center bg-success text-white"
+         role="alert"
+         aria-live="assertive"
+         aria-atomic="true"
+         data-bs-delay="3500">
+        <div class="d-flex">
+            <div class="toast-body">{{ message }}</div>
+            <button type="button"
+                    class="btn-close btn-close-white me-2 m-auto"
+                    data-bs-dismiss="toast"
+                    aria-label="Close"></button>
+        </div>
+    </div>
+{% elif type == "error" %}
+    <div class="toast align-items-center bg-danger text-white"
+         role="alert"
+         aria-live="assertive"
+         aria-atomic="true"
+         data-bs-delay="3500">
+        <div class="d-flex">
+            <div class="toast-body">{{ message }}</div>
+            <button type="button"
+                    class="btn-close btn-close-white me-2 m-auto"
+                    data-bs-dismiss="toast"
+                    aria-label="Close"></button>
+        </div>
+    </div>
+{% elif type == "warning" %}
+    <div class="toast align-items-center bg-warning text-dark"
+         role="alert"
+         aria-live="assertive"
+         aria-atomic="true"
+         data-bs-delay="3500">
+        <div class="d-flex">
+            <div class="toast-body">{{ message }}</div>
+            <button type="button"
+                    class="btn-close me-2 m-auto"
+                    data-bs-dismiss="toast"
+                    aria-label="Close"></button>
+        </div>
+    </div>
+{% elif type == "info" %}
+    <div class="toast align-items-center bg-info text-white"
+         role="alert"
+         aria-live="assertive"
+         aria-atomic="true"
+         data-bs-delay="3500">
+        <div class="d-flex">
+            <div class="toast-body">{{ message }}</div>
+            <button type="button"
+                    class="btn-close btn-close-white me-2 m-auto"
+                    data-bs-dismiss="toast"
+                    aria-label="Close"></button>
+        </div>
+    </div>
+{% else %}
+    <div class="toast align-items-center bg-info text-white"
+         role="alert"
+         aria-live="assertive"
+         aria-atomic="true"
+         data-bs-delay="3500">
+        <div class="d-flex">
+            <div class="toast-body">{{ message }}</div>
+            <button type="button"
+                    class="btn-close btn-close-white me-2 m-auto"
+                    data-bs-dismiss="toast"
+                    aria-label="Close"></button>
+        </div>
+    </div>
+{% endif %}
+

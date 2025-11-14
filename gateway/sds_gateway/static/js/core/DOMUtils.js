@@ -61,10 +61,11 @@ class DOMUtils {
 
 	/**
 	 * Show global toast notification
+	 * Renders toast using Django template toast.html
 	 * @param {string} message - Toast message
 	 * @param {string} type - Toast type (success, error, warning, info)
 	 */
-	showAlert(message, type = "success") {
+	async showAlert(message, type = "success") {
 		const toastContainer = document.getElementById("toast-container");
 		if (!toastContainer) {
 			console.warn("Toast container not found");
@@ -72,52 +73,55 @@ class DOMUtils {
 		}
 
 		const toastId = `toast-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-		const bgClass =
-			type === "success"
-				? "bg-success text-white"
-				: type === "error"
-					? "bg-danger text-white"
-					: type === "warning"
-						? "bg-warning text-dark"
-						: "bg-info text-white";
 
-		// Create toast element
-		const toastDiv = document.createElement("div");
-		toastDiv.id = toastId;
-		toastDiv.className = `toast align-items-center ${bgClass}`;
-		toastDiv.setAttribute("role", "alert");
-		toastDiv.setAttribute("aria-live", "assertive");
-		toastDiv.setAttribute("aria-atomic", "true");
-		toastDiv.setAttribute("data-bs-delay", "3500");
+		try {
+			// Render toast using Django template
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/toast.html",
+					context: {
+						message: message,
+						type: type,
+					},
+				},
+				null,
+				true,
+			); // true = send as JSON
 
-		// Create toast content
-		const toastContent = document.createElement("div");
-		toastContent.className = "d-flex";
+			if (!response.html) {
+				console.error("No HTML returned from toast template");
+				return;
+			}
 
-		const toastBody = document.createElement("div");
-		toastBody.className = "toast-body";
-		toastBody.textContent = message;
+			// Create a temporary container to parse the HTML
+			const tempDiv = document.createElement("div");
+			tempDiv.innerHTML = response.html;
+			const toastDiv = tempDiv.firstElementChild;
 
-		const closeButton = document.createElement("button");
-		closeButton.type = "button";
-		closeButton.className = "btn-close btn-close-white me-2 m-auto";
-		closeButton.setAttribute("data-bs-dismiss", "toast");
-		closeButton.setAttribute("aria-label", "Close");
+			if (!toastDiv) {
+				console.error("Failed to parse toast HTML");
+				return;
+			}
 
-		toastContent.appendChild(toastBody);
-		toastContent.appendChild(closeButton);
-		toastDiv.appendChild(toastContent);
-		toastContainer.appendChild(toastDiv);
+			// Set unique ID for the toast
+			toastDiv.id = toastId;
 
-		// Show toast
-		if (!window.bootstrap || !bootstrap.Toast) {
-			console.error("Bootstrap not available");
-			return;
+			// Append to toast container
+			toastContainer.appendChild(toastDiv);
+
+			// Initialize and show Bootstrap toast
+			if (!window.bootstrap || !bootstrap.Toast) {
+				console.error("Bootstrap not available");
+				return;
+			}
+
+			const toast = new bootstrap.Toast(toastDiv);
+			toast.show();
+			toastDiv.addEventListener("hidden.bs.toast", () => toastDiv.remove());
+		} catch (error) {
+			console.error("Error rendering toast template:", error);
 		}
-
-		const toast = new bootstrap.Toast(toastDiv);
-		toast.show();
-		toastDiv.addEventListener("hidden.bs.toast", () => toastDiv.remove());
 	}
 
 	/**
@@ -165,7 +169,9 @@ class DOMUtils {
 			if (context.format === "table") {
 				el.innerHTML = `<tr><td colspan="${context.colspan || 5}" class="text-center text-danger">${message}</td></tr>`;
 			} else if (context.format === "alert") {
-				el.innerHTML = `<div class="alert alert-danger">${message}</div>`;
+				// For alert format, use showAlert instead of creating alert directly
+				this.showAlert(message, "error");
+				return true;
 			} else if (context.format === "list") {
 				el.innerHTML = `<ul class="mb-0 list-unstyled"><li class="text-danger">${message}</li></ul>`;
 			} else {

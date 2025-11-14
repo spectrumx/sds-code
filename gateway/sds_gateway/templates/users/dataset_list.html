@@ -265,12 +265,6 @@
     {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
     {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
 {% endfor %}
-<!-- Toast container for notifications -->
-<div aria-live="polite"
-     aria-atomic="true"
-     class="position-fixed top-0 end-0 p-3 toast-container">
-    <div id="toast-container"></div>
-</div>
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}

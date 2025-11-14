@@ -41,13 +41,15 @@
     {% if messages %}
         <div class="container">
             {% for message in messages %}
-                <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
-                    {{ message }}
-                    <button type="button"
-                            class="btn-close"
-                            data-bs-dismiss="alert"
-                            aria-label="Close"></button>
-                </div>
+                {% if message.tags == "error" %}
+                    {% include "users/components/toast.html" with message=message type="error" %}
+                {% elif message.tags == "success" %}
+                    {% include "users/components/toast.html" with message=message type="success" %}
+                {% elif message.tags == "warning" %}
+                    {% include "users/components/toast.html" with message=message type="warning" %}
+                {% else %}
+                    {% include "users/components/toast.html" with message=message type="info" %}
+                {% endif %}
             {% endfor %}
         </div>
     {% endif %}
