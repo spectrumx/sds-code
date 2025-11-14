@@ -17,11 +17,13 @@ class PublishActionManager {
 	 */
 	initializeEventListeners() {
 		// Find all publish modals
-		const publishModals = document.querySelectorAll('[id^="publish-dataset-modal-"]');
+		const publishModals = document.querySelectorAll(
+			'[id^="publish-dataset-modal-"]',
+		);
 
-		publishModals.forEach((modal) => {
+		for (const modal of publishModals) {
 			const datasetUuid = modal.getAttribute("data-dataset-uuid");
-			if (!datasetUuid) return;
+			if (!datasetUuid) continue;
 
 			// Explicitly initialize Bootstrap modal to avoid auto-initialization issues
 			if (window.bootstrap && !bootstrap.Modal.getInstance(modal)) {
@@ -71,7 +73,6 @@ class PublishActionManager {
 						publishToggle,
 						visibilitySection,
 						statusBadge,
-						datasetUuid,
 					);
 				});
 			}
@@ -96,15 +97,21 @@ class PublishActionManager {
 			// Handle publish button click
 			if (publishBtn) {
 				publishBtn.addEventListener("click", () => {
-					this.handlePublish(datasetUuid, publishToggle, privateOption, publicOption);
+					this.handlePublish(
+						datasetUuid,
+						statusBadge,
+						publishToggle,
+						privateOption,
+						publicOption,
+					);
 				});
 			}
-		});
+		}
 
 		// Handle publish button clicks in dropdown (open modal)
-		document.querySelectorAll(".publish-dataset-btn").forEach((btn) => {
+		for (const btn of document.querySelectorAll(".publish-dataset-btn")) {
 			const datasetUuid = btn.getAttribute("data-dataset-uuid");
-			if (!datasetUuid) return;
+			if (!datasetUuid) continue;
 
 			// Only attach handler if modal exists
 			const modalId = `publish-dataset-modal-${datasetUuid}`;
@@ -115,7 +122,7 @@ class PublishActionManager {
 				);
 				btn.disabled = true;
 				btn.classList.add("disabled");
-				return;
+				continue;
 			}
 
 			btn.addEventListener("click", (e) => {
@@ -123,7 +130,7 @@ class PublishActionManager {
 				e.stopPropagation();
 				this.openPublishModal(datasetUuid);
 			});
-		});
+		}
 	}
 
 	/**
@@ -170,7 +177,7 @@ class PublishActionManager {
 	 * @param {HTMLElement} statusBadge - The status badge element
 	 * @param {string} datasetUuid - Dataset UUID
 	 */
-	handlePublishToggleChange(publishToggle, visibilitySection, statusBadge, datasetUuid) {
+	handlePublishToggleChange(publishToggle, visibilitySection, statusBadge) {
 		if (publishToggle.checked) {
 			// Publishing - set status to final and show visibility options
 			if (statusBadge) {
@@ -195,25 +202,32 @@ class PublishActionManager {
 	/**
 	 * Handle publish button click
 	 * @param {string} datasetUuid - Dataset UUID
+	 * @param {HTMLElement} statusBadge - The status badge element
 	 * @param {HTMLElement} publishToggle - The publish toggle checkbox
 	 * @param {HTMLElement} privateOption - The private option radio button
 	 * @param {HTMLElement} publicOption - The public option radio button
 	 */
-	async handlePublish(datasetUuid, publishToggle, privateOption, publicOption) {
+	async handlePublish(
+		datasetUuid,
+		statusBadge,
+		publishToggle,
+		privateOption,
+		publicOption,
+	) {
 		if (!window.APIClient) {
 			console.error("APIClient not available");
 			return;
 		}
 
 		try {
-			// Get current values
-			const status = publishToggle && publishToggle.checked ? "final" : "draft";
-			const isPublic =
-				publicOption && publicOption.checked
-					? "true"
-					: privateOption && privateOption.checked
-						? "false"
-						: "false";
+			const status = publishToggle?.checked
+				? "final"
+				: statusBadge?.textContent?.toLowerCase() || "draft";
+			const isPublic = publicOption?.checked
+				? "true"
+				: privateOption?.checked
+					? "false"
+					: "false";
 
 			// Prepare data
 			const data = {
@@ -243,7 +257,9 @@ class PublishActionManager {
 				);
 
 				// Close modal
-				const modal = document.getElementById(`publish-dataset-modal-${datasetUuid}`);
+				const modal = document.getElementById(
+					`publish-dataset-modal-${datasetUuid}`,
+				);
 				if (modal) {
 					const bsModal = bootstrap.Modal.getInstance(modal);
 					if (bsModal) {
