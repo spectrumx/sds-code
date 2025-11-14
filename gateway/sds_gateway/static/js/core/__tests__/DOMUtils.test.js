@@ -88,6 +88,7 @@ describe("DOMUtils", () => {
 				element: element,
 			})),
 		};
+		window.bootstrap = global.bootstrap;
 
 		// Create DOMUtils instance
 		domUtils = new DOMUtils();
@@ -182,34 +183,149 @@ describe("DOMUtils", () => {
 	});
 
 	describe("showAlert()", () => {
-		test.each([
-			["success", "Success message"],
-			["error", "Error message"],
-			["warning", "Warning message"],
-			["info", "Info message"],
-		])("should show %s toast notification", (type, message) => {
-			domUtils.showAlert(message, type);
+		let mockToastDiv;
+		let mockTempDiv;
 
-			expect(mockToastContainer.appendChild).toHaveBeenCalled();
-			expect(global.bootstrap.Toast).toHaveBeenCalled();
+		beforeEach(() => {
+			// Create mock toast element that will be appended
+			mockToastDiv = {
+				id: "",
+				addEventListener: jest.fn(),
+			};
+
+			// Create mock temp div for parsing HTML
+			mockTempDiv = {
+				innerHTML: "",
+				firstElementChild: mockToastDiv,
+			};
+
+			// Update createElement mock to return temp div for toast parsing
+			global.document.createElement = jest.fn((tag) => {
+				if (tag === "div") {
+					return mockTempDiv;
+				}
+				return {
+					tagName: tag,
+					id: "",
+					className: "",
+					textContent: "",
+					innerHTML: "",
+					classList: {
+						add: jest.fn(),
+						remove: jest.fn(),
+					},
+					setAttribute: jest.fn(),
+					getAttribute: jest.fn(),
+					appendChild: jest.fn(),
+					addEventListener: jest.fn(),
+				};
+			});
+
+			// Mock API response with toast HTML
+			mockAPIClient.post.mockResolvedValue({
+				html: '<div class="toast">Toast content</div>',
+			});
 		});
 
-		test("should handle missing toast container gracefully", () => {
+		test("should show toast notification with default success type", async () => {
+			await domUtils.showAlert("Test message");
+
+			expect(mockAPIClient.post).toHaveBeenCalledWith(
+				"/users/render-html/",
+				{
+					template: "users/components/toast.html",
+					context: {
+						message: "Test message",
+						type: "success",
+					},
+				},
+				null,
+				true,
+			);
+			expect(mockToastContainer.appendChild).toHaveBeenCalledWith(
+				mockToastDiv,
+			);
+			expect(global.bootstrap.Toast).toHaveBeenCalledWith(mockToastDiv);
+		});
+
+		test("should show toast notification with different types", async () => {
+			const types = ["success", "error", "warning", "info"];
+
+			for (const type of types) {
+				jest.clearAllMocks();
+				await domUtils.showAlert("Test message", type);
+
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/toast.html",
+						context: {
+							message: "Test message",
+							type: type,
+						},
+					},
+					null,
+					true,
+				);
+				expect(mockToastContainer.appendChild).toHaveBeenCalled();
+				expect(global.bootstrap.Toast).toHaveBeenCalled();
+			}
+		});
+
+		test("should handle missing toast container gracefully", async () => {
 			document.getElementById = jest.fn(() => null);
 			console.warn = jest.fn();
 
-			domUtils.showAlert("Test message");
+			await domUtils.showAlert("Test message");
 
 			expect(console.warn).toHaveBeenCalledWith("Toast container not found");
+			expect(mockAPIClient.post).not.toHaveBeenCalled();
 		});
 
-		test("should handle missing Bootstrap gracefully", () => {
-			global.bootstrap = null;
+		test("should handle missing HTML in API response", async () => {
+			mockAPIClient.post.mockResolvedValue({});
 			console.error = jest.fn();
 
-			domUtils.showAlert("Test message");
+			await domUtils.showAlert("Test message");
+
+			expect(console.error).toHaveBeenCalledWith(
+				"No HTML returned from toast template",
+			);
+			expect(mockToastContainer.appendChild).not.toHaveBeenCalled();
+		});
+
+		test("should handle failed HTML parsing", async () => {
+			mockTempDiv.firstElementChild = null;
+			console.error = jest.fn();
+
+			await domUtils.showAlert("Test message");
+
+			expect(console.error).toHaveBeenCalledWith("Failed to parse toast HTML");
+			expect(mockToastContainer.appendChild).not.toHaveBeenCalled();
+		});
+
+		test("should handle missing Bootstrap gracefully", async () => {
+			global.bootstrap = null;
+			window.bootstrap = null;
+			console.error = jest.fn();
+
+			await domUtils.showAlert("Test message");
 
 			expect(console.error).toHaveBeenCalledWith("Bootstrap not available");
+			expect(mockToastContainer.appendChild).toHaveBeenCalled();
+		});
+
+		test("should handle API errors gracefully", async () => {
+			mockAPIClient.post.mockRejectedValue(new Error("API error"));
+			console.error = jest.fn();
+
+			await domUtils.showAlert("Test message");
+
+			expect(console.error).toHaveBeenCalledWith(
+				"Error rendering toast template:",
+				expect.any(Error),
+			);
+			expect(mockToastContainer.appendChild).not.toHaveBeenCalled();
 		});
 	});
 

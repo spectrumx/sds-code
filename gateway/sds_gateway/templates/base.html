@@ -148,15 +148,18 @@
                             <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
                         {% endfor %}
                     {% endif %}
+                    {% comment %} Django messages rendered as toasts {% endcomment %}
                     {% if messages %}
                         {% for message in messages %}
-                            <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
-                                {{ message }}
-                                <button type="button"
-                                        class="btn-close"
-                                        data-bs-dismiss="alert"
-                                        aria-label="Close"></button>
-                            </div>
+                            {% if message.tags == "error" %}
+                                {% include "users/components/toast.html" with message=message type="error" %}
+                            {% elif message.tags == "success" %}
+                                {% include "users/components/toast.html" with message=message type="success" %}
+                            {% elif message.tags == "warning" %}
+                                {% include "users/components/toast.html" with message=message type="warning" %}
+                            {% else %}
+                                {% include "users/components/toast.html" with message=message type="info" %}
+                            {% endif %}
                         {% endfor %}
                     {% endif %}
                     {% block main %}
@@ -183,10 +186,48 @@
         </div>
         {% block modal %}
         {% endblock modal %}
+        <!-- Toast container for notifications -->
+        <div aria-live="polite"
+             aria-atomic="true"
+             class="position-fixed top-0 end-0 p-3 toast-container">
+            <div id="toast-container"></div>
+        </div>
         {% block inline_javascript %}
             {# Removed JS that was hiding/showing the body #}
         {% endblock inline_javascript %}
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-        <script></script>
+        <script>
+            // Initialize Django messages as Bootstrap toasts on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                const toastContainer = document.getElementById('toast-container');
+                if (!toastContainer) return;
+
+                // Find all toast elements that were rendered by Django messages
+                // They might be in the body block, so we need to find and move them
+                // Look for toasts that are not already in the toast-container
+                const allToasts = document.querySelectorAll('.toast');
+                
+                allToasts.forEach(function(toastEl) {
+                    // Only process toasts that are not already in the toast container
+                    if (toastEl.closest('#toast-container')) {
+                        return; // Already in container, skip
+                    }
+                    
+                    // Move toast to container
+                    toastContainer.appendChild(toastEl);
+                    
+                    // Initialize Bootstrap toast
+                    if (window.bootstrap && bootstrap.Toast) {
+                        const toast = new bootstrap.Toast(toastEl);
+                        toast.show();
+                        
+                        // Remove element after toast is hidden
+                        toastEl.addEventListener('hidden.bs.toast', function() {
+                            toastEl.remove();
+                        });
+                    }
+                });
+            });
+        </script>
     </body>
 </html>
