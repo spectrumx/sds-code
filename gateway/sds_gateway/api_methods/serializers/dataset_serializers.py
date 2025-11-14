@@ -73,6 +73,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
                         {
                             "id": group.uuid,
                             "name": group.name,
+                            "email": f"group:{group.uuid}",
                             "type": "group",
                             "permission_level": perm.permission_level,
                             "member_count": group.members.count(),
