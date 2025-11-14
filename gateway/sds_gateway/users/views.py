@@ -2703,6 +2703,8 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
             }
         )
 
+user_publish_dataset_view = PublishDatasetView.as_view()
+
 
 class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
     """View to display a temporary zip file download page and serve the file."""
