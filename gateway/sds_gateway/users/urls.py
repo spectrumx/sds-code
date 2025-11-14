@@ -45,7 +45,11 @@ urlpatterns = [
     path("files/<uuid:uuid>/h5info/", FileH5InfoView.as_view(), name="file_h5info"),
     path("dataset-list/", user_dataset_list_view, name="dataset_list"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
-    path("publish-dataset/<uuid:dataset_uuid>/", user_publish_dataset_view, name="publish_dataset"),
+    path(
+        "publish-dataset/<uuid:dataset_uuid>/",
+        user_publish_dataset_view,
+        name="publish_dataset",
+    ),
     path("render-html/", render_html_fragment_view, name="render_html"),
     path("group-captures/", user_group_captures_view, name="group_captures"),
     path(
