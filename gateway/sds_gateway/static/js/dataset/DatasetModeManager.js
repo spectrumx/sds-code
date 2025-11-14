@@ -209,7 +209,7 @@ class DatasetModeManager {
 	 * Initialize UI based on mode and permissions
 	 */
 	initializeUI() {
-		// Update UI based on permissions (this also handles existing final status)
+		// Update UI based on permissions
 		this.updateUIForPermissions();
 
 		// Initialize mode-specific UI elements
@@ -219,16 +219,8 @@ class DatasetModeManager {
 			this.initializeCreateModeUI();
 		}
 
-		// Update visibility toggle if this is an existing final dataset (not current session)
-		if (this.isExistingFinalDataset()) {
-			this.updateVisibilityToggleForFinal();
-		}
-
 		// Initialize publishing info handlers
 		this.initializePublishingInfo();
-
-		// Update title and card styling for already published/public datasets
-		this.updateEditorTitleAndStyling();
 	}
 
 	/**
@@ -477,9 +469,6 @@ class DatasetModeManager {
 			this.updateDatasetInfo();
 			this.updateSelectedAssets();
 		}
-
-		// Update title and styling in case publishing status changed
-		this.updateEditorTitleAndStyling();
 	}
 
 	/**
@@ -569,8 +558,7 @@ class DatasetModeManager {
 
 	/**
 	 * Update publishing information in review panel as alert banners
-	 * Only shows warnings when dataset is being SET to final/public in current session
-	 * Not when dataset is already final/public
+	 * Shows warnings when dataset is being SET to final/public in current session
 	 */
 	updatePublishingInfo() {
 		const alertsContainer = document.getElementById(
@@ -581,13 +569,11 @@ class DatasetModeManager {
 		const isPublicInCurrentSession = this.isCurrentSessionPublicDataset();
 		const isFinalInCurrentSession = this.isCurrentSessionFinalDataset();
 
-		const isExistingFinal = this.isExistingFinalDataset();
-
 		// Clear existing alerts
 		alertsContainer.innerHTML = "";
 
 		if (isFinalInCurrentSession) {
-			// Publishing alert - only show if being set to final in current session
+			// Publishing alert - show if being set to final in current session
 			const publishingAlert = document.createElement("div");
 			publishingAlert.className = "alert alert-danger mb-3";
 			publishingAlert.innerHTML =
@@ -614,8 +600,8 @@ class DatasetModeManager {
 			alertsContainer.appendChild(publicAlert);
 		}
 
-		if (!isExistingFinal && !isFinalInCurrentSession) {
-			// Not publishing - optional info alert (only if not already final)
+		if (!isFinalInCurrentSession) {
+			// Not publishing - optional info alert
 			const draftAlert = document.createElement("div");
 			draftAlert.className = "alert alert-info mb-0";
 			draftAlert.innerHTML =
@@ -1004,9 +990,7 @@ class DatasetModeManager {
 	}
 
 	/**
-	 * Update form elements based on permissions and dataset status
-	 * Note: View-only restrictions only apply when loading an existing final-status dataset,
-	 * not during the current editing session
+	 * Update form elements based on permissions
 	 */
 	updateFormElementsForPermissions() {
 		// Dataset metadata fields
@@ -1014,9 +998,6 @@ class DatasetModeManager {
 		const authorsField = document.getElementById("id_authors");
 		const statusField = document.getElementById("id_status");
 		const descriptionField = document.getElementById("id_description");
-
-		// Check if this is an existing final-status dataset (from database, not current session)
-		const isExistingFinal = this.isExistingFinalDataset();
 
 		if (!this.permissions.canEditMetadata()) {
 			const fields = [nameField, authorsField, statusField, descriptionField];
@@ -1026,61 +1007,12 @@ class DatasetModeManager {
 					field.classList.add("form-control-plaintext");
 				}
 			}
-		} else if (isExistingFinal) {
-			// Only apply view-only restrictions for existing final datasets (after submission)
-			// NOT during current editing session
-			const fields = [nameField, authorsField, statusField, descriptionField];
-			for (const field of fields) {
-				if (field) {
-					field.disabled = true;
-					field.classList.add("form-control-plaintext");
-					field.setAttribute("readonly", "readonly");
-				}
-			}
-
-			// Disable author add button
-			const addAuthorBtn = document.getElementById("add-author-btn");
-			if (addAuthorBtn) {
-				addAuthorBtn.disabled = true;
-				addAuthorBtn.classList.add("disabled");
-			}
-
-			// Disable all existing author inputs
-			const authorsList = document.querySelector(".authors-list");
-			if (authorsList) {
-				const authorInputs = authorsList.querySelectorAll(
-					".author-name-input, .author-orcid-input",
-				);
-				for (const input of authorInputs) {
-					input.disabled = true;
-					input.setAttribute("readonly", "readonly");
-					input.classList.add("form-control-plaintext");
-				}
-				// Also disable remove buttons for authors
-				const removeButtons = authorsList.querySelectorAll(
-					".remove-author, .cancel-remove-author",
-				);
-				for (const button of removeButtons) {
-					button.disabled = true;
-					button.classList.add("disabled-element");
-				}
-			}
-
-			// Disable publish toggle (can't unpublish)
-			const publishToggle = document.getElementById("publish-dataset-toggle");
-			if (publishToggle) {
-				publishToggle.disabled = true;
-			}
-
-			// Handle visibility toggle based on current public/private status
-			this.updateVisibilityToggleForFinal();
 		}
 
-		// Asset selection areas - disable if existing final OR if no permission
+		// Asset selection areas - disable if no permission
 		const capturesSection = document.getElementById("captures-section");
 		const filesSection = document.getElementById("files-section");
-		const shouldDisableAssets =
-			isExistingFinal || !this.permissions.canAddAssets();
+		const shouldDisableAssets = !this.permissions.canAddAssets();
 
 		if (shouldDisableAssets) {
 			// Disable captures section
@@ -1114,80 +1046,18 @@ class DatasetModeManager {
 	 * Update visibility toggle for final status datasets
 	 */
 	updateVisibilityToggleForFinal() {
-		const publicOption = document.getElementById("public-option");
-		const privateOption = document.getElementById("private-option");
-		const visibilitySection = document.getElementById(
-			"visibility-toggle-section",
-		);
-
-		// Only apply if visibility section is visible (dataset is published)
-		if (!visibilitySection || visibilitySection.classList.contains("d-none")) {
-			return;
-		}
-
-		if (this.isExistingPublicDataset()) {
-			// If already public, disable both options (can't change back to private)
-			if (publicOption) {
-				publicOption.disabled = true;
-			}
-			if (privateOption) {
-				privateOption.disabled = true;
-			}
-		}
+		// This method is kept for compatibility but no longer needs to handle
+		// existing public datasets since they cannot be edited
 	}
 
 	/**
-	 * Update editor title and card styling for already published/public datasets
+	 * Update editor title and card styling
+	 * Note: This method is kept for compatibility but no longer handles
+	 * existing final/public datasets since they cannot be edited
 	 */
 	updateEditorTitleAndStyling() {
-		const cardHeader = document.querySelector(
-			"#group-captures-card .card-header",
-		);
-		const titleElement = cardHeader?.querySelector("h5");
-
-		if (!cardHeader || !titleElement) return;
-
-		const isExistingFinal = this.isExistingFinalDataset();
-		const isExistingPublic = this.isExistingPublicDataset();
-
-		// Remove any existing indicator classes
-		cardHeader.classList.remove(
-			"bg-success",
-			"bg-danger",
-			"bg-warning",
-			"bg-light",
-		);
-		titleElement.classList.remove("text-white", "text-dark");
-
-		// Get base title text (remove any existing badges)
-		let baseTitle = titleElement.textContent.trim();
-		// Remove any existing badge text patterns
-		baseTitle = baseTitle
-			.replace(/\s*Published\s*/gi, "")
-			.replace(/\s*Public\s*/gi, "")
-			.trim();
-
-		if (isExistingFinal && isExistingPublic) {
-			// Public and published - red/danger styling
-			cardHeader.classList.add("bg-danger");
-			titleElement.classList.add("text-white");
-
-			// Add indicators to title
-			titleElement.innerHTML = `${baseTitle} <span class="badge bg-light text-danger ms-2">Published</span> <span class="badge bg-light text-danger ms-1">Public</span>`;
-		} else if (isExistingFinal) {
-			// Published but private - success/green styling
-			cardHeader.classList.add("bg-success");
-			titleElement.classList.add("text-white");
-
-			// Add indicator to title
-			titleElement.innerHTML = `${baseTitle} <span class="badge bg-light text-success ms-2">Published</span>`;
-		} else {
-			// Not published - default styling
-			cardHeader.classList.add("bg-light");
-			titleElement.classList.add("text-dark");
-			// Restore original title without badges
-			titleElement.textContent = baseTitle;
-		}
+		// This method is kept for compatibility but no longer needs to handle
+		// existing final/public datasets since they cannot be edited
 	}
 
 	/**
@@ -1208,47 +1078,10 @@ class DatasetModeManager {
 		// Initialize status based on existing dataset or default to draft
 		const currentStatus = statusField.value || "draft";
 
-		// Use helper functions to determine existing vs current session state
-		const isExistingFinal = this.isExistingFinalDataset();
+		// Use helper function to determine current session state
 		const isFinalInCurrentSession = this.isCurrentSessionFinalDataset();
 
-		// Only apply restrictions if this is an existing final dataset (from database)
-		// NOT if user is just publishing in current session
-		if (isExistingFinal) {
-			// Hide publishing question and warning for already published datasets
-			const publishQuestion = publishToggle.closest(".mb-4");
-			if (publishQuestion) {
-				const publishLabel = publishQuestion.querySelector("#publish-question");
-				const publishWarning =
-					publishQuestion.querySelector("#publish-warning");
-				const publishSwitch = publishQuestion.querySelector("#publish-toggle");
-				const currentStatusBadge = publishQuestion.querySelector(
-					"#current-status-badge",
-				);
-
-				if (publishLabel)
-					window.DOMUtils.hide(publishLabel, "display-inline-block");
-				if (publishWarning)
-					window.DOMUtils.hide(publishWarning, "display-inline-block");
-				if (publishSwitch)
-					window.DOMUtils.hide(publishSwitch, "display-inline-block");
-				if (currentStatusBadge)
-					window.DOMUtils.hide(currentStatusBadge, "display-inline-block");
-			}
-
-			publishToggle.checked = true;
-			// Disable publish toggle (can't unpublish existing final dataset)
-			publishToggle.disabled = true;
-
-			// Show visibility section if published
-			if (visibilitySection) {
-				visibilitySection.classList.remove("d-none");
-			}
-			this.updateStatusField("final");
-
-			// Update visibility toggle to ensure both options are enabled
-			this.updateVisibilityToggleForFinal();
-		} else if (isFinalInCurrentSession) {
+		if (isFinalInCurrentSession) {
 			// User is publishing in current session - allow editing
 			publishToggle.checked = true;
 			// Don't disable publish toggle during current session
@@ -1256,8 +1089,6 @@ class DatasetModeManager {
 				visibilitySection.classList.remove("d-none");
 			}
 			this.updateStatusField("final");
-			// Update visibility toggle to ensure both options are enabled
-			this.updateVisibilityToggleForFinal();
 		} else {
 			this.updateStatusField("draft");
 		}

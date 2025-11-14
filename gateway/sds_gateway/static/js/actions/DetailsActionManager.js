@@ -181,11 +181,9 @@ class DetailsActionManager {
 			".dataset-details-description",
 			datasetData.description || "No description provided",
 		);
-		this.updateElementText(
-			modal,
-			".dataset-details-status",
-			datasetData.status || "Unknown",
-		);
+		// Update status as badge
+		this.updateStatusBadge(modal, datasetData.status);
+
 		this.updateElementText(
 			modal,
 			".dataset-details-created",
@@ -306,6 +304,20 @@ class DetailsActionManager {
 		const element = container.querySelector(selector);
 		if (element) {
 			element.textContent = text;
+		}
+	}
+
+	/**
+	 * Update status badge
+	 * @param {Element} modal - Modal element
+	 * @param {string} status - Status value ('draft' or 'final')
+	 */
+	updateStatusBadge(modal, status) {
+		const statusContainer = modal.querySelector(".dataset-details-status");
+		const statusText = status[0].toUpperCase() + status.slice(1);
+		const statusClass = status === "final" ? "success" : "secondary";
+		if (statusContainer) {
+			statusContainer.innerHTML = `<span class="badge bg-${statusClass}">${statusText}</span>`;
 		}
 	}
 
