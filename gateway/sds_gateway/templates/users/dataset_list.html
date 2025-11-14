@@ -168,7 +168,7 @@
                                                     </button>
                                                     <ul class="dropdown-menu">
                                                         {% if dataset.can_edit %}
-                                                            {% if not dataset.dataset.status == 'final' or not dataset.is_public %}
+                                                            {% if not dataset.dataset.status == 'final' and not dataset.is_public %}
                                                                 <li>
                                                                     <button class="dropdown-item"
                                                                             type="button"

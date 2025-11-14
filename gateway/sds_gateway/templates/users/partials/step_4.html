@@ -6,17 +6,6 @@
                 <div class="card" id="publishing-info-card">
                     <div class="card-body">
                         <h5 class="card-title mb-4">Dataset Publishing</h5>
-                        <!-- Published Indicator (only shown for final datasets) -->
-                        {% if existing_dataset and existing_dataset.status == 'final' %}
-                            <div class="alert alert-success mb-4" id="published-indicator">
-                                <div class="d-flex align-items-center">
-                                    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
-                                    <div class="flex-grow-1">
-                                        <strong>This dataset is published.</strong> The dataset status is Final and cannot be changed.
-                                    </div>
-                                </div>
-                            </div>
-                        {% endif %}
                         <!-- Publish Question -->
                         <div class="mb-4">
                             <label id="publish-question" class="form-label fw-bold mb-3">
@@ -36,8 +25,7 @@
                                 <input class="form-check-input"
                                        type="checkbox"
                                        role="switch"
-                                       id="publish-dataset-toggle"
-                                       {% if existing_dataset and existing_dataset.status == 'final' %}checked{% endif %} />
+                                       id="publish-dataset-toggle" />
                                 <label class="form-check-label" for="publish-dataset-toggle">
                                     <strong>Yes, publish this dataset</strong>
                                 </label>
