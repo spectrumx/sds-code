@@ -51,7 +51,11 @@ urlpatterns = [
         keyword_autocomplete_api_view,
         name="keyword_autocomplete",
     ),
-    path("publish-dataset/<uuid:dataset_uuid>/", user_publish_dataset_view, name="publish_dataset"),
+    path(
+        "publish-dataset/<uuid:dataset_uuid>/",
+        user_publish_dataset_view,
+        name="publish_dataset",
+    ),
     path("render-html/", render_html_fragment_view, name="render_html"),
     path("group-captures/", user_group_captures_view, name="group_captures"),
     path(

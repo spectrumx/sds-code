@@ -1700,78 +1700,100 @@ class GroupCapturesView(
 ):
     template_name = "users/group_captures.html"
 
-    def get(self, request, *args, **kwargs):  # noqa: C901, PLR0911
+    def get(self, request, *args, **kwargs):
         """Handle GET request with permission checking and AJAX requests."""
-        # Check if editing existing dataset
-        dataset_uuid_str = request.GET.get("dataset_uuid")
+        dataset_uuid = request.GET.get("dataset_uuid")
 
-        if dataset_uuid_str:
-            try:
-                dataset_uuid = UUID(dataset_uuid_str)
-            except ValueError:
-                messages.error(request, "Invalid dataset UUID.")
-                return redirect("users:dataset_list")
-            # Check if user has access to edit this dataset
-            if not user_has_access_to_item(
-                request.user, dataset_uuid, ItemType.DATASET
-            ):
-                messages.error(request, "Dataset not found or access denied.")
-                return redirect("users:dataset_list")
-
-            # Check if user can edit dataset metadata
-            if not UserSharePermission.user_can_edit_dataset(
-                request.user, dataset_uuid, ItemType.DATASET
-            ) and not UserSharePermission.user_can_add_assets(
-                request.user, dataset_uuid, ItemType.DATASET
-            ):
-                messages.error(
-                    request, "You don't have permission to edit this dataset."
-                )
-                return redirect("users:dataset_list")
+        # Validate dataset permissions if editing
+        if dataset_uuid:
+            validation_error = self._validate_dataset_edit_permissions(
+                request, dataset_uuid
+            )
+            if validation_error:
+                return validation_error
 
         # Handle AJAX requests
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            try:
-                if "search_captures" in request.GET:
-                    form = CaptureSearchForm(request.GET)
-                    if form.is_valid():
-                        captures = self.search_captures(form.cleaned_data, request)
-                        return JsonResponse(
-                            self.get_paginated_response(captures, request)
-                        )
-                    return JsonResponse({"error": form.errors}, status=400)
-
-                if "search_files" in request.GET:
-                    base_dir = sanitize_path_rel_to_user(
-                        unsafe_path="/",
-                        request=self.request,
-                    )
-
-                    form = FileSearchForm(request.GET, user=self.request.user)
-                    if form.is_valid():
-                        files = self.search_files(form.cleaned_data, request)
-                        tree_data = self._get_directory_tree(files, str(base_dir))
-
-                        return JsonResponse(
-                            {
-                                "tree": tree_data,
-                                "extension_choices": form.fields[
-                                    "file_extension"
-                                ].choices,
-                                "search_values": {
-                                    "file_name": form.cleaned_data.get("file_name", ""),
-                                    "file_extension": form.cleaned_data.get(
-                                        "file_extension", ""
-                                    ),
-                                    "directory": form.cleaned_data.get("directory", ""),
-                                },
-                            },
-                        )
-                    return JsonResponse({"error": form.errors}, status=400)
-            except (OSError, DatabaseError) as e:
-                return JsonResponse({"error": str(e)}, status=500)
+            ajax_response = self._handle_ajax_request(request)
+            if ajax_response:
+                return ajax_response
 
         return super().get(request, *args, **kwargs)
+
+    def _validate_dataset_edit_permissions(
+        self, request: HttpRequest, dataset_uuid: str
+    ) -> HttpResponseRedirect | None:
+        """Validate user permissions for editing a dataset."""
+        # Check if user has access to edit this dataset
+        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
+            messages.error(request, "Dataset not found or access denied.")
+            return redirect("users:dataset_list")
+
+        # Get the dataset to check its status
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
+
+        # Check if dataset is final (published) - cannot be edited
+        if dataset.status == DatasetStatus.FINAL:
+            messages.error(request, "This dataset is published and cannot be edited.")
+            return redirect("users:dataset_list")
+
+        # Check if user can edit dataset metadata
+        if not UserSharePermission.user_can_edit_dataset(
+            request.user, dataset_uuid, ItemType.DATASET
+        ) and not UserSharePermission.user_can_add_assets(
+            request.user, dataset_uuid, ItemType.DATASET
+        ):
+            messages.error(request, "You don't have permission to edit this dataset.")
+            return redirect("users:dataset_list")
+
+        return None
+
+    def _handle_ajax_request(self, request: HttpRequest) -> JsonResponse | None:
+        """Handle AJAX requests for search operations."""
+        try:
+            if "search_captures" in request.GET:
+                return self._handle_capture_search(request)
+
+            if "search_files" in request.GET:
+                return self._handle_file_search(request)
+
+        except (OSError, DatabaseError) as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+        return None
+
+    def _handle_capture_search(self, request: HttpRequest) -> JsonResponse:
+        """Handle AJAX request for capture search."""
+        form = CaptureSearchForm(request.GET)
+        if form.is_valid():
+            captures = self.search_captures(form.cleaned_data, request)
+            return JsonResponse(self.get_paginated_response(captures, request))
+        return JsonResponse({"error": form.errors}, status=400)
+
+    def _handle_file_search(self, request: HttpRequest) -> JsonResponse:
+        """Handle AJAX request for file search."""
+        base_dir = sanitize_path_rel_to_user(
+            unsafe_path="/",
+            request=request,
+        )
+
+        form = FileSearchForm(request.GET, user=request.user)
+        if form.is_valid():
+            files = self.search_files(form.cleaned_data, request)
+            tree_data = self._get_directory_tree(files, str(base_dir))
+
+            return JsonResponse(
+                {
+                    "tree": tree_data,
+                    "extension_choices": form.fields["file_extension"].choices,
+                    "search_values": {
+                        "file_name": form.cleaned_data.get("file_name", ""),
+                        "file_extension": form.cleaned_data.get("file_extension", ""),
+                        "directory": form.cleaned_data.get("directory", ""),
+                    },
+                },
+            )
+        return JsonResponse({"error": form.errors}, status=400)
 
     def search_captures(self, search_data, request) -> list[Capture]:
         """Override to only return captures owned by the user for dataset creation."""
@@ -2631,9 +2653,7 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
         dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
 
         # Check if user has access
-        if not user_has_access_to_item(
-            request.user, dataset_uuid, ItemType.DATASET
-        ):
+        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
             return JsonResponse(
                 {"success": False, "error": "Access denied."}, status=403
             )
@@ -2653,44 +2673,19 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
 
         # Get status and is_public from request
         status_value = request.POST.get("status")
-        is_public_value = request.POST.get("is_public")
+        is_public_value = json.loads(request.POST.get("is_public"))
 
-        # Validate that at least one field is being updated
-        if not status_value and is_public_value is None:
-            return JsonResponse(
-                {"success": False, "error": "No fields to update."}, status=400
-            )
-
-        # Validate status
-        if status_value and status_value not in [DatasetStatus.DRAFT, DatasetStatus.FINAL]:
-            return JsonResponse(
-                {"success": False, "error": "Invalid status value."}, status=400
-            )
+        error_message = self._handle_400_errors(dataset, status_value, is_public_value)
+        if error_message:
+            return JsonResponse({"success": False, "error": error_message}, status=400)
 
         # Update status if provided and dataset is not already final
         if status_value:
-            if dataset.status == DatasetStatus.FINAL and status_value == DatasetStatus.DRAFT:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "error": "Cannot change published dataset status back to Draft.",
-                    },
-                    status=400,
-                )
             dataset.status = status_value
 
         # Update is_public if provided and dataset is not already public
-        if is_public_value is not None and is_public_value != "":
-            is_public_bool = is_public_value.lower() in ("true", "1", "yes")
-            if dataset.is_public and not is_public_bool:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "error": "Cannot change public dataset visibility back to Private.",
-                    },
-                    status=400,
-                )
-            dataset.is_public = is_public_bool
+        if is_public_value is not None:
+            dataset.is_public = is_public_value
 
         dataset.save()
 
@@ -2702,6 +2697,42 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
                 "is_public": dataset.is_public,
             }
         )
+
+    def _handle_400_errors(
+        self,
+        dataset: Dataset,
+        status_value: str | None,
+        *,
+        is_public_value: bool | None,
+    ) -> str:
+        """Handle status change."""
+
+        # Initialize error message
+        error_message = None
+
+        # Validate that at least one field is being updated
+        if not status_value and is_public_value is None:
+            error_message = "No fields to update."
+        # Validate status value
+        if status_value and status_value not in [
+            DatasetStatus.DRAFT,
+            DatasetStatus.FINAL,
+        ]:
+            error_message = "Invalid status value."
+
+        # Update status if provided and dataset is not already final
+        if status_value:
+            if (
+                dataset.status == DatasetStatus.FINAL
+                and status_value == DatasetStatus.DRAFT
+            ):
+                error_message = "Cannot change published dataset status back to Draft."
+
+        if dataset.is_public and is_public_value is False:
+            error_message = "Cannot change public dataset visibility back to Private."
+
+        return error_message
+
 
 user_publish_dataset_view = PublishDatasetView.as_view()
 
