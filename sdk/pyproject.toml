@@ -184,9 +184,9 @@
             # of types for comparison.
             # UP038 deactivated because it can make the code slow:
             # https://github.com/astral-sh/ruff/issues/7871
-            # TODO: re-enable UP046 when support for 3.10 and 3.11 are dropped
+            # TODO: re-enable UP046 when support for 3.11 are dropped
             "UP046",
-            # TODO: re-enable UP047 when support for 3.10 and 3.11 are dropped
+            # TODO: re-enable UP047 when support for 3.11 are dropped
             "UP047",
         ]
         select = [
@@ -310,30 +310,42 @@
 # ==== TESTING ====
 [tool.pytest]
 
-    [tool.pytest.ini_options]
-        # pytest
-        #   https://docs.pytest.org/en/stable/reference/reference.html#confval-addopts
-        # pytest-cov
-        #   https://pytest-cov.readthedocs.io/en/latest/config.html
-        # more verbose:
-        # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
-        # less verbose:
-        addopts = "--maxfail=10 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --tb=short"
-        # capture = "no" # "fd", "sys", "no", "tee-sys"
-        console_output_style = "count" # "classic", "progress", "count", "progress-even-when-capture-no"
-        log_auto_indent = true
-        log_cli = false
-        log_cli_level = "WARN"
-        log_date_format = "%Y-%m-%d %H:%M:%S"
-        markers = [
-            "integration: marks a test as an integration test",
-            "linux: marks a test to run on linux",
-            "darwin: marks a test to run on Mac OS",
-            "win32: marks a test to run on windows",
-        ]
-        minversion = "8.0"
-        testpaths = ["tests"]
-        verbosity_test_cases = 0
+    # [tool.pytest.ini_options]
+    # pytest
+    #   https://docs.pytest.org/en/stable/reference/reference.html#confval-addopts
+    # pytest-cov
+    #   https://pytest-cov.readthedocs.io/en/latest/config.html
+    # more verbose:
+    # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
+    # less verbose:
+    addopts = [
+        "--maxfail=10",
+        "--new-first",
+        "-rf",
+        "--strict-markers",
+        "--cov=src",
+        "--cov-report=html",
+        "--show-capture=stdout",
+        "-o",
+        "log_cli=true",
+        "--tb=short",
+    ]
+    # capture = "no" # "fd", "sys", "no", "tee-sys"
+    consider_namespace_packages = true
+    console_output_style = "count" # "classic", "progress", "count", "progress-even-when-capture-no"
+    log_auto_indent = "on"
+    log_cli = false
+    log_cli_level = "WARN"
+    log_date_format = "%Y-%m-%d %H:%M:%S"
+    markers = [
+        "integration: marks a test as an integration test",
+        "linux: marks a test to run on linux",
+        "darwin: marks a test to run on Mac OS",
+        "win32: marks a test to run on windows",
+    ]
+    minversion = "8.0"
+    testpaths = ["tests"]
+    verbosity_test_cases = "0"
 
 # ====== UV
 [tool.uv]
