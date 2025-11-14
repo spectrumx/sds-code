@@ -7,7 +7,6 @@ module.exports = {
 	target: "web",
 	context: path.join(__dirname, "../"),
 	entry: {
-		project: path.resolve(__dirname, "../sds_gateway/static/js/project"),
 		vendors: path.resolve(__dirname, "../sds_gateway/static/js/vendors"),
 	},
 	output: {
