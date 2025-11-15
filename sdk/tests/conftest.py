@@ -25,7 +25,9 @@ try:
 except ImportError:
     log.warning("Install rich for better tracebacks")
 
-enable_logging()
+EXTRA_LOGGING = True
+if EXTRA_LOGGING:
+    enable_logging()
 
 # Platform Specific Testing
 PLATFORMS = {"darwin", "linux", "win32"}
@@ -41,6 +43,11 @@ def pytest_runtest_setup(item) -> None:
 
 
 # ==== fixtures
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
 
 
 @pytest.fixture
@@ -83,7 +90,6 @@ def temp_file_with_text_contents(tmp_path: Path) -> Generator[Path]:
 
 
 @pytest.fixture
-@pytest.mark.slow
 def temp_large_binary_file(
     request: pytest.FixtureRequest,
     tmp_path: Path,
@@ -117,14 +123,18 @@ def temp_file_tree(
     _total_num_files = num_dirs * num_files_per_dir
     _all_created_files: list[Path] = []
     _all_created_dirs: list[Path] = []
-    extension: str = "txt"
+    extension_a: str = "txt"
+    extension_b: str = "tmp"
 
     for dir_idx in range(num_dirs):
         subdir = tmp_path / f"subdir_{dir_idx}"
         subdir.mkdir(exist_ok=True)
         _all_created_dirs.append(subdir)
         for file_sub_idx in range(num_files_per_dir):
-            file_path = subdir / f"test_file_{file_sub_idx}.{extension}"
+            if file_sub_idx % 2 == 0:
+                file_path = subdir / f"test_file_{file_sub_idx}.{extension_a}"
+            else:
+                file_path = subdir / f"test_file_{file_sub_idx}.{extension_b}"
             _all_created_files.append(file_path)
             with file_path.open("w", encoding="utf-8") as file_handle:
                 file_handle.writelines(file_content_generator())

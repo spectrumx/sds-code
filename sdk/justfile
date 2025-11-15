@@ -1,7 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 python_version := `cat .python-version`
-supported_python_versions := "3.10 3.11 3.12 3.13 3.14"
+supported_python_versions := "3.11 3.12 3.13 3.14"
 test_marker_default := "not integration"
 test_marker_integration := "integration"
 sdk_root := justfile_directory()
@@ -101,6 +101,7 @@ test python=python_version *pytest_args:
 # tests against all supported python versions and dep lower bounds (no integration tests)
 test-all *args:
     #!/usr/bin/env bash
+    set -euo pipefail
     echo -e "\n\t\033[34mRunning all local (non-integration) tests\033[0m\n"
 
     # run higher bound tests against default python version

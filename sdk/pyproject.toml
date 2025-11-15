@@ -5,7 +5,7 @@
         "blake3>=1.0.0 ; python_full_version < '3.14'",
         "blake3>=1.0.6 ; python_full_version >= '3.14'",
         "loguru>=0.6.0",
-        "pydantic>=2.8.0 ; python_full_version < '3.14'",
+        "pydantic>=2.11.0 ; python_full_version < '3.14'",
         "pydantic>=2.12.0 ; python_full_version >= '3.14'",
         "python-dotenv>=1.0.0",
         "requests>=2.28.2",
@@ -19,7 +19,7 @@
     license         = "MIT"
     name            = "spectrumx"
     readme          = "./docs/README.md"
-    requires-python = ">=3.10"
+    requires-python = ">=3.11"
     version         = "0.1.14"
 
     # https://pypi.org/classifiers/
@@ -29,7 +29,6 @@
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: MIT License",
         "Operating System :: Unix",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
@@ -60,6 +59,7 @@
         "mkdocstrings[python]>=0.30.1",
         "mkdocs>=1.6.1",
         "mkdocs-material>=9.6.22",
+        "anyio[trio]>=4.11.0",
     ]
 
 # deptry detects unused and missing dependencies.
@@ -184,9 +184,9 @@
             # of types for comparison.
             # UP038 deactivated because it can make the code slow:
             # https://github.com/astral-sh/ruff/issues/7871
-            # TODO: re-enable UP046 when support for 3.10 and 3.11 are dropped
+            # TODO: re-enable UP046 when support for 3.11 are dropped
             "UP046",
-            # TODO: re-enable UP047 when support for 3.10 and 3.11 are dropped
+            # TODO: re-enable UP047 when support for 3.11 are dropped
             "UP047",
         ]
         select = [
@@ -310,30 +310,42 @@
 # ==== TESTING ====
 [tool.pytest]
 
-    [tool.pytest.ini_options]
-        # pytest
-        #   https://docs.pytest.org/en/stable/reference/reference.html#confval-addopts
-        # pytest-cov
-        #   https://pytest-cov.readthedocs.io/en/latest/config.html
-        # more verbose:
-        # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
-        # less verbose:
-        addopts = "--maxfail=10 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --tb=short"
-        # capture = "no" # "fd", "sys", "no", "tee-sys"
-        console_output_style = "count" # "classic", "progress", "count", "progress-even-when-capture-no"
-        log_auto_indent = true
-        log_cli = false
-        log_cli_level = "WARN"
-        log_date_format = "%Y-%m-%d %H:%M:%S"
-        markers = [
-            "integration: marks a test as an integration test",
-            "linux: marks a test to run on linux",
-            "darwin: marks a test to run on Mac OS",
-            "win32: marks a test to run on windows",
-        ]
-        minversion = "8.0"
-        testpaths = ["tests"]
-        verbosity_test_cases = 0
+    # [tool.pytest.ini_options]
+    # pytest
+    #   https://docs.pytest.org/en/stable/reference/reference.html#confval-addopts
+    # pytest-cov
+    #   https://pytest-cov.readthedocs.io/en/latest/config.html
+    # more verbose:
+    # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
+    # less verbose:
+    addopts = [
+        "--maxfail=10",
+        "--new-first",
+        "-rf",
+        "--strict-markers",
+        "--cov=src",
+        "--cov-report=html",
+        "--show-capture=stdout",
+        "-o",
+        "log_cli=true",
+        "--tb=short",
+    ]
+    # capture = "no" # "fd", "sys", "no", "tee-sys"
+    consider_namespace_packages = true
+    console_output_style = "count" # "classic", "progress", "count", "progress-even-when-capture-no"
+    log_auto_indent = "on"
+    log_cli = false
+    log_cli_level = "WARN"
+    log_date_format = "%Y-%m-%d %H:%M:%S"
+    markers = [
+        "integration: marks a test as an integration test",
+        "linux: marks a test to run on linux",
+        "darwin: marks a test to run on Mac OS",
+        "win32: marks a test to run on windows",
+    ]
+    minversion = "8.0"
+    testpaths = ["tests"]
+    verbosity_test_cases = "0"
 
 # ====== UV
 [tool.uv]

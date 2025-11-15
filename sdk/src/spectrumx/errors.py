@@ -1,20 +1,15 @@
 """Custom exceptions for the SDS SDK."""
 
-import sys
 from collections.abc import Sequence
 from typing import Any
 from typing import Generic
+from typing import Self
 from typing import TypeVar
 
-from spectrumx.utils import log_user_error
-
-# python 3.10 backport
-if sys.version_info < (3, 11):  # noqa: UP036
-    from typing_extensions import Self  # noqa: UP035 # Required backport
-else:
-    from typing import Self
-
 from loguru import logger as log
+
+from spectrumx.models.files.file import File
+from spectrumx.utils import log_user_error
 
 log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")
 
@@ -77,6 +72,24 @@ class DatasetError(SDSError):
 
 class ExperimentError(SDSError):
     """Issue interacting with an experiment in SDS."""
+
+
+class UploadError(FileError):
+    """Represents a file that failed to upload."""
+
+    sds_file: File
+    reason: str | None = None
+
+    def __init__(
+        self,
+        *,
+        message: str,
+        sds_file: File,
+        reason: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.sds_file = sds_file
+        self.reason = reason
 
 
 T = TypeVar("T")
