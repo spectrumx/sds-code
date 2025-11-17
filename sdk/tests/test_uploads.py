@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC
 from datetime import datetime
+from datetime import timedelta
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
@@ -14,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 from loguru import logger as log
+from spectrumx.api.uploads import PersistedUploadFile
 from spectrumx.api.uploads import SkippedUpload
 from spectrumx.api.uploads import UploadWorkload
 from spectrumx.api.uploads import create_file_instance
@@ -63,14 +66,25 @@ def temp_file_tree(tmp_path: Path) -> tuple[Path, list[Path]]:
     return root, files_created
 
 
-@pytest.fixture
-def mock_file() -> File:
-    """Create a mock File instance."""
+def _create_mock_file(
+    name: str = "test_file.txt",
+    size: int = 1024,
+    local_path: Path | None = None,
+) -> File:
+    """Helper to create a mock File with required attributes."""
     file_mock = MagicMock(spec=File)
-    file_mock.name = "test_file.txt"
-    file_mock.size = 1024
+    file_mock.name = name
+    file_mock.size = size
     file_mock.directory = PurePosixPath("test_dir")
+    file_mock.local_path = local_path or Path(name)
+    file_mock.compute_sum_blake3.return_value = f"checksum_{name}"
     return file_mock
+
+
+@pytest.fixture
+def mock_file(tmp_path: Path) -> File:
+    """Create a mock File instance."""
+    return _create_mock_file(local_path=tmp_path / "test_file.txt")
 
 
 @pytest.fixture
@@ -486,7 +500,9 @@ async def test_remaining_files_excludes_completed(
 ) -> None:
     """Test remaining_files excludes completed files."""
     total_num_files = 5
-    files = [MagicMock(spec=File, size=100) for _ in range(total_num_files)]
+    files = [
+        _create_mock_file(name=f"file_{i}", size=100) for i in range(total_num_files)
+    ]
     for file_obj in files:
         await upload_workload._register_discovered_file(file_obj)
 
@@ -514,7 +530,10 @@ async def test_remaining_bytes_calculation(
 ) -> None:
     """Test _remaining_bytes correctly calculates incomplete bytes."""
     size_list = [100, 200, 300]
-    files = [MagicMock(spec=File, size=size) for size in size_list]
+    files = [
+        _create_mock_file(name=f"file_{i}", size=size)
+        for i, size in enumerate(size_list)
+    ]
     for file_obj in files:
         await upload_workload._register_discovered_file(file_obj)
 
@@ -534,7 +553,7 @@ async def test_remaining_bytes_all_completed(
 ) -> None:
     """Test _remaining_bytes returns 0 when all files completed."""
     num_files = 3
-    files = [MagicMock(spec=File, size=100) for _ in range(num_files)]
+    files = [_create_mock_file(name=f"file_{i}", size=100) for i in range(num_files)]
     for file_obj in files:
         await upload_workload._register_discovered_file(file_obj)
 
@@ -584,7 +603,9 @@ async def test_concurrent_mark_operations(
 ) -> None:
     """Test concurrent mark_completed and mark_failed maintain correct state."""
     num_files_even = 10
-    files = [MagicMock(spec=File, size=100) for _ in range(num_files_even)]
+    files = [
+        _create_mock_file(name=f"file_{i}", size=100) for i in range(num_files_even)
+    ]
     for file_obj in files:
         await upload_workload._register_discovered_file(file_obj)
 
@@ -763,3 +784,685 @@ def test_remove_from_buffer_removes_file(
     UploadWorkload._remove_from_buffer(mock_file, upload_workload.fq_pending)
 
     assert mock_file not in upload_workload.fq_pending
+
+
+# ===== tests for persistence layer
+
+
+@pytest.mark.anyio
+async def test_load_persisted_uploads_empty_when_disabled(
+    upload_workload: UploadWorkload,
+) -> None:
+    """Test _load_persisted_uploads returns empty dict when persist_state=False."""
+    upload_workload.persist_state = False
+
+    result = await upload_workload._load_persisted_uploads()
+
+    assert result == {}
+
+
+@pytest.mark.anyio
+async def test_load_persisted_uploads_no_file(
+    upload_workload: UploadWorkload,
+) -> None:
+    """Test _load_persisted_uploads returns empty dict when no persisted file."""
+    upload_workload.persist_state = True
+
+    result = await upload_workload._load_persisted_uploads()
+
+    assert result == {}
+
+
+@pytest.mark.anyio
+async def test_get_persisted_uploads_dir_creates_directory(
+    upload_workload: UploadWorkload,
+) -> None:
+    """Test _get_persisted_uploads_dir creates the directory if it doesn't exist."""
+    uploads_dir = upload_workload._get_persisted_uploads_dir()
+
+    assert uploads_dir.exists()
+    assert uploads_dir.is_dir()
+
+
+@pytest.mark.anyio
+async def test_get_persisted_uploads_path_consistent(
+    upload_workload: UploadWorkload,
+) -> None:
+    """Test _get_persisted_uploads_path returns consistent path."""
+    path1 = upload_workload._get_persisted_uploads_path()
+    path2 = upload_workload._get_persisted_uploads_path()
+
+    assert path1 == path2
+
+
+@pytest.mark.anyio
+async def test_save_persisted_upload_skipped_when_disabled(
+    upload_workload: UploadWorkload, mock_file: File
+) -> None:
+    """Test _save_persisted_upload does nothing when persist_state=False."""
+    upload_workload.persist_state = False
+    mock_file.local_path = Path("/tmp/test.txt")  # noqa: S108
+
+    # Mock compute_sum_blake3 to return a value
+    mock_file.compute_sum_blake3 = MagicMock(return_value="abc123")
+
+    persist_path = upload_workload._get_persisted_uploads_path()
+    initial_exists = persist_path.exists()
+
+    await upload_workload._save_persisted_upload(mock_file)
+
+    # File should not be created
+    assert persist_path.exists() == initial_exists
+
+
+@pytest.mark.anyio
+async def test_save_persisted_upload_creates_file(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _save_persisted_upload writes file to persistence."""
+    upload_workload.persist_state = True
+
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text("test content", encoding="utf-8")
+
+    file_model = MagicMock(spec=File)
+    file_model.local_path = file_path
+    file_model.compute_sum_blake3 = MagicMock(return_value="test_checksum_123")
+
+    persist_path = upload_workload._get_persisted_uploads_path()
+
+    await upload_workload._save_persisted_upload(file_model)
+
+    assert persist_path.exists()
+    content = persist_path.read_text(encoding="utf-8").strip()
+    assert "test_checksum_123" in content
+    assert str(file_path.resolve()) in content
+
+
+@pytest.mark.anyio
+async def test_save_persisted_upload_appends_to_file(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _save_persisted_upload appends to existing persistence file."""
+    upload_workload.persist_state = True
+
+    # Create two files
+    file1_path = tmp_path / "file1.txt"
+    file1_path.write_text("content1", encoding="utf-8")
+    file2_path = tmp_path / "file2.txt"
+    file2_path.write_text("content2", encoding="utf-8")
+
+    # Create mock file models
+    file1_model = MagicMock(spec=File)
+    file1_model.local_path = file1_path
+    file1_model.compute_sum_blake3 = MagicMock(return_value="checksum_1")
+
+    file2_model = MagicMock(spec=File)
+    file2_model.local_path = file2_path
+    file2_model.compute_sum_blake3 = MagicMock(return_value="checksum_2")
+
+    # Save both files
+    await upload_workload._save_persisted_upload(file1_model)
+    await upload_workload._save_persisted_upload(file2_model)
+
+    # Check both are persisted
+    persist_path = upload_workload._get_persisted_uploads_path()
+    lines = persist_path.read_text(encoding="utf-8").strip().split("\n")
+    expected_persisted_files = 2
+    assert len(lines) == expected_persisted_files
+    assert "checksum_1" in lines[0]
+    assert "checksum_2" in lines[1]
+
+
+@pytest.mark.anyio
+async def test_discover_files_skips_already_uploaded(
+    tmp_path: Path, client: Client
+) -> None:
+    """Test _discover_files skips files that have already been uploaded."""
+    root = tmp_path / "upload_root"
+    root.mkdir()
+
+    # Create two files
+    file1 = root / "file1.txt"
+    file1.write_text("content1", encoding="utf-8")
+    file2 = root / "file2.txt"
+    file2.write_text("content2", encoding="utf-8")
+
+    workload = UploadWorkload(
+        client=client,
+        local_root=root,
+        persist_state=True,
+    )
+
+    # Manually create persisted entry for file1
+
+    persist_path = workload._get_persisted_uploads_path()
+    file1_checksum = str(file1.stat().st_size)  # use size as fake checksum
+    persisted = PersistedUploadFile(
+        resolved_path=file1.resolve(),
+        sum_blake3=file1_checksum,
+    )
+
+    with persist_path.open("w", encoding="utf-8") as f:
+        f.write(persisted.model_dump_json() + "\n")
+
+    # Mock compute_sum_blake3 to return consistent results
+    # Mock compute_sum_blake3 to control checksum lookup
+    def mock_compute_sum_blake3(self: object) -> str | None:
+        if hasattr(self, "local_path"):
+            self_local_path = self.local_path
+            if self_local_path.resolve() == file1.resolve():
+                return file1_checksum
+        return "different_checksum"
+
+    with patch.object(File, "compute_sum_blake3", mock_compute_sum_blake3):
+        discovered = await workload._discover_files()
+
+        # Only file2 should be discovered (file1 matches persisted checksum)
+        assert len(discovered) == 1
+        assert discovered[0].name == "file2.txt"
+
+
+@pytest.mark.anyio
+async def test_mark_completed_persists_file(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _mark_completed saves the file to persistence."""
+    upload_workload.persist_state = True
+
+    file_path = tmp_path / "uploaded_file.txt"
+    file_path.write_text("uploaded content", encoding="utf-8")
+
+    file_model = MagicMock(spec=File)
+    file_model.local_path = file_path
+    file_model.size = 100
+    file_model.compute_sum_blake3 = MagicMock(return_value="persisted_checksum")
+
+    # Register and acquire the file
+    await upload_workload._register_discovered_file(file_model)
+    await upload_workload._acquire_next_file()
+
+    # Mark as completed
+    await upload_workload._mark_completed(file_model)
+
+    # Check it was persisted
+    persist_path = upload_workload._get_persisted_uploads_path()
+    assert persist_path.exists()
+    content = persist_path.read_text(encoding="utf-8")
+    assert "persisted_checksum" in content
+    assert str(file_path.resolve()) in content
+
+
+@pytest.mark.anyio
+async def test_persisted_uploads_path_deterministic(
+    tmp_path: Path, client: Client
+) -> None:
+    """Test that the same local_root produces the same persisted path."""
+    root = tmp_path / "upload_root"
+    root.mkdir()
+
+    workload1 = UploadWorkload(client=client, local_root=root)
+    workload2 = UploadWorkload(client=client, local_root=root)
+
+    path1 = workload1._get_persisted_uploads_path()
+    path2 = workload2._get_persisted_uploads_path()
+
+    assert path1 == path2
+
+
+@pytest.mark.anyio
+async def test_persisted_uploads_path_different_for_different_roots(
+    tmp_path: Path, client: Client
+) -> None:
+    """Test that different local_roots produce different persisted paths."""
+    root1 = tmp_path / "upload_root1"
+    root1.mkdir()
+    root2 = tmp_path / "upload_root2"
+    root2.mkdir()
+
+    workload1 = UploadWorkload(client=client, local_root=root1)
+    workload2 = UploadWorkload(client=client, local_root=root2)
+
+    path1 = workload1._get_persisted_uploads_path()
+    path2 = workload2._get_persisted_uploads_path()
+
+    assert path1 != path2
+
+
+@pytest.mark.anyio
+async def test_load_persisted_uploads_handles_corrupt_json(
+    upload_workload: UploadWorkload,
+) -> None:
+    """Test graceful handling of corrupted JSONL entries."""
+    upload_workload.persist_state = True
+    persist_path = upload_workload._get_persisted_uploads_path()
+
+    persist_path.write_text("invalid json\n")
+
+    result = await upload_workload._load_persisted_uploads()
+
+    assert result == {}
+
+
+@pytest.mark.anyio
+async def test_save_persisted_upload_handles_write_error(
+    upload_workload: UploadWorkload, mock_file: File, tmp_path: Path
+) -> None:
+    """Test graceful handling when persistence write fails."""
+    upload_workload.persist_state = True
+
+    uploads_dir = upload_workload._get_persisted_uploads_dir()
+    original_mode = uploads_dir.stat().st_mode
+    try:
+        uploads_dir.chmod(0o444)
+
+        await upload_workload._save_persisted_upload(mock_file)
+    finally:
+        uploads_dir.chmod(original_mode)
+
+
+@pytest.mark.anyio
+async def test_discover_files_detects_updated_file_via_checksum(
+    tmp_path: Path, client: Client
+) -> None:
+    """Test that file with changed content is NOT skipped (checksum differs)."""
+    root = tmp_path / "upload_root"
+    root.mkdir()
+    file1 = root / "file.txt"
+    file1.write_text("original", encoding="utf-8")
+
+    workload = UploadWorkload(client=client, local_root=root, persist_state=True)
+
+    persist_path = workload._get_persisted_uploads_path()
+    old_checksum = "old_checksum_abc"
+    persisted = PersistedUploadFile(
+        resolved_path=file1.resolve(),
+        sum_blake3=old_checksum,
+    )
+    persist_path.write_text(persisted.model_dump_json() + "\n")
+
+    file1.write_text("modified", encoding="utf-8")
+
+    with patch.object(File, "compute_sum_blake3") as mock_checksum:
+        mock_checksum.return_value = "new_checksum_def"
+        discovered = await workload._discover_files()
+
+    assert len(discovered) == 1
+    assert discovered[0].name == "file.txt"
+
+
+@pytest.mark.anyio
+async def test_persistence_full_workflow(tmp_path: Path, client: Client) -> None:
+    """Test persistence across multiple discovery and upload cycles."""
+    root = tmp_path / "upload_root"
+    root.mkdir()
+    file1 = root / "file1.txt"
+    file1.write_text("content1", encoding="utf-8")
+
+    workload = UploadWorkload(client=client, local_root=root, persist_state=True)
+
+    discovered1 = await workload._discover_files()
+    assert len(discovered1) == 1
+    assert len(workload.fq_pending) == 1
+
+    file_obj = discovered1[0]
+    await workload._mark_completed(file_obj)
+
+    persist_path = workload._get_persisted_uploads_path()
+    assert persist_path.exists()
+    lines = persist_path.read_text(encoding="utf-8").strip().split("\n")
+    assert len(lines) == 1
+
+    workload2 = UploadWorkload(client=client, local_root=root, persist_state=True)
+    discovered2 = await workload2._discover_files()
+
+    assert len(discovered2) == 0
+    assert len(workload2.fq_pending) == 0
+
+
+# ===== tests for persistence removal
+
+
+@pytest.mark.anyio
+async def test_remove_persisted_upload_disabled_when_persist_state_false(
+    upload_workload: UploadWorkload,
+) -> None:
+    """Test _remove_persisted_upload does nothing when persist_state=False."""
+    upload_workload.persist_state = False
+    persist_path = upload_workload._get_persisted_uploads_path()
+
+    # Call should not raise or create file
+    await upload_workload._remove_persisted_upload("/some/path")
+    assert not persist_path.exists()
+
+
+@pytest.mark.anyio
+async def test_remove_persisted_upload_no_file_exists(
+    upload_workload: UploadWorkload,
+) -> None:
+    """Test _remove_persisted_upload returns early if persistence file doesn't exist."""
+    upload_workload.persist_state = True
+    persist_path = upload_workload._get_persisted_uploads_path()
+
+    assert not persist_path.exists()
+    await upload_workload._remove_persisted_upload("/some/path")
+    assert not persist_path.exists()
+
+
+@pytest.mark.anyio
+async def test_remove_persisted_upload_removes_single_entry(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _remove_persisted_upload removes a single entry from persistence."""
+    upload_workload.persist_state = True
+
+    # Create persisted entry
+    file_path = tmp_path / "test_file.txt"
+    file_path.write_text("content", encoding="utf-8")
+    resolved_path = str(file_path.resolve())
+
+    persisted = PersistedUploadFile(
+        resolved_path=file_path.resolve(),
+        sum_blake3="checksum_123",
+    )
+
+    persist_path = upload_workload._get_persisted_uploads_path()
+    persist_path.write_text(persisted.model_dump_json() + "\n")
+
+    # Remove the entry
+    await upload_workload._remove_persisted_upload(resolved_path)
+
+    # File should be empty
+    content = persist_path.read_text(encoding="utf-8").strip()
+    assert content == ""
+
+
+@pytest.mark.anyio
+async def test_remove_persisted_upload_removes_from_multiple_entries(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _remove_persisted_upload removes specific entry from multiple entries."""
+    upload_workload.persist_state = True
+
+    # Create three persisted entries
+    file_paths = [
+        tmp_path / "file1.txt",
+        tmp_path / "file2.txt",
+        tmp_path / "file3.txt",
+    ]
+    for file_path in file_paths:
+        file_path.write_text("content", encoding="utf-8")
+
+    persist_path = upload_workload._get_persisted_uploads_path()
+    for idx, file_path in enumerate(file_paths):
+        persisted = PersistedUploadFile(
+            resolved_path=file_path.resolve(),
+            sum_blake3=f"checksum_{idx}",
+        )
+        with persist_path.open("a", encoding="utf-8") as f:
+            f.write(persisted.model_dump_json() + "\n")
+
+    # Remove middle entry
+    await upload_workload._remove_persisted_upload(str(file_paths[1].resolve()))
+
+    # Check that other entries remain
+    lines = persist_path.read_text(encoding="utf-8").strip().split("\n")
+    expected_remaining_entries = 2
+    assert len(lines) == expected_remaining_entries
+    first_entry_idx = 0
+    second_entry_idx = 1
+    assert "checksum_0" in lines[first_entry_idx]
+    assert "checksum_2" in lines[second_entry_idx]
+    assert "checksum_1" not in persist_path.read_text(encoding="utf-8")
+
+
+@pytest.mark.anyio
+async def test_remove_persisted_upload_nonexistent_entry(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _remove_persisted_upload handles removal of nonexistent entry gracefully."""
+    upload_workload.persist_state = True
+
+    # Create one persisted entry
+    file_path = tmp_path / "file1.txt"
+    file_path.write_text("content", encoding="utf-8")
+
+    persisted = PersistedUploadFile(
+        resolved_path=file_path.resolve(),
+        sum_blake3="checksum_1",
+    )
+
+    persist_path = upload_workload._get_persisted_uploads_path()
+    persist_path.write_text(persisted.model_dump_json() + "\n")
+
+    # Try to remove nonexistent entry
+    nonexistent = tmp_path / "nonexistent.txt"
+    await upload_workload._remove_persisted_upload(str(nonexistent.resolve()))
+
+    # Original entry should remain unchanged
+    lines = persist_path.read_text(encoding="utf-8").strip().split("\n")
+    assert len(lines) == 1
+    assert "checksum_1" in lines[0]
+
+
+@pytest.mark.anyio
+async def test_rewrite_persisted_uploads_excluding_empty_file(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _rewrite_persisted_uploads_excluding on empty persistence file."""
+    persist_path = tmp_path / "empty_uploads.jsonl"
+    persist_path.write_text("")
+
+    await upload_workload._rewrite_persisted_uploads_excluding(
+        persist_path,
+        {"/some/path"},
+    )
+
+    assert persist_path.read_text(encoding="utf-8") == ""
+
+
+@pytest.mark.anyio
+async def test_rewrite_persisted_uploads_excluding_all_entries(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _rewrite_persisted_uploads_excluding can remove all entries."""
+    # Create multiple entries
+    file_paths = [
+        tmp_path / "file1.txt",
+        tmp_path / "file2.txt",
+    ]
+    persist_path = tmp_path / "uploads.jsonl"
+
+    excluded_paths = set()
+    for file_path in file_paths:
+        file_path.write_text("content", encoding="utf-8")
+        persisted = PersistedUploadFile(
+            resolved_path=file_path.resolve(),
+            sum_blake3="checksum",
+        )
+        with persist_path.open("a", encoding="utf-8") as f:
+            f.write(persisted.model_dump_json() + "\n")
+        excluded_paths.add(str(file_path.resolve()))
+
+    # Exclude all entries
+    await upload_workload._rewrite_persisted_uploads_excluding(
+        persist_path,
+        excluded_paths,
+    )
+
+    content = persist_path.read_text(encoding="utf-8").strip()
+    assert content == ""
+
+
+@pytest.mark.anyio
+async def test_rewrite_persisted_uploads_excluding_keeps_unexcluded(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _rewrite_persisted_uploads_excluding preserves non-excluded entries."""
+    file_paths = [
+        tmp_path / "file1.txt",
+        tmp_path / "file2.txt",
+        tmp_path / "file3.txt",
+    ]
+    persist_path = tmp_path / "uploads.jsonl"
+
+    for idx, file_path in enumerate(file_paths):
+        file_path.write_text("content", encoding="utf-8")
+        persisted = PersistedUploadFile(
+            resolved_path=file_path.resolve(),
+            sum_blake3=f"checksum_{idx}",
+        )
+        with persist_path.open("a", encoding="utf-8") as f:
+            f.write(persisted.model_dump_json() + "\n")
+
+    # Exclude only file2
+    excluded = {str(file_paths[1].resolve())}
+    await upload_workload._rewrite_persisted_uploads_excluding(
+        persist_path,
+        excluded,
+    )
+
+    # Verify file2 was removed and others remain
+    lines = persist_path.read_text(encoding="utf-8").strip().split("\n")
+    expected_remaining_entries = 2
+    assert len(lines) == expected_remaining_entries
+    checksums = []
+    for line in lines:
+        data = json.loads(line)
+        checksums.append(data["sum_blake3"])
+    assert "checksum_0" in checksums
+    assert "checksum_2" in checksums
+    assert "checksum_1" not in checksums
+
+
+@pytest.mark.anyio
+async def test_rewrite_persisted_uploads_excluding_handles_corrupt_entries(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _rewrite_persisted_uploads_excluding logs warning on corrupt JSON."""
+    persist_path = tmp_path / "corrupt_uploads.jsonl"
+    persist_path.write_text("invalid json line\n")
+
+    with patch("spectrumx.api.uploads.log_user_warning") as mock_warn:
+        await upload_workload._rewrite_persisted_uploads_excluding(
+            persist_path,
+            set(),
+        )
+        mock_warn.assert_called()
+
+
+@pytest.mark.anyio
+async def test_discover_files_removes_stale_entry_on_checksum_mismatch(
+    tmp_path: Path, client: Client
+) -> None:
+    """Test _process_file_candidate removes persisted entry on checksum mismatch."""
+    root = tmp_path / "upload_root"
+    root.mkdir()
+    file_path = root / "file.txt"
+    file_path.write_text("original", encoding="utf-8")
+
+    workload = UploadWorkload(client=client, local_root=root, persist_state=True)
+
+    persist_path = workload._get_persisted_uploads_path()
+    old_checksum = "old_checksum_value"
+    persisted = PersistedUploadFile(
+        resolved_path=file_path.resolve(),
+        sum_blake3=old_checksum,
+    )
+    persist_path.write_text(persisted.model_dump_json() + "\n")
+
+    # File content changed
+    file_path.write_text("modified", encoding="utf-8")
+
+    with patch.object(File, "compute_sum_blake3") as mock_checksum:
+        mock_checksum.return_value = "new_checksum_value"
+        discovered = await workload._discover_files()
+
+    # File should be discovered and persisted entry removed
+    assert len(discovered) == 1
+    # Persistence file should be empty (old entry removed)
+    content = persist_path.read_text(encoding="utf-8").strip()
+    assert content == ""
+
+
+@pytest.mark.anyio
+async def test_discover_files_removes_expired_entry(
+    tmp_path: Path, client: Client
+) -> None:
+    """Test _process_file_candidate removes persisted entry when it's too old."""
+
+    root = tmp_path / "upload_root"
+    root.mkdir()
+    file_path = root / "file.txt"
+    file_path.write_text("content", encoding="utf-8")
+
+    workload = UploadWorkload(client=client, local_root=root, persist_state=True)
+
+    persist_path = workload._get_persisted_uploads_path()
+    # Create expired entry (8 days ago, exceeds 7-day limit)
+    expired_date = datetime.now(UTC) - timedelta(days=8)
+    persisted = PersistedUploadFile(
+        resolved_path=file_path.resolve(),
+        sum_blake3="matching_checksum",
+        uploaded_at=expired_date,
+    )
+    persist_path.write_text(persisted.model_dump_json() + "\n")
+
+    with patch.object(File, "compute_sum_blake3") as mock_checksum:
+        mock_checksum.return_value = "matching_checksum"
+        discovered = await workload._discover_files()
+
+    # File should be discovered (expired entry removed)
+    assert len(discovered) == 1
+    # Persistence file should be empty (expired entry removed)
+    content = persist_path.read_text(encoding="utf-8").strip()
+    assert content == ""
+
+
+@pytest.mark.anyio
+async def test_remove_persisted_upload_handles_parse_error(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _remove_persisted_upload logs warning on parse errors."""
+    upload_workload.persist_state = True
+    persist_path = upload_workload._get_persisted_uploads_path()
+
+    persist_path.write_text("invalid json\n")
+
+    with patch("spectrumx.api.uploads.log_user_warning") as mock_warn:
+        await upload_workload._remove_persisted_upload("/some/path")
+        mock_warn.assert_called()
+
+
+@pytest.mark.anyio
+async def test_remove_persisted_upload_handles_write_error(
+    upload_workload: UploadWorkload, tmp_path: Path
+) -> None:
+    """Test _remove_persisted_upload handles write permission errors gracefully."""
+    upload_workload.persist_state = True
+
+    file_path = tmp_path / "file.txt"
+    file_path.write_text("content", encoding="utf-8")
+
+    persist_path = upload_workload._get_persisted_uploads_path()
+    persisted = PersistedUploadFile(
+        resolved_path=file_path.resolve(),
+        sum_blake3="checksum",
+    )
+    persist_path.write_text(persisted.model_dump_json() + "\n")
+
+    # Mock Path.open to raise OSError on write
+    original_open = Path.open
+    error_msg = "Permission denied"
+
+    def mock_open_write(self: Path, *args, **kwargs) -> None:
+        if kwargs.get("encoding"):
+            raise OSError(error_msg)
+        return original_open(self, *args, **kwargs)
+
+    with (
+        patch.object(Path, "open", mock_open_write),
+        patch("spectrumx.api.uploads.log_user_warning") as mock_warn,
+    ):
+        await upload_workload._remove_persisted_upload(str(file_path.resolve()))
+        mock_warn.assert_called()

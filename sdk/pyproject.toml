@@ -281,7 +281,7 @@
     [tool.coverage.run]
         # https://coverage.readthedocs.io/en/latest/config.html#run
         branch = true
-        omit   = ["*/__init__.py", "*/__main__.py", "*/tests/**/*.py", "usage.py"]
+        omit   = ["*/__init__.py", "*/__main__.py", "*/tests/**/*.py", "*/vendor/**/*.py", "usage.py"]
 
     [tool.coverage.html]
         directory = "tests/coverage"

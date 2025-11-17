@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import sys
 from datetime import UTC
 from datetime import datetime
@@ -31,6 +33,7 @@ from spectrumx.ops import files as file_ops
 from spectrumx.utils import get_prog_bar
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
+from spectrumx.vendor.xdg_base_dirs import xdg_state_home
 
 upload_prog_bar_kwargs = {
     "desc": "Discovering files...",  # placeholder before upload starts
@@ -42,6 +45,20 @@ upload_prog_bar_kwargs = {
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+MAX_DAYS_FOR_RESUMING_UPLOAD = 7
+
+
+class PersistedUploadFile(BaseModel):
+    """Represents a file that was successfully uploaded and persisted locally.
+
+    Allows quick resumption of uploads by tracking which files have already been
+    uploaded based on their resolved path and BLAKE3 checksum.
+    """
+
+    resolved_path: Path
+    sum_blake3: str
+    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 
 class UploadedFile(BaseModel):
@@ -79,6 +96,7 @@ class UploadWorkload(BaseModel):
     total_bytes: int = 0
     verbose: bool = False
     warn_skipped: bool = True
+    persist_state: bool = True
 
     # progress bars
     _prog_uploaded_bytes: tqdm[NoReturn] | None = None
@@ -91,6 +109,7 @@ class UploadWorkload(BaseModel):
     def model_post_init(self, context) -> None:
         """Initialize the workload with an async lock."""
         self._state_lock = asyncio.Lock()
+        self._workload_id = self._compute_workload_id()
         if self.verbose:
             self._prog_uploaded_bytes = get_prog_bar(
                 total=self.total_bytes,
@@ -100,6 +119,182 @@ class UploadWorkload(BaseModel):
             self._prog_uploaded_bytes.disable = True
             self._prog_uploaded_bytes.clear()
         super().model_post_init(context)
+
+    @staticmethod
+    def _compute_workload_id() -> str:
+        """Compute a stable workload ID based on current time."""
+        return hashlib.sha256(
+            str(datetime.now(tz=UTC).isoformat()).encode()
+        ).hexdigest()[:16]
+
+    def _get_persisted_uploads_dir(self) -> Path:
+        """Get the directory where persisted upload records are stored."""
+        state_home = xdg_state_home()
+        uploads_dir = state_home / "spectrumx" / "uploads"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        return uploads_dir
+
+    def _get_persisted_uploads_path(self) -> Path:
+        """Get the path to the persistence file for this workload."""
+        uploads_dir = self._get_persisted_uploads_dir()
+        root_hash = hashlib.sha256(
+            str(self.local_root.resolve()).encode("utf-8")
+        ).hexdigest()[:8]
+        return uploads_dir / f"{root_hash}_uploads.jsonl"
+
+    async def _load_persisted_uploads(self) -> dict[str, PersistedUploadFile]:
+        """Load previously uploaded files from persistence.
+
+        Returns:
+            Dictionary mapping resolved paths to PersistedUploadFile records.
+        """
+        if not self.persist_state:
+            return {}
+
+        persist_path = self._get_persisted_uploads_path()
+        if not persist_path.exists():
+            return {}
+
+        persisted: dict[str, PersistedUploadFile] = {}
+        try:
+            with persist_path.open(encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():  # pragma: no cover
+                        continue
+                    data = json.loads(line)
+                    uploaded_file = PersistedUploadFile(**data)
+                    persisted[str(uploaded_file.resolved_path)] = uploaded_file
+        except (json.JSONDecodeError, ValueError) as err:
+            log_user_warning(
+                f"Failed to load persisted uploads; resuming might be slower: {err}"
+            )
+            return {}
+        return persisted
+
+    async def _save_persisted_upload(self, sds_file: File) -> None:
+        """Save an uploaded file to persistence.
+
+        Args:
+            sds_file: The file that was successfully uploaded.
+        """
+        if not self.persist_state or not sds_file.local_path:
+            return
+
+        # Compute checksum if not already done
+        sum_blake3 = sds_file.compute_sum_blake3()
+        if not sum_blake3:
+            return
+
+        persisted_file = PersistedUploadFile(
+            resolved_path=sds_file.local_path.resolve(),
+            sum_blake3=sum_blake3,
+        )
+
+        persist_path = self._get_persisted_uploads_path()
+        try:
+            with persist_path.open("a", encoding="utf-8") as f:
+                f.write(persisted_file.model_dump_json() + "\n")
+        except (OSError, ValueError) as err:
+            log_user_warning(f"Failed to persist uploaded file: {err}")
+
+    async def _remove_persisted_upload(self, resolved_path: str) -> None:
+        """Remove an upload entry from persisted storage.
+
+        Args:
+            resolved_path: The resolved file path to remove from persistence.
+        """
+        if not self.persist_state:
+            return
+
+        persist_path = self._get_persisted_uploads_path()
+        if not persist_path.exists():
+            return
+
+        try:
+            await self._rewrite_persisted_uploads_excluding(
+                persist_path=persist_path,
+                excluded_paths={resolved_path},
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as err:
+            log_user_warning(f"Failed to remove persisted upload entry: {err}")
+
+    async def _rewrite_persisted_uploads_excluding(
+        self,
+        persist_path: Path,
+        excluded_paths: set[str],
+    ) -> None:
+        """Rewrite the persistence file, excluding specified paths.
+
+        Args:
+            persist_path: Path to the persistence file.
+            excluded_paths: Set of resolved paths to exclude from the rewritten file.
+        """
+        persisted_entries: list[PersistedUploadFile] = []
+        try:
+            with persist_path.open(encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    data = json.loads(line)
+                    uploaded_file = PersistedUploadFile(**data)
+                    if str(uploaded_file.resolved_path) not in excluded_paths:
+                        persisted_entries.append(uploaded_file)
+        except (json.JSONDecodeError, ValueError) as err:
+            log_user_warning(f"Failed to parse persisted uploads for rewrite: {err}")
+            return
+
+        # Rewrite the file with remaining entries
+        try:
+            with persist_path.open("w", encoding="utf-8") as f:
+                for entry in persisted_entries:
+                    f.write(entry.model_dump_json() + "\n")
+        except OSError as err:
+            log_user_warning(f"Failed to rewrite persistence file: {err}")
+
+    async def _process_file_candidate(
+        self,
+        *,
+        candidate: Path,
+        root: Path,
+        persisted_uploads: dict[str, PersistedUploadFile],
+        check_sds_ignore: bool,
+    ) -> None:
+        """Process a single file candidate during discovery.
+
+        Validates the file, checks for prior uploads, and registers if needed.
+        """
+        is_valid, reasons = file_ops.is_valid_file(
+            file_path=candidate,
+            check_sds_ignore=check_sds_ignore,
+        )
+        if not is_valid:
+            skipped = SkippedUpload(path=candidate, reasons=tuple(reasons))
+            await self._add_skipped(skipped)
+            if self.warn_skipped:
+                log_user_warning(f"Skipping {candidate}:")
+                for reason in reasons:
+                    log_user_warning(f"  - {reason}")
+            return
+
+        file_model = create_file_instance(root=root, candidate=candidate)
+
+        # Skip files that have already been successfully uploaded
+        resolved_path = str(candidate.resolve())
+        if resolved_path in persisted_uploads:
+            persisted = persisted_uploads[resolved_path]
+            current_checksum = file_model.compute_sum_blake3()
+            if (
+                current_checksum == persisted.sum_blake3
+                and (datetime.now(UTC) - persisted.uploaded_at).days
+                <= MAX_DAYS_FOR_RESUMING_UPLOAD
+            ):
+                if self.verbose:  # pragma: no cover
+                    log_user(f"Skipping already uploaded: {candidate.name}")
+                return
+            # Remove stale entry (checksum changed or entry expired)
+            await self._remove_persisted_upload(resolved_path)
+
+        await self._register_discovered_file(file_model)
 
     async def _discover_files(
         self,
@@ -128,6 +323,8 @@ class UploadWorkload(BaseModel):
         await self._reset_state()
         self.discovery_started_at = datetime.now(UTC)
 
+        persisted_uploads = await self._load_persisted_uploads()
+
         file_candidate_generator: Iterable[Path] = root.rglob("*")
         file_candidate_progress = get_prog_bar(
             None,
@@ -139,22 +336,13 @@ class UploadWorkload(BaseModel):
         for candidate in file_candidate_generator:
             if not candidate.is_file():
                 continue
-            is_valid, reasons = file_ops.is_valid_file(
-                file_path=candidate,
+            file_candidate_progress.update(1)
+            await self._process_file_candidate(
+                candidate=candidate,
+                root=root,
+                persisted_uploads=persisted_uploads,
                 check_sds_ignore=check_sds_ignore,
             )
-            file_candidate_progress.update(1)
-            if not is_valid:
-                skipped = SkippedUpload(path=candidate, reasons=tuple(reasons))
-                await self._add_skipped(skipped)
-                if self.warn_skipped:
-                    log_user_warning(f"Skipping {candidate}:")
-                    for reason in reasons:
-                        log_user_warning(f"  - {reason}")
-                continue
-
-            file_model = create_file_instance(root=root, candidate=candidate)
-            await self._register_discovered_file(file_model)
 
         self.discovery_finished_at = datetime.now(UTC)
 
@@ -199,6 +387,7 @@ class UploadWorkload(BaseModel):
             self._remove_from_buffer(sds_file, self.fq_in_progress)
             if sds_file not in self.fq_completed:
                 self.fq_completed.append(sds_file)
+        await self._save_persisted_upload(sds_file)
         await self._update_prog_bars(num_bytes=sds_file.size)
 
     async def _update_prog_bars(self, num_bytes: int | None = None) -> None:
@@ -222,6 +411,7 @@ class UploadWorkload(BaseModel):
                 f"+ {len(self.fq_skipped):,} 🐇 "
                 f" / {len(self.fq_discovered):,}"
             )
+        # pragma: no cover
         return (
             f"{prefix}{len(self.fq_completed):,} done"
             f" + {len(self.fq_failed):,} fail"
@@ -404,6 +594,7 @@ def upload_resumable(
     max_concurrent_uploads: int = 5,
     verbose: bool = True,
     warn_skipped: bool = True,
+    persist_state: bool = True,
 ) -> list[Result[File]]:
     """Uploads files to SDS using resumable concurrent uploads.
 
@@ -414,6 +605,7 @@ def upload_resumable(
         max_concurrent_uploads:    Maximum number of concurrent upload workers.
         verbose:                   Whether to print verbose output.
         warn_skipped:              Whether to warn when a file is skipped.
+        persist_state:             Whether to persist upload state for resumption.
 
     Returns:
         A list of Result objects for each uploaded file.
@@ -428,6 +620,7 @@ def upload_resumable(
         max_concurrent_uploads=max_concurrent_uploads,
         verbose=verbose,
         warn_skipped=warn_skipped,
+        persist_state=persist_state,
     )
 
     return asyncio.run(upload_workload.run(client=client))
