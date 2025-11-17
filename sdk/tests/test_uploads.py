@@ -1400,7 +1400,7 @@ async def test_discover_files_removes_expired_entry(
 
     persist_path = workload._get_persisted_uploads_path()
     # Create expired entry (8 days ago, exceeds 7-day limit)
-    expired_date = datetime.now(UTC) - timedelta(days=8)
+    expired_date = datetime.now(UTC) - timedelta(days=31)
     persisted = PersistedUploadFile(
         resolved_path=file_path.resolve(),
         sum_blake3="matching_checksum",

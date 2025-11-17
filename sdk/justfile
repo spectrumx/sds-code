@@ -139,7 +139,6 @@ test-integration python=python_version *pytest_args:
     @echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
     uv run --resolution highest -p '{{python}}' pytest \
         -m '{{test_marker_integration}}' \
-        --maxfail=3 \
         {{pytest_args}} \
         tests
 

@@ -46,7 +46,7 @@ upload_prog_bar_kwargs = {
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-MAX_DAYS_FOR_RESUMING_UPLOAD = 7
+MAX_DAYS_FOR_RESUMING_UPLOAD = 30
 
 
 class PersistedUploadFile(BaseModel):
