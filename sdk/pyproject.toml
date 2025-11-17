@@ -310,14 +310,12 @@
 # ==== TESTING ====
 [tool.pytest]
 
-    # [tool.pytest.ini_options]
     # pytest
     #   https://docs.pytest.org/en/stable/reference/reference.html#confval-addopts
     # pytest-cov
     #   https://pytest-cov.readthedocs.io/en/latest/config.html
-    # more verbose:
-    # addopts = "--maxfail=2 --new-first -rf --strict-markers --cov=src --cov-report=html --show-capture=stdout -o log_cli=true --showlocals --tb=long --capture=no"
-    # less verbose:
+    # addopts are used as default command line options for pytest
+    # when running `pytest` command without arguments
     addopts = [
         "--maxfail=10",
         "--new-first",
@@ -329,6 +327,8 @@
         "-o",
         "log_cli=true",
         "--tb=short",
+        # "--tb=long",    # more verbose
+        # "--capture=no", # more verbose
     ]
     # capture = "no" # "fd", "sys", "no", "tee-sys"
     consider_namespace_packages = true

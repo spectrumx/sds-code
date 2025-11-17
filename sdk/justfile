@@ -85,18 +85,31 @@ pyright:
 
 # runs tests using the default dependency resolution
 test python=python_version *pytest_args:
-    @echo -e "\n\t\033[34mRunning tests against Python {{python}}\033[0m\n"
-    uv run --resolution highest -p '{{python}}' pytest \
-        -m '{{test_marker_default}}' \
-        --cov=src \
-        --cov-config=pyproject.toml \
-        --cov-report=term-missing:skip-covered \
-        --cov-report=html \
-        --cov-report=html:tests/htmlcov \
-        --cov-fail-under=75 \
-        --no-cov-on-fail \
-        {{pytest_args}} \
-        tests
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo -e "\n\t\033[34mRunning tests against Python {{python}}\033[0m\n"
+
+    # no coverage if -k is used (likely a focused test run)
+    if [[ "{{pytest_args}}" =~ -k ]]; then
+        # -rA   | always show test names when using -k
+        uv run --resolution highest -p '{{python}}' pytest \
+            -m '{{test_marker_default}}' \
+            -rA \
+            {{pytest_args}} \
+            tests
+    else
+        uv run --resolution highest -p '{{python}}' pytest \
+            -m '{{test_marker_default}}' \
+            --cov=src \
+            --cov-config=pyproject.toml \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=html \
+            --cov-report=html:tests/htmlcov \
+            --cov-fail-under=75 \
+            --no-cov-on-fail \
+            {{pytest_args}} \
+            tests
+    fi
 
 # tests against all supported python versions and dep lower bounds (no integration tests)
 test-all *args:
