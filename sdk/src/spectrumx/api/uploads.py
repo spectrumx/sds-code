@@ -31,6 +31,7 @@ from spectrumx.models.files.file import (
 )
 from spectrumx.ops import files as file_ops
 from spectrumx.utils import get_prog_bar
+from spectrumx.utils import is_test_env
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
 from spectrumx.vendor.xdg_base_dirs import xdg_state_home
@@ -173,6 +174,11 @@ class UploadWorkload(BaseModel):
             return {}
         return persisted
 
+    @property
+    def should_persist(self) -> bool:
+        """Don't persist data when in dry-run mode, except in tests"""
+        return not self.client.dry_run or is_test_env()
+
     async def _save_persisted_upload(self, sds_file: File) -> None:
         """Save an uploaded file to persistence.
 
@@ -182,7 +188,7 @@ class UploadWorkload(BaseModel):
         if not self.persist_state or not sds_file.local_path:
             return
 
-        # Compute checksum if not already done
+        # compute checksum if not already done
         sum_blake3 = sds_file.compute_sum_blake3()
         if not sum_blake3:
             return
@@ -193,6 +199,9 @@ class UploadWorkload(BaseModel):
         )
 
         persist_path = self._get_persisted_uploads_path()
+        # don't persist data when in dry-run mode, except in tests
+        if not self.should_persist:  # pragma: no cover
+            return
         try:
             with persist_path.open("a", encoding="utf-8") as f:
                 f.write(persisted_file.model_dump_json() + "\n")
@@ -245,7 +254,10 @@ class UploadWorkload(BaseModel):
             log_user_warning(f"Failed to parse persisted uploads for rewrite: {err}")
             return
 
-        # Rewrite the file with remaining entries
+        # don't persist data when in dry-run mode, except in tests
+        if not self.should_persist:  # pragma: no cover
+            return
+        # rewrite the file with remaining entries
         try:
             with persist_path.open("w", encoding="utf-8") as f:
                 for entry in persisted_entries:
@@ -280,7 +292,7 @@ class UploadWorkload(BaseModel):
 
         file_model = create_file_instance(root=root, candidate=candidate)
 
-        # Skip files that have already been successfully uploaded
+        # skip files that have already been successfully uploaded
         resolved_path = str(candidate.resolve())
         if resolved_path in persisted_uploads:
             persisted = persisted_uploads[resolved_path]
@@ -293,7 +305,7 @@ class UploadWorkload(BaseModel):
                 if self.verbose:  # pragma: no cover
                     log_user(f"Skipping already uploaded: {candidate.name}")
                 return
-            # Remove stale entry (checksum changed or entry expired)
+            # remove stale entry (checksum changed or entry expired)
             await self._remove_persisted_upload(resolved_path)
 
         await self._register_discovered_file(file_model)
