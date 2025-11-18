@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import NoReturn
 from typing import TypeVar
+from typing import cast
 
 from blake3 import blake3 as Blake3  # noqa: N812
 from loguru import logger as log
@@ -81,7 +82,7 @@ def into_human_bool(value: str | int | bool) -> bool:  # noqa: FBT001
 def is_running_in_notebook() -> bool:
     """Check if the current environment is a Jupyter notebook."""
     try:
-        from IPython import (  # pyright: ignore[reportMissingModuleSource, reportMissingImports]  # noqa: PLC0415
+        from IPython import (  # pyright: ignore[reportMissingModuleSource, reportMissingImports]  # noqa: PLC0415 # pyrefly: ignore[missing-import]
             get_ipython,  # pyright: ignore[reportPrivateImportUsage]
         )
 
@@ -150,7 +151,7 @@ T = TypeVar("T")
 
 def get_prog_bar(
     iterable: Iterable[T] | None = None, *args, **kwargs
-) -> tqdm[T] | tqdm[NoReturn]:
+) -> tqdm[T] | tqdm[NoReturn]:  # pyrefly: ignore[bad-specialization]
     """SDS standard progress bar."""
     default_options = {
         "unit": "files",
@@ -163,4 +164,7 @@ def get_prog_bar(
     }
     kwargs = {**default_options, **kwargs}
 
-    return auto_tqdm.tqdm(iterable, *args, **kwargs)
+    return cast(
+        "tqdm[T]",  # pyrefly: ignore[bad-specialization]
+        auto_tqdm.tqdm(iterable, *args, **kwargs),
+    )

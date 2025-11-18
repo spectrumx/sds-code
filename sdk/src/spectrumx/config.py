@@ -140,9 +140,9 @@ class SDSConfig:
             setattr(
                 self,
                 attr.attr_name,
-                attr.value,
+                attr.attr_value,
             )
-            _log_redacted(key=attr.attr_name, value=attr.value)
+            _log_redacted(key=attr.attr_name, value=attr.attr_value)
 
         # validate attributes / show user warnings
         if not self.api_key:
@@ -236,7 +236,9 @@ def _clean_config(
             continue
 
         # set value
-        attr.value = attr.cast_fn(sensitive_value) if attr.cast_fn else sensitive_value
+        attr.attr_value = (
+            attr.cast_fn(sensitive_value) if attr.cast_fn else sensitive_value
+        )
 
         # set the attribute, casting if necessary
         cleaned_config.append(attr)
@@ -245,8 +247,9 @@ def _clean_config(
 
 
 def _log_redacted(
+    *,
     key: str,
-    value: str,
+    value: str | float | bool | None,
     log_fn: Callable[[str], None] = logger.info,
     depth: int = 1,
 ) -> None:

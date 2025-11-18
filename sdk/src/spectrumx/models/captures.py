@@ -90,7 +90,6 @@ class Capture(SDSModel):
             f"created_at={self.created_at})"
         )
 
-    @property
     def __repr_name__(self) -> str:
         """Get the name of the capture for display."""
         return self.name or self.capture_type.value

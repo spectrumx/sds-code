@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 from loguru import logger as log
+from spectrumx.api.uploads import MAX_DAYS_FOR_RESUMING_UPLOAD
 from spectrumx.api.uploads import PersistedUploadFile
 from spectrumx.api.uploads import SkippedUpload
 from spectrumx.api.uploads import UploadWorkload
@@ -1399,8 +1400,7 @@ async def test_discover_files_removes_expired_entry(
     workload = UploadWorkload(client=client, local_root=root, persist_state=True)
 
     persist_path = workload._get_persisted_uploads_path()
-    # Create expired entry (8 days ago, exceeds 7-day limit)
-    expired_date = datetime.now(UTC) - timedelta(days=31)
+    expired_date = datetime.now(UTC) - timedelta(days=MAX_DAYS_FOR_RESUMING_UPLOAD + 1)
     persisted = PersistedUploadFile(
         resolved_path=file_path.resolve(),
         sum_blake3="matching_checksum",

@@ -99,7 +99,9 @@ class UploadWorkload(BaseModel):
     persist_state: bool = True
 
     # progress bars
-    _prog_uploaded_bytes: tqdm[NoReturn] | None = None
+    _prog_uploaded_bytes: (
+        tqdm[NoReturn] | None  # pyrefly: ignore[bad-specialization]
+    ) = None
 
     model_config = {
         "populate_by_name": True,
@@ -113,7 +115,7 @@ class UploadWorkload(BaseModel):
         if self.verbose:
             self._prog_uploaded_bytes = get_prog_bar(
                 total=self.total_bytes,
-                **upload_prog_bar_kwargs,
+                **upload_prog_bar_kwargs,  # pyrefly: ignore[bad-argument-type]
                 leave=True,
             )
             self._prog_uploaded_bytes.disable = True

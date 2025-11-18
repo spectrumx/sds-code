@@ -192,7 +192,11 @@ class GatewayClient:
         response = self._request(
             method=HTTPMethods.GET, endpoint=Endpoints.AUTH, verbose=verbose
         )
-        status = HTTPStatus(response.status_code)
+        code = response.status_code
+        if code is None:
+            msg = "No response code received from authentication request."
+            raise AuthError(msg)
+        status = HTTPStatus(code)
         log.debug(f"Authentication response: {status}")
         if status.is_success:
             return
@@ -216,8 +220,9 @@ class GatewayClient:
             asset_id=uuid,
             verbose=verbose,
         )
+        content: bytes | Any = response.content
         network.success_or_raise(response, ContextException=FileError)
-        return response.content
+        return content
 
     def get_file_contents_by_id(
         self, uuid: str, *, verbose: bool = False
@@ -267,7 +272,8 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response, ContextException=FileError)
-        return response.content
+        content: bytes | Any = response.content
+        return content
 
     def check_file_contents_exist(
         self,
@@ -296,7 +302,8 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=FileError)
-        return FileContentsCheck.model_validate_json(response.content)
+        content: bytes | Any = response.content
+        return FileContentsCheck.model_validate_json(content)
 
     def upload_new_file(self, file_instance: File, *, verbose: bool = False) -> bytes:
         """Uploads a local file to the SDS API.
@@ -368,7 +375,8 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=FileError)
-        return response.content
+        content: bytes | Any = response.content
+        return content
 
     def update_existing_file_metadata(
         self, file_instance: File, *, verbose: bool = False
@@ -399,7 +407,8 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=FileError)
-        return response.content
+        content: bytes | Any = response.content
+        return content
 
     def delete_file_by_id(self, uuid: str, *, verbose: bool = False) -> bool:
         """Deletes a file from the SDS API by its UUID.
@@ -466,7 +475,8 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response=response, ContextException=CaptureError)
-        return response.content
+        content: bytes | Any = response.content
+        return content
 
     def read_capture(
         self,
@@ -488,7 +498,8 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response, ContextException=CaptureError)
-        return response.content
+        content: bytes | Any = response.content
+        return content
 
     def list_captures(
         self,
@@ -508,7 +519,8 @@ class GatewayClient:
             params={"capture_type": capture_type},
         )
         network.success_or_raise(response, ContextException=CaptureError)
-        return response.content
+        content: bytes | Any = response.content
+        return content
 
     def captures_advanced_search(
         self,
@@ -539,7 +551,8 @@ class GatewayClient:
             params={"metadata_filters": json.dumps(metadata_filters)},
         )
         network.success_or_raise(response, ContextException=CaptureError)
-        return response.content
+        content: bytes | Any = response.content
+        return content
 
     def update_capture(
         self,
@@ -561,7 +574,8 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response, ContextException=CaptureError)
-        return response.content
+        content: bytes | Any = response.content
+        return content
 
     def delete_capture(self, *, capture_uuid: uuid.UUID) -> None:
         """Deletes a capture from SDS by its UUID.
@@ -608,4 +622,5 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response, ContextException=DatasetError)
-        return response.content
+        content: bytes | Any = response.content
+        return content

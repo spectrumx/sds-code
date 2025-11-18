@@ -60,6 +60,7 @@
         "mkdocs>=1.6.1",
         "mkdocs-material>=9.6.22",
         "anyio[trio]>=4.11.0",
+        "pyrefly>=0.42.1",
     ]
 
 # deptry detects unused and missing dependencies.
@@ -134,6 +135,28 @@
     #   https://github.com/microsoft/pyright/blob/main/docs/configuration.md#type-check-diagnostics-settings
     # place ignored rules here
     reportAttributeAccessIssue = false # too many false positives with Django models
+
+[tool.pyrefly]
+    # Reference:    https://pyrefly.org/en/docs/configuration/
+    # Example:      https://pyrefly.org/en/docs/configuration/#example-pyprojecttoml
+
+    project-excludes = ["**/.[!/.]*", "**/tests", "tests/", "**/migrations"]
+    project-includes = ["src", "src/spectrumx", "docs"]
+    search-path      = ["src", "src/spectrumx"]
+
+    python-platform = "linux"
+    python-version  = "3.13"
+
+    # the generated code status is determined by checking if the file contents contain the substring '@generated'.
+    ignore-errors-in-generated-code = true
+
+    ignore-missing-source = true
+
+    [tool.pyrefly.errors]
+        # https://pyrefly.org/en/docs/error-kinds
+        assert-type      = true
+        bad-assignment   = false
+        invalid-argument = false
 
 [tool.ruff]
     # Exclude a variety of commonly ignored directories.

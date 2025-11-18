@@ -160,6 +160,9 @@ class Paginator(Generic[T]):
                     self._debug("No more pages available.")
                     raise StopIteration(err) from err
             else:
+                if isinstance(self._next_element, Unset):
+                    # should not happen, but it makes the type checker happy
+                    break
                 self._yielded_count += 1
                 return self._next_element
         # execution should never reach here

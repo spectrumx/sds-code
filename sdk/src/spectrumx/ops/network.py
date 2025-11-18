@@ -26,7 +26,10 @@ def success_or_raise(
     ContextException: type[errors.SDSError] = errors.SDSError,  # noqa: N803
 ) -> None:
     """Checks a response is successful, raising a contextual error if not."""
-    status = HTTPStatus(response.status_code)
+    code = response.status_code
+    if code is None:
+        raise errors.SDSError(message="No status code in response.")
+    status = HTTPStatus(code)
     if status.is_success:
         return
 
@@ -60,7 +63,10 @@ def extract_error_details_from_html(response: requests.Response) -> str:
         )
     except ImportError:
         log.warning("Install 'BeautifulSoup' to have a more detailed error message.")
-        return response.reason
+        reason = response.reason
+        if reason is None:
+            reason = "Unknown reason"
+        return reason
 
     target_ids = ["pastebinTraceback", "summary"]
     soup = BeautifulSoup(markup=response.text, features="html.parser")
