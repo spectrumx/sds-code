@@ -12,11 +12,11 @@ alias install := dev-setup
 alias serve := serve-coverage
 
 # builds the package and runs smoke tests on the built artifact
-build:
-    uv build --no-cache
+build *args:
+    uv build --no-cache {{args}}
     echo -e "\n\t\033[32mRunning smoke tests on the built package\033[0m\n"
-    uv run --no-cache --isolated --no-project -p {{python_version}} --with dist/*.tar.gz tests/e2e_examples/check_build_acceptance.py
-    rm my_spectrum_files/rf_run_*.csv && rmdir my_spectrum_files
+    uv run --no-cache --isolated --no-project -p {{python_version}} --with dist/*.tar.gz "tests/e2e_examples/check_build_acceptance.py"
+    rm my_spectrum_files/rf_run_*.csv && rmdir "my_spectrum_files"
     echo -e "\n\t\033[32mBuilt package:\033[0m\n"
     tar -tvf dist/*.tar.gz | sort -k6
     echo -e "\n\t\033[34mTo publish it, run 'just publish'.\033[0m\n\n"
@@ -24,7 +24,7 @@ build:
 # checks the built package acceptance tests
 check-acceptance:
     echo -e "\n\t\033[34mRunning acceptance checks using current environment \033[33m(NOT BUILT ARTIFACT)\033[0m\n"
-    uv run --no-cache -p {{python_version}} tests/e2e_examples/check_build_acceptance.py
+    uv run --no-cache -p {{python_version}} "tests/e2e_examples/check_build_acceptance.py"
 
 # removes temporary and build files
 clean:
@@ -49,9 +49,9 @@ docs-serve port="1314" *args="": docs-build
     uv run mkdocs serve --dev-addr "0.0.0.0:{{port}}" {{args}}
 
 # builds and serves SDK documentation via nginx in docker compose
-docs-serve-compose: docs-build
+docs-serve-compose *args: docs-build
     @echo -e "\n\t\033[34mStarting SDK documentation service"
-    docker compose up -d
+    docker compose up -d {{args}}
     @echo -e "\n\t\033[32mSDK documentation is running:\033[0m " \
         $(docker ps --all --format "table {{{{.Names}},{{{{.Ports}}" | grep sds-sdk-docs | cut -d, -f2 || true)
     @echo -e "\t\033[34mTo view logs, run:      docker compose logs -f\033[0m"
@@ -74,19 +74,19 @@ dev-setup:
 
 # runs pre-commit checks locally
 pre-commit:
-    uv run pre-commit install
+    uv run pre-commit install --install-hooks
     uv run --dev pre-commit run --all-files
 
 # runs Pyright checks locally
-pyright:
+pyright *args:
     @echo "Running Pyright locally for {{git_root}}"
     cd "{{git_root}}" && \
-        gh act --rm --workflows "{{git_root}}/.github/workflows" --job pyright
+        gh act --rm --workflows "{{git_root}}/.github/workflows" --job pyright {{args}}
 
 # runs the Pyrefly type checker
-pyrefly:
+pyrefly *args:
     @echo "Running Pyrefly"
-    uv run pyrefly check
+    uv run pyrefly check {{args}}
 
 # runs tests using the default dependency resolution
 test python=python_version *pytest_args:

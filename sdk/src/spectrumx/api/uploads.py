@@ -316,10 +316,10 @@ class UploadWorkload(BaseModel):
 
         root = Path(self.local_root).expanduser().resolve()
         if not root.exists():
-            msg = f"Upload root not found: {root}"
+            msg = f"Upload root not found: '{root}'"
             raise FileNotFoundError(msg)
         if not root.is_dir():
-            msg = f"Upload root is not a directory: {root}"
+            msg = f"Upload root is not a directory: '{root}'"
             raise NotADirectoryError(msg)
 
         await self._reset_state()
@@ -617,7 +617,7 @@ def upload_resumable(
 
     upload_workload = UploadWorkload(
         client=client,
-        local_root=local_path.parent,
+        local_root=local_path,
         sds_path=PurePosixPath(sds_path),
         max_concurrent_uploads=max_concurrent_uploads,
         verbose=verbose,
