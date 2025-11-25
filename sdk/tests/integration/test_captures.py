@@ -452,6 +452,8 @@ def test_capture_upload_drf(
         sds_path=sds_path,
         capture_type=capture_type,
         channel=drf_channel,
+        warn_skipped=True,
+        raise_on_error=True,
     )
 
     # ASSERT capture was correctly created
@@ -509,6 +511,8 @@ def test_capture_upload_rh(integration_client: Client) -> None:
         sds_path=sds_path,
         capture_type=CaptureType.RadioHound,
         scan_group=scan_group,
+        warn_skipped=True,
+        raise_on_error=True,
     )
 
     # ASSERT
@@ -566,6 +570,7 @@ def test_capture_upload_missing_required_fields_drf(
             local_path=test_dir,
             sds_path=sds_path,
             capture_type=capture_type,
+            raise_on_error=True,
             # Missing required channel parameter
         )
 

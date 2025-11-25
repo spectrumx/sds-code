@@ -33,10 +33,10 @@ class UserViewSet(
     GenericViewSet[User],
 ):
     serializer_class = UserSerializer
-    queryset: QuerySet[User, User] = User.objects.all()
+    queryset: QuerySet[User] = User.objects.all()
     lookup_field = "pk"
 
-    def get_queryset(self, *args, **kwargs) -> QuerySet[User, User]:
+    def get_queryset(self, *args, **kwargs) -> QuerySet[User]:
         assert isinstance(self.request.user.id, int), "User ID must be an integer"
         return self.queryset.filter(id=self.request.user.id)
 

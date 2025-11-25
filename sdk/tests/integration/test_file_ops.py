@@ -703,6 +703,7 @@ def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
     listed_uuids = {file.uuid for file in files_listed}
     uploaded_uuids = {file.uuid for file in uploaded_files}
     assert len(listed_uuids) > 0, f"No files listed. Problem with listing? {sds_path=}"
+    assert len(uploaded_uuids) > 0, "No files uploaded. Problem with upload?"
     assert listed_uuids == uploaded_uuids, (
         f"UUIDs mismatch: {listed_uuids} != {uploaded_uuids}"
     )
