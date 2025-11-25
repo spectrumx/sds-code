@@ -23,13 +23,16 @@ SECRET_KEY: str = env(
     default="7SGPiDXuHen3CinEGQ4GjOnzHVgcS28Mpbf6zTuHWJtELgpo1FyWs25IeaCR5Sfn",
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS: list[str] = [
-    "localhost",
-    "0.0.0.0",
-    "127.0.0.1",
-    "sds-gateway-local-app",  # internal docker name
-    "sds-dev.crc.nd.edu",  # to test with traefik; change your /etc/hosts file
-]
+ALLOWED_HOSTS: list[str] = env.list(
+    "DJANGO_ALLOWED_HOSTS",
+    default=[
+        "localhost",
+        "0.0.0.0",
+        "127.0.0.1",
+        "sds-gateway-local-app",  # internal docker name
+        "sds-dev.crc.nd.edu",  # to test with traefik; change your /etc/hosts file
+    ],
+)
 
 # CACHES
 # ------------------------------------------------------------------------------
