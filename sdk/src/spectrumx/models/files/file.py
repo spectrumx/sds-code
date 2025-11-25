@@ -46,6 +46,7 @@ class File(SDSModel):
     name: str
     permissions: UnixPermissionStr
     size: int
+    sum_blake3: str | None = None
     updated_at: datetime
 
     is_sample: bool = False
