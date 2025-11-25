@@ -1,9 +1,20 @@
 # SpectrumX SDK Changelog
 
-## `0.1.15` - 2025-11-xx
+## `0.1.15` - 2025-12-xx
 
 + Features:
     + [**Added support for Python 3.14**](https://github.com/spectrumx/sds-code/pull/210): the SDK is now compatible with Python 3.14. We're thus dropping support for version 3.10 in this and future releases.
+    + [**Improved UX for file uploads**](https://github.com/spectrumx/sds-code/pull/218): the new file upload process:
+        + Backwards compatible with previous method.
+        + Discovery step lists all files before starting upload.
+        + Concurrent uploads with asyncio: up to 5 streams by default.
+        + Progress tracking the number of files and bytes, in human-friendly units.
+        + Tracking completed :white_check_mark:, failed :x: , in progress :hourglass_flowing_sand:️ and skipped:rabbit2: files. On Windows, we use ASCII characters for better compatibility.
+    + [**New file upload persistence**](https://github.com/spectrumx/sds-code/pull/218): we now keep a local copy of the upload state of files.
+        + This makes resuming interrupted uploads faster. The persistence mode can be bypassed with `persist_state=False` in upload methods in case users want to force the file checks (previous behavior).
++ Reliability:
+    + Increased the battery of tests for file uploads and progress tracking.
+    + Several new tests covering features of upload state persistence.
 
 ## `0.1.14` - 2025-10-07
 

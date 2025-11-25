@@ -523,6 +523,7 @@ class Client:
         sds_path: PurePosixPath | Path | str = "/",
         verbose: bool = True,
         warn_skipped: bool = True,
+        persist_state: bool = True,
     ) -> list[Result[File]]:
         """Uploads a file or directory to SDS using the resumable upload method.
 
@@ -532,6 +533,7 @@ class Client:
                                 where '/' is the user root.
             verbose:        Show a progress bar.
             warn_skipped:   Display warnings for skipped files.
+            persist_state:  Whether to persist upload state for resumption.
         """
         return self._uploads.upload_resumable(
             client=self,
@@ -539,6 +541,7 @@ class Client:
             sds_path=sds_path,
             verbose=verbose,
             warn_skipped=warn_skipped,
+            persist_state=persist_state,
         )
 
     def upload(
@@ -548,6 +551,7 @@ class Client:
         sds_path: PurePosixPath | Path | str = "/",
         verbose: bool = True,
         warn_skipped: bool = True,
+        persist_state: bool = True,
     ) -> list[Result[File]]:
         """Uploads a file or directory to SDS.
 
@@ -557,6 +561,7 @@ class Client:
                                 where '/' is the user root.
             verbose:        Show a progress bar.
             warn_skipped:   Display warnings for skipped files.
+            persist_state:  Whether to persist upload state for resumption.
         """
         if self.ENABLE_NEW_UPLOAD_METHOD:
             return self._upload_resumable(
@@ -564,6 +569,7 @@ class Client:
                 sds_path=sds_path,
                 verbose=verbose,
                 warn_skipped=warn_skipped,
+                persist_state=persist_state,
             )
         return self._upload_deprecated(
             local_path=local_path,
@@ -614,6 +620,7 @@ class Client:
         verbose: bool = True,
         warn_skipped: bool = False,
         raise_on_error: bool = True,
+        persist_state: bool = True,
     ) -> Capture | None:
         """Uploads a local directory and creates a capture using those files.
 
@@ -632,6 +639,7 @@ class Client:
             verbose:        Show progress bar and failure messages, if any.
             raise_on_error: When True, raises an exception if any file upload fails.
                             If False, the method will return None and log the errors.
+            persist_state:  Whether to persist upload state for resumption.
         Returns:
             The created capture object when all operations succeed.
         Raises:
@@ -645,6 +653,7 @@ class Client:
             sds_path=sds_path,
             verbose=verbose,
             warn_skipped=warn_skipped,
+            persist_state=persist_state,
         )
 
         if not process_upload_results(

@@ -454,6 +454,7 @@ def test_capture_upload_drf(
         channel=drf_channel,
         warn_skipped=True,
         raise_on_error=True,
+        persist_state=False,
     )
 
     # ASSERT capture was correctly created
@@ -513,6 +514,7 @@ def test_capture_upload_rh(integration_client: Client) -> None:
         scan_group=scan_group,
         warn_skipped=True,
         raise_on_error=True,
+        persist_state=False,
     )
 
     # ASSERT
@@ -571,6 +573,7 @@ def test_capture_upload_missing_required_fields_drf(
             sds_path=sds_path,
             capture_type=capture_type,
             raise_on_error=True,
+            persist_state=False,
             # Missing required channel parameter
         )
 
@@ -868,6 +871,7 @@ def _upload_assets(
         local_path=local_path,
         sds_path=sds_path,
         verbose=False,
+        persist_state=False,
     )
     success_results = [success for success in upload_results if success]
     failed_results = [success for success in upload_results if not success]

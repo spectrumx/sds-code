@@ -174,6 +174,7 @@ def test_paths_sds_capture_ops(
                 channel=drf_channel,
                 verbose=False,
                 warn_skipped=False,
+                persist_state=False,
             )
             assert capture is not None, (
                 f"Failed to upload capture to '{sds_path_random}'"
@@ -211,6 +212,7 @@ def test_paths_sds_capture_ops(
             scan_group=rh_data.get("scan_group"),
             verbose=False,
             warn_skipped=False,
+            persist_state=False,
         )
         assert capture is not None, f"Failed to upload capture to '{sds_path_random}'"
         assert capture.uuid is not None, f"Capture UUID is None for '{sds_path_random}'"
