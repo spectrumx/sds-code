@@ -2410,7 +2410,7 @@ def _apply_frequency_filters(
 
         return qs.filter(uuid__in=filtered_uuids)
 
-    except Exception:
+    except Exception:  # noqa: BLE001
         log.exception("Error applying frequency filters")
         return qs  # Return unfiltered queryset on error
 
@@ -2787,7 +2787,7 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 
         except Dataset.DoesNotExist:
             return JsonResponse({"error": "Dataset not found"}, status=404)
-        except Exception:
+        except Exception:  # noqa: BLE001
             log.exception("Error retrieving dataset details")
             return JsonResponse({"error": "Internal server error"}, status=500)
 
@@ -2842,7 +2842,7 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
             return JsonResponse({"html": html})
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON"}, status=400)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.exception(
                 "Error rendering template %s", data.get("template", "unknown")
             )
@@ -3794,7 +3794,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                 },
                 status=503,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.exception("Unexpected error in UploadCaptureView.post")
             return JsonResponse(
                 {
