@@ -18,6 +18,7 @@ from django.db.models import QuerySet
 from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
+from django.template.defaultfilters import slugify
 
 from .utils.opensearch_client import get_opensearch_client
 
@@ -25,6 +26,22 @@ if TYPE_CHECKING:
     from sds_gateway.users.models import User
 
 log = logging.getLogger(__name__)
+
+
+class KeywordNameField(models.CharField):
+    """
+    Custom field that auto-slugifies keyword names for consistency.
+    Enforces lowercase, converts spaces to hyphens, removes non-printable chars.
+    """
+
+    def get_prep_value(self, value):
+        """Convert the value to a slug before saving to database."""
+        value = super().get_prep_value(value)
+        if not isinstance(value, str):
+            msg = "Name attribute must be a string"
+            raise TypeError(msg)
+        # Slugify the value (lowercase, hyphens instead of spaces, etc.)
+        return slugify(value)
 
 
 class CaptureType(StrEnum):
@@ -574,52 +591,36 @@ class Capture(BaseModel):
 class Keyword(BaseModel):
     """
     Model for user-entered keywords that can be associated with datasets.
-    Each keyword belongs to exactly one dataset via ForeignKey.
+    Keywords can be associated with multiple datasets via ManyToManyField.
+
+    The name field is auto-slugified and serves as the primary key,
+    enforcing uniqueness and immutability after creation.
     """
 
-    name = models.CharField(
+    # Override the uuid primary key from BaseModel
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False)
+
+    name = KeywordNameField(
         max_length=255,
-        blank=False,
-        db_index=True,
-        help_text="The keyword text",
+        primary_key=True,
+        help_text=(
+            "The keyword slug (auto-slugified, "
+            "e.g., 'RF Spectrum' → 'rf-spectrum')"
+        ),
     )
-    name_lower = models.CharField(
-        max_length=255,
-        blank=False,
-        db_index=True,
-        editable=False,
-        help_text="Lowercase version of the keyword for case-insensitive queries",
-    )
-    dataset = models.ForeignKey(
+    datasets = models.ManyToManyField(
         "Dataset",
-        on_delete=models.CASCADE,
         related_name="keywords",
-        help_text="The dataset this keyword belongs to",
-    )
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        blank=True,
-        null=True,
-        related_name="created_keywords",
-        on_delete=models.SET_NULL,
-        help_text="The user who created this keyword",
+        help_text="The datasets this keyword is associated with",
     )
 
     class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
         ordering = ["name"]
         verbose_name = "Keyword"
         verbose_name_plural = "Keywords"
-        indexes = [
-            models.Index(fields=["dataset", "name"]),
-        ]
 
     def __str__(self) -> str:
         return self.name
-
-    def save(self, *args, **kwargs) -> None:
-        """Override save to automatically populate name_lower."""
-        self.name_lower = self.name.lower()
-        super().save(*args, **kwargs)
 
 
 class Dataset(BaseModel):
