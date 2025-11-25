@@ -1,6 +1,5 @@
 import datetime
 import json
-import logging
 import uuid
 from pathlib import Path
 from typing import Any
@@ -27,6 +26,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
+from django.template.defaultfilters import slugify
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -35,6 +35,7 @@ from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import TemplateView
 from django.views.generic import UpdateView
+from loguru import logger as log
 from minio.error import MinioException
 from rest_framework import status
 
@@ -106,10 +107,6 @@ class ShareOperationError(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(message)
-
-
-# Add logger for debugging
-logger = logging.getLogger(__name__)
 
 
 def get_active_api_key_count(api_keys) -> int:
@@ -1149,7 +1146,7 @@ class FileDownloadView(Auth0LoginRequiredMixin, View):
         try:
             content = download_file(file_obj)
         except (MinioException, FileDownloadError) as e:
-            logger.warning("Error downloading file %s: %s", file_obj.name, e)
+            log.warning("Error downloading file %s: %s", file_obj.name, e)
             return JsonResponse({"error": "Failed to download file"}, status=500)
 
         response = HttpResponse(
@@ -1188,7 +1185,7 @@ class FileContentView(Auth0LoginRequiredMixin, View):
         try:
             return get_file_content_response(file_obj, self.MAX_BYTES)
         except OSError as e:
-            logger.warning("Error reading file content for preview: %s", e)
+            log.warning("Error reading file content for preview: %s", e)
             return JsonResponse({"error": "Error reading file"}, status=500)
 
 
@@ -1422,7 +1419,6 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs) -> JsonResponse:
         """Handle AJAX requests for the captures API."""
-        logger = logging.getLogger(__name__)
 
         try:
             # Extract and validate parameters
@@ -1497,10 +1493,10 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             return JsonResponse(response_data)
 
         except (ValueError, TypeError) as e:
-            logger.warning("Invalid parameter in captures API request: %s", e)
+            log.warning("Invalid parameter in captures API request: %s", e)
             return JsonResponse({"error": "Invalid search parameters"}, status=400)
         except DatabaseError:
-            logger.exception("Database error in captures API request")
+            log.exception("Database error in captures API request")
             return JsonResponse({"error": "Database error occurred"}, status=500)
 
 
@@ -1525,21 +1521,15 @@ class KeywordAutocompleteAPIView(Auth0LoginRequiredMixin, View):
 
         try:
             # Search for keywords that contain the query anywhere (case-insensitive)
-            # Use name_lower for efficient case-insensitive search
-            keywords = (
-                Keyword.objects.filter(
-                    name_lower__icontains=query.lower(),
-                    is_deleted=False,
-                )
-                .values_list("name", flat=True)
-                .distinct()[:10]
-            )
+            keywords = Keyword.objects.filter(
+                name__icontains=query,
+                is_deleted=False,
+            ).values_list("name", flat=True)[:10]
 
             return JsonResponse({"suggestions": list(keywords)})
 
         except DatabaseError:
-            logger = logging.getLogger(__name__)
-            logger.exception("Database error in keyword autocomplete")
+            log.exception("Database error in keyword autocomplete")
             return JsonResponse({"error": "Database error occurred"}, status=500)
 
 
@@ -1771,7 +1761,7 @@ class GroupCapturesView(
             return self._handle_dataset_creation(request)
 
         except (DatabaseError, IntegrityError) as e:
-            logger.exception("Database error in dataset creation")
+            log.exception("Database error in dataset creation")
             return JsonResponse(
                 {"success": False, "errors": {"non_field_errors": [str(e)]}},
                 status=500,
@@ -2107,27 +2097,17 @@ class GroupCapturesView(
         # Persist keywords from form (comma-separated)
         raw_keywords = dataset_form.cleaned_data.get("keywords", "") or ""
         if raw_keywords:
-            names = [p.strip() for p in raw_keywords.split(",") if p.strip()]
-            # Deduplicate case-insensitively while preserving order
-            seen = set()
-            unique_names = []
-            for n in names:
-                key = n.lower()
-                if key in seen:
-                    continue
-                seen.add(key)
-                unique_names.append(n)
-            Keyword.objects.bulk_create(
-                [
-                    Keyword(
-                        name=name,
-                        name_lower=name.lower(),
-                        dataset=dataset,
-                        created_by=request.user,
-                    )
-                    for name in unique_names
-                ]
-            )
+            # Slugify and deduplicate keywords
+            slugified_keywords = {
+                slugify(p.strip())
+                for p in raw_keywords.split(",")
+                if p.strip() and slugify(p.strip())
+            }
+
+            # Get or create keywords and associate them with the dataset
+            for slug in slugified_keywords:
+                keyword, _created = Keyword.objects.get_or_create(name=slug)
+                keyword.datasets.add(dataset)
 
         return dataset
 
@@ -2431,7 +2411,7 @@ def _apply_frequency_filters(
         return qs.filter(uuid__in=filtered_uuids)
 
     except Exception:
-        logger.exception("Error applying frequency filters")
+        log.exception("Error applying frequency filters")
         return qs  # Return unfiltered queryset on error
 
 
@@ -2497,7 +2477,7 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
         """Display download page for a temporary zip file or serve the file."""
         zip_uuid = kwargs.get("uuid")
         if not zip_uuid:
-            logger.warning("No UUID provided in temporary zip download request")
+            log.warning("No UUID provided in temporary zip download request")
             error_msg = "UUID is required"
             raise Http404(error_msg)
 
@@ -2548,7 +2528,7 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
             return render(request, template_name=self.template_name, context=context)
 
         except TemporaryZipFile.DoesNotExist as err:
-            logger.warning(
+            log.warning(
                 "Temporary zip file not found: %s for user: %s",
                 zip_uuid,
                 request.user.id,
@@ -2566,11 +2546,11 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
                 owner=user,
             )
 
-            logger.info("Found temporary zip file: %s", temp_zip.filename)
+            log.info("Found temporary zip file: %s", temp_zip.filename)
 
             file_path = Path(temp_zip.file_path)
             if not file_path.exists():
-                logger.warning("File not found on disk: %s", temp_zip.file_path)
+                log.warning("File not found on disk: %s", temp_zip.file_path)
                 return JsonResponse(
                     {"error": "The file was not found on the server."}, status=404
                 )
@@ -2591,7 +2571,7 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
                 return response
 
         except OSError:
-            logger.exception("Error reading file: %s", temp_zip.file_path)
+            log.exception("Error reading file: %s", temp_zip.file_path)
             return JsonResponse({"error": "Error reading file."}, status=500)
 
 
@@ -2808,7 +2788,7 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         except Dataset.DoesNotExist:
             return JsonResponse({"error": "Dataset not found"}, status=404)
         except Exception:
-            logger.exception("Error retrieving dataset details")
+            log.exception("Error retrieving dataset details")
             return JsonResponse({"error": "Internal server error"}, status=500)
 
 
@@ -2844,7 +2824,7 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
 
             # Security: Only allow templates from users/components/ directory
             if not template_name.startswith("users/components/"):
-                logger.error(
+                log.error(
                     "Invalid template path: %s",
                     template_name,
                 )
@@ -2863,7 +2843,7 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON"}, status=400)
         except Exception as e:
-            logger.exception(
+            log.exception(
                 "Error rendering template %s", data.get("template", "unknown")
             )
             return JsonResponse({"error": str(e)}, status=500)
@@ -3307,7 +3287,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
 
         # Validate that both lists have the same length before processing
         if len(upload_chunk_files) != len(relative_paths):
-            logger.error(
+            log.error(
                 "upload_chunk_files and relative_paths have different lengths: "
                 "%d vs %d",
                 len(upload_chunk_files),
@@ -3328,7 +3308,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
 
             # Skip empty files (these are placeholders for skipped files)
             if file_size == 0:
-                logger.info(
+                log.info(
                     "Skipping empty file: %s (likely a placeholder for skipped file)",
                     filename,
                 )
@@ -3353,7 +3333,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                 else:
                     error_msg = f"Failed to upload {filename}: {response.data}"
                     file_errors.append(error_msg)
-                    logger.error(error_msg)
+                    log.error(error_msg)
             file_errors.extend(upload_errors)
         file_errors.extend(skipped_files)
         return saved_files_count, file_errors
@@ -3380,10 +3360,10 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                 request, capture_data
             )
         except (ValueError, TypeError, AttributeError) as exc:
-            logger.exception("Data validation error creating capture")
+            log.exception("Data validation error creating capture")
             return None, f"Data validation error: {exc}"
         except (ConnectionError, TimeoutError) as exc:
-            logger.exception("Network error creating capture")
+            log.exception("Network error creating capture")
             return None, f"Network error: {exc}"
         else:
             if responses:
@@ -3394,7 +3374,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                     # Extract only the UUID since that's all we use
                     capture_uuid = capture_data.get("uuid")
                     return capture_uuid, None
-                logger.warning(
+                log.warning(
                     "Unexpected response format: %s",
                     response.data,
                 )
@@ -3404,7 +3384,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                 )
             # Capture creation failed
             error_msg = capture_errors[0] if capture_errors else "Unknown error"
-            logger.error(
+            log.error(
                 "Failed to create capture: %s",
                 error_msg,
             )
@@ -3639,7 +3619,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
         created_captures = []
 
         if has_required_fields:
-            logger.info(
+            log.info(
                 "Creating captures - has_required_fields: %s, capture_type: %s, "
                 "channels: %s, scan_group: %s",
                 has_required_fields,
@@ -3665,7 +3645,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
             )
 
             if capture_errors:
-                logger.error("Capture creation errors: %s", capture_errors)
+                log.error("Capture creation errors: %s", capture_errors)
         else:
             created_captures = []
             capture_errors = []
@@ -3703,7 +3683,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                 all_files_empty = True
 
             # Debug logging for request data
-            logger.info(
+            log.info(
                 "Upload request - files count: %s, all_relative_paths count: %s, "
                 "all_files_empty: %s, capture_type: %s, channels: %s, scan_group: %s",
                 len(upload_chunk_files) if upload_chunk_files else 0,
@@ -3753,12 +3733,12 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                     has_required_fields=has_required_fields,
                 )
             elif should_create_captures and file_errors:
-                logger.info(
+                log.info(
                     "Skipping capture creation due to file upload errors: %s",
                     file_errors,
                 )
             else:
-                logger.info(
+                log.info(
                     "Skipping capture creation for chunk %s of %s",
                     chunk_number,
                     total_chunks,
@@ -3766,7 +3746,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
 
             # Log file upload errors if they occurred
             if file_errors and not all_files_empty:
-                logger.error(
+                log.error(
                     "File upload errors occurred. Errors: %s",
                     file_errors,
                 )
@@ -3793,9 +3773,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
             return JsonResponse(file_capture_response_data)
 
         except (ValueError, TypeError, AttributeError) as e:
-            logger.warning(
-                "Data validation error in UploadCaptureView.post: %s", str(e)
-            )
+            log.warning("Data validation error in UploadCaptureView.post: %s", str(e))
             return JsonResponse(
                 {
                     "success": False,
@@ -3806,7 +3784,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                 status=400,
             )
         except (ConnectionError, TimeoutError) as e:
-            logger.exception("Network error in UploadCaptureView.post")
+            log.exception("Network error in UploadCaptureView.post")
             return JsonResponse(
                 {
                     "success": False,
@@ -3817,7 +3795,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
                 status=503,
             )
         except Exception as e:
-            logger.exception("Unexpected error in UploadCaptureView.post")
+            log.exception("Unexpected error in UploadCaptureView.post")
             return JsonResponse(
                 {
                     "success": False,
@@ -3900,7 +3878,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
         current_dir = request.GET.get("dir", "/")
 
         # Debug logging
-        logger.debug("FilesView: current_dir=%s", current_dir)
+        log.debug("FilesView: current_dir=%s", current_dir)
 
         # Initialize items list with proper typing
         items: list[Item] = []
@@ -3932,11 +3910,11 @@ class FilesView(Auth0LoginRequiredMixin, View):
         breadcrumb_parts = build_breadcrumbs(nav_context.to_path(), request.user.email)
 
         # Debug logging
-        logger.debug(
+        log.debug(
             "FilesView: context summary items=%d",
             len(items),
         )
-        logger.debug(
+        log.debug(
             "FilesView: first items preview=%s",
             items[:3] if items else "No items",
         )
@@ -3944,7 +3922,7 @@ class FilesView(Auth0LoginRequiredMixin, View):
         # Additional debugging for directory items
         for i, item in enumerate(items):
             if hasattr(item, "type") and item.type == "directory":
-                logger.debug("FilesView: directory item %d => %s", i, item)
+                log.debug("FilesView: directory item %d => %s", i, item)
 
         # Convert Pydantic models to dictionaries for template
         items_data = items_to_dicts(items)
