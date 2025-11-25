@@ -702,7 +702,10 @@ def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
     files_listed = integration_client.list_files(sds_path=sds_path)
     listed_uuids = {file.uuid for file in files_listed}
     uploaded_uuids = {file.uuid for file in uploaded_files}
-    assert listed_uuids == uploaded_uuids, "UUIDs mismatch."
+    assert len(listed_uuids) > 0, f"No files listed. Problem with listing? {sds_path=}"
+    assert listed_uuids == uploaded_uuids, (
+        f"UUIDs mismatch: {listed_uuids} != {uploaded_uuids}"
+    )
 
 
 @pytest.mark.integration
