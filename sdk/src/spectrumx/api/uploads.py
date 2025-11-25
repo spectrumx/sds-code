@@ -76,61 +76,23 @@ class SkippedUpload(BaseModel):
     reasons: tuple[str, ...] = Field(default_factory=tuple)
 
 
-class UploadWorkload(BaseModel):
-    """Serializable representation of an upload workload."""
+class UploadPersistenceManager(BaseModel):
+    """Manages persistence of uploaded file records to local storage.
 
+    Handles all file I/O operations for tracking completed uploads to enable
+    resumable uploads.
+    """
+
+    local_root: Path
     client: "Client" = Field(exclude=True)  # noqa: UP037
-    local_root: Annotated[Path, Field(alias="local_path")]
-    sds_path: PurePosixPath = Field(default_factory=lambda: PurePosixPath("/"))
-    max_concurrent_uploads: int = 5
-
-    # file buffers
-    fq_discovered: list[File] = Field(default_factory=list)
-    fq_pending: list[File] = Field(default_factory=list)
-    fq_in_progress: list[File] = Field(default_factory=list)
-    fq_completed: list[File] = Field(default_factory=list)
-    fq_failed: list[UploadError] = Field(default_factory=list)
-    fq_skipped: list[SkippedUpload] = Field(default_factory=list)
-
-    discovery_finished_at: datetime | None = None
-    discovery_started_at: datetime | None = None
-    total_bytes: int = 0
-    verbose: bool = False
-    warn_skipped: bool = True
     persist_state: bool = True
 
-    # progress bars
-    _prog_uploaded_bytes: (
-        tqdm[NoReturn] | None  # pyrefly: ignore[bad-specialization]
-    ) = None
-
     model_config = {
-        "populate_by_name": True,
         "arbitrary_types_allowed": True,
     }
 
-    def model_post_init(self, context) -> None:
-        """Initialize the workload with an async lock."""
-        self._state_lock = asyncio.Lock()
-        self._workload_id = self._compute_workload_id()
-        if self.verbose:
-            self._prog_uploaded_bytes = get_prog_bar(
-                total=self.total_bytes,
-                **upload_prog_bar_kwargs,  # pyrefly: ignore[bad-argument-type]
-                leave=True,
-            )
-            self._prog_uploaded_bytes.disable = True
-            self._prog_uploaded_bytes.clear()
-        super().model_post_init(context)
-
     @staticmethod
-    def _compute_workload_id() -> str:
-        """Compute a stable workload ID based on current time."""
-        return hashlib.sha256(
-            str(datetime.now(tz=UTC).isoformat()).encode()
-        ).hexdigest()[:16]
-
-    def _get_persisted_uploads_dir(self) -> Path:
+    def _get_persisted_uploads_dir() -> Path:
         """Get the directory where persisted upload records are stored."""
         state_home = xdg_state_home()
         uploads_dir = state_home / "spectrumx" / "uploads"
@@ -145,7 +107,12 @@ class UploadWorkload(BaseModel):
         ).hexdigest()[:8]
         return uploads_dir / f"{root_hash}_uploads.jsonl"
 
-    async def _load_persisted_uploads(self) -> dict[str, PersistedUploadFile]:
+    @property
+    def should_persist(self) -> bool:
+        """Don't persist data when in dry-run mode, except in tests."""
+        return not self.client.dry_run or is_test_env()
+
+    async def load_persisted_uploads(self) -> dict[str, PersistedUploadFile]:
         """Load previously uploaded files from persistence.
 
         Returns:
@@ -174,12 +141,7 @@ class UploadWorkload(BaseModel):
             return {}
         return persisted
 
-    @property
-    def should_persist(self) -> bool:
-        """Don't persist data when in dry-run mode, except in tests"""
-        return not self.client.dry_run or is_test_env()
-
-    async def _save_persisted_upload(self, sds_file: File) -> None:
+    async def save_persisted_upload(self, sds_file: File) -> None:
         """Save an uploaded file to persistence.
 
         Args:
@@ -208,7 +170,7 @@ class UploadWorkload(BaseModel):
         except (OSError, ValueError) as err:
             log_user_warning(f"Failed to persist uploaded file: {err}")
 
-    async def _remove_persisted_upload(self, resolved_path: str) -> None:
+    async def remove_persisted_upload(self, resolved_path: str) -> None:
         """Remove an upload entry from persisted storage.
 
         Args:
@@ -265,6 +227,108 @@ class UploadWorkload(BaseModel):
         except OSError as err:
             log_user_warning(f"Failed to rewrite persistence file: {err}")
 
+    @staticmethod
+    def remove_persisted_uploads_by_checksum(checksum: str) -> None:
+        """Removes all persisted upload entries with a given checksum.
+
+        Searches across all persistence files in the global uploads directory
+        and removes any entries matching the provided checksum.
+
+        Args:
+            checksum: The BLAKE3 checksum to search for and remove.
+        """
+        try:
+            uploads_dir = UploadPersistenceManager._get_persisted_uploads_dir()
+
+            for persist_file in uploads_dir.glob("*_uploads.jsonl"):
+                persisted_entries: list[PersistedUploadFile] = []
+                try:
+                    with persist_file.open(encoding="utf-8") as f:
+                        for line in f:
+                            if not line.strip():
+                                continue
+                            data = json.loads(line)
+                            uploaded_file = PersistedUploadFile(**data)
+                            if uploaded_file.sum_blake3 != checksum:
+                                persisted_entries.append(uploaded_file)
+                except (json.JSONDecodeError, ValueError, OSError) as err:
+                    log_user_warning(
+                        f"Failed to process persistence file {persist_file}: {err}"
+                    )
+                    continue
+
+                try:
+                    with persist_file.open("w", encoding="utf-8") as f:
+                        for entry in persisted_entries:
+                            f.write(entry.model_dump_json() + "\n")
+                except OSError as err:
+                    log_user_warning(
+                        f"Failed to update persistence file {persist_file}: {err}"
+                    )
+        except OSError as err:
+            log_user_warning(f"Failed to clean persisted uploads by checksum: {err}")
+
+
+class UploadWorkload(BaseModel):
+    """Serializable representation of an upload workload."""
+
+    client: "Client" = Field(exclude=True)  # noqa: UP037
+    local_root: Annotated[Path, Field(alias="local_path")]
+    sds_path: PurePosixPath = Field(default_factory=lambda: PurePosixPath("/"))
+    max_concurrent_uploads: int = 5
+    persist_state: bool = True
+
+    # file buffers
+    fq_discovered: list[File] = Field(default_factory=list)
+    fq_pending: list[File] = Field(default_factory=list)
+    fq_in_progress: list[File] = Field(default_factory=list)
+    fq_completed: list[File] = Field(default_factory=list)
+    fq_failed: list[UploadError] = Field(default_factory=list)
+    fq_skipped: list[SkippedUpload] = Field(default_factory=list)
+
+    discovery_finished_at: datetime | None = None
+    discovery_started_at: datetime | None = None
+    total_bytes: int = 0
+    verbose: bool = False
+    warn_skipped: bool = True
+
+    # progress bars
+    _prog_uploaded_bytes: (
+        tqdm[NoReturn] | None  # pyrefly: ignore[bad-specialization]
+    ) = None
+    _persistence_manager: UploadPersistenceManager | None = None
+
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+    }
+
+    def model_post_init(self, context) -> None:
+        """Initialize the workload with an async lock."""
+        self._state_lock = asyncio.Lock()
+        self._workload_id = self._compute_workload_id()
+        self._persistence_manager = UploadPersistenceManager(
+            local_root=self.local_root,
+            client=self.client,
+            persist_state=self.persist_state,
+        )
+        if self.verbose:
+            self._prog_uploaded_bytes = get_prog_bar(
+                total=self.total_bytes,
+                **upload_prog_bar_kwargs,  # pyrefly: ignore[bad-argument-type]
+                leave=True,
+            )
+            self._prog_uploaded_bytes.disable = True
+            self._prog_uploaded_bytes.clear()
+        super().model_post_init(context)
+
+    @staticmethod
+    def _compute_workload_id() -> str:
+        """Compute a stable workload ID based on current time."""
+        return hashlib.sha256(
+            str(datetime.now(tz=UTC).isoformat()).encode()
+        ).hexdigest()[:16]
+
     async def _process_file_candidate(
         self,
         *,
@@ -302,13 +366,19 @@ class UploadWorkload(BaseModel):
                 and (datetime.now(UTC) - persisted.uploaded_at).days
                 <= MAX_DAYS_FOR_RESUMING_UPLOAD
             ):
-                if self.verbose:  # pragma: no cover
-                    log_user(f"Skipping already uploaded: {candidate.name}")
+                if self.verbose or self.warn_skipped:  # pragma: no cover
+                    log_user(
+                        "Skipping already uploaded: "
+                        f"'{candidate.name}' ({current_checksum})"
+                    )
                 return
             # remove stale entry (checksum changed or entry expired)
-            await self._remove_persisted_upload(resolved_path)
+            assert self._persistence_manager is not None
+            await self._persistence_manager.remove_persisted_upload(
+                resolved_path=resolved_path
+            )
 
-        await self._register_discovered_file(file_model)
+        await self._register_discovered_file(file_model=file_model)
 
     async def _discover_files(
         self,
@@ -337,7 +407,8 @@ class UploadWorkload(BaseModel):
         await self._reset_state()
         self.discovery_started_at = datetime.now(UTC)
 
-        persisted_uploads = await self._load_persisted_uploads()
+        assert self._persistence_manager is not None
+        persisted_uploads = await self._persistence_manager.load_persisted_uploads()
 
         file_candidate_generator: Iterable[Path] = root.rglob("*")
         file_candidate_progress = get_prog_bar(
@@ -395,14 +466,17 @@ class UploadWorkload(BaseModel):
         await self._update_prog_bars()
         return next_file
 
-    async def _mark_completed(self, sds_file: File) -> None:
+    async def _mark_completed_result(self, successful_result: Result[File]) -> None:
         """Mark a file as successfully uploaded."""
+        assert successful_result, "Result must be successful here"
+        uploaded_file = successful_result()
         async with self._state_lock:
-            self._remove_from_buffer(sds_file, self.fq_in_progress)
-            if sds_file not in self.fq_completed:
-                self.fq_completed.append(sds_file)
-        await self._save_persisted_upload(sds_file)
-        await self._update_prog_bars(num_bytes=sds_file.size)
+            self._remove_from_buffer(uploaded_file, self.fq_in_progress)
+            if successful_result not in self.fq_completed:
+                self.fq_completed.append(uploaded_file)
+        assert self._persistence_manager is not None
+        await self._persistence_manager.save_persisted_upload(uploaded_file)
+        await self._update_prog_bars(num_bytes=uploaded_file.size)
 
     async def _update_prog_bars(self, num_bytes: int | None = None) -> None:
         """Update progress bars based on current upload state."""
@@ -434,10 +508,12 @@ class UploadWorkload(BaseModel):
             f" / {len(self.fq_discovered):,} total"
         )
 
-    async def _mark_failed(self, sds_file: File, reason: str | None = None) -> None:
+    async def _mark_failed_file(
+        self, sds_file: File, reason: str | None = None
+    ) -> None:
         """Mark a file upload as failed and record the reason."""
         async with self._state_lock:
-            self._remove_from_buffer(sds_file, self.fq_in_progress)
+            self._remove_from_buffer(sds_file=sds_file, buffer=self.fq_in_progress)
             failed_entry = UploadError(
                 message="Upload failed",
                 sds_file=sds_file,
@@ -481,12 +557,12 @@ class UploadWorkload(BaseModel):
                 value=self.client._sds_files.upload_file(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
                     client=self.client,
                     local_file=next_file,
-                    sds_path=next_file.directory,
+                    sds_path=self.sds_path,
                 )
             )
-            await self._mark_completed(next_file)
+            await self._mark_completed_result(successful_result=result)
         except SDSError as err:
-            await self._mark_failed(sds_file=next_file, reason=str(err))
+            await self._mark_failed_file(sds_file=next_file, reason=str(err))
             result = Result(
                 exception=err,
                 error_info={
@@ -568,7 +644,7 @@ class UploadWorkload(BaseModel):
         await self._discover_files()
         await self._execute_uploads()
 
-        results = [Result(value=file) for file in self.fq_completed]
+        results = [Result(value=file_obj) for file_obj in self.fq_completed]
         results.extend(
             Result(
                 exception=error,
