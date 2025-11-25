@@ -15,6 +15,7 @@ from pathlib import PurePosixPath
 from loguru import logger as log
 from pydantic import UUID4
 
+from spectrumx.api.uploads import UploadPersistenceManager
 from spectrumx.client import Client
 from spectrumx.errors import SDSError
 from spectrumx.models.files import File
@@ -165,7 +166,7 @@ def upload_file(
     if isinstance(local_file, File):
         file_instance = local_file.model_copy()
         if file_instance.directory:
-            composed_sds_path = sds_path / file_instance.directory
+            composed_sds_path = PurePosixPath(f"{sds_path}/{file_instance.directory}")
             file_instance.directory = composed_sds_path
     else:
         file_instance = files.construct_file(local_file, sds_path=sds_path)
@@ -194,7 +195,38 @@ def delete_file(client: Client, file_uuid: UUID4 | str) -> bool:
         log_user(f"Dry run enabled: would delete file with UUID {uuid_to_delete.hex}")
         return True
 
-    return client._gateway.delete_file_by_id(uuid=uuid_to_delete.hex)
+    checksum: str | None = None
+    if not client.dry_run:
+        try:
+            file_instance = get_file(client=client, file_uuid=uuid_to_delete)
+            checksum = file_instance.sum_blake3
+        except (ValueError, SDSError) as err:
+            log_user_warning(
+                f"Could not fetch file info before deletion: {err}. "
+                "Persisted uploads may not be cleaned up."
+            )
+
+    if client._gateway.delete_file_by_id(uuid=uuid_to_delete.hex):
+        if checksum:
+            __cleanup_persisted_uploads_for_deleted_file(checksum=checksum)
+        return True
+
+    return False
+
+
+def __cleanup_persisted_uploads_for_deleted_file(checksum: str) -> None:
+    """Remove persisted upload entries related to a deleted file.
+
+    Searches the persistent storage for any entries that may be related to
+    the deleted file and removes them to prevent issues with upload resumption.
+
+    Args:
+        checksum: The BLAKE3 checksum of the file that was deleted from SDS.
+    """
+    try:
+        UploadPersistenceManager.remove_persisted_uploads_by_checksum(checksum=checksum)
+    except (OSError, ValueError) as err:
+        log_user_warning(f"Failed to clean persisted uploads for deleted file: {err}")
 
 
 def __download_file_contents_if_applicable(

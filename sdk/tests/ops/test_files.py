@@ -345,16 +345,35 @@ def test_delete_file_success(client: Client) -> None:
         f"{get_files_endpoint(client)}{test_uuid_hex}/",
         status=204,
     )
+    responses.add(
+        responses.GET,
+        f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=200,
+        json={
+            "uuid": test_uuid_hex,
+            "name": "test_file.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/test/",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+    num_reqs = 2
 
     # ACT
     result = delete_file(client=client, file_uuid=test_uuid)
 
     # ASSERT
     assert result is True, "Expected deletion to succeed."
-    assert len(responses.calls) == 1
-    assert responses.calls[0].request.method == "DELETE"
+    assert len(responses.calls) == num_reqs, (
+        "Expected one file GET and one DELETE request to be made."
+    )
+    assert responses.calls[1].request.method == "DELETE"
     assert (
-        responses.calls[0].request.url
+        responses.calls[1].request.url
         == f"{get_files_endpoint(client)}{test_uuid_hex}/"
     )
 
@@ -368,20 +387,39 @@ def test_delete_file_str_uuid(client: Client) -> None:
     client.dry_run = False  # calls are mocked, but we want to test the actual requests
     assert client.dry_run is False, "Dry run must be enabled for this test."
     responses.add(
+        responses.GET,
+        f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=200,
+        json={
+            "uuid": test_uuid_hex,
+            "name": "test_file.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/test/",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+    responses.add(
         responses.DELETE,
         f"{get_files_endpoint(client)}{test_uuid_hex}/",
         status=204,
     )
+    num_reqs = 2
 
     # ACT
     result = delete_file(client=client, file_uuid=test_uuid_hex)
 
     # ASSERT
     assert result is True, "Expected deletion to succeed."
-    assert len(responses.calls) == 1, "Expected one DELETE request to be made."
-    assert responses.calls[0].request.method == "DELETE"
+    assert len(responses.calls) == num_reqs, (
+        "Expected one file GET and one DELETE request to be made."
+    )
+    assert responses.calls[1].request.method == "DELETE"
     assert (
-        responses.calls[0].request.url
+        responses.calls[1].request.url
         == f"{get_files_endpoint(client)}{test_uuid_hex}/"
     )
 
