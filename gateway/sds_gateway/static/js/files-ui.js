@@ -5,7 +5,32 @@
 
 // Error handling utilities
 const ErrorHandler = {
+	shownMessages: new Set(), // Track shown messages to prevent duplicates
+
 	showError(message, context = "", error = null) {
+		// Create a key for deduplication based on message and context
+		const messageKey = `${context}:${message}`;
+
+		// Check if this exact message has already been shown
+		if (this.shownMessages.has(messageKey)) {
+			// Still log to console for debugging, but don't show UI message
+			if (error) {
+				console.error(`FilesUI Error [${context}]:`, {
+					message: error.message,
+					stack: error.stack,
+					userMessage: message,
+					timestamp: new Date().toISOString(),
+					userAgent: navigator.userAgent,
+				});
+			} else {
+				console.warn(`FilesUI Warning [${context}]:`, message);
+			}
+			return;
+		}
+
+		// Mark this message as shown
+		this.shownMessages.add(messageKey);
+
 		// Log error details for debugging
 		if (error) {
 			console.error(`FilesUI Error [${context}]:`, {
@@ -419,7 +444,10 @@ class FilesPageInitializer {
 			};
 
 			// Store handlers for cleanup
-			this.boundHandlers.set(modal, { show: showHandler, hide: hideHandler });
+			this.boundHandlers.set(modal, {
+				show: showHandler,
+				hide: hideHandler,
+			});
 
 			// On modal show, set the item info and call init()
 			modal.addEventListener("show.bs.modal", showHandler);
