@@ -727,7 +727,7 @@ async def test_discover_files_populates_buffers(tmp_path: Path, client: Client) 
     root.mkdir()
     (root / "file1.txt").write_text("test1", encoding="utf-8")
     (root / "file2.txt").write_text("test2", encoding="utf-8")
-    file_count = root.stat().st_nlink
+    file_count = len(list(root.iterdir()))
 
     workload = UploadWorkload(client=client, local_root=root)
 
