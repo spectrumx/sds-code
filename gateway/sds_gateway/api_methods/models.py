@@ -683,7 +683,14 @@ class Dataset(BaseModel):
     institutions = models.TextField(blank=True)
     release_date = models.DateTimeField(blank=True, null=True)
     repository = models.URLField(blank=True)
-    version = models.CharField(max_length=255, blank=True)
+    version = models.IntegerField(default=1)
+    previous_version = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name="next_version",
+    )
     website = models.URLField(blank=True)
     provenance = models.JSONField(blank=True, null=True)
     citation = models.JSONField(blank=True, null=True)
