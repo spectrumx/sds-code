@@ -81,7 +81,7 @@ pre-commit:
 pyright *args:
     @echo "Running Pyright locally for {{git_root}}"
     cd "{{git_root}}" && \
-        gh act --rm --workflows "{{git_root}}/.github/workflows" --job pyright {{args}}
+        gh act --rm --workflows "{{git_root}}/.github/workflows" --job sdk-pyright {{args}}
 
 # runs the Pyrefly type checker
 pyrefly *args:

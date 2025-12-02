@@ -90,12 +90,16 @@ def upload_workload(tmp_path: Path, client: Client) -> UploadWorkload:
     """Create an UploadWorkload instance for testing."""
     root = tmp_path / "upload_root"
     root.mkdir()
-    return UploadWorkload(
+    uw = UploadWorkload(
         client=client,
         local_root=root,
         sds_path=PurePosixPath("/"),
         max_concurrent_uploads=2,
     )
+    assert uw._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
+    return uw
 
 
 @pytest.fixture
@@ -854,6 +858,9 @@ async def test_save_persisted_upload_appends_to_file(
 ) -> None:
     """Test _save_persisted_upload appends to existing persistence file."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
 
     file1_path = tmp_path / "file1.txt"
     file1_path.write_text("content1", encoding="utf-8")
@@ -898,6 +905,9 @@ async def test_discover_files_skips_already_uploaded(
         persist_state=True,
     )
 
+    assert workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = workload._persistence_manager._get_persisted_uploads_path()
     file1_checksum = str(file1.stat().st_size)  # use size as fake checksum
     persisted = PersistedUploadFile(
@@ -928,6 +938,9 @@ async def test_mark_completed_persists_file(
 ) -> None:
     """Test _mark_completed saves the file to persistence."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
 
     file_path = tmp_path / "uploaded_file.txt"
     file_path.write_text("uploaded content", encoding="utf-8")
@@ -939,7 +952,7 @@ async def test_mark_completed_persists_file(
     await upload_workload._register_discovered_file(file_model=file_model)
     await upload_workload._acquire_next_file()
 
-    result = Result(value=file_model)
+    result: Result[File] = Result(value=file_model)
     await upload_workload._mark_completed_result(successful_result=result)
 
     persist_path = upload_workload._persistence_manager._get_persisted_uploads_path()
@@ -960,6 +973,12 @@ async def test_persisted_uploads_path_deterministic(
     workload1 = UploadWorkload(client=client, local_root=root)
     workload2 = UploadWorkload(client=client, local_root=root)
 
+    assert workload1._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
+    assert workload2._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     path1 = workload1._persistence_manager._get_persisted_uploads_path()
     path2 = workload2._persistence_manager._get_persisted_uploads_path()
 
@@ -979,6 +998,13 @@ async def test_persisted_uploads_path_different_for_different_roots(
     workload1 = UploadWorkload(client=client, local_root=root1)
     workload2 = UploadWorkload(client=client, local_root=root2)
 
+    assert workload1._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
+    assert workload2._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
+
     path1 = workload1._persistence_manager._get_persisted_uploads_path()
     path2 = workload2._persistence_manager._get_persisted_uploads_path()
 
@@ -991,6 +1017,9 @@ async def test_load_persisted_uploads_handles_corrupt_json(
 ) -> None:
     """Test graceful handling of corrupted JSONL entries."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = upload_workload._persistence_manager._get_persisted_uploads_path()
 
     persist_path.write_text("invalid json\n")
@@ -1006,6 +1035,9 @@ async def test_save_persisted_upload_handles_write_error(
 ) -> None:
     """Test graceful handling when persistence write fails."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
 
     uploads_dir = UploadPersistenceManager._get_persisted_uploads_dir()
     original_mode = uploads_dir.stat().st_mode
@@ -1029,6 +1061,9 @@ async def test_discover_files_detects_updated_file_via_checksum(
 
     workload = UploadWorkload(client=client, local_root=root, persist_state=True)
 
+    assert workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = workload._persistence_manager._get_persisted_uploads_path()
     old_checksum = "old_checksum_abc"
     persisted = PersistedUploadFile(
@@ -1057,6 +1092,9 @@ async def test_persistence_full_workflow(tmp_path: Path, client: Client) -> None
 
     workload = UploadWorkload(client=client, local_root=root, persist_state=True)
 
+    assert workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     discovered1 = await workload._discover_files()
     assert len(discovered1) == 1
     assert len(workload.fq_pending) == 1
@@ -1082,6 +1120,9 @@ async def test_remove_persisted_upload_disabled_when_persist_state_false(
 ) -> None:
     """Test _remove_persisted_upload does nothing when persist_state=False."""
     upload_workload.persist_state = False
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = upload_workload._persistence_manager._get_persisted_uploads_path()
 
     await upload_workload._persistence_manager.remove_persisted_upload("/some/path")
@@ -1094,6 +1135,9 @@ async def test_remove_persisted_upload_no_file_exists(
 ) -> None:
     """Test _remove_persisted_upload returns early if persistence file doesn't exist."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = upload_workload._persistence_manager._get_persisted_uploads_path()
 
     assert not persist_path.exists()
@@ -1107,6 +1151,9 @@ async def test_remove_persisted_upload_removes_single_entry(
 ) -> None:
     """Test _remove_persisted_upload removes a single entry from persistence."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
 
     file_path = tmp_path / "test_file.txt"
     file_path.write_text("content", encoding="utf-8")
@@ -1131,6 +1178,9 @@ async def test_remove_persisted_upload_removes_from_multiple_entries(
 ) -> None:
     """Test _remove_persisted_upload removes specific entry from multiple entries."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
 
     file_paths = [
         tmp_path / "file1.txt",
@@ -1169,6 +1219,9 @@ async def test_remove_persisted_upload_nonexistent_entry(
 ) -> None:
     """Test _remove_persisted_upload handles removal of nonexistent entry gracefully."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
 
     file_path = tmp_path / "file1.txt"
     file_path.write_text("content", encoding="utf-8")
@@ -1196,6 +1249,9 @@ async def test_rewrite_persisted_uploads_excluding_empty_file(
     upload_workload: UploadWorkload, tmp_path: Path
 ) -> None:
     """Test _rewrite_persisted_uploads_excluding on empty persistence file."""
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = tmp_path / "empty_uploads.jsonl"
     persist_path.write_text("")
 
@@ -1212,6 +1268,9 @@ async def test_rewrite_persisted_uploads_excluding_all_entries(
     upload_workload: UploadWorkload, tmp_path: Path
 ) -> None:
     """Test _rewrite_persisted_uploads_excluding can remove all entries."""
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     file_paths = [
         tmp_path / "file1.txt",
         tmp_path / "file2.txt",
@@ -1243,6 +1302,9 @@ async def test_rewrite_persisted_uploads_excluding_keeps_nonexcluded(
     upload_workload: UploadWorkload, tmp_path: Path
 ) -> None:
     """Test _rewrite_persisted_uploads_excluding preserves non-excluded entries."""
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     file_paths = [
         tmp_path / "file1.txt",
         tmp_path / "file2.txt",
@@ -1282,6 +1344,9 @@ async def test_rewrite_persisted_uploads_excluding_handles_corrupt_entries(
     upload_workload: UploadWorkload, tmp_path: Path
 ) -> None:
     """Test _rewrite_persisted_uploads_excluding logs warning on corrupt JSON."""
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = tmp_path / "corrupt_uploads.jsonl"
     persist_path.write_text("invalid json line\n")
 
@@ -1305,6 +1370,9 @@ async def test_discover_files_removes_stale_entry_on_checksum_mismatch(
 
     workload = UploadWorkload(client=client, local_root=root, persist_state=True)
 
+    assert workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = workload._persistence_manager._get_persisted_uploads_path()
     old_checksum = "old_checksum_value"
     persisted = PersistedUploadFile(
@@ -1337,6 +1405,9 @@ async def test_discover_files_removes_expired_entry(
 
     workload = UploadWorkload(client=client, local_root=root, persist_state=True)
 
+    assert workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = workload._persistence_manager._get_persisted_uploads_path()
     expired_date = datetime.now(UTC) - timedelta(days=MAX_DAYS_FOR_RESUMING_UPLOAD + 1)
     persisted = PersistedUploadFile(
@@ -1361,6 +1432,9 @@ async def test_remove_persisted_upload_handles_parse_error(
 ) -> None:
     """Test _remove_persisted_upload logs warning on parse errors."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
     persist_path = upload_workload._persistence_manager._get_persisted_uploads_path()
 
     persist_path.write_text("invalid json\n")
@@ -1376,6 +1450,9 @@ async def test_remove_persisted_upload_handles_write_error(
 ) -> None:
     """Test _remove_persisted_upload handles write permission errors gracefully."""
     upload_workload.persist_state = True
+    assert upload_workload._persistence_manager is not None, (
+        "Persistence manager should be initialized"
+    )
 
     file_path = tmp_path / "file.txt"
     file_path.write_text("content", encoding="utf-8")
@@ -1393,7 +1470,7 @@ async def test_remove_persisted_upload_handles_write_error(
     def mock_open_write(self: Path, *args, **kwargs) -> None:
         if kwargs.get("encoding"):
             raise OSError(error_msg)
-        return original_open(self, *args, **kwargs)
+        return original_open(self, *args, **kwargs)  # pyright: ignore[reportArgumentType]
 
     with (
         patch.object(Path, "open", mock_open_write),
@@ -1563,12 +1640,14 @@ def test_remove_persisted_uploads_by_checksum_handles_read_error(
         original_open = Path.open
         call_count = [0]
 
-        def mock_open_impl(self: Path, *args: object, **kwargs: object) -> object:
+        def mock_open_impl(
+            self: Path, mode: str = "r", *args: object, **kwargs: object
+        ) -> object:
             call_count[0] += 1
-            if call_count[0] == 1 and "w" not in str(args):
+            if call_count[0] == 1 and "w" not in mode:
                 err_msg = "Permission denied"
                 raise OSError(err_msg)
-            return original_open(self, *args, **kwargs)
+            return original_open(self, mode, *args, **kwargs)  # pyright: ignore[reportArgumentType, reportCallIssue]
 
         with (
             patch.object(Path, "open", mock_open_impl),
@@ -1598,12 +1677,14 @@ def test_remove_persisted_uploads_by_checksum_handles_write_error(
         original_open = Path.open
         call_count = [0]
 
-        def mock_open_impl(self: Path, *args: object, **kwargs: object) -> object:
+        def mock_open_impl(
+            self: Path, mode: str = "r", *args: object, **kwargs: object
+        ) -> object:
             call_count[0] += 1
-            if call_count[0] > 1 and "w" in str(args):
+            if call_count[0] > 1 and "w" in mode:
                 err_msg = "Permission denied"
                 raise OSError(err_msg)
-            return original_open(self, *args, **kwargs)
+            return original_open(self, mode, *args, **kwargs)  # pyright: ignore[reportArgumentType, reportCallIssue]
 
         with (
             patch.object(Path, "open", mock_open_impl),
