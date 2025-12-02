@@ -1,6 +1,8 @@
 # SpectrumX SDK Changelog
 
-## `0.1.15` - 2025-12-xx
+## `0.1.16` - YYYY-MM-DD
+
+## `0.1.15` - 2025-12-02
 
 + Features:
     + [**Added support for Python 3.14**](https://github.com/spectrumx/sds-code/pull/210): the SDK is now compatible with Python 3.14. We're thus dropping support for version 3.10 in this and future releases.

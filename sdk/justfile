@@ -30,7 +30,7 @@ check-acceptance:
 clean:
     @rm -rvf \
         .tox .coverage \
-        .pytest_cache .python-version .cache dist \
+        .pytest_cache .cache dist \
         .venv .eggs .eggs/ \
         ./**/*.py.cover \
         *.egg-info *.egg-info/
