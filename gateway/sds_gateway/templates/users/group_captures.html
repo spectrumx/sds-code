@@ -81,117 +81,11 @@
                                    id="selected_captures"
                                    value="" />
                             <input type="hidden" name="selected_files" id="selected_files" value="" />
-<<<<<<< HEAD
                             <div class="tab-content" id="stepTabsContentInner">
                                 {% include "users/partials/step_1.html" %}
                                 {% include "users/partials/step_2.html" %}
                                 {% include "users/partials/step_3.html" %}
                                 {% include "users/partials/step_4.html" %}
-=======
-                            <div class="tab-content" id="stepTabsContent">
-                                <!-- Step 1: Dataset Info -->
-                                <div class="tab-pane fade show active" id="step1">
-                                    <div class="row g-4">
-                                        <div class="col-md-2"></div>
-                                        <div class="col-md-8">
-                                            <div class="row g-6">
-                                                <div class="col-md-4">
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.name.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.name.label }}
-                                                            <span class="text-danger">*</span>
-                                                        </label>
-                                                        {{ dataset_form.name }}
-                                                    </div>
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.author.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.author.label }}
-                                                            <span class="text-danger">*</span>
-                                                        </label>
-                                                        {{ dataset_form.author }}
-                                                    </div>
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.keywords.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.keywords.label }}
-                                                            <span class="text-muted">(Optional)</span>
-                                                        </label>
-                                                        {{ dataset_form.keywords }}
-                                                        {% if dataset_form.keywords.help_text %}<div class="form-text">{{ dataset_form.keywords.help_text }}</div>{% endif %}
-                                                    </div>
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.status.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.status.label }}
-                                                            <span class="text-danger">*</span>
-                                                        </label>
-                                                        {{ dataset_form.status }}
-                                                        {% if dataset_form.status.help_text %}<div class="form-text">{{ dataset_form.status.help_text }}</div>{% endif %}
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-8">
-                                                    <div class="form-group mt-4">
-                                                        <label for="{{ dataset_form.description.id_for_label }}" class="form-label">
-                                                            {{ dataset_form.description.label }}
-                                                            <span class="text-muted">(Optional)</span>
-                                                        </label>
-                                                        {{ dataset_form.description }}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="text-muted small mt-3">
-                                                <span class="text-danger">*</span> Required fields
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Step 2: Captures Selection -->
-                                <div class="tab-pane fade" id="step2">
-                                    <div class="row g-4">
-                                        <div class="col-md-8">
-                                            <div class="card">
-                                                <div class="card-header">
-                                                    <h5 class="mb-0">
-                                                        Select Captures for Dataset: "<span class="dataset-name-display">Untitled Dataset</span>"
-                                                    </h5>
-                                                </div>
-                                                <div class="card-body">
-                                                    <div class="mb-3" id="captures-search-form">
-                                                        <div class="row g-3">
-                                                            {% for field in capture_search_form %}
-                                                                <div class="col-md-3">
-                                                                    <div class="form-group">
-                                                                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
-                                                                        {{ field }}
-                                                                    </div>
-                                                                </div>
-                                                            {% endfor %}
-                                                            <div class="col-12 d-flex gap-2">
-                                                                <button type="button"
-                                                                        class="btn btn-primary btn-sm btn-fixed-width"
-                                                                        id="search-captures">Search Captures</button>
-                                                                <button type="button"
-                                                                        class="btn btn-secondary btn-sm btn-fixed-width"
-                                                                        id="clear-captures-search">Clear</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    {% include "users/partials/captures_table.html" %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- Step 3: Files Selection -->
-                                <div class="tab-pane fade" id="step3">
-                                    <div class="row g-4">
-                                        <div class="col-md-1"></div>
-                                        <div class="col-md-10">{% include "users/partials/file_browser.html" %}</div>
-                                    </div>
-                                </div>
-                                <!-- Step 4: Review and Create -->
-                                <div class="tab-pane fade" id="step4">
-                                    <div class="row g-4">{% include "users/partials/review_create_dataset.html" %}</div>
-                                </div>
->>>>>>> 283791a (Added keyword model and frontend view)
                             </div>
                         </div>
                     </div>
@@ -226,29 +120,6 @@
         {# djlint:off #}
         <script>
             document.addEventListener('DOMContentLoaded', () => {
-<<<<<<< HEAD
-                // Initialize the dataset mode manager
-                const datasetModeManager = new DatasetModeManager({
-                    isEditMode: {{ existing_dataset|yesno:"true,false" }},
-                    datasetUuid: "{{ existing_dataset.uuid|default:'' }}",
-                    userPermissionLevel: '{{ permission_level }}',
-                    currentUserId: {{ request.user.id }},
-                    isOwner: {% if is_owner %}true{% else %}false{% endif %},
-                    datasetPermissions: {
-                        canEditMetadata: {% if can_edit_metadata %}true{% else %}false{% endif %},
-                        canAddAssets: {% if can_add_assets %}true{% else %}false{% endif %},
-                        canRemoveAnyAssets: {% if can_remove_assets %}true{% else %}false{% endif %},
-                        canRemoveOwnAssets: true,
-                        canShare: {% if can_edit_metadata %}true{% else %}false{% endif %},
-                        canDownload: true,
-                        canDelete: {% if is_owner %}true{% else %}false{% endif %}
-                    },
-                    initialCaptures: {{ selected_captures|safe }},
-                    initialFiles: {{ selected_files|safe }},
-                    initialCaptureDetails: {{ selected_captures_details_json|safe }},
-                    initialFileDetails: {{ selected_files_details_json|safe }},
-                    initialAuthors: {{ existing_dataset.authors|safe|default:"[]" }}
-=======
                 // ========== Keyword Autocomplete ==========
                 class KeywordAutocomplete {
                     constructor(inputElement, apiUrl = '/users/api/keyword-autocomplete/') {
@@ -420,69 +291,27 @@
                     new KeywordAutocomplete(keywordInput);
                 }
 
-                // Update dataset name display
-                function updateDatasetNameDisplay() {
-                    const nameInput = document.getElementById('id_name');
-                    const displaySpan = document.querySelector('.dataset-name-display');
-                    if (nameInput && displaySpan) {
-                        const name = nameInput.value.trim() || 'Untitled Dataset';
-                        displaySpan.textContent = name;
-                    }
-                }
-
-                // Update on input change
-                const nameInput = document.getElementById('id_name');
-                if (nameInput) {
-                    nameInput.addEventListener('input', updateDatasetNameDisplay);
-                    // Update immediately if there's an existing value
-                    updateDatasetNameDisplay();
-                }
-
-                // Basic step navigation fallback
-                const nextBtn = document.getElementById('nextStep');
-                const prevBtn = document.getElementById('prevStep');
-                const submitBtn = document.getElementById('submitForm');
-                const stepTabs = document.querySelectorAll('#stepTabs button');
-                const tabPanes = document.querySelectorAll('.tab-pane');
-
-                let currentStep = 0;
-
-                function showStep(stepIndex) {
-                    // Hide all tab panes
-                    tabPanes.forEach(pane => {
-                        pane.classList.remove('show', 'active');
-                    });
-
-                    // Remove active classes from tabs
-                    stepTabs.forEach(tab => {
-                        tab.classList.remove('btn-primary', 'active-tab');
-                        tab.classList.add('btn-outline-primary', 'inactive-tab');
-                    });
-
-                    // Show current step
-                    if (tabPanes[stepIndex]) {
-                        tabPanes[stepIndex].classList.add('show', 'active');
-                    }
-
-                    if (stepTabs[stepIndex]) {
-                        stepTabs[stepIndex].classList.remove('btn-outline-primary', 'inactive-tab');
-                        stepTabs[stepIndex].classList.add('btn-primary', 'active-tab');
-                    }
-
-                    // Update button visibility
-                    prevBtn.style.display = stepIndex === 0 ? 'none' : 'inline-block';
-                    nextBtn.style.display = stepIndex === tabPanes.length - 1 ? 'none' : 'inline-block';
-                    // Submit button should always be visible
-                    submitBtn.style.display = 'inline-block';
-                }
-
-                // Next button
-                nextBtn.addEventListener('click', () => {
-                    if (currentStep < tabPanes.length - 1) {
-                        currentStep++;
-                        showStep(currentStep);
-                    }
->>>>>>> 283791a (Added keyword model and frontend view)
+                // Initialize the dataset mode manager
+                const datasetModeManager = new DatasetModeManager({
+                    isEditMode: {{ existing_dataset|yesno:"true,false" }},
+                    datasetUuid: "{{ existing_dataset.uuid|default:'' }}",
+                    userPermissionLevel: '{{ permission_level }}',
+                    currentUserId: {{ request.user.id }},
+                    isOwner: {% if is_owner %}true{% else %}false{% endif %},
+                    datasetPermissions: {
+                        canEditMetadata: {% if can_edit_metadata %}true{% else %}false{% endif %},
+                        canAddAssets: {% if can_add_assets %}true{% else %}false{% endif %},
+                        canRemoveAnyAssets: {% if can_remove_assets %}true{% else %}false{% endif %},
+                        canRemoveOwnAssets: true,
+                        canShare: {% if can_edit_metadata %}true{% else %}false{% endif %},
+                        canDownload: true,
+                        canDelete: {% if is_owner %}true{% else %}false{% endif %}
+                    },
+                    initialCaptures: {{ selected_captures|safe }},
+                    initialFiles: {{ selected_files|safe }},
+                    initialCaptureDetails: {{ selected_captures_details_json|safe }},
+                    initialFileDetails: {{ selected_files_details_json|safe }},
+                    initialAuthors: {{ existing_dataset.authors|safe|default:"[]" }}
                 });
 
                 // Make it globally available

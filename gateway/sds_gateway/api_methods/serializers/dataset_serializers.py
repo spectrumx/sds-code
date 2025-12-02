@@ -10,6 +10,7 @@ from sds_gateway.api_methods.models import UserSharePermission
 
 class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     authors = serializers.SerializerMethodField()
+    keywords = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(format="%m/%d/%Y %H:%M:%S", read_only=True)
     is_shared_with_me = serializers.SerializerMethodField()
     is_owner = serializers.SerializerMethodField()
