@@ -16,6 +16,7 @@ from .views import user_api_key_view
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
+from .views import user_dataset_versioning_view
 from .views import user_detail_view
 from .views import user_download_item_view
 from .views import user_file_detail_view
@@ -30,6 +31,7 @@ app_name = "users"
 urlpatterns = [
     path("~redirect/", view=user_redirect_view, name="redirect"),
     path("~update/", view=user_update_view, name="update"),
+    path("dataset-versioning/", view=user_dataset_versioning_view, name="dataset_versioning"),
     path("<int:pk>/", view=user_detail_view, name="detail"),
     path("view-api-key/", user_api_key_view, name="view_api_key"),
     path("new-api-key/", new_api_key_view, name="new_api_key"),
