@@ -1,0 +1,38 @@
+<div class="modal fade"
+     id="versioningModal-{{ dataset.uuid }}"
+     tabindex="-1"
+     aria-labelledby="versioningModalLabel-{{ dataset.uuid }}"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="versioningModalLabel-{{ dataset.uuid }}">
+                    <i class="bi bi-folder-symlink"></i> Version Control
+                </h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Are you sure you want to create a new version of the dataset <strong>{{ dataset.name }} (v{{ dataset.version }})</strong>?
+                    <br>
+                    <br>
+                    <p>
+                        This will create a new version of the dataset: <strong>v{{ dataset.version + 1 }}</strong>
+                        <br>
+                        <br>
+                        <p>
+                            The new version will be created with the same files and captures as the current version,
+                            and will be a draft by default.
+                        </p>
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary">Create Version</button>
+            </div>
+        </div>
+    </div>
+</div>

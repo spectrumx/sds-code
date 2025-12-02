@@ -3460,6 +3460,84 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 user_dataset_details_view = DatasetDetailsView.as_view()
 
 
+class DatasetVersioningView(Auth0LoginRequiredMixin, View):
+    """View to handle dataset versioning requests."""
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        """Handle dataset versioning requests."""
+        dataset_uuid = request.GET.get("dataset_uuid")
+        if not dataset_uuid:
+            return JsonResponse({"error": "Dataset UUID is required"}, status=400)
+
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
+
+        # check if user has access to the dataset
+        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
+            return JsonResponse({"error": "Dataset not found or access denied"}, status=404)
+        
+        return JsonResponse({"success": True, "version": dataset.version})
+
+
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        dataset_uuid = request.POST.get("dataset_uuid")
+        if not dataset_uuid:
+            return JsonResponse({"error": "Dataset UUID is required"}, status=400)
+
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
+
+        # check if user has access to the dataset
+        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
+            return JsonResponse({"error": "Dataset not found or access denied"}, status=404)
+
+        # copy dataset with relations
+        new_dataset = self._copy_dataset_with_relations(dataset)
+
+        return JsonResponse({"success": True, "version": dataset.version})
+    
+    def _copy_dataset_with_relations(original_dataset: Dataset, request_user: User) -> Dataset:
+        """
+        Copy a dataset along with all its related files and captures.
+        
+        Args:
+            original_dataset: The dataset to copy
+            
+        Returns:
+            The new dataset with copied related objects
+        """
+        new_version = original_dataset.version + 1
+        new_name = f"{original_dataset.name} (v{new_version})"
+
+        preserve_fields = {
+            'uuid',
+            'created_at',
+            'updated_at',
+            'status',
+            'is_public',
+            'shared_with',
+        }
+        dataset_data = {
+            field.name: getattr(original_dataset, field.name)
+            for field in original_dataset._meta.fields
+            if field.name not in preserve_fields
+        }
+
+        dataset_data['owner'] = request_user
+        dataset_data['name'] = new_name
+        dataset_data['version'] = new_version
+        dataset_data['previous_version'] = original_dataset
+
+        # create new dataset
+        new_dataset = Dataset(**dataset_data)
+        
+        new_dataset.shared_with.set(original_dataset.shared_with.all())
+        new_dataset.captures.set(original_dataset.captures.all())
+        new_dataset.files.set(original_dataset.files.all())
+
+        return new_dataset
+
+user_dataset_versioning_view = DatasetVersioningView.as_view()
+
+
 class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
     """Generic view to render any HTML fragment from a Django template."""
 

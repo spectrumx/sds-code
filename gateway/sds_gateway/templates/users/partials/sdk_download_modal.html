@@ -150,78 +150,17 @@ except Exception as e:
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+<!-- Download Instructions Manager -->
+<script src="{% static 'js/actions/DownloadInstructionsManager.js' %}"></script>
 <script>
-    // Initialize syntax highlighting and copy functionality
+    // Initialize syntax highlighting
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize Prism.js syntax highlighting
         if (typeof Prism !== 'undefined') {
             Prism.highlightAll();
         }
 
-        // Copy to clipboard functionality
-        const copyButtons = document.querySelectorAll('.copy-btn');
-
-        for (const button of copyButtons) {
-            button.addEventListener('click', function() {
-                const targetId = this.getAttribute('data-clipboard-target');
-                const codeElement = document.querySelector(targetId);
-
-                if (codeElement) {
-                    const textToCopy = codeElement.textContent;
-
-                    // Use modern clipboard API if available
-                    if (navigator.clipboard && window.isSecureContext) {
-                        navigator.clipboard.writeText(textToCopy).then(() => {
-                            showCopySuccess(this);
-                        }).catch(() => {
-                            fallbackCopyTextToClipboard(textToCopy, this);
-                        });
-                    } else {
-                        fallbackCopyTextToClipboard(textToCopy, this);
-                    }
-                }
-            });
-        }
+        // Initialize download instructions manager
+        const downloadInstructionsManager = new DownloadInstructionsManager();
     });
-
-    function showCopySuccess(button) {
-        const originalText = button.innerHTML;
-        button.innerHTML = '<i class="bi bi-check"></i> Copied!';
-        button.classList.add('copied');
-
-        setTimeout(() => {
-            button.innerHTML = originalText;
-            button.classList.remove('copied');
-        }, 2000);
-    }
-
-    function fallbackCopyTextToClipboard(text, button) {
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-
-        try {
-            document.execCommand('copy');
-            showCopySuccess(button);
-        } catch (err) {
-            console.error('Fallback: Oops, unable to copy', err);
-        }
-
-        document.body.removeChild(textArea);
-    }
-
-    // Function to show SDK download modal
-    function showSDKDownloadModal(datasetUuid) {
-        // Show the dataset-specific modal
-        const modal = new bootstrap.Modal(document.getElementById(`sdkDownloadModal-${datasetUuid}`));
-        modal.show();
-    }
-
-    // Make the function globally available
-    window.showSDKDownloadModal = showSDKDownloadModal;
 </script>
