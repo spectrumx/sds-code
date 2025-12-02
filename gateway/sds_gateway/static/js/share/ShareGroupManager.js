@@ -83,10 +83,7 @@ class ShareGroupManager {
 				this.showAlert(response.message, "success");
 
 				// Close the create modal
-				const createModal = bootstrap.Modal.getInstance(
-					document.getElementById("createGroupModal"),
-				);
-				createModal.hide();
+				window.DOMUtils.closeModal("createGroupModal");
 
 				// Clear the form
 				document.getElementById("groupName").value = "";
@@ -389,10 +386,7 @@ class ShareGroupManager {
 			});
 
 			// Hide the confirmation modal
-			const deleteModal = bootstrap.Modal.getInstance(
-				document.getElementById("deleteGroupModal"),
-			);
-			deleteModal.hide();
+			window.DOMUtils.closeModal("deleteGroupModal");
 
 			if (response.success) {
 				// Store success message for after page reload
@@ -678,30 +672,10 @@ class ShareGroupManager {
 		// Hide any other open modals first
 		const openModals = document.querySelectorAll(".modal.show");
 		for (const modal of openModals) {
-			const modalInstance = bootstrap.Modal.getInstance(modal);
-			if (modalInstance) {
-				modalInstance.hide();
-			}
+			window.DOMUtils.closeModal(modal.id);
 		}
 
-		// Show the confirmation modal
-		const deleteModalElement = document.getElementById("deleteGroupModal");
-		if (!deleteModalElement) {
-			console.error("Delete modal element not found");
-			return;
-		}
-
-		// Check if modal instance already exists
-		let deleteModal = bootstrap.Modal.getInstance(deleteModalElement);
-		if (!deleteModal) {
-			deleteModal = new bootstrap.Modal(deleteModalElement, {
-				backdrop: true,
-				keyboard: true,
-				focus: true,
-			});
-		}
-
-		deleteModal.show();
+		window.DOMUtils.openModal("deleteGroupModal");
 	}
 
 	/**
@@ -1417,10 +1391,7 @@ class ShareGroupManager {
 		this.loadSharedAssetsInfo();
 
 		// Show the modal
-		const manageModal = new bootstrap.Modal(
-			document.getElementById("share-modal-sharegroup"),
-		);
-		manageModal.show();
+		window.DOMUtils.openModal("share-modal-sharegroup");
 	}
 }
 

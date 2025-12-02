@@ -125,6 +125,92 @@ class DOMUtils {
 	}
 
 	/**
+	 * Show modal loading state
+	 * @param {string} modalId - Modal ID
+	 */
+	async showModalLoading(modalId) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const modalBody = modal.querySelector(".modal-body");
+		if (modalBody) {
+			// Store original content before showing loading
+			if (!modalBody.dataset.originalContent) {
+				modalBody.dataset.originalContent = modalBody.innerHTML;
+			}
+
+			await this.renderLoading(modalBody, "Loading modal...", {
+				format: "modal",
+			});
+		}
+	}
+
+	/**
+	 * Clear modal loading state and restore original content
+	 * @param {string} modalId - Modal ID
+	 */
+	clearModalLoading(modalId) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const modalBody = modal.querySelector(".modal-body");
+		if (modalBody?.dataset.originalContent) {
+			// Restore original content
+			modalBody.innerHTML = modalBody.dataset.originalContent;
+			// Clean up the stored content
+			delete modalBody.dataset.originalContent;
+		}
+	}
+
+	/**
+	 * Show modal error
+	 * @param {string} modalId - Modal ID
+	 * @param {string} message - Error message
+	 */
+	async showModalError(modalId, message) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const modalBody = modal.querySelector(".modal-body");
+		if (modalBody) {
+			await this.renderError(modalBody, message, {
+				format: "alert",
+				alert_type: "danger",
+				icon: "exclamation-triangle",
+			});
+		}
+
+		// Show modal even with error
+		this.openModal(modalId);
+	}
+
+	/**
+	 * Open modal
+	 * @param {string} modalId - Modal ID
+	 */
+	openModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const bootstrapModal = new bootstrap.Modal(modal);
+		bootstrapModal.show();
+	}
+
+	/**
+	 * Close modal
+	 * @param {string} modalId - Modal ID
+	 */
+	closeModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const bootstrapModal = bootstrap.Modal.getInstance(modal);
+		if (!bootstrapModal) return;
+
+		bootstrapModal.hide();
+	}
+
+	/**
 	 * Render error using Django template
 	 * @param {Element|string} container - Container element or selector
 	 * @param {string} message - Error message
