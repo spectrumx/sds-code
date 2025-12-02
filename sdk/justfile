@@ -74,6 +74,7 @@ dev-setup:
 
 # runs pre-commit checks locally
 pre-commit:
+    uv run deptry .
     uv run pre-commit install --install-hooks
     uv run --dev pre-commit run --all-files
 
