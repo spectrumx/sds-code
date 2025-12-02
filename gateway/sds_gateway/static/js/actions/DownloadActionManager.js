@@ -103,7 +103,7 @@ class DownloadActionManager {
 		}
 
 		// Show the modal
-		this.openCustomModal("downloadModal");
+		window.DOMUtils.openModal("downloadModal");
 
 		// Handle confirm download
 		const confirmBtn = document.getElementById("confirmDownloadBtn");
@@ -115,7 +115,7 @@ class DownloadActionManager {
 
 		newConfirmBtn.onclick = async () => {
 			// Close modal first
-			this.closeCustomModal("downloadModal");
+			window.DOMUtils.closeModal("downloadModal");
 
 			// Show loading state
 			const originalContent = button.innerHTML;
@@ -178,16 +178,8 @@ class DownloadActionManager {
 	 * Handle capture download
 	 * @param {string} captureUuid - Capture UUID
 	 * @param {string} captureName - Capture name
-	 * @param {Element} button - Download button element
 	 */
-	async handleCaptureDownload(captureUuid, captureName, button) {
-		// Use the web download modal (same as datasets)
-		if (!window.showWebDownloadModal) {
-			console.error("Web download modal not available");
-			this.showToast("Download functionality not available", "error");
-			return;
-		}
-
+	async handleCaptureDownload(captureUuid, captureName) {
 		// Update modal content for capture
 		const modalTitleElement = document.getElementById("webDownloadModalLabel");
 		const modalNameElement = document.getElementById("webDownloadDatasetName");
@@ -236,33 +228,7 @@ class DownloadActionManager {
 		}
 
 		// Show the modal
-		window.showWebDownloadModal(captureUuid, captureName);
-	}
-
-	/**
-	 * Open custom modal
-	 * @param {string} modalId - Modal ID
-	 */
-	openCustomModal(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const bootstrapModal = new bootstrap.Modal(modal);
-		bootstrapModal.show();
-	}
-
-	/**
-	 * Close custom modal
-	 * @param {string} modalId - Modal ID
-	 */
-	closeCustomModal(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const bootstrapModal = bootstrap.Modal.getInstance(modal);
-		if (!bootstrapModal) return;
-
-		bootstrapModal.hide();
+		window.DOMUtils.openModal("webDownloadModal");
 	}
 
 	/**
