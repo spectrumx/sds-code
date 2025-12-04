@@ -10,9 +10,8 @@ class VersioningActionManager {
 	constructor(config) {
 		this.permissions = config.permissions;
 		this.datasetUuid = config.datasetUuid;
-		this.currentUserId = config.currentUserId;
-		this.isOwner = config.isOwner;
 		this.initializeEventListeners();
+		this.modalId = `versioningModal-${this.datasetUuid}`;
 	}
 
 	/**
@@ -24,15 +23,24 @@ class VersioningActionManager {
 	}
 
 	initializeVersionCreationButton() {
-		const versionCreationButton = document.getElementById("versionCreationButton");
+		const versionCreationButton = document.getElementById(`createVersionBtn-${this.datasetUuid}`);
 		if (versionCreationButton) {
-			versionCreationButton.addEventListener("click", this.handleVersionCreation.bind(this));
+			versionCreationButton.addEventListener(
+				"click",
+				(event) => this.handleVersionCreation(
+					event,
+					versionCreationButton,
+				),
+			);
 		}
 	}
 
-	handleVersionCreation() {
+	handleVersionCreation(event, versionCreationButton) {
+		event.preventDefault();
+		event.stopPropagation();
+
 		// show loading state
-		window.DOMUtils.showModalLoading("versioningModal");
+		window.DOMUtils.showModalLoading(this.modalId);
 		
         // disable button
 		versionCreationButton.disabled = true;
@@ -43,11 +51,11 @@ class VersioningActionManager {
 		}).then((response) => {
 			if (response.success) {
 				// close modal
-				window.DOMUtils.closeModal("versioningModal");
+				window.DOMUtils.closeModal(this.modalId);
 				// show success message
 				window.DOMUtils.showAlert(`Dataset version updated to v${response.version} successfully`, "success");
 				// refresh dataset list
-				window.location.reload();
+				window.ListRefreshManager.loadTable();
 			} else {
 				// show error message and error message from response
 				window.DOMUtils.showAlert(response.error || "Failed to create dataset version", "error");
@@ -57,4 +65,12 @@ class VersioningActionManager {
 			window.DOMUtils.showAlert(error.message || "Failed to create dataset version", "error");
 		});
 	}
+}
+
+// Make class available globally
+window.VersioningActionManager = VersioningActionManager;
+
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { VersioningActionManager };
 }

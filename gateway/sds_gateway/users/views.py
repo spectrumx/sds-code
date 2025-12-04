@@ -3490,11 +3490,11 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
             return JsonResponse({"error": "You do not have permission to advance the version of this dataset"}, status=403)
 
         # copy dataset with relations
-        new_dataset = self._copy_dataset_with_relations(dataset)
+        new_dataset = self._copy_dataset_with_relations(dataset, request.user)
 
-        return JsonResponse({"success": True, "version": dataset.version})
+        return JsonResponse({"success": True, "version": new_dataset.version})
     
-    def _copy_dataset_with_relations(original_dataset: Dataset, request_user: User) -> Dataset:
+    def _copy_dataset_with_relations(self, original_dataset: Dataset, request_user: User) -> Dataset:
         """
         Copy a dataset along with all its related files and captures.
         
@@ -3505,7 +3505,6 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
             The new dataset with copied related objects
         """
         new_version = original_dataset.version + 1
-        new_name = f"{original_dataset.name} (v{new_version})"
 
         preserve_fields = {
             'uuid',
@@ -3522,7 +3521,6 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
         }
 
         dataset_data['owner'] = request_user
-        dataset_data['name'] = new_name
         dataset_data['version'] = new_version
         dataset_data['previous_version'] = original_dataset
 
