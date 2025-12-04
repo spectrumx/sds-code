@@ -1,4 +1,11 @@
-/* Reusable Components for SDS Gateway */
+/* Reusable Components for SDS Gateway
+
+* NOTE: This file is here because the functions have NOT
+* been refactored to be placed in the new JS structure.
+
+* TODO: Refactor the rest of the methods to be placed in the new JS structure.
+* And deprecate this file.
+*/
 
 /**
  * Utility functions for security and common operations
@@ -1738,6 +1745,7 @@ class ModalManager {
 		// }
 
 		// Associated resources
+		// TODO: Refactor this to handle multiple associations
 		if (file.capture?.name) {
 			metadata.push(
 				`<strong>Associated Capture:</strong> ${ComponentUtils.escapeHtml(file.capture.name)}`,
