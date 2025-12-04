@@ -37,6 +37,8 @@ class KeywordNameField(models.CharField):
     def get_prep_value(self, value):
         """Convert the value to a slug before saving to database."""
         value = super().get_prep_value(value)
+        if value is None:
+            return value
         if not isinstance(value, str):
             msg = "Name attribute must be a string"
             raise TypeError(msg)

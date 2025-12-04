@@ -128,7 +128,7 @@ class FormHandler {
 
 	show(container, showClass = "display-block") {
 		container.classList.remove("display-none");
-		container.classList.remove("d-none"); 
+		container.classList.remove("d-none");
 		container.classList.add(showClass);
 	}
 
@@ -283,7 +283,7 @@ class FormHandler {
 							<td>${file.name}</td>
 							<td>${file.media_type || "Unknown"}</td>
 							<td>${file.relative_path}</td>
-							<td>${this.formatFileSize(file.size)}</td>
+							<td>${window.DOMUtils.formatFileSize(file.size)}</td>
 							<td>
 								<button class="btn btn-sm btn-danger remove-file" data-id="${file.id}">
 									Remove
@@ -405,7 +405,7 @@ class FormHandler {
 	}
 
 	validateCurrentStep() {
-		let isValid = true;
+		let isValid;
 		switch (this.currentStep) {
 			case 0:
 				isValid = this.validateDatasetInfo();
@@ -525,15 +525,6 @@ class FormHandler {
 				this.setSubmitButtonLoading(false);
 			}
 		}
-	}
-
-	// Helper function to format file size
-	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 	}
 
 	// Set loading state for submit button
@@ -1178,7 +1169,7 @@ class SearchHandler {
 						<td>${file.name}</td>
 						<td>${file.media_type}</td>
 						<td>${file.relative_path}</td>
-						<td>${this.formHandler.formatFileSize(file.size)}</td>
+						<td>${window.DOMUtils.formatFileSize(file.size)}</td>
 						<td>
 							<button class="btn btn-sm btn-danger remove-selected-file" data-id="${id}">
 								Remove
@@ -1351,7 +1342,7 @@ class SearchHandler {
 					${content.name || name}
 				</td>
 				<td>Directory</td>
-				<td>${this.formHandler.formatFileSize(content.size || 0)}</td>
+				<td>${window.DOMUtils.formatFileSize(content.size || 0)}</td>
 				<td>${content.created_at ? new Date(content.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "-"}</td>
 			`;
 			targetElement.appendChild(row);
@@ -1436,7 +1427,7 @@ class SearchHandler {
 						${file.name}
 					</td>
 					<td>${file.media_type || "Unknown"}</td>
-					<td>${this.formHandler.formatFileSize(file.size)}</td>
+					<td>${window.DOMUtils.formatFileSize(file.size)}</td>
 					<td>${new Date(file.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
 				`;
 
