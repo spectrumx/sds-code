@@ -63,22 +63,6 @@ class PageLifecycleManager {
 			this.permissions = new window.PermissionsManager(this.config.permissions);
 			this.managers.push(this.permissions);
 		}
-
-		// Initialize download action manager
-		if (this.permissions && window.DownloadActionManager) {
-			this.downloadActionManager = new window.DownloadActionManager({
-				permissions: this.permissions,
-			});
-			this.managers.push(this.downloadActionManager);
-		}
-
-		// Initialize details action manager
-		if (this.permissions && window.DetailsActionManager) {
-			this.detailsActionManager = new window.DetailsActionManager({
-				permissions: this.permissions,
-			});
-			this.managers.push(this.detailsActionManager);
-		}
 	}
 
 	/**
@@ -292,8 +276,12 @@ class PageLifecycleManager {
 		for (const modal of datasetModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
 
-			// Initialize share action manager for this dataset
-			if (itemUuid && this.permissions && window.ShareActionManager) {
+			if (!itemUuid || !this.permissions) {
+				console.warn(`No item UUID or permissions found for dataset modal: ${modal}`);
+				continue;
+			}
+		
+			if (window.ShareActionManager) {
 				const shareManager = new window.ShareActionManager({
 					itemUuid: itemUuid,
 					itemType: "dataset",
@@ -303,6 +291,39 @@ class PageLifecycleManager {
 
 				// Store reference on modal
 				modal.shareActionManager = shareManager;
+			}
+			
+			if (window.VersioningActionManager) {
+				const versioningManager = new window.VersioningActionManager({
+					datasetUuid: itemUuid,
+					permissions: this.permissions,
+				});
+				this.managers.push(versioningManager);
+				
+				// Store reference on modal
+				modal.versioningActionManager = versioningManager;
+			}
+
+			if (window.DownloadActionManager) {
+				const downloadManager = new window.DownloadActionManager({
+					permissions: this.permissions,
+				});
+				this.managers.push(downloadManager);
+				
+				// Store reference on modal
+				modal.downloadActionManager = downloadManager;
+			}
+
+			if (window.DetailsActionManager) {
+				const detailsManager = new window.DetailsActionManager({
+					permissions: this.permissions,
+					itemUuid: itemUuid,
+					itemType: "dataset",
+				});
+				this.managers.push(detailsManager);
+				
+				// Store reference on modal
+				modal.detailsActionManager = detailsManager;
 			}
 		}
 	}
@@ -317,9 +338,13 @@ class PageLifecycleManager {
 
 		for (const modal of captureModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
+			
+			if (!itemUuid || !this.permissions) {
+				console.warn(`No item UUID or permissions found for capture modal: ${modal}`);
+				continue;
+			}
 
-			// Initialize share action manager for this capture
-			if (itemUuid && this.permissions && window.ShareActionManager) {
+			if (window.ShareActionManager) {
 				const shareManager = new window.ShareActionManager({
 					itemUuid: itemUuid,
 					itemType: "capture",
@@ -329,6 +354,18 @@ class PageLifecycleManager {
 
 				// Store reference on modal
 				modal.shareActionManager = shareManager;
+			}
+
+			if (window.DownloadActionManager) {
+				const downloadManager = new window.DownloadActionManager({
+					itemUuid: itemUuid,
+					itemType: "capture",
+					permissions: this.permissions,
+				});
+				this.managers.push(downloadManager);
+				
+				// Store reference on modal
+				modal.downloadActionManager = downloadManager;
 			}
 		}
 	}
