@@ -84,11 +84,12 @@
     </div>
 </div>
 <!-- Modals to reveal on click -->
-{% include "users/partials/web_download_modal.html" %}
-{% include "users/partials/dataset_details_modal.html" %}
 {% for dataset in page_obj %}
+    {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
+    {% include "users/partials/web_download_modal.html" with dataset=dataset %}
     {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
     {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
+    {% include "users/partials/dataset_version_control.html" with dataset=dataset %}
 {% endfor %}
 {% endblock content %}
 {% block javascript %}
@@ -104,29 +105,17 @@
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.btn-icon-dropdown').forEach(function(toggle) {
-                const dropdown = new bootstrap.Dropdown(toggle, {
-                    container: 'body',
-                    boundary: 'viewport',
-                    popperConfig: {
-                        modifiers: [{
-                            name: 'preventOverflow',
-                            options: {
-                                boundary: 'viewport'
-                            }
-                        }]
-                    }
-                });
+            // Initialize list dropdowns
+            window.DOMUtils.initializeListDropdowns();
 
-                // Manually move dropdown to body when shown
-                toggle.addEventListener('show.bs.dropdown', function() {
-                    const dropdownMenu = toggle.nextElementSibling;
-                    if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
-                        document.body.appendChild(dropdownMenu);
-                    }
-                });
+            // Initialize ListRefreshManager for dataset list page
+            window.ListRefreshManager = new ListRefreshManager({
+                containerSelector: '#dynamic-table-container',
+                url: '/users/dataset-list/',
+                itemType: 'dataset'
             });
 
             // Initialize PageLifecycleManager for dataset list page
@@ -152,24 +141,13 @@
             // This will automatically handle all modal initialization including share modals
             window.pageLifecycleManager = new PageLifecycleManager(pageConfig);
 
-            // Check for dataset download alert messages only
+            // Check for dataset download alert messages only (on redirect)
             const downloadAlert = sessionStorage.getItem('datasetDownloadAlert');
             if (downloadAlert) {
                 const alertData = JSON.parse(downloadAlert);
                 showAlert(alertData.message, alertData.type);
                 sessionStorage.removeItem('datasetDownloadAlert');
             }
-
-            // Prevent row click when clicking on dropdown elements
-            document.addEventListener('click', function(event) {
-                if (event.target.closest('.dropdown') ||
-                    event.target.closest('.btn-icon-dropdown') ||
-                    event.target.closest('.dropdown-toggle') ||
-                    event.target.closest('.dropdown-menu')) {
-                    event.stopPropagation();
-                }
-            });
-
         });
 </script>
     {# djlint:on #}

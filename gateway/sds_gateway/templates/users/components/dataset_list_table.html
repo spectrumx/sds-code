@@ -72,20 +72,16 @@ Context:
                                     {% else %}
                                         <i class="bi bi-lock-fill me-1 text-danger" title="Private"></i>
                                     {% endif %}
-                                    {% if dataset.is_owner %}
-                                        <a href="#"
-                                           class="dataset-name-link"
-                                           data-bs-toggle="modal"
-                                           data-bs-target="#datasetDetailsModal"
-                                           data-dataset-uuid="{{ dataset.uuid }}"
-                                           aria-label="View details for {{ dataset.name }}">
-                                            {{ dataset.name }}
-                                        </a>
-                                    {% else %}
-                                        <span class="text-muted dataset-name-link"
-                                              data-bs-toggle="modal"
-                                              data-bs-target="#datasetDetailsModal"
-                                              data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</span>
+                                    <a href="#"
+                                        class="dataset-name-link"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
+                                        data-dataset-uuid="{{ dataset.uuid }}"
+                                        aria-label="View details for {{ dataset.name }}">
+                                        {{ dataset.name }}
+                                    </a>
+                                    {% if dataset.version > 1 %}
+                                    <span class="ms-2 badge bg-primary">v{{ dataset.version }}</span>
                                     {% endif %}
                                     {% if dataset.status == 'draft' %}
                                         <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
@@ -162,7 +158,7 @@ Context:
                                                     <button class="dropdown-item"
                                                             type="button"
                                                             data-bs-toggle="modal"
-                                                            data-bs-target="#share-modal-{{ dataset.uuid }}">
+                                                            data-bs-target="#shareModal-{{ dataset.uuid }}">
                                                         <i class="bi bi-share me-2"></i>Share
                                                     </button>
                                                 </li>
