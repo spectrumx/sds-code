@@ -438,7 +438,6 @@ class ListRefreshManager {
 window.APIClient = new APIClient();
 window.APIError = APIError;
 window.LoadingStateManager = LoadingStateManager;
-window.ListRefreshManager = new ListRefreshManager();
 
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
@@ -446,6 +445,5 @@ if (typeof module !== "undefined" && module.exports) {
 		APIClient,
 		APIError,
 		LoadingStateManager,
-		ListRefreshManager,
 	};
 }

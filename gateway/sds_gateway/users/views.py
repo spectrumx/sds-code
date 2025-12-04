@@ -2773,6 +2773,21 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
 
+        # Check if this is an AJAX request
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            # Return just the table container HTML for AJAX updates
+            from django.template.loader import render_to_string
+            html = render_to_string(
+                "users/components/dataset_list_table.html",  # You'll need to create this partial
+                {
+                    "page_obj": page_obj,
+                    "sort_by": sort_by,
+                    "sort_order": sort_order,
+                },
+                request=request,
+            )
+            return HttpResponse(html)
+
         return render(
             request,
             template_name=self.template_name,
@@ -3461,22 +3476,7 @@ user_dataset_details_view = DatasetDetailsView.as_view()
 
 
 class DatasetVersioningView(Auth0LoginRequiredMixin, View):
-    """View to handle dataset versioning requests."""
-
-    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-        """Handle dataset versioning requests."""
-        dataset_uuid = request.GET.get("dataset_uuid")
-        if not dataset_uuid:
-            return JsonResponse({"error": "Dataset UUID is required"}, status=400)
-
-        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
-
-        # check if user has access to the dataset
-        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
-            return JsonResponse({"error": "Dataset not found or access denied"}, status=404)
-        
-        return JsonResponse({"success": True, "version": dataset.version})
-
+    """View to handle dataset versioning updates."""
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         dataset_uuid = request.POST.get("dataset_uuid")
@@ -3486,8 +3486,8 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
         dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
 
         # check if user has access to the dataset
-        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
-            return JsonResponse({"error": "Dataset not found or access denied"}, status=404)
+        if not UserSharePermission.user_can_advance_version(request.user, dataset_uuid, ItemType.DATASET):
+            return JsonResponse({"error": "You do not have permission to advance the version of this dataset"}, status=403)
 
         # copy dataset with relations
         new_dataset = self._copy_dataset_with_relations(dataset)
@@ -3528,8 +3528,7 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
 
         # create new dataset
         new_dataset = Dataset(**dataset_data)
-        
-        new_dataset.shared_with.set(original_dataset.shared_with.all())
+
         new_dataset.captures.set(original_dataset.captures.all())
         new_dataset.files.set(original_dataset.files.all())
 
