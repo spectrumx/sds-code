@@ -174,13 +174,11 @@ class CaptureViewSet(viewsets.ViewSet):
             # disconnect files that are no longer in the capture
             for cur_file in capture.files.all():
                 if cur_file not in files_to_connect:
-                    cur_file.capture = None
-                    cur_file.save()
+                    cur_file.captures.remove(capture)
 
             # connect the files to the capture
             for cur_file in files_to_connect:
-                cur_file.capture = capture
-                cur_file.save()
+                cur_file.captures.add(capture)
 
             if not files_to_connect:
                 msg = (
