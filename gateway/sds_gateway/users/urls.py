@@ -20,6 +20,7 @@ from .views import user_detail_view
 from .views import user_download_item_view
 from .views import user_file_detail_view
 from .views import user_group_captures_view
+from .views import user_publish_dataset_view
 from .views import user_redirect_view
 from .views import user_share_group_list_view
 from .views import user_share_item_view
@@ -44,6 +45,11 @@ urlpatterns = [
     path("files/<uuid:uuid>/h5info/", FileH5InfoView.as_view(), name="file_h5info"),
     path("dataset-list/", user_dataset_list_view, name="dataset_list"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
+    path(
+        "publish-dataset/<uuid:dataset_uuid>/",
+        user_publish_dataset_view,
+        name="publish_dataset",
+    ),
     path("render-html/", render_html_fragment_view, name="render_html"),
     path("group-captures/", user_group_captures_view, name="group_captures"),
     path(

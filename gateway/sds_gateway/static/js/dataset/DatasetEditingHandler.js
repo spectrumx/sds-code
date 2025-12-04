@@ -860,7 +860,7 @@ class DatasetEditingHandler {
 				);
 				if (removeAllFilesButton) {
 					removeAllFilesButton.disabled = true;
-					removeAllFilesButton.style.opacity = "0.5";
+					removeAllFilesButton.classList.add("disabled-element");
 				}
 			}
 		}
@@ -888,7 +888,7 @@ class DatasetEditingHandler {
 				const removeButton = row.querySelector(".mark-for-removal-btn");
 				if (removeButton) {
 					removeButton.disabled = true;
-					removeButton.style.opacity = "0.5";
+					removeButton.classList.add("disabled-element");
 				}
 			} else {
 				// Restore normal state
@@ -896,7 +896,7 @@ class DatasetEditingHandler {
 				const removeButton = row.querySelector(".mark-for-removal-btn");
 				if (removeButton) {
 					removeButton.disabled = false;
-					removeButton.style.opacity = "";
+					removeButton.classList.remove("disabled-element");
 				}
 			}
 		}
@@ -925,7 +925,7 @@ class DatasetEditingHandler {
 				const removeButton = row.querySelector(".mark-for-removal-btn");
 				if (removeButton) {
 					removeButton.disabled = true;
-					removeButton.style.opacity = "0.5";
+					removeButton.classList.add("disabled-element");
 				}
 			} else {
 				// Restore normal state
@@ -933,7 +933,7 @@ class DatasetEditingHandler {
 				const removeButton = row.querySelector(".mark-for-removal-btn");
 				if (removeButton) {
 					removeButton.disabled = false;
-					removeButton.style.opacity = "";
+					removeButton.classList.remove("disabled-element");
 				}
 			}
 		}

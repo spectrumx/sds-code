@@ -16,6 +16,7 @@ class DatasetModeManager {
 		this.step2 = 1;
 		this.step3 = 2;
 		this.step4 = 3;
+		this.step5 = 4;
 
 		// Initialize permissions manager
 		if (window.PermissionsManager) {
@@ -104,8 +105,10 @@ class DatasetModeManager {
 			}
 
 			if (statusField) {
-				const selectedOption = statusField.options[statusField.selectedIndex];
-				originalData.status = selectedOption ? selectedOption.text : "Unknown";
+				// Status field is a hidden input, use the value directly
+				const statusValue = statusField.value || "draft";
+				// Convert value to display text
+				originalData.status = statusValue === "final" ? "Final" : "Draft";
 			} else {
 				// Fall back to readonly field or config data
 				const readonlyStatusField = document.querySelector("input[readonly]");
@@ -142,8 +145,10 @@ class DatasetModeManager {
 			// Creation mode - get from form fields
 			originalData.name = nameField?.value || "Untitled Dataset";
 			if (statusField) {
-				const selectedOption = statusField.options[statusField.selectedIndex];
-				originalData.status = selectedOption ? selectedOption.text : "Unknown";
+				// Status field is a hidden input, use the value directly
+				const statusValue = statusField.value || "draft";
+				// Convert value to display text
+				originalData.status = statusValue === "final" ? "Final" : "Draft";
 			}
 			originalData.description =
 				descriptionField?.value || "No description provided.";
@@ -162,6 +167,45 @@ class DatasetModeManager {
 	}
 
 	/**
+	 * Check if this is an existing final-status datase
+	 */
+	isExistingFinalDataset() {
+		// Only check config - this represents the dataset state from database
+		// Don't check form field as that represents current editing session
+		if (this.config.existingDatasetStatus) {
+			return this.config.existingDatasetStatus === "final";
+		}
+		return false;
+	}
+
+	/**
+	 * Check if this is an existing public dataset
+	 */
+	isExistingPublicDataset() {
+		// Check from config if available (for existing datasets loaded in editor)
+		if (this.config.existingDatasetIsPublic !== undefined) {
+			return this.config.existingDatasetIsPublic === true;
+		}
+		return false;
+	}
+
+	/**
+	 * Check if the current session is a final dataset
+	 */
+	isCurrentSessionFinalDataset() {
+		const statusField = document.getElementById("id_status");
+		return statusField?.value === "final";
+	}
+
+	/**
+	 * Check if the current session is a public dataset
+	 */
+	isCurrentSessionPublicDataset() {
+		const publicOption = document.getElementById("public-option");
+		return publicOption?.checked === true;
+	}
+
+	/**
 	 * Initialize UI based on mode and permissions
 	 */
 	initializeUI() {
@@ -174,6 +218,9 @@ class DatasetModeManager {
 		} else {
 			this.initializeCreateModeUI();
 		}
+
+		// Initialize publishing info handlers
+		this.initializePublishingInfo();
 	}
 
 	/**
@@ -201,11 +248,14 @@ class DatasetModeManager {
 		// Set up author management listeners
 		this.setupAuthorManagementListeners();
 
-		// Update submit button text for edit mode
+		// Ensure submit button is hidden unless on final step
 		const submitBtn = document.getElementById("submitForm");
-		if (!submitBtn) return;
-
-		submitBtn.textContent = "Update Dataset";
+		if (submitBtn) {
+			// Hide initially (will be shown if on last step by updateStepDisplay)
+			if (this.currentStep !== this.steps.length - 1) {
+				window.DOMUtils.hide(submitBtn, "display-inline-block");
+			}
+		}
 	}
 
 	/**
@@ -215,13 +265,13 @@ class DatasetModeManager {
 		// Initialize step navigation for create mode
 		this.initializeStepNavigation();
 
-		// Hide submit button initially unless on last step
+		// Ensure submit button is hidden unless on final step
 		const submitBtn = document.getElementById("submitForm");
-		if (
-			submitBtn &&
-			this.handler.currentStep !== this.handler.steps.length - 1
-		) {
-			window.DOMUtils.hide(submitBtn, "display-inline-block");
+		if (submitBtn) {
+			// Hide initially (will be shown if on last step by updateStepDisplay)
+			if (this.currentStep !== this.steps.length - 1) {
+				window.DOMUtils.hide(submitBtn, "display-inline-block");
+			}
 		}
 	}
 
@@ -243,8 +293,9 @@ class DatasetModeManager {
 			{ id: "step1", name: "Dataset Info" },
 			{ id: "step2", name: "Select Captures" },
 			{ id: "step3", name: "Select Artifact Files" },
+			{ id: "step4", name: "Publishing Info" },
 			{
-				id: "step4",
+				id: "step5",
 				name: this.isEditMode ? "Review and Update" : "Review and Create",
 			},
 		];
@@ -313,8 +364,8 @@ class DatasetModeManager {
 			this.loadFileTree();
 		}
 
-		// Update review display when accessing review step (step 4 = index 3)
-		if (stepIndex === this.step4) {
+		// Update review display when accessing review step (step 5 = index 4)
+		if (stepIndex === this.step5) {
 			this.updateReviewDatasetDisplay();
 		}
 
@@ -379,10 +430,12 @@ class DatasetModeManager {
 			}
 		}
 
-		// Update submit button
+		// Update submit button - only show on final review step (step 5)
 		if (this.submitBtn) {
-			if (this.currentStep === this.steps.length - 1) {
+			if (this.currentStep === this.step5) {
 				window.DOMUtils.show(this.submitBtn, "display-inline-block");
+				// Update button text and styling based on publishing status
+				this.updateSubmitButton();
 			} else {
 				window.DOMUtils.hide(this.submitBtn, "display-inline-block");
 			}
@@ -431,8 +484,8 @@ class DatasetModeManager {
 		// Update dataset name
 		this.updateDatasetName(nameField);
 
-		// Update status
-		this.updateDatasetStatus(statusField);
+		// Update publishing information
+		this.updatePublishingInfo();
 
 		// Update description
 		this.updateDatasetDescription(descriptionField);
@@ -504,65 +557,61 @@ class DatasetModeManager {
 	}
 
 	/**
-	 * Update dataset status with pending changes
+	 * Update publishing information in review panel as alert banners
+	 * Shows warnings when dataset is being SET to final/public in current session
 	 */
-	async updateDatasetStatus(statusField) {
-		const statusElement = document.querySelector(".dataset-status");
-		if (!statusElement) return;
+	updatePublishingInfo() {
+		const alertsContainer = document.getElementById(
+			"publishing-alerts-container",
+		);
+		if (!alertsContainer) return;
 
-		if (!statusField) {
-			if (this.isEditMode) {
-				statusElement.textContent =
-					this.originalDatasetData?.status || "Unknown";
-			}
-			return;
+		const isPublicInCurrentSession = this.isCurrentSessionPublicDataset();
+		const isFinalInCurrentSession = this.isCurrentSessionFinalDataset();
+
+		// Clear existing alerts
+		alertsContainer.innerHTML = "";
+
+		if (isFinalInCurrentSession) {
+			// Publishing alert - show if being set to final in current session
+			const publishingAlert = document.createElement("div");
+			publishingAlert.className = "alert alert-danger mb-3";
+			publishingAlert.innerHTML =
+				'<div class="d-flex align-items-center">' +
+				'<i class="bi bi-exclamation-triangle-fill me-3 fs-5"></i>' +
+				'<div class="flex-grow-1">' +
+				"<strong>This dataset will be published.</strong> " +
+				"The dataset status will be set to Final. This action is irreversible." +
+				"</div>" +
+				"</div>";
+			alertsContainer.appendChild(publishingAlert);
+		}
+		if (isPublicInCurrentSession) {
+			const publicAlert = document.createElement("div");
+			publicAlert.className = "alert alert-danger mb-0";
+			publicAlert.innerHTML =
+				'<div class="d-flex align-items-center">' +
+				'<i class="bi bi-exclamation-triangle-fill me-3 fs-5"></i>' +
+				'<div class="flex-grow-1">' +
+				"<strong>This dataset will be publicly viewable.</strong> " +
+				"Making this dataset public is irreversible and will make it viewable to anyone with access to the site." +
+				"</div>" +
+				"</div>";
+			alertsContainer.appendChild(publicAlert);
 		}
 
-		const selectedOption = statusField.options[statusField.selectedIndex];
-		const currentValue = selectedOption ? selectedOption.text : "Unknown";
-		const originalValue = this.originalDatasetData?.status || currentValue;
-
-		if (this.isEditMode) {
-			// Always show original value
-			const currentSpan = document.createElement("span");
-			currentSpan.className = "current-value";
-			currentSpan.textContent = originalValue;
-			statusElement.innerHTML = "";
-			statusElement.appendChild(currentSpan);
-
-			// Add pending changes if different from original
-			if (currentValue !== originalValue) {
-				try {
-					const response = await window.APIClient.post(
-						"/users/render-html/",
-						{
-							template: "users/components/change_list.html",
-							context: {
-								changes: [
-									{
-										type: "change",
-										parts: [
-											{ text: 'Change Status: "' },
-											{ text: originalValue },
-											{ text: '" → ' },
-											{ text: `"${currentValue}"`, css_class: "text-warning" },
-										],
-									},
-								],
-							},
-						},
-						null,
-						true,
-					); // true = send as JSON
-					if (response.html) {
-						statusElement.insertAdjacentHTML("beforeend", response.html);
-					}
-				} catch (error) {
-					console.error("Error rendering status change:", error);
-				}
-			}
-		} else {
-			statusElement.textContent = currentValue;
+		if (!isFinalInCurrentSession) {
+			// Not publishing - optional info alert
+			const draftAlert = document.createElement("div");
+			draftAlert.className = "alert alert-info mb-0";
+			draftAlert.innerHTML =
+				'<div class="d-flex align-items-center">' +
+				'<i class="bi bi-info-circle-fill me-3 fs-5"></i>' +
+				'<div class="flex-grow-1">' +
+				"This dataset will remain in <strong>Draft</strong> status and will not be published." +
+				"</div>" +
+				"</div>";
+			alertsContainer.appendChild(draftAlert);
 		}
 	}
 
@@ -960,19 +1009,266 @@ class DatasetModeManager {
 			}
 		}
 
-		// Asset selection areas
+		// Asset selection areas - disable if no permission
 		const capturesSection = document.getElementById("captures-section");
 		const filesSection = document.getElementById("files-section");
+		const shouldDisableAssets = !this.permissions.canAddAssets();
 
-		if (!this.permissions.canAddAssets()) {
+		if (shouldDisableAssets) {
+			// Disable captures section
 			if (capturesSection) {
-				capturesSection.style.opacity = "0.5";
-				capturesSection.style.pointerEvents = "none";
+				capturesSection.classList.add("disabled-element");
+				// Disable all interactive elements within
+				const capturesInputs = capturesSection.querySelectorAll(
+					"input, button, select, textarea, a",
+				);
+				for (const el of capturesInputs) {
+					el.disabled = true;
+					el.classList.add("disable-events");
+				}
 			}
+			// Disable files section
 			if (filesSection) {
-				filesSection.style.opacity = "0.5";
-				filesSection.style.pointerEvents = "none";
+				filesSection.classList.add("disabled-element");
+				// Disable all interactive elements within
+				const filesInputs = filesSection.querySelectorAll(
+					"input, button, select, textarea, a",
+				);
+				for (const el of filesInputs) {
+					el.disabled = true;
+					el.classList.add("disable-events");
+				}
 			}
+		}
+	}
+
+	/**
+	 * Update visibility toggle for final status datasets
+	 */
+	updateVisibilityToggleForFinal() {
+		// This method is kept for compatibility but no longer needs to handle
+		// existing public datasets since they cannot be edited
+	}
+
+	/**
+	 * Update editor title and card styling
+	 * Note: This method is kept for compatibility but no longer handles
+	 * existing final/public datasets since they cannot be edited
+	 */
+	updateEditorTitleAndStyling() {
+		// This method is kept for compatibility but no longer needs to handle
+		// existing final/public datasets since they cannot be edited
+	}
+
+	/**
+	 * Initialize publishing info handlers
+	 */
+	initializePublishingInfo() {
+		const publishToggle = document.getElementById("publish-dataset-toggle");
+		const statusField = document.getElementById("id_status");
+		const visibilitySection = document.getElementById(
+			"visibility-toggle-section",
+		);
+		const publicOption = document.getElementById("public-option");
+		const privateOption = document.getElementById("private-option");
+		const publicWarning = document.getElementById("public-warning-message");
+
+		if (!publishToggle || !statusField) return;
+
+		// Initialize status based on existing dataset or default to draft
+		const currentStatus = statusField.value || "draft";
+
+		// Use helper function to determine current session state
+		const isFinalInCurrentSession = this.isCurrentSessionFinalDataset();
+
+		if (isFinalInCurrentSession) {
+			// User is publishing in current session - allow editing
+			publishToggle.checked = true;
+			// Don't disable publish toggle during current session
+			if (visibilitySection) {
+				visibilitySection.classList.remove("d-none");
+			}
+			this.updateStatusField("final");
+		} else {
+			this.updateStatusField("draft");
+		}
+		this.updateStatusBadge(currentStatus);
+
+		// Handle publish toggle change
+		publishToggle.addEventListener("change", () => {
+			if (publishToggle.checked) {
+				// Publishing - set status to final and show visibility options
+				this.updateStatusField("final");
+				this.updateStatusBadge("final");
+				if (visibilitySection) {
+					visibilitySection.classList.remove("d-none");
+				}
+			} else {
+				// Not publishing - set status to draft and hide visibility options
+				this.updateStatusField("draft");
+				this.updateStatusBadge("draft");
+				if (visibilitySection) {
+					visibilitySection.classList.add("d-none");
+				}
+				// Reset visibility to private if unpublished
+				if (this.isCurrentSessionPublicDataset()) {
+					if (privateOption) {
+						privateOption.checked = true;
+					}
+					this.updateCardBorder(false);
+					if (publicWarning) {
+						publicWarning.classList.add("d-none");
+					}
+				}
+			}
+			// Update review display (submit button will be updated when reaching step 5)
+			if (window.updateReviewDatasetDisplay) {
+				window.updateReviewDatasetDisplay();
+			}
+
+			// Only update button if we're on step 5
+			if (this.currentStep === this.step5) {
+				this.updateSubmitButton();
+			}
+		});
+
+		// Handle visibility toggle changes
+		if (publicOption) {
+			publicOption.addEventListener("change", () => {
+				if (this.isCurrentSessionPublicDataset()) {
+					this.updateCardBorder(true);
+					if (publicWarning) {
+						publicWarning.classList.remove("d-none");
+					}
+				}
+				if (window.updateReviewDatasetDisplay) {
+					window.updateReviewDatasetDisplay();
+				}
+				// Only update button if we're on step 5
+				if (this.currentStep === this.step5) {
+					this.updateSubmitButton();
+				}
+			});
+		}
+
+		if (privateOption) {
+			privateOption.addEventListener("change", () => {
+				if (privateOption.checked) {
+					this.updateCardBorder(false);
+					if (publicWarning) {
+						publicWarning.classList.add("d-none");
+					}
+				}
+				if (window.updateReviewDatasetDisplay) {
+					window.updateReviewDatasetDisplay();
+				}
+				// Only update button if we're on step 5
+				if (this.currentStep === this.step5) {
+					this.updateSubmitButton();
+				}
+			});
+		}
+
+		// Don't initialize submit button on page load - it will be updated when user reaches step 5
+	}
+
+	/**
+	 * Update status field value
+	 * The status is controlled by the publish toggle checkbox (false = "draft", true = "final")
+	 * This method sets the hidden status field value based on the toggle state
+	 * @param {string} status - Status value ('draft' or 'final')
+	 */
+	updateStatusField(status) {
+		const statusField = document.getElementById("id_status");
+		if (statusField) {
+			statusField.value = status;
+			// Trigger change event to ensure any listeners are notified
+			statusField.dispatchEvent(new Event("change", { bubbles: true }));
+		}
+	}
+
+	/**
+	 * Update status badge display
+	 * @param {string} status - Status value ('draft' or 'final')
+	 */
+	updateStatusBadge(status) {
+		const statusBadge = document.getElementById("current-status-badge");
+		if (statusBadge) {
+			if (status === "final") {
+				statusBadge.textContent = "Final";
+				statusBadge.className = "badge bg-success";
+			} else {
+				statusBadge.textContent = "Draft";
+				statusBadge.className = "badge bg-secondary";
+			}
+		}
+	}
+
+	/**
+	 * Update card border styling based on public/private status
+	 * @param {boolean} isPublic - Whether dataset is public
+	 */
+	updateCardBorder(isPublic) {
+		const publishingCard = document.getElementById("publishing-info-card");
+		if (publishingCard) {
+			if (isPublic) {
+				publishingCard.classList.add("border-danger", "border-3");
+			} else {
+				publishingCard.classList.remove("border-danger", "border-3");
+			}
+		}
+	}
+
+	/**
+	 * Update submit button text and styling based on publishing status
+	 */
+	updateSubmitButton() {
+		const submitBtn = document.getElementById("submitForm");
+		const publishToggle = document.getElementById("publish-dataset-toggle");
+		const publicOption = document.getElementById("public-option");
+
+		if (!submitBtn) return;
+
+		// Only update button if we're on step 5 (final review page)
+		// Check if button is actually visible (which means we're on step 5)
+		const isButtonVisible =
+			!submitBtn.classList.contains("d-none") &&
+			submitBtn.offsetParent !== null &&
+			window.getComputedStyle(submitBtn).display !== "none";
+
+		// Don't update if button shouldn't be visible
+		if (!isButtonVisible) {
+			return;
+		}
+
+		// Update button text/style based on publishing status
+		// Note: Button visibility is controlled by step navigation (only shown on step 5)
+		if (!publishToggle) {
+			// Fallback if toggle not found - use default styling
+			submitBtn.className = "btn btn-success";
+			submitBtn.textContent = this.isEditMode
+				? "Update Dataset"
+				: "Create Dataset";
+			return;
+		}
+
+		const isPublishing = this.isCurrentSessionFinalDataset();
+		const isPublic = this.isCurrentSessionPublicDataset();
+
+		if (isPublishing && isPublic) {
+			// Publishing and making public - red button with "Publish Dataset"
+			submitBtn.className = "btn btn-danger";
+			submitBtn.textContent = "Publish Dataset";
+		} else if (isPublishing) {
+			// Publishing but private - warning style
+			submitBtn.className = "btn btn-warning";
+			submitBtn.textContent = "Publish Dataset";
+		} else {
+			// Not publishing - normal style
+			submitBtn.className = "btn btn-success";
+			submitBtn.textContent = this.isEditMode
+				? "Update Dataset"
+				: "Create Dataset";
 		}
 	}
 
