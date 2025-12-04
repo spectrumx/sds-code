@@ -431,7 +431,7 @@ class FileTreeMixin:
                 "id": str(file.uuid),
                 "name": file.name,
                 "type": "file",
-                "file_type": "Capture" if file.capture else "Artifact",
+                "file_type": "Capture" if file.captures.exists() else "Artifact",
                 "media_type": file.media_type,
                 "size": file.size or 0,
                 "created_at": file.created_at,
