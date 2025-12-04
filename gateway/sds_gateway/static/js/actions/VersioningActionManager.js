@@ -45,7 +45,9 @@ class VersioningActionManager {
 				// close modal
 				window.DOMUtils.closeModal("versioningModal");
 				// show success message
-				window.DOMUtils.showAlert("Dataset version created successfully", "success");
+				window.DOMUtils.showAlert(`Dataset version updated to v${response.version} successfully`, "success");
+				// refresh dataset list
+				window.location.reload();
 			} else {
 				// show error message and error message from response
 				window.DOMUtils.showAlert(response.error || "Failed to create dataset version", "error");
