@@ -3526,6 +3526,7 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
 
         # create new dataset
         new_dataset = Dataset(**dataset_data)
+        new_dataset.save()  # Must save before setting ManyToMany relationships
 
         new_dataset.captures.set(original_dataset.captures.all())
         new_dataset.files.set(original_dataset.files.all())
