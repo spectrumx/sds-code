@@ -169,15 +169,25 @@ class File(BaseModel):
         "Dataset",
         blank=True,
         null=True,
-        related_name="files",
+        related_name="files_deprecated",
         on_delete=models.SET_NULL,
     )
     capture = models.ForeignKey(
         "Capture",
         blank=True,
         null=True,
-        related_name="files",
+        related_name="files_deprecated",
         on_delete=models.SET_NULL,
+    )
+    datasets = models.ManyToManyField(
+        "Dataset",
+        blank=True,
+        related_name="files",
+    )
+    captures = models.ManyToManyField(
+        "Capture",
+        blank=True,
+        related_name="files",
     )
 
     # manager override
@@ -285,8 +295,13 @@ class Capture(BaseModel):
         "Dataset",
         blank=True,
         null=True,
-        related_name="captures",
+        related_name="captures_deprecated",
         on_delete=models.SET_NULL,
+    )
+    datasets = models.ManyToManyField(
+        "Dataset",
+        blank=True,
+        related_name="captures",
     )
     shared_with = models.ManyToManyField(
         settings.AUTH_USER_MODEL,

@@ -34,9 +34,10 @@ def user_has_access_to_capture(user, capture: Capture) -> bool:
         return True
 
     # Check if capture is part of a dataset that is shared with the user
-    if capture.dataset:
-        if user_has_access_to_item(user, capture.dataset.uuid, ItemType.DATASET):
-            return True
+    if capture.datasets.exists():
+        for dataset in capture.datasets.all():
+            if user_has_access_to_item(user, dataset.uuid, ItemType.DATASET):
+                return True
 
     return False
 
@@ -63,14 +64,16 @@ def user_has_access_to_file(user, file: File) -> bool:
         return True
 
     # Check if file is part of a capture that is shared with the user
-    if file.capture:
-        if user_has_access_to_capture(user, file.capture):
-            return True
+    if file.captures.exists():
+        for capture in file.captures.all():
+            if user_has_access_to_capture(user, capture):
+                return True
 
     # Check if file is part of a dataset that is shared with them
-    if file.dataset:
-        if user_has_access_to_item(user, file.dataset.uuid, ItemType.DATASET):
-            return True
+    if file.datasets.exists():
+        for dataset in file.datasets.all():
+            if user_has_access_to_item(user, dataset.uuid, ItemType.DATASET):
+                return True
 
     return False
 
