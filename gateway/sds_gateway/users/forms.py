@@ -10,6 +10,7 @@ from django.contrib.auth import forms as admin_forms
 from django.core.exceptions import ValidationError
 from django.forms import EmailField
 from django.http import HttpRequest
+from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from loguru import logger
 
@@ -148,6 +149,17 @@ class DatasetInfoForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 5}),
     )
+    keywords = forms.CharField(
+        label="Keywords",
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "e.g. spectrum, RF, SDR",
+            }
+        ),
+        help_text="Comma-separated list of keywords",
+    )
     authors = forms.CharField(
         label="Authors",
         required=True,
@@ -187,6 +199,15 @@ class DatasetInfoForm(forms.Form):
             raise ValidationError(DATASET_NAME_LENGTH_ERROR)
 
         return name.strip()
+
+    def clean_keywords(self):
+        """Normalize keywords string using slugify."""
+        raw = self.cleaned_data.get("keywords", "") or ""
+        # Split on commas or semicolons, strip whitespace
+        parts = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+        # Slugify each keyword (lowercase, hyphens, no special chars) and deduplicate
+        slugified = {slugify(p) for p in parts if slugify(p)}
+        return ", ".join(sorted(slugified))
 
     def clean_authors(self):
         """Validate the authors list."""

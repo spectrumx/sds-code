@@ -18,6 +18,7 @@ from django.db.models import QuerySet
 from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
+from django.template.defaultfilters import slugify
 
 from .utils.opensearch_client import get_opensearch_client
 
@@ -25,6 +26,24 @@ if TYPE_CHECKING:
     from sds_gateway.users.models import User
 
 log = logging.getLogger(__name__)
+
+
+class KeywordNameField(models.CharField):
+    """
+    Custom field that auto-slugifies keyword names for consistency.
+    Enforces lowercase, converts spaces to hyphens, removes non-printable chars.
+    """
+
+    def get_prep_value(self, value):
+        """Convert the value to a slug before saving to database."""
+        value = super().get_prep_value(value)
+        if value is None:
+            return value
+        if not isinstance(value, str):
+            msg = "Name attribute must be a string"
+            raise TypeError(msg)
+        # Slugify the value (lowercase, hyphens instead of spaces, etc.)
+        return slugify(value)
 
 
 class CaptureType(StrEnum):
@@ -571,6 +590,40 @@ class Capture(BaseModel):
             return None
 
 
+class Keyword(BaseModel):
+    """
+    Model for user-entered keywords that can be associated with datasets.
+    Keywords can be associated with multiple datasets via ManyToManyField.
+
+    The name field is auto-slugified and serves as the primary key,
+    enforcing uniqueness and immutability after creation.
+    """
+
+    # Override the uuid primary key from BaseModel
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False)
+
+    name = KeywordNameField(
+        max_length=255,
+        primary_key=True,
+        help_text=(
+            "The keyword slug (auto-slugified, e.g., 'RF Spectrum' → 'rf-spectrum')"
+        ),
+    )
+    datasets = models.ManyToManyField(
+        "Dataset",
+        related_name="keywords",
+        help_text="The datasets this keyword is associated with",
+    )
+
+    class Meta:  # pyright: ignore[reportIncompatibleVariableOverride]
+        ordering = ["name"]
+        verbose_name = "Keyword"
+        verbose_name_plural = "Keywords"
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Dataset(BaseModel):
     """
     Model for datasets defined and created through the API.
@@ -578,7 +631,7 @@ class Dataset(BaseModel):
     Schema Definition: https://github.com/spectrumx/schema-definitions/blob/master/definitions/sds/abstractions/dataset/README.md
     """
 
-    list_fields = ["authors", "keywords", "institutions"]
+    list_fields = ["authors", "institutions"]
 
     STATUS_CHOICES = [
         (DatasetStatus.DRAFT, "Draft"),
@@ -604,7 +657,6 @@ class Dataset(BaseModel):
     doi = models.CharField(max_length=255, blank=True)
     authors = models.TextField(blank=True)
     license = models.CharField(max_length=255, blank=True)
-    keywords = models.TextField(blank=True)
     institutions = models.TextField(blank=True)
     release_date = models.DateTimeField(blank=True, null=True)
     repository = models.URLField(blank=True)

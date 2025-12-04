@@ -203,6 +203,9 @@ class DetailsActionManager {
 		// Update authors
 		this.updateAuthors(modal, datasetData.authors || []);
 
+		// Update keywords
+		this.updateKeywords(modal, datasetData.keywords || []);
+
 		// Update statistics
 		if (statistics) {
 			this.updateElementText(
@@ -440,6 +443,33 @@ class DetailsActionManager {
 			.join(", ");
 
 		authorsContainer.textContent = authorsText;
+	}
+
+	/**
+	 * Update keywords section
+	 * @param {Element} modal - Modal element
+	 * @param {Array} keywords - Keywords array
+	 */
+	updateKeywords(modal, keywords) {
+		const keywordsContainer = modal.querySelector(".dataset-details-keywords");
+		if (!keywordsContainer) return;
+
+		// Clear existing content
+		keywordsContainer.innerHTML = "";
+
+		if (!keywords || keywords.length === 0) {
+			keywordsContainer.innerHTML =
+				'<span class="text-muted">No keywords</span>';
+			return;
+		}
+
+		// Create badges for each keyword
+		for (const keyword of keywords) {
+			const badge = document.createElement("span");
+			badge.className = "badge bg-secondary me-2 mb-2";
+			badge.textContent = keyword;
+			keywordsContainer.appendChild(badge);
+		}
 	}
 
 	/**

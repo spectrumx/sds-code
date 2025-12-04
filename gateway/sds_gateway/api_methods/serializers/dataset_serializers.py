@@ -10,6 +10,7 @@ from sds_gateway.api_methods.models import UserSharePermission
 
 class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     authors = serializers.SerializerMethodField()
+    keywords = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(format="%m/%d/%Y %H:%M:%S", read_only=True)
     is_shared_with_me = serializers.SerializerMethodField()
     is_owner = serializers.SerializerMethodField()
@@ -23,6 +24,10 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     def get_authors(self, obj):
         """Return the full authors list using the model's get_authors_display method."""
         return obj.get_authors_display()
+
+    def get_keywords(self, obj):
+        """Return a list of keyword names for the dataset."""
+        return [kw.name for kw in obj.keywords.filter(is_deleted=False)]
 
     def get_is_shared_with_me(self, obj):
         """Check if the dataset is shared with the current user."""

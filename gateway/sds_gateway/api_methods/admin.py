@@ -21,9 +21,18 @@ class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
 
 @admin.register(models.Dataset)
 class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = ("name", "doi")
-    search_fields = ("name", "doi")
+    list_display = ("name", "doi", "get_keywords", "status", "owner")
+    search_fields = ("name", "doi", "keywords__name", "owner__email")
+    list_filter = ("status", "keywords")
     ordering = ("-updated_at",)
+
+    @admin.display(description="Keywords")
+    def get_keywords(self, obj):
+        """Display comma-separated list of keywords."""
+        keywords = obj.keywords.filter(is_deleted=False)
+        if keywords.exists():
+            return ", ".join([kw.name for kw in keywords[:5]])
+        return "-"
 
 
 @admin.register(models.TemporaryZipFile)
@@ -85,3 +94,16 @@ class ShareGroupAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArg
     list_display = ("name", "owner")
     search_fields = ("name", "owner")
     ordering = ("-updated_at",)
+
+
+@admin.register(models.Keyword)
+class KeywordAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
+    list_display = ("name", "get_datasets", "created_at")
+    search_fields = ("name", "datasets__name")
+    list_filter = ("datasets",)
+    ordering = ("name",)
+
+    @admin.display(description="Datasets")
+    def get_datasets(self, obj):
+        """Display comma-separated list of dataset names."""
+        return ", ".join([dataset.name for dataset in obj.datasets.all()[:3]])
