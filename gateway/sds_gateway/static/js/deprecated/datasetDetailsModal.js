@@ -131,7 +131,7 @@ class DatasetDetailsModal {
 			keywordsContainer.innerHTML = dataset.keywords
 				.map(
 					(keyword) =>
-						`<span class="badge bg-info text-dark me-1 mb-1">${this.escapeHtml(keyword)}</span>`,
+						`<span class="badge bg-secondary me-1 mb-1">${this.escapeHtml(keyword)}</span>`,
 				)
 				.join("");
 		} else {

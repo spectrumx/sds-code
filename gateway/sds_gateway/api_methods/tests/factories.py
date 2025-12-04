@@ -135,11 +135,8 @@ class DatasetFactory(DjangoModelFactory):
 
         # Create Keyword instances
         for keyword_name in keyword_names:
-            Keyword.objects.create(
-                name=keyword_name,
-                dataset=self,
-                created_by=self.owner,
-            )
+            keyword, _created = Keyword.objects.get_or_create(name=keyword_name)
+            keyword.datasets.add(self)
 
     class Meta:
         model = Dataset

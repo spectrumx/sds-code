@@ -205,16 +205,9 @@ class DatasetInfoForm(forms.Form):
         raw = self.cleaned_data.get("keywords", "") or ""
         # Split on commas or semicolons, strip whitespace
         parts = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
-        # Slugify each keyword (lowercase, hyphens, no special chars)
-        slugified = [slugify(p) for p in parts if slugify(p)]
-        # Deduplicate while preserving order
-        seen = set()
-        unique = []
-        for slug in slugified:
-            if slug not in seen:
-                seen.add(slug)
-                unique.append(slug)
-        return ", ".join(unique)
+        # Slugify each keyword (lowercase, hyphens, no special chars) and deduplicate
+        slugified = {slugify(p) for p in parts if slugify(p)}
+        return ", ".join(sorted(slugified))
 
     def clean_authors(self):
         """Validate the authors list."""

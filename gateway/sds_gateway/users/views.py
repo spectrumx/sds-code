@@ -1907,6 +1907,24 @@ class GroupCapturesView(
                 dataset.status = dataset_form.cleaned_data["status"]
                 dataset.save()
 
+                # Handle keywords update
+                # Clear existing keyword relationships
+                dataset.keywords.clear()
+                # Persist keywords from form (comma-separated)
+                raw_keywords = dataset_form.cleaned_data.get("keywords", "") or ""
+                if raw_keywords:
+                    # Slugify and deduplicate keywords
+                    slugified_keywords = {
+                        slugify(p.strip())
+                        for p in raw_keywords.split(",")
+                        if p.strip() and slugify(p.strip())
+                    }
+
+                    # Get or create keywords and associate them with the dataset
+                    for slug in slugified_keywords:
+                        keyword, _created = Keyword.objects.get_or_create(name=slug)
+                        keyword.datasets.add(dataset)
+
         # Handle asset changes
         asset_changes = self._parse_asset_changes(request)
 
