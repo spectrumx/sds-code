@@ -1652,6 +1652,7 @@ class GroupCapturesView(
                     "description": existing_dataset.description,
                     "authors": authors_json,
                     "status": existing_dataset.status,
+                    "is_public": existing_dataset.is_public,
                 }
             dataset_form = DatasetInfoForm(user=self.request.user, initial=initial_data)
 
@@ -1754,6 +1755,9 @@ class GroupCapturesView(
                     },
                     status=403,
                 )
+
+            # Get the dataset to check if it's public
+            dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
 
             # Only validate form if user can edit metadata
             can_edit = UserSharePermission.user_can_edit_dataset(
@@ -2042,6 +2046,7 @@ class GroupCapturesView(
             authors = json.loads(authors_json)
             dataset.authors = authors
             dataset.status = dataset_form.cleaned_data["status"]
+            dataset.is_public = dataset_form.cleaned_data.get("is_public", False)
             dataset.save()
 
             # Clear existing relationships
@@ -2057,6 +2062,7 @@ class GroupCapturesView(
                 description=dataset_form.cleaned_data["description"],
                 authors=authors,
                 status=dataset_form.cleaned_data["status"],
+                is_public=dataset_form.cleaned_data.get("is_public", False),
                 owner=request.user,
             )
 
@@ -2194,6 +2200,21 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         )
 
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
+
+        # Check if this is an AJAX request
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            # Return just the table container HTML for AJAX updates
+            from django.template.loader import render_to_string
+            html = render_to_string(
+                "users/components/dataset_list_table.html",  # You'll need to create this partial
+                {
+                    "page_obj": page_obj,
+                    "sort_by": sort_by,
+                    "sort_order": sort_order,
+                },
+                request=request,
+            )
+            return HttpResponse(html)
 
         return render(
             request,
@@ -2739,6 +2760,67 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 
 
 user_dataset_details_view = DatasetDetailsView.as_view()
+
+
+class DatasetVersioningView(Auth0LoginRequiredMixin, View):
+    """View to handle dataset versioning updates."""
+
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        dataset_uuid = request.POST.get("dataset_uuid")
+        if not dataset_uuid:
+            return JsonResponse({"error": "Dataset UUID is required"}, status=400)
+
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
+
+        # check if user has access to the dataset
+        if not UserSharePermission.user_can_advance_version(request.user, dataset_uuid, ItemType.DATASET):
+            return JsonResponse({"error": "You do not have permission to advance the version of this dataset"}, status=403)
+
+        # copy dataset with relations
+        new_dataset = self._copy_dataset_with_relations(dataset, request.user)
+
+        return JsonResponse({"success": True, "version": new_dataset.version})
+    
+    def _copy_dataset_with_relations(self, original_dataset: Dataset, request_user: User) -> Dataset:
+        """
+        Copy a dataset along with all its related files and captures.
+        
+        Args:
+            original_dataset: The dataset to copy
+            
+        Returns:
+            The new dataset with copied related objects
+        """
+        new_version = original_dataset.version + 1
+
+        preserve_fields = {
+            'uuid',
+            'created_at',
+            'updated_at',
+            'status',
+            'is_public',
+            'shared_with',
+        }
+        dataset_data = {
+            field.name: getattr(original_dataset, field.name)
+            for field in original_dataset._meta.fields
+            if field.name not in preserve_fields
+        }
+
+        dataset_data['owner'] = request_user
+        dataset_data['version'] = new_version
+        dataset_data['previous_version'] = original_dataset
+
+        # create new dataset
+        new_dataset = Dataset(**dataset_data)
+        new_dataset.save()  # Must save before setting ManyToMany relationships
+
+        new_dataset.captures.set(original_dataset.captures.all())
+        new_dataset.files.set(original_dataset.files.all())
+
+        return new_dataset
+
+user_dataset_versioning_view = DatasetVersioningView.as_view()
 
 
 class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
