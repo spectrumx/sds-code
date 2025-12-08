@@ -92,7 +92,6 @@ class FileListController {
 			tableContainerSelector: ".table-responsive",
 			resultsCountId: "results-count",
 			modalHandler: this.modalManager,
-			dropdownInitializer: () => this.initializeDropdowns(),
 		});
 
 		this.searchManager = new SearchManager({
@@ -544,7 +543,6 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	constructor(options) {
 		super(options);
 		this.resultsCountElement = document.getElementById(options.resultsCountId);
-		this.dropdownInitializer = options.dropdownInitializer;
 	}
 
 	/**
@@ -573,9 +571,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		tbody.innerHTML = tableHTML;
 
 		// Initialize dropdowns with body container after table is updated
-		if (this.dropdownInitializer) {
-			this.dropdownInitializer();
-		}
+		this.initializeDropdowns();
 	}
 
 	/**
