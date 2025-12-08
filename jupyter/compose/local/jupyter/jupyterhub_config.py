@@ -1,5 +1,6 @@
 # Local JupyterHub configuration file for SVI integration
 import os
+from pathlib import Path
 
 from dockerspawner import DockerSpawner
 
@@ -96,10 +97,7 @@ if not host_pwd:
         "HOST_PWD environment variable not set. "
         "Make sure you're using docker-compose which passes PWD as HOST_PWD."
     )
-sample_scripts_host_path = os.path.join(
-    host_pwd, 
-    "compose/local/jupyter/sample_scripts"
-)
+sample_scripts_host_path = Path(host_pwd) / "compose/local/jupyter/sample_scripts"
 print(f"Sample scripts host path: {sample_scripts_host_path}")
 
 c.DockerSpawner.volumes = {
