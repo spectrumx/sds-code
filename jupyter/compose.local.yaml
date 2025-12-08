@@ -54,6 +54,7 @@ services:
         environment:
             JUPYTERHUB_ADMIN: admin
             COMPOSE_PROJECT_NAME: sds-jupyter-local
+            HOST_PWD: ${PWD}
         labels:
             - "traefik.enable=true"
             - "traefik.http.middlewares.jupyter-stripprefix.stripprefix.prefixes=/notebook"

@@ -86,8 +86,25 @@ c.DockerSpawner.prefix = "sds-jupyter-user"
 c.DockerSpawner.post_start_cmd = "pip install ipywidgets spectrumx"
 c.DockerSpawner.remove = True
 c.DockerSpawner.use_internal_ip = True
+
+# Get the host path for sample scripts
+# HOST_PWD is passed from the host via docker-compose environment variable
+# It represents the directory from which docker-compose is run
+host_pwd = os.environ.get("HOST_PWD")
+if not host_pwd:
+    raise ValueError(
+        "HOST_PWD environment variable not set. "
+        "Make sure you're using docker-compose which passes PWD as HOST_PWD."
+    )
+sample_scripts_host_path = os.path.join(
+    host_pwd, 
+    "compose/local/jupyter/sample_scripts"
+)
+print(f"Sample scripts host path: {sample_scripts_host_path}")
+
 c.DockerSpawner.volumes = {
     "jupyterhub-user-{username}": {"bind": c.DockerSpawner.notebook_dir, "mode": "rw"},
+    sample_scripts_host_path: {"bind": "/home/jovyan/work/sample_scripts", "mode": "ro"},
 }
 
 # === AUTHENTICATION AND ACCCESS CONTROL ===
