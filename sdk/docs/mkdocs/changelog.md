@@ -1,6 +1,9 @@
 # SpectrumX SDK Changelog
 
-## `0.1.16` - YYYY-MM-DD
+## `0.1.16` - 2025-12-xx
+
++ Fixes:
+    + [**Added `persist_state` to `upload_multichannel_drf_capture`**](https://github.com/spectrumx/sds-code/pull/...): users can now control whether to persist the upload state of files during multi-channel DRF captures.
 
 ## `0.1.15` - 2025-12-02
 

@@ -713,6 +713,7 @@ class Client:
         verbose: bool = True,
         warn_skipped: bool = False,
         raise_on_error: bool = True,
+        persist_state: bool = True,
     ) -> list[Capture] | None:
         """Uploads a capture with multiple channels by running `upload`
         once for the whole directory. Then, it creates a capture for each channel.
@@ -728,6 +729,7 @@ class Client:
             raise_on_error: When True, raises an exception if any file upload fails.
                             If False, the method will return an empty list
                             or None and log the errors.
+            persist_state: Whether to persist upload state for resumption.
         Returns:
             A list of captures created for each channel,
             or an empty list if any capture creation fails or no channels are provided.
@@ -740,6 +742,7 @@ class Client:
             sds_path=sds_path,
             verbose=verbose,
             warn_skipped=warn_skipped,
+            persist_state=persist_state,
         )
 
         if not process_upload_results(
