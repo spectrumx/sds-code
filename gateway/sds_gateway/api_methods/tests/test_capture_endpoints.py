@@ -1,5 +1,7 @@
 """Tests for capture endpoints."""
 
+# pyright: reportPrivateUsage=false
+
 import datetime
 import json
 import logging
@@ -393,6 +395,44 @@ class CaptureTestCases(APITestCase):
             assert response["top_level_dir"] == "/" + self.top_level_dir_rh, (
                 f"Expected Gateway to normalize the path: {response['top_level_dir']}"
             )
+
+    def test_create_drf_capture_without_files_returns_400(self) -> None:
+        """Capture creation must fail when no files are linked."""
+        unique_channel = f"{self.channel_v0}_missing_files"
+        unique_top_level_dir = f"{self.top_level_dir_v0}-missing-files"
+
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=self.drf_metadata_v0,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
+                return_value=self.drf_capture_v0.index_name,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                return_value=(Path("mock_path"), []),
+            ),
+        ):
+            response_raw = self.client.post(
+                self.list_url,
+                data={
+                    "capture_type": CaptureType.DigitalRF,
+                    "channel": unique_channel,
+                    "top_level_dir": unique_top_level_dir,
+                    "index_name": self.drf_capture_v0.index_name,
+                },
+            )
+
+        assert response_raw.status_code == status.HTTP_400_BAD_REQUEST, (
+            f"Status {response_raw.status_code} != {status.HTTP_400_BAD_REQUEST}"
+        )
+        response = response_raw.json()
+        assert "detail" in response, "Expected error response to include detail"
+        assert "no files" in response["detail"].lower(), (
+            "Error detail should mention missing files"
+        )
 
     def test_create_drf_capture_already_exists(self) -> None:
         """Test creating drf capture returns metadata."""

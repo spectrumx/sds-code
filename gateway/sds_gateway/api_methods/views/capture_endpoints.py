@@ -187,11 +187,11 @@ class CaptureViewSet(viewsets.ViewSet):
                     f"No files found for capture '{capture.uuid}' at '{top_level_dir}'"
                 )
                 log.warning(msg)
-            else:
-                log.info(
-                    f"Connected {len(files_to_connect)} "
-                    f"files to capture '{capture.uuid}'",
-                )
+                raise ValueError(msg)
+
+            log.info(
+                f"Connected {len(files_to_connect)} files to capture '{capture.uuid}'",
+            )
 
     def _trigger_post_processing(self, capture: Capture) -> None:
         """Trigger post-processing for a DigitalRF capture after OpenSearch indexing.
