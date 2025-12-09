@@ -19,13 +19,13 @@ alias run := up
 alias upgrade := update
 
 # pulls and rebuild the compose services with optional args
-build args='':
+build *args:
     @echo "Pulling and building sds-gateway"
     {{docker_compose}} pull --ignore-buildable
     {{docker_compose}} build {{args}}
 
 # pulls and rebuilds from scratch without cache
-build-full args='':
+build-full *args:
     @echo "Pulling and building sds-gateway WITHOUT CACHE"
     {{docker_compose}} pull --ignore-buildable
     {{docker_compose}} build --no-cache {{args}}
@@ -51,7 +51,7 @@ clean:
     echo "Removed ephemeral files"
 
 # runs a generic docker compose command e.g. `just dc ps`
-dc +args='':
+dc +args:
     @echo "Running docker compose command: {{args}}"
     {{docker_compose}} {{args}}
 
@@ -72,17 +72,17 @@ env:
     @echo -e "\tUV runner command: \e[34m       '{{uv_runner}}'\e[0m"
 
 # streams logs until interrupted (tails 10k lines); args are passed to compose logs
-logs args='':
+logs *args:
     @echo "Showing sds-gateway logs..."
     {{docker_compose}} logs --tail 10000 -f {{args}} || true
 
 # prints all recent logs once; args are passed to compose logs
-logs-once args='':
+logs-once *args:
     @echo "Showing gateway logs once..."
     {{docker_compose}} logs {{args}}
 
 # stops and remove compose services; args are passed to compose down
-down args='':
+down *args:
     @echo "Stopping sds-gateway"
     {{docker_compose}} down {{args}}
 
@@ -99,7 +99,7 @@ redeploy services='':
     just logs {{services}}
 
 # restarts running compose services
-restart args='':
+restart *args:
     @echo "Restarting sds-gateway"
     {{docker_compose}} restart {{args}}
 
@@ -118,25 +118,34 @@ snapshot:
     echo "See logs at '${log_file}'"
 
 # runs all tests (python and javascript); args are passed to pytest
-test args='':
+test *args:
     @echo "Running all tests"
-    @just test-py '{{args}}'
+    @just test-py {{args}}
     @just test-js
 
 # validates templates and runs pytest inside the app container
-test-py args='':
-    @echo "Validating templates"
+test-py *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Validating templates"
     {{uv_runner}} manage.py validate_templates
-    @echo "Running Python tests"
-    {{uv_runner}} pytest {{args}}
+    echo "Running Python tests"
+    # show test names if -k is used (focused test run)
+    if [[ "{{args}}" =~ -k ]]; then
+        {{uv_runner}} pytest \
+            -rA \
+            {{args}}
+    else
+        {{uv_runner}} pytest {{args}}
+    fi
 
 # runs javascript tests inside the app container
-test-js args='':
+test-js *args:
     @echo "Running JavaScript tests"
     {{docker_compose}} run node npm run test {{args}}
 
 # starts services in detached mode; if env is local, starts process to watch files
-up args='':
+up *args:
     #!/usr/bin/env bash
     echo "Starting sds-gateway"
     {{docker_compose}} up --detach --remove-orphans {{args}}
@@ -155,7 +164,7 @@ update:
     {{docker_compose}} run node npm update
 
 # watch file changes when in local env mode
-watch args='':
+watch *args:
     #!/usr/bin/env bash
     if [ "{{env}}" != "local" ]; then
         echo "The 'watch' command is only available in the 'local' environment"
