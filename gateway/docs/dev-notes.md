@@ -9,6 +9,7 @@
         + [Cluster stats](#cluster-stats)
         + [Disk allocation](#disk-allocation)
         + [Cluster settings](#cluster-settings)
+        + [Change disk watermark levels](#change-disk-watermark-levels)
     + [OpenSearch Snapshots](#opensearch-snapshots)
         + [Register the snapshots repository](#register-the-snapshots-repository)
         + [Verify the snapshot repository](#verify-the-snapshot-repository)
@@ -90,6 +91,39 @@ docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARC
 
 ```bash
 docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_USER:\$OPENSEARCH_PASSWORD"'"'" https://localhost:9200/_cluster/settings?include_defaults=false" | jq .
+```
+
+### Change disk watermark levels
+
+```bash
+docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" -X PUT https://localhost:9200/_cluster/settings -H 'Content-Type: application/json' -d '{\"transient\": {\"cluster.routing.allocation.disk.watermark.low\": \"85%\", \"cluster.routing.allocation.disk.watermark.high\": \"90%\", \"cluster.routing.allocation.disk.watermark.flood_stage\": \"95%\", \"cluster.info.update.interval\": \"1m\"}}'" | jq .
+```
+
+```json
+{
+    "acknowledged": true,
+    "persistent": {},
+    "transient": {
+        "cluster": {
+            "routing": {
+                "allocation": {
+                    "disk": {
+                        "watermark": {
+                            "low": "85%",
+                            "flood_stage": "95%",
+                            "high": "90%"
+                        }
+                    }
+                }
+            },
+            "info": {
+                "update": {
+                    "interval": "1m"
+                }
+            }
+        }
+    }
+}
 ```
 
 ## OpenSearch Snapshots
