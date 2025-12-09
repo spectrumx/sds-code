@@ -375,6 +375,7 @@ class CaptureViewSet(viewsets.ViewSet):
         requester = validated_data["requester"]
 
         # Create the capture within a transaction
+        capture = None
         try:
             with transaction.atomic():
                 post_serializer = CapturePostSerializer(
@@ -382,7 +383,7 @@ class CaptureViewSet(viewsets.ViewSet):
                     context={"request_user": request.user},
                 )
                 post_serializer.is_valid()
-                capture = post_serializer.save()
+                capture = cast("Capture", post_serializer.save())
 
                 self.ingest_capture(
                     capture=capture,
@@ -398,7 +399,12 @@ class CaptureViewSet(viewsets.ViewSet):
 
         except (UnknownIndexError, ValueError, os_exceptions.ConnectionError) as e:
             # Transaction will auto-rollback, no manual deletion needed
-            return self._handle_capture_creation_errors(capture, e)
+            if isinstance(capture, Capture):
+                return self._handle_capture_creation_errors(capture=capture, error=e)
+            return Response(
+                {"detail": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @extend_schema(
         parameters=[
