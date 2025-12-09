@@ -38,6 +38,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
         self.test_index_prefix = "captures-test-"
         self.capture_type = CaptureType.RadioHound
         self.index_name = f"{self.test_index_prefix}{self.capture_type}"
+        self.temp_files: list[File] = []
 
         # Keep the original (old) mapping structure to test migration
         self.original_index_mapping = {
@@ -94,9 +95,17 @@ class OpenSearchRHIndexResetTest(APITestCase):
             ignore_unavailable=True,  # pyright: ignore[reportCallIssue]
         )
 
+        # clean up temp files
+        for temp_file in self.temp_files:
+            File.objects.filter(pk=temp_file.pk).update(
+                capture=None,
+                dataset=None,
+            )
+            File.objects.filter(pk=temp_file.pk).delete()
+        self.temp_files.clear()
+
         # clean up test objects in correct order
         self.user.captures.all().delete()
-        self.file.delete()
         self.user.delete()
 
     def _setup_test_data(self) -> None:
@@ -148,7 +157,10 @@ class OpenSearchRHIndexResetTest(APITestCase):
             "version": "v0",
         }
 
-        self.file = self._create_test_file(self.user)
+        self.file = self._create_test_file(
+            owner=self.user,
+            top_level_dir=self.top_level_dir,
+        )
 
     def _create_test_capture(self, owner: User, top_level_dir: str) -> Capture:
         """Create and index a test capture."""
@@ -160,9 +172,16 @@ class OpenSearchRHIndexResetTest(APITestCase):
             top_level_dir=top_level_dir,
         )
 
-    def _create_test_file(self, owner: User) -> File:
+    def _create_test_file(
+        self,
+        *,
+        owner: User,
+        top_level_dir: str,
+        metadata: dict | None = None,
+    ) -> File:
         # Create File object in MinIO/DB
-        json_content = json.dumps(self.json_file).encode("utf-8")
+        json_payload = metadata or self.json_file
+        json_content = json.dumps(json_payload).encode("utf-8")
         self.uploaded_file = SimpleUploadedFile(
             "test.rh.json",
             json_content,
@@ -170,7 +189,7 @@ class OpenSearchRHIndexResetTest(APITestCase):
         )
 
         file_data = {
-            "directory": f"/{self.scan_group}",
+            "directory": top_level_dir,
             "file": self.uploaded_file,
             "media_type": "application/json",
             "name": "test.rh.json",
@@ -181,7 +200,9 @@ class OpenSearchRHIndexResetTest(APITestCase):
             context={"request_user": owner},
         )
         serializer.is_valid(raise_exception=True)
-        return serializer.save()
+        file_obj = cast("File", serializer.save())
+        self.temp_files.append(file_obj)
+        return file_obj
 
     def _initialize_test_index(self) -> None:
         """Initialize test index with mapping."""
@@ -198,6 +219,12 @@ class OpenSearchRHIndexResetTest(APITestCase):
                 },
             },
         }
+        if self.client.indices.exists(index=self.capture.index_name):
+            self.client.indices.delete(
+                index=self.capture.index_name,
+                ignore=[400, 404],
+            )
+
         self.client.indices.create(
             index=self.capture.index_name,
             body=original_index_config,
@@ -434,7 +461,10 @@ class OpenSearchRHIndexResetTest(APITestCase):
             top_level_dir=other_top_level_dir,
         )
         self._index_test_capture(non_duplicate_capture)
-        self._create_test_file(other_user)
+        self._create_test_file(
+            owner=other_user,
+            top_level_dir=other_top_level_dir,
+        )
 
         # Get initial document
         initial_response = self.client.search(
@@ -469,6 +499,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
         self.capture_type = CaptureType.DigitalRF
         self.test_index_prefix = "captures-test-"
         self.index_name = f"{self.test_index_prefix}{self.capture_type}"
+        self.temp_files: list[File] = []
 
         # Keep the original (old) mapping structure to test migration
         self.original_index_mapping = {
@@ -520,6 +551,15 @@ class OpenSearchDRFIndexResetTest(APITestCase):
             ignore_unavailable=True,  # pyright: ignore[reportCallIssue]
         )
 
+        # clean up temporary files
+        for temp_file in self.temp_files:
+            File.objects.filter(pk=temp_file.pk).update(
+                capture=None,
+                dataset=None,
+            )
+            File.objects.filter(pk=temp_file.pk).delete()
+        self.temp_files.clear()
+
         # clean up test objects in correct order
         self.user.captures.all().delete()
         self.user.delete()
@@ -561,13 +601,49 @@ class OpenSearchDRFIndexResetTest(APITestCase):
 
     def _create_test_capture(self, owner: User, top_level_dir: str):
         """Create and index a test capture."""
-        return Capture.objects.create(
+        capture = Capture.objects.create(
             owner=owner,
             channel=self.channel,
             capture_type=self.capture_type,
             index_name=self.index_name,
             top_level_dir=top_level_dir,
         )
+        self._create_test_file(
+            owner=owner,
+            top_level_dir=top_level_dir,
+            capture=capture,
+        )
+        return capture
+
+    def _create_test_file(
+        self,
+        *,
+        owner: User,
+        top_level_dir: str,
+        capture: Capture,
+        channel: str | None = None,
+    ) -> File:
+        """Create a minimal DigitalRF file entry for ingestion."""
+
+        # ensure channel directory exists for DRF lookups
+        channel_dir = channel or self.channel
+        directory = f"{top_level_dir}/{channel_dir}"
+        upload = SimpleUploadedFile(
+            "rf@000000.h5",
+            b"dummy",
+            content_type="application/octet-stream",
+        )
+        file_obj = File.objects.create(
+            owner=owner,
+            directory=directory,
+            name="rf@000000.h5",
+            file=upload,
+            media_type="application/octet-stream",
+            size=upload.size,
+            capture=capture,
+        )
+        self.temp_files.append(file_obj)
+        return file_obj
 
     def _initialize_test_index(self) -> None:
         """Initialize test index with mapping."""
@@ -581,6 +657,11 @@ class OpenSearchDRFIndexResetTest(APITestCase):
                 },
             },
         }
+        if self.client.indices.exists(index=self.capture.index_name):
+            self.client.indices.delete(
+                index=self.capture.index_name,
+                ignore=[400, 404],
+            )
         self.client.indices.create(
             index=self.capture.index_name,
             body=original_index_config,

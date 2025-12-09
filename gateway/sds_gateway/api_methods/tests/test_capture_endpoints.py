@@ -12,6 +12,7 @@ from typing import cast
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
@@ -71,6 +72,7 @@ class CaptureTestCases(APITestCase):
         self.top_level_dir_v0 = "test-dir-drf-v0"
         self.top_level_dir_v1 = "test-dir-drf-v1"
         self.top_level_dir_rh = "test-dir-rh"
+        self._temp_files: list[File] = []
         self.user = User.objects.create(
             email="testuser@example.com",
             password="testpassword",  # noqa: S106
@@ -219,8 +221,68 @@ class CaptureTestCases(APITestCase):
         # Ensure immediate visibility
         self.opensearch.indices.refresh(index=self.rh_capture.index_name)
 
+    def _create_owned_file(
+        self,
+        *,
+        filename: str = "rf@000000.h5",
+        media_type: str = "application/octet-stream",
+        content: bytes | None = None,
+    ) -> File:
+        """Create a File owned by the test user for capture linking."""
+
+        upload = SimpleUploadedFile(
+            filename,
+            content or b"test",
+            content_type=media_type,
+        )
+        owned_file = File.objects.create(
+            owner=self.user,
+            directory=f"/files/{self.user.email}/dummy",
+            name=filename,
+            file=upload,
+            media_type=media_type,
+            size=upload.size,
+        )
+        self._temp_files.append(owned_file)
+        return owned_file
+
+    def _reconstruct_tree_stub(
+        self,
+        *,
+        filename: str = "rf@000000.h5",
+        media_type: str = "application/octet-stream",
+        content: bytes | None = None,
+    ):
+        """Return a callable that mocks reconstruct_tree with linked files."""
+
+        def _stub(*_args, **_kwargs):
+            temp_file = self._create_owned_file(
+                filename=filename,
+                media_type=media_type,
+                content=content,
+            )
+            _attach_to_capture: Capture | None = _kwargs.get("capture")
+            if _attach_to_capture is not None:
+                temp_file.capture = _attach_to_capture
+                temp_file.save()
+            return (
+                Path("mock_path"),
+                [temp_file],
+            )
+
+        return _stub
+
     def tearDown(self) -> None:
         """Clean up test data."""
+
+        # remove temporary files linked during tests
+        for temp_file in getattr(self, "_temp_files", []):
+            File.objects.filter(pk=temp_file.pk).update(
+                capture=None,
+                dataset=None,
+            )
+            File.objects.filter(pk=temp_file.pk).delete()
+        self._temp_files.clear()
 
         # Clean up OpenSearch documents
         self._cleanup_opensearch_test_indices()
@@ -245,7 +307,7 @@ class CaptureTestCases(APITestCase):
             ),
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
-                return_value=(Path("mock_path"), []),
+                new=self._reconstruct_tree_stub(),
             ),
         ):
             response_raw = self.client.post(
@@ -300,7 +362,7 @@ class CaptureTestCases(APITestCase):
             ),
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
-                return_value=(Path("mock_path"), []),
+                new=self._reconstruct_tree_stub(),
             ),
         ):
             response_raw = self.client.post(
@@ -367,7 +429,10 @@ class CaptureTestCases(APITestCase):
             ),
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
-                return_value=(Path("mock_path"), []),
+                new=self._reconstruct_tree_stub(
+                    filename="capture.rh.json",
+                    media_type="application/json",
+                ),
             ),
         ):
             response_raw = self.client.post(
@@ -526,9 +591,15 @@ class CaptureTestCases(APITestCase):
         new_metadata["center_freq"] = 1_500_000_000
         new_metadata["gain"] = 10.5
 
-        with patch(
-            "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
-            return_value=new_metadata,
+        with (
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.validate_metadata_by_channel",
+                return_value=new_metadata,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                new=self._reconstruct_tree_stub(),
+            ),
         ):
             response = self.client.put(
                 self.detail_url(self.drf_capture_v0.uuid),
@@ -1272,6 +1343,10 @@ class CaptureTestCases(APITestCase):
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.drf_capture_v0.index_name,
             ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                new=self._reconstruct_tree_stub(),
+            ),
         ):
             # Create first capture with path without leading slash
             response1 = self.client.post(
@@ -1326,6 +1401,10 @@ class CaptureTestCases(APITestCase):
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.drf_capture_v0.index_name,
             ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                new=self._reconstruct_tree_stub(),
+            ),
         ):
             # Create first capture with path WITH leading slash
             response1 = self.client.post(
@@ -1379,6 +1458,10 @@ class CaptureTestCases(APITestCase):
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.drf_capture_v0.index_name,
             ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                new=self._reconstruct_tree_stub(),
+            ),
         ):
             # Create first capture with path with leading space
             response1 = self.client.post(
@@ -1431,6 +1514,10 @@ class CaptureTestCases(APITestCase):
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.drf_capture_v0.index_name,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                new=self._reconstruct_tree_stub(),
             ),
         ):
             # Test empty string
@@ -1487,6 +1574,10 @@ class CaptureTestCases(APITestCase):
             patch(
                 "sds_gateway.api_methods.views.capture_endpoints.infer_index_name",
                 return_value=self.drf_capture_v0.index_name,
+            ),
+            patch(
+                "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+                new=self._reconstruct_tree_stub(),
             ),
         ):
             # Create first capture with single leading slash
