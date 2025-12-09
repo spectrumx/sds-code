@@ -1,19 +1,23 @@
 """Tests capture operations."""
 # pylint: disable=redefined-outer-name
 
+from __future__ import annotations
+
 import json
 import uuid as uuidlib
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
+from typing import TYPE_CHECKING
 from typing import Any
+from typing import cast
 from urllib.parse import parse_qs
+from uuid import uuid4
 
 import pytest
-import responses
 from loguru import logger as log
-from pydantic import UUID4
-from spectrumx import Client
+from spectrumx.api.captures import CaptureAPI
 from spectrumx.errors import SDSError
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
@@ -22,6 +26,12 @@ from spectrumx.models.captures import CaptureType
 from tests.conftest import get_captures_endpoint
 from tests.conftest import get_content_check_endpoint
 from tests.conftest import get_files_endpoint
+
+if TYPE_CHECKING:
+    import responses
+    from pydantic import UUID4
+    from spectrumx import Client
+    from spectrumx.gateway import GatewayClient
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
@@ -41,12 +51,14 @@ def sample_capture_uuid() -> UUID4:
 def sample_capture_data(sample_capture_uuid: UUID4) -> dict[str, Any]:
     """Returns sample capture data for testing."""
     return {
-        "uuid": str(sample_capture_uuid),
-        "capture_type": CaptureType.DigitalRF.value,
-        "top_level_dir": "/test/capture/directory",
-        "index_name": "captures-drf",
-        "origin": CaptureOrigin.User.value,
         "capture_props": {"sample": "props"},
+        "capture_type": CaptureType.DigitalRF.value,
+        "created_at": datetime.now(UTC).isoformat(),
+        "index_name": "captures-drf",
+        "name": "pytest-sample",
+        "origin": CaptureOrigin.User.value,
+        "top_level_dir": "/test/capture/directory",
+        "uuid": str(sample_capture_uuid),
         "files": [
             {
                 "uuid": uuidlib.uuid4().hex,
@@ -60,6 +72,30 @@ def sample_capture_data(sample_capture_uuid: UUID4) -> dict[str, Any]:
             },
         ],
     }
+
+
+def _build_drf_capture_payload(**overrides: object) -> dict[str, object]:
+    """Creates a DRF capture payload similar to what the gateway returns."""
+    base_payload: dict[str, object] = {
+        "capture_props": {"sample_rate": 1.0},
+        "capture_type": CaptureType.DigitalRF.value,
+        "channel": "channel-0",
+        "created_at": datetime.now(UTC).isoformat(),
+        "index_name": "captures-drf",
+        "name": "pytest-sample",
+        "origin": CaptureOrigin.User.value,
+        "top_level_dir": "/captures/sample",
+        "uuid": str(uuid4()),
+        "files": [
+            {
+                "uuid": str(uuid4()),
+                "name": "sample.dat",
+                "directory": "/captures/sample",
+            }
+        ],
+    }
+    base_payload.update(overrides)
+    return base_payload
 
 
 def add_file_upload_mock(
@@ -232,6 +268,38 @@ def test_listing_captures_dry_run(client: Client) -> None:
     assert len(captures) == num_dry_run_captures
     for capture in captures:
         assert isinstance(capture, Capture)
+
+
+def test_listing_skips_invalid_capture(caplog: pytest.LogCaptureFixture) -> None:
+    """Listing must ignore captures that fail validation."""
+    valid_payload = _build_drf_capture_payload(name="valid")
+    invalid_payload = _build_drf_capture_payload(name="invalid")
+    invalid_payload.pop("capture_type")
+    gateway = _GatewayStub(payload={"results": [valid_payload, invalid_payload]})
+    api = CaptureAPI(gateway=cast("GatewayClient", gateway), dry_run=False)
+
+    captures = list(api.listing())
+
+    assert len(captures) == 1
+    assert captures[0].name == "valid"
+    caplog.set_level("WARNING")
+    assert "validation error loading capture" in caplog.text.lower()
+
+
+def test_listing_defaults_missing_optional_fields() -> None:
+    """Listing must tolerate missing optional fields by defaulting them."""
+    payload_without_optional = _build_drf_capture_payload()
+    payload_without_optional.pop("capture_props")
+    payload_without_optional.pop("files")
+    gateway = _GatewayStub(payload={"results": [payload_without_optional]})
+    api = CaptureAPI(gateway=cast("GatewayClient", gateway), dry_run=False)
+
+    captures = api.listing()
+
+    assert len(captures) == 1
+    capture = captures[0]
+    assert capture.capture_props == {}
+    assert capture.files == []
 
 
 def test_read_capture(
@@ -646,9 +714,10 @@ def test_upload_multichannel_drf_capture_creation_fails(
     assert result == []
 
 
-def test_capture_string_representation(sample_capture_data: dict[str, Any]) -> None:
+def test_capture_string_repr_nameless(sample_capture_data: dict[str, Any]) -> None:
     """Test the string representation of a capture."""
     # ARRANGE
+    sample_capture_data.pop("name", None)  # ensure name is not set
     capture = Capture.model_validate(sample_capture_data)
 
     # ACT
@@ -657,6 +726,28 @@ def test_capture_string_representation(sample_capture_data: dict[str, Any]) -> N
 
     # ASSERT
     assert f"Capture(uuid={capture.uuid}" in capture_str
+    assert f"type={capture.capture_type}" in capture_str
+    assert f"files={len(capture.files)}" in capture_str
+    assert capture.__class__.__name__ in capture_repr
+    assert str(capture.uuid) in capture_repr
+
+
+def test_capture_string_repr_with_name(sample_capture_data: dict[str, Any]) -> None:
+    """Test the string representation of a capture."""
+    # ARRANGE
+    sample_capture_data["name"] = "pytest-sample"
+    capture: Capture = Capture.model_validate(sample_capture_data)
+
+    # ACT
+    capture_str = str(capture)
+    capture_repr = repr(capture)
+
+    # ASSERT
+    log.info(capture_str)
+    assert capture.name is not None, "Capture name should not be None for this test"
+    assert capture.name in capture_str, (
+        "Capture name should be in string representation"
+    )
     assert f"type={capture.capture_type}" in capture_str
     assert f"files={len(capture.files)}" in capture_str
     assert capture.__class__.__name__ in capture_repr
@@ -1055,3 +1146,16 @@ def test_upload_capture_with_name_success(
             body = body.decode("utf-8")
         request_data = parse_qs(body)
         assert request_data["name"][0] == capture_name
+
+
+class _GatewayStub:
+    """Minimal stub that emulates the gateway list endpoint."""
+
+    def __init__(self, payload: dict[str, object]) -> None:
+        self._payload = payload
+        self.calls = 0
+
+    def list_captures(self, capture_type: CaptureType | None = None) -> bytes:
+        del capture_type  # unused in tests
+        self.calls += 1
+        return json.dumps(self._payload).encode("utf-8")

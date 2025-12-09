@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import UUID4
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import field_validator
 
 from spectrumx.models.base import SDSModel
 
@@ -60,12 +61,18 @@ class Capture(SDSModel):
 
     # TODO ownership: include ownership and access level information
 
-    capture_props: Annotated[dict[str, Any], Field(description=_d_capture_props)]
+    capture_props: Annotated[
+        dict[str, Any],
+        Field(description=_d_capture_props, default_factory=dict),
+    ]
     capture_type: Annotated[CaptureType, Field(description=_d_capture_type)]
     index_name: Annotated[str, Field(max_length=255, description=_d_index_name)]
     origin: Annotated[CaptureOrigin, Field(description=_d_origin)]
     top_level_dir: Annotated[PurePosixPath, Field(description=_d_top_level_dir)]
-    files: Annotated[list[CaptureFile], Field(description=_d_capture_files)]
+    files: Annotated[
+        list[CaptureFile],
+        Field(description=_d_capture_files, default_factory=list),
+    ]
 
     # optional fields
     created_at: Annotated[
@@ -79,15 +86,36 @@ class Capture(SDSModel):
     ]
     scan_group: Annotated[UUID4 | None, Field(description=_d_scan_group, default=None)]
 
+    @field_validator("capture_props", mode="before")
+    @classmethod
+    def _default_capture_props(cls, value: Any) -> dict[str, Any]:
+        if value is None:
+            return {}
+        return value
+
+    @field_validator("files", mode="before")
+    @classmethod
+    def _default_files(cls, value: Any) -> list[CaptureFile] | list[dict[str, Any]]:
+        if value is None:
+            return []
+        return value
+
     def __str__(self) -> str:
         """Get the string representation of the capture."""
         if self.name:
-            return f"{self.name} ({self.capture_type})"
+            return (
+                f"Capture(uuid={self.uuid}, "
+                f"files={len(self.files)}, "
+                f"name={self.name}, "
+                f"type={self.capture_type}, "
+                "created_at="
+                f"{self.created_at.isoformat() if self.created_at else None}, "
+            )
         return (
             f"Capture(uuid={self.uuid}, "
             f"type={self.capture_type}, "
             f"files={len(self.files)}, "
-            f"created_at={self.created_at})"
+            f"created_at={self.created_at.isoformat() if self.created_at else None})"
         )
 
     def __repr_name__(self) -> str:
@@ -95,10 +123,10 @@ class Capture(SDSModel):
         return self.name or self.capture_type.value
 
     def __repr__(self) -> str:
-        # break up the line to avoid exceeding line length limits
         return (
             f"<{self.__class__.__name__} {self.uuid} "
-            f"files={len(self.files)} created_at={self.created_at}>"
+            f"files={len(self.files)}, "
+            f"created_at={self.created_at}>"
         )
 
 

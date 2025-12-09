@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 from typing import Any
 from uuid import uuid4
 
-import pydantic
 from loguru import logger as log
+from pydantic import ValidationError
 
 from spectrumx.errors import CaptureError
 from spectrumx.models.captures import Capture
@@ -167,7 +167,7 @@ class CaptureAPI:
             try:
                 capture = Capture.model_validate(captures_raw)
                 captures.append(capture)
-            except pydantic.ValidationError as err:
+            except ValidationError as err:
                 log_user_warning(f"Validation error loading capture: {captures_raw}")
                 log.exception(err)
                 continue
@@ -304,7 +304,7 @@ class CaptureAPI:
         for result_raw in search_results:
             try:
                 capture = Capture.model_validate(result_raw)
-            except pydantic.ValidationError as err:
+            except ValidationError as err:
                 log_user_warning(
                     f"Validation error loading search result: {result_raw}"
                 )
