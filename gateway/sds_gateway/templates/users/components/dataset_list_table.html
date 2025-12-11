@@ -10,6 +10,7 @@ Context:
 }
 {% endcomment %}
 {% load tz %}
+
 <!-- Results count display -->
 {% if page_obj.object_list %}
     <div class="d-flex justify-content-end mb-3">
@@ -73,16 +74,12 @@ Context:
                                         <i class="bi bi-lock-fill me-1 text-danger" title="Private"></i>
                                     {% endif %}
                                     <a href="#"
-                                        class="dataset-name-link"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
-                                        data-dataset-uuid="{{ dataset.uuid }}"
-                                        aria-label="View details for {{ dataset.name }}">
-                                        {{ dataset.name }}
-                                    </a>
-                                    {% if dataset.version > 1 %}
-                                    <span class="ms-2 badge bg-primary">v{{ dataset.version }}</span>
-                                    {% endif %}
+                                       class="dataset-name-link"
+                                       data-bs-toggle="modal"
+                                       data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
+                                       data-dataset-uuid="{{ dataset.uuid }}"
+                                       aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
+                                    {% if dataset.version > 1 %}<span class="ms-2 badge bg-primary">v{{ dataset.version }}</span>{% endif %}
                                     {% if dataset.status == 'draft' %}
                                         <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
                                     {% endif %}
@@ -130,72 +127,72 @@ Context:
                                             <span class="bg-transparent pe-2">{{ dataset.dataset.created_at|date:"Y-m-d" }}</span>
                                             <span class="text-muted bg-transparent">{{ dataset.dataset.created_at|date:"H:i:s T" }}</span>
                                         </div>
-                                        {% endlocaltime %}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <div class="dropdown">
-                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
-                                                type="button"
-                                                data-bs-toggle="dropdown"
-                                                data-bs-boundary="viewport"
-                                                aria-expanded="false"
-                                                aria-label="Actions for {{ dataset.name }}">
-                                            <i class="bi bi-three-dots-vertical"></i>
-                                        </button>
-                                        <ul class="dropdown-menu">
-                                            {% if dataset.can_edit %}
-                                                <li>
-                                                    <button class="dropdown-item"
-                                                            type="button"
-                                                            onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
-                                                        <i class="bi bi-pencil me-2"></i>Edit
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item"
-                                                            type="button"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#shareModal-{{ dataset.uuid }}">
-                                                        <i class="bi bi-share me-2"></i>Share
-                                                    </button>
-                                                </li>
-                                            {% endif %}
-                                            {% if dataset.can_advance_version %}
-                                                <li>
-                                                    <button class="dropdown-item"
-                                                            type="button"
-                                                            onclick="window.DOMUtils.openModal('versioningModal-{{ dataset.uuid }}')">
-                                                            <i class="bi bi-folder-symlink me-2"></i>Create New Version
-                                                    </button>
-                                                </li>
-                                            {% endif %}
+                                    {% endlocaltime %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                            type="button"
+                                            data-bs-toggle="dropdown"
+                                            data-bs-boundary="viewport"
+                                            aria-expanded="false"
+                                            aria-label="Actions for {{ dataset.name }}">
+                                        <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        {% if dataset.can_edit %}
                                             <li>
                                                 <button class="dropdown-item"
                                                         type="button"
-                                                        onclick="window.DOMUtils.openModal('webDownloadModal-{{ dataset.uuid }}')">
-                                                    <i class="bi bi-download me-2"></i>Web Download
+                                                        onclick="window.location.href='{% url 'users:group_captures' %}?dataset_uuid={{ dataset.uuid }}'">
+                                                    <i class="bi bi-pencil me-2"></i>Edit
                                                 </button>
                                             </li>
                                             <li>
                                                 <button class="dropdown-item"
                                                         type="button"
-                                                        onclick="window.DOMUtils.openModal('sdkDownloadModal-{{ dataset.uuid }}')">
-                                                    <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#shareModal-{{ dataset.uuid }}">
+                                                    <i class="bi bi-share me-2"></i>Share
                                                 </button>
                                             </li>
-                                        </ul>
-                                    </div>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% endif %}
-        </div>
+                                        {% endif %}
+                                        {% if dataset.can_advance_version %}
+                                            <li>
+                                                <button class="dropdown-item"
+                                                        type="button"
+                                                        onclick="window.DOMUtils.openModal('versioningModal-{{ dataset.uuid }}')">
+                                                    <i class="bi bi-folder-symlink me-2"></i>Create New Version
+                                                </button>
+                                            </li>
+                                        {% endif %}
+                                        <li>
+                                            <button class="dropdown-item"
+                                                    type="button"
+                                                    onclick="window.DOMUtils.openModal('webDownloadModal-{{ dataset.uuid }}')">
+                                                <i class="bi bi-download me-2"></i>Web Download
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item"
+                                                    type="button"
+                                                    onclick="window.DOMUtils.openModal('sdkDownloadModal-{{ dataset.uuid }}')">
+                                                <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
     </div>
+</div>
 </div>
 <!-- Pagination -->
 {% if page_obj.object_list %}

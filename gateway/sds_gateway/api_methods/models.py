@@ -1018,9 +1018,11 @@ class UserSharePermission(BaseModel):
             PermissionLevel.OWNER,
             PermissionLevel.CO_OWNER,
         ]
-    
+
     @classmethod
-    def user_can_advance_version(cls, user: "User", item_uuid: uuid.UUID, item_type: str) -> bool:
+    def user_can_advance_version(
+        cls, user: "User", item_uuid: uuid.UUID, item_type: str
+    ) -> bool:
         """Check if user can advance the version of the item."""
         permission_level = cls.get_user_permission_level(user, item_uuid, item_type)
         return permission_level in [
@@ -1350,11 +1352,6 @@ def user_has_access_to_item(user: "User", item_uuid: uuid.UUID, item_type: str) 
     """
     return UserSharePermission.user_can_view(user, item_uuid, item_type)
 
-def get_user_permission_level(user, item_uuid, item_type):
-    """
-    Get the permission level for a user on a specific item.
-    """
-    return UserSharePermission.get_user_permission_level(user, item_uuid, item_type)
 
 def get_user_permission_level(
     user: "User", item_uuid: uuid.UUID, item_type: str

@@ -1756,9 +1756,6 @@ class GroupCapturesView(
                     status=403,
                 )
 
-            # Get the dataset to check if it's public
-            dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
-
             # Only validate form if user can edit metadata
             can_edit = UserSharePermission.user_can_edit_dataset(
                 request.user, dataset_uuid, ItemType.DATASET
@@ -2205,8 +2202,9 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             # Return just the table container HTML for AJAX updates
             from django.template.loader import render_to_string
+
             html = render_to_string(
-                "users/components/dataset_list_table.html",  # You'll need to create this partial
+                "users/components/dataset_list_table.html",
                 {
                     "page_obj": page_obj,
                     "sort_by": sort_by,
@@ -2773,43 +2771,58 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
         dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
 
         # check if user has access to the dataset
-        if not UserSharePermission.user_can_advance_version(request.user, dataset_uuid, ItemType.DATASET):
-            return JsonResponse({"error": "You do not have permission to advance the version of this dataset"}, status=403)
+        if not UserSharePermission.user_can_advance_version(
+            request.user, dataset_uuid, ItemType.DATASET
+        ):
+            return JsonResponse(
+                {
+                    "error": (
+                        "You do not have permission to advance "
+                        "the version of this dataset"
+                    )
+                },
+                status=403,
+            )
 
         # copy dataset with relations
         new_dataset = self._copy_dataset_with_relations(dataset, request.user)
 
         return JsonResponse({"success": True, "version": new_dataset.version})
-    
-    def _copy_dataset_with_relations(self, original_dataset: Dataset, request_user: User) -> Dataset:
+
+    def _copy_dataset_with_relations(
+        self, original_dataset: Dataset, request_user: User
+    ) -> Dataset:
         """
         Copy a dataset along with all its related files and captures.
-        
+
         Args:
             original_dataset: The dataset to copy
-            
+
         Returns:
             The new dataset with copied related objects
         """
         new_version = original_dataset.version + 1
 
         preserve_fields = {
-            'uuid',
-            'created_at',
-            'updated_at',
-            'status',
-            'is_public',
-            'shared_with',
+            "uuid",
+            "created_at",
+            "updated_at",
+            "status",
+            "is_public",
+            "shared_with",
         }
         dataset_data = {
             field.name: getattr(original_dataset, field.name)
-            for field in original_dataset._meta.fields
-            if field.name not in preserve_fields
+            for field in original_dataset._meta.get_fields()  # noqa: SLF001
+            if hasattr(field, "name")
+            and field.name not in preserve_fields
+            and not field.many_to_many
+            and not field.one_to_many
         }
 
-        dataset_data['owner'] = request_user
-        dataset_data['version'] = new_version
-        dataset_data['previous_version'] = original_dataset
+        dataset_data["owner"] = request_user
+        dataset_data["version"] = new_version
+        dataset_data["previous_version"] = original_dataset
 
         # create new dataset
         new_dataset = Dataset(**dataset_data)
@@ -2819,6 +2832,7 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
         new_dataset.files.set(original_dataset.files.all())
 
         return new_dataset
+
 
 user_dataset_versioning_view = DatasetVersioningView.as_view()
 

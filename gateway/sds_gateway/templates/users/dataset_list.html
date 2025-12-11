@@ -82,15 +82,14 @@
             {% endif %}
         </div>
     </div>
-</div>
-<!-- Modals to reveal on click -->
-{% for dataset in page_obj %}
-    {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
-    {% include "users/partials/web_download_modal.html" with dataset=dataset %}
-    {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
-    {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
-    {% include "users/partials/dataset_version_control.html" with dataset=dataset %}
-{% endfor %}
+    <!-- Modals to reveal on click -->
+    {% for dataset in page_obj %}
+        {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
+        {% include "users/partials/web_download_modal.html" with dataset=dataset %}
+        {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
+        {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
+        {% include "users/partials/dataset_version_control.html" with dataset=dataset %}
+    {% endfor %}
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}
