@@ -262,7 +262,9 @@
                      id="uploadCaptureModal"
                      tabindex="-1"
                      aria-labelledby="uploadCaptureModalLabel"
-                     aria-hidden="true">
+                     aria-hidden="true"
+                     data-check-file-url="{% url 'users:check_file_exists' %}"
+                     data-upload-url="{% url 'users:upload_capture' %}">
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <form id="uploadCaptureForm" enctype="multipart/form-data">
@@ -400,6 +402,11 @@
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
+    <!-- Upload Capture Modal JavaScript -->
+    <!-- Load the WASM library for BLAKE3 hashing -->
+    <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
+    <!-- Upload modal functionality -->
+    <script src="{% static 'js/file_list_upload_capture_modal.js' %}"></script>
     <!-- Pass Django context data to JavaScript -->
     {# djlint:off #}
     <script>
