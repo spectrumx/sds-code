@@ -2079,8 +2079,8 @@ class GroupCapturesView(
             # Clear existing relationships
             dataset.captures.clear()
             dataset.files.clear()
-            # Clear existing keyword relationships (not the keywords themselves)
-            dataset.keywords.clear()
+            # Replace existing keywords
+            dataset.keywords.all().delete()
         else:
             # Create new dataset
             # Parse authors from JSON string
