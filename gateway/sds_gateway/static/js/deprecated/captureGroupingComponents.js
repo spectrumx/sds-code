@@ -128,7 +128,6 @@ class FormHandler {
 
 	show(container, showClass = "display-block") {
 		container.classList.remove("display-none");
-		container.classList.remove("d-none"); // ensure Bootstrap's d-none is removed
 		container.classList.add(showClass);
 	}
 
@@ -179,9 +178,6 @@ class FormHandler {
 				document.querySelector("#step4 .dataset-description").textContent =
 					document.getElementById("id_description").value ||
 					"No description provided.";
-				const keywordsInput = document.getElementById("id_keywords");
-				document.querySelector("#step4 .dataset-keywords").textContent =
-					keywordsInput?.value.trim() || "No keywords";
 
 				// Update captures table
 				const capturesTableBody = document.querySelector(
@@ -470,7 +466,6 @@ class FormHandler {
 					method: "POST",
 					body: formData,
 					headers: {
-						"X-Requested-With": "XMLHttpRequest",
 						"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
 							.value,
 					},
