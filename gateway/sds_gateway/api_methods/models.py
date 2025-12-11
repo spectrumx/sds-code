@@ -604,7 +604,8 @@ class Keyword(BaseModel):
         max_length=255,
         primary_key=True,
         help_text=(
-            "The keyword slug (auto-slugified, e.g., 'RF Spectrum' → 'rf-spectrum')"
+            "The keyword slug (auto-slugified, "
+            "e.g., 'RF Spectrum' → 'rf-spectrum')"
         ),
     )
     datasets = models.ManyToManyField(
