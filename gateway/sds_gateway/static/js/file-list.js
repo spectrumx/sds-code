@@ -413,9 +413,16 @@ class FileListController {
 		this.userInteractedWithFrequency = false;
 
 		// Reset frequency slider if it exists
-		if (window.frequencyRangeSlider?.noUiSlider) {
-			window.frequencyRangeSlider.noUiSlider.set([0, 10]);
+		const frequencyRangeSlider = document.getElementById("frequency-range-slider");
+		if (frequencyRangeSlider?.noUiSlider) {
+			frequencyRangeSlider.noUiSlider.set([0, 10]);
 		}
+		
+		// Also reset the display values
+		const lowerValue = document.getElementById("frequency-range-lower");
+		const upperValue = document.getElementById("frequency-range-upper");
+		if (lowerValue) lowerValue.textContent = "0 GHz";
+		if (upperValue) upperValue.textContent = "10 GHz";
 
 		// Create new URL parameters with only search and sort parameters preserved
 		const newParams = new URLSearchParams();
