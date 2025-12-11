@@ -1333,27 +1333,105 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             uuid__in=shared_permissions, is_deleted=False
         ).exclude(owner=request.user)
 
-        # Combine owned and shared captures
-        qs = owned_captures.union(shared_captures)
-
-        # Apply all filters
-        qs = _apply_basic_filters(
-            qs=qs,
+        # Apply basic filters to each queryset before union
+        # (Django doesn't support filter() after union())
+        owned_captures = _apply_basic_filters(
+            qs=owned_captures,
             search=params["search"],
             date_start=params["date_start"],
             date_end=params["date_end"],
             cap_type=params["cap_type"],
         )
-        qs = _apply_frequency_filters(
-            qs=qs, min_freq=params["min_freq"], max_freq=params["max_freq"]
+        shared_captures = _apply_basic_filters(
+            qs=shared_captures,
+            search=params["search"],
+            date_start=params["date_start"],
+            date_end=params["date_end"],
+            cap_type=params["cap_type"],
         )
 
-        qs = _apply_sorting(
-            qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
-        )
+        # Combine owned and shared captures after filtering
+        qs = owned_captures.union(shared_captures)
+
+        # Convert to list before applying frequency filters and sorting
+        # (Django doesn't support filter/order_by after union)
+        captures_list = list(qs)
+
+        # Apply frequency filters to the list
+        if params["min_freq"] or params["max_freq"]:
+            if captures_list:
+                try:
+                    # Convert list to queryset for bulk frequency loading
+                    temp_qs = Capture.objects.filter(uuid__in=[c.uuid for c in captures_list])
+                    # Bulk load frequency metadata
+                    frequency_data = Capture.bulk_load_frequency_metadata(temp_qs)
+                    
+                    # Apply frequency filters to the list
+                    min_freq_str = str(params["min_freq"]).strip() if params["min_freq"] else ""
+                    max_freq_str = str(params["max_freq"]).strip() if params["max_freq"] else ""
+                    
+                    try:
+                        min_freq_val = float(min_freq_str) if min_freq_str else None
+                    except ValueError:
+                        min_freq_val = None
+                    
+                    try:
+                        max_freq_val = float(max_freq_str) if max_freq_str else None
+                    except ValueError:
+                        max_freq_val = None
+                    
+                    if min_freq_val is not None or max_freq_val is not None:
+                        filtered_captures = []
+                        for capture in captures_list:
+                            capture_uuid = str(capture.uuid)
+                            freq_info = frequency_data.get(capture_uuid, {})
+                            center_freq_hz = freq_info.get("center_frequency")
+                            
+                            if center_freq_hz is None:
+                                continue
+                            
+                            try:
+                                center_freq_hz = float(center_freq_hz)
+                            except (ValueError, TypeError):
+                                continue
+                            
+                            center_freq_ghz = center_freq_hz / 1e9
+                            
+                            if min_freq_val is not None and center_freq_ghz < min_freq_val:
+                                continue
+                            if max_freq_val is not None and center_freq_ghz > max_freq_val:
+                                continue
+                            
+                            filtered_captures.append(capture)
+                        
+                        captures_list = filtered_captures
+                except Exception as e:
+                    log.exception("Error in frequency filtering: %s", e)
+                    # Continue with unfiltered list on error
+            else:
+                captures_list = []
+
+        # Apply sorting to the list
+        if params["sort_by"]:
+            reverse = params["sort_order"] == "desc"
+            try:
+                allowed_sort_fields = {
+                    "uuid", "created_at", "updated_at", "deleted_at",
+                    "is_deleted", "is_public", "channel", "scan_group",
+                    "capture_type", "top_level_dir", "index_name",
+                }
+                if params["sort_by"] in allowed_sort_fields:
+                    captures_list = sorted(
+                        captures_list,
+                        key=lambda c: getattr(c, params["sort_by"], None),
+                        reverse=reverse,
+                    )
+            except (TypeError, AttributeError) as e:
+                log.warning("Sorting failed: %s", e)
+                pass
 
         # Use utility function to deduplicate composite captures
-        unique_captures = deduplicate_composite_captures(list(qs))
+        unique_captures = deduplicate_composite_captures(captures_list)
 
         # Paginate the unique captures
         paginator = Paginator(unique_captures, params["items_per_page"])
@@ -1427,32 +1505,128 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
                 uuid__in=shared_permissions, is_deleted=False
             ).exclude(owner=request.user)
 
-            # Combine owned and shared captures
-            qs = owned_captures.union(shared_captures)
-
-            # Apply filters
-            qs = _apply_basic_filters(
-                qs=qs,
+            # Apply basic filters to each queryset before union
+            # (Django doesn't support filter() after union())
+            owned_captures = _apply_basic_filters(
+                qs=owned_captures,
                 search=params["search"],
                 date_start=params["date_start"],
                 date_end=params["date_end"],
                 cap_type=params["cap_type"],
             )
-            qs = _apply_frequency_filters(
-                qs=qs, min_freq=params["min_freq"], max_freq=params["max_freq"]
+            shared_captures = _apply_basic_filters(
+                qs=shared_captures,
+                search=params["search"],
+                date_start=params["date_start"],
+                date_end=params["date_end"],
+                cap_type=params["cap_type"],
             )
 
-            qs = _apply_sorting(
-                qs=qs, sort_by=params["sort_by"], sort_order=params["sort_order"]
-            )
+            # Combine owned and shared captures after filtering
+            qs = owned_captures.union(shared_captures)
+
+            # Convert to list before applying frequency filters and sorting
+            # (Django doesn't support filter/order_by after union)
+            captures_list = list(qs)
+
+            # Apply frequency filters to the list
+            if params["min_freq"] or params["max_freq"]:
+                # Apply frequency filtering directly to the list
+                if captures_list:
+                    try:
+                        # Convert list to queryset for bulk frequency loading
+                        temp_qs = Capture.objects.filter(uuid__in=[c.uuid for c in captures_list])
+                        # Bulk load frequency metadata (this is efficient)
+                        frequency_data = Capture.bulk_load_frequency_metadata(temp_qs)
+                        
+                        # Apply frequency filters to the list
+                        min_freq_str = str(params["min_freq"]).strip() if params["min_freq"] else ""
+                        max_freq_str = str(params["max_freq"]).strip() if params["max_freq"] else ""
+                        
+                        try:
+                            min_freq_val = float(min_freq_str) if min_freq_str else None
+                        except ValueError:
+                            min_freq_val = None
+                        
+                        try:
+                            max_freq_val = float(max_freq_str) if max_freq_str else None
+                        except ValueError:
+                            max_freq_val = None
+                        
+                        if min_freq_val is not None or max_freq_val is not None:
+                            filtered_captures = []
+                            for capture in captures_list:
+                                capture_uuid = str(capture.uuid)
+                                freq_info = frequency_data.get(capture_uuid, {})
+                                center_freq_hz = freq_info.get("center_frequency")
+                                
+                                if center_freq_hz is None:
+                                    continue  # Skip captures without frequency data
+                                
+                                # Ensure center_freq_hz is a number
+                                try:
+                                    center_freq_hz = float(center_freq_hz)
+                                except (ValueError, TypeError):
+                                    continue  # Skip if not a valid number
+                                
+                                center_freq_ghz = center_freq_hz / 1e9
+                                
+                                # Apply frequency range filter
+                                if min_freq_val is not None and center_freq_ghz < min_freq_val:
+                                    continue
+                                if max_freq_val is not None and center_freq_ghz > max_freq_val:
+                                    continue
+                                
+                                # Capture passed all filters
+                                filtered_captures.append(capture)
+                            
+                            captures_list = filtered_captures
+                    except Exception as e:
+                        log.exception("Error in frequency filtering: %s", e)
+                        raise ValueError(f"Error applying frequency filters: {str(e)}") from e
+                else:
+                    # No captures to filter
+                    captures_list = []
+
+            # Apply sorting to the list
+            if params["sort_by"]:
+                reverse = params["sort_order"] == "desc"
+                try:
+                    # Define allowed sort fields
+                    allowed_sort_fields = {
+                        "uuid", "created_at", "updated_at", "deleted_at",
+                        "is_deleted", "is_public", "channel", "scan_group",
+                        "capture_type", "top_level_dir", "index_name",
+                    }
+                    if params["sort_by"] in allowed_sort_fields:
+                        captures_list = sorted(
+                            captures_list,
+                            key=lambda c: getattr(c, params["sort_by"], None),
+                            reverse=reverse,
+                        )
+                except (TypeError, AttributeError) as e:
+                    # If sorting fails, keep original order
+                    log.warning("Sorting failed: %s", e)
+                    pass
 
             # Use utility function to deduplicate composite captures
-            unique_captures = deduplicate_composite_captures(list(qs))
+            try:
+                unique_captures = deduplicate_composite_captures(captures_list)
+            except Exception as e:
+                log.exception("Error in deduplicate_composite_captures: %s", e)
+                raise ValueError(f"Error deduplicating captures: {str(e)}") from e
 
-            # Limit results for API performance
-            captures_list = list(unique_captures[:25])
+            # Limit results for API performance (unique_captures is already a list)
+            captures_list = unique_captures[:25]
 
-            captures_data = _get_captures_for_template(captures_list, request)
+            try:
+                captures_data = _get_captures_for_template(captures_list, request)
+                # Remove the Capture model instance from each capture_data dict for JSON serialization
+                for capture_data in captures_data:
+                    capture_data.pop("capture", None)
+            except Exception as e:
+                log.exception("Error in _get_captures_for_template: %s", e)
+                raise ValueError(f"Error getting capture data: {str(e)}") from e
 
             response_data = {
                 "captures": captures_data,
@@ -1462,8 +1636,12 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             return JsonResponse(response_data)
 
         except (ValueError, TypeError) as e:
-            log.warning("Invalid parameter in captures API request: %s", e)
-            return JsonResponse({"error": "Invalid search parameters"}, status=400)
+            import traceback
+            error_msg = str(e)
+            traceback_str = traceback.format_exc()
+            log.error(f"Invalid parameter in captures API request: {error_msg}")
+            log.error(f"Full traceback:\n{traceback_str}")
+            return JsonResponse({"error": f"Invalid search parameters: {error_msg}"}, status=400)
         except DatabaseError:
             log.exception("Database error in captures API request")
             return JsonResponse({"error": "Database error occurred"}, status=500)
@@ -2315,7 +2493,8 @@ def _apply_basic_filters(
     if search:
         # First get the base queryset with direct field matches
         base_filter = (
-            Q(channel__icontains=search)
+            Q(name__icontains=search)
+            | Q(channel__icontains=search)
             | Q(index_name__icontains=search)
             | Q(capture_type__icontains=search)
             | Q(uuid__icontains=search)

@@ -546,6 +546,47 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	}
 
 	/**
+	 * Initialize dropdowns with body container for proper positioning
+	 */
+	initializeDropdowns() {
+		const dropdownButtons = document.querySelectorAll(".btn-icon-dropdown");
+
+		if (dropdownButtons.length === 0) {
+			return;
+		}
+
+		dropdownButtons.forEach((toggle, index) => {
+			// Check if dropdown is already initialized
+			if (toggle._dropdown) {
+				return;
+			}
+
+			const dropdown = new bootstrap.Dropdown(toggle, {
+				container: "body",
+				boundary: "viewport",
+				popperConfig: {
+					modifiers: [
+						{
+							name: "preventOverflow",
+							options: {
+								boundary: "viewport",
+							},
+						},
+					],
+				},
+			});
+
+			// Manually move dropdown to body when shown
+			toggle.addEventListener("show.bs.dropdown", () => {
+				const dropdownMenu = toggle.nextElementSibling;
+				if (dropdownMenu?.classList.contains("dropdown-menu")) {
+					document.body.appendChild(dropdownMenu);
+				}
+			});
+		});
+	}
+
+	/**
 	 * Update table with new data
 	 */
 	updateTable(captures, hasResults) {
@@ -558,7 +599,9 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		if (!hasResults || captures.length === 0) {
 			tbody.innerHTML = `
 				<tr>
-					<td colspan="8" class="text-center text-muted py-4">No captures found.</td>
+					<td colspan="5" class="text-center text-muted py-4">
+						<em>No captures found matching your search criteria.</em>
+					</td>
 				</tr>
 			`;
 			return;
@@ -570,7 +613,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			.join("");
 		tbody.innerHTML = tableHTML;
 
-		// Initialize dropdowns with body container after table is updated
+		// Initialize dropdowns after table is updated
 		this.initializeDropdowns();
 	}
 
@@ -647,9 +690,39 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		// Display name with fallback to "Unnamed Capture"
 		const nameDisplay = safeData.name || "Unnamed Capture";
 
+		// Format created date to match template format
+		let createdDate = "-";
+		if (capture.created_at) {
+			const date = new Date(capture.created_at);
+			if (!isNaN(date.getTime())) {
+				const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+				const timeStr = date.toLocaleTimeString('en-US', { 
+					hour12: false, 
+					timeZoneName: 'short' 
+				}); // HH:mm:ss TZ
+				createdDate = `
+					<div class="d-flex align-items-center gap-2">
+						<span class="bg-transparent pe-2">${dateStr}</span>
+						<span class="text-muted bg-transparent">${timeStr}</span>
+					</div>
+				`;
+			}
+		}
+
+		// Check if shared (for shared icon)
+		const isShared = capture.is_shared_with_me || false;
+		const sharedIcon = isShared 
+			? `<span class="ms-2 align-middle" data-bs-toggle="tooltip" title="Shared with you">
+					<i class="bi bi-people-fill text-success"></i>
+				</span>`
+			: "";
+
+		// Check if owner (for conditional actions)
+		const isOwner = capture.is_owner !== false; // Default to true if not specified
+
 		return `
 			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
-				<td>
+				<td headers="name-header">
 					<a href="#" class="capture-link"
 					   data-uuid="${safeData.uuid}"
 					   data-name="${safeData.name}"
@@ -668,19 +741,16 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					   data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
 					   data-is-multi-channel="${capture.is_multi_channel || false}"
 					   data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}"
-					   aria-label="View details for ${nameDisplay}">
+					   aria-label="View details for ${nameDisplay}"
+					   title="View capture details: ${nameDisplay}">
 						${nameDisplay}
 					</a>
+					${sharedIcon}
 				</td>
-				<td>${channelDisplay}</td>
-				<td class="text-nowrap">
-					${window.ComponentUtils.formatDateForModal(capture.capture?.created_at || capture.created_at)}
-				</td>
-				<td>${typeDisplay}</td>
-				<td>${authorDisplay}</td>
-				<td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
-				<td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
-				<td class="text-center">
+				<td headers="top-level-dir-header">${safeData.topLevelDir || "-"}</td>
+				<td headers="type-header">${typeDisplay}</td>
+				<td headers="created-header" class="text-nowrap">${createdDate}</td>
+				<td headers="actions-header" class="text-center">
 					<div class="dropdown">
 						<button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center mx-auto"
 								type="button"
@@ -692,29 +762,39 @@ class FileListCapturesTableManager extends CapturesTableManager {
 							<i class="bi bi-three-dots-vertical"></i>
 						</button>
 						<ul class="dropdown-menu">
-							<li>
-								<button class="dropdown-item capture-details-btn"
-										type="button"
-										data-uuid="${safeData.uuid}"
-										data-name="${safeData.name}"
-										data-channel="${safeData.channel}"
-										data-scan-group="${safeData.scanGroup}"
-										data-capture-type="${safeData.captureType}"
-										data-top-level-dir="${safeData.topLevelDir}"
-										data-index-name="${safeData.indexName}"
-										data-owner="${safeData.owner}"
-										data-origin="${safeData.origin}"
-										data-dataset="${safeData.dataset}"
-										data-created-at="${safeData.createdAt}"
-										data-updated-at="${safeData.updatedAt}"
-										data-is-public="${safeData.isPublic}"
-										data-is-deleted="${safeData.isDeleted}"
-										data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
-										data-is-multi-channel="${capture.is_multi_channel || false}"
-										data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}">
-									Edit
-								</button>
-							</li>
+							${isOwner ? `
+								<li>
+									<button class="dropdown-item capture-details-btn"
+											type="button"
+											data-uuid="${safeData.uuid}"
+											data-name="${safeData.name}"
+											data-channel="${safeData.channel}"
+											data-scan-group="${safeData.scanGroup}"
+											data-capture-type="${safeData.captureType}"
+											data-top-level-dir="${safeData.topLevelDir}"
+											data-index-name="${safeData.indexName}"
+											data-owner="${safeData.owner}"
+											data-origin="${safeData.origin}"
+											data-dataset="${safeData.dataset}"
+											data-created-at="${safeData.createdAt}"
+											data-updated-at="${safeData.updatedAt}"
+											data-is-public="${safeData.isPublic}"
+											data-is-deleted="${safeData.isDeleted}"
+											data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
+											data-is-multi-channel="${capture.is_multi_channel || false}"
+											data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}">
+										Edit
+									</button>
+								</li>
+								<li>
+									<button class="dropdown-item"
+											type="button"
+											data-bs-toggle="modal"
+											data-bs-target="#share-modal-${safeData.uuid}">
+										Share
+									</button>
+								</li>
+							` : ""}
 							<li>
 								<button class="dropdown-item download-capture-btn"
 										type="button"
@@ -723,6 +803,16 @@ class FileListCapturesTableManager extends CapturesTableManager {
 									Download
 								</button>
 							</li>
+							${safeData.captureType === 'drf' ? `
+								<li>
+									<button class="dropdown-item visualization-trigger-btn"
+											type="button"
+											data-capture-uuid="${safeData.uuid}"
+											data-capture-type="${safeData.captureType}">
+										Visualize
+									</button>
+								</li>
+							` : ""}
 						</ul>
 					</div>
 				</td>
@@ -747,3 +837,8 @@ document.addEventListener("DOMContentLoaded", () => {
 		console.error("Error initializing file list controller:", error);
 	}
 });
+
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { FileListController, FileListCapturesTableManager };
+}
