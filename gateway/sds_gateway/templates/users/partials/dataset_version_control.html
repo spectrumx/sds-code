@@ -18,11 +18,10 @@
                 <!-- Main confirmation message -->
                 <div class="mb-4">
                     <p class="mb-3">
-                        Are you sure you want to create a new version of the dataset 
+                        Are you sure you want to create a new version of the dataset
                         <strong class="text-primary">{{ dataset.name }}</strong>?
                     </p>
                 </div>
-
                 <!-- Version information card -->
                 <div class="card border-primary mb-4">
                     <div class="card-body">
@@ -50,14 +49,15 @@
                         </div>
                     </div>
                 </div>
-
                 <!-- Information alert -->
                 <div class="alert alert-info mb-0">
                     <i class="bi bi-info-circle me-2"></i>
                     <strong>What happens next:</strong>
                     <ul class="mb-0 mt-2">
                         <li>The new version will contain the same files and captures as the current version</li>
-                        <li>The new version will be created as a <strong>draft</strong> status</li>
+                        <li>
+                            The new version will be created as a <strong>draft</strong> status
+                        </li>
                         <li>Only you, the creator, will have access to the new version by default</li>
                         <li>You can share, edit, and publish the new version after creation</li>
                     </ul>
@@ -67,10 +67,9 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="bi bi-x-circle me-1"></i> Cancel
                 </button>
-                <button 
-                type="button" 
-                class="btn btn-primary" 
-                id="createVersionBtn-{{ dataset.uuid }}">
+                <button type="button"
+                        class="btn btn-primary"
+                        id="createVersionBtn-{{ dataset.uuid }}">
                     <i class="bi bi-folder-symlink me-1"></i> Create Version
                 </button>
             </div>

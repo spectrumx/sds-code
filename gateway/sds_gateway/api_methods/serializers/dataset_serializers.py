@@ -168,7 +168,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         request = self.context.get("request")
         if not request or not hasattr(request, "user"):
             return False
-    
+
         # Check if user is the owner
         if obj.owner == request.user:
             return True
