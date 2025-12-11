@@ -210,13 +210,12 @@ class DOMUtils {
 		bootstrapModal.hide();
 	}
 
-
 	/**
 	 * Refresh list
 	 * @param {string} itemType - Item type (dataset, file, capture)
 	 */
 	initializeListDropdowns() {
-		document.querySelectorAll(".btn-icon-dropdown").forEach((toggle) => {
+		for (const toggle of document.querySelectorAll(".btn-icon-dropdown")) {
 			// Dispose existing dropdown if any
 			const existing = bootstrap.Dropdown.getInstance(toggle);
 			if (existing) {
@@ -240,23 +239,22 @@ class DOMUtils {
 			});
 
 			// Manually move dropdown to body when shown
-			toggle.addEventListener("show.bs.dropdown", function () {
+			toggle.addEventListener("show.bs.dropdown", () => {
 				const dropdownMenu = toggle.nextElementSibling;
-				if (
-					dropdownMenu &&
-					dropdownMenu.classList.contains("dropdown-menu")
-				) {
+				if (dropdownMenu?.classList.contains("dropdown-menu")) {
 					document.body.appendChild(dropdownMenu);
 				}
 			});
-		});
+		}
 
 		// Prevent row click when clicking on dropdown elements
-		document.addEventListener('click', function(event) {
-			if (event.target.closest('.dropdown') ||
-				event.target.closest('.btn-icon-dropdown') ||
-				event.target.closest('.dropdown-toggle') ||
-				event.target.closest('.dropdown-menu')) {
+		document.addEventListener("click", (event) => {
+			if (
+				event.target.closest(".dropdown") ||
+				event.target.closest(".btn-icon-dropdown") ||
+				event.target.closest(".dropdown-toggle") ||
+				event.target.closest(".dropdown-menu")
+			) {
 				event.stopPropagation();
 			}
 		});
