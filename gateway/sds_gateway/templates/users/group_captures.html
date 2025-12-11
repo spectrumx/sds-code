@@ -28,7 +28,7 @@
                     <div class="card-header">
                         <h5 class="mb-0">
                             {% if existing_dataset %}
-                                Edit Dataset: {{ existing_dataset.name }}
+                                Edit Dataset: {{ existing_dataset.name }} (v{{ existing_dataset.version }})
                             {% else %}
                                 Create Dataset from Captures and Artifact Files
                             {% endif %}
