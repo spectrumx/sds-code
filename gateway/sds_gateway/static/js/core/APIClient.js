@@ -291,23 +291,13 @@ class ListRefreshManager {
 	 * @returns {Promise<string>} HTML content of the table
 	 */
 	async loadTable(params = {}, options = {}) {
-		const {
-			page = 1,
-			sort_by = "created_at",
-			sort_order = "desc",
-		} = params;
+		const { page = 1, sort_by = "created_at", sort_order = "desc" } = params;
 
-		const {
-			showLoading = true,
-			onSuccess = null,
-			onError = null,
-		} = options;
+		const { showLoading = true, onSuccess = null, onError = null } = options;
 
 		// Validate container exists
 		if (!this.container) {
-			const error = new Error(
-				`Container not found: ${this.containerSelector}`
-			);
+			const error = new Error(`Container not found: ${this.containerSelector}`);
 			console.error(error.message);
 			if (onError) {
 				onError(error);
@@ -320,7 +310,7 @@ class ListRefreshManager {
 			await window.DOMUtils?.renderLoading(
 				this.container,
 				"Loading datasets...",
-				{ format: "spinner", size: "sm" }
+				{ format: "spinner", size: "sm" },
 			).catch(() => {
 				// Fallback if DOMUtils is not available
 				this.container.innerHTML =
@@ -330,14 +320,11 @@ class ListRefreshManager {
 
 		try {
 			// Make GET request with query parameters
-			const html = await window.APIClient.get(
-				this.url,
-				{
-					page: page,
-					sort_by: sort_by,
-					sort_order: sort_order,
-				}
-			);
+			const html = await window.APIClient.get(this.url, {
+				page: page,
+				sort_by: sort_by,
+				sort_order: sort_order,
+			});
 
 			// Update container with HTML response
 			if (typeof html === "string") {
@@ -352,9 +339,8 @@ class ListRefreshManager {
 				}
 
 				return html;
-			} else {
-				throw new Error("Invalid response format: expected HTML string");
 			}
+			throw new Error("Invalid response format: expected HTML string");
 		} catch (error) {
 			console.error(`Error loading ${this.itemType} list table:`, error);
 
@@ -362,11 +348,10 @@ class ListRefreshManager {
 			await window.DOMUtils?.renderError(
 				this.container,
 				`Failed to load ${this.itemType} list. Please try again.`,
-				{ format: "alert" }
+				{ format: "alert" },
 			).catch(() => {
 				// Fallback if DOMUtils is not available
-				this.container.innerHTML =
-					`<div class="alert alert-danger">Failed to load ${this.itemType} list. Please refresh the page.</div>`;
+				this.container.innerHTML = `<div class="alert alert-danger">Failed to load ${this.itemType} list. Please refresh the page.</div>`;
 			});
 
 			// Call error callback if provided
@@ -390,27 +375,25 @@ class ListRefreshManager {
 
 		// Re-initialize tooltips if Bootstrap tooltips are available
 		if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {
-			document
-				.querySelectorAll('[data-bs-toggle="tooltip"]')
-				.forEach((element) => {
-					// Dispose existing tooltip if any
-					const existing = bootstrap.Tooltip.getInstance(element);
-					if (existing) {
-						existing.dispose();
-					}
+			for (const element of document.querySelectorAll(
+				'[data-bs-toggle="tooltip"]',
+			)) {
+				// Dispose existing tooltip if any
+				const existing = bootstrap.Tooltip.getInstance(element);
+				if (existing) {
+					existing.dispose();
+				}
 
-					// Create new tooltip instance
-					new bootstrap.Tooltip(element);
-				});
+				// Create new tooltip instance
+				new bootstrap.Tooltip(element);
+			}
 		}
 
 		// Trigger page lifecycle manager re-initialization if available
 		if (window.pageLifecycleManager) {
 			// The PageLifecycleManager should handle modal re-initialization
 			// You may need to call a refresh method if it exists
-			if (
-				typeof window.pageLifecycleManager.refresh === "function"
-			) {
+			if (typeof window.pageLifecycleManager.refresh === "function") {
 				window.pageLifecycleManager.refresh();
 			}
 		}
