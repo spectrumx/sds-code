@@ -277,10 +277,12 @@ class PageLifecycleManager {
 			const itemUuid = modal.getAttribute("data-item-uuid");
 
 			if (!itemUuid || !this.permissions) {
-				console.warn(`No item UUID or permissions found for dataset modal: ${modal}`);
+				console.warn(
+					`No item UUID or permissions found for dataset modal: ${modal}`,
+				);
 				continue;
 			}
-		
+
 			if (window.ShareActionManager) {
 				const shareManager = new window.ShareActionManager({
 					itemUuid: itemUuid,
@@ -292,14 +294,14 @@ class PageLifecycleManager {
 				// Store reference on modal
 				modal.shareActionManager = shareManager;
 			}
-			
+
 			if (window.VersioningActionManager) {
 				const versioningManager = new window.VersioningActionManager({
 					datasetUuid: itemUuid,
 					permissions: this.permissions,
 				});
 				this.managers.push(versioningManager);
-				
+
 				// Store reference on modal
 				modal.versioningActionManager = versioningManager;
 			}
@@ -309,7 +311,7 @@ class PageLifecycleManager {
 					permissions: this.permissions,
 				});
 				this.managers.push(downloadManager);
-				
+
 				// Store reference on modal
 				modal.downloadActionManager = downloadManager;
 			}
@@ -321,7 +323,7 @@ class PageLifecycleManager {
 					itemType: "dataset",
 				});
 				this.managers.push(detailsManager);
-				
+
 				// Store reference on modal
 				modal.detailsActionManager = detailsManager;
 			}
@@ -338,9 +340,11 @@ class PageLifecycleManager {
 
 		for (const modal of captureModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
-			
+
 			if (!itemUuid || !this.permissions) {
-				console.warn(`No item UUID or permissions found for capture modal: ${modal}`);
+				console.warn(
+					`No item UUID or permissions found for capture modal: ${modal}`,
+				);
 				continue;
 			}
 
@@ -363,7 +367,7 @@ class PageLifecycleManager {
 					permissions: this.permissions,
 				});
 				this.managers.push(downloadManager);
-				
+
 				// Store reference on modal
 				modal.downloadActionManager = downloadManager;
 			}

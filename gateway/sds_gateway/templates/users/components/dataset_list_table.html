@@ -10,6 +10,7 @@ Context:
 }
 {% endcomment %}
 {% load tz %}
+
 <!-- Results count display -->
 {% if page_obj.object_list %}
     <div class="d-flex justify-content-end mb-3">
@@ -73,16 +74,12 @@ Context:
                                         <i class="bi bi-lock-fill me-1 text-danger" title="Private"></i>
                                     {% endif %}
                                     <a href="#"
-                                        class="dataset-name-link"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
-                                        data-dataset-uuid="{{ dataset.uuid }}"
-                                        aria-label="View details for {{ dataset.name }}">
-                                        {{ dataset.name }}
-                                    </a>
-                                    {% if dataset.version > 1 %}
-                                    <span class="ms-2 badge bg-primary">v{{ dataset.version }}</span>
-                                    {% endif %}
+                                       class="dataset-name-link"
+                                       data-bs-toggle="modal"
+                                       data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
+                                       data-dataset-uuid="{{ dataset.uuid }}"
+                                       aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
+                                    {% if dataset.version > 1 %}<span class="ms-2 badge bg-primary">v{{ dataset.version }}</span>{% endif %}
                                     {% if dataset.status == 'draft' %}
                                         <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
                                     {% endif %}
@@ -181,30 +178,30 @@ Context:
                                                     </button>
                                                 </li>
                                             {% endif %}
-                                            <li>
-                                                <button class="dropdown-item"
-                                                        type="button"
-                                                        onclick="window.DOMUtils.openModal('webDownloadModal-{{ dataset.uuid }}')">
-                                                    <i class="bi bi-download me-2"></i>Web Download
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item"
-                                                        type="button"
-                                                        onclick="window.DOMUtils.openModal('sdkDownloadModal-{{ dataset.uuid }}')">
-                                                    <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
-                                                </button>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% endif %}
-        </div>
+                                        <li>
+                                            <button class="dropdown-item"
+                                                    type="button"
+                                                    onclick="window.DOMUtils.openModal('webDownloadModal-{{ dataset.uuid }}')">
+                                                <i class="bi bi-download me-2"></i>Web Download
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item"
+                                                    type="button"
+                                                    onclick="window.DOMUtils.openModal('sdkDownloadModal-{{ dataset.uuid }}')">
+                                                <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
     </div>
+</div>
 </div>
 <!-- Pagination -->
 {% if page_obj.object_list %}
