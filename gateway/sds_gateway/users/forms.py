@@ -10,7 +10,6 @@ from django.contrib.auth import forms as admin_forms
 from django.core.exceptions import ValidationError
 from django.forms import EmailField
 from django.http import HttpRequest
-from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from loguru import logger
 
@@ -201,19 +200,18 @@ class DatasetInfoForm(forms.Form):
         return name.strip()
 
     def clean_keywords(self):
-        """Normalize keywords string using slugify."""
+        """Normalize keywords string."""
         raw = self.cleaned_data.get("keywords", "") or ""
-        # Split on commas or semicolons, strip whitespace
+        # Keep as a string, normalized to comma-separated unique tokens
         parts = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
-        # Slugify each keyword (lowercase, hyphens, no special chars)
-        slugified = [slugify(p) for p in parts if slugify(p)]
-        # Deduplicate while preserving order
+        # Preserve original casing but deduplicate preserving order
         seen = set()
         unique = []
-        for slug in slugified:
-            if slug not in seen:
-                seen.add(slug)
-                unique.append(slug)
+        for p in parts:
+            if p.lower() in seen:
+                continue
+            seen.add(p.lower())
+            unique.append(p)
         return ", ".join(unique)
 
     def clean_authors(self):
