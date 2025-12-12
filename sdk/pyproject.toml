@@ -200,13 +200,9 @@
             "S101",   # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
             "S104",   # Possible binding to all interfaces
             "SIM102", # sometimes it's better to nest
-            "UP038",  # Checks for uses of isinstance/issubclass that take a tuple
-            # of types for comparison.
-            # UP038 deactivated because it can make the code slow:
-            # https://github.com/astral-sh/ruff/issues/7871
-            # TODO: re-enable UP046 when support for 3.11 are dropped
+            # TODO: re-enable UP046 when support for 3.11 is dropped
             "UP046",
-            # TODO: re-enable UP047 when support for 3.11 are dropped
+            # TODO: re-enable UP047 when support for 3.11 is dropped
             "UP047",
         ]
         select = [
@@ -287,6 +283,7 @@
             max-args = 9
 
         [tool.ruff.lint.per-file-ignores]
+            "*.ipynb"                                                   = ["E501", "ERA001", "PLR2004", "T201"]
             "gateway/sds_gateway/api_methods/utils/metadata_schemas.py" = ["PLC0415"]
             "gateway/sds_gateway/users/views.py"                        = ["PLC0415"]
 
