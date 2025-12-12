@@ -194,7 +194,7 @@ class DatasetCreationHandler {
 
 		// Initialize captures table on review step with placeholder (will be updated later)
 		const capturesTable = document.querySelector(
-			"#step4 .captures-table tbody",
+			"#step5 .captures-table tbody",
 		);
 		if (capturesTable && capturesTable.innerHTML.trim() === "") {
 			capturesTable.innerHTML =
@@ -202,7 +202,7 @@ class DatasetCreationHandler {
 		}
 
 		// Initialize files table on review step with placeholder (will be updated later)
-		const filesTable = document.querySelector("#step4 .files-table tbody");
+		const filesTable = document.querySelector("#step5 .files-table tbody");
 		if (filesTable && filesTable.innerHTML.trim() === "") {
 			filesTable.innerHTML =
 				'<tr><td colspan="5" class="text-center text-muted">No files selected</td></tr>';
@@ -841,7 +841,7 @@ class DatasetCreationHandler {
 	 */
 	async updateSelectedCapturesTable() {
 		const capturesTableBody = document.querySelector(
-			"#step4 .captures-table tbody",
+			"#step5 .captures-table tbody",
 		);
 
 		if (!capturesTableBody) return;
@@ -994,7 +994,7 @@ class DatasetCreationHandler {
 	 * Update selected files table
 	 */
 	async updateSelectedFilesTable() {
-		const filesTableBody = document.querySelector("#step4 .files-table tbody");
+		const filesTableBody = document.querySelector("#step5 .files-table tbody");
 
 		if (!filesTableBody) return;
 
@@ -1054,9 +1054,9 @@ class DatasetCreationHandler {
 		const filesCount = this.selectedFiles.size;
 
 		const capturesCountElement = document.querySelector(
-			"#step4 .captures-count",
+			"#step5 .captures-count",
 		);
-		const filesCountElement = document.querySelector("#step4 .files-count");
+		const filesCountElement = document.querySelector("#step5 .files-count");
 
 		if (capturesCountElement) {
 			capturesCountElement.textContent = `${capturesCount} selected`;
