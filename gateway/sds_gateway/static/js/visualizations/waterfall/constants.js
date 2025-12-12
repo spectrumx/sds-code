@@ -22,21 +22,12 @@ export const CANVASJS_RIGHT_MARGIN = 10;
 export const WATERFALL_TOP_MARGIN = 5;
 export const WATERFALL_BOTTOM_MARGIN = 5;
 
-// Window size constants
+// Waterfall window constants
 export const WATERFALL_WINDOW_SIZE = 100;
-
-// API endpoints
-export const get_create_waterfall_endpoint = (capture_uuid) => {
-	return `/api/v1/visualizations/${capture_uuid}/create_waterfall/`;
-};
-
-export const get_waterfall_status_endpoint = (capture_uuid, job_id) => {
-	return `/api/v1/visualizations/${capture_uuid}/waterfall_status/?job_id=${job_id}`;
-};
-
-export const get_waterfall_result_endpoint = (capture_uuid, job_id) => {
-	return `/api/v1/visualizations/${capture_uuid}/download_waterfall/?job_id=${job_id}`;
-};
+// How close to unfetched data to trigger a prefetch
+export const PREFETCH_TRIGGER = 2 * WATERFALL_WINDOW_SIZE;
+// How much data around the current window to prefetch
+export const PREFETCH_DISTANCE = 4 * WATERFALL_WINDOW_SIZE;
 
 export const ERROR_MESSAGES = {
 	NO_CAPTURE: "No capture data found",
