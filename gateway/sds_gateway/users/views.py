@@ -2057,7 +2057,7 @@ class GroupCapturesView(
         """Handle dataset creation."""
 
         # Create dataset
-        dataset = self._create_or_update_dataset(request, dataset_form)
+        dataset = self._create_or_update_dataset(request, dataset_form, dataset=None)
 
         # Get selected assets
         selected_captures, selected_files = self._get_asset_selections(request)
@@ -2080,6 +2080,9 @@ class GroupCapturesView(
     def _handle_dataset_edit(self, request, dataset_form: DatasetInfoForm, dataset_uuid: UUID) -> JsonResponse:
         """Handle dataset editing with asset management."""
 
+        # Get dataset
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, owner=request.user)
+
         # Check permissions
         permission_level = get_user_permission_level(
             request.user, dataset_uuid, ItemType.DATASET
@@ -2098,7 +2101,7 @@ class GroupCapturesView(
         if UserSharePermission.user_can_edit_dataset(
             request.user, dataset_uuid, ItemType.DATASET
         ):
-            self._create_or_update_dataset(request, dataset_form)
+            self._create_or_update_dataset(request, dataset_form, dataset)
 
                 # Handle keywords update
                 # Clear existing keyword relationships
@@ -2275,12 +2278,14 @@ class GroupCapturesView(
             return selected_captures, selected_files
         return [], []
 
-    def _create_or_update_dataset(self, request, dataset_form) -> Dataset:
+    def _create_or_update_dataset(
+        self,
+        request: HttpRequest,
+        dataset_form: DatasetInfoForm,
+        dataset: Dataset | None = None,
+    ) -> Dataset:
         """Create a new dataset or update an existing one."""
-        dataset_uuid = request.POST.get("dataset_uuid", None)
-
-        if dataset_uuid:
-            dataset = get_object_or_404(Dataset, uuid=dataset_uuid, owner=request.user)
+        if dataset:
             dataset.name = dataset_form.cleaned_data["name"]
             dataset.description = dataset_form.cleaned_data["description"]
             
