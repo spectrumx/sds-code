@@ -1225,7 +1225,6 @@ class DatasetModeManager {
 	updateSubmitButton() {
 		const submitBtn = document.getElementById("submitForm");
 		const publishToggle = document.getElementById("publish-dataset-toggle");
-		const publicOption = document.getElementById("public-option");
 
 		if (!submitBtn) return;
 

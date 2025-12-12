@@ -175,7 +175,6 @@ class PublishActionManager {
 	 * @param {HTMLElement} publishToggle - The publish toggle checkbox
 	 * @param {HTMLElement} visibilitySection - The visibility section element
 	 * @param {HTMLElement} statusBadge - The status badge element
-	 * @param {string} datasetUuid - Dataset UUID
 	 */
 	handlePublishToggleChange(publishToggle, visibilitySection, statusBadge) {
 		if (publishToggle.checked) {
