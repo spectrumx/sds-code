@@ -45,10 +45,10 @@ repos:
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.14.8
+      rev: v0.14.9
       hooks:
           # linter
-          - id: ruff # runs ruff check --force-exclude
+          - id: ruff-check # runs ruff check --force-exclude
             args:
                 # we have to pick one ruff config between gateway and sdk...
                 #   the SDK has additional constraints for having to support multiple
@@ -79,7 +79,7 @@ repos:
 
     # linter for markdown files - see .markdownlint.yaml to configure rules
     - repo: https://github.com/igorshubovych/markdownlint-cli
-      rev: "v0.46.0"
+      rev: "v0.47.0"
       hooks:
           - id: markdownlint
             args: ["-f"]
