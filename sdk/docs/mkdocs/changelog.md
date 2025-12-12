@@ -3,7 +3,9 @@
 ## `0.1.16` - 2025-12-xx
 
 + Fixes:
-    + [**Added `persist_state` to `upload_multichannel_drf_capture`**](https://github.com/spectrumx/sds-code/pull/...): users can now control whether to persist the upload state of files during multi-channel DRF captures.
+    + [**Added `persist_state` to `upload_multichannel_drf_capture`**](https://github.com/spectrumx/sds-code/pull/230): users can now control whether to persist the upload state of files during multi-channel DRF captures.
++ Reliability:
+    + [**Relaxed validation in capture listing**](https://github.com/spectrumx/sds-code/pull/230): capture listing is now more tolerant of cases where a given capture fails validation, now listing the ones that can be loaded correctly instead of failing the whole operations. Container fields like `files` now also default to empty ones if missing, instead of failing validation.
 
 ## `0.1.15` - 2025-12-02
 
