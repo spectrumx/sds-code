@@ -93,16 +93,20 @@ c.DockerSpawner.use_internal_ip = True
 # It represents the directory from which docker-compose is run
 host_pwd = os.environ.get("HOST_PWD")
 if not host_pwd:
-    raise ValueError(
+    msg = (
         "HOST_PWD environment variable not set. "
         "Make sure you're using docker-compose which passes PWD as HOST_PWD."
     )
+    raise ValueError(msg)
 sample_scripts_host_path = Path(host_pwd) / "compose/local/jupyter/sample_scripts"
 print(f"Sample scripts host path: {sample_scripts_host_path}")
 
 c.DockerSpawner.volumes = {
     "jupyterhub-user-{username}": {"bind": c.DockerSpawner.notebook_dir, "mode": "rw"},
-    sample_scripts_host_path: {"bind": "/home/jovyan/work/sample_scripts", "mode": "ro"},
+    sample_scripts_host_path: {
+        "bind": "/home/jovyan/work/sample_scripts",
+        "mode": "ro",
+    },
 }
 
 # === AUTHENTICATION AND ACCCESS CONTROL ===
