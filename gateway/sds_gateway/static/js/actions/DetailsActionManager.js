@@ -314,6 +314,13 @@ class DetailsActionManager {
 	 */
 	updateStatusBadge(modal, status) {
 		const statusContainer = modal.querySelector(".dataset-details-status");
+		if (!status || typeof status !== 'string') {
+			if (statusContainer) {
+				statusContainer.innerHTML = `<span class="badge bg-secondary">Unknown</span>`;
+			}
+			return;
+		}
+
 		const statusText = status[0].toUpperCase() + status.slice(1);
 		const statusClass = status === "final" ? "success" : "secondary";
 		if (statusContainer) {
