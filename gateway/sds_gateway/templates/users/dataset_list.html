@@ -101,9 +101,7 @@
                                                     {% if dataset.status == 'draft' %}
                                                         <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
                                                     {% endif %}
-                                                    {% if dataset.is_public %}
-                                                        <i class="bi bi-globe me-1 text-primary" title="Public"></i>
-                                                    {% endif %}
+                                                    {% if dataset.is_public %}<i class="bi bi-globe me-1 text-primary" title="Public"></i>{% endif %}
                                                     {% if dataset.is_shared_with_me %}
                                                         <span class="ms-2 align-middle"
                                                               data-bs-toggle="tooltip"

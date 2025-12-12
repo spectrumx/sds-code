@@ -2053,7 +2053,11 @@ class GroupCapturesView(
             author["_stableId"] = str(uuid.uuid4())
         return json.dumps(authors)
 
-    def _handle_dataset_creation(self, request, dataset_form: DatasetInfoForm) -> JsonResponse:
+    def _handle_dataset_creation(
+        self,
+        request: HttpRequest,
+        dataset_form: DatasetInfoForm,
+    ) -> JsonResponse:
         """Handle dataset creation."""
 
         # Create dataset
@@ -2264,7 +2268,7 @@ class GroupCapturesView(
         return result
 
     def _get_asset_selections(
-        self, 
+        self,
         request: HttpRequest,
         dataset_uuid: str | None = None,
     ) -> tuple[list[str], list[str]]:
@@ -2288,7 +2292,7 @@ class GroupCapturesView(
         if dataset:
             dataset.name = dataset_form.cleaned_data["name"]
             dataset.description = dataset_form.cleaned_data["description"]
-            
+
             # Parse authors from JSON string
             authors_json = dataset_form.cleaned_data["authors"]
             authors = json.loads(authors_json)
@@ -2303,7 +2307,7 @@ class GroupCapturesView(
                 except json.JSONDecodeError:
                     # Fallback to direct authors if parsing fails
                     pass
-            
+
             dataset.authors = authors
             dataset.status = dataset_form.cleaned_data["status"]
             dataset.is_public = dataset_form.cleaned_data.get("is_public", False)
@@ -2679,13 +2683,18 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
             is_public_value = json.loads(request.POST.get("is_public"))
         except json.JSONDecodeError:
             return JsonResponse(
-                {"success": False,
-                "error": "Could not determine dataset visibility.",
+                {
+                    "success": False,
+                    "error": "Could not determine dataset visibility.",
                 },
                 status=400,
             )
 
-        error_message = self._handle_400_errors(dataset, status_value, is_public_value=is_public_value)
+        error_message = self._handle_400_errors(
+            dataset,
+            status_value,
+            is_public_value=is_public_value,
+        )
         if error_message:
             return JsonResponse({"success": False, "error": error_message}, status=400)
 

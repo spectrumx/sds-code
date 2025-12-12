@@ -314,7 +314,7 @@ class DetailsActionManager {
 	 */
 	updateStatusBadge(modal, status) {
 		const statusContainer = modal.querySelector(".dataset-details-status");
-		if (!status || typeof status !== 'string') {
+		if (!status || typeof status !== "string") {
 			if (statusContainer) {
 				statusContainer.innerHTML = `<span class="badge bg-secondary">Unknown</span>`;
 			}
