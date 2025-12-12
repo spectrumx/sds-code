@@ -83,11 +83,6 @@
                                         {% for dataset in page_obj %}
                                             <tr class="clickable-row" data-dataset-uuid="{{ dataset.uuid }}">
                                                 <td class="text-nowrap">
-                                                    {% if dataset.is_public %}
-                                                        <i class="bi bi-globe me-1 text-primary" title="Public"></i>
-                                                    {% else %}
-                                                        <i class="bi bi-lock-fill me-1 text-danger" title="Private"></i>
-                                                    {% endif %}
                                                     {% if dataset.is_owner %}
                                                         <a href="#"
                                                            class="dataset-name-link"
@@ -105,6 +100,9 @@
                                                     {% endif %}
                                                     {% if dataset.status == 'draft' %}
                                                         <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
+                                                    {% endif %}
+                                                    {% if dataset.is_public %}
+                                                        <i class="bi bi-globe me-1 text-primary" title="Public"></i>
                                                     {% endif %}
                                                     {% if dataset.is_shared_with_me %}
                                                         <span class="ms-2 align-middle"
