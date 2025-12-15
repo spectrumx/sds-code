@@ -348,12 +348,15 @@ class FilesPageInitializer {
 				this.modalManager = modalManager;
 				console.log("ModalManager initialized successfully");
 			} else {
-				ErrorHandler.showError(
-					"Modal functionality is not available. Some features may be limited.",
-					"modal-initialization",
+				// Non-critical: ModalManager not available, but may not be needed
+				// Only log, don't show user-facing error unless modals are actually used
+				console.warn(
+					"ModalManager not available. Modal functionality may be limited.",
 				);
 			}
 		} catch (error) {
+			// Critical: Failed to initialize when it was expected to work
+			console.error("Failed to initialize modal functionality:", error);
 			ErrorHandler.showError(
 				"Failed to initialize modal functionality",
 				"modal-initialization",
@@ -371,12 +374,15 @@ class FilesPageInitializer {
 				});
 				console.log("CapturesTableManager initialized successfully");
 			} else {
-				ErrorHandler.showError(
-					"Table management functionality is not available. Some features may be limited.",
-					"table-initialization",
+				// Non-critical: CapturesTableManager not available, but may not be needed
+				// Only log, don't show user-facing error unless tables are actually used
+				console.warn(
+					"CapturesTableManager not available. Table management functionality may be limited.",
 				);
 			}
 		} catch (error) {
+			// Critical: Failed to initialize when it was expected to work
+			console.error("Failed to initialize table management functionality:", error);
 			ErrorHandler.showError(
 				"Failed to initialize table management functionality",
 				"table-initialization",
@@ -388,6 +394,20 @@ class FilesPageInitializer {
 	initializeUserSearchHandlers() {
 		// Create a UserSearchHandler for each share modal
 		const shareModals = document.querySelectorAll(".modal[data-item-uuid]");
+
+		// Only initialize if there are share modals on the page
+		if (shareModals.length === 0) {
+			return; // No share modals, nothing to initialize
+		}
+
+		// Check if UserSearchHandler is available before trying to set up handlers
+		if (!window.UserSearchHandler) {
+			console.warn(
+				"UserSearchHandler not available, but share modals found on page. " +
+				"User search functionality will not work until UserSearchHandler is loaded."
+			);
+			return; // Don't show error, just skip initialization
+		}
 
 		for (const modal of shareModals) {
 			this.setupUserSearchHandler(modal);
@@ -417,9 +437,11 @@ class FilesPageInitializer {
 			}
 
 			if (!window.UserSearchHandler) {
-				ErrorHandler.showError(
-					"User search functionality is not available",
-					"user-search-setup",
+				// UserSearchHandler should have been checked in initializeUserSearchHandlers
+				// If we get here, it means it was available then but not now (unlikely)
+				console.warn(
+					"UserSearchHandler not available when setting up modal. " +
+					"Skipping user search setup for this modal."
 				);
 				return;
 			}
@@ -554,9 +576,66 @@ class FileUploadHandler {
 		this.submitBtn = document.getElementById("uploadFileSubmitBtn");
 		this.uploadText = this.submitBtn?.querySelector(".upload-text");
 		this.uploadSpinner = this.submitBtn?.querySelector(".upload-spinner");
+		this.fileModeRadio = document.getElementById("fileMode");
+		this.folderModeRadio = document.getElementById("folderMode");
+		this.uploadModeHelp = document.getElementById("uploadModeHelp");
+
+		// Set up upload mode toggle
+		if (this.fileModeRadio && this.folderModeRadio) {
+			this.fileModeRadio.addEventListener("change", () => this.updateUploadMode());
+			this.folderModeRadio.addEventListener("change", () => this.updateUploadMode());
+			// Initialize mode (defaults to file mode)
+			this.updateUploadMode();
+		}
+
+		// Ensure file input has multiple attribute
+		if (this.fileInput) {
+			this.fileInput.setAttribute("multiple", "");
+			
+			// Enable submit button when files are selected
+			this.fileInput.addEventListener("change", () => {
+				if (this.submitBtn) {
+					this.submitBtn.disabled = this.fileInput.files.length === 0;
+					console.log("File input changed:", this.fileInput.files.length, "files selected");
+				}
+			});
+		}
+		
+		// Ensure submit button is enabled initially (not disabled by default)
+		if (this.submitBtn) {
+			this.submitBtn.disabled = false;
+		}
 
 		if (this.uploadForm) {
 			this.uploadForm.addEventListener("submit", (e) => this.handleSubmit(e));
+		}
+	}
+
+	updateUploadMode() {
+		if (!this.fileInput) return;
+
+		const isFolderMode = this.folderModeRadio?.checked || false;
+
+		if (isFolderMode) {
+			// Enable folder selection
+			this.fileInput.setAttribute("webkitdirectory", "");
+			this.fileInput.setAttribute("directory", "");
+			if (this.uploadModeHelp) {
+				this.uploadModeHelp.textContent = "Select a folder to upload (preserves directory structure)";
+			}
+		} else {
+			// Disable folder selection (file mode)
+			this.fileInput.removeAttribute("webkitdirectory");
+			this.fileInput.removeAttribute("directory");
+			if (this.uploadModeHelp) {
+				this.uploadModeHelp.textContent = "Select one or more files to upload";
+			}
+		}
+
+		// Clear the file input when switching modes
+		this.fileInput.value = "";
+		if (this.submitBtn) {
+			this.submitBtn.disabled = false;
 		}
 	}
 
@@ -564,7 +643,7 @@ class FileUploadHandler {
 		event.preventDefault();
 
 		if (!this.fileInput.files.length) {
-			alert("Please select a file to upload.");
+			alert("Please select a file or folder to upload.");
 			return;
 		}
 
@@ -588,13 +667,32 @@ class FileUploadHandler {
 			}
 
 			const formData = new FormData();
-			const file = this.fileInput.files[0];
-			formData.append("files", file);
-			formData.append("capture_type", "DigitalRF"); // Default type for individual files
-			formData.append("channels", "0"); // Default channel
-			formData.append("scan_group", ""); // Empty for individual files
-			formData.append("relative_paths", file.name); // Use filename as relative path
-			formData.append("all_relative_paths", file.name); // Use filename as all relative paths
+			const files = Array.from(this.fileInput.files);
+			const relativePaths = [];
+			const allRelativePaths = [];
+
+			// Process all files, preserving folder structure
+			for (const file of files) {
+				formData.append("files", file);
+				// Use webkitRelativePath if available (folder upload), otherwise use filename
+				const relativePath = file.webkitRelativePath || file.name;
+				relativePaths.push(relativePath);
+				allRelativePaths.push(relativePath);
+			}
+
+			// Append relative paths arrays
+			for (const path of relativePaths) {
+				formData.append("relative_paths", path);
+			}
+			for (const path of allRelativePaths) {
+				formData.append("all_relative_paths", path);
+			}
+
+			// Don't include capture fields - this is just file upload without creating a capture
+			// Empty channels means has_required_fields will be False, so no capture is created
+			formData.append("capture_type", "DigitalRF"); // Default, but won't create capture
+			formData.append("channels", ""); // Empty = no capture creation
+			formData.append("scan_group", "");
 			formData.append("csrfmiddlewaretoken", csrfToken);
 
 			const response = await fetch(window.uploadFilesUrl, {
@@ -609,7 +707,11 @@ class FileUploadHandler {
 
 			if (response.ok) {
 				// Show success message
-				this.showResult("success", "File uploaded successfully!");
+				const fileCount = files.length;
+				const message = fileCount === 1 
+					? "File uploaded successfully!" 
+					: `${fileCount} files uploaded successfully!`;
+				this.showResult("success", message);
 				// Reset form
 				this.uploadForm.reset();
 				// Close modal

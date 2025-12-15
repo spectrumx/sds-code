@@ -24,6 +24,7 @@ class FileGetSerializer(serializers.ModelSerializer[File]):
     capture = CaptureGetSerializer()
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    expiration_date = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
     # add @property-ies as read-only fields
     user_directory = serializers.CharField(read_only=True)

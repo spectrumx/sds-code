@@ -13,6 +13,7 @@ class NavigationType(StrEnum):
     ROOT = "root"
     CAPTURE = "capture"
     DATASET = "dataset"
+    USER_FILES = "user_files"
     UNKNOWN = "unknown"
 
 
@@ -64,6 +65,11 @@ class NavigationContext:
                 type=NavigationType.DATASET, dataset_uuid=dataset_uuid, subpath=subpath
             )
 
+        if parts[0] == "files":
+            # User file directory: /files/{dir1}/{dir2}/...
+            subpath = "/".join(parts[1:]) if len(parts) > 1 else ""
+            return cls(type=NavigationType.USER_FILES, subpath=subpath)
+
         return cls(type=NavigationType.UNKNOWN)
 
     def to_path(self) -> str:
@@ -84,6 +90,12 @@ class NavigationContext:
 
         if self.type == NavigationType.DATASET and self.dataset_uuid:
             path = f"/datasets/{self.dataset_uuid}"
+            if self.subpath:
+                path += f"/{self.subpath}"
+            return path
+
+        if self.type == NavigationType.USER_FILES:
+            path = "/files"
             if self.subpath:
                 path += f"/{self.subpath}"
             return path
