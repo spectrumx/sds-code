@@ -77,6 +77,7 @@ from sds_gateway.users.file_utils import validate_file_preview_request
 from sds_gateway.users.files_utils import add_capture_files
 from sds_gateway.users.files_utils import add_root_items
 from sds_gateway.users.files_utils import add_shared_items
+from sds_gateway.users.files_utils import add_user_files
 from sds_gateway.users.files_utils import build_breadcrumbs
 from sds_gateway.users.files_utils import items_to_dicts
 from sds_gateway.users.forms import CaptureSearchForm
@@ -98,6 +99,7 @@ from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import render_html_fragment
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 from sds_gateway.visualizations.config import get_visualization_compatibility
+from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 
 if TYPE_CHECKING:
     from rest_framework.utils.serializer_helpers import ReturnDict
@@ -1630,11 +1632,10 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
         except (ValueError, TypeError) as e:
             error_msg = str(e)
             log.warning(
-                f"Invalid parameter in captures API request: {error_msg}", exc_info=True
+                f"Invalid parameter in captures API request: {error_msg}",
+                exc_info=True,
             )
-            return JsonResponse(
-                {"error": f"Invalid search parameters: {error_msg}"}, status=400
-            )
+            return JsonResponse({"error": f"Invalid search parameters: {error_msg}"}, status=400)
         except DatabaseError:
             log.exception("Database error in captures API request")
             return JsonResponse({"error": "Database error occurred"}, status=500)
@@ -2963,7 +2964,11 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
 
         # Security: Only allow templates from users/components/ directory
         if not template_name.startswith("users/components/"):
-            log.error(f"Invalid template path: {template_name}")
+            log.warning(
+                "Invalid template path: %s",
+                template_name,
+                exc_info=True,
+            )
             return JsonResponse(
                 {"error": "Cannot render component."},
                 status=400,
@@ -4020,6 +4025,9 @@ class FilesView(Auth0LoginRequiredMixin, View):
             # Inside a dataset - show nested directories/files within the dataset
             # TODO: Implement dataset file browsing when needed
             return HttpResponseRedirect("/users/files/")
+        elif nav_context.type == NavigationType.USER_FILES:
+            # Inside user file directory - show nested directories/files
+            items.extend(add_user_files(request, subpath=nav_context.subpath))
         else:
             # Unknown directory - go back to root
             return HttpResponseRedirect("/users/files/")

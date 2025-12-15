@@ -259,7 +259,7 @@ def add_root_items(request) -> list[Item]:
             is_deleted=False,
             capture__isnull=True,
         )
-    ).order_by("name")
+    )
 
     logger.debug(
         "FilesView: user=%s has individual files=%d",
@@ -267,6 +267,41 @@ def add_root_items(request) -> list[Item]:
         individual_files.count(),
     )
 
+    # Group files by top-level directory
+    user_root = _normalize_path(f"files/{request.user.email}")
+    top_level_dirs: set[str] = set()
+    root_level_files: list = []
+
+    for file_obj in individual_files:
+        rel_dir = _get_relative_directory(file_obj, "", user_root)
+        
+        if not rel_dir:
+            # File is directly in user root
+            root_level_files.append(file_obj)
+        else:
+            # Extract top-level directory
+            top_dir = rel_dir.split("/", 1)[0]
+            top_level_dirs.add(top_dir)
+
+    # Add top-level directories as clickable items
+    for dirname in sorted(top_level_dirs):
+        items.append(
+            make_dir_item(
+                DirItemParams(
+                    name=dirname,
+                    path=f"/files/{dirname}",
+                    uuid="",
+                    is_capture=False,
+                    is_shared=False,
+                    is_owner=True,
+                    capture_uuid="",
+                    modified_at_display="N/A",
+                    shared_by="",
+                )
+            )
+        )
+
+    # Add files that are directly in the root (no subdirectory)
     items.extend(
         [
             make_file_item(
@@ -275,7 +310,7 @@ def add_root_items(request) -> list[Item]:
                 is_shared=False,
                 shared_by="",
             )
-            for file_obj in individual_files
+            for file_obj in sorted(root_level_files, key=lambda f: f.name.lower())
         ]
     )
 
@@ -300,7 +335,7 @@ def _normalize_path(path: str) -> str:
 
 
 def _get_relative_directory(file_obj, capture_root: str, user_root: str) -> str:
-    """Get the relative directory path for a file within a capture."""
+    """Get the relative directory path for a file within a capture or user files."""
     file_dir = _normalize_path(file_obj.directory)
 
     # Start with the most specific root (capture_root), else fall back to user root
@@ -313,8 +348,9 @@ def _get_relative_directory(file_obj, capture_root: str, user_root: str) -> str:
     else:
         rel_dir = file_dir
 
-    # If rel_dir begins with the capture folder name, drop it to get inside-capture path
-    if "/" in rel_dir:
+    # If we have a capture_root, drop the first segment (capture folder name)
+    # For user files (no capture_root), keep the full relative path
+    if capture_root and "/" in rel_dir:
         _first_seg, rest = rel_dir.split("/", 1)
         return rest  # drop capture folder name
 
@@ -482,6 +518,83 @@ def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
     )
 
     return directory_items + file_items
+
+
+def add_user_files(request, subpath: str = "") -> list[Item]:
+    """Add nested directories/files within user's file directory.
+
+    Displays only the immediate children (directories and files) of the
+    provided subpath within the user's files, preserving the nested structure.
+    """
+    # Normalize paths
+    current_subpath = _normalize_path(subpath)
+    user_root = _normalize_path(f"files/{request.user.email}")
+
+    # Get user files that are not part of any capture
+    user_files = get_filtered_files_queryset(
+        File.objects.filter(
+            owner=request.user,
+            is_deleted=False,
+            capture__isnull=True,
+        )
+    )
+
+    logger.debug(
+        "FilesView: user=%s subpath=%s files=%d",
+        request.user.email,
+        current_subpath,
+        user_files.count(),
+    )
+
+    # Filter files by subpath and collect child directories
+    child_files, child_dirs = _filter_files_by_subpath(
+        user_files, current_subpath, user_root
+    )
+
+    # Add child directories first
+    directory_items = _add_user_file_directories(
+        child_dirs,
+        current_subpath,
+    )
+
+    # Then add files that live directly in this level
+    file_items = _add_child_files(
+        child_files, capture_uuid="", is_shared=False, shared_by=""
+    )
+
+    return directory_items + file_items
+
+
+def _add_user_file_directories(
+    child_dirs: set[str],
+    current_subpath: str,
+) -> list[Item]:
+    """Add child directories for user files to the items list."""
+    items: list[Item] = []
+    for dirname in sorted(child_dirs):
+        # Build the next-level path
+        next_path_parts = ["files"]
+        if current_subpath:
+            next_path_parts.append(current_subpath)
+        next_path_parts.append(dirname)
+        next_path = "/" + "/".join(next_path_parts)
+
+        items.append(
+            make_dir_item(
+                DirItemParams(
+                    name=dirname,
+                    path=next_path,
+                    uuid="",
+                    is_capture=False,
+                    is_shared=False,
+                    is_owner=True,
+                    capture_uuid="",
+                    modified_at_display="N/A",
+                    shared_by="",
+                )
+            )
+        )
+    return items
 
 
 def add_shared_items(request) -> list[Item]:
