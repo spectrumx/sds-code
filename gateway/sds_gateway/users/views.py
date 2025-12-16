@@ -1542,7 +1542,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             ),
         }
 
-    def get(self, request, *args, **kwargs) -> HttpResponse:  # noqa: C901, PLR0912, PLR0915
+    def get(self, request, *args, **kwargs) -> HttpResponse:
         """Handle HTML page requests for captures list."""
         # Extract request parameters
         params = self._extract_request_params(request)
@@ -1598,7 +1598,7 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             "max_freq": request.GET.get("max_freq", ""),
         }
 
-    def get(self, request, *args, **kwargs) -> JsonResponse:  # noqa: C901, PLR0912, PLR0915
+    def get(self, request, *args, **kwargs) -> JsonResponse:
         """Handle AJAX requests for the captures API."""
 
         try:
