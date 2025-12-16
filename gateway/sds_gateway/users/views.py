@@ -99,7 +99,6 @@ from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import render_html_fragment
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 from sds_gateway.visualizations.config import get_visualization_compatibility
-from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 
 if TYPE_CHECKING:
     from rest_framework.utils.serializer_helpers import ReturnDict
@@ -1543,7 +1542,7 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             ),
         }
 
-    def get(self, request, *args, **kwargs) -> HttpResponse:
+    def get(self, request, *args, **kwargs) -> HttpResponse:  # noqa: C901, PLR0912, PLR0915
         """Handle HTML page requests for captures list."""
         # Extract request parameters
         params = self._extract_request_params(request)
@@ -1599,7 +1598,7 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
             "max_freq": request.GET.get("max_freq", ""),
         }
 
-    def get(self, request, *args, **kwargs) -> JsonResponse:
+    def get(self, request, *args, **kwargs) -> JsonResponse:  # noqa: C901, PLR0912, PLR0915
         """Handle AJAX requests for the captures API."""
 
         try:
@@ -1632,10 +1631,14 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
         except (ValueError, TypeError) as e:
             error_msg = str(e)
             log.warning(
-                f"Invalid parameter in captures API request: {error_msg}",
+                "Invalid parameter in captures API request: %s",
+                error_msg,
                 exc_info=True,
             )
-            return JsonResponse({"error": f"Invalid search parameters: {error_msg}"}, status=400)
+            return JsonResponse(
+                {"error": f"Invalid search parameters: {error_msg}"},
+                status=400,
+            )
         except DatabaseError:
             log.exception("Database error in captures API request")
             return JsonResponse({"error": "Database error occurred"}, status=500)
