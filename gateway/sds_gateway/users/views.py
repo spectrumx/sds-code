@@ -1681,12 +1681,17 @@ class GroupCapturesView(
 ):
     template_name = "users/group_captures.html"
 
-    def get(self, request, *args, **kwargs):  # noqa: PLR0911
+    def get(self, request, *args, **kwargs):  # noqa: C901, PLR0911
         """Handle GET request with permission checking and AJAX requests."""
         # Check if editing existing dataset
-        dataset_uuid = UUID(request.GET.get("dataset_uuid"))
+        dataset_uuid_str = request.GET.get("dataset_uuid")
 
-        if dataset_uuid:
+        if dataset_uuid_str:
+            try:
+                dataset_uuid = UUID(dataset_uuid_str)
+            except ValueError:
+                messages.error(request, "Invalid dataset UUID.")
+                return redirect("users:dataset_list")
             # Check if user has access to edit this dataset
             if not user_has_access_to_item(
                 request.user, dataset_uuid, ItemType.DATASET
@@ -1782,12 +1787,18 @@ class GroupCapturesView(
         )
 
         # Check if we're editing an existing dataset
-        dataset_uuid = UUID(self.request.GET.get("dataset_uuid", None))
+        dataset_uuid_str = self.request.GET.get("dataset_uuid", None)
         existing_dataset = None
         permission_level = None
         is_owner = False
+        dataset_uuid = None
 
-        if dataset_uuid:
+        if dataset_uuid_str:
+            try:
+                dataset_uuid = UUID(dataset_uuid_str)
+            except ValueError as err:
+                msg = "Invalid dataset UUID."
+                raise Http404(msg) from err
             # Check if user has access to this dataset
             if not user_has_access_to_item(
                 self.request.user, dataset_uuid, ItemType.DATASET
@@ -1893,8 +1904,13 @@ class GroupCapturesView(
             if validation_result:
                 return validation_result
 
-            dataset_uuid = UUID(request.GET.get("dataset_uuid"))
-            if dataset_uuid:
+            dataset_uuid_str = request.GET.get("dataset_uuid")
+            if dataset_uuid_str:
+                try:
+                    dataset_uuid = UUID(dataset_uuid_str)
+                except ValueError:
+                    messages.error(request, "Invalid dataset UUID.")
+                    return redirect("users:dataset_list")
                 # Handle dataset editing
                 return self._handle_dataset_edit(request, dataset_uuid)
             # Handle dataset creation
@@ -1910,9 +1926,21 @@ class GroupCapturesView(
     def _validate_dataset_form(self, request) -> JsonResponse | None:
         """Validate the dataset form and return error response if invalid."""
         # Check if this is an edit operation first
-        dataset_uuid = UUID(request.GET.get("dataset_uuid"))
+        dataset_uuid_str = request.GET.get("dataset_uuid")
 
-        if dataset_uuid:
+        if dataset_uuid_str:
+            try:
+                dataset_uuid = UUID(dataset_uuid_str)
+            except ValueError:
+                messages.error(request, "Invalid dataset UUID.")
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "errors": {"non_field_errors": ["Invalid dataset UUID."]},
+                    },
+                    status=400,
+                )
+
             # For editing, validate permissions first
             permission_level = get_user_permission_level(
                 request.user, dataset_uuid, ItemType.DATASET
@@ -2841,10 +2869,15 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         Returns:
             A JSON response containing the dataset details and files
         """
-        dataset_uuid = UUID(request.GET.get("dataset_uuid"))
+        dataset_uuid_str = request.GET.get("dataset_uuid")
 
-        if not dataset_uuid:
+        if not dataset_uuid_str:
             return JsonResponse({"error": "Dataset UUID is required"}, status=400)
+
+        try:
+            dataset_uuid = UUID(dataset_uuid_str)
+        except ValueError:
+            return JsonResponse({"error": "Invalid dataset UUID"}, status=400)
 
         # Check if user has access to the dataset
         if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
