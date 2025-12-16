@@ -91,17 +91,19 @@ global.window.ComponentUtils = {
 };
 
 // Mock Bootstrap Dropdown
-global.bootstrap.Dropdown = jest.fn().mockImplementation((element, options) => ({
-	show: jest.fn(),
-	hide: jest.fn(),
-	element: element,
-	options: options,
-}));
+global.bootstrap.Dropdown = jest
+	.fn()
+	.mockImplementation((element, options) => ({
+		show: jest.fn(),
+		hide: jest.fn(),
+		element: element,
+		options: options,
+	}));
 
 // NOW import the actual classes from file-list.js
 // (after all dependencies are mocked)
 // Use require() instead of import so it executes after mocks are set up
-const { FileListController, FileListCapturesTableManager } = require("../file-list.js");
+const { FileListController } = require("../file-list.js");
 
 describe("FileListController", () => {
 	let fileListController;
@@ -181,10 +183,10 @@ describe("FileListController", () => {
 				this.params = new Map();
 				if (search) {
 					const pairs = search.replace("?", "").split("&");
-					pairs.forEach((pair) => {
+					for (const pair of pairs) {
 						const [key, value] = pair.split("=");
 						if (key) this.params.set(key, value || "");
-					});
+					}
 				}
 			}
 			get(name) {
@@ -228,7 +230,7 @@ describe("FileListController", () => {
 		global.SearchManager = jest.fn(() => mockSearchManager);
 		global.PaginationManager = jest.fn(() => mockPaginationManager);
 		global.CapturesTableManager = jest.fn(() => mockTableManager);
-		
+
 		// Also make them available on window (file-list.js uses them without global prefix)
 		global.window.ModalManager = global.ModalManager;
 		global.window.SearchManager = global.SearchManager;
@@ -253,10 +255,10 @@ describe("FileListController", () => {
 					this.params = new Map();
 					if (search) {
 						const pairs = search.replace("?", "").split("&");
-						pairs.forEach((pair) => {
+						for (const pair of pairs) {
 							const [key, value] = pair.split("=");
 							if (key) this.params.set(key, value || "");
-						});
+						}
 					}
 				}
 				get(name) {
@@ -286,8 +288,12 @@ describe("FileListController", () => {
 			fileListController = new FileListController();
 
 			expect(fileListController.elements).toBeDefined();
-			expect(fileListController.elements.searchInput).toBe(mockElements.searchInput);
-			expect(fileListController.elements.startDate).toBe(mockElements.startDate);
+			expect(fileListController.elements.searchInput).toBe(
+				mockElements.searchInput,
+			);
+			expect(fileListController.elements.startDate).toBe(
+				mockElements.startDate,
+			);
 		});
 
 		test("should initialize component managers", () => {
@@ -312,7 +318,7 @@ describe("FileListController", () => {
 			mockElements.endDate.value = "2024-12-31";
 			mockElements.centerFreqMin.value = "1.0";
 			mockElements.centerFreqMax.value = "5.0";
-			
+
 			// Set userInteractedWithFrequency to true to include frequency params
 			fileListController.userInteractedWithFrequency = true;
 
@@ -409,14 +415,16 @@ describe("FileListCapturesTableManager", () => {
 		// In a real scenario, we'd import from file-list.js
 		tableManager = {
 			resultsCountElement: mockResultsCount,
-			renderRow: function (capture, index) {
+			renderRow: (capture) => {
 				// This would be the actual renderRow implementation
 				const safeData = {
 					uuid: window.ComponentUtils.escapeHtml(capture.uuid || ""),
 					name: window.ComponentUtils.escapeHtml(capture.name || ""),
 					channel: window.ComponentUtils.escapeHtml(capture.channel || ""),
 					scanGroup: window.ComponentUtils.escapeHtml(capture.scan_group || ""),
-					captureType: window.ComponentUtils.escapeHtml(capture.capture_type || ""),
+					captureType: window.ComponentUtils.escapeHtml(
+						capture.capture_type || "",
+					),
 					captureTypeDisplay: window.ComponentUtils.escapeHtml(
 						capture.capture_type_display || "",
 					),
@@ -482,21 +490,24 @@ describe("FileListCapturesTableManager", () => {
 					this.resultsCountElement.textContent = `${count} capture${pluralSuffix} found`;
 				}
 			},
-			initializeDropdowns: function () {
+			initializeDropdowns: () => {
 				const dropdownButtons = document.querySelectorAll(".btn-icon-dropdown");
 
 				if (dropdownButtons.length === 0) {
 					return;
 				}
 
-				dropdownButtons.forEach((toggle) => {
+				for (const toggle of dropdownButtons) {
 					if (toggle._dropdown) {
-						return;
+						continue;
 					}
 
 					const dropdownMenu = toggle.nextElementSibling;
-					if (!dropdownMenu || !dropdownMenu.classList.contains("dropdown-menu")) {
-						return;
+					if (
+						!dropdownMenu ||
+						!dropdownMenu.classList.contains("dropdown-menu")
+					) {
+						continue;
 					}
 
 					const dropdown = new bootstrap.Dropdown(toggle, {
@@ -521,7 +532,7 @@ describe("FileListCapturesTableManager", () => {
 					});
 
 					toggle._dropdown = dropdown;
-				});
+				}
 			},
 		};
 	});
@@ -531,7 +542,7 @@ describe("FileListCapturesTableManager", () => {
 			tableManager.updateTable([], false);
 
 			expect(mockTbody.innerHTML).toContain("No captures found");
-			expect(mockTbody.innerHTML).toContain("colspan=\"5\"");
+			expect(mockTbody.innerHTML).toContain('colspan="5"');
 		});
 
 		test("should render captures when results exist", () => {
@@ -621,7 +632,7 @@ describe("FileListCapturesTableManager", () => {
 			};
 
 			document.querySelectorAll = jest.fn(() => [mockToggle]);
-			
+
 			// Mock document.body properly
 			if (!document.body) {
 				document.body = document.createElement("body");
@@ -686,11 +697,11 @@ describe("FileListCapturesTableManager", () => {
 			expect(html).toContain("test-uuid");
 			expect(html).toContain("Test Capture");
 			expect(html).toContain("/test/dir");
-			expect(html).toContain("headers=\"name-header\"");
-			expect(html).toContain("headers=\"top-level-dir-header\"");
-			expect(html).toContain("headers=\"type-header\"");
-			expect(html).toContain("headers=\"created-header\"");
-			expect(html).toContain("headers=\"actions-header\"");
+			expect(html).toContain('headers="name-header"');
+			expect(html).toContain('headers="top-level-dir-header"');
+			expect(html).toContain('headers="type-header"');
+			expect(html).toContain('headers="created-header"');
+			expect(html).toContain('headers="actions-header"');
 		});
 
 		test("should escape HTML in capture data", () => {
@@ -730,11 +741,7 @@ describe("FileListCapturesTableManager", () => {
 				name: "Multi Channel",
 				capture_type: "drf",
 				is_multi_channel: true,
-				channels: [
-					{ channel: "1" },
-					{ channel: "2" },
-					{ channel: "3" },
-				],
+				channels: [{ channel: "1" }, { channel: "2" }, { channel: "3" }],
 				top_level_dir: "/test",
 				owner: "test@example.com",
 			};
@@ -746,4 +753,3 @@ describe("FileListCapturesTableManager", () => {
 		});
 	});
 });
-

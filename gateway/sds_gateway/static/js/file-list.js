@@ -201,7 +201,7 @@ class FileListController {
 		const text = await response.text();
 		try {
 			return JSON.parse(text);
-		} catch (e) {
+		} catch {
 			throw new Error("Invalid JSON response from server");
 		}
 	}
@@ -413,11 +413,13 @@ class FileListController {
 		this.userInteractedWithFrequency = false;
 
 		// Reset frequency slider if it exists
-		const frequencyRangeSlider = document.getElementById("frequency-range-slider");
+		const frequencyRangeSlider = document.getElementById(
+			"frequency-range-slider",
+		);
 		if (frequencyRangeSlider?.noUiSlider) {
 			frequencyRangeSlider.noUiSlider.set([0, 10]);
 		}
-		
+
 		// Also reset the display values
 		const lowerValue = document.getElementById("frequency-range-lower");
 		const upperValue = document.getElementById("frequency-range-upper");
@@ -510,13 +512,13 @@ class FileListController {
 			return;
 		}
 
-		dropdownButtons.forEach((toggle, index) => {
+		for (const toggle of dropdownButtons) {
 			// Check if dropdown is already initialized
 			if (toggle._dropdown) {
-				return;
+				continue;
 			}
 
-			const dropdown = new bootstrap.Dropdown(toggle, {
+			const _dropdown = new bootstrap.Dropdown(toggle, {
 				container: "body",
 				boundary: "viewport",
 				popperConfig: {
@@ -538,7 +540,7 @@ class FileListController {
 					document.body.appendChild(dropdownMenu);
 				}
 			});
-		});
+		}
 	}
 }
 
@@ -562,13 +564,13 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			return;
 		}
 
-		dropdownButtons.forEach((toggle, index) => {
+		for (const toggle of dropdownButtons) {
 			// Check if dropdown is already initialized
 			if (toggle._dropdown) {
-				return;
+				continue;
 			}
 
-			const dropdown = new bootstrap.Dropdown(toggle, {
+			const _dropdown = new bootstrap.Dropdown(toggle, {
 				container: "body",
 				boundary: "viewport",
 				popperConfig: {
@@ -590,7 +592,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					document.body.appendChild(dropdownMenu);
 				}
 			});
-		});
+		}
 	}
 
 	/**
@@ -639,7 +641,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	 * Render individual table row with XSS protection
 	 * Overrides the base class method to include file-specific columns
 	 */
-	renderRow(capture, index) {
+	renderRow(capture) {
 		// Sanitize all data before rendering
 		const safeData = {
 			uuid: ComponentUtils.escapeHtml(capture.uuid || ""),
@@ -665,7 +667,6 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		};
 
 		// Handle composite vs single capture display
-		let channelDisplay = safeData.channel;
 		let typeDisplay = safeData.captureTypeDisplay || safeData.captureType;
 
 		if (capture.is_multi_channel) {
@@ -680,7 +681,6 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		}
 
 		// Handle author display with proper fallback
-		let authorDisplay = "-";
 		if (capture.owner) {
 			if (typeof capture.owner === "string") {
 				// Handle string format (email or name)
@@ -701,11 +701,11 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		let createdDate = "-";
 		if (capture.created_at) {
 			const date = new Date(capture.created_at);
-			if (!isNaN(date.getTime())) {
-				const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
-				const timeStr = date.toLocaleTimeString('en-US', { 
-					hour12: false, 
-					timeZoneName: 'short' 
+			if (!Number.isNaN(date.getTime())) {
+				const dateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD
+				const timeStr = date.toLocaleTimeString("en-US", {
+					hour12: false,
+					timeZoneName: "short",
 				}); // HH:mm:ss TZ
 				createdDate = `
 					<div class="d-flex align-items-center gap-2">
@@ -718,7 +718,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 
 		// Check if shared (for shared icon)
 		const isShared = capture.is_shared_with_me || false;
-		const sharedIcon = isShared 
+		const sharedIcon = isShared
 			? `<span class="ms-2 align-middle" data-bs-toggle="tooltip" title="Shared with you">
 					<i class="bi bi-people-fill text-success"></i>
 				</span>`
@@ -769,7 +769,9 @@ class FileListCapturesTableManager extends CapturesTableManager {
 							<i class="bi bi-three-dots-vertical"></i>
 						</button>
 						<ul class="dropdown-menu">
-							${isOwner ? `
+							${
+								isOwner
+									? `
 								<li>
 									<button class="dropdown-item capture-details-btn"
 											type="button"
@@ -801,7 +803,9 @@ class FileListCapturesTableManager extends CapturesTableManager {
 										Share
 									</button>
 								</li>
-							` : ""}
+							`
+									: ""
+							}
 							<li>
 								<button class="dropdown-item download-capture-btn"
 										type="button"
@@ -810,7 +814,9 @@ class FileListCapturesTableManager extends CapturesTableManager {
 									Download
 								</button>
 							</li>
-							${safeData.captureType === 'drf' ? `
+							${
+								safeData.captureType === "drf"
+									? `
 								<li>
 									<button class="dropdown-item visualization-trigger-btn"
 											type="button"
@@ -819,7 +825,9 @@ class FileListCapturesTableManager extends CapturesTableManager {
 										Visualize
 									</button>
 								</li>
-							` : ""}
+							`
+									: ""
+							}
 						</ul>
 					</div>
 				</td>

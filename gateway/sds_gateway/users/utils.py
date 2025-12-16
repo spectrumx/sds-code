@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from django.contrib.auth.models import User  # type: ignore[import-untyped]
 from django.http import HttpRequest  # type: ignore[import-untyped]
@@ -111,7 +112,7 @@ def update_or_create_user_group_share_permissions(
     request_user: User,
     group: ShareGroup,
     share_user: User,
-    item_uuid: str,
+    item_uuid: UUID,
     item_type: ItemType,
     message: str,
     permission_level: PermissionLevel = PermissionLevel.VIEWER,
@@ -120,13 +121,13 @@ def update_or_create_user_group_share_permissions(
     Update or add share permissions for a user in a group.
 
     Args:
-        request_user: The User object that is sharing the item
-        group: The ShareGroup object
-        share_user: The User object that is being shared with
-        item_uuid: The UUID of the item to share
-        item_type: The type of the item to share
-        message: The message to share with the user
-        permission_level: The permission level to grant (viewer, contributor, co-owner)
+        request_user:       The User object that is sharing the item
+        group:              The ShareGroup object
+        share_user:         The User object that is being shared with
+        item_uuid:          The UUID of the item to share
+        item_type:          The type of the item to share
+        message:            The message to share with the user
+        permission_level:   Permission level to grant (viewer, contributor, co-owner)
 
     Returns:
         None

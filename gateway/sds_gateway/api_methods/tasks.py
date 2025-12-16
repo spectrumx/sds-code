@@ -3,10 +3,12 @@ import re
 import shutil
 import uuid
 import zipfile
+from collections.abc import Mapping
 from email.mime.image import MIMEImage
 from pathlib import Path
 from typing import Any
 from typing import cast
+from uuid import UUID
 
 import redis
 from celery import shared_task
@@ -275,7 +277,7 @@ def check_email_task(email_address: str = "test@example.com") -> str:
 
 
 def create_zip_from_files(
-    files: list[File], zip_name: str, zip_uuid: str
+    files: list[File], zip_name: str, zip_uuid: UUID
 ) -> tuple[str, int, int]:
     """
     Create a zip file by streaming files directly from MinIO storage.
@@ -284,9 +286,9 @@ def create_zip_from_files(
     directly from MinIO to the zip file in chunks.
 
     Args:
-        files: List of File model instances to include in the zip
-        zip_name: Name for the zip file
-        zip_uuid: UUID to use for the zip filename
+        files:      List of File model instances to include in the zip
+        zip_name:   Name for the zip file
+        zip_uuid:   UUID to use for the zip filename
 
     Returns:
         tuple: (zip_file_path, total_size, files_processed)
@@ -427,7 +429,7 @@ def cleanup_expired_temp_zips() -> dict[str, str | int]:
 
 
 @shared_task
-def cleanup_orphaned_zip_files() -> dict:
+def cleanup_orphaned_zip_files() -> dict[str, str | int]:
     """
     Celery task to clean up orphaned zip files that don't have corresponding database
     records.
@@ -642,7 +644,9 @@ def start_capture_post_processing(
             launch_visualization_processing,
         )
 
-        return launch_visualization_processing(capture_uuid, processing_config)
+        return launch_visualization_processing(
+            capture_uuid=capture_uuid, processing_config=processing_config
+        )
     except Exception as e:
         error_msg = f"Unexpected error in post-processing pipeline: {e}"
         logger.exception(error_msg)
@@ -652,12 +656,12 @@ def start_capture_post_processing(
 def _create_error_response(
     status: str,
     message: str,
-    item_uuid: str,
+    item_uuid: UUID,
     user_id: str | None = None,
     total_size: int = 0,
-) -> dict[str, str | int]:
+) -> Mapping[str, str | int | UUID]:
     """Create a standardized error response."""
-    response: dict[str, str | int] = {
+    response: dict[str, str | int | UUID] = {
         "status": status,
         "message": message,
         "item_uuid": item_uuid,
@@ -673,9 +677,9 @@ def _process_item_files(
     user: User,
     item: Any,
     item_type: ItemType,
-    item_uuid: str,
+    item_uuid: UUID,
     temp_zip: TemporaryZipFile,
-) -> tuple[dict | None, str | None, int | None, int | None]:
+) -> tuple[Mapping[str, UUID | int | str] | None, str | None, int | None, int | None]:  # pyright: ignore[reportMissingTypeArgument]
     """
     Process files for an item and create a zip file.
 
@@ -687,9 +691,13 @@ def _process_item_files(
     if not files:
         logger.warning(f"No files found for {item_type} {item_uuid}")
         error_message = f"No files found in {item_type}"
-        _send_item_download_error_email(user, item, item_type, error_message)
+        _send_item_download_error_email(
+            user=user, item=item, item_type=item_type, error_message=error_message
+        )
         return (
-            _create_error_response("error", error_message, item_uuid, total_size=0),
+            _create_error_response(
+                status="error", message=error_message, item_uuid=item_uuid, total_size=0
+            ),
             None,
             None,
             None,
@@ -711,11 +719,18 @@ def _process_item_files(
             f"Visit https://pypi.org/project/spectrumx/ for installation instructions."
         )
         _send_item_download_error_email(
-            user, item, item_type, error_message, use_sdk=True
+            user=user,
+            item=item,
+            item_type=item_type,
+            error_message=error_message,
+            use_sdk=True,
         )
         return (
             _create_error_response(
-                "error", error_message, item_uuid, total_size=total_file_size
+                status="error",
+                message=error_message,
+                item_uuid=item_uuid,
+                total_size=total_file_size,
             ),
             None,
             None,
@@ -746,10 +761,15 @@ def _process_item_files(
             f"Insufficient disk space to create your {item_type} download. "
             f"Please try again later or contact support if the problem persists."
         )
-        _send_item_download_error_email(user, item, item_type, error_message)
+        _send_item_download_error_email(
+            user=user, item=item, item_type=item_type, error_message=error_message
+        )
         return (
             _create_error_response(
-                "error", error_message, item_uuid, total_size=total_file_size
+                status="error",
+                message=error_message,
+                item_uuid=item_uuid,
+                total_size=total_file_size,
             ),
             None,
             None,
@@ -762,7 +782,9 @@ def _process_item_files(
 
     try:
         zip_file_path, total_size, files_processed = create_zip_from_files(
-            files, zip_filename, str(temp_zip.uuid)
+            files=files,
+            zip_name=zip_filename,
+            zip_uuid=temp_zip.uuid,
         )
     except (OSError, ValueError) as e:
         logger.exception(f"Failed to create zip file for {item_type} {item_uuid}: {e}")
@@ -793,7 +815,7 @@ def _process_item_files(
 
 def _handle_user_lock_validation(
     user_id: str, user: User, item: Any, item_type: ItemType, task_name: str
-) -> dict[str, str | int] | None:
+) -> Mapping[str, str | int | UUID] | None:
     """
     Handle user lock validation and acquisition.
 
@@ -808,8 +830,12 @@ def _handle_user_lock_validation(
             f"You already have a {item_type} download in progress. "
             "Please wait for it to complete."
         )
-        _send_item_download_error_email(user, item, item_type, error_message)
-        return _create_error_response("error", error_message, str(item.uuid), user_id)
+        _send_item_download_error_email(
+            user=user, item=item, item_type=item_type, error_message=error_message
+        )
+        return _create_error_response(
+            "error", error_message, item_uuid=item.uuid, user_id=user_id
+        )
 
     if not acquire_user_lock(user_id, task_name):
         logger.warning(f"Failed to acquire lock for user {user_id}")
@@ -831,7 +857,7 @@ def _create_pending_temp_zip_record(
     user: User,
     item: Any,
     item_type: ItemType,
-    item_uuid: str,
+    item_uuid: UUID,
 ) -> TemporaryZipFile:
     """Create a pending temporary zip file record at the start of the process."""
 
@@ -932,13 +958,13 @@ def _handle_timeout_exception(
     user: User | None,
     item: Any,
     item_type: ItemType | None,
-    item_uuid: str,
-    e: Exception,
-) -> dict[str, Any]:
+    item_uuid: UUID,
+    exception: Exception,
+) -> Mapping[str, int | str | UUID]:
     """Handle timeout exceptions in the download task."""
     logger.exception(
         f"Timeout or soft time limit exceeded for {item_type} download "
-        f"for {item_uuid}: {e}"
+        f"for {item_uuid}: {exception}"
     )
     error_message = (
         f"The download process for {item_type} {item_uuid} "
@@ -946,16 +972,19 @@ def _handle_timeout_exception(
         "Please try again or contact support."
     )
     if user is not None and item is not None and item_type is not None:
-        _send_item_download_error_email(user, item, item_type, error_message)
-    return _create_error_response("error", error_message, item_uuid)
+        _send_item_download_error_email(
+            user=user, item=item, item_type=item_type, error_message=error_message
+        )
+    return _create_error_response("error", error_message, item_uuid=item_uuid)
 
 
+# TODO: refactor this function to clear out these warnings
 @shared_task(
     time_limit=30 * 60, soft_time_limit=25 * 60
 )  # 30 min hard limit, 25 min soft limit
-def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
-    item_uuid: str, user_id: str, item_type: str | ItemType
-) -> dict[str, str | int]:
+def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
+    item_uuid: UUID, user_id: str, item_type: str | ItemType
+) -> Mapping[str, UUID | str | int]:
     """
     Unified Celery task to create a zip file of item files and send it via email.
 
@@ -965,7 +994,6 @@ def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
         item_uuid: UUID of the item to process
         user_id: ID of the user requesting the download
         item_type: Type of item (dataset or capture)
-
     Returns:
         dict: Task result with status and details
     """
@@ -976,6 +1004,7 @@ def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
     result = None
     zip_file_path = None
     user = None
+    temp_zip = None
 
     try:
         # Convert string item_type to enum if needed
@@ -984,7 +1013,10 @@ def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
                 item_type = ItemType(item_type)
             except ValueError:
                 return _create_error_response(
-                    "error", f"Invalid item type: {item_type}", item_uuid, user_id
+                    "error",
+                    f"Invalid item type: {item_type}",
+                    item_uuid=item_uuid,
+                    user_id=user_id,
                 )
 
         # At this point, item_type is guaranteed to be ItemType
@@ -992,7 +1024,7 @@ def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
 
         # Validate the request
         error_result, user, item = _validate_item_download_request(
-            item_uuid, user_id, item_type_enum
+            item_uuid=item_uuid, user_id=user_id, item_type=item_type_enum
         )
         if error_result:
             return error_result
@@ -1014,12 +1046,18 @@ def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
 
         # Create pending temporary zip file record first
         temp_zip = _create_pending_temp_zip_record(
-            user, item, item_type_enum, item_uuid
+            user=user, item=item, item_type=item_type_enum, item_uuid=item_uuid
         )
 
         # Process files and create zip
         error_response, zip_file_path, total_size, files_processed = (
-            _process_item_files(user, item, item_type_enum, item_uuid, temp_zip)
+            _process_item_files(
+                user=user,
+                item=item,
+                item_type=item_type_enum,
+                item_uuid=item_uuid,
+                temp_zip=temp_zip,
+            )
         )
         if error_response:
             # Mark the record as failed
@@ -1029,18 +1067,36 @@ def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
         # Ensure we have valid values for zip creation
         if zip_file_path is None or total_size is None or files_processed is None:
             error_message = "Failed to process files for zip creation"
-            _send_item_download_error_email(user, item, item_type_enum, error_message)
+            _send_item_download_error_email(
+                user=user,
+                item=item,
+                item_type=item_type_enum,
+                error_message=error_message,
+            )
             temp_zip.mark_failed()
-            return _create_error_response("error", error_message, item_uuid, user_id)
+            return _create_error_response(
+                status="error",
+                message=error_message,
+                item_uuid=item_uuid,
+                user_id=user_id,
+            )
 
         # Update temporary zip file record with final details
         temp_zip = _update_temp_zip_record(
-            temp_zip, zip_file_path, total_size, files_processed
+            temp_zip=temp_zip,
+            zip_file_path=zip_file_path,
+            total_size=total_size,
+            files_processed=files_processed,
         )
 
         # Send email with download link
         _send_download_email(
-            user, item, item_type_enum, temp_zip, total_size, files_processed
+            user=user,
+            item=item,
+            item_type=item_type_enum,
+            temp_zip=temp_zip,
+            total_size=total_size,
+            files_processed=files_processed,
         )
 
         logger.info(
@@ -1065,14 +1121,20 @@ def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
         if user is not None and item is not None and item_type_enum is not None:
             _send_item_download_error_email(user, item, item_type_enum, error_message)
         # Mark temp_zip as failed if it exists
-        if "temp_zip" in locals():
+        if temp_zip is not None:
             temp_zip.mark_failed()
         result = _create_error_response("error", error_message, item_uuid)
 
-    except (SoftTimeLimitExceeded, TimeoutError) as e:
-        result = _handle_timeout_exception(user, item, item_type_enum, item_uuid, e)
+    except (SoftTimeLimitExceeded, TimeoutError) as err:
+        result = _handle_timeout_exception(
+            user,
+            item=item,
+            item_type=item_type_enum,
+            item_uuid=item_uuid,
+            exception=err,
+        )
         # Mark temp_zip as failed if it exists
-        if "temp_zip" in locals():
+        if temp_zip is not None:
             temp_zip.mark_failed()
 
     finally:
@@ -1097,12 +1159,18 @@ def send_item_files_email(  # noqa: C901, PLR0912, PLR0915
                     f"Failed to clean up partial zip file {zip_file_path}: {e}"
                 )
 
-    return result
+    if result:
+        return result
+    return _create_error_response(
+        status="error",
+        message="Failed to process download request",
+        item_uuid=item_uuid,
+    )
 
 
 def _validate_item_download_request(
-    item_uuid: str, user_id: str, item_type: ItemType
-) -> tuple[dict[str, str | int] | None, User | None, Any]:
+    item_uuid: UUID, user_id: str, item_type: ItemType
+) -> tuple[dict[str, Any] | None, User | None, Any]:
     """
     Validate item download request parameters.
 

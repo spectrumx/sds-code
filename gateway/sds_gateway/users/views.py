@@ -2,14 +2,17 @@ import datetime
 import json
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import cast
+from uuid import UUID
 
 from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import EmptyPage
+from django.core.paginator import Page
 from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
@@ -95,6 +98,9 @@ from sds_gateway.users.utils import deduplicate_composite_captures
 from sds_gateway.users.utils import render_html_fragment
 from sds_gateway.users.utils import update_or_create_user_group_share_permissions
 from sds_gateway.visualizations.config import get_visualization_compatibility
+
+if TYPE_CHECKING:
+    from rest_framework.utils.serializer_helpers import ReturnDict
 
 # Constants
 MAX_API_KEY_COUNT = 10
@@ -327,23 +333,32 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Handle user search requests."""
-        item_uuid = kwargs.get("item_uuid")
-        item_type = kwargs.get("item_type")
-
-        # Validate item type
-        if item_type not in self.ITEM_MODELS:
+        try:
+            item_uuid = UUID(kwargs.get("item_uuid"))
+            item_type = ItemType(kwargs.get("item_type"))
+        except (ValueError, TypeError):
             return JsonResponse(
-                {"error": "Invalid item type"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid item UUID or item type"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Validate item UUID
+        val_errors = ""
         if not item_uuid:
+            val_errors += "Invalid item UUID\n"
+        if not item_type or not isinstance(item_type, ItemType):
+            val_errors += "Invalid item type format\n"
+        if item_type not in self.ITEM_MODELS:
+            val_errors += "Invalid item type\n"
+
+        if val_errors:
             return JsonResponse(
-                {"error": "Item UUID is required"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": val_errors}, status=status.HTTP_400_BAD_REQUEST
             )
 
         # Check if user has access to the item (either as owner or shared user)
-        if not user_has_access_to_item(request.user, item_uuid, item_type):
+        if not user_has_access_to_item(
+            request.user, item_uuid=item_uuid, item_type=item_type
+        ):
             return JsonResponse(
                 {"error": f"{item_type.capitalize()} not found or access denied"},
                 status=404,
@@ -356,7 +371,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
             # Get exclusion lists for search
             excluded_user_ids, excluded_group_ids = self._get_exclusion_lists(
-                request.user, item_uuid, item_type
+                request.user, item_uuid=item_uuid, item_type=item_type
             )
 
         except model_class.DoesNotExist:
@@ -374,7 +389,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         )
 
     def _get_exclusion_lists(
-        self, user: User, item_uuid: str, item_type: str
+        self, user: User, item_uuid: UUID, item_type: ItemType
     ) -> tuple[list[int], list[str]]:
         """Get lists of user IDs and group UUIDs to exclude from search results."""
         # Get individual users already shared with this item
@@ -426,7 +441,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def _add_group_to_item(
         self,
         group_identifier: str,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         request_user: User,
         message: str,
@@ -471,7 +486,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def _add_individual_user_to_item(
         self,
         email: str,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         request_user: User,
         message: str,
@@ -523,7 +538,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def _get_existing_user_permission(
         self,
         user: User,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         request_user: User,
     ) -> UserSharePermission | None:
@@ -536,7 +551,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         ).first()
 
     def _validate_share_request(
-        self, request: HttpRequest, item_uuid: str, item_type: ItemType
+        self, request: HttpRequest, item_uuid: UUID, item_type: ItemType
     ) -> JsonResponse | None:
         """
         Validate the share request.
@@ -547,14 +562,18 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             return JsonResponse({"error": "Invalid item type"}, status=400)
 
         # Check if user has access to the item (either as owner or shared user)
-        if not user_has_access_to_item(request.user, item_uuid, item_type):
+        if not user_has_access_to_item(
+            request.user, item_uuid=item_uuid, item_type=item_type
+        ):
             return JsonResponse(
                 {"error": f"{item_type.capitalize()} not found or access denied"},
                 status=404,
             )
 
         # For sharing operations, user must be owner or co-owner
-        if not UserSharePermission.user_can_share(request.user, item_uuid, item_type):
+        if not UserSharePermission.user_can_share(
+            request.user, item_uuid=item_uuid, item_type=item_type
+        ):
             return JsonResponse(
                 {"error": "Only owners and co-owners can manage sharing"}, status=403
             )
@@ -564,7 +583,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def _notify_shared_users_if_requested(
         self,
         request: HttpRequest,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         shared_users: list[str],
         message: str,
@@ -579,7 +598,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def post(
         self,
         request: HttpRequest,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         *args: Any,
         **kwargs: Any,
@@ -589,10 +608,9 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         and removing users.
 
         Args:
-            request: The HTTP request object
-            item_uuid: The UUID of the item to share
-            item_type: The type of item to share from ItemType enum
-
+            request:    The HTTP request object
+            item_uuid:  The UUID of the item to share
+            item_type:  The type of item to share from ItemType enum
         Returns:
             A JSON response containing the response message
         """
@@ -616,7 +634,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         )
 
     def _process_share_operations(
-        self, request: HttpRequest, item_uuid: str, item_type: ItemType
+        self, request: HttpRequest, item_uuid: UUID, item_type: ItemType
     ) -> dict[str, list[str]]:
         """Process all sharing operations and return results."""
         # Parse all change types from the request
@@ -669,7 +687,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def _build_share_response(
         self,
         request: HttpRequest,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         results: dict[str, list[str]],
     ) -> JsonResponse:
@@ -776,8 +794,12 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             raise ValueError(msg) from err
 
     def _process_permission_change(
-        self, request: HttpRequest, item_uuid: str, item_type: ItemType, change: dict
-    ) -> dict:
+        self,
+        request: HttpRequest,
+        item_uuid: UUID,
+        item_type: ItemType,
+        change: dict,  # pyright: ignore[reportMissingTypeArgument]
+    ) -> dict:  # pyright: ignore[reportMissingTypeArgument]
         """Process a single permission change."""
         user_email = change.get("user_email")
         new_permission = change.get("permissionLevel", PermissionLevel.VIEWER)
@@ -809,7 +831,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         )
 
     def _process_removal(
-        self, request: HttpRequest, item_uuid: str, item_type: ItemType, user_email: str
+        self,
+        request: HttpRequest,
+        item_uuid: UUID,
+        item_type: ItemType,
+        user_email: str,
     ) -> dict:
         """Process a single user removal."""
         if user_email.startswith("group:"):
@@ -819,7 +845,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def _update_individual_permission(
         self,
         request: HttpRequest,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         user_email: str,
         new_permission: PermissionLevel,
@@ -860,7 +886,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def _update_group_permission(
         self,
         request: HttpRequest,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         group_identifier: str,
         new_permission: PermissionLevel,
@@ -906,7 +932,11 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             ) from err
 
     def _remove_individual_access(
-        self, request: HttpRequest, item_uuid: str, item_type: ItemType, user_email: str
+        self,
+        request: HttpRequest,
+        item_uuid: UUID,
+        item_type: ItemType,
+        user_email: str,
     ) -> dict:
         """Remove access for an individual user."""
         try:
@@ -940,7 +970,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def _remove_group_access(
         self,
         request: HttpRequest,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         group_identifier: str,
     ) -> dict:
@@ -986,7 +1016,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
     def _add_users_to_item(
         self,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         users: dict,  # {email: permission_level}
         request_user: User,
@@ -1192,7 +1222,7 @@ class FileContentView(Auth0LoginRequiredMixin, View):
 class FileH5InfoView(Auth0LoginRequiredMixin, View):
     """Return a summarized structure for an HDF5 file as JSON for modal preview."""
 
-    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:
+    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse | None:
         file_uuid = kwargs.get("uuid")
         if not file_uuid:
             return JsonResponse({"error": "File UUID required"}, status=400)
@@ -1205,7 +1235,7 @@ class FileH5InfoView(Auth0LoginRequiredMixin, View):
 
 
 def _get_captures_for_template(
-    captures: QuerySet[Capture],
+    captures: QuerySet[Capture] | list[Capture] | Page[Capture],
     request: HttpRequest,
 ) -> list[dict[str, Any]]:
     """Get enhanced captures for the template."""
@@ -1292,7 +1322,9 @@ def _get_captures_for_template(
 API_CAPTURES_LIMIT = 25
 
 
-def _get_user_captures_querysets(user):
+def _get_user_captures_querysets(
+    user: User,
+) -> tuple[QuerySet[Capture], QuerySet[Capture]]:
     """Get owned and shared capture querysets for a user."""
     # Get captures owned by the user
     owned_captures = user.captures.filter(is_deleted=False)
@@ -1312,7 +1344,11 @@ def _get_user_captures_querysets(user):
     return owned_captures, shared_captures
 
 
-def _apply_frequency_filters_to_list(captures_list, min_freq, max_freq):
+def _apply_frequency_filters_to_list(  # noqa: C901
+    captures_list: list[Capture],
+    min_freq: str | float | None,
+    max_freq: str | float | None,
+) -> list[Capture]:
     """Apply frequency filters to a list of captures."""
     if not captures_list or (not min_freq and not max_freq):
         return captures_list
@@ -1341,7 +1377,7 @@ def _apply_frequency_filters_to_list(captures_list, min_freq, max_freq):
             return captures_list
 
         # Filter captures by frequency range
-        filtered_captures = []
+        filtered_captures: list[Capture] = []
         for capture in captures_list:
             capture_uuid = str(capture.uuid)
             freq_info = frequency_data.get(capture_uuid, {})
@@ -1364,29 +1400,46 @@ def _apply_frequency_filters_to_list(captures_list, min_freq, max_freq):
 
             filtered_captures.append(capture)
 
-        return filtered_captures
     except (DatabaseError, AttributeError) as e:
         log.warning("Error in frequency filtering: %s", e, exc_info=True)
         # Continue with unfiltered list on error
         return captures_list
 
+    else:
+        return filtered_captures
 
-def _apply_sorting_to_list(captures_list, sort_by, sort_order):
+
+def _apply_sorting_to_list(
+    captures_list: list[Capture],
+    sort_by: str,
+    sort_order: str,
+) -> list[Capture]:
     """Apply sorting to a list of captures."""
     if not sort_by or not captures_list:
         return captures_list
 
     reverse = sort_order == "desc"
     try:
-        allowed_sort_fields = {
-            "uuid", "created_at", "updated_at", "deleted_at",
-            "is_deleted", "is_public", "channel", "scan_group",
-            "capture_type", "top_level_dir", "index_name",
+        allowed_sort_fields: set[str] = {
+            "uuid",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "is_deleted",
+            "is_public",
+            "channel",
+            "scan_group",
+            "capture_type",
+            "top_level_dir",
+            "index_name",
         }
         if sort_by in allowed_sort_fields:
             captures_list = sorted(
                 captures_list,
-                key=lambda c: getattr(c, sort_by, None),
+                key=lambda c: (
+                    getattr(c, sort_by, None) is None,
+                    getattr(c, sort_by, ""),
+                ),
                 reverse=reverse,
             )
     except (TypeError, AttributeError) as e:
@@ -1395,14 +1448,21 @@ def _apply_sorting_to_list(captures_list, sort_by, sort_order):
     return captures_list
 
 
-def _get_filtered_and_sorted_captures(user, params, limit=None):
+def _get_filtered_and_sorted_captures(
+    user: User,
+    params: dict[str, Any],
+    limit: int | None = None,
+) -> list[Capture]:
     """
     Get filtered and sorted captures for a user based on parameters.
-    
+
     Args:
-        user: The user to get captures for
+        user:   The user to get captures for
         params: Dictionary of filter parameters
-        limit: Optional limit to apply to each queryset before union (for memory efficiency)
+        limit:  Optional limit to apply to each queryset before union
+
+    Returns:
+        List of filtered, sorted, and deduplicated Capture objects
     """
     # Get owned and shared captures
     owned_captures, shared_captures = _get_user_captures_querysets(user)
@@ -1434,7 +1494,7 @@ def _get_filtered_and_sorted_captures(user, params, limit=None):
     qs = owned_captures.union(shared_captures)
 
     # Convert to list (single DB query for union)
-    captures_list = list(qs)
+    captures_list: list[Capture] = list(qs)
 
     # Apply frequency filters to the combined list
     captures_list = _apply_frequency_filters_to_list(
@@ -1551,12 +1611,14 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
 
             try:
                 captures_data = _get_captures_for_template(captures_list, request)
-                # Remove the Capture model instance from each capture_data dict for JSON serialization
+                # remove the Capture model instance from each
+                #   capture_data dict for JSON serialization
                 for capture_data in captures_data:
                     capture_data.pop("capture", None)
             except Exception as e:
                 log.exception("Error in _get_captures_for_template: %s", e)
-                raise ValueError(f"Error getting capture data: {str(e)}") from e
+                msg = f"Error getting capture data: {e!s}"
+                raise ValueError(msg) from e
 
             response_data = {
                 "captures": captures_data,
@@ -1567,8 +1629,12 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
 
         except (ValueError, TypeError) as e:
             error_msg = str(e)
-            log.warning(f"Invalid parameter in captures API request: {error_msg}", exc_info=True)
-            return JsonResponse({"error": f"Invalid search parameters: {error_msg}"}, status=400)
+            log.warning(
+                f"Invalid parameter in captures API request: {error_msg}", exc_info=True
+            )
+            return JsonResponse(
+                {"error": f"Invalid search parameters: {error_msg}"}, status=400
+            )
         except DatabaseError:
             log.exception("Database error in captures API request")
             return JsonResponse({"error": "Database error occurred"}, status=500)
@@ -1618,7 +1684,7 @@ class GroupCapturesView(
     def get(self, request, *args, **kwargs):  # noqa: PLR0911
         """Handle GET request with permission checking and AJAX requests."""
         # Check if editing existing dataset
-        dataset_uuid = request.GET.get("dataset_uuid")
+        dataset_uuid = UUID(request.GET.get("dataset_uuid"))
 
         if dataset_uuid:
             # Check if user has access to edit this dataset
@@ -1716,7 +1782,7 @@ class GroupCapturesView(
         )
 
         # Check if we're editing an existing dataset
-        dataset_uuid = self.request.GET.get("dataset_uuid", None)
+        dataset_uuid = UUID(self.request.GET.get("dataset_uuid", None))
         existing_dataset = None
         permission_level = None
         is_owner = False
@@ -1827,7 +1893,7 @@ class GroupCapturesView(
             if validation_result:
                 return validation_result
 
-            dataset_uuid = request.GET.get("dataset_uuid")
+            dataset_uuid = UUID(request.GET.get("dataset_uuid"))
             if dataset_uuid:
                 # Handle dataset editing
                 return self._handle_dataset_edit(request, dataset_uuid)
@@ -1844,7 +1910,7 @@ class GroupCapturesView(
     def _validate_dataset_form(self, request) -> JsonResponse | None:
         """Validate the dataset form and return error response if invalid."""
         # Check if this is an edit operation first
-        dataset_uuid = request.GET.get("dataset_uuid")
+        dataset_uuid = UUID(request.GET.get("dataset_uuid"))
 
         if dataset_uuid:
             # For editing, validate permissions first
@@ -1933,7 +1999,7 @@ class GroupCapturesView(
             {"success": True, "redirect_url": reverse("users:dataset_list")},
         )
 
-    def _handle_dataset_edit(self, request, dataset_uuid: str) -> JsonResponse:
+    def _handle_dataset_edit(self, request, dataset_uuid: UUID) -> JsonResponse:
         """Handle dataset editing with asset management."""
 
         # Get the dataset
@@ -2389,20 +2455,24 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
     def _serialize_datasets(
         self, datasets: QuerySet[Dataset], user: User
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Prepare serialized datasets."""
         result = []
         for dataset in datasets:
             # Use serializer with request context for proper field calculation
             context = {"request": type("Request", (), {"user": user})()}
-            dataset_data = DatasetGetSerializer(dataset, context=context).data
+            dataset_data = cast(
+                "ReturnDict", DatasetGetSerializer(dataset, context=context).data
+            )
 
             # Add the original model for template access
             dataset_data["dataset"] = dataset
             result.append(dataset_data)
         return result
 
-    def _paginate_datasets(self, datasets: list[dict], request: HttpRequest) -> Any:
+    def _paginate_datasets(
+        self, datasets: list[dict[str, Any]], request: HttpRequest
+    ) -> Any:
         """Paginate the datasets list."""
         paginator = Paginator(datasets, per_page=15)
         page_number = request.GET.get("page")
@@ -2572,23 +2642,23 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 
     def _serve_file_download(self, zip_uuid: str, user) -> HttpResponse:
         """Serve the zip file for download."""
-        try:
-            # Get the temporary zip file
-            temp_zip = get_object_or_404(
-                TemporaryZipFile,
-                uuid=zip_uuid,
-                owner=user,
+        # Get the temporary zip file
+        temp_zip = get_object_or_404(
+            TemporaryZipFile,
+            uuid=zip_uuid,
+            owner=user,
+        )
+
+        log.info("Found temporary zip file: %s", temp_zip.filename)
+
+        file_path = Path(temp_zip.file_path)
+        if not file_path.exists():
+            log.warning("File not found on disk: %s", temp_zip.file_path)
+            return JsonResponse(
+                {"error": "The file was not found on the server."}, status=404
             )
 
-            log.info("Found temporary zip file: %s", temp_zip.filename)
-
-            file_path = Path(temp_zip.file_path)
-            if not file_path.exists():
-                log.warning("File not found on disk: %s", temp_zip.file_path)
-                return JsonResponse(
-                    {"error": "The file was not found on the server."}, status=404
-                )
-
+        try:
             file_size = file_path.stat().st_size
 
             with file_path.open("rb") as f:
@@ -2629,7 +2699,7 @@ class DownloadItemView(Auth0LoginRequiredMixin, View):
     def post(
         self,
         request: HttpRequest,
-        item_uuid: str,
+        item_uuid: UUID,
         item_type: ItemType,
         *args: Any,
         **kwargs: Any,
@@ -2664,8 +2734,8 @@ class DownloadItemView(Auth0LoginRequiredMixin, View):
             )
 
         # Get the item
+        model_class = self.ITEM_MODELS[item_type]
         try:
-            model_class = self.ITEM_MODELS[item_type]
             item = get_object_or_404(
                 model_class,
                 uuid=item_uuid,
@@ -2773,7 +2843,7 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         Returns:
             A JSON response containing the dataset details and files
         """
-        dataset_uuid = request.GET.get("dataset_uuid")
+        dataset_uuid = UUID(request.GET.get("dataset_uuid"))
 
         if not dataset_uuid:
             return JsonResponse({"error": "Dataset UUID is required"}, status=400)
@@ -2837,6 +2907,7 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
         Render HTML fragment using server-side templates.
 
         Expects JSON body with:
+        ```json
         {
             "template": "users/components/my_component.html",
             "context": {
@@ -2844,29 +2915,33 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
                 ...
             }
         }
-
+        ```
         Returns:
             JsonResponse with rendered HTML
         """
         try:
             data = json.loads(request.body)
-            template_name = data.get("template")
-            context = data.get("context", {})
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
 
-            if not template_name:
-                return JsonResponse({"error": "Template name is required"}, status=400)
+        template_name = data.get("template")
+        context = data.get("context", {})
 
-            # Security: Only allow templates from users/components/ directory
-            if not template_name.startswith("users/components/"):
-                log.error(
-                    "Invalid template path: %s",
-                    template_name,
-                )
-                return JsonResponse(
-                    {"error": "Cannot render component."},
-                    status=400,
-                )
+        if not template_name:
+            return JsonResponse({"error": "Template name is required"}, status=400)
 
+        # Security: Only allow templates from users/components/ directory
+        if not template_name.startswith("users/components/"):
+            log.error(
+                "Invalid template path: %s",
+                template_name,
+            )
+            return JsonResponse(
+                {"error": "Cannot render component."},
+                status=400,
+            )
+
+        try:
             html = render_html_fragment(
                 template_name=template_name,
                 context=context,
@@ -2874,8 +2949,6 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
             )
 
             return JsonResponse({"html": html})
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON"}, status=400)
         except Exception as e:  # noqa: BLE001
             log.exception(
                 "Error rendering template %s", data.get("template", "unknown")
@@ -2968,6 +3041,8 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Handle ShareGroup operations (create, update, delete)."""
         action = request.POST.get("action")
+        if not action:
+            return JsonResponse({"error": "Action is required"}, status=400)
 
         action_handlers = {
             "create": self._create_share_group,
@@ -3385,7 +3460,7 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
         """
         try:
             # Set the index name based on capture type
-            from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
+            from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name  # noqa: I001
 
             capture_data["index_name"] = infer_index_name(capture_data["capture_type"])
 
