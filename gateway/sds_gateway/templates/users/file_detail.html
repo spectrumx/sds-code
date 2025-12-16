@@ -38,25 +38,13 @@
                             {% if key == "directory" or key == "sum_blake3" or key == "uuid" %}
                                 <code>{{ value }}</code>
                             {% elif key == "owner" %}
-                                {% if value %}
-                                    {% if value.name %}
-                                        {{ value.name }} ({{ value.email }})
-                                    {% else %}
-                                        {{ value.email }}
-                                    {% endif %}
-                                {% else %}
-                                    <em class="text-secondary-emphasis text-muted">No owner information available.</em>
-                                {% endif %}
+                                {{ request.user.name }}
                             {% elif key == "size" %}
                                 {{ value|filesizeformat }}
                             {% elif key == "permissions" %}
                                 {{ value|human_readable_permissions }}
-                            {% elif key == "created_at" or key == "updated_at" or key == "expiration_date" %}
-                                {% if value %}
-                                    {{ value }}
-                                {% else %}
-                                    <em class="text-secondary-emphasis text-muted">N/A</em>
-                                {% endif %}
+                                {% comment %} {% elif key == "created_at" or key == "updated_at" or key == "expiration_date" %}
+                                {{ value|date:"Y-m-d H:i:s" }} {% endcomment %}
                             {% elif key == "capture" or key == "dataset" %}
                                 {% if value %}
                                     {{ value.uuid }}
@@ -64,7 +52,7 @@
                                     <em class="text-secondary-emphasis text-muted">No {{ key }} associated with this file.</em>
                                 {% endif %}
                             {% else %}
-                                {{ value|default:"N/A" }}
+                                {{ value }}
                             {% endif %}
                         </div>
                     </div>

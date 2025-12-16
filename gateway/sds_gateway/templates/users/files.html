@@ -409,34 +409,42 @@
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label for="fileInput" class="form-label">Select File or Folder</label>
-                            <div class="btn-group mb-2" role="group" aria-label="Upload mode">
-                                <input type="radio" class="btn-check" name="uploadMode" id="fileMode" value="file" checked>
-                                <label class="btn btn-outline-primary" for="fileMode">
-                                    <i class="bi bi-file-earmark"></i> Files
-                                </label>
-                                <input type="radio" class="btn-check" name="uploadMode" id="folderMode" value="folder">
-                                <label class="btn btn-outline-primary" for="folderMode">
-                                    <i class="bi bi-folder"></i> Folder
-                                </label>
-                            </div>
+                            <label for="fileInput" class="form-label">Select Files</label>
                             <input type="file"
                                    id="fileInput"
                                    name="files"
                                    multiple
                                    class="form-control"
-                                   required
                                    tabindex="0" />
-                            <small class="form-text text-muted" id="uploadModeHelp">Select one or more files to upload</small>
+                            <small class="form-text text-muted">Select one or more individual files</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="folderInput" class="form-label">Select Folder</label>
+                            <input type="file"
+                                   id="folderInput"
+                                   name="folders"
+                                   multiple
+                                   webkitdirectory
+                                   directory
+                                   class="form-control"
+                                   tabindex="0" />
+                            <small class="form-text text-muted">Select a folder to upload</small>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> You can select files, a folder, or both. At least one must be selected.
                         </div>
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer d-flex gap-2">
                         <button type="button"
-                                class="btn btn-secondary"
+                                class="btn btn-secondary flex-fill"
+                                id="clearUploadBtn"
+                                tabindex="0">Clear</button>
+                        <button type="button"
+                                class="btn btn-secondary flex-fill"
                                 data-bs-dismiss="modal"
                                 tabindex="0">Cancel</button>
                         <button type="submit"
-                                class="btn btn-primary"
+                                class="btn btn-primary flex-fill"
                                 id="uploadFileSubmitBtn"
                                 tabindex="0">
                             <span class="upload-text">Upload</span>

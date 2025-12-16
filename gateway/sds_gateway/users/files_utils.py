@@ -259,7 +259,7 @@ def add_root_items(request) -> list[Item]:
             is_deleted=False,
             capture__isnull=True,
         )
-    )
+    ).order_by("name")
 
     logger.debug(
         "FilesView: user=%s has individual files=%d",
@@ -274,7 +274,7 @@ def add_root_items(request) -> list[Item]:
 
     for file_obj in individual_files:
         rel_dir = _get_relative_directory(file_obj, "", user_root)
-        
+
         if not rel_dir:
             # File is directly in user root
             root_level_files.append(file_obj)
@@ -285,6 +285,16 @@ def add_root_items(request) -> list[Item]:
 
     # Add top-level directories as clickable items
     for dirname in sorted(top_level_dirs):
+        # Calculate modified date from files in this directory
+        modified_date = None
+        for file_obj in individual_files:
+            rel_dir = _get_relative_directory(file_obj, "", user_root)
+            if rel_dir and rel_dir.startswith(dirname + "/"):
+                file_updated = getattr(file_obj, "updated_at", None)
+                if file_updated:
+                    if not modified_date or file_updated > modified_date:
+                        modified_date = file_updated
+
         items.append(
             make_dir_item(
                 DirItemParams(
@@ -295,13 +305,13 @@ def add_root_items(request) -> list[Item]:
                     is_shared=False,
                     is_owner=True,
                     capture_uuid="",
-                    modified_at_display="N/A",
+                    modified_at_display=format_modified(modified_date),
                     shared_by="",
                 )
             )
         )
 
-    # Add files that are directly in the root (no subdirectory)
+    # Add root-level files
     items.extend(
         [
             make_file_item(
@@ -310,7 +320,7 @@ def add_root_items(request) -> list[Item]:
                 is_shared=False,
                 shared_by="",
             )
-            for file_obj in sorted(root_level_files, key=lambda f: f.name.lower())
+            for file_obj in root_level_files
         ]
     )
 
@@ -348,8 +358,8 @@ def _get_relative_directory(file_obj, capture_root: str, user_root: str) -> str:
     else:
         rel_dir = file_dir
 
-    # If we have a capture_root, drop the first segment (capture folder name)
-    # For user files (no capture_root), keep the full relative path
+    # For capture files, drop the first segment (capture folder name)
+    # For user files (when capture_root is empty), preserve the full path
     if capture_root and "/" in rel_dir:
         _first_seg, rest = rel_dir.split("/", 1)
         return rest  # drop capture folder name
@@ -397,7 +407,7 @@ def _filter_files_by_subpath(
     return child_files, child_dirs
 
 
-def _add_child_directories(
+def _add_child_directories(  # noqa: C901
     child_dirs: set[str],
     capture_uuid: str,
     current_subpath: str,
@@ -405,6 +415,8 @@ def _add_child_directories(
     *,
     is_shared: bool = False,
     shared_by: str = "",
+    files: list | None = None,
+    user_root: str = "",
 ) -> list[Item]:
     """Add child directories to the items list."""
     items: list[Item] = []
@@ -422,6 +434,28 @@ def _add_child_directories(
             # This looks like an email address, use a more friendly name
             display_name = "Files"
 
+        # Calculate modified date from files in this directory if files are provided
+        modified_date = None
+        if files:
+            # Build the full directory path for this child directory
+            if current_subpath:
+                full_dir_path = f"{current_subpath}/{dirname}"
+            else:
+                full_dir_path = dirname
+
+            # Find the most recent updated_at from files in this directory
+            for file_obj in files:
+                rel_dir = _get_relative_directory(file_obj, "", user_root)
+                if rel_dir == full_dir_path or rel_dir.startswith(full_dir_path + "/"):
+                    file_updated = getattr(file_obj, "updated_at", None)
+                    if file_updated:
+                        if not modified_date or file_updated > modified_date:
+                            modified_date = file_updated
+
+        # Fall back to capture updated_at if no files found
+        if not modified_date:
+            modified_date = getattr(capture, "updated_at", None)
+
         items.append(
             make_dir_item(
                 DirItemParams(
@@ -432,9 +466,7 @@ def _add_child_directories(
                     is_shared=is_shared,
                     is_owner=not is_shared,  # Only owned if not shared
                     capture_uuid=str(capture_uuid),
-                    modified_at_display=format_modified(
-                        getattr(capture, "updated_at", None)
-                    ),
+                    modified_at_display=format_modified(modified_date),
                     shared_by=shared_by,
                 )
             )
@@ -510,6 +542,8 @@ def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
         capture,
         is_shared=is_shared,
         shared_by=shared_by,
+        files=list(capture_files),
+        user_root=user_root,
     )
 
     # Then add files that live directly in this level
@@ -555,6 +589,8 @@ def add_user_files(request, subpath: str = "") -> list[Item]:
     directory_items = _add_user_file_directories(
         child_dirs,
         current_subpath,
+        user_files=list(user_files),
+        user_root=user_root,
     )
 
     # Then add files that live directly in this level
@@ -568,6 +604,9 @@ def add_user_files(request, subpath: str = "") -> list[Item]:
 def _add_user_file_directories(
     child_dirs: set[str],
     current_subpath: str,
+    *,
+    user_files: list | None = None,
+    user_root: str = "",
 ) -> list[Item]:
     """Add child directories for user files to the items list."""
     items: list[Item] = []
@@ -579,6 +618,24 @@ def _add_user_file_directories(
         next_path_parts.append(dirname)
         next_path = "/" + "/".join(next_path_parts)
 
+        # Calculate modified date from files in this directory if files are provided
+        modified_date = None
+        if user_files:
+            # Build the full directory path for this child directory
+            if current_subpath:
+                full_dir_path = f"{current_subpath}/{dirname}"
+            else:
+                full_dir_path = dirname
+
+            # Find the most recent updated_at from files in this directory
+            for file_obj in user_files:
+                rel_dir = _get_relative_directory(file_obj, "", user_root)
+                if rel_dir == full_dir_path or rel_dir.startswith(full_dir_path + "/"):
+                    file_updated = getattr(file_obj, "updated_at", None)
+                    if file_updated:
+                        if not modified_date or file_updated > modified_date:
+                            modified_date = file_updated
+
         items.append(
             make_dir_item(
                 DirItemParams(
@@ -589,7 +646,7 @@ def _add_user_file_directories(
                     is_shared=False,
                     is_owner=True,
                     capture_uuid="",
-                    modified_at_display="N/A",
+                    modified_at_display=format_modified(modified_date),
                     shared_by="",
                 )
             )

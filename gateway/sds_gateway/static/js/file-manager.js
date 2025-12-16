@@ -1025,8 +1025,6 @@ class FileManager {
 			"mp4",
 			"nc",
 			"netcdf",
-			"npy",
-			"npz",
 			"obj",
 			"odp",
 			"ods",
@@ -1605,12 +1603,6 @@ class FileManager {
 
 			const sanitizedName = this.sanitizeFileName(name);
 			const lower = sanitizedName.toLowerCase();
-
-			// Disable clicking on .npy and .npz files
-			if (lower.endsWith(".npy") || lower.endsWith(".npz")) {
-				// NumPy array files - clicking disabled
-				return;
-			}
 
 			if (this.shouldPreviewFile(sanitizedName)) {
 				this.showTextFilePreview(uuid, sanitizedName);
