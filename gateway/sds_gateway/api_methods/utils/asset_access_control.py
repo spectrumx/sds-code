@@ -25,21 +25,17 @@ def user_has_access_to_capture(user, capture: Capture) -> bool:
     Returns:
         bool: True if user has access, False otherwise
     """
-    # Check if user owns the capture directly
-    if capture.owner == user:
-        return True
-
-    # Check if capture is directly shared with the user
-    if user_has_access_to_item(user, capture.uuid, ItemType.CAPTURE):
-        return True
-
-    # Check if capture is part of a dataset that is shared with the user
-    if capture.datasets.exists():
-        for dataset in capture.datasets.all():
-            if user_has_access_to_item(user, dataset.uuid, ItemType.DATASET):
-                return True
-
-    return False
+    user_has_access_to_capture = user_has_access_to_item(
+        user,
+        capture.uuid,
+        ItemType.CAPTURE,
+    )
+    user_has_access_to_dataset = capture.datasets.filter(
+        Q(owner=user) | Q(shared_with=user),
+        is_deleted=False,
+    ).exists()
+    
+    return user_has_access_to_capture or user_has_access_to_dataset
 
 
 def user_has_access_to_file(user, file: File) -> bool:
@@ -59,23 +55,17 @@ def user_has_access_to_file(user, file: File) -> bool:
     Returns:
         bool: True if user has access, False otherwise
     """
-    # Check if user owns the file directly
-    if file.owner == user:
-        return True
-
-    # Check if file is part of a capture that is shared with the user
-    if file.captures.exists():
-        for capture in file.captures.all():
-            if user_has_access_to_capture(user, capture):
-                return True
-
-    # Check if file is part of a dataset that is shared with them
-    if file.datasets.exists():
-        for dataset in file.datasets.all():
-            if user_has_access_to_item(user, dataset.uuid, ItemType.DATASET):
-                return True
-
-    return False
+    user_owns_file = file.owner == user
+    user_has_access_to_capture = file.captures.filter(
+        Q(owner=user) | Q(shared_with=user),
+        is_deleted=False,
+    ).exists()
+    user_has_access_to_dataset = file.datasets.filter(
+        Q(owner=user) | Q(shared_with=user),
+        is_deleted=False,
+    ).exists()
+    
+    return user_owns_file or user_has_access_to_capture or user_has_access_to_dataset
 
 
 def get_accessible_files_queryset(user):
