@@ -389,6 +389,19 @@ class FilesPageInitializer {
 		// Create a UserSearchHandler for each share modal
 		const shareModals = document.querySelectorAll(".modal[data-item-uuid]");
 
+		// Skip initialization if no share modals exist on this page
+		if (shareModals.length === 0) {
+			return;
+		}
+
+		// Check if UserSearchHandler is available before trying to initialize
+		if (!window.UserSearchHandler) {
+			console.warn(
+				"UserSearchHandler not available. Share functionality will not work.",
+			);
+			return;
+		}
+
 		for (const modal of shareModals) {
 			this.setupUserSearchHandler(modal);
 		}
@@ -412,13 +425,6 @@ class FilesPageInitializer {
 				ErrorHandler.showError(
 					"Invalid modal configuration",
 					"user-search-setup",
-				);
-				return;
-			}
-
-			if (!window.UserSearchHandler) {
-				console.warn(
-					"UserSearchHandler not available. User search functionality will not work.",
 				);
 				return;
 			}
