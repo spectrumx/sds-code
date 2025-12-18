@@ -259,7 +259,7 @@ describe("DatasetModeManager", () => {
 			}).toThrow();
 		});
 	});
-	
+
 	describe("Public/Private Dataset Management", () => {
 		beforeEach(() => {
 			modeManager = new DatasetModeManager(mockConfig);
@@ -274,10 +274,10 @@ describe("DatasetModeManager", () => {
 				...mockConfig,
 				existingDatasetIsPublic: false,
 			};
-			
+
 			const publicManager = new DatasetModeManager(publicConfig);
 			const privateManager = new DatasetModeManager(privateConfig);
-			
+
 			expect(publicManager.isExistingPublicDataset()).toBe(true);
 			expect(privateManager.isExistingPublicDataset()).toBe(false);
 		});
@@ -287,11 +287,11 @@ describe("DatasetModeManager", () => {
 			publicOption.id = "public-option";
 			publicOption.type = "radio";
 			publicOption.checked = true;
-			
+
 			const statusField = document.createElement("input");
 			statusField.id = "id_status";
 			statusField.value = "final";
-			
+
 			document.getElementById = jest.fn((id) => {
 				if (id === "public-option") return publicOption;
 				if (id === "id_status") return statusField;
@@ -300,11 +300,11 @@ describe("DatasetModeManager", () => {
 
 			expect(modeManager.isCurrentSessionPublicDataset()).toBe(true);
 			expect(modeManager.isCurrentSessionFinalDataset()).toBe(true);
-			
+
 			// Test draft/private combination
 			publicOption.checked = false;
 			statusField.value = "draft";
-			
+
 			expect(modeManager.isCurrentSessionPublicDataset()).toBe(false);
 			expect(modeManager.isCurrentSessionFinalDataset()).toBe(false);
 		});
