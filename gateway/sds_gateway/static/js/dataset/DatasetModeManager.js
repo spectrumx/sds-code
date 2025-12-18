@@ -767,8 +767,8 @@ class DatasetModeManager {
 						css_class: "btn-outline-secondary",
 						extra_class: "cancel-change",
 						data_attrs: {
-							capture_id: id,
-							change_type: "capture",
+							"capture-id": id,
+							"change-type": "capture",
 						},
 					},
 				],
@@ -794,8 +794,8 @@ class DatasetModeManager {
 						css_class: "btn-outline-secondary",
 						extra_class: "cancel-change",
 						data_attrs: {
-							file_id: id,
-							change_type: "file",
+							"file-id": id,
+							"change-type": "file",
 						},
 					},
 				],
