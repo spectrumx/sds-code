@@ -7,7 +7,6 @@ independently without needing to instantiate the entire view class.
 """
 
 import contextlib
-import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +14,7 @@ from typing import Any
 
 from django.http import JsonResponse
 from django.utils import timezone
+from loguru import logger as log
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import File
@@ -88,7 +88,7 @@ def temp_h5_file_context(file_obj, h5_max_bytes: int):
             try:
                 Path(temp_path).unlink(missing_ok=True)
             except OSError as e:
-                logger.warning("Could not delete temporary file %s: %s", temp_path, e)
+                log.warning(f"Could not delete temporary file {temp_path}: {e}")
 
 
 def items_to_dicts(items: list[Item]) -> list[dict[str, Any]]:
@@ -110,11 +110,8 @@ def dicts_to_items(data: list[dict[str, Any]]) -> list[Item]:
         elif item_type == "dataset":
             items.append(DatasetItem(**item_dict))
         else:
-            logger.warning("Unknown item type: %s", item_type)
+            log.warning(f"Unknown item type: {item_type}")
     return items
-
-
-logger = logging.getLogger(__name__)
 
 
 def get_filtered_files_queryset(base_queryset):
@@ -224,10 +221,8 @@ def add_root_items(request) -> list[Item]:
     # Get user's captures
     user_captures = request.user.captures.filter(is_deleted=False)
 
-    logger.debug(
-        "FilesView: user=%s has captures=%d",
-        request.user.email,
-        user_captures.count(),
+    log.debug(
+        f"FilesView: user={request.user.email} has captures={user_captures.count()}"
     )
 
     # Add captures as folders
@@ -261,10 +256,9 @@ def add_root_items(request) -> list[Item]:
         )
     ).order_by("name")
 
-    logger.debug(
-        "FilesView: user=%s has individual files=%d",
-        request.user.email,
-        individual_files.count(),
+    log.debug(
+        f"FilesView: user={request.user.email} "
+        f"has individual files={individual_files.count()}"
     )
 
     # Group files by top-level directory
@@ -286,14 +280,9 @@ def add_root_items(request) -> list[Item]:
     # Add top-level directories as clickable items
     for dirname in sorted(top_level_dirs):
         # Calculate modified date from files in this directory
-        modified_date = None
-        for file_obj in individual_files:
-            rel_dir = _get_relative_directory(file_obj, "", user_root)
-            if rel_dir and rel_dir.startswith(dirname + "/"):
-                file_updated = getattr(file_obj, "updated_at", None)
-                if file_updated:
-                    if not modified_date or file_updated > modified_date:
-                        modified_date = file_updated
+        modified_date = _calculate_dir_modified_date(
+            dirname, "", list(individual_files), user_root
+        )
 
         items.append(
             make_dir_item(
@@ -367,6 +356,42 @@ def _get_relative_directory(file_obj, capture_root: str, user_root: str) -> str:
     return rel_dir
 
 
+def _calculate_dir_modified_date(
+    dirname: str,
+    current_subpath: str,
+    files: list | None,
+    user_root: str,
+) -> timezone.datetime | None:
+    """Calculate the most recent modified date from files in a directory.
+
+    Args:
+        dirname: The directory name to calculate modified date for
+        current_subpath: The current subpath prefix
+        files: List of file objects to check
+        user_root: The user root path for relative directory calculation
+
+    Returns:
+        The most recent updated_at datetime, or None if no files found
+    """
+    if not files:
+        return None
+
+    # Build the full directory path for this child directory
+    full_dir_path = f"{current_subpath}/{dirname}" if current_subpath else dirname
+
+    modified_date = None
+    # Find the most recent updated_at from files in this directory
+    for file_obj in files:
+        rel_dir = _get_relative_directory(file_obj, "", user_root)
+        if rel_dir == full_dir_path or rel_dir.startswith(full_dir_path + "/"):
+            file_updated = getattr(file_obj, "updated_at", None)
+            if file_updated:
+                if not modified_date or file_updated > modified_date:
+                    modified_date = file_updated
+
+    return modified_date
+
+
 def _filter_files_by_subpath(
     files, current_subpath: str, user_root: str = ""
 ) -> tuple[list, set[str]]:
@@ -407,7 +432,7 @@ def _filter_files_by_subpath(
     return child_files, child_dirs
 
 
-def _add_child_directories(  # noqa: C901
+def _add_child_directories(
     child_dirs: set[str],
     capture_uuid: str,
     current_subpath: str,
@@ -434,23 +459,10 @@ def _add_child_directories(  # noqa: C901
             # This looks like an email address, use a more friendly name
             display_name = "Files"
 
-        # Calculate modified date from files in this directory if files are provided
-        modified_date = None
-        if files:
-            # Build the full directory path for this child directory
-            if current_subpath:
-                full_dir_path = f"{current_subpath}/{dirname}"
-            else:
-                full_dir_path = dirname
-
-            # Find the most recent updated_at from files in this directory
-            for file_obj in files:
-                rel_dir = _get_relative_directory(file_obj, "", user_root)
-                if rel_dir == full_dir_path or rel_dir.startswith(full_dir_path + "/"):
-                    file_updated = getattr(file_obj, "updated_at", None)
-                    if file_updated:
-                        if not modified_date or file_updated > modified_date:
-                            modified_date = file_updated
+        # Calculate modified date from files in this directory
+        modified_date = _calculate_dir_modified_date(
+            dirname, current_subpath, files, user_root
+        )
 
         # Fall back to capture updated_at if no files found
         if not modified_date:
@@ -513,11 +525,9 @@ def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
         File.objects.filter(capture=capture, is_deleted=False)
     )
 
-    logger.debug(
-        "FilesView: capture=%s files=%d is_shared=%s",
-        capture.name,
-        capture_files.count(),
-        is_shared,
+    log.debug(
+        f"FilesView: capture={capture.name} "
+        f"files={capture_files.count()} is_shared={is_shared}"
     )
 
     # Normalize paths
@@ -573,11 +583,9 @@ def add_user_files(request, subpath: str = "") -> list[Item]:
         )
     )
 
-    logger.debug(
-        "FilesView: user=%s subpath=%s files=%d",
-        request.user.email,
-        current_subpath,
-        user_files.count(),
+    log.debug(
+        f"FilesView: user={request.user.email} "
+        f"subpath={current_subpath} files={user_files.count()}"
     )
 
     # Filter files by subpath and collect child directories
@@ -618,23 +626,10 @@ def _add_user_file_directories(
         next_path_parts.append(dirname)
         next_path = "/" + "/".join(next_path_parts)
 
-        # Calculate modified date from files in this directory if files are provided
-        modified_date = None
-        if user_files:
-            # Build the full directory path for this child directory
-            if current_subpath:
-                full_dir_path = f"{current_subpath}/{dirname}"
-            else:
-                full_dir_path = dirname
-
-            # Find the most recent updated_at from files in this directory
-            for file_obj in user_files:
-                rel_dir = _get_relative_directory(file_obj, "", user_root)
-                if rel_dir == full_dir_path or rel_dir.startswith(full_dir_path + "/"):
-                    file_updated = getattr(file_obj, "updated_at", None)
-                    if file_updated:
-                        if not modified_date or file_updated > modified_date:
-                            modified_date = file_updated
+        # Calculate modified date from files in this directory
+        modified_date = _calculate_dir_modified_date(
+            dirname, current_subpath, user_files, user_root
+        )
 
         items.append(
             make_dir_item(
