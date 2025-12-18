@@ -298,10 +298,7 @@ class AssetSearchHandler {
 		// Normalize for generic table_rows template
 		const rows = capturesData.map((capture) => ({
 			data_attrs: { "capture-id": capture.id },
-			cells: [
-				{ value: capture.type },
-				{ value: capture.directory },
-			],
+			cells: [{ value: capture.type }, { value: capture.directory }],
 			actions: [
 				{
 					label: "Remove",
@@ -993,10 +990,10 @@ class AssetSearchHandler {
 				const row = document.createElement("tr");
 				const filePath = this.getRelativePath(file, currentPath);
 				const isSelected = this.selectedFiles.has(file.id);
-				
+
 				// Check if file is already in the dataset (edit mode only)
-				const isExistingFile = this.isEditMode && 
-					this.formHandler?.currentFiles?.has(file.id);
+				const isExistingFile =
+					this.isEditMode && this.formHandler?.currentFiles?.has(file.id);
 				row.innerHTML = `
 					<td>
 						<input type="checkbox" class="form-check-input" name="files" value="${file.id}"

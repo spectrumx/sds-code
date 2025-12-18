@@ -282,7 +282,7 @@ describe("AssetSearchHandler", () => {
 			expect(searchHandler.currentFilters.type).toBe("spectrum");
 		});
 	});
-	
+
 	describe("Checkbox Disabling for Existing Files", () => {
 		let editModeHandler;
 		let createModeHandler;
@@ -296,10 +296,7 @@ describe("AssetSearchHandler", () => {
 				formHandler: {
 					setSearchHandler: jest.fn(),
 					currentFiles: new Map([
-						[
-							"existing-file-1",
-							{ id: "existing-file-1", name: "existing.h5" },
-						],
+						["existing-file-1", { id: "existing-file-1", name: "existing.h5" }],
 					]),
 				},
 			};
@@ -315,7 +312,7 @@ describe("AssetSearchHandler", () => {
 			// Mock target element for rendering
 			mockTargetElement = document.createElement("tbody");
 			mockTargetElement.id = "file-tree-table-body";
-			
+
 			// Mock DOMUtils.formatFileSize
 			global.window.DOMUtils.formatFileSize = jest.fn((size) => size || "0 B");
 		});
