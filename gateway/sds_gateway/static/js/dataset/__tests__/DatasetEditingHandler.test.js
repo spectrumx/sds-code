@@ -324,4 +324,144 @@ describe("DatasetEditingHandler", () => {
 			},
 		);
 	});
+	
+	describe("Cancel Button Functionality", () => {
+		beforeEach(() => {
+			editingHandler = new DatasetEditingHandler(mockConfig);
+			
+			// Mock required DOM elements for cancel operations
+			const pendingCapturesList = document.createElement("tbody");
+			pendingCapturesList.id = "pending-captures-list";
+			const pendingFilesList = document.createElement("tbody");
+			pendingFilesList.id = "pending-files-list";
+			
+			document.getElementById = jest.fn((id) => {
+				if (id === "pending-captures-list") return pendingCapturesList;
+				if (id === "pending-files-list") return pendingFilesList;
+				return null;
+			});
+		});
+
+		test("should cancel capture change", () => {
+			const captureId = "test-capture-1";
+			const capture = { id: captureId, name: "Test Capture" };
+
+			// Add a pending capture change
+			editingHandler.pendingCaptures.set(captureId, {
+				...capture,
+				action: "add",
+			});
+
+			editingHandler.cancelCaptureChange(captureId);
+
+			expect(editingHandler.pendingCaptures.has(captureId)).toBe(false);
+		});
+
+		test("should cancel file change", () => {
+			const fileId = "test-file-1";
+			const file = { id: fileId, name: "test.h5" };
+
+			// Add a pending file change
+			editingHandler.pendingFiles.set(fileId, {
+				...file,
+				action: "add",
+			});
+
+			editingHandler.cancelFileChange(fileId);
+
+			expect(editingHandler.pendingFiles.has(fileId)).toBe(false);
+		});
+
+		test("should handle cancel button click for captures", () => {
+			const captureId = "test-capture-1";
+			const button = document.createElement("button");
+			button.className = "cancel-change";
+			button.dataset.captureId = captureId;
+			button.dataset.changeType = "capture";
+
+			// Add a pending capture
+			editingHandler.pendingCaptures.set(captureId, {
+				id: captureId,
+				action: "add",
+			});
+
+			document.querySelectorAll = jest.fn((selector) => {
+				if (selector === ".cancel-change") return [button];
+				return [];
+			});
+
+			editingHandler.addCancelButtonListeners();
+
+			// Simulate click
+			const clickEvent = new Event("click");
+			button.dispatchEvent(clickEvent);
+
+			expect(editingHandler.pendingCaptures.has(captureId)).toBe(false);
+		});
+
+		test("should handle cancel button click for files", () => {
+			const fileId = "test-file-1";
+			const button = document.createElement("button");
+			button.className = "cancel-change";
+			button.dataset.fileId = fileId;
+			button.dataset.changeType = "file";
+
+			// Add a pending file
+			editingHandler.pendingFiles.set(fileId, {
+				id: fileId,
+				action: "add",
+			});
+
+			document.querySelectorAll = jest.fn((selector) => {
+				if (selector === ".cancel-change") return [button];
+				return [];
+			});
+
+			editingHandler.addCancelButtonListeners();
+
+			// Simulate click
+			const clickEvent = new Event("click");
+			button.dispatchEvent(clickEvent);
+
+			expect(editingHandler.pendingFiles.has(fileId)).toBe(false);
+		});
+
+		test("should restore capture to current list when canceling removal", () => {
+			const captureId = "test-capture-1";
+			const capture = { id: captureId, name: "Test Capture" };
+
+			// Add to current captures
+			editingHandler.currentCaptures.set(captureId, capture);
+
+			// Mark for removal
+			editingHandler.pendingCaptures.set(captureId, {
+				...capture,
+				action: "remove",
+			});
+
+			editingHandler.cancelCaptureChange(captureId);
+
+			expect(editingHandler.pendingCaptures.has(captureId)).toBe(false);
+			expect(editingHandler.currentCaptures.has(captureId)).toBe(true);
+		});
+
+		test("should restore file to current list when canceling removal", () => {
+			const fileId = "test-file-1";
+			const file = { id: fileId, name: "test.h5" };
+
+			// Add to current files
+			editingHandler.currentFiles.set(fileId, file);
+
+			// Mark for removal
+			editingHandler.pendingFiles.set(fileId, {
+				...file,
+				action: "remove",
+			});
+
+			editingHandler.cancelFileChange(fileId);
+
+			expect(editingHandler.pendingFiles.has(fileId)).toBe(false);
+			expect(editingHandler.currentFiles.has(fileId)).toBe(true);
+		});
+	});
 });
