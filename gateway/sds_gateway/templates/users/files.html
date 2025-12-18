@@ -447,7 +447,8 @@
                         <button type="submit"
                                 class="btn btn-primary flex-fill"
                                 id="uploadFileSubmitBtn"
-                                tabindex="0">
+                                tabindex="0"
+                                disabled>
                             <span class="upload-text">Upload</span>
                             <span class="upload-spinner d-none">
                                 <span class="spinner-border spinner-border-sm me-2" role="status"></span>
@@ -497,7 +498,7 @@
 {% endblock content %}
 {% block javascript %}
     <script src="{% static 'js/components.js' %}"></script>
-    <script src="{% static 'js/userSearchComponent.js' %}"></script>
+    <script src="{% static 'js/share/UserSearchHandler.js' %}"></script>
     {# Fallback modal helpers provided by components.js; inline duplicates removed #}
     <script src="{% static 'js/file-manager.js' %}?v=7"></script>
     <!-- Load the WASM library for BLAKE3 hashing -->

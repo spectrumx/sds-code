@@ -420,14 +420,10 @@ def _filter_files_by_subpath(
         if not remainder:
             # File lives directly at this level
             child_files.append(file_obj)
-        elif remainder:
+        else:
+            # File is in a child directory
             first_component = remainder.split("/", 1)[0]
-            # If remainder still has nested components, it's a child dir
-            if "/" in remainder:
-                child_dirs.add(first_component)
-            else:
-                # File directly within this level
-                child_files.append(file_obj)
+            child_dirs.add(first_component)
 
     return child_files, child_dirs
 
@@ -539,9 +535,14 @@ def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
     else:
         user_root = _normalize_path(f"files/{request.user.email}")
 
+    # Compute capture root (user_root + capture's top_level_dir)
+    # This is where capture files are stored
+    capture_top_dir = _normalize_path(capture.top_level_dir)
+    capture_root = f"{user_root}/{capture_top_dir}" if capture_top_dir else user_root
+
     # Filter files by subpath and collect child directories
     child_files, child_dirs = _filter_files_by_subpath(
-        capture_files, current_subpath, user_root
+        capture_files, current_subpath, capture_root
     )
 
     # Add child directories first
@@ -553,7 +554,7 @@ def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
         is_shared=is_shared,
         shared_by=shared_by,
         files=list(capture_files),
-        user_root=user_root,
+        user_root=capture_root,
     )
 
     # Then add files that live directly in this level
