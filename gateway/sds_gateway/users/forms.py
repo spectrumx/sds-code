@@ -173,8 +173,15 @@ class DatasetInfoForm(forms.Form):
         required=True,
         choices=Dataset.STATUS_CHOICES,
         initial="draft",
-        widget=forms.Select(attrs={"class": "form-control"}),
+        widget=forms.HiddenInput(),
         help_text="Draft: Work in progress, Final: Complete and ready for use",
+    )
+
+    is_public = forms.BooleanField(
+        label="Is Public",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="Make this dataset public to the entire SDS community.",
     )
 
     def __init__(self, *args, **kwargs):
