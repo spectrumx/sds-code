@@ -1631,8 +1631,7 @@ class CapturesAPIView(Auth0LoginRequiredMixin, View):
         except (ValueError, TypeError) as e:
             error_msg = str(e)
             log.warning(
-                "Invalid parameter in captures API request: %s",
-                error_msg,
+                f"Invalid parameter in captures API request: {error_msg}",
                 exc_info=True,
             )
             return JsonResponse(
@@ -2967,7 +2966,7 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
 
         # Security: Only allow templates from users/components/ directory
         if not template_name.startswith("users/components/"):
-            log.warning("Invalid template path: %s", template_name)
+            log.warning(f"Invalid template path: {template_name}")
             return JsonResponse(
                 {"error": "Cannot render component."},
                 status=400,
