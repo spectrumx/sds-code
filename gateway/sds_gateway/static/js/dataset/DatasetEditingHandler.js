@@ -486,7 +486,7 @@ class DatasetEditingHandler {
 	markFileForRemoval(fileId) {
 		const file = this.filesSearchHandler?.selectedFiles.get(fileId);
 
-		if (!file){
+		if (!file) {
 			console.warn(`File ${fileId} not found for removal`);
 			return;
 		}

@@ -324,17 +324,17 @@ describe("DatasetEditingHandler", () => {
 			},
 		);
 	});
-	
+
 	describe("Cancel Button Functionality", () => {
 		beforeEach(() => {
 			editingHandler = new DatasetEditingHandler(mockConfig);
-			
+
 			// Mock required DOM elements for cancel operations
 			const pendingCapturesList = document.createElement("tbody");
 			pendingCapturesList.id = "pending-captures-list";
 			const pendingFilesList = document.createElement("tbody");
 			pendingFilesList.id = "pending-files-list";
-			
+
 			document.getElementById = jest.fn((id) => {
 				if (id === "pending-captures-list") return pendingCapturesList;
 				if (id === "pending-files-list") return pendingFilesList;
