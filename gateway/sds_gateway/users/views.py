@@ -1700,6 +1700,215 @@ class GroupCapturesView(
 ):
     template_name = "users/group_captures.html"
 
+    # ========== Helper Methods ==========
+
+    def _parse_dataset_uuid(
+        self, dataset_uuid_str: str, raise_on_error: bool = False
+    ) -> UUID | None:
+        """
+        Parse dataset UUID string with consistent error handling.
+
+        Args:
+            dataset_uuid_str: String representation of UUID
+            raise_on_error: If True, raises Http404 on error. If False, returns None.
+
+        Returns:
+            UUID object if valid, None if invalid (when raise_on_error=False)
+
+        Raises:
+            Http404: If raise_on_error=True and UUID is invalid
+        """
+        try:
+            return UUID(dataset_uuid_str)
+        except ValueError:
+            if raise_on_error:
+                msg = "Invalid dataset UUID."
+                raise Http404(msg)
+            return None
+
+    def _parse_comma_separated_ids(self, value: str) -> list[str]:
+        """
+        Parse comma-separated IDs from a string.
+
+        Args:
+            value: Comma-separated string of IDs
+
+        Returns:
+            List of trimmed, non-empty IDs
+        """
+        if not value:
+            return []
+        return [item_id.strip() for item_id in value.split(",") if item_id.strip()]
+
+    def _get_error_response(
+        self, message: str | None = None, errors: dict | None = None, status_code: int = 400
+    ) -> JsonResponse:
+        """
+        Create standardized error response.
+
+        Args:
+            message: Single error message (for non_field_errors)
+            errors: Dictionary of field errors
+            status_code: HTTP status code
+
+        Returns:
+            JsonResponse with standardized error format
+        """
+        if message:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "errors": {"non_field_errors": [message]},
+                },
+                status=status_code,
+            )
+        if errors:
+            return JsonResponse(
+                {"success": False, "errors": errors},
+                status=status_code,
+            )
+        return JsonResponse(
+            {"success": False, "errors": {"non_field_errors": ["An error occurred."]}},
+            status=status_code,
+        )
+
+    def _get_dataset(
+        self, dataset_uuid: UUID, user: User | None = None, raise_404: bool = True
+    ) -> Dataset | None:
+        """
+        Safely retrieve a dataset with consistent error handling.
+
+        Args:
+            dataset_uuid: UUID of the dataset
+            user: Optional user to filter by owner
+            raise_404: If True, raises Http404 if not found. If False, returns None.
+
+        Returns:
+            Dataset object if found, None if not found (when raise_404=False)
+
+        Raises:
+            Http404: If raise_404=True and dataset not found
+        """
+        if raise_404:
+            if user:
+                return get_object_or_404(Dataset, uuid=dataset_uuid, owner=user)
+            return get_object_or_404(Dataset, uuid=dataset_uuid)
+
+        # When raise_404=False, use objects.get() to return None instead of raising
+        try:
+            filters = {"uuid": dataset_uuid}
+            if user:
+                filters["owner"] = user
+            return Dataset.objects.get(**filters)
+        except Dataset.DoesNotExist:
+            return None
+
+    def _get_capture(
+        self, capture_id: str, user: User | None = None, require_owner: bool = False
+    ) -> Capture | None:
+        """
+        Safely retrieve a capture with consistent error handling.
+
+        Args:
+            capture_id: UUID string of the capture
+            user: Optional user to filter by owner
+            require_owner: If True, only returns captures owned by user
+
+        Returns:
+            Capture object if found and accessible, None otherwise
+        """
+        try:
+            filters = {"uuid": capture_id, "is_deleted": False}
+            if require_owner and user:
+                filters["owner"] = user
+            capture = Capture.objects.get(**filters)
+            # Additional check if user provided but require_owner is False
+            if user and not require_owner and capture.owner != user:
+                # Still allow if user has access (for shared captures)
+                pass
+            return capture
+        except Capture.DoesNotExist:
+            return None
+
+    def _get_file(
+        self, file_id: str, user: User | None = None, require_owner: bool = False
+    ) -> File | None:
+        """
+        Safely retrieve a file with consistent error handling.
+
+        Args:
+            file_id: UUID string of the file
+            user: Optional user to filter by owner
+            require_owner: If True, only returns files owned by user
+
+        Returns:
+            File object if found and accessible, None otherwise
+        """
+        try:
+            filters = {"uuid": file_id, "is_deleted": False}
+            if require_owner and user:
+                filters["owner"] = user
+            return File.objects.get(**filters)
+        except File.DoesNotExist:
+            return None
+
+    def _process_keywords(self, dataset: Dataset, raw_keywords: str) -> None:
+        """
+        Process and associate keywords with a dataset.
+
+        Args:
+            dataset: Dataset to associate keywords with
+            raw_keywords: Comma-separated string of keywords
+        """
+        if not raw_keywords:
+            return
+
+        # Slugify and deduplicate keywords
+        slugified_keywords = {
+            slugify(p.strip())
+            for p in raw_keywords.split(",")
+            if p.strip() and slugify(p.strip())
+        }
+
+        # Get or create keywords and associate them with the dataset
+        for slug in slugified_keywords:
+            keyword, _created = Keyword.objects.get_or_create(name=slug)
+            keyword.datasets.add(dataset)
+
+    def _get_permission_cache(
+        self, user: User, dataset_uuid: UUID
+    ) -> dict[str, bool | PermissionLevel | None]:
+        """
+        Get and cache permission information for a user and dataset.
+
+        Args:
+            user: User to check permissions for
+            dataset_uuid: UUID of the dataset
+
+        Returns:
+            Dictionary with permission information
+        """
+        return {
+            "has_access": user_has_access_to_item(user, dataset_uuid, ItemType.DATASET),
+            "permission_level": get_user_permission_level(
+                user, dataset_uuid, ItemType.DATASET
+            ),
+            "can_edit_dataset": UserSharePermission.user_can_edit_dataset(
+                user, dataset_uuid, ItemType.DATASET
+            ),
+            "can_add_assets": UserSharePermission.user_can_add_assets(
+                user, dataset_uuid, ItemType.DATASET
+            ),
+            "can_remove_assets": UserSharePermission.user_can_remove_assets(
+                user, dataset_uuid, ItemType.DATASET
+            ),
+            "can_remove_others_assets": UserSharePermission.user_can_remove_others_assets(
+                user, dataset_uuid, ItemType.DATASET
+            ),
+        }
+
+    # ========== View Methods ==========
+
     def get(self, request, *args, **kwargs):
         """Handle GET request with permission checking and AJAX requests."""
         dataset_uuid = request.GET.get("dataset_uuid")
@@ -1768,7 +1977,7 @@ class GroupCapturesView(
         if form.is_valid():
             captures = self.search_captures(form.cleaned_data, request)
             return JsonResponse(self.get_paginated_response(captures, request))
-        return JsonResponse({"error": form.errors}, status=400)
+        return self._get_error_response(errors=form.errors, status_code=400)
 
     def _handle_file_search(self, request: HttpRequest) -> JsonResponse:
         """Handle AJAX request for file search."""
@@ -1793,7 +2002,7 @@ class GroupCapturesView(
                     },
                 },
             )
-        return JsonResponse({"error": form.errors}, status=400)
+        return self._get_error_response(errors=form.errors, status_code=400)
 
     def search_captures(self, search_data, request) -> list[Capture]:
         """Override to only return captures owned by the user for dataset creation."""
@@ -1835,11 +2044,11 @@ class GroupCapturesView(
         dataset_uuid = None
 
         if dataset_uuid_str:
-            try:
-                dataset_uuid = UUID(dataset_uuid_str)
-            except ValueError as err:
+            dataset_uuid = self._parse_dataset_uuid(dataset_uuid_str, raise_on_error=True)
+            if not dataset_uuid:
                 msg = "Invalid dataset UUID."
-                raise Http404(msg) from err
+                raise Http404(msg)
+
             # Check if user has access to this dataset
             if not user_has_access_to_item(
                 self.request.user, dataset_uuid, ItemType.DATASET
@@ -1848,7 +2057,7 @@ class GroupCapturesView(
                 raise Http404(msg)
 
             # Get the dataset - it exists and user has access
-            existing_dataset = Dataset.objects.get(uuid=dataset_uuid)
+            existing_dataset = self._get_dataset(dataset_uuid, raise_404=True)
             permission_level = get_user_permission_level(
                 self.request.user, dataset_uuid, ItemType.DATASET
             )
@@ -1948,17 +2157,19 @@ class GroupCapturesView(
             validation_result = self._validate_dataset_form(
                 request,
                 dataset_form,
-                dataset_uuid,
+                dataset_uuid_str,
             )
             if validation_result:
                 return validation_result
 
             if dataset_uuid_str:
-                try:
-                    dataset_uuid = UUID(dataset_uuid_str)
-                except ValueError:
-                    messages.error(request, "Invalid dataset UUID.")
-                    return redirect("users:dataset_list")
+                # Get dataset UUID format
+                dataset_uuid = self._parse_dataset_uuid(dataset_uuid_str, raise_on_error=False)
+                if not dataset_uuid:
+                    return self._get_error_response(
+                        message="Invalid dataset UUID.", status_code=400
+                    )
+
                 # Handle dataset editing
                 return self._handle_dataset_edit(request, dataset_form, dataset_uuid)
             # Handle dataset creation
@@ -1966,33 +2177,27 @@ class GroupCapturesView(
 
         except (DatabaseError, IntegrityError) as e:
             log.exception("Database error in dataset creation")
-            return JsonResponse(
-                {"success": False, "errors": {"non_field_errors": [str(e)]}},
-                status=500,
+            return self._get_error_response(message=str(e), status_code=500)
+        except ValueError as e:
+            # Handle UUID parsing errors
+            return self._get_error_response(
+                message="Invalid dataset UUID.", status_code=400
             )
 
     def _validate_dataset_form(
         self,
         request: HttpRequest,
         dataset_form: DatasetInfoForm,
-        dataset_uuid: str | None = None,
+        dataset_uuid_str: str | None = None,
     ) -> JsonResponse | None:
         """Validate the dataset form and return error response if invalid."""
         # Check if this is an edit operation first
-        dataset_uuid_str = request.GET.get("dataset_uuid")
 
         if dataset_uuid_str:
-            try:
-                dataset_uuid = UUID(dataset_uuid_str)
-            except ValueError:
+            dataset_uuid = self._parse_dataset_uuid(dataset_uuid_str, raise_on_error=False)
+            if not dataset_uuid:
                 messages.error(request, "Invalid dataset UUID.")
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "errors": {"non_field_errors": ["Invalid dataset UUID."]},
-                    },
-                    status=400,
-                )
+                return redirect("users:dataset_list")
 
             # For editing, validate permissions first
             permission_level = get_user_permission_level(
@@ -2000,13 +2205,7 @@ class GroupCapturesView(
             )
 
             if not permission_level:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "errors": {"non_field_errors": ["Access denied."]},
-                    },
-                    status=403,
-                )
+                return self._get_error_response(message="Access denied.", status_code=403)
 
             # Only validate form if user can edit metadata
             can_edit = UserSharePermission.user_can_edit_dataset(
@@ -2015,17 +2214,15 @@ class GroupCapturesView(
 
             if can_edit:
                 if not dataset_form.is_valid():
-                    return JsonResponse(
-                        {"success": False, "errors": dataset_form.errors},
-                        status=400,
+                    return self._get_error_response(
+                        errors=dataset_form.errors, status_code=400
                     )
             # If user can't edit metadata, skip form validation
         else:
             # For new dataset creation, always validate form
             if not dataset_form.is_valid():
-                return JsonResponse(
-                    {"success": False, "errors": dataset_form.errors},
-                    status=400,
+                return self._get_error_response(
+                    errors=dataset_form.errors, status_code=400
                 )
 
             # Get selected assets
@@ -2033,16 +2230,9 @@ class GroupCapturesView(
 
             # Validate that at least one capture or file is selected
             if len(selected_captures) == 0 and len(selected_files) == 0:
-                return JsonResponse(
-                    {
-                        "success": False,
-                        "errors": {
-                            "non_field_errors": [
-                                "Please select at least one capture or file.",
-                            ],
-                        },
-                    },
-                    status=400,
+                return self._get_error_response(
+                    message="Please select at least one capture or file.",
+                    status_code=400,
                 )
 
         return None
@@ -2085,21 +2275,7 @@ class GroupCapturesView(
         """Handle dataset editing with asset management."""
 
         # Get dataset
-        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, owner=request.user)
-
-        # Check permissions
-        permission_level = get_user_permission_level(
-            request.user, dataset_uuid, ItemType.DATASET
-        )
-
-        if not permission_level:
-            return JsonResponse(
-                {
-                    "success": False,
-                    "errors": {"non_field_errors": ["Access denied."]},
-                },
-                status=403,
-            )
+        dataset = self._get_dataset(dataset_uuid, user=request.user, raise_404=True)
 
         # Update metadata if user has permission
         if UserSharePermission.user_can_edit_dataset(
@@ -2107,30 +2283,14 @@ class GroupCapturesView(
         ):
             self._create_or_update_dataset(request, dataset_form, dataset)
 
-                # Handle keywords update
-                # Clear existing keyword relationships
-                dataset.keywords.clear()
-                # Persist keywords from form (comma-separated)
-                raw_keywords = dataset_form.cleaned_data.get("keywords", "") or ""
-                if raw_keywords:
-                    # Slugify and deduplicate keywords
-                    slugified_keywords = {
-                        slugify(p.strip())
-                        for p in raw_keywords.split(",")
-                        if p.strip() and slugify(p.strip())
-                    }
-
-                    # Get or create keywords and associate them with the dataset
-                    for slug in slugified_keywords:
-                        keyword, _created = Keyword.objects.get_or_create(name=slug)
-                        keyword.datasets.add(dataset)
-
         # Handle asset changes
         asset_changes = self._parse_asset_changes(request)
 
         # Apply asset changes based on permissions
         self._apply_asset_changes(
-            dataset, asset_changes, request.user, permission_level
+            dataset,
+            asset_changes,
+            request.user,
         )
 
         return JsonResponse(
@@ -2145,106 +2305,67 @@ class GroupCapturesView(
         }
 
         # Parse captures changes
-        captures_add = request.POST.get("captures_add", "")
-        captures_remove = request.POST.get("captures_remove", "")
-
-        if captures_add:
-            changes["captures"]["add"] = [
-                capture_id.strip()
-                for capture_id in captures_add.split(",")
-                if capture_id.strip()
-            ]
-        if captures_remove:
-            changes["captures"]["remove"] = [
-                capture_id.strip()
-                for capture_id in captures_remove.split(",")
-                if capture_id.strip()
-            ]
+        changes["captures"]["add"] = self._parse_comma_separated_ids(
+            request.POST.get("captures_add", "")
+        )
+        changes["captures"]["remove"] = self._parse_comma_separated_ids(
+            request.POST.get("captures_remove", "")
+        )
 
         # Parse files changes
-        files_add = request.POST.get("files_add", "")
-        files_remove = request.POST.get("files_remove", "")
-
-        if files_add:
-            changes["files"]["add"] = [
-                file_id.strip() for file_id in files_add.split(",") if file_id.strip()
-            ]
-        if files_remove:
-            changes["files"]["remove"] = [
-                file_id.strip()
-                for file_id in files_remove.split(",")
-                if file_id.strip()
-            ]
+        changes["files"]["add"] = self._parse_comma_separated_ids(
+            request.POST.get("files_add", "")
+        )
+        changes["files"]["remove"] = self._parse_comma_separated_ids(
+            request.POST.get("files_remove", "")
+        )
 
         return changes
 
-    def _apply_asset_changes(  # noqa: C901, PLR0912
-        self, dataset: Dataset, changes: dict, user: User, permission_level: str
+    def _apply_asset_changes(
+        self,
+        dataset: Dataset,
+        changes: dict,
+        user: User,
     ):
         """Apply asset changes based on user permissions."""
-        # Handle captures
-        if UserSharePermission.user_can_add_assets(
-            user, dataset.uuid, ItemType.DATASET
-        ):
-            # Add captures
-            for capture_id in changes["captures"]["add"]:
-                try:
-                    capture = Capture.objects.get(
-                        uuid=capture_id, owner=user, is_deleted=False
-                    )
-                    dataset.captures.add(capture)
-                except Capture.DoesNotExist:
-                    continue
+        # Cache permissions to avoid repeated queries
+        permissions = self._get_permission_cache(user, dataset.uuid)
 
-        if UserSharePermission.user_can_remove_assets(
-            user, dataset.uuid, ItemType.DATASET
-        ):
-            # Remove captures
-            for capture_id in changes["captures"]["remove"]:
-                try:
-                    capture = Capture.objects.get(uuid=capture_id, is_deleted=False)
-                    # Check if user can remove this capture
-                    if (
-                        capture.owner == user
-                        or UserSharePermission.user_can_remove_others_assets(
-                            user, dataset.uuid, ItemType.DATASET
+        # Process captures and files using the same pattern
+        asset_types = [
+            ("captures", Capture, dataset.captures),
+            ("files", File, dataset.files),
+        ]
+
+        for asset_type_name, asset_model, asset_relation in asset_types:
+            # Add assets
+            if permissions["can_add_assets"]:
+                for asset_id in changes[asset_type_name]["add"]:
+                    if asset_type_name == "captures":
+                        asset = self._get_capture(asset_id, user=user, require_owner=True)
+                    else:
+                        asset = self._get_file(asset_id, user=user, require_owner=True)
+
+                    if asset:
+                        asset_relation.add(asset)
+
+            # Remove assets
+            if permissions["can_remove_assets"]:
+                for asset_id in changes[asset_type_name]["remove"]:
+                    if asset_type_name == "captures":
+                        asset = self._get_capture(asset_id, user=None, require_owner=False)
+                    else:
+                        asset = self._get_file(asset_id, user=None, require_owner=False)
+
+                    if asset:
+                        # Check if user can remove this asset
+                        can_remove = (
+                            asset.owner == user
+                            or permissions["can_remove_others_assets"]
                         )
-                    ):
-                        dataset.captures.remove(capture)
-                except Capture.DoesNotExist:
-                    continue
-
-        # Handle files
-        if UserSharePermission.user_can_add_assets(
-            user, dataset.uuid, ItemType.DATASET
-        ):
-            # Add files
-            for file_id in changes["files"]["add"]:
-                try:
-                    file_obj = File.objects.get(
-                        uuid=file_id, owner=user, is_deleted=False
-                    )
-                    dataset.files.add(file_obj)
-                except File.DoesNotExist:
-                    continue
-
-        if UserSharePermission.user_can_remove_assets(
-            user, dataset.uuid, ItemType.DATASET
-        ):
-            # Remove files
-            for file_id in changes["files"]["remove"]:
-                try:
-                    file_obj = File.objects.get(uuid=file_id, is_deleted=False)
-                    # Check if user can remove this file
-                    if (
-                        file_obj.owner == user
-                        or UserSharePermission.user_can_remove_others_assets(
-                            user, dataset.uuid, ItemType.DATASET
-                        )
-                    ):
-                        dataset.files.remove(file_obj)
-                except File.DoesNotExist:
-                    continue
+                        if can_remove:
+                            asset_relation.remove(asset)
 
     def _apply_author_changes(self, authors: list, changes: dict) -> list:
         """Apply author changes based on the changes tracking."""
@@ -2258,12 +2379,33 @@ class GroupCapturesView(
 
             # Apply modifications if any
             if i in changes.get("modified", {}):
-                result.append(changes["modified"][i]["new"])
+                modified_author = author.copy() if isinstance(author, dict) else {"name": author, "orcid_id": ""}
+                for field, change_data in changes["modified"][i].items():
+                    modified_author[field] = change_data.get("new", modified_author.get(field, ""))
+                result.append(modified_author)
             else:
                 result.append(author)
 
-        # Add new authors
-        result.extend(authors[i] for i in changes.get("added", []))
+        # Add new authors - only add those that aren't already in the result
+        # The 'added' array contains indices of newly added authors in the current authors array
+        added_indices = changes.get("added", [])
+        for i in added_indices:
+            if i < len(authors):
+                new_author = authors[i]
+                # Check if this author is already in result (shouldn't be, but safety check)
+                # Convert to comparable format
+                new_author_name = new_author.get("name", "") if isinstance(new_author, dict) else str(new_author)
+                new_author_orcid = new_author.get("orcid_id", "") if isinstance(new_author, dict) else ""
+                
+                # Only add if not already present (by name and orcid)
+                is_duplicate = any(
+                    (isinstance(a, dict) and a.get("name") == new_author_name and a.get("orcid_id") == new_author_orcid) or
+                    (not isinstance(a, dict) and str(a) == new_author_name)
+                    for a in result
+                )
+                
+                if not is_duplicate:
+                    result.append(new_author)
 
         return result
 
@@ -2331,18 +2473,7 @@ class GroupCapturesView(
 
         # Persist keywords from form (comma-separated)
         raw_keywords = dataset_form.cleaned_data.get("keywords", "") or ""
-        if raw_keywords:
-            # Slugify and deduplicate keywords
-            slugified_keywords = {
-                slugify(p.strip())
-                for p in raw_keywords.split(",")
-                if p.strip() and slugify(p.strip())
-            }
-
-            # Get or create keywords and associate them with the dataset
-            for slug in slugified_keywords:
-                keyword, _created = Keyword.objects.get_or_create(name=slug)
-                keyword.datasets.add(dataset)
+        self._process_keywords(dataset, raw_keywords)
 
         return dataset
 
