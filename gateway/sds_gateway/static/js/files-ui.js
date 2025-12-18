@@ -555,6 +555,9 @@ class FileUploadHandler {
 		this.clearBtn = document.getElementById("clearUploadBtn");
 		this.uploadText = this.submitBtn?.querySelector(".upload-text");
 		this.uploadSpinner = this.submitBtn?.querySelector(".upload-spinner");
+		this.validationFeedback = document.getElementById(
+			"uploadValidationFeedback",
+		);
 
 		// Enable submit button when files or folders are selected
 		if (this.fileInput) {
@@ -583,7 +586,30 @@ class FileUploadHandler {
 			const hasFiles = this.fileInput?.files.length > 0;
 			const hasFolders = this.folderInput?.files.length > 0;
 			this.submitBtn.disabled = !hasFiles && !hasFolders;
+
+			// Hide validation feedback when files are selected
+			if (hasFiles || hasFolders) {
+				this.hideValidationFeedback();
+			}
 		}
+	}
+
+	showValidationFeedback() {
+		if (this.validationFeedback) {
+			this.validationFeedback.classList.add("d-block");
+		}
+		// Add invalid styling to inputs
+		this.fileInput?.classList.add("is-invalid");
+		this.folderInput?.classList.add("is-invalid");
+	}
+
+	hideValidationFeedback() {
+		if (this.validationFeedback) {
+			this.validationFeedback.classList.remove("d-block");
+		}
+		// Remove invalid styling from inputs
+		this.fileInput?.classList.remove("is-invalid");
+		this.folderInput?.classList.remove("is-invalid");
 	}
 
 	clearModal() {
@@ -598,6 +624,8 @@ class FileUploadHandler {
 		if (this.folderInput) {
 			this.folderInput.value = "";
 		}
+		// Hide validation feedback
+		this.hideValidationFeedback();
 		// Update submit button state
 		this.updateSubmitButton();
 	}
@@ -609,7 +637,7 @@ class FileUploadHandler {
 		const folderFiles = Array.from(this.folderInput?.files || []);
 
 		if (files.length === 0 && folderFiles.length === 0) {
-			alert("Please select at least one file or folder to upload.");
+			this.showValidationFeedback();
 			return;
 		}
 
@@ -670,7 +698,12 @@ class FileUploadHandler {
 
 			if (response.ok) {
 				// Show success message
-				this.showResult("success", "File uploaded successfully!");
+				const fileCount = allFiles.length;
+				const successMsg =
+					fileCount === 1
+						? "1 file uploaded successfully!"
+						: `${fileCount} files uploaded successfully!`;
+				this.showResult("success", successMsg);
 				// Clear file inputs
 				this.clearModal();
 				// Close modal
@@ -683,8 +716,6 @@ class FileUploadHandler {
 					window.fileManager.loadFiles();
 				}
 			} else {
-				// Clear file inputs even on error
-				this.clearModal();
 				this.showResult(
 					"error",
 					result.error || "Upload failed. Please try again.",
@@ -692,8 +723,6 @@ class FileUploadHandler {
 			}
 		} catch (error) {
 			console.error("Upload error:", error);
-			// Clear file inputs even on error
-			this.clearModal();
 			this.showResult(
 				"error",
 				"Upload failed. Please check your connection and try again.",

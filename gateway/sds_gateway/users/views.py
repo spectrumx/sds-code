@@ -2967,11 +2967,7 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
 
         # Security: Only allow templates from users/components/ directory
         if not template_name.startswith("users/components/"):
-            log.warning(
-                "Invalid template path: %s",
-                template_name,
-                exc_info=True,
-            )
+            log.warning("Invalid template path: %s", template_name)
             return JsonResponse(
                 {"error": "Cannot render component."},
                 status=400,
