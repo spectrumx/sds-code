@@ -295,46 +295,32 @@ class AssetSearchHandler {
 	 * Render selected captures table asynchronously
 	 */
 	async renderSelectedCapturesTable(selectedList, capturesData) {
-		try {
-			const response = await window.APIClient.post(
-				"/users/render-html/",
+		// Normalize for generic table_rows template
+		const rows = capturesData.map((capture) => ({
+			data_attrs: { "capture-id": capture.id },
+			cells: [
+				{ value: capture.type },
+				{ value: capture.directory },
+			],
+			actions: [
 				{
-					template: "users/components/selected_captures_table.html",
-					context: {
-						captures: capturesData,
-						empty_message: "No captures selected",
-					},
+					label: "Remove",
+					icon: "bi-x",
+					css_class: "btn-danger",
+					extra_class: "remove-selected-capture",
+					data_attrs: { id: capture.id },
 				},
-				null,
-				true,
-			); // true = send as JSON
+			],
+		}));
 
-			if (response.html) {
-				selectedList.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering selected captures table:", error);
-			// Fallback
-			if (capturesData.length === 0) {
-				selectedList.innerHTML =
-					'<tr><td colspan="3" class="text-center">No captures selected</td></tr>';
-			} else {
-				selectedList.innerHTML = capturesData
-					.map(
-						(capture) => `
-						<tr data-capture-id="${capture.id}">
-							<td>${capture.type}</td>
-							<td>${capture.directory}</td>
-							<td>
-								<button type="button" class="btn btn-sm btn-danger remove-selected-capture" data-id="${capture.id}">
-									Remove
-								</button>
-							</td>
-						</tr>
-					`,
-					)
-					.join("");
-			}
+		// Use the generic table_rows template via DOMUtils
+		const success = await window.DOMUtils.renderTable(selectedList, rows, {
+			empty_message: "No captures selected",
+			empty_colspan: 3,
+		});
+
+		if (!success) {
+			console.error("Error rendering selected captures table");
 		}
 	}
 
@@ -1007,10 +993,15 @@ class AssetSearchHandler {
 				const row = document.createElement("tr");
 				const filePath = this.getRelativePath(file, currentPath);
 				const isSelected = this.selectedFiles.has(file.id);
+				
+				// Check if file is already in the dataset (edit mode only)
+				const isExistingFile = this.isEditMode && 
+					this.formHandler?.currentFiles?.has(file.id);
 				row.innerHTML = `
 					<td>
 						<input type="checkbox" class="form-check-input" name="files" value="${file.id}"
-							${isSelected ? "checked" : ""}>
+							${isSelected ? "checked" : ""}
+							${isExistingFile ? "disabled" : ""}>
 					</td>
 					<td class="${level > 0 ? `ps-${level * 3}` : ""}">
 						<i class="bi bi-file-earmark me-2"></i>
@@ -1023,35 +1014,42 @@ class AssetSearchHandler {
 
 				const checkbox = row.querySelector('input[type="checkbox"]');
 
-				// Add click handler for the checkbox
-				checkbox.addEventListener("change", (e) => {
-					e.stopPropagation(); // Prevent row click from firing
-					if (checkbox.checked) {
-						// Add to intermediate selection (both edit and create mode)
-						this.selectedFiles.set(file.id, {
-							...file,
-							relative_path: filePath,
-						});
-					} else {
-						// Remove from intermediate selection (both edit and create mode)
-						this.selectedFiles.delete(file.id);
-					}
-					this.updateSelectAllCheckboxState();
-					this.updateSelectedFilesList();
-				});
+				// Only add event handlers if checkbox is not disabled (not an existing file)
+				if (!isExistingFile) {
+					// Add click handler for the checkbox
+					checkbox.addEventListener("change", (e) => {
+						e.stopPropagation(); // Prevent row click from firing
+						if (checkbox.checked) {
+							// Add to intermediate selection (both edit and create mode)
+							this.selectedFiles.set(file.id, {
+								...file,
+								relative_path: filePath,
+							});
+						} else {
+							// Remove from intermediate selection (both edit and create mode)
+							this.selectedFiles.delete(file.id);
+						}
+						this.updateSelectAllCheckboxState();
+						this.updateSelectedFilesList();
+					});
 
-				// Add click handler for the row
-				row.addEventListener("click", (e) => {
-					// Don't toggle if clicking the checkbox directly
-					if (e.target.type === "checkbox") return;
+					// Add click handler for the row
+					row.addEventListener("click", (e) => {
+						// Don't toggle if clicking the checkbox directly
+						if (e.target.type === "checkbox") return;
 
-					checkbox.checked = !checkbox.checked;
-					// Trigger the change event to ensure the selectedFiles is updated
-					checkbox.dispatchEvent(new Event("change"));
-				});
+						checkbox.checked = !checkbox.checked;
+						// Trigger the change event to ensure the selectedFiles is updated
+						checkbox.dispatchEvent(new Event("change"));
+					});
 
-				// Add hover effect class
-				row.classList.add("clickable-row");
+					// Add hover effect class
+					row.classList.add("clickable-row");
+				} else {
+					// For existing files, add a visual indicator
+					row.classList.add("readonly-row");
+					row.title = "This file is already in the dataset";
+				}
 
 				targetElement.appendChild(row);
 			}

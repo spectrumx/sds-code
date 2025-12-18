@@ -252,7 +252,7 @@ class DatasetEditingHandler {
 
 				return {
 					css_class: !canRemoveThisCapture ? "readonly-row" : "",
-					data_attrs: { capture_id: capture.id },
+					data_attrs: { "capture-id": capture.id },
 					cells: [
 						{ value: capture.type },
 						{ value: capture.directory },
@@ -265,8 +265,8 @@ class DatasetEditingHandler {
 									css_class: "btn-danger",
 									extra_class: "mark-for-removal-btn",
 									data_attrs: {
-										capture_id: capture.id,
-										capture_type: "capture",
+										"capture-id": capture.id,
+										"capture-type": "capture",
 									},
 								},
 							]
@@ -334,7 +334,7 @@ class DatasetEditingHandler {
 
 				return {
 					css_class: !canRemoveThisFile ? "readonly-row" : "",
-					data_attrs: { file_id: file.id },
+					data_attrs: { "file-id": file.id },
 					cells: [
 						{ value: file.name },
 						{ value: file.media_type },
@@ -349,8 +349,8 @@ class DatasetEditingHandler {
 									css_class: "btn-danger",
 									extra_class: "mark-for-removal-btn",
 									data_attrs: {
-										file_id: file.id,
-										file_type: "file",
+										"file-id": file.id,
+										"file-type": "file",
 									},
 								},
 							]
@@ -416,8 +416,8 @@ class DatasetEditingHandler {
 		for (const button of removeButtons) {
 			button.addEventListener("click", (e) => {
 				e.preventDefault();
-				const captureId = button.dataset.capture_id;
-				const fileId = button.dataset.file_id;
+				const captureId = button.dataset.captureId;
+				const fileId = button.dataset.fileId;
 				if (captureId) {
 					this.markCaptureForRemoval(captureId);
 				} else if (fileId) {
@@ -485,8 +485,11 @@ class DatasetEditingHandler {
 	 */
 	markFileForRemoval(fileId) {
 		const file = this.filesSearchHandler?.selectedFiles.get(fileId);
-		console.log(file);
-		if (!file) return;
+
+		if (!file){
+			console.warn(`File ${fileId} not found for removal`);
+			return;
+		}
 
 		// Check if user has permission to remove this specific file
 		const isOwnedByCurrentUser = file.owner_id === this.currentUserId;
@@ -617,7 +620,7 @@ class DatasetEditingHandler {
 
 		// Normalize for generic table_rows template
 		const rows = allChanges.map(([id, change]) => ({
-			data_attrs: { change_id: id },
+			data_attrs: { "change-id": id },
 			cells: [
 				{
 					html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
@@ -632,8 +635,8 @@ class DatasetEditingHandler {
 					css_class: "btn-secondary",
 					extra_class: "cancel-change",
 					data_attrs: {
-						capture_id: id,
-						change_type: "capture",
+						"capture-id": id,
+						"change-type": "capture",
 					},
 				},
 			],
@@ -680,7 +683,7 @@ class DatasetEditingHandler {
 
 		// Normalize for generic table_rows template
 		const rows = allChanges.map(([id, change]) => ({
-			data_attrs: { change_id: id },
+			data_attrs: { "change-id": id },
 			cells: [
 				{
 					html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
@@ -695,8 +698,8 @@ class DatasetEditingHandler {
 					css_class: "btn-secondary",
 					extra_class: "cancel-change",
 					data_attrs: {
-						file_id: id,
-						change_type: "file",
+						"file-id": id,
+						"change-type": "file",
 					},
 				},
 			],
