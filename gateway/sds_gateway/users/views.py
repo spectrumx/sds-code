@@ -1700,7 +1700,7 @@ class GroupCapturesView(
     # ========== Helper Methods ==========
 
     def _parse_dataset_uuid(
-        self, dataset_uuid_str: str, raise_on_error: bool = False
+        self, dataset_uuid_str: str, *, raise_on_error: bool = False
     ) -> UUID | None:
         """
         Parse dataset UUID string with consistent error handling.
@@ -1717,10 +1717,10 @@ class GroupCapturesView(
         """
         try:
             return UUID(dataset_uuid_str)
-        except ValueError:
+        except ValueError as err:
             if raise_on_error:
                 msg = "Invalid dataset UUID."
-                raise Http404(msg)
+                raise Http404(msg) from err
             return None
 
     def _parse_comma_separated_ids(self, value: str) -> list[str]:
@@ -1738,7 +1738,10 @@ class GroupCapturesView(
         return [item_id.strip() for item_id in value.split(",") if item_id.strip()]
 
     def _get_error_response(
-        self, message: str | None = None, errors: dict | None = None, status_code: int = 400
+        self,
+        message: str | None = None,
+        errors: dict | None = None,
+        status_code: int = 400,
     ) -> JsonResponse:
         """
         Create standardized error response.
@@ -1770,7 +1773,7 @@ class GroupCapturesView(
         )
 
     def _get_dataset(
-        self, dataset_uuid: UUID, user: User | None = None, raise_404: bool = True
+        self, dataset_uuid: UUID, user: User | None = None, *, raise_404: bool = True
     ) -> Dataset | None:
         """
         Safely retrieve a dataset with consistent error handling.
@@ -1801,7 +1804,7 @@ class GroupCapturesView(
             return None
 
     def _get_capture(
-        self, capture_id: str, user: User | None = None, require_owner: bool = False
+        self, capture_id: str, user: User | None = None, *, require_owner: bool = False
     ) -> Capture | None:
         """
         Safely retrieve a capture with consistent error handling.
@@ -1818,17 +1821,15 @@ class GroupCapturesView(
             filters = {"uuid": capture_id, "is_deleted": False}
             if require_owner and user:
                 filters["owner"] = user
-            capture = Capture.objects.get(**filters)
             # Additional check if user provided but require_owner is False
-            if user and not require_owner and capture.owner != user:
-                # Still allow if user has access (for shared captures)
-                pass
-            return capture
+            # Still allow if user has access (for shared captures)
         except Capture.DoesNotExist:
             return None
+        else:
+            return Capture.objects.get(**filters)
 
     def _get_file(
-        self, file_id: str, user: User | None = None, require_owner: bool = False
+        self, file_id: str, user: User | None = None, *, require_owner: bool = False
     ) -> File | None:
         """
         Safely retrieve a file with consistent error handling.
@@ -1899,8 +1900,10 @@ class GroupCapturesView(
             "can_remove_assets": UserSharePermission.user_can_remove_assets(
                 user, dataset_uuid, ItemType.DATASET
             ),
-            "can_remove_others_assets": UserSharePermission.user_can_remove_others_assets(
-                user, dataset_uuid, ItemType.DATASET
+            "can_remove_others_assets": (
+                UserSharePermission.user_can_remove_others_assets(
+                    user, dataset_uuid, ItemType.DATASET
+                )
             ),
         }
 
@@ -2041,7 +2044,9 @@ class GroupCapturesView(
         dataset_uuid = None
 
         if dataset_uuid_str:
-            dataset_uuid = self._parse_dataset_uuid(dataset_uuid_str, raise_on_error=True)
+            dataset_uuid = self._parse_dataset_uuid(
+                dataset_uuid_str, raise_on_error=True
+            )
             if not dataset_uuid:
                 msg = "Invalid dataset UUID."
                 raise Http404(msg)
@@ -2161,7 +2166,9 @@ class GroupCapturesView(
 
             if dataset_uuid_str:
                 # Get dataset UUID format
-                dataset_uuid = self._parse_dataset_uuid(dataset_uuid_str, raise_on_error=False)
+                dataset_uuid = self._parse_dataset_uuid(
+                    dataset_uuid_str, raise_on_error=False
+                )
                 if not dataset_uuid:
                     return self._get_error_response(
                         message="Invalid dataset UUID.", status_code=400
@@ -2175,7 +2182,7 @@ class GroupCapturesView(
         except (DatabaseError, IntegrityError) as e:
             log.exception("Database error in dataset creation")
             return self._get_error_response(message=str(e), status_code=500)
-        except ValueError as e:
+        except ValueError:
             # Handle UUID parsing errors
             return self._get_error_response(
                 message="Invalid dataset UUID.", status_code=400
@@ -2191,7 +2198,9 @@ class GroupCapturesView(
         # Check if this is an edit operation first
 
         if dataset_uuid_str:
-            dataset_uuid = self._parse_dataset_uuid(dataset_uuid_str, raise_on_error=False)
+            dataset_uuid = self._parse_dataset_uuid(
+                dataset_uuid_str, raise_on_error=False
+            )
             if not dataset_uuid:
                 messages.error(request, "Invalid dataset UUID.")
                 return redirect("users:dataset_list")
@@ -2202,7 +2211,9 @@ class GroupCapturesView(
             )
 
             if not permission_level:
-                return self._get_error_response(message="Access denied.", status_code=403)
+                return self._get_error_response(
+                    message="Access denied.", status_code=403
+                )
 
             # Only validate form if user can edit metadata
             can_edit = UserSharePermission.user_can_edit_dataset(
@@ -2268,7 +2279,9 @@ class GroupCapturesView(
             {"success": True, "redirect_url": reverse("users:dataset_list")},
         )
 
-    def _handle_dataset_edit(self, request, dataset_form: DatasetInfoForm, dataset_uuid: UUID) -> JsonResponse:
+    def _handle_dataset_edit(
+        self, request, dataset_form: DatasetInfoForm, dataset_uuid: UUID
+    ) -> JsonResponse:
         """Handle dataset editing with asset management."""
 
         # Get dataset
@@ -2319,7 +2332,7 @@ class GroupCapturesView(
 
         return changes
 
-    def _apply_asset_changes(
+    def _apply_asset_changes(  # noqa: C901
         self,
         dataset: Dataset,
         changes: dict,
@@ -2335,12 +2348,14 @@ class GroupCapturesView(
             ("files", File, dataset.files),
         ]
 
-        for asset_type_name, asset_model, asset_relation in asset_types:
+        for asset_type_name, _asset_model, asset_relation in asset_types:
             # Add assets
             if permissions["can_add_assets"]:
                 for asset_id in changes[asset_type_name]["add"]:
                     if asset_type_name == "captures":
-                        asset = self._get_capture(asset_id, user=user, require_owner=True)
+                        asset = self._get_capture(
+                            asset_id, user=user, require_owner=True
+                        )
                     else:
                         asset = self._get_file(asset_id, user=user, require_owner=True)
 
@@ -2351,7 +2366,9 @@ class GroupCapturesView(
             if permissions["can_remove_assets"]:
                 for asset_id in changes[asset_type_name]["remove"]:
                     if asset_type_name == "captures":
-                        asset = self._get_capture(asset_id, user=None, require_owner=False)
+                        asset = self._get_capture(
+                            asset_id, user=None, require_owner=False
+                        )
                     else:
                         asset = self._get_file(asset_id, user=None, require_owner=False)
 
@@ -2376,31 +2393,51 @@ class GroupCapturesView(
 
             # Apply modifications if any
             if i in changes.get("modified", {}):
-                modified_author = author.copy() if isinstance(author, dict) else {"name": author, "orcid_id": ""}
+                modified_author = (
+                    author.copy()
+                    if isinstance(author, dict)
+                    else {"name": author, "orcid_id": ""}
+                )
                 for field, change_data in changes["modified"][i].items():
-                    modified_author[field] = change_data.get("new", modified_author.get(field, ""))
+                    modified_author[field] = change_data.get(
+                        "new", modified_author.get(field, "")
+                    )
                 result.append(modified_author)
             else:
                 result.append(author)
 
         # Add new authors - only add those that aren't already in the result
-        # The 'added' array contains indices of newly added authors in the current authors array
+        # The 'added' array contains indices of newly added authors in the
+        # current authors array
         added_indices = changes.get("added", [])
         for i in added_indices:
             if i < len(authors):
                 new_author = authors[i]
-                # Check if this author is already in result (shouldn't be, but safety check)
+                # Check if this author is already in result (shouldn't be,
+                # but safety check)
                 # Convert to comparable format
-                new_author_name = new_author.get("name", "") if isinstance(new_author, dict) else str(new_author)
-                new_author_orcid = new_author.get("orcid_id", "") if isinstance(new_author, dict) else ""
-                
+                new_author_name = (
+                    new_author.get("name", "")
+                    if isinstance(new_author, dict)
+                    else str(new_author)
+                )
+                new_author_orcid = (
+                    new_author.get("orcid_id", "")
+                    if isinstance(new_author, dict)
+                    else ""
+                )
+
                 # Only add if not already present (by name and orcid)
                 is_duplicate = any(
-                    (isinstance(a, dict) and a.get("name") == new_author_name and a.get("orcid_id") == new_author_orcid) or
-                    (not isinstance(a, dict) and str(a) == new_author_name)
+                    (
+                        isinstance(a, dict)
+                        and a.get("name") == new_author_name
+                        and a.get("orcid_id") == new_author_orcid
+                    )
+                    or (not isinstance(a, dict) and str(a) == new_author_name)
                     for a in result
                 )
-                
+
                 if not is_duplicate:
                     result.append(new_author)
 
@@ -2631,7 +2668,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             order_prefix = "-" if sort_order == "desc" else ""
             return f"{order_prefix}{sort_by}"
 
-        return "-created_at"  # Default sorting
+        return "-created_at"
 
     def _get_owned_datasets(self, user: User, order_by: str) -> QuerySet[Dataset]:
         """Get datasets owned by the user."""
