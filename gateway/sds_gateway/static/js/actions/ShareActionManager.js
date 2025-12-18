@@ -287,7 +287,6 @@ window.ShareActionManager = class ShareActionManager {
 				{ q: query, limit: 10 },
 				null, // No loading state for search
 			);
-			console.log(response);
 			// Render the HTML fragment using the template
 			if (response) {
 				const users = response || [];
