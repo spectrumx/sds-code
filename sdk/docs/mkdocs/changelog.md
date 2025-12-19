@@ -1,6 +1,6 @@
 # SpectrumX SDK Changelog
 
-## `0.1.17` - YYYY-MM-DD
+## `0.1.18` - YYYY-MM-DD
 
 ## `0.1.17` - 2025-12-19
 
