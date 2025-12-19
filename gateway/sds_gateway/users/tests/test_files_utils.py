@@ -4,6 +4,8 @@ This module tests the utility functions in files_utils.py that handle
 user file navigation, directory structure building, and modified date calculations.
 """
 
+# pyright: reportPrivateUsage=false
+
 import uuid
 from datetime import timedelta
 from unittest.mock import MagicMock
@@ -13,11 +15,10 @@ from django.utils import timezone
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.tests.factories import FileFactory
-from sds_gateway.users.files_utils import _add_child_directories
+from sds_gateway.users.files_utils import DirItemParams
 from sds_gateway.users.files_utils import _add_child_files
 from sds_gateway.users.files_utils import _add_user_file_directories
 from sds_gateway.users.files_utils import _calculate_dir_modified_date
@@ -32,7 +33,6 @@ from sds_gateway.users.files_utils import build_breadcrumbs
 from sds_gateway.users.files_utils import format_modified
 from sds_gateway.users.files_utils import make_dir_item
 from sds_gateway.users.files_utils import make_file_item
-from sds_gateway.users.files_utils import DirItemParams
 from sds_gateway.users.navigation_models import NavigationContext
 from sds_gateway.users.navigation_models import NavigationType
 from sds_gateway.users.tests.factories import UserFactory
@@ -107,7 +107,9 @@ class TestCalculateDirModifiedDate:
     """Tests for _calculate_dir_modified_date function."""
 
     def test_returns_none_for_empty_files(self):
-        result = _calculate_dir_modified_date("subdir", "", None, "files/user@example.com")
+        result = _calculate_dir_modified_date(
+            "subdir", "", None, "files/user@example.com"
+        )
         assert result is None
 
     def test_returns_none_for_no_matching_files(self):
@@ -171,7 +173,9 @@ class TestFilterFilesBySubpath:
     """Tests for _filter_files_by_subpath function."""
 
     def test_empty_files_returns_empty(self):
-        child_files, child_dirs = _filter_files_by_subpath([], "", "files/user@example.com")
+        child_files, child_dirs = _filter_files_by_subpath(
+            [], "", "files/user@example.com"
+        )
         assert child_files == []
         assert child_dirs == set()
 
@@ -207,12 +211,13 @@ class TestFilterFilesBySubpath:
         file_outside = MagicMock()
         file_outside.directory = "/files/user@example.com/other"
 
-        child_files, child_dirs = _filter_files_by_subpath(
-            [file_in_child, file_in_nested, file_outside], "parent", "files/user@example.com"
+        _child_files, child_dirs = _filter_files_by_subpath(
+            [file_in_child, file_in_nested, file_outside],
+            "parent",
+            "files/user@example.com",
         )
-        # file_in_child is directly in "child" subdir of "parent", so "child" is a child dir
-        assert "child" in child_dirs
-        assert "other" not in child_dirs
+        assert "child" in child_dirs, "child directory should be included"
+        assert "other" not in child_dirs, "other directory should be excluded"
 
 
 class TestMakeDirItem:
@@ -310,9 +315,10 @@ class TestAddUserFileDirectories:
         assert items == []
 
     def test_creates_directory_items(self):
-        items = _add_user_file_directories({"dir1", "dir2"}, "")
+        dirs = {"dir1", "dir2"}
+        items = _add_user_file_directories(dirs, "")
 
-        assert len(items) == 2
+        assert len(items) == len(dirs)
         names = [item.name for item in items]
         assert "dir1" in names
         assert "dir2" in names
@@ -353,9 +359,10 @@ class TestAddChildFiles:
         file2 = FileFactory(owner=user, name="file2.h5")
         test_capture_uuid = str(uuid.uuid4())
 
-        items = _add_child_files([file1, file2], test_capture_uuid)
+        files = [file1, file2]
+        items = _add_child_files(files, test_capture_uuid)
 
-        assert len(items) == 2
+        assert len(items) == len(files), "Should create items for all files"
 
     def test_sorts_files_alphabetically(self):
         user = UserFactory()
@@ -383,7 +390,9 @@ class TestBuildBreadcrumbs:
         assert "files" not in names
 
     def test_skips_user_email(self):
-        breadcrumbs = build_breadcrumbs("/files/user@example.com/subdir", "user@example.com")
+        breadcrumbs = build_breadcrumbs(
+            "/files/user@example.com/subdir", "user@example.com"
+        )
         names = [b["name"] for b in breadcrumbs]
         assert "user@example.com" not in names
         assert "subdir" in names
@@ -398,12 +407,10 @@ class TestBuildBreadcrumbs:
             top_level_dir="/breadcrumb",
         )
 
-        breadcrumbs = build_breadcrumbs(
-            f"/captures/{capture.uuid}/subdir", user.email
-        )
+        breadcrumbs = build_breadcrumbs(f"/captures/{capture.uuid}/subdir", user.email)
 
-        # Should have capture name and subdir
-        assert len(breadcrumbs) >= 2
+        expected_min_breadcrumbs = 2
+        assert len(breadcrumbs) >= expected_min_breadcrumbs
         # First breadcrumb should be capture
         assert breadcrumbs[0]["name"] == "Breadcrumb Capture"
         # Last breadcrumb should have full path with subdir
@@ -426,7 +433,7 @@ class TestAddUserFiles:
     def test_returns_files_not_in_captures(self):
         user = UserFactory()
         # Create a file not associated with any capture
-        file_obj = FileFactory(
+        _file_obj = FileFactory(
             owner=user,
             name="standalone.h5",
             directory=f"/files/{user.email}",
@@ -481,7 +488,7 @@ class TestAddRootItems:
 
     def test_includes_user_captures(self):
         user = UserFactory()
-        capture = Capture.objects.create(
+        _capture = Capture.objects.create(
             owner=user,
             name="Test Capture",
             capture_type=CaptureType.DigitalRF,
@@ -495,7 +502,11 @@ class TestAddRootItems:
         items = add_root_items(request)
 
         # Should find the capture as a directory item
-        capture_names = [item.name for item in items if hasattr(item, "is_capture") and item.is_capture]
+        capture_names = [
+            item.name
+            for item in items
+            if hasattr(item, "is_capture") and item.is_capture
+        ]
         assert "Test Capture" in capture_names
 
 
@@ -539,7 +550,9 @@ class TestAddSharedItems:
         items = add_shared_items(request)
 
         # Should find the shared capture
-        shared_names = [item.name for item in items if hasattr(item, "is_shared") and item.is_shared]
+        shared_names = [
+            item.name for item in items if hasattr(item, "is_shared") and item.is_shared
+        ]
         assert "Shared Capture" in shared_names
 
     def test_excludes_own_captures(self):
@@ -612,14 +625,14 @@ class TestAddCaptureFiles:
             name="My Capture",
             capture_type=CaptureType.DigitalRF,
             channel="ch0",
-            top_level_dir="/mycapture",
+            top_level_dir="/my-capture",
         )
 
         # Create a file associated with the capture using FileFactory with directory
         FileFactory(
             owner=user,
             name="capture_file.h5",
-            directory=f"/files/{user.email}/mycapture/ch0",
+            directory=f"/files/{user.email}/my-capture/ch0",
             capture=capture,
         )
 
@@ -719,9 +732,9 @@ class TestNavigationContext:
     def test_to_path_reconstructs_user_files_path(self):
         nav = NavigationContext(
             type=NavigationType.USER_FILES,
-            subpath="mydir/nested",
+            subpath="my-dir/nested",
         )
-        assert nav.to_path() == "/files/mydir/nested"
+        assert nav.to_path() == "/files/my-dir/nested"
 
 
 class TestFilesViewNavigation:
@@ -751,7 +764,8 @@ class TestFilesViewNavigation:
         # Verify root items include the capture
         items = add_root_items(request)
         capture_names = [
-            item.name for item in items
+            item.name
+            for item in items
             if hasattr(item, "is_capture") and item.is_capture
         ]
         assert "Test Capture" in capture_names
@@ -846,4 +860,3 @@ class TestFilesViewNavigation:
         item_names = [item.name for item in items]
         assert "level2_file.h5" in item_names
         assert "level1_file.h5" not in item_names
-

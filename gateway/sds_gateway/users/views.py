@@ -335,8 +335,19 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         """Handle user search requests."""
         try:
-            item_uuid = UUID(kwargs.get("item_uuid"))
-            item_type = ItemType(kwargs.get("item_type"))
+            item_uuid_unknown = kwargs.get("item_uuid")
+            item_type_unknown = kwargs.get("item_type")
+
+            item_uuid = (
+                UUID(item_uuid_unknown)
+                if not isinstance(item_uuid_unknown, UUID)
+                else item_uuid_unknown
+            )
+            item_type = (
+                ItemType(item_type_unknown)
+                if not isinstance(item_type_unknown, ItemType)
+                else item_type_unknown
+            )
         except (ValueError, TypeError):
             return JsonResponse(
                 {"error": "Invalid item UUID or item type"},

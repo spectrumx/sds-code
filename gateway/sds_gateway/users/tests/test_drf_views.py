@@ -111,13 +111,17 @@ class TestShareItemView:
         client.force_login(user_to_share_with)
         url = reverse(
             "users:share_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         response = client.get(url)
 
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "Dataset not found" in response.json()["error"]
+        assert response.status_code == status.HTTP_404_NOT_FOUND, (
+            f"Response: {response.content}"
+        )
+        assert "Dataset not found" in response.json()["error"], (
+            f"Response: {response.content}"
+        )
 
     def test_share_dataset_post_success(
         self, client: Client, owner: User, user_to_share_with: User, dataset: Dataset
@@ -126,7 +130,7 @@ class TestShareItemView:
         client.force_login(owner)
         url = reverse(
             "users:share_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         data = {
@@ -168,7 +172,7 @@ class TestShareItemView:
         client.force_login(owner)
         url = reverse(
             "users:share_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         data = {
@@ -201,7 +205,7 @@ class TestShareItemView:
         client.force_login(owner)
         url = reverse(
             "users:share_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         data = {
@@ -236,7 +240,7 @@ class TestShareItemView:
         client.force_login(owner)
         url = reverse(
             "users:share_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         data = {
@@ -267,7 +271,7 @@ class TestShareItemView:
         client.force_login(owner)
         url = reverse(
             "users:share_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         data = {
@@ -297,7 +301,7 @@ class TestShareItemView:
         client.force_login(owner)
         url = reverse(
             "users:share_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         data = {
@@ -329,7 +333,7 @@ class TestShareItemView:
         client.force_login(owner)
         url = reverse(
             "users:download_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         response = client.post(url)
@@ -349,7 +353,7 @@ class TestShareItemView:
         client.force_login(user_to_share_with)
         url = reverse(
             "users:download_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         response = client.post(url)
@@ -409,7 +413,7 @@ class TestShareItemView:
         client.force_login(owner)
         url = reverse(
             "users:share_item",
-            kwargs={"item_type": "dataset", "item_uuid": dataset.uuid},
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
         )
 
         # Share with the group (should not throw an error)
@@ -487,7 +491,7 @@ class TestShareItemView:
             request_user=owner,
             group=share_group,
             share_user=user_to_share_with,
-            item_uuid=str(capture.uuid),
+            item_uuid=capture.uuid,
             item_type=ItemType.CAPTURE,
             message="Group share",
         )
@@ -495,7 +499,7 @@ class TestShareItemView:
             request_user=owner,
             group=share_group,
             share_user=user2,
-            item_uuid=str(capture.uuid),
+            item_uuid=capture.uuid,
             item_type=ItemType.CAPTURE,
             message="Group share",
         )
