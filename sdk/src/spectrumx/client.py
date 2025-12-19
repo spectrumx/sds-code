@@ -339,12 +339,18 @@ class Client:
                 error_info={"file": file_info},
             )
 
-        # Handle existing files
-        if local_file_path.exists() and not overwrite:
-            log_user(f"Skipping existing file: '{local_file_path}'")
+        # skip file download when local exists and not overwriting
+        if not skip_contents and local_file_path.exists() and not overwrite:
+            log_user(f"Skipping local file: '{local_file_path}'")
             return Result(value=file_info)
 
-        # Download the file
+        # never re-download identical files
+        if not skip_contents and local_file_path.exists() and overwrite:
+            if file_info.sum_blake3 == file_info.compute_sum_blake3():
+                log_user(f"Skipping identical file: '{local_file_path}'")
+                return Result(value=file_info)
+
+        # download the file
         try:
             log.debug(f"Dw: {local_file_path}")
             downloaded_file = self.download_file(

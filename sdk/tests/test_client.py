@@ -1,6 +1,7 @@
 """Tests for the client module."""
 
 import re
+import uuid
 from enum import IntEnum
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -11,9 +12,12 @@ import pytest
 from loguru import logger as log
 from spectrumx.client import Client
 from spectrumx.config import SDSConfig
-from spectrumx.config import _cfg_name_lookup  # pyright: ignore[reportPrivateUsage]
+from spectrumx.config import _cfg_name_lookup
 from spectrumx.models.files import File
 from spectrumx.ops import files
+
+# ruff: noqa: SLF001
+# pyright: reportPrivateUsage=false
 
 log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")
 
@@ -189,3 +193,139 @@ def test_download_fails_for_invalid_files(
             file_obj: File = error["file"]
             log.error(f"{file_obj.name}: uuid={file_obj.uuid}")
         assert not any(successful_files), "No file should be successfully downloaded."
+
+
+def test_existing_local_file_no_overwrite_skips_download(
+    tmp_path: Path, client: Client
+) -> None:
+    """When a file exists locally and overwrite is False, it must not be re-created."""
+
+    sds_dir = PurePosixPath("remote/dir")
+    # create sample file metadata
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.directory = sds_dir
+    file_info.name = "existing.txt"
+
+    # create local file that should cause the client to skip re-download
+    local_target = Path(f"{tmp_path}/{sds_dir}") / file_info.name
+    local_target.parent.mkdir(parents=True, exist_ok=True)
+    local_target.write_text("local contents")
+
+    # patch download_file to fail the test if called
+    with patch.object(
+        Client,
+        "download_file",
+        side_effect=AssertionError("download_file should not be called"),
+    ):
+        result = client._download_single_file(
+            file_info=file_info,
+            to_local_path=tmp_path,
+            skip_contents=False,
+            overwrite=False,
+        )
+
+    assert result, "Result should not be None"
+    assert result() is file_info, "Returned file should be the original file_info"
+
+
+def test_existing_local_file_overwrite_redownloads_it(
+    tmp_path: Path, client: Client
+) -> None:
+    """When overwriting and local file differs, the file must be re-downloaded,
+    thus discarding the local version."""
+
+    sds_dir = PurePosixPath("remote")
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.directory = sds_dir
+    file_info.name = "recreate.bin"
+
+    local_target = Path(f"{tmp_path}/{sds_dir}") / file_info.name
+    local_target.parent.mkdir(parents=True, exist_ok=True)
+    local_target.write_bytes(b"old-bytes")
+
+    server_content = b"server-bytes-new"
+
+    # ensure the stored checksum is different from the local file to force re-download
+    file_info.sum_blake3 = "remote-checksum-different"
+
+    def fake_download_file(*args, **kwargs):
+        # Accepts either positional or keyword args from the mock and extract the
+        # target local path. The mock may be called without `self` in kwargs.
+        file_uuid = kwargs.get("file_uuid")
+        to_local_path = kwargs.get("to_local_path")
+        if to_local_path is None:
+            # fall back to positional args if present
+            if len(args) == 1:
+                to_local_path = args[0]
+            elif len(args) > 1:
+                to_local_path = args[-1]
+
+            assert to_local_path is not None, (
+                "to_local_path not provided to fake_download_file"
+            )
+
+        log.debug(
+            f"Fake download_file called for UUID {file_uuid} to {to_local_path.name}"  # ty:ignore[possibly-missing-attribute]
+        )
+        to_local_path.parent.mkdir(parents=True, exist_ok=True)  # ty:ignore[possibly-missing-attribute]
+        to_local_path.write_bytes(server_content)  # ty:ignore[possibly-missing-attribute]
+        # update the file_info to reflect the new local file and checksum
+        file_info.local_path = to_local_path
+        file_info.sum_blake3 = file_info.compute_sum_blake3()
+        return file_info
+
+    with patch.object(
+        Client, "download_file", side_effect=fake_download_file
+    ) as patched:
+        result = client._download_single_file(
+            file_info=file_info,
+            to_local_path=tmp_path,
+            skip_contents=False,
+            overwrite=True,
+        )
+    # assert that our patched download method was called
+    assert patched.called, "download_file was not invoked"
+
+    returned = result()
+    assert local_target.read_bytes() == server_content, (
+        "Local file content should match server content. "
+        f"Got {local_target.read_bytes()}, expected {server_content}"
+    )
+    assert returned.sum_blake3 == returned.compute_sum_blake3(), (
+        "Returned file checksum should match computed checksum."
+        f" Got {returned.sum_blake3}, expected {returned.compute_sum_blake3()}"
+    )
+
+
+def test_existing_local_file_identical_checksum_not_redownloaded(
+    tmp_path: Path, client: Client
+) -> None:
+    """When the local file has an identical checksum, it must not be re-downloaded."""
+
+    sds_dir = PurePosixPath("same/checksum")
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.directory = sds_dir
+    file_info.name = "same.txt"
+
+    local_target = Path(f"{tmp_path}/{sds_dir}") / file_info.name
+    local_target.parent.mkdir(parents=True, exist_ok=True)
+    local_target.write_text("identical content")
+
+    # set file_info to reflect the local content checksum
+    file_info.local_path = local_target
+    file_info.sum_blake3 = file_info.compute_sum_blake3()
+
+    with patch.object(
+        Client,
+        "download_file",
+        side_effect=AssertionError("download_file should not be called"),
+    ):
+        result = client._download_single_file(
+            file_info=file_info,
+            to_local_path=tmp_path,
+            skip_contents=False,
+            overwrite=True,
+        )
+
+    assert result, "Result should not be None"
+    assert result() is file_info, "Returned file should be the original file_info"

@@ -2,6 +2,14 @@
 
 ## `0.1.17` - YYYY-MM-DD
 
+## `0.1.17` - 2025-12-19
+
++ Fixes:
+    + [**Improved file downloads**](https://github.com/spectrumx/sds-code/pull/...):
+        + When overwrite is `False` and a local file would be overwritten, we skip re-downloading it.
+        + When overwrite is `True` and the checksums don't match with server, we re-download and replace the local file to match the server's.
+        + If local file is identical to server's, we now skip the download entirely, even when overwrite is `True`.
+
 ## `0.1.16` - 2025-12-16
 
 + Fixes:
