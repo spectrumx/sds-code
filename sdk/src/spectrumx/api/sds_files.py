@@ -262,7 +262,7 @@ def __download_file_contents_if_applicable(
 
 def __download_file_contents(
     *,
-    client,
+    client: Client,
     file_uuid: UUID4 | str,
     contents_lock: RLock,
     target_path: Path | None = None,
@@ -272,27 +272,64 @@ def __download_file_contents(
     If target_path is not provided, a temporary file is created.
     When provided, the parent of target_path will be created if it does not exist.
 
+    Downloads to a temporary file first, then atomically moves it to target_path
+    to ensure partial downloads don't leave incomplete files in place.
+
     Args:
         file_uuid:      The UUID of the file to download from SDS.
         target_path:    The local path to save the downloaded file to.
     Returns:
         The local path to the downloaded file.
     """
-    if target_path is None:
+    is_temp_target = target_path is None
+    if is_temp_target:
         file_desc, file_name = tempfile.mkstemp()
         os.close(file_desc)
         target_path = Path(file_name)
-    target_path = Path(target_path)
+    else:
+        target_path = Path(target_path)
+
     uuid_to_set: UUID4 = (
         uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
     )
-    if not client.dry_run:
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        with target_path.open(mode="wb") as file_ptr, contents_lock:
+
+    if client.dry_run:
+        log_user(f"Dry run enabled: file would be saved as {target_path}")
+        return target_path
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # The path to download is a temporary file: this prevents partial downloads from
+    #   showing up as valid files. When the target path itself is temporary, that is
+    #   used directly for downloads.
+    if is_temp_target:
+        download_path = target_path
+    else:
+        # NOTE: this temporary location might not have enough space to download large
+        #   files. We're not handling that case, as it's uncommon and will be raised
+        #   as an OSError during download for the user to take action.
+        file_desc, temp_file_name = tempfile.mkstemp(
+            dir=target_path.parent, prefix=".tmp-", suffix=".downloading"
+        )
+        os.close(file_desc)
+        download_path = Path(temp_file_name)
+
+    try:
+        # download contents
+        with download_path.open(mode="wb") as file_ptr, contents_lock:
             for chunk in client._gateway.get_file_contents_by_id(uuid=uuid_to_set.hex):
                 file_ptr.write(chunk)
-    else:
-        log_user(f"Dry run enabled: file would be saved as {target_path}")
+            file_ptr.flush()
+            os.fsync(file_ptr.fileno())
+
+        # move to target path if needed
+        if not is_temp_target:
+            download_path.replace(target_path)
+    except Exception:
+        if not is_temp_target:
+            download_path.unlink(missing_ok=True)
+        raise
+
     return target_path
 
 
