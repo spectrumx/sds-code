@@ -38,7 +38,8 @@ log.trace("Placeholder log to avoid reimporting or resolving unused import warni
 # globally toggles dry run mode in case we want to run these under an integration mode.
 DRY_RUN: bool = False
 
-MULTICHANNEL_EXPECTED_COUNT = 2
+MULTICHANNEL_EXPECTED_COUNT: int = 2  # expected num of captures in multi-channel tests
+TEST_STATE_PERSISTENCE: bool = False  # don't persist upload state in tests
 
 
 @pytest.fixture
@@ -384,9 +385,10 @@ def test_upload_capture_dry_run(client: Client, tmp_path: Path) -> None:
 
     # ACT
     capture = client.upload_capture(
-        local_path=test_dir,
-        sds_path="/test/capture/dry-run",
         capture_type=capture_type,
+        local_path=test_dir,
+        persist_state=TEST_STATE_PERSISTENCE,
+        sds_path="/test/capture/dry-run",
     )
 
     # ASSERT
@@ -419,10 +421,11 @@ def test_upload_capture_upload_fails(
     # ACT & ASSERT
     with pytest.raises(SDSError):
         client.upload_capture(
-            local_path=test_dir,
-            sds_path="/test/capture/fail",
             capture_type=CaptureType.DigitalRF,
+            local_path=test_dir,
+            persist_state=TEST_STATE_PERSISTENCE,
             raise_on_error=True,
+            sds_path="/test/capture/fail",
         )
 
     # Test with raise_on_error=False
@@ -430,6 +433,7 @@ def test_upload_capture_upload_fails(
         local_path=test_dir,
         sds_path="/test/capture/fail",
         capture_type=CaptureType.DigitalRF,
+        persist_state=TEST_STATE_PERSISTENCE,
         raise_on_error=False,
         verbose=False,
     )
@@ -451,6 +455,7 @@ def test_upload_capture_no_files(client: Client, tmp_path: Path) -> None:
         local_path=empty_dir,
         sds_path="/test/capture/empty",
         capture_type=CaptureType.DigitalRF,
+        persist_state=TEST_STATE_PERSISTENCE,
         verbose=False,
     )
 
@@ -476,6 +481,7 @@ def test_upload_multichannel_drf_capture_dry_run(
         local_path=test_dir,
         sds_path="/test/multichannel/dry-run",
         channels=channels,
+        persist_state=TEST_STATE_PERSISTENCE,
     )
 
     # ASSERT
@@ -540,6 +546,7 @@ def test_upload_multichannel_drf_capture_success(
         local_path=test_dir,
         sds_path="/test/multichannel",
         channels=channels,
+        persist_state=TEST_STATE_PERSISTENCE,
     )
 
     # ASSERT
@@ -633,6 +640,7 @@ def test_upload_multichannel_drf_capture_existing_capture(
         local_path=test_dir,
         sds_path="/test/multichannel",
         channels=channels,
+        persist_state=TEST_STATE_PERSISTENCE,
     )
 
     # ASSERT
@@ -707,6 +715,7 @@ def test_upload_multichannel_drf_capture_creation_fails(
         local_path=test_dir,
         sds_path="/test/multichannel",
         channels=channels,
+        persist_state=TEST_STATE_PERSISTENCE,
         raise_on_error=False,
     )
 
@@ -916,11 +925,12 @@ def test_upload_capture_with_name_dry_run(client: Client, tmp_path: Path) -> Non
 
     # ACT
     capture = client.upload_capture(
-        local_path=test_dir,
-        sds_path="/test/capture/with/name",
         capture_type=CaptureType.DigitalRF,
         channel="test_channel",
+        local_path=test_dir,
         name=capture_name,
+        persist_state=TEST_STATE_PERSISTENCE,
+        sds_path="/test/capture/with/name",
         verbose=False,
     )
 
@@ -941,10 +951,11 @@ def test_upload_capture_without_name_dry_run(client: Client, tmp_path: Path) -> 
 
     # ACT
     capture = client.upload_capture(
-        local_path=test_dir,
-        sds_path="/test/capture/no/name",
         capture_type=CaptureType.DigitalRF,
         channel="test_channel",
+        local_path=test_dir,
+        persist_state=TEST_STATE_PERSISTENCE,
+        sds_path="/test/capture/no/name",
         verbose=False,
     )
 
@@ -1116,11 +1127,12 @@ def test_upload_capture_with_name_success(
 
     # ACT
     capture = client.upload_capture(
-        local_path=test_dir,
-        sds_path="/test/upload/success",
         capture_type=CaptureType.DigitalRF,
         channel="test_channel",
+        local_path=test_dir,
         name=capture_name,
+        persist_state=TEST_STATE_PERSISTENCE,
+        sds_path="/test/upload/success",
         verbose=False,
     )
 

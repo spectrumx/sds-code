@@ -448,13 +448,13 @@ def test_capture_upload_drf(
 
     # ACT by uploading the capture
     capture = integration_client.upload_capture(
-        local_path=test_dir,
-        sds_path=sds_path,
         capture_type=capture_type,
         channel=drf_channel,
-        warn_skipped=True,
-        raise_on_error=True,
+        local_path=test_dir,
         persist_state=False,
+        raise_on_error=True,
+        sds_path=sds_path,
+        warn_skipped=True,
     )
 
     # ASSERT capture was correctly created
@@ -508,13 +508,13 @@ def test_capture_upload_rh(integration_client: Client) -> None:
 
     # ACT
     capture = integration_client.upload_capture(
-        local_path=dir_top_level,
-        sds_path=sds_path,
         capture_type=CaptureType.RadioHound,
-        scan_group=scan_group,
-        warn_skipped=True,
-        raise_on_error=True,
+        local_path=dir_top_level,
         persist_state=False,
+        raise_on_error=True,
+        scan_group=scan_group,
+        sds_path=sds_path,
+        warn_skipped=True,
     )
 
     # ASSERT
@@ -569,11 +569,11 @@ def test_capture_upload_missing_required_fields_drf(
     # ACT & ASSERT - Missing channel for DigitalRF
     with pytest.raises(CaptureError):
         integration_client.upload_capture(
-            local_path=test_dir,
-            sds_path=sds_path,
             capture_type=capture_type,
-            raise_on_error=True,
+            local_path=test_dir,
             persist_state=False,
+            raise_on_error=True,
+            sds_path=sds_path,
             # Missing required channel parameter
         )
 
@@ -869,9 +869,9 @@ def _upload_assets(
     log.debug(f"Uploading assets as '/{sds_path}'")
     upload_results = integration_client.upload(
         local_path=local_path,
+        persist_state=False,
         sds_path=sds_path,
         verbose=False,
-        persist_state=False,
     )
     success_results = [success for success in upload_results if success]
     failed_results = [success for success in upload_results if not success]

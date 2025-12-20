@@ -234,6 +234,7 @@ def test_upload_files_in_bulk(integration_client: Client, temp_file_tree: Path) 
     with disable_ssl_warnings():
         results = integration_client.upload(
             local_path=temp_file_tree,
+            persist_state=False,  # do not persist state in tests
             sds_path=PurePosixPath("/test-tree") / random_subdir_name,
             verbose=True,
             warn_skipped=False,

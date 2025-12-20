@@ -90,7 +90,9 @@ def check_basic_usage() -> None:
     sds.upload(
         local_path=local_dir,  # may be a single file or a directory
         sds_path=reference_name,  # files will be created under this virtual directory
+        persist_state=False,  # do not persist state in tests
         verbose=True,  # shows a progress bar (default)
+        warn_skipped=True,  # warn if some files were skipped (default)
     )
 
     # download the files from an SDS directory
@@ -153,7 +155,9 @@ def check_error_handling() -> None:
             upload_results: list[Result[File]] = sds.upload(
                 local_path=local_dir,
                 sds_path=reference_name,
+                persist_state=False,  # do not persist state in tests
                 verbose=True,
+                warn_skipped=True,
             )
 
             # Since `upload()` is a batch operation, some files may succeed and some
@@ -268,21 +272,23 @@ def check_capture_usage() -> None:
     # upload a single-channel capture
     local_dir = Path("my_spectrum_files")
     sds.upload_capture(
-        local_path=local_dir,
-        sds_path=capture_sds_dir,
         capture_type=CaptureType.RadioHound,
-        index_name="",  # automatically inferred from capture type
         channel=None,
-        scan_group=None,
+        index_name="",  # automatically inferred from capture type
+        local_path=local_dir,
         name="Test Single Channel Capture",
+        persist_state=False,  # do not persist state in tests
+        scan_group=None,
+        sds_path=capture_sds_dir,
         verbose=True,
     )
 
     # upload a multi-channel capture
     sds.upload_multichannel_drf_capture(
-        local_path=local_dir,
-        sds_path=capture_sds_dir,
         channels=[],
+        local_path=local_dir,
+        persist_state=False,  # do not persist state in tests
+        sds_path=capture_sds_dir,
         verbose=True,
     )
 
@@ -300,6 +306,7 @@ def check_download_modes() -> None:
         files_to_download=file_paginator,
         to_local_path=Path("sds-downloads") / "files" / reference_name,
         overwrite=False,  # do not overwrite local existing files (default)
+        skip_contents=False,
         verbose=True,
     )
 

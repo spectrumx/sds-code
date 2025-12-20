@@ -168,13 +168,13 @@ def test_paths_sds_capture_ops(
                 f"{type(sds_path_random)!s:>40} '{sds_path_random}'"
             )
             capture = integration_client.upload_capture(
-                local_path=drf_sample_top_level_dir,
-                sds_path=sds_path_random,
                 capture_type=CaptureType.DigitalRF,
                 channel=drf_channel,
+                local_path=drf_sample_top_level_dir,
+                persist_state=False,
+                sds_path=sds_path_random,
                 verbose=False,
                 warn_skipped=False,
-                persist_state=False,
             )
             assert capture is not None, (
                 f"Failed to upload capture to '{sds_path_random}'"
@@ -206,13 +206,13 @@ def test_paths_sds_capture_ops(
             f"{type(sds_path_random)!s:>40} '{sds_path_random}'"
         )
         capture = integration_client.upload_capture(
-            local_path=rh_sample_top_level_dir,
-            sds_path=sds_path_random,
             capture_type=CaptureType.RadioHound,
+            local_path=rh_sample_top_level_dir,
+            persist_state=False,
             scan_group=rh_data.get("scan_group"),
+            sds_path=sds_path_random,
             verbose=False,
             warn_skipped=False,
-            persist_state=False,
         )
         assert capture is not None, f"Failed to upload capture to '{sds_path_random}'"
         assert capture.uuid is not None, f"Capture UUID is None for '{sds_path_random}'"
