@@ -55,6 +55,7 @@ CELERY_BEAT_SCHEDULE_EXPIRES = 3600
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     MEDIA_ROOT=tempfile.mkdtemp(),
     CELERY_BROKER_URL="redis://localhost:6379/0",
+    MAX_WEB_DOWNLOAD_SIZE=20 * 1024 * 1024 * 1024,  # 20GB for testing
 )
 class TestCeleryTasks(TestCase):
     """Test Celery tasks for dataset file processing."""
@@ -1194,8 +1195,8 @@ class TestCeleryTasks(TestCase):
 
     def test_large_file_download_redirects_to_sdk(self):
         """Test that large file downloads suggest using the SDK."""
-        # Create a large file that exceeds the 5GB limit (use reasonable size)
-        # Use a size that's within database limits but still triggers the 5GB check
+        # Create a large file that exceeds the 20GB limit (use reasonable size)
+        # Use a size that's within database limits but still triggers the 20GB check
         File.objects.create(
             name="large_file.h5",
             size=2147483647,
@@ -1215,8 +1216,9 @@ class TestCeleryTasks(TestCase):
             patch("sds_gateway.api_methods.tasks._get_item_files") as mock_get_files,
             patch("sds_gateway.api_methods.tasks._send_item_download_error_email"),
         ):
-            # Mock the files to return a list with total size > 5GB
-            mock_files = [MagicMock(size=6 * 1024 * 1024 * 1024)]  # 6GB file
+            # Mock files with total size > configured limit
+            over_limit_size = settings.MAX_WEB_DOWNLOAD_SIZE + (1 * 1024 * 1024)  # +1MB
+            mock_files = [MagicMock(size=over_limit_size)]
             mock_get_files.return_value = mock_files
 
             # Try to download the large file

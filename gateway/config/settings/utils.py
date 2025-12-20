@@ -29,3 +29,17 @@ def is_test_env() -> bool:
     """
     env_var = os.getenv("PYTEST_CURRENT_TEST", default=None)
     return env_var is not None
+
+
+def guess_max_web_download_size() -> int:
+    """Determine max web download size based on hostname.
+
+    Returns:
+        int: Maximum download size in bytes
+            - Production: 20GB
+            - Dev/QA (staging): 5GB
+    """
+    _hostname: str = gethostname()
+    _is_staging: bool = "-qa" in _hostname or "-dev" in _hostname
+    # Production: 20GB, Staging (dev/qa): 5GB
+    return 20 * 1024 * 1024 * 1024 if not _is_staging else 5 * 1024 * 1024 * 1024
