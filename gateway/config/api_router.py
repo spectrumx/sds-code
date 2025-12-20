@@ -17,7 +17,9 @@ router.register(r"auth", ValidateAuthViewSet, basename="auth")
 router.register(r"assets/files", FileViewSet, basename="files")
 router.register(r"assets/captures", CaptureViewSet, basename="captures")
 router.register(r"assets/datasets", DatasetViewSet, basename="datasets")
-router.register(r"visualizations", VisualizationViewSet, basename="visualizations")
+
+if settings.VISUALIZATIONS_ENABLED:
+    router.register(r"visualizations", VisualizationViewSet, basename="visualizations")
 
 app_name = "api"
 urlpatterns = [
