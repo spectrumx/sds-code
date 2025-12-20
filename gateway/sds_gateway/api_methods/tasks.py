@@ -36,9 +36,6 @@ from sds_gateway.users.models import User
 
 # ruff: noqa: PLC0415
 
-# Constants for file size limits
-MAX_WEB_DOWNLOAD_SIZE = 20 * 1024 * 1024 * 1024  # 20 GB in bytes
-
 
 def cleanup_orphaned_zips() -> int:
     """
@@ -708,10 +705,11 @@ def _process_item_files(
     total_file_size = sum(file_obj.size for file_obj in files)
 
     # Check if download size exceeds web download limit
-    if total_file_size > MAX_WEB_DOWNLOAD_SIZE:
+    max_download_size = settings.MAX_WEB_DOWNLOAD_SIZE
+    if total_file_size > max_download_size:
         logger.warning(
             f"{item_type} {item_uuid} size ({format_file_size(total_file_size)}) "
-            f"exceeds web download limit ({format_file_size(MAX_WEB_DOWNLOAD_SIZE)})"
+            f"exceeds web download limit ({format_file_size(max_download_size)})"
         )
         error_message = (
             f"Your {item_type} is too large ({format_file_size(total_file_size)}) "

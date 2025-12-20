@@ -10,6 +10,7 @@ from celery.schedules import crontab
 from environs import env
 
 from config.settings.logs import ColoredFormatter
+from config.settings.utils import guess_max_web_download_size
 
 __rng = random.SystemRandom()
 
@@ -542,4 +543,13 @@ DATA_UPLOAD_MAX_NUMBER_FILES: int = env.int(
 DATA_UPLOAD_MAX_MEMORY_SIZE: int = env.int(
     "DATA_UPLOAD_MAX_MEMORY_SIZE",
     default=104857600,  # 100MB
+)
+
+# File download limits
+# ------------------------------------------------------------------------------
+# Maximum size for web downloads (can be overridden via MAX_WEB_DOWNLOAD_SIZE env var)
+# Defaults to hostname-based detection: 20GB for production, 5GB for dev/qa
+MAX_WEB_DOWNLOAD_SIZE: int = env.int(
+    "MAX_WEB_DOWNLOAD_SIZE",
+    default=guess_max_web_download_size(),
 )

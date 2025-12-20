@@ -55,6 +55,7 @@ CELERY_BEAT_SCHEDULE_EXPIRES = 3600
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     MEDIA_ROOT=tempfile.mkdtemp(),
     CELERY_BROKER_URL="redis://localhost:6379/0",
+    MAX_WEB_DOWNLOAD_SIZE=20 * 1024 * 1024 * 1024,  # 20GB for testing
 )
 class TestCeleryTasks(TestCase):
     """Test Celery tasks for dataset file processing."""
