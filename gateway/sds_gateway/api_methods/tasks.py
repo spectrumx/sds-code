@@ -37,7 +37,7 @@ from sds_gateway.users.models import User
 # ruff: noqa: PLC0415
 
 # Constants for file size limits
-MAX_WEB_DOWNLOAD_SIZE = 5 * 1024 * 1024 * 1024  # 5 GB in bytes
+MAX_WEB_DOWNLOAD_SIZE = 20 * 1024 * 1024 * 1024  # 20 GB in bytes
 
 
 def cleanup_orphaned_zips() -> int:
