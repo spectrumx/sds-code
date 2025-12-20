@@ -2,10 +2,10 @@
 
 ## `0.1.18` - YYYY-MM-DD
 
-## `0.1.17` - YYYY-MM-DD
+## `0.1.17` - 2025-12-20
 
 + Fixes:
-    + [**Improved file downloads**](https://github.com/spectrumx/sds-code/pull/236):
+    + [**Improved file downloads**](https://github.com/spectrumx/sds-code/pull/236): more reliability for file downloads when they need to be resumed.
         + File downloads now use a temporary file during download to avoid partial files being left behind if the download is interrupted.
         + When overwrite is `False` and a local file would be overwritten, we skip re-downloading it.
         + When overwrite is `True` and the checksums don't match with server, we re-download and replace the local file to match the server's.
