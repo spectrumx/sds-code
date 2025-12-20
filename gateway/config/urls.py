@@ -19,16 +19,21 @@ urlpatterns = [
     # User management
     path("users/", include("sds_gateway.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
-    # Visualizations
-    path(
-        "visualizations/",
-        include("sds_gateway.visualizations.urls", namespace="visualizations"),
-    ),
     # Your stuff: custom urls includes go here
     # ...
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]
+
+# Conditionally include visualizations
+if settings.VISUALIZATIONS_ENABLED:
+    urlpatterns.insert(
+        4,
+        path(
+            "visualizations/",
+            include("sds_gateway.visualizations.urls", namespace="visualizations"),
+        ),
+    )
 if settings.DEBUG:
     # Static file serving when using Gunicorn + Uvicorn for local web socket development
     urlpatterns += staticfiles_urlpatterns()

@@ -9,17 +9,19 @@
             <div class="modal-header">
                 <h5 class="modal-title" id="capture-modal-label">Capture Details</h5>
                 <div class="d-flex align-items-center">
-                    <!-- Visualize button - opens visualization selection modal -->
-                    <button type="button"
-                            class="btn btn-primary me-2 d-none"
-                            id="visualize-btn"
-                            title="Select visualization for this capture"
-                            data-bs-toggle="modal"
-                            data-bs-target="#visualization-modal"
-                            data-capture-uuid=""
-                            data-capture-type="">
-                        <i class="bi bi-graph-up me-1"></i>Visualize
-                    </button>
+                    {% if VISUALIZATIONS_ENABLED %}
+                        <!-- Visualize button - opens visualization selection modal -->
+                        <button type="button"
+                                class="btn btn-primary me-2 d-none"
+                                id="visualize-btn"
+                                title="Select visualization for this capture"
+                                data-bs-toggle="modal"
+                                data-bs-target="#visualization-modal"
+                                data-capture-uuid=""
+                                data-capture-type="">
+                            <i class="bi bi-graph-up me-1"></i>Visualize
+                        </button>
+                    {% endif %}
                     <button type="button"
                             class="btn-close"
                             data-bs-dismiss="modal"
@@ -41,4 +43,6 @@
     </div>
 </div>
 <!-- Include the visualization modal with context -->
-{% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
+{% if VISUALIZATIONS_ENABLED %}
+    {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
+{% endif %}

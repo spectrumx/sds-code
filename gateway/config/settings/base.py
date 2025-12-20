@@ -523,6 +523,14 @@ SDS_NEW_USERS_APPROVED_ON_CREATION: bool = env.bool(
     default=False,
 )
 
+# Visualizations
+# ------------------------------------------------------------------------------
+# Enable or disable the visualizations feature
+VISUALIZATIONS_ENABLED: bool = env.bool(
+    "VISUALIZATIONS_ENABLED",
+    default=True,
+)
+
 # File upload limits
 # ------------------------------------------------------------------------------
 # Maximum number of files that can be uploaded at once

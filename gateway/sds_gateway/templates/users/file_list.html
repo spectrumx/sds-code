@@ -388,7 +388,9 @@
     <!-- Capture Details Modal -->
     {% include "users/partials/capture_modal.html" %}
     <!-- Visualization Selection Modal -->
-    {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
+    {% if VISUALIZATIONS_ENABLED %}
+        {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
+    {% endif %}
     <!-- Web Download Modal -->
     {% include "users/partials/web_download_modal.html" %}
 {% endblock body %}

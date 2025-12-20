@@ -2,7 +2,7 @@
 
 ## `0.1.18` - YYYY-MM-DD
 
-## `0.1.17` - 2025-12-19
+## `0.1.17` - YYYY-MM-DD
 
 + Fixes:
     + [**Improved file downloads**](https://github.com/spectrumx/sds-code/pull/236):
