@@ -19,7 +19,8 @@ nav:
     - "Basics":
           - "Getting Started": "getting-started.md"
           - "Terminology": "terminology.md"
-          - "Common Workflows": "common-workflows.md"
+          - "Common Workflows":
+                - "Dataset downloads": "common-workflows/dataset-downloads.md"
     - "Changelog": "changelog.md"
     - "Advanced":
           - "Concurrent Access": "advanced/concurrent-access.md"

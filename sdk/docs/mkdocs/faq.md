@@ -32,6 +32,7 @@ And others not as much.
         + [Can multiple clients write to the same location simultaneously?](#can-multiple-clients-write-to-the-same-location-simultaneously)
         + [Is it safe to have multiple clients reading from the same location?](#is-it-safe-to-have-multiple-clients-reading-from-the-same-location)
         + [Why is the SDK stateless?](#why-is-the-sdk-stateless)
+        + [What protections help prevent accidental deletions?](#what-protections-help-prevent-accidental-deletions)
     + [Troubleshooting](#troubleshooting)
         + [I'm getting an `AuthError` when trying to authenticate. What should I check?](#im-getting-an-autherror-when-trying-to-authenticate-what-should-i-check)
         + [I'm getting a `NetworkError`. What does this mean?](#im-getting-a-networkerror-what-does-this-mean)
@@ -391,6 +392,16 @@ A stateless design allows multiple clients to interact with the SDS Gateway
 simultaneously without the complexity of session management. However, this means each
 request must contain all information needed to complete it, and the SDK cannot detect or
 prevent concurrent writes to the same location.
+
+### What protections help prevent accidental deletions?
+
+SDS layers several safeguards to keep assets from being removed unintentionally:
+
++ Sharing defaults to **Viewer** access. Granting write permissions always requires an explicit choice.
++ Files that belong to captures or datasets cannot be deleted until they are unlinked from that grouping. Captures linked into datasets are equally protected while that relationship exists.
++ **Final** datasets are read-only, even for their owners. This is the recommended state for broader distribution once contents are stable. See [What are Draft and Final Datasets?](#what-are-draft-and-final-datasets) for details.
++ All SDS assets use soft deletion. Administrators can restore items for a short window after removal if contacted promptly. Reach out to support if needed.
++ When working in the SDK, keep shared-asset listings distinct from your own to reduce the chance of edits in the wrong context.
 
 ## Troubleshooting
 
