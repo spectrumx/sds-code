@@ -1216,8 +1216,9 @@ class TestCeleryTasks(TestCase):
             patch("sds_gateway.api_methods.tasks._get_item_files") as mock_get_files,
             patch("sds_gateway.api_methods.tasks._send_item_download_error_email"),
         ):
-            # Mock the files to return a list with total size > 20GB
-            mock_files = [MagicMock(size=21 * 1024 * 1024 * 1024)]  # 21GB file
+            # Mock files with total size > configured limit
+            over_limit_size = settings.MAX_WEB_DOWNLOAD_SIZE + (1 * 1024 * 1024)  # +1MB
+            mock_files = [MagicMock(size=over_limit_size)]
             mock_get_files.return_value = mock_files
 
             # Try to download the large file
