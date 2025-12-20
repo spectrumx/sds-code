@@ -27,13 +27,12 @@ urlpatterns = [
 
 # Conditionally include visualizations
 if settings.VISUALIZATIONS_ENABLED:
-    urlpatterns.insert(
-        4,
+    urlpatterns += [
         path(
             "visualizations/",
             include("sds_gateway.visualizations.urls", namespace="visualizations"),
         ),
-    )
+    ]
 if settings.DEBUG:
     # Static file serving when using Gunicorn + Uvicorn for local web socket development
     urlpatterns += staticfiles_urlpatterns()
