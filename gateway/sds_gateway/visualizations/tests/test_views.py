@@ -3,9 +3,11 @@
 import json
 from unittest.mock import patch
 
+import pytest
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.urls import NoReverseMatch
 from django.urls import reverse
 from rest_framework import status
 
@@ -39,10 +41,13 @@ class WaterfallVisualizationViewTestCases(TestCase):
         )
 
         # Set up URL
-        self.waterfall_url = reverse(
-            "visualizations:waterfall",
-            kwargs={"capture_uuid": self.capture.uuid},
-        )
+        try:
+            self.waterfall_url = reverse(
+                "visualizations:waterfall",
+                kwargs={"capture_uuid": self.capture.uuid},
+            )
+        except NoReverseMatch:
+            pytest.skip("Visualizations feature is disabled")
 
     def test_waterfall_view_requires_login(self) -> None:
         """Test that the waterfall view requires login."""
@@ -72,10 +77,13 @@ class WaterfallVisualizationViewTestCases(TestCase):
         self.client.force_login(self.user)
 
         fake_uuid = "00000000-0000-0000-0000-000000000000"
-        fake_url = reverse(
-            "visualizations:waterfall",
-            kwargs={"capture_uuid": fake_uuid},
-        )
+        try:
+            fake_url = reverse(
+                "visualizations:waterfall",
+                kwargs={"capture_uuid": fake_uuid},
+            )
+        except NoReverseMatch:
+            pytest.skip("Visualizations feature is disabled")
 
         response = self.client.get(fake_url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -142,20 +150,23 @@ class WaterfallAPIViewTestCases(TestCase):
         )
 
         # Set up URL
-        self.create_waterfall_url = reverse(
-            "api:visualizations-create-waterfall",
-            kwargs={"pk": self.capture.uuid},
-        )
+        try:
+            self.create_waterfall_url = reverse(
+                "api:visualizations-create-waterfall",
+                kwargs={"pk": self.capture.uuid},
+            )
 
-        self.get_waterfall_status_url = reverse(
-            "api:visualizations-get-waterfall-status",
-            kwargs={"pk": self.capture.uuid},
-        )
+            self.get_waterfall_status_url = reverse(
+                "api:visualizations-get-waterfall-status",
+                kwargs={"pk": self.capture.uuid},
+            )
 
-        self.download_waterfall_url = reverse(
-            "api:visualizations-download-waterfall",
-            kwargs={"pk": self.capture.uuid},
-        )
+            self.download_waterfall_url = reverse(
+                "api:visualizations-download-waterfall",
+                kwargs={"pk": self.capture.uuid},
+            )
+        except NoReverseMatch:
+            pytest.skip("Visualizations feature is disabled")
 
     def test_create_waterfall_api_requires_authentication(self) -> None:
         """Test that create_waterfall API requires authentication."""
@@ -196,10 +207,13 @@ class WaterfallAPIViewTestCases(TestCase):
         self.client.force_login(self.user)
 
         fake_uuid = "00000000-0000-0000-0000-000000000000"
-        fake_url = reverse(
-            "api:visualizations-create-waterfall",
-            kwargs={"pk": fake_uuid},
-        )
+        try:
+            fake_url = reverse(
+                "api:visualizations-create-waterfall",
+                kwargs={"pk": fake_uuid},
+            )
+        except NoReverseMatch:
+            pytest.skip("Visualizations feature is disabled")
 
         response = self.client.post(fake_url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -339,7 +353,6 @@ class SpectrogramVisualizationViewTestCases(TestCase):
             password="testpassword",  # noqa: S106
             is_approved=True,
         )
-
         # Create test capture
         self.capture = Capture.objects.create(
             capture_type=CaptureType.DigitalRF,
@@ -350,10 +363,13 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         )
 
         # Set up URL
-        self.spectrogram_url = reverse(
-            "visualizations:spectrogram",
-            kwargs={"capture_uuid": self.capture.uuid},
-        )
+        try:
+            self.spectrogram_url = reverse(
+                "visualizations:spectrogram",
+                kwargs={"capture_uuid": self.capture.uuid},
+            )
+        except NoReverseMatch:
+            pytest.skip("Visualizations feature is disabled")
 
     def test_spectrogram_view_requires_login(self) -> None:
         """Test that the spectrogram view requires login."""
@@ -383,10 +399,13 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         self.client.force_login(self.user)
 
         fake_uuid = "00000000-0000-0000-0000-000000000000"
-        fake_url = reverse(
-            "visualizations:spectrogram",
-            kwargs={"capture_uuid": fake_uuid},
-        )
+        try:
+            fake_url = reverse(
+                "visualizations:spectrogram",
+                kwargs={"capture_uuid": fake_uuid},
+            )
+        except NoReverseMatch:
+            pytest.skip("Visualizations feature is disabled")
 
         response = self.client.get(fake_url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -453,20 +472,23 @@ class SpectrogramAPIViewTestCases(TestCase):
         )
 
         # Set up URLs
-        self.create_spectrogram_url = reverse(
-            "api:visualizations-create-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
+        try:
+            self.create_spectrogram_url = reverse(
+                "api:visualizations-create-spectrogram",
+                kwargs={"pk": self.capture.uuid},
+            )
 
-        self.get_spectrogram_status_url = reverse(
-            "api:visualizations-get-spectrogram-status",
-            kwargs={"pk": self.capture.uuid},
-        )
+            self.get_spectrogram_status_url = reverse(
+                "api:visualizations-get-spectrogram-status",
+                kwargs={"pk": self.capture.uuid},
+            )
 
-        self.download_spectrogram_url = reverse(
-            "api:visualizations-download-spectrogram",
-            kwargs={"pk": self.capture.uuid},
-        )
+            self.download_spectrogram_url = reverse(
+                "api:visualizations-download-spectrogram",
+                kwargs={"pk": self.capture.uuid},
+            )
+        except NoReverseMatch:
+            pytest.skip("Visualizations feature is disabled")
 
     def test_create_spectrogram_api_requires_authentication(self) -> None:
         """Test that create_spectrogram API requires authentication."""
@@ -519,10 +541,13 @@ class SpectrogramAPIViewTestCases(TestCase):
         self.client.force_login(self.user)
 
         fake_uuid = "00000000-0000-0000-0000-000000000000"
-        fake_url = reverse(
-            "api:visualizations-create-spectrogram",
-            kwargs={"pk": fake_uuid},
-        )
+        try:
+            fake_url = reverse(
+                "api:visualizations-create-spectrogram",
+                kwargs={"pk": fake_uuid},
+            )
+        except NoReverseMatch:
+            pytest.skip("Visualizations feature is disabled")
 
         response = self.client.post(fake_url)
         assert response.status_code == status.HTTP_404_NOT_FOUND
