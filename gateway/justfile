@@ -6,6 +6,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 # constants
 env_selection_script := "./scripts/env-selection.sh"
 snapshot_log_dir := "./logs/snapshots"
+secrets_generator := "./scripts/generate-secrets.sh"
 
 # variables | run `just env` to see current values
 app_container := shell(env_selection_script + ' $1', "app_container")
@@ -70,6 +71,11 @@ env:
     @echo -e "\tCompose file: \e[34m            '{{compose_file}}'\e[0m"
     @echo -e "\tDocker compose command: \e[34m  '{{docker_compose}}'\e[0m"
     @echo -e "\tUV runner command: \e[34m       '{{uv_runner}}'\e[0m"
+
+# generates environment secrets for local/production/ci environments
+generate-secrets env_type *args:
+    @echo "Generating secrets for '{{env_type}}' environment..."
+    {{secrets_generator}} {{args}} {{env_type}}
 
 # streams logs until interrupted (tails 10k lines); args are passed to compose logs
 logs *args:
