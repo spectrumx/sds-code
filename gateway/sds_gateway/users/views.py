@@ -7,6 +7,7 @@ from typing import Any
 from typing import cast
 from uuid import UUID
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import AnonymousUser
@@ -4098,3 +4099,18 @@ def files_view(request):
 
 
 user_check_file_exists_view = CheckFileExistsView.as_view()
+
+
+class SPXDACDatasetAltView(Auth0LoginRequiredMixin, TemplateView):
+    """View for the alternative SpectrumX DAC Dataset download page."""
+
+    template_name = "pages/spx_dac_dataset_alt.html"
+
+    def get_context_data(self, **kwargs):
+        """Get context data for the DAC dataset download page."""
+        context = super().get_context_data(**kwargs)
+        context["s3_bucket_url"] = settings.SPX_DAC_DATASET_S3_URL
+        return context
+
+
+spx_dac_dataset_alt_view = SPXDACDatasetAltView.as_view()

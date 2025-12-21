@@ -71,6 +71,9 @@ AWS_S3_SIGNATURE_VERSION: str = "s3v4"
 AWS_S3_FILE_OVERWRITE: bool = False
 AWS_DEFAULT_ACL: str | None = None
 
+# SpectrumX DAC Dataset S3 URL
+SPX_DAC_DATASET_S3_URL: str | None = env.str("SPX_DAC_DATASET_S3_URL", default=None)
+
 # sds_gateway/
 APPS_DIR: Path = BASE_DIR / "sds_gateway"
 

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% load static i18n %}
+
+{% block title %}
+    SpectrumX DAC Dataset - Alternative Download
+{% endblock title %}
+
+{% block content %}
+{% endblock content %}
+
+{% block body %}
+    <main class="container mt-4">
+        <div class="p-5 mb-4 bg-light rounded-3">
+            <div class="container-fluid py-5">
+                <h1 class="display-5 fw-bold text-dark">
+                    <i class="bi bi-download me-2" aria-hidden="true"></i>
+                    SpectrumX Student Data Competition Dataset - Alternative Download
+                </h1>
+                <p class="col-md-8 fs-4 mt-4">
+                    This page provides an alternative download option for the SpectrumX Student Data Competition Dataset.
+                </p>
+                <p class="col-md-8">
+                    Click the button below to access the dataset from the S3 bucket location.
+                </p>
+                {% if s3_bucket_url %}
+                    <div class="col-md-8 mt-4">
+                        <a href="{{ s3_bucket_url }}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="btn btn-primary btn-lg">
+                            <i class="bi bi-cloud-download me-2" aria-hidden="true"></i>
+                            Download Dataset
+                        </a>
+                        <p class="text-muted mt-3 mb-0">
+                            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+                            The download will open in a new tab.
+                        </p>
+                    </div>
+                {% else %}
+                    <div class="col-md-8 mt-4">
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                            <strong>Configuration Error:</strong> The S3 bucket URL has not been configured.
+                            Please contact the administrator.
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+{% endblock body %}
+
