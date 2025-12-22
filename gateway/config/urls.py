@@ -22,7 +22,7 @@ urlpatterns = [
     path("users/", include("sds_gateway.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
     # SpectrumX DAC Dataset alternative download
-    path("spx-dac-dataset-alt/", spx_dac_dataset_alt_view, name="spx_dac_dataset_alt"),
+    path("spx-dac/", spx_dac_dataset_alt_view, name="spx_dac_dataset_alt"),
     # Your stuff: custom urls includes go here
     # ...
     # Media files
