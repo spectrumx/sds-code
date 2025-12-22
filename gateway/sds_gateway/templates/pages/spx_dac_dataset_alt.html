@@ -5,23 +5,18 @@
 {% block title %}
     NSF SpectrumX Data and Algorithm Competition (SpX-DAC)
 {% endblock title %}
-
 {% block content %}
 {% endblock content %}
-
 {% block body %}
     <main class="container mt-4">
         <div class="p-5 mb-4 bg-light rounded-3">
             <div class="container-fluid py-5">
-                <h1 class="display-5 fw-bold text-dark mb-4">
-                    NSF SpectrumX Data and Algorithm Competition (SpX-DAC)
-                </h1>
+                <h1 class="display-5 fw-bold text-dark mb-4">NSF SpectrumX Data and Algorithm Competition (SpX-DAC)</h1>
                 <p class="col-md-10 fs-5 text-dark">
                     Welcome! The SpectrumX Data System (SDS) provides the data sharing platform for the NSF SpectrumX Data and Algorithm Competition (SpX-DAC). This page will guide you through accessing the competition dataset. You'll be using the SpectrumX Python library to download and work with the dataset.
                 </p>
             </div>
         </div>
-
         <!-- Step 1: Generate API Key -->
         <div class="row mb-5">
             <div class="col-lg-10 mx-auto">
@@ -35,31 +30,35 @@
                     </p>
                     <form id="api-key-form" class="mb-3">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-primary btn-lg" id="generate-key-btn">
-                            Generate API Key
-                        </button>
+                        <button type="submit" class="btn btn-primary btn-lg" id="generate-key-btn">Generate API Key</button>
                     </form>
+                    {# djlint:off H021 #}
                     <div id="api-key-result" class="mt-3" style="display: none;">
+                        {# djlint:on #}
                         <div class="alert alert-success" role="alert">
                             <h5 class="alert-heading">Your API Key:</h5>
                             <div class="d-flex align-items-center gap-2 mb-2">
                                 <code id="api-key-display" class="fs-6"></code>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="copy-key-btn">
-                                    Copy
-                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        id="copy-key-btn">Copy</button>
                             </div>
                             <p class="mb-0">
                                 <small>Copy this key now - you won't be able to see it again!</small>
                             </p>
                         </div>
                     </div>
-                    <div id="api-key-error" class="alert alert-danger mt-3" role="alert" style="display: none;">
+                    {# djlint:off H021 #}
+                    <div id="api-key-error"
+                         class="alert alert-danger mt-3"
+                         role="alert"
+                         style="display: none">
+                        {# djlint:on #}
                         <span id="api-key-error-message"></span>
                     </div>
                 </div>
             </div>
         </div>
-
         <!-- Step 2: Install Package -->
         <div class="row mb-5">
             <div class="col-lg-10 mx-auto">
@@ -67,9 +66,7 @@
                     <span class="badge bg-primary me-2">Step 2</span>
                     Install the SpectrumX Package
                 </h2>
-                <p class="text-dark mb-3">
-                    Install the SpectrumX Python package from PyPI using pip:
-                </p>
+                <p class="text-dark mb-3">Install the SpectrumX Python package from PyPI using pip:</p>
                 <div class="bg-dark text-light p-4 rounded mb-3">
                     <code class="text-light">pip install spectrumx</code>
                 </div>
@@ -78,7 +75,6 @@
                 </p>
             </div>
         </div>
-
         <!-- Step 3: Download Dataset -->
         <div class="row mb-5">
             <div class="col-lg-10 mx-auto">
@@ -164,17 +160,13 @@ except Exception as e:
                 </p>
             </div>
         </div>
-
         <!-- Having Trouble? -->
         <div class="row mb-5">
             <div class="col-lg-10 mx-auto">
-                <h2 class="h3 text-dark mb-3 text-start">
-                    Having Trouble?
-                </h2>
+                <h2 class="h3 text-dark mb-3 text-start">Having Trouble?</h2>
                 <p class="text-dark mb-4">
                     If you're experiencing issues with the Python library or need assistance, we're here to help!
                 </p>
-                
                 <div class="mb-4">
                     <h4 class="h5 text-dark mb-2">Contact Support</h4>
                     <p class="text-dark mb-2">
@@ -187,7 +179,6 @@ except Exception as e:
                         </a>
                     </p>
                 </div>
-
                 {% if s3_bucket_url %}
                     <div class="mb-4">
                         <p class="text-dark mb-2">
@@ -222,7 +213,6 @@ except Exception as e:
                 {% endif %}
             </div>
         </div>
-
         <!-- Additional Resources -->
         <div class="row mb-5">
             <div class="col-lg-10 mx-auto">
@@ -230,22 +220,20 @@ except Exception as e:
                 <ul class="list-unstyled">
                     <li class="mb-2">
                         <i class="bi bi-book me-2 text-primary" aria-hidden="true"></i>
-                        <a href="https://pypi.org/project/spectrumx/" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
-                            SpectrumX Package Documentation on PyPI
-                        </a>
+                        <a href="https://pypi.org/project/spectrumx/"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="text-decoration-none">SpectrumX Package Documentation on PyPI</a>
                     </li>
                     <li class="mb-2">
                         <i class="bi bi-code-square me-2 text-primary" aria-hidden="true"></i>
-                        <a href="{% url 'api-docs' %}" class="text-decoration-none">
-                            Gateway API Documentation
-                        </a>
+                        <a href="{% url 'api-docs' %}" class="text-decoration-none">Gateway API Documentation</a>
                     </li>
                 </ul>
             </div>
         </div>
     </main>
 {% endblock body %}
-
 {% block inline_javascript %}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -259,11 +247,11 @@ except Exception as e:
 
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                
+
                 // Disable button and show loading state
                 generateBtn.disabled = true;
                 generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Generating...';
-                
+
                 // Hide previous results
                 resultDiv.style.display = 'none';
                 errorDiv.style.display = 'none';
@@ -277,13 +265,13 @@ except Exception as e:
                         }
                     }
                     const response = await window.APIClient.post('{% url "spx_dac_dataset_alt" %}', data);
-                    
+
                     if (response.success) {
                         const apiKey = response.api_key;
                         apiKeyDisplay.textContent = apiKey;
                         resultDiv.style.display = 'block';
                         errorDiv.style.display = 'none';
-                        
+
                         // Update the Python code with the API key
                         updatePythonCode(apiKey);
                     } else {
@@ -346,7 +334,7 @@ except Exception as e:
                         `env_config={"SDS_SECRET_TOKEN": "${apiKey}"}`
                     );
                     codeElement.textContent = updatedCode;
-                    
+
                     // Re-highlight if Prism is available
                     if (typeof Prism !== 'undefined') {
                         Prism.highlightElement(codeElement);
@@ -400,6 +388,7 @@ except Exception as e:
             overflow-x: auto;
             color: #212529 !important;
         }
+
         #python-code-example code {
             font-size: inherit !important;
             font-family: inherit !important;

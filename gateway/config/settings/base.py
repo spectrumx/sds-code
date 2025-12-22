@@ -74,7 +74,9 @@ AWS_DEFAULT_ACL: str | None = None
 # SpectrumX DAC Dataset S3 URL
 SPX_DAC_DATASET_S3_URL: str | None = env.str("SPX_DAC_DATASET_S3_URL", default=None)
 # SpectrumX DAC Dataset ID
-SPX_DAC_DATASET_ID: str | None = env.str("SPX_DAC_DATASET_ID", default="458c3f72-8d7e-49cc-9be3-ed0b0cd7e03d")
+SPX_DAC_DATASET_ID: str | None = env.str(
+    "SPX_DAC_DATASET_ID", default="458c3f72-8d7e-49cc-9be3-ed0b0cd7e03d"
+)
 
 # sds_gateway/
 APPS_DIR: Path = BASE_DIR / "sds_gateway"

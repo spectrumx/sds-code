@@ -2435,7 +2435,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         owned_datasets = self._get_owned_datasets(request.user, order_by)
         shared_datasets = self._get_shared_datasets(request.user, order_by)
 
-        datasets_with_shared_users: list[dict] = []
+        datasets_with_shared_users: list[dict] = []  # pyright: ignore[reportMissingTypeArgument]
         datasets_with_shared_users.extend(
             self._serialize_datasets(owned_datasets, request.user)
         )
@@ -4107,7 +4107,7 @@ class SPXDACDatasetAltView(Auth0LoginRequiredMixin, View):
     template_name = "pages/spx_dac_dataset_alt.html"
 
     def get(self, request, *args, **kwargs):
-        """Display the student data competition page and automatically share the dataset."""
+        """Display the student data competition page and automatically share dataset."""
         dataset_id = settings.SPX_DAC_DATASET_ID
         if not dataset_id:
             log.warning("SPX_DAC_DATASET_ID not configured")
@@ -4120,7 +4120,7 @@ class SPXDACDatasetAltView(Auth0LoginRequiredMixin, View):
                 except Dataset.DoesNotExist:
                     log.warning(f"SpX-DAC dataset {dataset_id} not found")
                     dataset = None
-                
+
                 # Check if user is already the owner
                 if dataset and dataset.owner != request.user:
                     # Check if permission already exists
@@ -4131,7 +4131,7 @@ class SPXDACDatasetAltView(Auth0LoginRequiredMixin, View):
                         item_uuid=dataset_uuid,
                         is_deleted=False,
                     ).first()
-                    
+
                     if not existing_permission:
                         # Create share permission with VIEWER role
                         UserSharePermission.objects.create(
@@ -4139,19 +4139,26 @@ class SPXDACDatasetAltView(Auth0LoginRequiredMixin, View):
                             shared_with=request.user,
                             item_type=ItemType.DATASET,
                             item_uuid=dataset_uuid,
-                            message="Automatically shared for NSF SpectrumX Data and Algorithm Competition (SpX-DAC)",
+                            message="Automatically shared for NSF SpectrumX "
+                            "Data and Algorithm Competition (SpX-DAC)",
                             permission_level=PermissionLevel.VIEWER,
                             is_enabled=True,
                         )
-                        log.info(f"Automatically shared SpX-DAC dataset with user {request.user.email}")
+                        log.info(
+                            "Automatically shared SpX-DAC dataset "
+                            f"with user {request.user.email}"
+                        )
                     elif not existing_permission.is_enabled:
                         # Re-enable if it was previously disabled
                         existing_permission.is_enabled = True
                         existing_permission.save()
-                        log.info(f"Re-enabled SpX-DAC dataset share for user {request.user.email}")
+                        log.info(
+                            "Re-enabled SpX-DAC dataset "
+                            f"share for user {request.user.email}"
+                        )
             except ValueError as e:
                 log.warning(f"Invalid SpX-DAC dataset ID format: {e}")
-        
+
         context = {
             "s3_bucket_url": settings.SPX_DAC_DATASET_S3_URL,
             "dataset_id": dataset_id or "458c3f72-8d7e-49cc-9be3-ed0b0cd7e03d",
@@ -4169,7 +4176,9 @@ class SPXDACDatasetAltView(Auth0LoginRequiredMixin, View):
             return JsonResponse(
                 {
                     "success": False,
-                    "error": f"You have reached the maximum number of API keys ({MAX_API_KEY_COUNT}). Please revoke an existing key before creating a new one.",
+                    "error": "You have reached the maximum number of API keys "
+                    f"({MAX_API_KEY_COUNT}). Please revoke an existing key before "
+                    "creating a new one.",
                 },
                 status=400,
             )
@@ -4177,7 +4186,8 @@ class SPXDACDatasetAltView(Auth0LoginRequiredMixin, View):
         # Get the name from the form (optional)
         api_key_name = request.POST.get("api_key_name", "SpX-DAC Competition")
         api_key_description = request.POST.get(
-            "api_key_description", "Generated for NSF SpectrumX Data and Algorithm Competition (SpX-DAC)"
+            "api_key_description",
+            "Generated for NSF SpectrumX Data and Algorithm Competition (SpX-DAC)",
         )
 
         try:
@@ -4190,10 +4200,13 @@ class SPXDACDatasetAltView(Auth0LoginRequiredMixin, View):
                 expiry_date=None,
             )
             return JsonResponse({"success": True, "api_key": raw_key})
-        except Exception as e:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             log.exception("Error generating API key for student competition")
             return JsonResponse(
-                {"success": False, "error": "Failed to generate API key. Please try again."},
+                {
+                    "success": False,
+                    "error": "Failed to generate API key. Please try again.",
+                },
                 status=500,
             )
 
