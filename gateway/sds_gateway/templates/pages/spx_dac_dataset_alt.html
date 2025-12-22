@@ -165,32 +165,59 @@ except Exception as e:
             </div>
         </div>
 
-        <!-- Alternative Download -->
+        <!-- Having Trouble? -->
         <div class="row mb-5">
             <div class="col-lg-10 mx-auto">
                 <h2 class="h3 text-dark mb-3 text-start">
-                    Alternative Download Option
+                    Having Trouble?
                 </h2>
-                <p class="text-dark mb-3">
-                    If you encounter any issues with the Python library, you can download the SpX-DAC competition dataset directly from our S3 bucket using the link below. However, we strongly encourage using the Python script above as it's the recommended method for accessing data through the SpectrumX Data System.
+                <p class="text-dark mb-4">
+                    If you're experiencing issues with the Python library or need assistance, we're here to help!
                 </p>
-                {% if s3_bucket_url %}
-                    <div class="d-grid gap-2 col-md-6">
-                        <a href="{{ s3_bucket_url }}"
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           class="btn btn-outline-primary btn-lg">
-                            <i class="bi bi-cloud-download me-2" aria-hidden="true"></i>
-                            Download from S3 Bucket
-                        </a>
-                    </div>
-                    <p class="text-muted mt-2">
-                        <small>The download will open in a new tab.</small>
+                
+                <div class="mb-4">
+                    <h4 class="h5 text-dark mb-2">Contact Support</h4>
+                    <p class="text-dark mb-2">
+                        For technical support or questions about accessing the dataset, please contact the SDS support team:
                     </p>
-                {% else %}
-                    <div class="alert alert-warning" role="alert">
-                        <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
-                        <strong>Note:</strong> The S3 bucket URL has not been configured. Please use the Python script method above to download the dataset.
+                    <p class="mb-0">
+                        <a href="mailto:crc-sds-list@nd.edu" class="text-decoration-none">
+                            <i class="bi bi-envelope me-2" aria-hidden="true"></i>
+                            <strong>crc-sds-list@nd.edu</strong>
+                        </a>
+                    </p>
+                </div>
+
+                {% if s3_bucket_url %}
+                    <div class="mb-4">
+                        <p class="text-dark mb-2">
+                            If you've exhausted other options and need a direct download link, you can expand the section below:
+                        </p>
+                        <button class="btn btn-outline-secondary btn-sm mb-3"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#directDownloadSection"
+                                aria-expanded="false"
+                                aria-controls="directDownloadSection">
+                            <i class="bi bi-chevron-down me-2" aria-hidden="true"></i>
+                            Show Direct Download Link
+                        </button>
+                        <div class="collapse" id="directDownloadSection">
+                            <div class="card card-body bg-light">
+                                <p class="text-dark mb-3">
+                                    <strong>Note:</strong> We strongly recommend using the Python script method above, as it's the recommended way to access data through the SpectrumX Data System.
+                                </p>
+                                <div class="d-grid gap-2 col-md-6">
+                                    <a href="{{ s3_bucket_url }}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="btn btn-primary btn-lg">
+                                        <i class="bi bi-download me-2" aria-hidden="true"></i>
+                                        Download Here
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 {% endif %}
             </div>
