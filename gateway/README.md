@@ -9,6 +9,9 @@ Metadata management and web interface for SDS.
     + [Just recipes](#just-recipes)
     + [Development environment](#development-environment)
     + [Local deploy](#local-deploy)
+        + [A. Quick deploy (recommended)](#a-quick-deploy-recommended)
+        + [B. Manual deploy (if needed)](#b-manual-deploy-if-needed)
+    + [First deployment steps](#first-deployment-steps)
     + [Debugging tips](#debugging-tips)
     + [Production deploy](#production-deploy)
     + [OpenSearch Query Tips](#opensearch-query-tips)
@@ -28,26 +31,27 @@ just --list
 
 ```bash
 Available recipes:
-    build args=''        # pulls and rebuild the compose services with optional args
-    build-full args=''   # pulls and rebuilds from scratch without cache
-    clean                # removes ephemeral files, like python caches and test coverage reports
-    dc +args=''          # runs a generic docker compose command e.g. `just dc ps`
-    dev-setup            # sets up the development environment
-    down args=''         # stops and remove compose services; args are passed to compose down
-    env                  # prints currently selected environment, for debugging and validation purposes
-    logs args=''         # streams logs until interrupted (tails 10k lines); args are passed to compose logs
-    logs-once args=''    # prints all recent logs once; args are passed to compose logs
-    pre-commit           # runs the pre-commit hooks with dev dependencies
-    redeploy services='' # rebuilds then restarts services and shows logs
-    restart args=''      # restarts running compose services
-    serve-coverage       # serves pytest coverage HTML locally
-    snapshot             # captures a snapshot of the configured environment
-    test args=''         # runs all tests (python and javascript); args are passed to pytest
-    test-js args=''      # runs javascript tests inside the app container
-    test-py args=''      # validates templates and runs pytest inside the app container
-    up args=''           # starts services in detached mode; if env is local, starts process to watch files [alias: run]
-    update               # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
-    watch args=''        # watch file changes when in local env mode
+    build *args                     # pulls and rebuild the compose services with optional args
+    build-full *args                # pulls and rebuilds from scratch without cache
+    clean                           # removes ephemeral files, like python caches and test coverage reports
+    dc +args                        # runs a generic docker compose command e.g. `just dc ps`
+    dev-setup                       # sets up the development environment
+    down *args                      # stops and remove compose services; args are passed to compose down
+    env                             # prints currently selected environment, for debugging and validation purposes
+    generate-secrets env_type *args # generates environment secrets for local/production/ci environments
+    logs *args                      # streams logs until interrupted (tails 10k lines); args are passed to compose logs
+    logs-once *args                 # prints all recent logs once; args are passed to compose logs
+    pre-commit                      # runs the pre-commit hooks with dev dependencies
+    redeploy services=''            # rebuilds then restarts services and shows logs
+    restart *args                   # restarts running compose services
+    serve-coverage                  # serves pytest coverage HTML locally
+    snapshot                        # captures a snapshot of the configured environment
+    test *args                      # runs all tests (python and javascript); args are passed to pytest
+    test-js *args                   # runs javascript tests inside the app container
+    test-py *args                   # validates templates and runs pytest inside the app container
+    up *args                        # starts services in detached mode; if env is local, starts process to watch files [alias: run]
+    update                          # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
+    watch *args                     # watch file changes when in local env mode
 ```
 
 ## Development environment
@@ -93,6 +97,30 @@ The production mode focuses on performance with caching, minified assets; and se
 
 For the local deploy:
 
+### A. Quick deploy (recommended)
+
+1. Generate secrets:
+
+    > [!TIP]
+    > You can ignore "file does not exist" warnings when running the "just" recipe below.
+
+    ```bash
+    just generate-secrets local
+    # or: ./scripts/generate-secrets.sh local
+    ```
+
+    This generates random secure secrets in `.envs/local/*.env` files automatically.
+
+2. Deploy Compose stack
+
+    ```bash
+    just redeploy
+    ```
+
+Then proceed to the [first deployment steps](#first-deployment-steps) below.
+
+### B. Manual deploy (if needed)
+
 1. Set secrets:
 
     ```bash
@@ -104,6 +132,8 @@ For the local deploy:
     > In `minio.env`, `AWS_SECRET_ACCESS_KEY == MINIO_ROOT_PASSWORD`;
     >
     > In `django.env`, to generate the `API_KEY` get it running first, then navigate to [localhost:8000/users/generate-api-key](http://localhost:8000/users/generate-api-key). Copy the generated key to that file. The key is not stored in the database, so you will only see it at creation time.
+    >
+    > For CI/ephemeral environments, see [docs/github-actions-ephemeral-env.md](docs/github-actions-ephemeral-env.md)
 
 2. Deploy with Docker (recommended):
 
@@ -134,13 +164,15 @@ For the local deploy:
     docker exec -it sds-gateway-local-app uv run manage.py migrate
     ```
 
-4. Create the first superuser:
+## First deployment steps
+
+1. Create the first superuser:
 
     ```bash
     docker exec -it sds-gateway-local-app uv run manage.py createsuperuser
     ```
 
-5. Initialize OpenSearch indices
+2. Initialize OpenSearch indices
 
     ```bash
     docker exec -it sds-gateway-local-app uv run manage.py init_indices
@@ -148,17 +180,17 @@ For the local deploy:
 
     This also tests the connection between the application and the OpenSearch instance.
 
-6. Access the web interface:
+3. Access the web interface:
 
     Open the web interface at [localhost:8000](http://localhost:8000). You can create regular users by signing up there.
 
     You can sign in with the superuser credentials at [localhost:8000/admin](http://localhost:8000/admin) to access the admin interface.
 
-7. Create the MinIO bucket:
+4. Create the MinIO bucket:
 
     Go to [localhost:9001](http://localhost:9001) and create a bucket named `spectrumx` with the credentials set in `minio.env`. Optionally apply a storage quota to this bucket (you can modify it later if needed).
 
-8. Run the test suite:
+5. Run the test suite:
 
     For a local deploy:
 
