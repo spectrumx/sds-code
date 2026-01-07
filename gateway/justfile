@@ -14,7 +14,8 @@ compose_file := shell(env_selection_script + ' $1', "compose_file")
 env := shell(env_selection_script + ' $1', "env")
 env_file := shell(env_selection_script + ' $1', "env_file")
 docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file
-uv_runner := docker_compose + " run '" + app_container + "' uv run"
+uv_cmd := docker_compose + " run '" + app_container + "' uv"
+uv_runner := uv_cmd + " run"
 
 alias run := up
 alias upgrade := update
@@ -153,11 +154,15 @@ test-js *args:
 # starts services in detached mode; if env is local, starts process to watch files
 up *args:
     #!/usr/bin/env bash
-    echo "Starting sds-gateway"
+    echo "Starting sds-gateway in detached mode"
     {{docker_compose}} up --detach --remove-orphans {{args}}
-    if [ "{{env}}" = "local" ]; then
-        just watch &
-    fi
+
+    # this watcher is not working as intended today, and
+    # there's no easy way to stop it, so it's disabled for now:
+
+    # if [ "{{env}}" = "local" ]; then
+    #     just watch &
+    # fi
 
 # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions
 update:
@@ -168,6 +173,11 @@ update:
     uv sync --upgrade --all-extras
     @echo "Upgrading node dependencies"
     {{docker_compose}} run node npm update
+
+# shorthand for 'uv' commands (e.g. `just uv run manage.py migrate`)
+uv +args:
+    @echo "Running uv command: {{args}}"
+    {{uv_cmd}} {{args}}
 
 # watch file changes when in local env mode
 watch *args:
