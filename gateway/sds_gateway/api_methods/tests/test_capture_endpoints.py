@@ -277,6 +277,11 @@ class CaptureTestCases(APITestCase):
 
         # remove temporary files linked during tests
         for temp_file in getattr(self, "_temp_files", []):
+            temp_file_obj = File.objects.get(pk=temp_file.pk)
+            # Clear M2M relationships
+            temp_file_obj.captures.clear()
+            temp_file_obj.datasets.clear()
+            # Clear FK relationships
             File.objects.filter(pk=temp_file.pk).update(
                 capture=None,
                 dataset=None,

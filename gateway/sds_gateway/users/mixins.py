@@ -216,9 +216,11 @@ class FormSearchMixin:
         self, search_data: dict[str, Any], request
     ) -> QuerySet[File, File]:
         # Only show files that are not associated with a capture
+        # Check both FK (capture__isnull=True) and M2M (captures__isnull=True)
         queryset = File.objects.filter(
             owner=request.user,
-            capture__isnull=True,
+            capture__isnull=True,  # FK relationship
+            captures__isnull=True,  # M2M relationship
             is_deleted=False,
         )
 
