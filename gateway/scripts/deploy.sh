@@ -99,6 +99,7 @@ function setup_prod_hostnames() {
     # listed in the file first, otherwise abort the deployment
     if [[ "${env_type}" == "production" && -f "${target_file}" ]]; then
         local current_hostname
+        local target_file_cur_dir
         current_hostname=$(hostname)
         target_file_cur_dir=$(realpath --relative-to="." "${target_file}")
         if [[ -n "${current_hostname}" ]]; then

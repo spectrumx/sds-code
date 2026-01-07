@@ -58,9 +58,16 @@ process_env_file() {
     local content
     content=$(cat "${template}")
 
+    # calculate WEB_CONCURRENCY based on CPU cores: (2 x num_cores) + 1
+    local num_cores
+    num_cores=$(nproc 2>/dev/null || echo "2")
+    local web_concurrency=$(( (num_cores * 2) + 1 ))
+
     # generate secrets based on environment type
     if [[ "${env_type}" == "ci" ]]; then
         # CI: use predictable but acceptable secrets for ephemeral environments
+        content="${content//DJANGO_SECRET_KEY=/DJANGO_SECRET_KEY=ci-django-secret-key-insecure-for-testing-only}"
+        content="${content//DJANGO_ADMIN_URL=/DJANGO_ADMIN_URL=ci-admin/}"
         content="${content//CELERY_FLOWER_PASSWORD=/CELERY_FLOWER_PASSWORD=ci-flower-pass}"
         content="${content//SVI_SERVER_API_KEY=/SVI_SERVER_API_KEY=ci-svi-api-key-0123456789012345678901}"
         content="${content//MINIO_ROOT_PASSWORD=<SAME AS AWS_SECRET_ACCESS_KEY>/MINIO_ROOT_PASSWORD=ci-minio-secret}"
@@ -71,14 +78,18 @@ process_env_file() {
         content="${content//OPENSEARCH_PASSWORD=/OPENSEARCH_PASSWORD=CiDjango123!}"
     else
         # local/production: generate random secure secrets
-        local flower_pass minio_pass postgres_pass opensearch_admin_pass opensearch_user_pass svi_api_key
+        local django_secret_key django_admin_url flower_pass minio_pass postgres_pass opensearch_admin_pass opensearch_user_pass svi_api_key
+        django_secret_key=$(generate_django_secret_key)
+        django_admin_url="$(generate_secret 16)/"
         flower_pass=$(generate_secret 32)
         minio_pass=$(generate_secret 40)
         postgres_pass=$(generate_secret 32)
-        opensearch_admin_pass=$(generate_secret 16)
-        opensearch_user_pass=$(generate_secret 16)
+        opensearch_admin_pass=$(generate_secret 32)
+        opensearch_user_pass=$(generate_secret 32)
         svi_api_key=$(generate_secret 40)
 
+        content="${content//DJANGO_SECRET_KEY=/DJANGO_SECRET_KEY=${django_secret_key}}"
+        content="${content//DJANGO_ADMIN_URL=/DJANGO_ADMIN_URL=${django_admin_url}}"
         content="${content//CELERY_FLOWER_PASSWORD=/CELERY_FLOWER_PASSWORD=${flower_pass}}"
         content="${content//SVI_SERVER_API_KEY=/SVI_SERVER_API_KEY=${svi_api_key}}"
         content="${content//MINIO_ROOT_PASSWORD=<SAME AS AWS_SECRET_ACCESS_KEY>/MINIO_ROOT_PASSWORD=${minio_pass}}"
@@ -88,6 +99,9 @@ process_env_file() {
         content="${content//OPENSEARCH_INITIAL_ADMIN_PASSWORD=/OPENSEARCH_INITIAL_ADMIN_PASSWORD=${opensearch_admin_pass}}"
         content="${content//OPENSEARCH_PASSWORD=/OPENSEARCH_PASSWORD=${opensearch_user_pass}}"
     fi
+
+    # set WEB_CONCURRENCY based on CPU cores (applies to all environments)
+    content="${content//WEB_CONCURRENCY=4/WEB_CONCURRENCY=${web_concurrency}}"
 
     # write to output
     mkdir -p "$(dirname "${output}")"
