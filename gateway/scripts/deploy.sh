@@ -72,6 +72,47 @@ function usage() {
     exit 0
 }
 
+function setup_prod_hostnames() {
+    local script_dir="$1"
+    local env_type="$2"
+    local example_file="${script_dir}/prod-hostnames.example.env"
+    local target_file="${script_dir}/prod-hostnames.env"
+
+    if [[ -f "${example_file}" && ! -f "${target_file}" ]]; then
+        log_msg "Creating prod-hostnames.env from example..."
+        cp "${example_file}" "${target_file}"
+        log_success "Created: ${target_file}"
+
+        if [[ "${env_type}" == "production" ]]; then
+            local current_hostname
+            current_hostname=$(hostname)
+            if [[ -n "${current_hostname}" ]]; then
+                echo "${current_hostname}" >> "${target_file}"
+                log_success "Appended hostname to ${target_file}: ${current_hostname}"
+            else
+                log_warning "Could not determine current hostname; skipping append"
+            fi
+        fi
+    fi
+
+    # if we're running a production deploy, check the hostname is
+    # listed in the file first, otherwise abort the deployment
+    if [[ "${env_type}" == "production" && -f "${target_file}" ]]; then
+        local current_hostname
+        current_hostname=$(hostname)
+        target_file_cur_dir=$(realpath --relative-to="." "${target_file}")
+        if [[ -n "${current_hostname}" ]]; then
+            if ! grep -Fxq "${current_hostname}" "${target_file}"; then
+                log_error "Current hostname '${current_hostname}' not a production host listed in '${target_file_cur_dir}'."
+                log_msg "Add it manually:\n\n\techo '${current_hostname}' >> ${target_file_cur_dir}"
+                exit 1
+            fi
+        else
+            log_warning "Could not determine current hostname; cannot validate ${target_file_cur_dir}"
+        fi
+    fi
+}
+
 function create_docker_network() {
     local env_type="$1"
     local network_name="sds-network-${env_type}"
@@ -111,12 +152,14 @@ function build_services() {
 function start_services_detached() {
     log_header "Starting Services"
     log_msg "Starting services in detached mode..."
+    just build
     just up || true
 }
 
 function start_services_foreground() {
     log_header "Starting Services"
     log_msg "Starting services in foreground mode (Ctrl+C to stop)..."
+    just build
     just up
 }
 
@@ -377,7 +420,7 @@ function main() {
     declare -A args=(
         [force_secrets]="false"
         [skip_secrets]="false"
-        [skip_network]="false"
+        [skip_network]="true"   # usually works when skipped
         [detach]="false"
         [env_type]=""
     )
@@ -395,6 +438,8 @@ function main() {
         "${args[skip_secrets]}" \
         "${args[force_secrets]}" \
         "${args[skip_network]}"
+
+    setup_prod_hostnames "${SCRIPT_DIR}" "${args[env_type]}"
 
     build_services
     start_services_detached
