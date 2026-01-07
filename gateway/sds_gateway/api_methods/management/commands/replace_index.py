@@ -23,6 +23,7 @@ from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
 
 # maximum size (doc count) of OpenSearch searches
@@ -432,7 +433,7 @@ class Command(BaseCommand):
 
         marked_for_deletion: list[Capture] = []
         for capture in captures:
-            all_files = cast("QuerySet[File]", capture.files.all())
+            all_files = cast("QuerySet[File]", get_capture_files(capture, is_deleted=True))
             has_files = all_files and all_files.count() > 0
             has_files_but_all_missing = has_files and all(
                 file_obj.is_deleted for file_obj in all_files

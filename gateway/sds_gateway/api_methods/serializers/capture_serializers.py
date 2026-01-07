@@ -3,6 +3,7 @@
 from typing import Any
 from typing import cast
 
+from django.db.models import Q
 from django.db.models import Sum
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -14,6 +15,7 @@ from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
 
 class FileCaptureListSerializer(serializers.ModelSerializer[File]):
@@ -81,10 +83,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         Returns:
             A list of serialized file objects with uuid, name, and directory fields.
         """
-        non_deleted_files = File.objects.filter(
-            capture=capture,
-            is_deleted=False,
-        )
+        non_deleted_files = get_capture_files(capture, is_deleted=False)
         serializer = FileCaptureListSerializer(
             non_deleted_files,
             many=True,
@@ -105,14 +104,13 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     @extend_schema_field(serializers.IntegerField)
     def get_files_count(self, capture: Capture) -> int:
         """Get the count of files associated with this capture."""
-        return capture.files.filter(is_deleted=False).count()
+        return get_capture_files(capture, is_deleted=False).count()
 
     @extend_schema_field(serializers.IntegerField)
     def get_total_file_size(self, capture: Capture) -> int:
         """Get the total file size of all files associated with this capture."""
-        result = capture.files.filter(is_deleted=False).aggregate(
-            total_size=Sum("size")
-        )
+        all_files = get_capture_files(capture, is_deleted=False)
+        result = all_files.aggregate(total_size=Sum("size"))
         return result["total_size"] or 0
 
     @extend_schema_field(serializers.DictField)
@@ -314,10 +312,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
         for channel_data in obj["channels"]:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
-            non_deleted_files = File.objects.filter(
-                capture=capture,
-                is_deleted=False,
-            )
+            non_deleted_files = get_capture_files(capture, is_deleted=False)
             serializer = FileCaptureListSerializer(
                 non_deleted_files,
                 many=True,
@@ -333,7 +328,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
         for channel_data in obj["channels"]:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
-            total_count += capture.files.filter(is_deleted=False).count()
+            total_count += get_capture_files(capture, is_deleted=False).count()
         return total_count
 
     @extend_schema_field(serializers.IntegerField)
@@ -343,9 +338,8 @@ class CompositeCaptureSerializer(serializers.Serializer):
         for channel_data in obj["channels"]:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
-            result = capture.files.filter(is_deleted=False).aggregate(
-                total_size=Sum("size")
-            )
+            all_files = get_capture_files(capture, is_deleted=False)
+            result = all_files.aggregate(total_size=Sum("size"))
             total_size += result["total_size"] or 0
         return total_size
 

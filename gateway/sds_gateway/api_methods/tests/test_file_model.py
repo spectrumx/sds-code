@@ -6,7 +6,6 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
-from pydantic import BaseModel
 from rest_framework.test import APITestCase
 
 from sds_gateway.api_methods.models import Capture
@@ -15,10 +14,6 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 
 from .test_file_endpoints import create_db_file
-
-
-class TestUser(BaseModel):
-    email: str
 
 
 class FileProtectionTest(APITestCase):
@@ -41,45 +36,105 @@ class FileProtectionTest(APITestCase):
         self._files_for_cleanup = []
 
         num_files = 5
-        self.files_with_capture: list[File] = [
+        # Files with FK relationships (deprecated)
+        self.files_with_capture_fk: list[File] = [
             create_db_file(
                 owner=self.user,
             )
             for _ in range(num_files)
         ]
-        for file_instance in self.files_with_capture:
+        for file_instance in self.files_with_capture_fk:
             file_instance.capture = self.capture
             file_instance.save()
-        self.files_with_dataset: list[File] = [
+        
+        # Files with M2M relationships (new)
+        self.files_with_capture_m2m: list[File] = [
             create_db_file(
                 owner=self.user,
             )
             for _ in range(num_files)
         ]
-        for file_instance in self.files_with_dataset:
+        for file_instance in self.files_with_capture_m2m:
+            file_instance.captures.add(self.capture)
+        
+        # Files with both FK and M2M (during migration)
+        self.files_with_capture_both: list[File] = [
+            create_db_file(
+                owner=self.user,
+            )
+            for _ in range(num_files)
+        ]
+        for file_instance in self.files_with_capture_both:
+            file_instance.capture = self.capture
+            file_instance.captures.add(self.capture)
+            file_instance.save()
+
+        self.files_with_dataset_fk: list[File] = [
+            create_db_file(
+                owner=self.user,
+            )
+            for _ in range(num_files)
+        ]
+        for file_instance in self.files_with_dataset_fk:
             file_instance.dataset = self.dataset
             file_instance.save()
-        self.files_with_capture_and_dataset: list[File] = [
+        
+        # Files with M2M dataset relationships
+        self.files_with_dataset_m2m: list[File] = [
             create_db_file(
                 owner=self.user,
             )
             for _ in range(num_files)
         ]
-        for file_instance in self.files_with_capture_and_dataset:
+        for file_instance in self.files_with_dataset_m2m:
+            file_instance.datasets.add(self.dataset)
+        
+        # Files with both FK and M2M dataset (during migration)
+        self.files_with_dataset_both: list[File] = [
+            create_db_file(
+                owner=self.user,
+            )
+            for _ in range(num_files)
+        ]
+        for file_instance in self.files_with_dataset_both:
+            file_instance.dataset = self.dataset
+            file_instance.datasets.add(self.dataset)
+            file_instance.save()
+
+        self.files_with_capture_and_dataset_fk: list[File] = [
+            create_db_file(
+                owner=self.user,
+            )
+            for _ in range(num_files)
+        ]
+        for file_instance in self.files_with_capture_and_dataset_fk:
             file_instance.capture = self.capture
             file_instance.dataset = self.dataset
             file_instance.save()
+        
+        # Files with M2M for both capture and dataset
+        self.files_with_capture_and_dataset_m2m: list[File] = [
+            create_db_file(
+                owner=self.user,
+            )
+            for _ in range(num_files)
+        ]
+        for file_instance in self.files_with_capture_and_dataset_m2m:
+            file_instance.captures.add(self.capture)
+            file_instance.datasets.add(self.dataset)
+
         self.files_without_associations: list[File] = [
             create_db_file(owner=self.user) for _ in range(num_files)
         ]
-        self._files_for_cleanup.extend(self.files_with_capture)
-        self._files_for_cleanup.extend(self.files_with_dataset)
-        self._files_for_cleanup.extend(self.files_with_capture_and_dataset)
+        self._files_for_cleanup.extend(self.files_with_capture_fk)
+        self._files_for_cleanup.extend(self.files_with_capture_m2m)
+        self._files_for_cleanup.extend(self.files_with_capture_both)
+        self._files_for_cleanup.extend(self.files_with_dataset_fk)
+        self._files_for_cleanup.extend(self.files_with_dataset_m2m)
+        self._files_for_cleanup.extend(self.files_with_dataset_both)
+        self._files_for_cleanup.extend(self.files_with_capture_and_dataset_fk)
+        self._files_for_cleanup.extend(self.files_with_capture_and_dataset_m2m)
         self._files_for_cleanup.extend(self.files_without_associations)
-
-        assert len(self._files_for_cleanup) == 4 * num_files, (
-            "Test setup failed to create the expected number of files."
-        )
 
     def tearDown(self) -> None:
         """Clean up any remaining test data."""
@@ -92,135 +147,165 @@ class FileProtectionTest(APITestCase):
             if File.objects.filter(pk=file_instance.pk).exists():
                 file_instance.capture = None
                 file_instance.dataset = None
+                file_instance.captures.clear()
+                file_instance.datasets.clear()
                 file_instance.save()
                 file_instance.delete()
         if self.user:
             self.user.delete()
 
-    def test_file_deletion_with_capture(self) -> None:
-        """Attempting to delete file associated with capture must fail."""
-        # ARRANGE: create capture and associate file with capture
-        file_instance = self.files_with_capture[0]
-
-        # ACT and ASSERT: ensure deletion raises ProtectedError
+    # FK relationship tests (existing)
+    def test_file_deletion_with_capture_fk(self) -> None:
+        """Attempting to delete file associated with capture via FK must fail."""
+        file_instance = self.files_with_capture_fk[0]
         with pytest.raises(ProtectedError):
             file_instance.delete()
 
-    def test_file_deletion_with_dataset(self) -> None:
-        """Attempting to delete file associated with dataset must fail."""
-        # ARRANGE: create dataset and associate file with dataset
-        file_instance = self.files_with_dataset[0]
+    def test_file_deletion_with_dataset_fk(self) -> None:
+        """Attempting to delete file associated with dataset via FK must fail."""
+        file_instance = self.files_with_dataset_fk[0]
+        with pytest.raises(ProtectedError):
+            file_instance.delete()
 
-        # ACT and ASSERT: ensure deletion raises ProtectedError
+    # M2M relationship tests (new)
+    def test_file_deletion_with_capture_m2m(self) -> None:
+        """Attempting to delete file associated with capture via M2M must fail."""
+        file_instance = self.files_with_capture_m2m[0]
+        with pytest.raises(ProtectedError):
+            file_instance.delete()
+
+    def test_file_deletion_with_dataset_m2m(self) -> None:
+        """Attempting to delete file associated with dataset via M2M must fail."""
+        file_instance = self.files_with_dataset_m2m[0]
+        with pytest.raises(ProtectedError):
+            file_instance.delete()
+
+    # Both FK and M2M tests (during migration)
+    def test_file_deletion_with_capture_both(self) -> None:
+        """Attempting to delete file with both FK and M2M capture must fail."""
+        file_instance = self.files_with_capture_both[0]
+        with pytest.raises(ProtectedError):
+            file_instance.delete()
+
+    def test_file_deletion_with_dataset_both(self) -> None:
+        """Attempting to delete file with both FK and M2M dataset must fail."""
+        file_instance = self.files_with_dataset_both[0]
         with pytest.raises(ProtectedError):
             file_instance.delete()
 
     def test_file_deletion_without_associations(self) -> None:
         """A file without any associations can be deleted successfully."""
-        # ARRANGE: create file without associations
         file_instance = self.files_without_associations[0]
-
-        # ACT: delete the file
         file_instance.delete()
-
-        # ASSERT: ensure the file no longer exists
         assert not File.objects.filter(pk=file_instance.pk).exists()
 
-    def test_bulk_file_deletion_with_capture(self) -> None:
-        """Attempting to bulk delete files associated with captures must fail."""
-        # ARRANGE: create capture and associate multiple files with capture
-        files = self.files_with_capture
-
-        # ACT and ASSERT: ensure bulk deletion raises ProtectedError
+    def test_bulk_file_deletion_with_capture_fk(self) -> None:
+        """Attempting to bulk delete files associated with captures via FK must fail."""
+        files = self.files_with_capture_fk
         file_ids = [file_instance.pk for file_instance in files]
         q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
-
         with pytest.raises(ProtectedError):
             q_set.delete()
-
-        # ASSERT all files were preserved
         for file_instance in files:
             assert File.objects.filter(pk=file_instance.pk).exists()
 
-    def test_bulk_file_deletion_with_dataset(self) -> None:
-        """Attempting to bulk delete files associated with datasets must fail."""
-        # ARRANGE: create dataset and associate multiple files with dataset
-        files = self.files_with_dataset
-
-        # ACT and ASSERT: ensure bulk deletion raises ProtectedError
+    def test_bulk_file_deletion_with_capture_m2m(self) -> None:
+        """Attempting to bulk delete files associated with captures via M2M must fail."""
+        files = self.files_with_capture_m2m
         file_ids = [file_instance.pk for file_instance in files]
         q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
-
         with pytest.raises(ProtectedError):
             q_set.delete()
-
-        # ASSERT all files were preserved
         for file_instance in files:
             assert File.objects.filter(pk=file_instance.pk).exists()
 
-    def test_bulk_file_deletion_with_capture_and_dataset(self) -> None:
-        """Bulk deleting files associated with captures and datasets must fail."""
-        # ARRANGE: create capture and dataset, and associate multiple files with both
-        files = self.files_with_capture_and_dataset
-
-        # ACT and ASSERT: ensure bulk deletion raises ProtectedError
+    def test_bulk_file_deletion_with_dataset_fk(self) -> None:
+        """Attempting to bulk delete files associated with datasets via FK must fail."""
+        files = self.files_with_dataset_fk
         file_ids = [file_instance.pk for file_instance in files]
         q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
-
         with pytest.raises(ProtectedError):
             q_set.delete()
+        for file_instance in files:
+            assert File.objects.filter(pk=file_instance.pk).exists()
 
-        # ASSERT all files were preserved
+    def test_bulk_file_deletion_with_dataset_m2m(self) -> None:
+        """Attempting to bulk delete files associated with datasets via M2M must fail."""
+        files = self.files_with_dataset_m2m
+        file_ids = [file_instance.pk for file_instance in files]
+        q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
+        with pytest.raises(ProtectedError):
+            q_set.delete()
+        for file_instance in files:
+            assert File.objects.filter(pk=file_instance.pk).exists()
+
+    def test_bulk_file_deletion_with_capture_and_dataset_fk(self) -> None:
+        """Bulk deleting files associated with captures and datasets via FK must fail."""
+        files = self.files_with_capture_and_dataset_fk
+        file_ids = [file_instance.pk for file_instance in files]
+        q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
+        with pytest.raises(ProtectedError):
+            q_set.delete()
+        for file_instance in files:
+            assert File.objects.filter(pk=file_instance.pk).exists()
+
+    def test_bulk_file_deletion_with_capture_and_dataset_m2m(self) -> None:
+        """Bulk deleting files associated with captures and datasets via M2M must fail."""
+        files = self.files_with_capture_and_dataset_m2m
+        file_ids = [file_instance.pk for file_instance in files]
+        q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
+        with pytest.raises(ProtectedError):
+            q_set.delete()
         for file_instance in files:
             assert File.objects.filter(pk=file_instance.pk).exists()
 
     def test_bulk_file_deletion_without_associations(self) -> None:
         """Bulk deleting files without any associations in bulk should succeed."""
-        # ARRANGE: create multiple files without associations
         files = self.files_without_associations
-
-        # ACT: bulk delete the files
         file_ids = [file_instance.pk for file_instance in files]
         q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
         q_set.delete()
-
-        # ASSERT: ensure none of the files exist
         for file_instance in files:
             assert not File.objects.filter(pk=file_instance.pk).exists()
 
-    def test_soft_deletion_is_protected(self) -> None:
-        """Soft deletion of files associated with captures or datasets must fail."""
-        # ARRANGE: create capture and dataset, and associate file with both
+    def test_soft_deletion_is_protected_fk(self) -> None:
+        """Soft deletion of files associated via FK must fail."""
         protected_files = [
-            self.files_with_capture[0],
-            self.files_with_dataset[0],
-            self.files_with_capture_and_dataset[0],
+            self.files_with_capture_fk[0],
+            self.files_with_dataset_fk[0],
+            self.files_with_capture_and_dataset_fk[0],
         ]
-
-        # ACT and ASSERT ensure soft deletion attempt raises ProtectedError
         for file_instance in protected_files:
             with pytest.raises(ProtectedError):
                 file_instance.soft_delete()
-
-        # ASSERT each file still exists and is not marked as deleted
         for file_instance in protected_files:
             q_set = File.objects.filter(pk=file_instance.pk)
-            assert q_set.exists(), "File should exist in the database."
+            assert q_set.exists()
             target_file = q_set.first()
-            assert target_file is not None, "File should exist in the database."
-            assert not target_file.is_deleted, "File should not be marked as deleted."
+            assert target_file is not None
+            assert not target_file.is_deleted
+
+    def test_soft_deletion_is_protected_m2m(self) -> None:
+        """Soft deletion of files associated via M2M must fail."""
+        protected_files = [
+            self.files_with_capture_m2m[0],
+            self.files_with_dataset_m2m[0],
+            self.files_with_capture_and_dataset_m2m[0],
+        ]
+        for file_instance in protected_files:
+            with pytest.raises(ProtectedError):
+                file_instance.soft_delete()
+        for file_instance in protected_files:
+            q_set = File.objects.filter(pk=file_instance.pk)
+            assert q_set.exists()
+            target_file = q_set.first()
+            assert target_file is not None
+            assert not target_file.is_deleted
 
     def test_soft_deletion_is_allowed(self) -> None:
         """Soft deletion of files without any associations should succeed."""
-        # ARRANGE: create file without associations
         file_instance = self.files_without_associations[0]
-
-        # ACT by soft-deleting the file
         file_instance.soft_delete()
-
-        # ASSERT the file is marked as deleted
         sd_file = File.objects.filter(pk=file_instance.pk).first()
-        assert sd_file is not None, "Soft-deleted file not found in the database."
-        assert sd_file.is_deleted, (
-            "File should be marked as deleted after soft deletion."
-        )
+        assert sd_file is not None
+        assert sd_file.is_deleted

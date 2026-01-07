@@ -72,6 +72,9 @@ from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
+from sds_gateway.api_methods.utils.relationship_utils import (
+    get_dataset_files_including_captures,
+)
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.file_utils import get_file_content_response
 from sds_gateway.users.file_utils import validate_file_preview_request
@@ -2849,6 +2852,8 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         """
         Get all files associated with a dataset,
         including files from linked captures.
+        
+        Supports both FK and M2M relationships (expand-contract pattern).
 
         Args:
             dataset: The dataset to get files for
@@ -2856,21 +2861,7 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         Returns:
             A QuerySet of files associated with the dataset
         """
-        # Get files directly associated with the dataset
-        dataset_files = dataset.files.filter(is_deleted=False)
-
-        # Get files from linked captures
-        capture_file_ids = []
-        dataset_captures = dataset.captures.filter(is_deleted=False)
-        for capture in dataset_captures:
-            capture_file_ids.extend(
-                capture.files.filter(is_deleted=False).values_list("uuid", flat=True)
-            )
-
-        return File.objects.filter(
-            Q(uuid__in=dataset_files.values_list("uuid", flat=True))
-            | Q(uuid__in=capture_file_ids)
-        )
+        return get_dataset_files_including_captures(dataset, is_deleted=False)
 
     def get(self, request, *args, **kwargs) -> JsonResponse:
         """

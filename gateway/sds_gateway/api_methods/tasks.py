@@ -1267,34 +1267,20 @@ def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
     Returns:
         List of files associated with the item
     """
+    from sds_gateway.api_methods.utils.relationship_utils import (
+        get_capture_files,
+        get_dataset_files_including_captures,
+    )
+
     if item_type == ItemType.DATASET:
-        # Get all files directly associated with the dataset
-        files = item.files.filter(
-            is_deleted=False,
-        )
-        # Get all captures associated with the dataset
-        captures = item.captures.filter(
-            is_deleted=False,
-        )
-        # Get all files from those captures
-        capture_files = File.objects.filter(
-            capture__in=captures,
-            is_deleted=False,
-        )
-
-        logger.info(
-            f"Found {len(files)} files and {len(capture_files)} capture files "
-            f"for dataset {item.uuid}"
-        )
-
-        return list(files) + list(capture_files)
+        files = get_dataset_files_including_captures(item, is_deleted=False)
+        logger.info(f"Found {len(files)} files for dataset {item.uuid}")
+        return list(files)
 
     if item_type == ItemType.CAPTURE:
-        # Get all files for the capture
-        files = list(item.files.filter(is_deleted=False))
+        files = get_capture_files(item, is_deleted=False)
         logger.info(f"Found {len(files)} files for capture {item.uuid}")
-
-        return files
+        return list(files)
 
     logger.warning(f"Unknown item type: {item_type}")
     return []

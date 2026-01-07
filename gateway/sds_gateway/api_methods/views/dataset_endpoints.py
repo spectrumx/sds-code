@@ -19,6 +19,9 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.api_methods.utils.relationship_utils import (
+    get_dataset_files_including_captures,
+)
 from sds_gateway.api_methods.views.file_endpoints import FilePagination
 
 
@@ -28,19 +31,7 @@ class DatasetViewSet(ViewSet):
 
     def _get_file_objects(self, dataset: Dataset) -> QuerySet[File]:
         """Get all files associated with a dataset."""
-
-        # Get the files directly connected to the dataset
-        artifact_files = dataset.files.filter(is_deleted=False)
-
-        # Get the files connected to the captures associated with the dataset
-        dataset_captures = dataset.captures.filter(is_deleted=False)
-        capture_files = File.objects.filter(
-            capture__in=dataset_captures,
-            is_deleted=False,
-        )
-
-        # Combine using union to avoid duplicates
-        return artifact_files.union(capture_files)
+        return get_dataset_files_including_captures(dataset, is_deleted=False)
 
     @extend_schema(
         parameters=[

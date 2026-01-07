@@ -12,7 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from django.db.models import Q
 from django.http import JsonResponse
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from django.utils import timezone
 from loguru import logger as log
 
@@ -516,10 +518,9 @@ def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
     is_shared = capture.owner != request.user
     shared_by = capture.owner.email if is_shared else ""
 
-    # Get files associated with this capture
-    capture_files = get_filtered_files_queryset(
-        File.objects.filter(capture=capture, is_deleted=False)
-    )
+    # Get files associated with this capture (support both M2M and FK)
+    all_capture_files = get_capture_files(capture, is_deleted=False)
+    capture_files = get_filtered_files_queryset(all_capture_files)
 
     log.debug(
         f"FilesView: capture={capture.name} "
