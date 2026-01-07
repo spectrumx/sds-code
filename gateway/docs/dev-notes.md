@@ -2,6 +2,9 @@
 
 + [Gateway Development Notes](#gateway-development-notes)
     + [Production Backups](#production-backups)
+        + [What is backed up](#what-is-backed-up)
+        + [What is NOT backed up](#what-is-not-backed-up)
+        + [Creating Backups](#creating-backups)
         + [Backups Restoration](#backups-restoration)
     + [MinIO Configuration](#minio-configuration)
     + [OpenSearch Cluster Maintenance](#opensearch-cluster-maintenance)
@@ -29,39 +32,95 @@
 
 ## Production Backups
 
-This procedure might be useful for daily backups, before major database changes such
-as migrations, or before upgrading Postgres versions.
+This procedure might be useful for daily backups, before major database changes such as
+migrations, or before upgrading Postgres versions.
+
+### What is backed up
+
+Up to one snapshot per day of:
+
++ [x] **PostgreSQL database** - Complete database dump via `pg_dumpall` (all schemas,
+    tables, and data)
++ [x] **OpenSearch indices** - Snapshots of all indices and their data
++ [x] **Gateway secrets** - Environment files (`.envs/`, `.env.sh`, etc.) and
+    configuration files
++ [x] **Git repository state** - Branch info, commit SHA, uncommitted changes, staged
+    changes, and commit archive.
+
+### What is NOT backed up
+
++ ❌ **MinIO objects** - S3-compatible storage data is not included in snapshots (see
+    warning below). When configuring MinIO, you can configure erasure coding for data
+    redundancy across multiple drives or nodes. Consider using MinIO's own backup and
+    replication features for protecting this data instead of this snapshot procedure.
++ ❌ **Docker volumes** - Any data stored in Docker volumes outside of the database
+    container is not included, such as temporary zip files, `uv` cache, virtual
+    environments, generated static files.
+
+### Creating Backups
 
 1. `cp scripts/.env.sh.example scripts/.env.sh`.
 2. `$EDITOR scripts/.env.sh` to set the variables in it.
-3. Run `make snapshot` to create a daily backup snapshot of Postgres database.
+3. Run `just snapshot` to create a _daily_ backup snapshot of Postgres database.
     + See `scripts/create-snapshot.sh` for details of what is executed.
-    + Database credentials are automatically loaded from the postgres container, so
-        the user running the snapshot must have privileges to manage the database
-        container, and the container must be running with those env variables set.
+    + Database credentials are automatically loaded from the postgres container, so the
+        user running the snapshot must have privileges to manage the database container,
+        and the container must be running with those env variables set.
     + The Postgres snapshot is created with `pg_dumpall`. See the docs for details:
         [Postgres docs](https://postgresql.org/docs/current/app-pg-dumpall.html).
-    + The snapshot creation is non-interactive, so it can be run from automated scripts; but interaction might be required for backup exfiltration.
+    + The snapshot creation is non-interactive, so it can be run from automated scripts;
+      but interaction might be required for backup exfiltration.
+    + **Note:** MinIO objects are not included in this snapshot. See [What is NOT backed
+      up](#what-is-not-backed-up) above.
 4. Access the created files in `./data/backups/`.
+    + Note you can set up a remote server in `.env.sh` to automatically copy the backups
+    there after creation using `rsync` over `ssh`.
 
 ### Backups Restoration
+
+READ THIS ENTIRE SECTION BEFORE RESTORING A BACKUP.
 
 > [!WARNING]
 > This is a destructive operation that will overwrite the existing database.
 >
 > Unless in exceptional data recovery circumstances, do not restore a backup to a live
 > production environment. If doing that anyway, create a recent snapshot and export
-> it to a different machine first. See [production backups](#production-backups) above.
+> it to a different machine first. See [creating backups](#creating-backups) above.
 
-See `scripts/restore-snapshot.sh` to restore the most recent snapshot.
+What can be automatically restored:
 
-This is an interactive script with some safeguards to prevent accidental overwriting of
-data. Read the script before running it to make sure it does the expected, since this
-is a destructive operation.
++ [x] **PostgreSQL database** - Full restoration of the database from the latest
+    snapshot. See [Backups Restoration](#backups-restoration) below.
+
+Everything else (OpenSearch indices, secrets, git state) can be manually restored from
+the snapshot files, but there is no automated restoration procedure for them yet.
+
+Note that, while the database can be restored, it will contain references to other data
+sources that might exist or not. Most notably:
+
++ OpenSearch indices - The restored database might contain references to documents in
+    OpenSearch that do not exist if those indices were not manually restored.
++ MinIO objects - The restored database might contain references to objects in MinIO
+    that do not exist if those objects were not manually restored. This is the main
+    challenge when restoring a production backup to a staging/QA machine, as most
+    objects will not exist there due to the commonly large size of object data.
+
+Run `scripts/restore-snapshot.sh` when you are ready to restore the most recent snapshot.
+
+> [!IMPORTANT]
+> This is an interactive script. Read the instructions carefully before interacting with
+> it, as this is a destructive operation.
+
+The script has some safeguards to prevent accidental overwriting of data. Read the
+script before running it to make sure it does what you expect before running it in a
+production environment.
 
 ## MinIO Configuration
 
-+ [MinIO reference document](https://github.com/minio/minio/blob/master/docs/config/README.md)
++ MinIO config for SDS: [see the production deploy
+    instructions](./detailed-deploy.md#production-deploy).
++ [MinIO reference
+    document](https://github.com/minio/minio/blob/master/docs/config/README.md).
 
 ## OpenSearch Cluster Maintenance
 

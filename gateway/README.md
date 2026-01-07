@@ -6,12 +6,32 @@ Metadata management and web interface for SDS.
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 + [SpectrumX Data System | Gateway](#spectrumx-data-system--gateway)
+    + [System requirements](#system-requirements)
+    + [Development setup](#development-setup)
     + [Quick deploy](#quick-deploy)
     + [Just recipes](#just-recipes)
-    + [More docs](#more-docs)
+    + [More SDS Gateway docs](#more-sds-gateway-docs)
 
 > [!TIP]
 > Deploying SDS in production? Start with the [`network`](../network/README.md) component.
+
+## System requirements
+
+The recommended operating system is a Linux distribution.
+
+Make sure you have the following binaries available:
+
++ [`docker`](https://docs.docker.com/get-docker/) - container runtime
++ [`just`](https://github.com/casey/just) - command runner
++ [`uv`](https://docs.astral.sh/uv/getting-started/installation/) - python package and project manager
+
+## Development setup
+
+Run the following `just` recipe and install any missing dependencies:
+
+```bash
+just dev-setup
+```
 
 ## Quick deploy
 
@@ -21,13 +41,22 @@ After cloning this repo, follow the steps below:
 # for a local (dev / evaluation) environment:
 ./scripts/deploy.sh local
 
+# for ci:
+./scripts/deploy.sh ci
+
 # for production:
 ./scripts/deploy.sh production
 ```
 
+Then follow the steps that are [not automated for a first-time setup](./docs/detailed-deploy.md#first-deployment-not-automated).
+
+This _should_ leave you with the application running using default configurations. If
+that doesn't happen, feel free to open an issue or reach out for help.
+
 ## Just recipes
 
-We are using [Just](https://github.com/casey/just#installation/) as a command runner to simplify common tasks. Here's a quick lookup of available commands:
+We are using [Just](https://github.com/casey/just#installation/) as a command runner to
+simplify common tasks. Here's a quick lookup of available commands:
 
 ```bash
 just --list
@@ -55,10 +84,16 @@ Available recipes:
     test-py *args                   # validates templates and runs pytest inside the app container
     up *args                        # starts services in detached mode; if env is local, starts process to watch files [alias: run]
     update                          # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
+    uv +args                        # shorthand for 'uv' commands (e.g. `just uv run manage.py migrate`)
     watch *args                     # watch file changes when in local env mode
 ```
 
-## More docs
+## More SDS Gateway docs
 
-+ [Detailed deploy instructions](./docs/detailed-deploy.md)
-+ [Handling migration conflicts](./docs/dev-notes.md#handling-migration-conflicts)
++ [Setting up a dev environment](./docs/detailed-deploy.md#development-environment)
++ Production
+    + [Detailed production deploy instructions](./docs/detailed-deploy.md#production-deploy)
+    + [Production backups](./docs/dev-notes.md#production-backups)
++ Others
+    + [OpenSearch Query Tips](./docs/detailed-deploy.md#opensearch-query-tips)
+    + [Handling migration conflicts](./docs/dev-notes.md#handling-migration-conflicts)

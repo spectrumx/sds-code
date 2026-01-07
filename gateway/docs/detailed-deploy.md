@@ -9,7 +9,8 @@ does not cover your use case.
     + [Local deploy](#local-deploy)
         + [A. Automated (recommended)](#a-automated-recommended)
         + [B. Manual (if needed)](#b-manual-if-needed)
-    + [First deployment steps](#first-deployment-steps)
+    + [First deployment: automated](#first-deployment-automated)
+    + [First deployment: not automated](#first-deployment-not-automated)
     + [Debugging tips](#debugging-tips)
     + [Production deploy](#production-deploy)
         + [Setting production secrets](#setting-production-secrets)
@@ -43,7 +44,8 @@ uv sync --frozen --extra local
 # --extra local installs the required dependencies + 'local' ones (for local development)
 ```
 
-> [!NOTE] When using `uv`, all base, local, and production dependencies are described in
+> [!NOTE]
+> When using `uv`, all base, local, and production dependencies are described in
 > the `pyproject.toml` file.
 >
 > If you're using `pip`, refer to the `requirements/` directory.
@@ -59,11 +61,19 @@ uv run --extra local pre-commit install
 
 Choose the automated or manual deploy method below:
 
+> [!IMPORTANT]
+> If you ran the `deploy.sh` script from the main README, skip to the [first deployment:
+> not automated](#first-deployment-not-automated) section below.
+
 ### A. Automated (recommended)
+
+> [!IMPORTANT]
+> Skip this section if you ran the `deploy.sh` script from the main README.
 
 1. Generate secrets:
 
-    > [!TIP] You can ignore "file does not exist" warnings when running the "just"
+    > [!TIP]
+    > You can ignore "file does not exist" warnings when running the "just"
     > recipe below.
 
     ```bash
@@ -79,9 +89,12 @@ Choose the automated or manual deploy method below:
     just redeploy
     ```
 
-Then proceed to the [first deployment steps](#first-deployment-steps) below.
+Then proceed to the [first deployment steps](#first-deployment-automated) below.
 
 ### B. Manual (if needed)
+
+> [!IMPORTANT]
+> Skip this section if you ran the `deploy.sh` script from the main README.
 
 1. Set secrets:
 
@@ -90,7 +103,8 @@ Then proceed to the [first deployment steps](#first-deployment-steps) below.
     # manually set the secrets in .envs/local/*.env files
     ```
 
-    > [!NOTE] In `minio.env`, `AWS_SECRET_ACCESS_KEY == MINIO_ROOT_PASSWORD`;
+    > [!NOTE]
+    > In `minio.env`, set `AWS_SECRET_ACCESS_KEY == MINIO_ROOT_PASSWORD`;
     >
     > In `django.env`, to generate the `API_KEY` get it running first, then navigate to
     > [localhost:8000/users/generate-api-key](http://localhost:8000/users/generate-api-key).
@@ -112,10 +126,8 @@ Then proceed to the [first deployment steps](#first-deployment-steps) below.
     Then, run the services:
 
     ```bash
-    docker compose -f compose.local.yaml --env-file .envs/production/opensearch.env up
+    just up
     ```
-
-    Add `-d` to run the service in detached mode.
 
     If you have issues with static files, you can check which ones are being generated
     by the node service:
@@ -127,11 +139,15 @@ Then proceed to the [first deployment steps](#first-deployment-steps) below.
 3. Make Django migrations and run them:
 
     ```bash
-    docker exec -it sds-gateway-local-app uv run manage.py makemigrations
-    docker exec -it sds-gateway-local-app uv run manage.py migrate
+    just uv run manage.py makemigrations
+    just uv run manage.py migrate
     ```
 
-## First deployment steps
+## First deployment: automated
+
+> [!IMPORTANT]
+> These are "automated" steps because they are covered by the `deploy.sh` script from
+> the main README. If you ran that script, you can skip to the next section.
 
 This applies for both local and production deploys, but the names of the containers will
 differ.
@@ -139,38 +155,54 @@ differ.
 1. Create the first superuser:
 
     ```bash
-    docker exec -it sds-gateway-local-app uv run manage.py createsuperuser
-
-    # or in production:
-    # docker exec -it sds-gateway-prod-app uv run manage.py createsuperuser
+    just uv run manage.py createsuperuser
     ```
 
 2. Initialize OpenSearch indices
 
     ```bash
-    docker exec -it sds-gateway-local-app uv run manage.py init_indices
-
-    # or in production:
-    # docker exec -it sds-gateway-prod-app uv run manage.py init_indices
+    just uv run manage.py init_indices
     ```
 
     This also tests the connection between the application and the OpenSearch instance.
 
-3. Access the web interface:
+## First deployment: not automated
 
-    Open the web interface at [localhost:8000](http://localhost:8000) (`localhost:18000` in production). You can create
-    regular users by signing up there.
+Steps are not covered by the `deploy.sh` script and/or items that walk you through
+accessing the Gateway for the first time.
 
-    You can sign in with the superuser credentials at
-    [localhost:8000/admin](http://localhost:8000/admin) (or `localhost:18000/<admin-path-set-in-django.env>` in production) to access the admin interface.
-
-4. Create the MinIO bucket:
+1. Create the MinIO bucket:
 
     Go to [localhost:9001](http://localhost:9001) (or `localhost:19001` in production) and create a bucket named `spectrumx`
     with the credentials set in `minio.env`. Optionally apply a storage quota to this
     bucket (you can modify it later if needed).
 
-5. Run the test suite:
+2. Access the web interface:
+
+    Open the web interface at [localhost:8000](http://localhost:8000) (`localhost:18000`
+    in production). You can create regular users by signing up there, or:
+
+    You can sign in with the superuser credentials at
+    [localhost:8000/admin](http://localhost:8000/admin) (or
+    `localhost:18000/<admin-path-set-in-django.env>` in production) to access the admin
+    interface.
+
+    > [!TIP]
+    > The superuser credentials are the ones provided in a step above, or during an
+    > interactive execution of the `deploy.sh` script.
+    > If the credentials were lost, you can reset the password with:
+    >
+    > ```bash
+    > just uv run manage.py changepassword <email>
+    > ```
+    >
+    > Or create one:
+    >
+    > ```bash
+    > just uv run manage.py createsuperuser
+    > ```
+
+3. Run the test suite:
 
     ```bash
     just test
@@ -184,12 +216,8 @@ differ.
     Alternatively, run them as:
 
     ```bash
-    docker exec -it sds-gateway-local-app uv run manage.py validate_templates
-    docker exec -it sds-gateway-local-app uv run pytest
-
-    # or with a production setting:
-    docker exec -it sds-gateway-prod-app uv run manage.py validate_templates
-    docker exec -it sds-gateway-prod-app uv run pytest
+    just uv run manage.py validate_templates
+    just uv run pytest
     ```
 
 ## Debugging tips
@@ -197,7 +225,7 @@ differ.
 + Where are my static files served from?
     + See [localhost:3000/webpack-dev-server](http://localhost:3000/webpack-dev-server).
 + What is the URL to X / how to see my routing table?
-    + `docker exec -it sds-gateway-local-app uv run manage.py show_urls`.
+    + `just uv run manage.py show_urls`.
     + `show_urls` is provided by `django-extensions`.
 
 ## Production deploy
@@ -230,7 +258,6 @@ rsync -aP ./.envs/example/ ./.envs/production
 ```
 
 > [!NOTE]
->
 > Follow these steps to set the secrets:
 
 + Set most secrets, passwords, tokens, etc. to random values. You can use the
@@ -297,14 +324,21 @@ Build the OpenSearch service with the right env vars to avoid permission errors 
 "${EDITOR:nano}" .envs/production/opensearch.env
 
 # build the modified opensearch image
-docker compose -f compose.production.yaml --env-file .envs/production/opensearch.env build opensearch
+just dc build opensearch
 ```
 
 Then, run the services:
 
 ```bash
-docker compose -f compose.production.yaml --env-file .envs/production/opensearch.env up
+just dc up
 ```
+
+`just dc` is equivalent to the `docker compose ...` command, but it's
+environment-aware, so you can use it for both local and production deploys seamlessly.
+
+Run `just env` to see which environment is currently selected, and change the
+`scripts/prod-hostnames.env` to add or remove the current host from the list of
+production hosts.
 
 > [!TIP]
 >
@@ -312,26 +346,32 @@ docker compose -f compose.production.yaml --env-file .envs/production/opensearch
 > bind mount to the source code:
 >
 > ```bash
-> export COMPOSE_FILE=compose.production.yaml; docker compose build && docker compose down; docker compose up -d; docker compose logs -f
-> # tip: save this command for repeated use (alias) as you get everything set up
+> just dc build && just dc down; just dc up -d; just logs
+> # this is roughly equivalent to `just redeploy`
 > ```
 
 1. Make Django **migrations** and run them:
 
-    Optionally, just run them in case you have a staging deploy and would like to test
-    new migrations first.
-
     ```bash
-    docker exec -it sds-gateway-prod-app bash -c "uv run manage.py makemigrations && uv run manage.py migrate"
+    just uv run manage.py makemigrations
+    just uv run manage.py migrate
+
+    # equivalent to:
+    # docker exec -it sds-gateway-prod-app bash -c "uv run manage.py makemigrations && uv run manage.py migrate"
     ```
 
 2. Create the first **superuser**:
 
     ```bash
-    docker exec -it sds-gateway-prod-app uv run manage.py createsuperuser
+    just uv run manage.py createsuperuser
+    # equivalent to:
+    # docker exec -it sds-gateway-prod-app uv run manage.py createsuperuser
 
     # if you forget or lose the superuser password, you can reset it with:
-    docker exec -it sds-gateway-prod-app uv run manage.py changepassword <email>
+
+    just uv run manage.py changepassword <email>
+    # equivalent to:
+    # docker exec -it sds-gateway-prod-app uv run manage.py changepassword <email>
     ```
 
 3. Try the **web interface** and **admin panel**:
@@ -356,9 +396,12 @@ docker compose -f compose.production.yaml --env-file .envs/production/opensearch
     1. Establish the connection alias:
 
         ```bash
-        docker exec -it sds-gateway-prod-minio mc alias set local http://127.0.0.1:9000 minioadmin
+        just dc exec minio mc alias set local http://127.0.0.1:9000 minioadmin
         # paste your MinIO credentials from .envs/production/minio.env;
         # change `minioadmin` above to match that file, if needed.
+
+        # in prod, that is equivalent to:
+        # docker exec -it sds-gateway-prod-minio mc alias set local http://127.0.0.1:9000 minioadmin
         ```
 
         Optionally, set up a local `mc` client if you're managing the cluster remotely:
@@ -466,7 +509,8 @@ docker compose -f compose.production.yaml --env-file .envs/production/opensearch
       them to the `users` list when using HTTP Basic Authentication with OpenSearch and
       not an external authentication system.
 
-    Run the following command to confirm changes:
+    You can restart the OpenSearch Docker container to reflect the changes, or run the
+    following command to confirm changes:
 
     ```bash
     docker exec -it sds-gateway-prod-opensearch /usr/share/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
@@ -476,10 +520,8 @@ docker compose -f compose.production.yaml --env-file .envs/production/opensearch
         -key /usr/share/opensearch/config/certs/admin-key.pem
     ```
 
-    Or you can restart the OpenSearch Docker container to reflect the changes. This
-    option takes longer as you must wait for the container to start.
-
-    > [!TIP] If you want to reserve users or permissions so they cannot be changed
+    > [!TIP]
+    > If you want to reserve users or permissions so they cannot be changed
     > through the API and only through running the `securityadmin.sh` script, set a
     > parameter on individual entries: `reserved: true`.
     >
@@ -490,16 +532,19 @@ docker compose -f compose.production.yaml --env-file .envs/production/opensearch
     > documentation](https://opensearch.org/docs/latest/security/configuration/security-admin/#a-word-of-caution)
     > on the nuances of this script for more information.
 
-7. Run the **test** suite:
+7. Run the Django **test** suite:
 
     ```bash
-    docker exec -it sds-gateway-prod-app uv run manage.py test
+    just uv run manage.py test
+    # equivalent to:
+    # docker exec -it sds-gateway-prod-app uv run manage.py test
     ```
 
 8. Don't forget to **approve users** to allow them to create API keys.
 
     You can do this by logging in as a superuser in the admin panel and enabling the
-    `is_approved` flag in the user's entry.
+    `is_approved` flag in the user's entry. This will give that user permission to
+    generate and use API keys to interact with the SDS programmatically.
 
 ## OpenSearch Query Tips
 
@@ -523,7 +568,8 @@ For example:
 }
 ```
 
-> [!NOTE] You do not have to worry about building nested queries. The API handles
+> [!NOTE]
+> You do not have to worry about building nested queries. The API handles
 > nesting based on the dot notation in the `field_path`. Only provide the inner-most
 > `filter_value`, the actual filter you want to apply to the field, when constructing
 > filters for requests.
@@ -565,7 +611,8 @@ Here are some useful examples of advanced queries one might want to make to the 
         }
     ```
 
-    >[!Note] `now` is a keyword in OpenSearch that refers to the current date and time.
+    >[!Note]
+    > `now` is a keyword in OpenSearch that refers to the current date and time.
 
     More information about `range` queries can be found
     [here](https://opensearch.org/docs/latest/query-dsl/term/range/).

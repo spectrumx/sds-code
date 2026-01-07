@@ -10,7 +10,7 @@
 #   SDS_SKIP_NETWORK   - Set to 'true' to skip network creation (default: false)
 #   SDS_DETACH         - Set to 'true' to run in detached mode (default: true for prod)
 #
-# USAGE:
+# USAGE EXAMPLES:
 #   ./deploy.sh [OPTIONS] <local|production|ci>
 #   SDS_SKIP_SECRETS=true ./deploy.sh local
 #   SDS_FORCE_SECRETS=true SDS_DETACH=false ./deploy.sh production
@@ -363,6 +363,8 @@ function determine_container_name() {
     local env_type="$1"
     if [[ "${env_type}" == "production" ]]; then
         echo "sds-gateway-prod-app"
+    elif [[ "${env_type}" == "ci" ]]; then
+        echo "sds-gateway-local-app"
     else
         echo "sds-gateway-${env_type}-app"
     fi
