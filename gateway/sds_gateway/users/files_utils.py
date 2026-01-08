@@ -519,7 +519,7 @@ def add_capture_files(request, capture_uuid, subpath: str = "") -> list[Item]:
     shared_by = capture.owner.email if is_shared else ""
 
     # Get files associated with this capture (support both M2M and FK)
-    all_capture_files = get_capture_files(capture, is_deleted=False)
+    all_capture_files = get_capture_files(capture, include_deleted=False)
     capture_files = get_filtered_files_queryset(all_capture_files)
 
     log.debug(

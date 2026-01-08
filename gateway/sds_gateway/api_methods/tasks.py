@@ -1273,13 +1273,13 @@ def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
     )
 
     if item_type == ItemType.DATASET:
-        files_queryset = get_dataset_files_including_captures(item, is_deleted=False)
+        files_queryset = get_dataset_files_including_captures(item, include_deleted=False)
         files = list(files_queryset)  # Convert to list before len() to avoid SQL issues
         logger.info(f"Found {len(files)} files for dataset {item.uuid}")
         return files
 
     if item_type == ItemType.CAPTURE:
-        files = get_capture_files(item, is_deleted=False)
+        files = get_capture_files(item, include_deleted=False)
         logger.info(f"Found {len(files)} files for capture {item.uuid}")
         return list(files)
 

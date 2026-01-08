@@ -174,7 +174,7 @@ class CaptureViewSet(viewsets.ViewSet):
             )
 
             # disconnect files that are no longer in the capture
-            all_current_files = get_capture_files(capture, is_deleted=True)  # Include deleted for cleanup
+            all_current_files = get_capture_files(capture, include_deleted=True)  # Include deleted for cleanup
             for cur_file in all_current_files:
                 if cur_file not in files_to_connect:
                     cur_file.captures.remove(capture)

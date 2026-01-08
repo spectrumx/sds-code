@@ -126,15 +126,17 @@ class FileProtectionTest(APITestCase):
         self.files_without_associations: list[File] = [
             create_db_file(owner=self.user) for _ in range(num_files)
         ]
-        self._files_for_cleanup.extend(self.files_with_capture_fk)
-        self._files_for_cleanup.extend(self.files_with_capture_m2m)
-        self._files_for_cleanup.extend(self.files_with_capture_both)
-        self._files_for_cleanup.extend(self.files_with_dataset_fk)
-        self._files_for_cleanup.extend(self.files_with_dataset_m2m)
-        self._files_for_cleanup.extend(self.files_with_dataset_both)
-        self._files_for_cleanup.extend(self.files_with_capture_and_dataset_fk)
-        self._files_for_cleanup.extend(self.files_with_capture_and_dataset_m2m)
-        self._files_for_cleanup.extend(self.files_without_associations)
+        self._files_for_cleanup.extend([
+            self.files_with_capture_fk
+            self.files_with_capture_m2m
+            self.files_with_capture_both
+            self.files_with_dataset_fk
+            self.files_with_dataset_m2m
+            self.files_with_dataset_both
+            self.files_with_capture_and_dataset_fk
+            self.files_with_capture_and_dataset_m2m
+            self.files_without_associations
+        ])
 
     def tearDown(self) -> None:
         """Clean up any remaining test data."""
