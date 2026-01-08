@@ -4,7 +4,6 @@ from typing import Any
 from typing import cast
 
 from django.db.models import Q
-from django.db.models import Sum
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
@@ -110,8 +109,8 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     def get_total_file_size(self, capture: Capture) -> int:
         """Get the total file size of all files associated with this capture."""
         all_files = get_capture_files(capture, is_deleted=False)
-        result = all_files.aggregate(total_size=Sum("size"))
-        return result["total_size"] or 0
+        # Union querysets can't be aggregated directly, so evaluate and sum in Python
+        return sum(file.size for file in all_files) if all_files.exists() else 0
 
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:
@@ -339,8 +338,8 @@ class CompositeCaptureSerializer(serializers.Serializer):
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
             all_files = get_capture_files(capture, is_deleted=False)
-            result = all_files.aggregate(total_size=Sum("size"))
-            total_size += result["total_size"] or 0
+            # Union querysets can't be aggregated directly, so evaluate and sum in Python
+            total_size += sum(file.size for file in all_files) if all_files.exists() else 0
         return total_size
 
     @extend_schema_field(serializers.CharField)

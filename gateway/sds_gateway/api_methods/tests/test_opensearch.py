@@ -97,6 +97,10 @@ class OpenSearchRHIndexResetTest(APITestCase):
 
         # clean up temp files
         for temp_file in self.temp_files:
+            # Clear M2M relationships
+            temp_file.captures.clear()
+            temp_file.datasets.clear()
+            # Clear FK relationships
             File.objects.filter(pk=temp_file.pk).update(
                 capture=None,
                 dataset=None,
@@ -553,6 +557,10 @@ class OpenSearchDRFIndexResetTest(APITestCase):
 
         # clean up temporary files
         for temp_file in self.temp_files:
+            # Clear M2M relationships
+            temp_file.captures.clear()
+            temp_file.datasets.clear()
+            # Clear FK relationships
             File.objects.filter(pk=temp_file.pk).update(
                 capture=None,
                 dataset=None,

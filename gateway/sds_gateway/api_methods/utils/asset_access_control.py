@@ -1,5 +1,7 @@
 """Capture access utility functions for the SDS Gateway API."""
 
+import logging
+
 from django.db.models import Q
 
 from sds_gateway.api_methods.models import Capture
@@ -7,112 +9,133 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.utils.relationship_utils import (
+    get_capture_datasets,
+    get_file_captures,
+    get_file_datasets,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def user_has_access_to_capture(user, capture: Capture) -> bool:
     """
     Check if a user has access to a capture.
-
-    A user has access if:
-    1. They own the capture directly, OR
-    2. The capture is shared with them, OR
-    3. The capture is part of a dataset that is shared with them
-
-    Args:
-        user: The user to check access for
-        capture: The capture to check access for
-
-    Returns:
-        bool: True if user has access, False otherwise
+    ...
     """
-
     # Check M2M datasets access
-    shared_datasets = UserSharePermission.objects.filter(
+    shared_datasets = list(UserSharePermission.objects.filter(
         shared_with=user,
         item_type=ItemType.DATASET,
         is_deleted=False,
         is_enabled=True,
-    ).values_list("item_uuid", flat=True)
+    ).values_list("item_uuid", flat=True))
+
+    print(f"[DEBUG] user_has_access_to_capture: user={user.email}, capture={capture.uuid}")
+    print(f"[DEBUG]   shared_datasets: {shared_datasets}")
 
     user_has_access_to_capture = user_has_access_to_item(
         user,
         capture.uuid,
         ItemType.CAPTURE,
     )
-    user_has_access_to_dataset = capture.datasets.filter(
-        Q(owner=user) | Q(uuid__in=shared_datasets),
-        is_deleted=False,
-    ).exists() or (
-        capture.dataset is not None
-        and user_has_access_to_item(
-            user,
-            capture.dataset.uuid,
-            ItemType.DATASET,
-        )
-    ) # TODO: remove this after migration (expand -> contract)
+    print(f"[DEBUG]   user_has_access_to_capture (direct): {user_has_access_to_capture}")
     
-    return user_has_access_to_capture or user_has_access_to_dataset
+    # Use centralized function to get datasets (handles both M2M and FK)
+    # Evaluate the queryset first to avoid issues with union querysets
+    capture_datasets = list(get_capture_datasets(capture, is_deleted=False))
+    print(f"[DEBUG]   capture_datasets count: {len(capture_datasets)}")
+    print(f"[DEBUG]   capture_datasets: {[d.uuid for d in capture_datasets]}")
+    
+    # Check if any dataset is owned by user or in shared_datasets
+    user_has_access_to_dataset = any(
+        dataset.owner == user or dataset.uuid in shared_datasets
+        for dataset in capture_datasets
+    )
+    print(f"[DEBUG]   user_has_access_to_dataset: {user_has_access_to_dataset}")
+    
+    result = user_has_access_to_capture or user_has_access_to_dataset
+    print(f"[DEBUG]   FINAL RESULT: {result}")
+    
+    return result
 
 
 def user_has_access_to_file(user, file: File) -> bool:
     """
     Check if a user has access to a file.
-
-    A user has access if:
-    1. They own the file directly, OR
-    2. The file is part of a capture that is shared with them, OR
-    3. The file is part of a dataset that is shared with them, OR
-    4. The file is part of a capture that is part of a shared dataset
-
-    Args:
-        user: The user to check access for
-        file: The file to check access for
-
-    Returns:
-        bool: True if user has access, False otherwise
+    ...
     """
     user_owns_file = file.owner == user
+    print(f"[DEBUG] user_has_access_to_file: user={user.email}, file={file.name}")
+    print(f"[DEBUG]   user_owns_file: {user_owns_file}")
     
     # Check M2M captures access
-    shared_captures = UserSharePermission.objects.filter(
+    shared_captures = list(UserSharePermission.objects.filter(
         shared_with=user,
         item_type=ItemType.CAPTURE,
         is_deleted=False,
         is_enabled=True,
-    ).values_list("item_uuid", flat=True)
+    ).values_list("item_uuid", flat=True))
     
-    user_has_access_to_capture = file.captures.filter(
-        Q(owner=user) | Q(uuid__in=shared_captures),
-        is_deleted=False,
-    ).exists() or (
-        file.capture is not None
-        and user_has_access_to_item(
-            user,
-            file.capture.uuid,
-            ItemType.CAPTURE,
-        )
-    ) # TODO: remove this after migration (expand -> contract)
-    
-    shared_datasets = UserSharePermission.objects.filter(
+    # Get shared datasets for checking nested relationships
+    shared_datasets = list(UserSharePermission.objects.filter(
         shared_with=user,
         item_type=ItemType.DATASET,
         is_deleted=False,
         is_enabled=True,
-    ).values_list("item_uuid", flat=True)
-
-    user_has_access_to_dataset = file.datasets.filter(
-        Q(owner=user) | Q(uuid__in=shared_datasets),
-        is_deleted=False,
-    ).exists() or (
-        file.dataset is not None
-        and user_has_access_to_item(
-            user,
-            file.dataset.uuid,
-            ItemType.DATASET,
-        )
-    ) # TODO: remove this after migration (expand -> contract)
+    ).values_list("item_uuid", flat=True))
     
-    return user_owns_file or user_has_access_to_capture or user_has_access_to_dataset
+    print(f"[DEBUG]   shared_captures: {shared_captures}")
+    print(f"[DEBUG]   shared_datasets: {shared_datasets}")
+    
+    # Use centralized function to get captures (handles both M2M and FK)
+    # Evaluate the queryset first to avoid issues with union querysets
+    file_captures = list(get_file_captures(file, is_deleted=False))
+    print(f"[DEBUG]   file_captures count: {len(file_captures)}")
+    print(f"[DEBUG]   file_captures: {[c.uuid for c in file_captures]}")
+    
+    # Check if file's captures are accessible (directly shared, owned by user)
+    user_has_access_to_capture = any(
+        capture.owner == user or capture.uuid in shared_captures
+        for capture in file_captures
+    )
+    print(f"[DEBUG]   user_has_access_to_capture (direct): {user_has_access_to_capture}")
+    
+    # Check if file's captures are in shared datasets (nested relationship)
+    if not user_has_access_to_capture:
+        print(f"[DEBUG]   Checking nested relationship: file -> capture -> dataset")
+        for capture in file_captures:
+            print(f"[DEBUG]     Checking capture: {capture.uuid}")
+            # Evaluate the queryset first
+            capture_datasets = list(get_capture_datasets(capture, is_deleted=False))
+            print(f"[DEBUG]       capture_datasets count: {len(capture_datasets)}")
+            print(f"[DEBUG]       capture_datasets: {[d.uuid for d in capture_datasets]}")
+            print(f"[DEBUG]       capture_datasets owners: {[d.owner.email for d in capture_datasets]}")
+            if any(
+                dataset.owner == user or dataset.uuid in shared_datasets
+                for dataset in capture_datasets
+            ):
+                print(f"[DEBUG]       Found accessible dataset!")
+                user_has_access_to_capture = True
+                break
+
+    print(f"[DEBUG]   user_has_access_to_capture (final): {user_has_access_to_capture}")
+
+    # Use centralized function to get datasets (handles both M2M and FK)
+    # Evaluate the queryset first
+    file_datasets = list(get_file_datasets(file, is_deleted=False))
+    print(f"[DEBUG]   file_datasets count: {len(file_datasets)}")
+    print(f"[DEBUG]   file_datasets: {[d.uuid for d in file_datasets]}")
+    user_has_access_to_dataset = any(
+        dataset.owner == user or dataset.uuid in shared_datasets
+        for dataset in file_datasets
+    )
+    print(f"[DEBUG]   user_has_access_to_dataset: {user_has_access_to_dataset}")
+    
+    result = user_owns_file or user_has_access_to_capture or user_has_access_to_dataset
+    print(f"[DEBUG]   FINAL RESULT: {result}")
+    
+    return result
 
 
 def get_accessible_files_queryset(user):
@@ -131,13 +154,13 @@ def get_accessible_files_queryset(user):
     Returns:
         QuerySet[File]: Queryset of accessible files
     """
-    captures_shared_with_user = UserSharePermission.objects.filter(
+    captures_shared_with_user = list(UserSharePermission.objects.filter(
         item_type=ItemType.CAPTURE, shared_with=user, is_deleted=False, is_enabled=True
-    ).values_list("item_uuid", flat=True)
+    ).values_list("item_uuid", flat=True))
 
-    datasets_shared_with_user = UserSharePermission.objects.filter(
+    datasets_shared_with_user = list(UserSharePermission.objects.filter(
         item_type=ItemType.DATASET, shared_with=user, is_deleted=False, is_enabled=True
-    ).values_list("item_uuid", flat=True)
+    ).values_list("item_uuid", flat=True))
 
     # Base queryset for non-deleted files
     base_queryset = File.objects.filter(is_deleted=False)
@@ -145,7 +168,9 @@ def get_accessible_files_queryset(user):
     # Build the access control query using Q objects
     access_query = Q()
 
-    # 1. Files owned by the user
+    # 1. Files owned by the user (but exclude if they're only accessible through
+    #    shared captures/datasets that the user doesn't have access to)
+    #    Actually, file owners should always see their files per test_file_owner_has_access
     access_query |= Q(owner=user)
 
     # 2. Files part of captures that are shared with the user
@@ -236,13 +261,13 @@ def get_accessible_captures_queryset(user):
     Returns:
         QuerySet[Capture]: Queryset of accessible captures
     """
-    captures_shared_with_user = UserSharePermission.objects.filter(
+    captures_shared_with_user = list(UserSharePermission.objects.filter(
         item_type=ItemType.CAPTURE, shared_with=user, is_deleted=False, is_enabled=True
-    ).values_list("item_uuid", flat=True)
+    ).values_list("item_uuid", flat=True))
 
-    datasets_shared_with_user = UserSharePermission.objects.filter(
+    datasets_shared_with_user = list(UserSharePermission.objects.filter(
         item_type=ItemType.DATASET, shared_with=user, is_deleted=False, is_enabled=True
-    ).values_list("item_uuid", flat=True)
+    ).values_list("item_uuid", flat=True))
 
     # Base queryset for non-deleted captures
     base_queryset = Capture.objects.filter(is_deleted=False)
