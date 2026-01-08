@@ -213,7 +213,8 @@ class TestPublishDatasetView:
             kwargs={"dataset_uuid": draft_dataset.uuid},
         )
 
-        data = {"is_public": json.dumps(True)}
+        is_public_value = True
+        data = {"is_public": json.dumps(is_public_value)}
 
         response = client.post(url, data)
 
@@ -242,9 +243,10 @@ class TestPublishDatasetView:
             kwargs={"dataset_uuid": draft_dataset.uuid},
         )
 
+        is_public_value = True
         data = {
             "status": DatasetStatus.FINAL,
-            "is_public": json.dumps(True),
+            "is_public": json.dumps(is_public_value),
         }
 
         response = client.post(url, data)
@@ -275,7 +277,8 @@ class TestPublishDatasetView:
             kwargs={"dataset_uuid": draft_dataset.uuid},
         )
 
-        data = {"is_public": json.dumps(False)}
+        is_public_value = False
+        data = {"is_public": json.dumps(is_public_value)}
 
         response = client.post(url, data)
 
@@ -509,7 +512,8 @@ class TestPublishDatasetView:
             kwargs={"dataset_uuid": public_dataset.uuid},
         )
 
-        data = {"is_public": json.dumps(False)}
+        is_public_value = False
+        data = {"is_public": json.dumps(is_public_value)}
 
         response = client.post(url, data)
 
@@ -619,7 +623,8 @@ class TestPublishDatasetView:
             kwargs={"dataset_uuid": final_dataset.uuid},
         )
 
-        data = {"is_public": json.dumps(True)}
+        is_public_value = True
+        data = {"is_public": json.dumps(is_public_value)}
 
         response = client.post(url, data)
 
