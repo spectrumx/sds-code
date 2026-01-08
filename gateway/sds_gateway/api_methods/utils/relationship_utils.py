@@ -15,6 +15,18 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 
 
+def union_to_queryset(
+    queryset: QuerySet[File | Capture | Dataset],
+    model: type[File | Capture | Dataset],
+) -> QuerySet[File | Capture | Dataset]:
+    """
+    Convert a union queryset to a regular queryset.
+    """
+    asset_ids = list(queryset.values_list('uuid', flat=True))
+    if not asset_ids:
+        return model.objects.none()
+    return model.objects.filter(uuid__in=asset_ids)
+
 def get_capture_files(capture: Capture, *, is_deleted: bool = False) -> QuerySet[File]:
     """
     Get all files associated with a capture via both M2M and FK relationships.
@@ -38,7 +50,10 @@ def get_capture_files(capture: Capture, *, is_deleted: bool = False) -> QuerySet
         files_fk = files_fk.filter(is_deleted=False)
 
     # Combine both querysets
-    return files_m2m.union(files_fk)
+    files_union = files_m2m.union(files_fk)
+
+    # get list of file ids
+    return union_to_queryset(files_union, File)
 
 
 def get_dataset_files(dataset: Dataset, *, is_deleted: bool = False) -> QuerySet[File]:
@@ -67,7 +82,10 @@ def get_dataset_files(dataset: Dataset, *, is_deleted: bool = False) -> QuerySet
         files_fk = files_fk.filter(is_deleted=False)
 
     # Combine both querysets
-    return files_m2m.union(files_fk)
+    files_union = files_m2m.union(files_fk)
+    
+    # get list of file ids
+    return union_to_queryset(files_union, File)
 
 
 def get_dataset_captures(dataset: Dataset, *, is_deleted: bool = False) -> QuerySet[Capture]:
@@ -93,7 +111,8 @@ def get_dataset_captures(dataset: Dataset, *, is_deleted: bool = False) -> Query
         captures_fk = captures_fk.filter(is_deleted=False)
 
     # Combine both querysets
-    return captures_m2m.union(captures_fk)
+    captures_union = captures_m2m.union(captures_fk)
+    return union_to_queryset(captures_union, Capture)
 
 
 def get_dataset_files_including_captures(
@@ -141,7 +160,8 @@ def get_dataset_files_including_captures(
     capture_files = capture_files_m2m.union(capture_files_fk)
 
     # Combine all file querysets
-    return dataset_files.union(capture_files)
+    files_union = dataset_files.union(capture_files)
+    return union_to_queryset(files_union, File)
 
 
 def get_files_for_captures(
@@ -169,7 +189,8 @@ def get_files_for_captures(
         files_fk = files_fk.filter(is_deleted=False)
 
     # Combine both querysets
-    return files_m2m.union(files_fk)
+    files_union = files_m2m.union(files_fk)
+    return union_to_queryset(files_union, File)
 
 
 def get_file_captures(file: File, *, is_deleted: bool = False) -> QuerySet[Capture]:
@@ -197,7 +218,8 @@ def get_file_captures(file: File, *, is_deleted: bool = False) -> QuerySet[Captu
             captures_fk = captures_fk.filter(is_deleted=False)
 
     # Combine both querysets
-    return captures_m2m.union(captures_fk)
+    captures_union = captures_m2m.union(captures_fk)
+    return union_to_queryset(captures_union, Capture)
 
 
 def get_file_datasets(file: File, *, is_deleted: bool = False) -> QuerySet[Dataset]:
@@ -225,7 +247,8 @@ def get_file_datasets(file: File, *, is_deleted: bool = False) -> QuerySet[Datas
             datasets_fk = datasets_fk.filter(is_deleted=False)
 
     # Combine both querysets
-    return datasets_m2m.union(datasets_fk)
+    datasets_union = datasets_m2m.union(datasets_fk)
+    return union_to_queryset(datasets_union, Dataset)
 
 
 def get_capture_datasets(capture: Capture, *, is_deleted: bool = False) -> QuerySet[Dataset]:
@@ -253,5 +276,6 @@ def get_capture_datasets(capture: Capture, *, is_deleted: bool = False) -> Query
             datasets_fk = datasets_fk.filter(is_deleted=False)
 
     # Combine both querysets
-    return datasets_m2m.union(datasets_fk)
+    datasets_union = datasets_m2m.union(datasets_fk)
+    return union_to_queryset(datasets_union, Dataset)
 

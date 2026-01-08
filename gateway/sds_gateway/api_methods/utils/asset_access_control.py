@@ -31,31 +31,22 @@ def user_has_access_to_capture(user, capture: Capture) -> bool:
         is_enabled=True,
     ).values_list("item_uuid", flat=True))
 
-    print(f"[DEBUG] user_has_access_to_capture: user={user.email}, capture={capture.uuid}")
-    print(f"[DEBUG]   shared_datasets: {shared_datasets}")
-
     user_has_access_to_capture = user_has_access_to_item(
         user,
         capture.uuid,
         ItemType.CAPTURE,
     )
-    print(f"[DEBUG]   user_has_access_to_capture (direct): {user_has_access_to_capture}")
     
     # Use centralized function to get datasets (handles both M2M and FK)
-    # Evaluate the queryset first to avoid issues with union querysets
-    capture_datasets = list(get_capture_datasets(capture, is_deleted=False))
-    print(f"[DEBUG]   capture_datasets count: {len(capture_datasets)}")
-    print(f"[DEBUG]   capture_datasets: {[d.uuid for d in capture_datasets]}")
+    capture_datasets = get_capture_datasets(capture, is_deleted=False)
     
     # Check if any dataset is owned by user or in shared_datasets
     user_has_access_to_dataset = any(
         dataset.owner == user or dataset.uuid in shared_datasets
         for dataset in capture_datasets
     )
-    print(f"[DEBUG]   user_has_access_to_dataset: {user_has_access_to_dataset}")
     
     result = user_has_access_to_capture or user_has_access_to_dataset
-    print(f"[DEBUG]   FINAL RESULT: {result}")
     
     return result
 
@@ -66,8 +57,6 @@ def user_has_access_to_file(user, file: File) -> bool:
     ...
     """
     user_owns_file = file.owner == user
-    print(f"[DEBUG] user_has_access_to_file: user={user.email}, file={file.name}")
-    print(f"[DEBUG]   user_owns_file: {user_owns_file}")
     
     # Check M2M captures access
     shared_captures = list(UserSharePermission.objects.filter(
@@ -85,55 +74,36 @@ def user_has_access_to_file(user, file: File) -> bool:
         is_enabled=True,
     ).values_list("item_uuid", flat=True))
     
-    print(f"[DEBUG]   shared_captures: {shared_captures}")
-    print(f"[DEBUG]   shared_datasets: {shared_datasets}")
-    
     # Use centralized function to get captures (handles both M2M and FK)
-    # Evaluate the queryset first to avoid issues with union querysets
-    file_captures = list(get_file_captures(file, is_deleted=False))
-    print(f"[DEBUG]   file_captures count: {len(file_captures)}")
-    print(f"[DEBUG]   file_captures: {[c.uuid for c in file_captures]}")
+    file_captures = get_file_captures(file, is_deleted=False)
     
     # Check if file's captures are accessible (directly shared, owned by user)
     user_has_access_to_capture = any(
         capture.owner == user or capture.uuid in shared_captures
         for capture in file_captures
     )
-    print(f"[DEBUG]   user_has_access_to_capture (direct): {user_has_access_to_capture}")
     
     # Check if file's captures are in shared datasets (nested relationship)
     if not user_has_access_to_capture:
-        print(f"[DEBUG]   Checking nested relationship: file -> capture -> dataset")
         for capture in file_captures:
-            print(f"[DEBUG]     Checking capture: {capture.uuid}")
             # Evaluate the queryset first
             capture_datasets = list(get_capture_datasets(capture, is_deleted=False))
-            print(f"[DEBUG]       capture_datasets count: {len(capture_datasets)}")
-            print(f"[DEBUG]       capture_datasets: {[d.uuid for d in capture_datasets]}")
-            print(f"[DEBUG]       capture_datasets owners: {[d.owner.email for d in capture_datasets]}")
             if any(
                 dataset.owner == user or dataset.uuid in shared_datasets
                 for dataset in capture_datasets
             ):
-                print(f"[DEBUG]       Found accessible dataset!")
                 user_has_access_to_capture = True
                 break
-
-    print(f"[DEBUG]   user_has_access_to_capture (final): {user_has_access_to_capture}")
 
     # Use centralized function to get datasets (handles both M2M and FK)
     # Evaluate the queryset first
     file_datasets = list(get_file_datasets(file, is_deleted=False))
-    print(f"[DEBUG]   file_datasets count: {len(file_datasets)}")
-    print(f"[DEBUG]   file_datasets: {[d.uuid for d in file_datasets]}")
     user_has_access_to_dataset = any(
         dataset.owner == user or dataset.uuid in shared_datasets
         for dataset in file_datasets
     )
-    print(f"[DEBUG]   user_has_access_to_dataset: {user_has_access_to_dataset}")
     
     result = user_owns_file or user_has_access_to_capture or user_has_access_to_dataset
-    print(f"[DEBUG]   FINAL RESULT: {result}")
     
     return result
 
