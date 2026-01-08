@@ -82,7 +82,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         Returns:
             A list of serialized file objects with uuid, name, and directory fields.
         """
-        non_deleted_files = get_capture_files(capture, is_deleted=False)
+        non_deleted_files = get_capture_files(capture, include_deleted=False)
         serializer = FileCaptureListSerializer(
             non_deleted_files,
             many=True,
@@ -103,12 +103,12 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     @extend_schema_field(serializers.IntegerField)
     def get_files_count(self, capture: Capture) -> int:
         """Get the count of files associated with this capture."""
-        return get_capture_files(capture, is_deleted=False).count()
+        return get_capture_files(capture, include_deleted=False).count()
 
     @extend_schema_field(serializers.IntegerField)
     def get_total_file_size(self, capture: Capture) -> int:
         """Get the total file size of all files associated with this capture."""
-        all_files = get_capture_files(capture, is_deleted=False)
+        all_files = get_capture_files(capture, include_deleted=False)
         result = all_files.aggregate(total_size=Sum("size"))
         return result["total_size"] or 0
 
@@ -311,7 +311,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
         for channel_data in obj["channels"]:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
-            non_deleted_files = get_capture_files(capture, is_deleted=False)
+            non_deleted_files = get_capture_files(capture, include_deleted=False)
             serializer = FileCaptureListSerializer(
                 non_deleted_files,
                 many=True,
@@ -327,7 +327,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
         for channel_data in obj["channels"]:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
-            total_count += get_capture_files(capture, is_deleted=False).count()
+            total_count += get_capture_files(capture, include_deleted=False).count()
         return total_count
 
     @extend_schema_field(serializers.IntegerField)
@@ -337,7 +337,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
         for channel_data in obj["channels"]:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
-            all_files = get_capture_files(capture, is_deleted=False)
+            all_files = get_capture_files(capture, include_deleted=False)
             result = all_files.aggregate(total_size=Sum("size"))
             total_size += result["total_size"] or 0
         return total_size

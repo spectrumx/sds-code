@@ -31,7 +31,7 @@ class DatasetViewSet(ViewSet):
 
     def _get_file_objects(self, dataset: Dataset) -> QuerySet[File]:
         """Get all files associated with a dataset."""
-        return get_dataset_files_including_captures(dataset, is_deleted=False)
+        return get_dataset_files_including_captures(dataset, include_deleted=False)
 
     @extend_schema(
         parameters=[

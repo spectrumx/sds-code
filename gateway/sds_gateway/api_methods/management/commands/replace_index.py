@@ -433,7 +433,7 @@ class Command(BaseCommand):
 
         marked_for_deletion: list[Capture] = []
         for capture in captures:
-            all_files = cast("QuerySet[File]", get_capture_files(capture, is_deleted=True))
+            all_files = cast("QuerySet[File]", get_capture_files(capture, include_deleted=True))
             has_files = all_files and all_files.count() > 0
             has_files_but_all_missing = has_files and all(
                 file_obj.is_deleted for file_obj in all_files

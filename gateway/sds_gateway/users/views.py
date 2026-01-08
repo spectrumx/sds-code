@@ -2861,7 +2861,7 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         Returns:
             A QuerySet of files associated with the dataset
         """
-        return get_dataset_files_including_captures(dataset, is_deleted=False)
+        return get_dataset_files_including_captures(dataset, include_deleted=False)
 
     def get(self, request, *args, **kwargs) -> JsonResponse:
         """
