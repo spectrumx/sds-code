@@ -14,7 +14,6 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     created_at = serializers.DateTimeField(format="%m/%d/%Y %H:%M:%S", read_only=True)
     is_shared_with_me = serializers.SerializerMethodField()
     is_owner = serializers.SerializerMethodField()
-    is_public = serializers.BooleanField(default=False)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     shared_users = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
@@ -49,10 +48,6 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         if request and hasattr(request, "user"):
             return obj.owner == request.user
         return False
-
-    def get_is_public(self, obj):
-        """Check if the dataset is public."""
-        return obj.is_public
 
     def get_shared_users(self, obj):
         """Get users and groups who have access to this dataset."""
