@@ -365,3 +365,58 @@ class FileSearchForm(forms.Form):
             ]
 
             self.fields["file_extension"].choices = extension_choices
+
+
+class PublishedDatasetSearchForm(forms.Form):
+    """Form for searching published datasets."""
+
+    query = forms.CharField(
+        label="Search",
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "id": "search-query",
+                "placeholder": "Search by name, abstract, description, authors...",
+            }
+        ),
+        help_text="Search across dataset name, abstract, description, and authors",
+    )
+    keywords = forms.CharField(
+        label="Keywords",
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "id": "search-keywords",
+                "placeholder": "e.g. spectrum, RF, SDR",
+            }
+        ),
+        help_text="Comma-separated keywords or tags",
+    )
+    min_frequency = forms.FloatField(
+        label="Min Frequency (GHz)",
+        required=False,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control",
+                "id": "search-min-freq",
+                "placeholder": "0.0",
+                "step": "0.001",
+            }
+        ),
+        help_text="Minimum frequency in GHz",
+    )
+    max_frequency = forms.FloatField(
+        label="Max Frequency (GHz)",
+        required=False,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control",
+                "id": "search-max-freq",
+                "placeholder": "100.0",
+                "step": "0.001",
+            }
+        ),
+        help_text="Maximum frequency in GHz",
+    )
