@@ -12,9 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from django.db.models import Q
 from django.http import JsonResponse
-from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from django.utils import timezone
 from loguru import logger as log
 
@@ -26,6 +24,7 @@ from sds_gateway.api_methods.utils.asset_access_control import (
     user_has_access_to_capture,
 )
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
 from .item_models import CaptureItem
 from .item_models import DatasetItem

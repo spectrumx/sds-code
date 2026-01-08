@@ -22,18 +22,22 @@ def union_to_queryset(
     """
     Convert a union queryset to a regular queryset.
     """
-    asset_ids = list(queryset.values_list('uuid', flat=True))
+    asset_ids = list(queryset.values_list("uuid", flat=True))
     if not asset_ids:
         return model.objects.none()
     return model.objects.filter(uuid__in=asset_ids)
 
-def get_capture_files(capture: Capture, *, include_deleted: bool = False) -> QuerySet[File]:
+
+def get_capture_files(
+    capture: Capture, *, include_deleted: bool = False
+) -> QuerySet[File]:
     """
     Get all files associated with a capture via both M2M and FK relationships.
 
     Args:
         capture: The capture to get files for
-        include_deleted: If True, include deleted files. If False (default), exclude deleted files.
+        include_deleted: If True, include deleted files.
+            If False (default), exclude deleted files.
 
     Returns:
         QuerySet of files associated with the capture
@@ -56,16 +60,20 @@ def get_capture_files(capture: Capture, *, include_deleted: bool = False) -> Que
     return union_to_queryset(files_union, File)
 
 
-def get_dataset_artifact_files(dataset: Dataset, *, include_deleted: bool = False) -> QuerySet[File]:
+def get_dataset_artifact_files(
+    dataset: Dataset, *, include_deleted: bool = False
+) -> QuerySet[File]:
     """
-    Get artifact files directly associated with a dataset via both M2M and FK relationships.
+    Get artifact files directly associated with a dataset via both M2M and FK
+    relationships.
 
     Note: This does NOT include files from captures associated with the dataset.
     Use get_dataset_files_including_captures() for that.
 
     Args:
         dataset: The dataset to get files for
-        include_deleted: If True, include deleted files. If False (default), exclude deleted files.
+        include_deleted: If True, include deleted files.
+            If False (default), exclude deleted files.
 
     Returns:
         QuerySet of files directly associated with the dataset
@@ -83,18 +91,21 @@ def get_dataset_artifact_files(dataset: Dataset, *, include_deleted: bool = Fals
 
     # Combine both querysets
     files_union = files_m2m.union(files_fk)
-    
+
     # get list of file ids
     return union_to_queryset(files_union, File)
 
 
-def get_dataset_captures(dataset: Dataset, *, include_deleted: bool = False) -> QuerySet[Capture]:
+def get_dataset_captures(
+    dataset: Dataset, *, include_deleted: bool = False
+) -> QuerySet[Capture]:
     """
     Get all captures associated with a dataset via both M2M and FK relationships.
 
     Args:
         dataset: The dataset to get captures for
-        include_deleted: If True, include deleted captures. If False (default), exclude deleted captures.
+        include_deleted: If True, include deleted captures.
+            If False (default), exclude deleted captures.
 
     Returns:
         QuerySet of captures associated with the dataset
@@ -123,11 +134,13 @@ def get_dataset_files_including_captures(
 
     This includes:
     1. Files directly associated with the dataset (M2M + FK)
-    2. Files from captures associated with the dataset (via M2M + FK on both relationships)
+    2. Files from captures associated with the dataset
+       (via M2M + FK on both relationships)
 
     Args:
         dataset: The dataset to get files for
-        include_deleted: If True, include deleted files. If False (default), exclude deleted files.
+        include_deleted: If True, include deleted files.
+            If False (default), exclude deleted files.
 
     Returns:
         QuerySet of all files associated with the dataset
@@ -139,7 +152,7 @@ def get_dataset_files_including_captures(
     dataset_captures = get_dataset_captures(dataset, include_deleted=include_deleted)
 
     # Union querysets can't be used directly in __in lookups, so evaluate to list of IDs
-    capture_ids = list(dataset_captures.values_list('uuid', flat=True))
+    capture_ids = list(dataset_captures.values_list("uuid", flat=True))
 
     if not capture_ids:
         # No captures, return just the dataset files
@@ -168,11 +181,13 @@ def get_files_for_captures(
     captures: QuerySet[Capture], *, is_deleted: bool = False
 ) -> QuerySet[File]:
     """
-    Get all files associated with a queryset of captures via both M2M and FK relationships.
+    Get all files associated with a queryset of captures via both M2M and FK
+    relationships.
 
     Args:
         captures: QuerySet of captures to get files for
-        is_deleted: If True, include deleted files. If False (default), exclude deleted files.
+        is_deleted: If True, include deleted files.
+            If False (default), exclude deleted files.
 
     Returns:
         QuerySet of files associated with the captures
@@ -193,13 +208,16 @@ def get_files_for_captures(
     return union_to_queryset(files_union, File)
 
 
-def get_file_captures(file: File, *, include_deleted: bool = False) -> QuerySet[Capture]:
+def get_file_captures(
+    file: File, *, include_deleted: bool = False
+) -> QuerySet[Capture]:
     """
     Get all captures associated with a file via both M2M and FK relationships.
 
     Args:
         file: The file to get captures for
-        include_deleted: If True, include deleted captures. If False (default), exclude deleted captures.
+        include_deleted: If True, include deleted captures.
+            If False (default), exclude deleted captures.
 
     Returns:
         QuerySet of captures associated with the file
@@ -222,13 +240,16 @@ def get_file_captures(file: File, *, include_deleted: bool = False) -> QuerySet[
     return union_to_queryset(captures_union, Capture)
 
 
-def get_file_datasets(file: File, *, include_deleted: bool = False) -> QuerySet[Dataset]:
+def get_file_datasets(
+    file: File, *, include_deleted: bool = False
+) -> QuerySet[Dataset]:
     """
     Get all datasets associated with a file via both M2M and FK relationships.
 
     Args:
         file: The file to get datasets for
-        include_deleted: If True, include deleted datasets. If False (default), exclude deleted datasets.
+        include_deleted: If True, include deleted datasets.
+            If False (default), exclude deleted datasets.
 
     Returns:
         QuerySet of datasets associated with the file
@@ -251,13 +272,16 @@ def get_file_datasets(file: File, *, include_deleted: bool = False) -> QuerySet[
     return union_to_queryset(datasets_union, Dataset)
 
 
-def get_capture_datasets(capture: Capture, *, include_deleted: bool = False) -> QuerySet[Dataset]:
+def get_capture_datasets(
+    capture: Capture, *, include_deleted: bool = False
+) -> QuerySet[Dataset]:
     """
     Get all datasets associated with a capture via both M2M and FK relationships.
 
     Args:
         capture: The capture to get datasets for
-        include_deleted: If True, include deleted datasets. If False (default), exclude deleted datasets.
+        include_deleted: If True, include deleted datasets.
+            If False (default), exclude deleted datasets.
 
     Returns:
         QuerySet of datasets associated with the capture
@@ -278,4 +302,3 @@ def get_capture_datasets(capture: Capture, *, include_deleted: bool = False) -> 
     # Combine both querysets
     datasets_union = datasets_m2m.union(datasets_fk)
     return union_to_queryset(datasets_union, Dataset)
-

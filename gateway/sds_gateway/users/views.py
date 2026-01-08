@@ -2852,7 +2852,7 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         """
         Get all files associated with a dataset,
         including files from linked captures.
-        
+
         Supports both FK and M2M relationships (expand-contract pattern).
 
         Args:

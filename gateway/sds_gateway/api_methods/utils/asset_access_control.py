@@ -9,11 +9,9 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
-from sds_gateway.api_methods.utils.relationship_utils import (
-    get_capture_datasets,
-    get_file_captures,
-    get_file_datasets,
-)
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_datasets
+from sds_gateway.api_methods.utils.relationship_utils import get_file_captures
+from sds_gateway.api_methods.utils.relationship_utils import get_file_datasets
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +34,17 @@ def user_has_access_to_capture(user, capture: Capture) -> bool:
         capture.uuid,
         ItemType.CAPTURE,
     )
-    
+
     # Use centralized function to get datasets (handles both M2M and FK)
     capture_datasets = get_capture_datasets(capture, include_deleted=False)
-    
+
     # Check if any dataset is owned by user or in shared_datasets
     user_has_access_to_dataset = any(
         dataset.owner == user or dataset.uuid in shared_datasets
         for dataset in capture_datasets
     )
-    
-    result = user_has_access_to_capture or user_has_access_to_dataset
-    
-    return result
+
+    return user_has_access_to_capture or user_has_access_to_dataset
 
 
 def user_has_access_to_file(user, file: File) -> bool:
@@ -57,7 +53,7 @@ def user_has_access_to_file(user, file: File) -> bool:
     ...
     """
     user_owns_file = file.owner == user
-    
+
     # Check M2M captures access
     shared_captures = UserSharePermission.objects.filter(
         shared_with=user,
@@ -65,7 +61,7 @@ def user_has_access_to_file(user, file: File) -> bool:
         is_deleted=False,
         is_enabled=True,
     ).values_list("item_uuid", flat=True)
-    
+
     # Get shared datasets for checking nested relationships
     shared_datasets = UserSharePermission.objects.filter(
         shared_with=user,
@@ -73,16 +69,16 @@ def user_has_access_to_file(user, file: File) -> bool:
         is_deleted=False,
         is_enabled=True,
     ).values_list("item_uuid", flat=True)
-    
+
     # Use centralized function to get captures (handles both M2M and FK)
     file_captures = get_file_captures(file, include_deleted=False)
-    
+
     # Check if file's captures are accessible (directly shared, owned by user)
     user_has_access_to_capture = any(
         capture.owner == user or capture.uuid in shared_captures
         for capture in file_captures
     )
-    
+
     # Check if file's captures are in shared datasets (nested relationship)
     if not user_has_access_to_capture:
         for capture in file_captures:
@@ -100,10 +96,8 @@ def user_has_access_to_file(user, file: File) -> bool:
         dataset.owner == user or dataset.uuid in shared_datasets
         for dataset in file_datasets
     )
-    
-    result = user_owns_file or user_has_access_to_capture or user_has_access_to_dataset
-    
-    return result
+
+    return user_owns_file or user_has_access_to_capture or user_has_access_to_dataset
 
 
 def get_accessible_files_queryset(user):
@@ -138,7 +132,8 @@ def get_accessible_files_queryset(user):
 
     # 1. Files owned by the user (but exclude if they're only accessible through
     #    shared captures/datasets that the user doesn't have access to)
-    #    Actually, file owners should always see their files per test_file_owner_has_access
+    #    Actually, file owners should always see their files per
+    #    test_file_owner_has_access
     access_query |= Q(owner=user)
 
     # 2. Files part of captures that are shared with the user
@@ -146,14 +141,18 @@ def get_accessible_files_queryset(user):
     capture_shared_query = (
         # M2M relationship: files.captures
         (
-            Q(captures__isnull=False, captures__is_deleted=False) & (
+            Q(captures__isnull=False, captures__is_deleted=False)
+            & (
                 Q(captures__owner=user)  # Capture owned by user
                 |
                 # Capture directly shared with user
                 Q(captures__uuid__in=captures_shared_with_user)
                 |
                 # Capture part of dataset that is shared with user (via M2M)
-                Q(captures__datasets__isnull=False, captures__datasets__is_deleted=False)
+                Q(
+                    captures__datasets__isnull=False,
+                    captures__datasets__is_deleted=False,
+                )
                 & (
                     Q(captures__datasets__owner=user)  # Dataset owned by user
                     |
@@ -166,7 +165,8 @@ def get_accessible_files_queryset(user):
         # FK relationship: files.capture (deprecated, for backward compatibility)
         # TODO: remove this after migration (expand -> contract)
         (
-            Q(capture__isnull=False, capture__is_deleted=False) & (
+            Q(capture__isnull=False, capture__is_deleted=False)
+            & (
                 Q(capture__owner=user)  # Capture owned by user
                 |
                 # Capture directly shared with user
@@ -190,7 +190,8 @@ def get_accessible_files_queryset(user):
     dataset_shared_query = (
         # M2M relationship: files.datasets
         (
-            Q(datasets__isnull=False, datasets__is_deleted=False) & (
+            Q(datasets__isnull=False, datasets__is_deleted=False)
+            & (
                 Q(datasets__owner=user)  # Dataset owned by user
                 |
                 # Dataset directly shared with user
@@ -201,7 +202,8 @@ def get_accessible_files_queryset(user):
         # FK relationship: files.dataset (deprecated, for backward compatibility)
         # TODO: remove this after migration (expand -> contract)
         (
-            Q(dataset__isnull=False, dataset__is_deleted=False) & (
+            Q(dataset__isnull=False, dataset__is_deleted=False)
+            & (
                 Q(dataset__owner=user)  # Dataset owned by user
                 |
                 # Dataset directly shared with user
@@ -254,7 +256,8 @@ def get_accessible_captures_queryset(user):
     dataset_shared_query = (
         # M2M relationship: captures.datasets
         (
-            Q(datasets__isnull=False, datasets__is_deleted=False) & (
+            Q(datasets__isnull=False, datasets__is_deleted=False)
+            & (
                 Q(datasets__owner=user)  # Dataset owned by user
                 |
                 # Dataset directly shared with user
@@ -265,7 +268,8 @@ def get_accessible_captures_queryset(user):
         # FK relationship: captures.dataset (deprecated, for backward compatibility)
         # TODO: remove this after migration (expand -> contract)
         (
-            Q(dataset__isnull=False, dataset__is_deleted=False) & (
+            Q(dataset__isnull=False, dataset__is_deleted=False)
+            & (
                 Q(dataset__owner=user)  # Dataset owned by user
                 |
                 # Dataset directly shared with user

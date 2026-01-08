@@ -252,11 +252,15 @@ def raise_if_file_deletion_is_blocked(instance: File) -> None:
     associations: list[str] = []
     if instance.capture and not instance.capture.is_deleted:
         associations.append(f"capture ({instance.capture.uuid})")
-    if instance.captures.filter(is_deleted=False).exists(): # TODO: remove this after migration (expand -> contract)
+    if instance.captures.filter(
+        is_deleted=False
+    ).exists():  # TODO: remove this after migration (expand -> contract)
         associations.append(f"captures ({instance.captures.count()})")
     if instance.dataset and not instance.dataset.is_deleted:
         associations.append(f"dataset ({instance.dataset.uuid})")
-    if instance.datasets.filter(is_deleted=False).exists(): # TODO: remove this after migration (expand -> contract)
+    if instance.datasets.filter(
+        is_deleted=False
+    ).exists():  # TODO: remove this after migration (expand -> contract)
         associations.append(f"datasets ({instance.datasets.count()})")
     if not associations:
         return
