@@ -46,7 +46,7 @@ class FileProtectionTest(APITestCase):
         for file_instance in self.files_with_capture_fk:
             file_instance.capture = self.capture
             file_instance.save()
-        
+
         # Files with M2M relationships (new)
         self.files_with_capture_m2m: list[File] = [
             create_db_file(
@@ -56,7 +56,7 @@ class FileProtectionTest(APITestCase):
         ]
         for file_instance in self.files_with_capture_m2m:
             file_instance.captures.add(self.capture)
-        
+
         # Files with both FK and M2M (during migration)
         self.files_with_capture_both: list[File] = [
             create_db_file(
@@ -78,7 +78,7 @@ class FileProtectionTest(APITestCase):
         for file_instance in self.files_with_dataset_fk:
             file_instance.dataset = self.dataset
             file_instance.save()
-        
+
         # Files with M2M dataset relationships
         self.files_with_dataset_m2m: list[File] = [
             create_db_file(
@@ -88,7 +88,7 @@ class FileProtectionTest(APITestCase):
         ]
         for file_instance in self.files_with_dataset_m2m:
             file_instance.datasets.add(self.dataset)
-        
+
         # Files with both FK and M2M dataset (during migration)
         self.files_with_dataset_both: list[File] = [
             create_db_file(
@@ -111,7 +111,7 @@ class FileProtectionTest(APITestCase):
             file_instance.capture = self.capture
             file_instance.dataset = self.dataset
             file_instance.save()
-        
+
         # Files with M2M for both capture and dataset
         self.files_with_capture_and_dataset_m2m: list[File] = [
             create_db_file(
@@ -126,17 +126,19 @@ class FileProtectionTest(APITestCase):
         self.files_without_associations: list[File] = [
             create_db_file(owner=self.user) for _ in range(num_files)
         ]
-        self._files_for_cleanup.extend([
-            self.files_with_capture_fk
-            self.files_with_capture_m2m
-            self.files_with_capture_both
-            self.files_with_dataset_fk
-            self.files_with_dataset_m2m
-            self.files_with_dataset_both
-            self.files_with_capture_and_dataset_fk
-            self.files_with_capture_and_dataset_m2m
-            self.files_without_associations
-        ])
+        self._files_for_cleanup.extend(
+            [
+                self.files_with_capture_fk,
+                self.files_with_capture_m2m,
+                self.files_with_capture_both,
+                self.files_with_dataset_fk,
+                self.files_with_dataset_m2m,
+                self.files_with_dataset_both,
+                self.files_with_capture_and_dataset_fk,
+                self.files_with_capture_and_dataset_m2m,
+                self.files_without_associations,
+            ]
+        )
 
     def tearDown(self) -> None:
         """Clean up any remaining test data."""
@@ -212,7 +214,7 @@ class FileProtectionTest(APITestCase):
             assert File.objects.filter(pk=file_instance.pk).exists()
 
     def test_bulk_file_deletion_with_capture_m2m(self) -> None:
-        """Attempting to bulk delete files associated with captures via M2M must fail."""
+        """Bulk delete files associated with captures via M2M must fail."""
         files = self.files_with_capture_m2m
         file_ids = [file_instance.pk for file_instance in files]
         q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
@@ -232,7 +234,7 @@ class FileProtectionTest(APITestCase):
             assert File.objects.filter(pk=file_instance.pk).exists()
 
     def test_bulk_file_deletion_with_dataset_m2m(self) -> None:
-        """Attempting to bulk delete files associated with datasets via M2M must fail."""
+        """Bulk delete files associated with datasets via M2M must fail."""
         files = self.files_with_dataset_m2m
         file_ids = [file_instance.pk for file_instance in files]
         q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
@@ -242,7 +244,7 @@ class FileProtectionTest(APITestCase):
             assert File.objects.filter(pk=file_instance.pk).exists()
 
     def test_bulk_file_deletion_with_capture_and_dataset_fk(self) -> None:
-        """Bulk deleting files associated with captures and datasets via FK must fail."""
+        """Bulk delete files with captures and datasets via FK must fail."""
         files = self.files_with_capture_and_dataset_fk
         file_ids = [file_instance.pk for file_instance in files]
         q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)
@@ -252,7 +254,7 @@ class FileProtectionTest(APITestCase):
             assert File.objects.filter(pk=file_instance.pk).exists()
 
     def test_bulk_file_deletion_with_capture_and_dataset_m2m(self) -> None:
-        """Bulk deleting files associated with captures and datasets via M2M must fail."""
+        """Bulk delete files with captures and datasets via M2M must fail."""
         files = self.files_with_capture_and_dataset_m2m
         file_ids = [file_instance.pk for file_instance in files]
         q_set: QuerySet[File] = File.objects.filter(pk__in=file_ids)

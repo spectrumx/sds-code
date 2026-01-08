@@ -39,9 +39,7 @@ from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
 from sds_gateway.api_methods.helpers.search_captures import get_composite_captures
 from sds_gateway.api_methods.helpers.search_captures import search_captures
 from sds_gateway.api_methods.models import Capture
-from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
@@ -56,6 +54,7 @@ from sds_gateway.api_methods.utils.asset_access_control import (
 )
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 from sds_gateway.visualizations.serializers import PostProcessedDataSerializer
@@ -174,11 +173,14 @@ class CaptureViewSet(viewsets.ViewSet):
             )
 
             # disconnect files that are no longer in the capture
-            all_current_files = get_capture_files(capture, include_deleted=True)  # Include deleted for cleanup
+            all_current_files = get_capture_files(
+                capture, include_deleted=True
+            )  # Include deleted for cleanup
             for cur_file in all_current_files:
                 if cur_file not in files_to_connect:
                     cur_file.captures.remove(capture)
-                    # Also clear FK if it exists (for backward compatibility during migration)
+                    # Also clear FK if it exists
+                    # (for backward compatibility during migration)
                     if cur_file.capture == capture:
                         cur_file.capture = None
                         cur_file.save(update_fields=["capture"])

@@ -12,7 +12,8 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from loguru import logger as log
 
-from sds_gateway.api_methods.models import Capture, Dataset, File
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import File
 
 
 class Command(BaseCommand):
@@ -54,9 +55,11 @@ class Command(BaseCommand):
 
     def _migrate_file_datasets(self, batch_size, dry_run):
         """Migrate File.dataset ForeignKey to File.datasets ManyToMany."""
-        files_with_dataset = File.objects.filter(
-            dataset__isnull=False
-        ).select_related("dataset").order_by("uuid")
+        files_with_dataset = (
+            File.objects.filter(dataset__isnull=False)
+            .select_related("dataset")
+            .order_by("uuid")
+        )
 
         total_count = files_with_dataset.count()
         if total_count == 0:
@@ -76,6 +79,7 @@ class Command(BaseCommand):
         for batch in itertools.batched(
             files_with_dataset.iterator(chunk_size=batch_size),
             batch_size,
+            strict=False,
         ):
             with transaction.atomic():
                 for file in batch:
@@ -100,9 +104,11 @@ class Command(BaseCommand):
 
     def _migrate_file_captures(self, batch_size, dry_run):
         """Migrate File.capture ForeignKey to File.captures ManyToMany."""
-        files_with_capture = File.objects.filter(
-            capture__isnull=False
-        ).select_related("capture").order_by("uuid")
+        files_with_capture = (
+            File.objects.filter(capture__isnull=False)
+            .select_related("capture")
+            .order_by("uuid")
+        )
 
         total_count = files_with_capture.count()
         if total_count == 0:
@@ -122,6 +128,7 @@ class Command(BaseCommand):
         for batch in itertools.batched(
             files_with_capture.iterator(chunk_size=batch_size),
             batch_size,
+            strict=False,
         ):
             with transaction.atomic():
                 for file in batch:
@@ -146,9 +153,11 @@ class Command(BaseCommand):
 
     def _migrate_capture_datasets(self, batch_size, dry_run):
         """Migrate Capture.dataset ForeignKey to Capture.datasets ManyToMany."""
-        captures_with_dataset = Capture.objects.filter(
-            dataset__isnull=False
-        ).select_related("dataset").order_by("uuid")
+        captures_with_dataset = (
+            Capture.objects.filter(dataset__isnull=False)
+            .select_related("dataset")
+            .order_by("uuid")
+        )
 
         total_count = captures_with_dataset.count()
         if total_count == 0:
@@ -168,6 +177,7 @@ class Command(BaseCommand):
         for batch in itertools.batched(
             captures_with_dataset.iterator(chunk_size=batch_size),
             batch_size,
+            strict=False,
         ):
             with transaction.atomic():
                 for capture in batch:
@@ -189,4 +199,3 @@ class Command(BaseCommand):
             f"Capture.datasets migration complete: "
             f"{migrated_count} migrated, {skipped_count} already existed"
         )
-

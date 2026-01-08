@@ -1267,13 +1267,15 @@ def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
     Returns:
         List of files associated with the item
     """
+    from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
     from sds_gateway.api_methods.utils.relationship_utils import (
-        get_capture_files,
         get_dataset_files_including_captures,
     )
 
     if item_type == ItemType.DATASET:
-        files_queryset = get_dataset_files_including_captures(item, include_deleted=False)
+        files_queryset = get_dataset_files_including_captures(
+            item, include_deleted=False
+        )
         files = list(files_queryset)  # Convert to list before len() to avoid SQL issues
         logger.info(f"Found {len(files)} files for dataset {item.uuid}")
         return files
