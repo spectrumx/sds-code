@@ -218,10 +218,11 @@ class AssetAccessControlTestCase(TestCase):
         assert file1 in viewer_files
         assert file2 in viewer_files
 
-        # Other user should not see these files
+        # Other user should not see file1 (not owned, not in accessible capture)
+        # But should see file2 (owned by them, even though in shared capture)
         other_files = get_accessible_files_queryset(self.other_user)
         assert file1 not in other_files
-        assert file2 not in other_files
+        assert file2 in other_files  # File owner always has access
 
     def test_get_accessible_files_queryset_via_dataset_fk(self):
         """Test get_accessible_files_queryset with dataset FK relationship."""
@@ -248,10 +249,11 @@ class AssetAccessControlTestCase(TestCase):
         assert file1 in viewer_files
         assert file2 in viewer_files
 
-        # Other user should not see these files
+        # Other user should not see file1 (not owned, not in accessible capture)
+        # But should see file2 (owned by them, even though in shared capture)
         other_files = get_accessible_files_queryset(self.other_user)
         assert file1 not in other_files
-        assert file2 not in other_files
+        assert file2 in other_files  # File owner always has access
 
     # Queryset tests with M2M relationships
     def test_get_accessible_files_queryset_via_capture_m2m(self):
@@ -280,10 +282,11 @@ class AssetAccessControlTestCase(TestCase):
         assert file1 in viewer_files
         assert file2 in viewer_files
 
-        # Other user should not see these files
+        # Other user should not see file1 (not owned, not in accessible capture)
+        # But should see file2 (owned by them, even though in shared capture)
         other_files = get_accessible_files_queryset(self.other_user)
         assert file1 not in other_files
-        assert file2 not in other_files
+        assert file2 in other_files  # File owner always has access
 
     def test_get_accessible_files_queryset_via_dataset_m2m(self):
         """Test get_accessible_files_queryset with dataset M2M relationship."""
@@ -311,10 +314,11 @@ class AssetAccessControlTestCase(TestCase):
         assert file1 in viewer_files
         assert file2 in viewer_files
 
-        # Other user should not see these files
+        # Other user should not see file1 (not owned, not in accessible capture)
+        # But should see file2 (owned by them, even though in shared capture)
         other_files = get_accessible_files_queryset(self.other_user)
         assert file1 not in other_files
-        assert file2 not in other_files
+        assert file2 in other_files  # File owner always has access
 
     # Queryset tests with both FK and M2M
     def test_get_accessible_files_queryset_via_both_relationships(self):
