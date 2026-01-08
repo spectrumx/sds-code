@@ -1826,10 +1826,9 @@ class GroupCapturesView(
                 filters["owner"] = user
             # Additional check if user provided but require_owner is False
             # Still allow if user has access (for shared captures)
+            return Capture.objects.get(**filters)
         except Capture.DoesNotExist:
             return None
-        else:
-            return Capture.objects.get(**filters)
 
     def _get_file(
         self, file_id: str, user: User | None = None, *, require_owner: bool = False
@@ -2050,9 +2049,6 @@ class GroupCapturesView(
             dataset_uuid = self._parse_dataset_uuid(
                 dataset_uuid_str, raise_on_error=True
             )
-            if not dataset_uuid:
-                msg = "Invalid dataset UUID."
-                raise Http404(msg)
 
             # Check if user has access to this dataset
             if not user_has_access_to_item(
@@ -2449,17 +2445,14 @@ class GroupCapturesView(
     def _get_asset_selections(
         self,
         request: HttpRequest,
-        dataset_uuid: str | None = None,
     ) -> tuple[list[str], list[str]]:
         """
         Get selected assets from the request.
         This function is used to get the selected assets on creation only.
         """
-        if not dataset_uuid:
-            selected_captures = request.POST.get("selected_captures", "").split(",")
-            selected_files = request.POST.get("selected_files", "").split(",")
-            return selected_captures, selected_files
-        return [], []
+        selected_captures = request.POST.get("selected_captures", "").split(",")
+        selected_files = request.POST.get("selected_files", "").split(",")
+        return selected_captures, selected_files
 
     def _create_or_update_dataset(
         self,
@@ -2847,24 +2840,31 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
         # Get status and is_public from request
         status_value = request.POST.get("status")
 
-        try:
-            is_public_value = json.loads(request.POST.get("is_public"))
-        except json.JSONDecodeError:
-            return JsonResponse(
-                {
-                    "success": False,
-                    "error": "Could not determine dataset visibility.",
-                },
-                status=400,
-            )
+        is_public_raw = request.POST.get("is_public")
+        if is_public_raw is None:
+            is_public_value = None
+        else:
+            try:
+                is_public_value = json.loads(is_public_raw)
+            except (json.JSONDecodeError, TypeError):
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Could not determine dataset visibility.",
+                    },
+                    status=400,
+                )
 
-        error_message = self._handle_400_errors(
+        error_messages = self._handle_400_errors(
             dataset,
             status_value,
             is_public_value=is_public_value,
         )
-        if error_message:
-            return JsonResponse({"success": False, "error": error_message}, status=400)
+        if len(error_messages) > 0:
+            return JsonResponse(
+                {"success": False, "errors": {"non_field_errors": error_messages}},
+                status=400,
+            )
 
         # Update status if provided and dataset is not already final
         if status_value:
@@ -2891,21 +2891,21 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
         status_value: str | None,
         *,
         is_public_value: bool | None,
-    ) -> str:
+    ) -> list[str]:
         """Handle status change."""
 
         # Initialize error message
-        error_message = None
+        error_messages = []
 
         # Validate that at least one field is being updated
         if not status_value and is_public_value is None:
-            error_message = "No fields to update."
+            error_messages.append("No fields to update.")
         # Validate status value
         if status_value and status_value not in [
             DatasetStatus.DRAFT,
             DatasetStatus.FINAL,
         ]:
-            error_message = "Invalid status value."
+            error_messages.append("Invalid status value.")
 
         # Update status if provided and dataset is not already final
         if status_value:
@@ -2913,12 +2913,25 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
                 dataset.status == DatasetStatus.FINAL
                 and status_value == DatasetStatus.DRAFT
             ):
-                error_message = "Cannot change published dataset status back to Draft."
+                error_messages.append(
+                    "Cannot change published dataset status back to Draft."
+                )
+
+        # Cannot make DRAFT dataset public - must be FINAL first
+        if is_public_value is True:
+            # Check if dataset will be DRAFT after this update
+            new_status = status_value if status_value else dataset.status
+            if new_status == DatasetStatus.DRAFT:
+                error_messages.append(
+                    "Draft datasets cannot be made public. Status must be Final."
+                )
 
         if dataset.is_public and is_public_value is False:
-            error_message = "Cannot change public dataset visibility back to Private."
+            error_messages.append(
+                "Cannot change public dataset visibility back to Private."
+            )
 
-        return error_message
+        return error_messages
 
 
 user_publish_dataset_view = PublishDatasetView.as_view()
