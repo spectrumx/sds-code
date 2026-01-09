@@ -1,5 +1,7 @@
 """API views for the visualizations app."""
 
+import json
+
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample
@@ -594,6 +596,75 @@ class VisualizationViewSet(ViewSet):
             )
 
     @extend_schema(
+        summary="Get waterfall metadata",
+        description="Get metadata for a waterfall visualization",
+        parameters=[
+            OpenApiParameter(
+                name="capture_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the capture",
+            ),
+            OpenApiParameter(
+                name="job_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the processing job",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Waterfall metadata",
+            ),
+            404: OpenApiResponse(description="Job not found"),
+        },
+    )
+    @action(detail=True, methods=["get"], url_path="waterfall_metadata")
+    def get_waterfall_metadata(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
+        """
+        Get metadata for a waterfall visualization.
+        """
+        job_id = self.get_request_param(request, "job_id", from_query=True)
+        if not job_id:
+            return Response(
+                {"error": "job_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get the post-processed data object
+        processed_data = get_object_or_404(
+            PostProcessedData,
+            uuid=job_id,
+            capture__uuid=pk,
+            processing_type=ProcessingType.Waterfall.value,
+        )
+
+        if processed_data.processing_status != ProcessingStatus.Completed.value:
+            return Response(
+                {"error": "Waterfall processing not completed"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get metadata, with defaults if not present
+        metadata = processed_data.metadata or {}
+
+        if not metadata.get("total_slices"):
+            # Count the number of slices in the JSON file
+            with open(processed_data.data_file) as file:
+                num_slices = len(json.load(file))
+
+            metadata["slices_processed"] = num_slices
+            processed_data.metadata = metadata
+            processed_data.save()
+
+        return Response(
+            metadata,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
         summary="Get waterfall status",
         description="Get the status of a waterfall generation job",
         parameters=[
@@ -651,7 +722,10 @@ class VisualizationViewSet(ViewSet):
 
     @extend_schema(
         summary="Download waterfall result",
-        description="Download the generated waterfall data",
+        description=(
+            "Download the generated waterfall data. Supports range queries "
+            "with start_index and end_index parameters."
+        ),
         parameters=[
             OpenApiParameter(
                 name="capture_uuid",
@@ -665,11 +739,35 @@ class VisualizationViewSet(ViewSet):
                 location=OpenApiParameter.QUERY,
                 description="UUID of the processing job",
             ),
+            OpenApiParameter(
+                name="start_index",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "Start index for range query (0-based). "
+                    "If omitted, returns all data."
+                ),
+            ),
+            OpenApiParameter(
+                name="end_index",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "End index for range query (exclusive). "
+                    "If omitted, returns all data from start_index."
+                ),
+            ),
         ],
         responses={
-            200: OpenApiResponse(description="Waterfall data file"),
+            200: OpenApiResponse(
+                description="Waterfall data file or JSON response with range"
+            ),
             404: OpenApiResponse(description="Result not found"),
-            400: OpenApiResponse(description="Processing not completed"),
+            400: OpenApiResponse(
+                description="Processing not completed or invalid range"
+            ),
         },
     )
     @action(detail=True, methods=["get"], url_path="download_waterfall")
@@ -678,6 +776,11 @@ class VisualizationViewSet(ViewSet):
     ) -> Response | FileResponse:
         """
         Download the generated waterfall data.
+
+        Supports range queries:
+        - If start_index and/or end_index are provided, returns only the
+          requested slice range
+        - Otherwise, returns the full dataset (for backward compatibility)
         """
         job_id = self.get_request_param(request, "job_id", from_query=True)
         if not job_id:
@@ -686,8 +789,8 @@ class VisualizationViewSet(ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get the processing job
-        processing_job = get_object_or_404(
+        # Get the post-processed data object
+        processed_data = get_object_or_404(
             PostProcessedData,
             uuid=job_id,
             capture__uuid=pk,
@@ -695,27 +798,113 @@ class VisualizationViewSet(ViewSet):
         )
 
         try:
-            if processing_job.processing_status != ProcessingStatus.Completed.value:
+            if processed_data.processing_status != ProcessingStatus.Completed.value:
                 return Response(
                     {"error": "Waterfall processing not completed"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            if not processing_job.data_file:
+            if not processed_data.data_file:
                 return Response(
                     {"error": "No waterfall file found"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # Return the file
-            file_response = FileResponse(
-                processing_job.data_file, content_type="application/json"
+            # Check for range query parameters
+            start_index = self.get_request_param(
+                request, "start_index", from_query=True
             )
-            file_response["Content-Disposition"] = (
-                f'attachment; filename="waterfall_{pk}.json"'
-            )
-            return file_response  # noqa: TRY300
+            end_index = self.get_request_param(request, "end_index", from_query=True)
 
+            # If no range parameters specified, return full file
+            # (backward compatibility)
+            if start_index is None and end_index is None:
+                file_response = FileResponse(
+                    processed_data.data_file, content_type="application/json"
+                )
+                file_response["Content-Disposition"] = (
+                    f'attachment; filename="waterfall_{pk}.json"'
+                )
+                return file_response
+
+            # Read the JSON file for range queries
+            processed_data.data_file.seek(0)
+            waterfall_data = json.load(processed_data.data_file)
+
+            # Get total slices from metadata if available, otherwise from data length
+            total_slices = len(waterfall_data)
+            if processed_data.metadata and "total_slices" in processed_data.metadata:
+                total_slices = processed_data.metadata["total_slices"]
+            elif (
+                processed_data.metadata
+                and "slices_processed" in processed_data.metadata
+            ):
+                total_slices = processed_data.metadata["slices_processed"]
+
+            # Handle range query
+            if start_index is not None or end_index is not None:
+                try:
+                    start_idx = int(start_index) if start_index is not None else 0
+                    end_idx = int(end_index) if end_index is not None else total_slices
+                except (ValueError, TypeError):
+                    return Response(
+                        {
+                            "error": (
+                                "Invalid start_index or end_index. Must be integers."
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Validate range
+                if start_idx < 0 or end_idx < 0:
+                    return Response(
+                        {"error": ("start_index and end_index must be non-negative")},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if start_idx > end_idx:
+                    return Response(
+                        {
+                            "error": (
+                                "start_index must be less than or equal to end_index"
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if start_idx >= total_slices:
+                    error_msg = (
+                        f"start_index {start_idx} is out of range. "
+                        f"Total slices: {total_slices}"
+                    )
+                    return Response(
+                        {"error": error_msg},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Clamp end_index to total_slices
+                end_idx = min(end_idx, total_slices)
+
+                # Slice the data
+                sliced_data = waterfall_data[start_idx:end_idx]
+
+                # Return JSON response with range info
+                return Response(
+                    {
+                        "data": sliced_data,
+                        "start_index": start_idx,
+                        "end_index": end_idx,
+                        "total_slices": total_slices,
+                        "count": len(sliced_data),
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        except json.JSONDecodeError as e:
+            log.error(f"Error parsing waterfall JSON: {e}")
+            return Response(
+                {"error": "Invalid JSON data in waterfall file"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         except Exception as e:  # noqa: BLE001
             log.error(f"Error downloading waterfall: {e}")
             return Response(

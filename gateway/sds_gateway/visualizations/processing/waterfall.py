@@ -185,10 +185,29 @@ def convert_drf_to_waterfall_json(
         msg = "No valid waterfall slices found"
         raise SourceDataError(msg)
 
+    # Calculate power bounds from all slices
+    global_min = float("inf")
+    global_max = float("-inf")
+
+    for slice_data in waterfall_data:
+        # Decode the base64 data to calculate bounds
+        data_bytes = base64.b64decode(slice_data["data"])
+        power_spectrum_db = np.frombuffer(data_bytes, dtype=np.float32)
+
+        slice_min = float(np.min(power_spectrum_db))
+        slice_max = float(np.max(power_spectrum_db))
+
+        global_min = min(global_min, slice_min)
+        global_max = max(global_max, slice_max)
+
+    power_scale_min = global_min if global_min != float("inf") else None
+    power_scale_max = global_max if global_max != float("-inf") else None
+
     # Log final summary
     logger.info(
         f"Waterfall processing complete: {len(waterfall_data)} slices processed, "
-        f"{skipped_slices} slices skipped due to data issues"
+        f"{skipped_slices} slices skipped due to data issues. "
+        f"Power bounds: [{power_scale_min:.2f}, {power_scale_max:.2f}] dB"
     )
 
     metadata = {
@@ -202,6 +221,8 @@ def convert_drf_to_waterfall_json(
         "fft_size": base_params.fft_size,
         "samples_per_slice": SAMPLES_PER_SLICE,
         "channel": channel,
+        "power_scale_min": power_scale_min,
+        "power_scale_max": power_scale_max,
     }
 
     return {
