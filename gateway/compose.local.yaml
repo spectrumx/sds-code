@@ -42,11 +42,11 @@ services:
             opensearch:
                 condition: service_healthy
             postgres:
-                condition: service_started
+                condition: service_healthy
             redis:
-                condition: service_started
+                condition: service_healthy
             minio:
-                condition: service_started
+                condition: service_healthy
         volumes:
             - sds-gateway-local-uv-cache:/opt/uv-cache/
             - sds-gateway-local-uv-venv-app:/opt/uv-venv/
@@ -139,6 +139,16 @@ services:
             - "9001:9001"
         env_file:
             - ./.envs/local/minio.env
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:9000/minio/health/live || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
         command: 'server /files --console-address ":9001"'
         networks:
             - sds-gateway-local-minio-net
@@ -191,6 +201,16 @@ services:
             - ./.envs/local/postgres.env
         networks:
             - sds-gateway-local-minio-net
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -h localhost',
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
 
     redis:
         # used as caching layer for the gateway app
@@ -200,6 +220,12 @@ services:
             - sds-gateway-local-redis-data:/data
         networks:
             - sds-network-local
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
 
     # ==========================
     # Celery services for background tasks
@@ -212,7 +238,7 @@ services:
         tty: true
         depends_on:
             sds-gateway-local-app:
-                condition: service_started
+                condition: service_healthy
         volumes:
             - sds-gateway-local-uv-cache:/opt/uv-cache/
             - sds-gateway-local-uv-venv-worker:/opt/uv-venv/
@@ -257,7 +283,7 @@ services:
         tty: true
         depends_on:
             sds-gateway-local-app:
-                condition: service_started
+                condition: service_healthy
         volumes:
             - sds-gateway-local-uv-cache:/opt/uv-cache/
             - sds-gateway-local-uv-venv-beat:/opt/uv-venv/
@@ -302,7 +328,7 @@ services:
         tty: true
         depends_on:
             sds-gateway-local-app:
-                condition: service_started
+                condition: service_healthy
         volumes:
             - sds-gateway-local-uv-cache:/opt/uv-cache/
             - sds-gateway-local-uv-venv-flower:/opt/uv-venv/
