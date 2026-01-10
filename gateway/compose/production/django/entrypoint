@@ -51,6 +51,25 @@ function install_project() {
     uv sync --frozen --extra "${BUILD_ENV:-production}"
 }
 
+function validate_postgres_vars() {
+    local required_vars=("POSTGRES_USER" "POSTGRES_PASSWORD" "POSTGRES_HOST" "POSTGRES_PORT" "POSTGRES_DB")
+    local missing_vars=()
+
+    for var in "${required_vars[@]}"; do
+        if [ -z "${!var:-}" ]; then
+            missing_vars+=("$var")
+        fi
+    done
+
+    if [ ${#missing_vars[@]} -gt 0 ]; then
+        echo >&2 "$(date) | Error: The following required PostgreSQL variables are not set:"
+        for var in "${missing_vars[@]}"; do
+            echo >&2 "  - $var"
+        done
+        exit 1
+    fi
+}
+
 function wait_for_postgres() {
 
     echo "Waiting for PostgreSQL to become available..."
@@ -65,21 +84,22 @@ start = time.time()
 
 while True:
     try:
-        psycopg.connect(
+        conn = psycopg.connect(
             dbname="${POSTGRES_DB}",
             user="${POSTGRES_USER}",
             password="${POSTGRES_PASSWORD}",
             host="${POSTGRES_HOST}",
             port="${POSTGRES_PORT}",
         )
+        conn.close()
         break
     except psycopg.OperationalError as error:
         sys.stderr.write("Waiting for PostgreSQL to become available...\n")
-
+        sys.stderr.write(f"  error: {error}\n")
         if time.time() - start > suggest_unrecoverable_after:
             sys.stderr.write("  This is taking longer than expected. The following exception may be indicative of an unrecoverable error: '{}'\n".format(error))
-
-    time.sleep(1)
+        sys.stderr.flush()
+        time.sleep(2)
 END
 
     echo >&2 "$(date) | PostgreSQL is available"
@@ -93,6 +113,10 @@ function main() {
     }
     install_project || {
         echo >&2 "$(date) | Project installation failed, exiting."
+        exit 1
+    }
+    validate_postgres_vars || {
+        echo >&2 "$(date) | PostgreSQL validation failed, exiting."
         exit 1
     }
     wait_for_postgres || {

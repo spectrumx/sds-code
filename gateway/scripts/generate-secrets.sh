@@ -69,7 +69,7 @@ process_env_file() {
         content="${content//DJANGO_SECRET_KEY=/DJANGO_SECRET_KEY=ci-django-secret-key-insecure-for-testing-only}"
         content="${content//DJANGO_ADMIN_URL=/DJANGO_ADMIN_URL=ci-admin/}"
         content="${content//CELERY_FLOWER_PASSWORD=/CELERY_FLOWER_PASSWORD=ci-flower-pass}"
-        content="${content//SVI_SERVER_API_KEY=/SVI_SERVER_API_KEY=ci-svi-api-key-0123456789012345678901}"
+        content="${content//SVI_SERVER_API_KEY=/SVI_SERVER_API_KEY=ci-svi-api-key-01234567890123456789abcde}"   # 40 chars
         content="${content//MINIO_ROOT_PASSWORD=<SAME AS AWS_SECRET_ACCESS_KEY>/MINIO_ROOT_PASSWORD=ci-minio-secret}"
         content="${content//AWS_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/AWS_SECRET_ACCESS_KEY=ci-minio-secret}"
         content="${content//POSTGRES_PASSWORD=your-specific-password/POSTGRES_PASSWORD=ci-postgres-pass}"

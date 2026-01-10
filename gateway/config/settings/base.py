@@ -520,6 +520,7 @@ SVI_SERVER_API_KEY: str = env(
 )
 assert len(SVI_SERVER_API_KEY) == TOKEN_LENGTH, (
     f"SVI_SERVER_API_KEY must be {TOKEN_LENGTH} characters long. "
+    f"Current length: {len(SVI_SERVER_API_KEY)}. "
     "Please check your environment variable."
 )
 

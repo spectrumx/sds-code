@@ -33,7 +33,7 @@ class FileProtectionTest(APITestCase):
             name="test_file_model_ds",
             owner=self.user,
         )
-        self._files_for_cleanup = []
+        self._files_for_cleanup: list[File] = []
 
         num_files = 5
         # Files with FK relationships (deprecated)

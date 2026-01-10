@@ -23,27 +23,27 @@ function main() {
         echo_wait_and_quit "Failed to change directory to ${APP_DIR}."
     }
 
-    echo "Applying database migrations..."
+    echo -e "\033[0;34mApplying database migrations...\033[0m"
     uv run manage.py migrate --noinput || {
         echo_wait_and_quit "Failed to apply database migrations."
     }
 
-    echo "Initializing OpenSearch indices..."
+    echo -e "\033[0;34mInitializing OpenSearch indices...\033[0m"
     uv run manage.py init_indices || {
         echo_wait_and_quit "Failed to initialize OpenSearch indices."
     }
 
-    echo "Initializing SVI server token..."
+    echo -e "\033[0;34mInitializing SVI server token...\033[0m"
     uv run manage.py init_svi_token || {
         echo_wait_and_quit "Failed to initialize SVI server token."
     }
 
-    echo "Setting up django-cog pipelines..."
+    echo -e "\033[0;34mSetting up django-cog pipelines...\033[0m"
     uv run manage.py setup_pipelines --strategy=smart-recreate || {
         echo_wait_and_quit "Failed to set up django-cog pipelines."
     }
 
-    echo "Starting Uvicorn server..."
+    echo -e "\033[0;34mStarting Uvicorn server...\033[0m"
     exec uv run uvicorn config.asgi:application \
         --host 0.0.0.0 \
         --reload \

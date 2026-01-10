@@ -185,9 +185,14 @@ snapshot:
 
 # runs all tests (python and javascript); args are passed to pytest
 test *args:
-    @echo "Running all tests"
-    @just test-py {{args}}
-    @just test-js
+    #!/usr/bin/env bash
+    echo "Running all tests"
+    just test-py {{args}}
+    if [[ "{{env}}" = "production" ]]; then
+        echo "Skipping JavaScript tests in production environment"
+    else
+        just test-js
+    fi
 
 # validates templates and runs pytest inside the app container
 test-py *args:
@@ -214,6 +219,8 @@ test-js *args:
 up *args:
     #!/usr/bin/env bash
     echo "Starting sds-gateway in detached mode"
+    echo "Environment: '{{env}}'"
+    echo "Compose file: '{{compose_file}}'"
     {{docker_compose}} up --detach --remove-orphans {{args}}
 
     # this watcher is not working as intended today, and
@@ -236,6 +243,7 @@ update:
 # shorthand for 'uv' commands (e.g. `just uv run manage.py migrate`)
 uv +args:
     @echo "Running uv command: {{args}}"
+    @echo "app_container: '{{app_container}}'"
     {{uv_cmd}} {{args}}
 
 # watch file changes when in local env mode
