@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy SDS Gateway environment with automated setup
+# Deploy SDS Gateway stack environment with automated setup
 #
 # This script automates the deployment process including secret generation,
 # network creation, service startup, database migrations, and initial setup.
@@ -23,7 +23,7 @@ PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/common.sh"
 
-function usage() {
+function show_usage() {
     echo -e "Usage: ${0} [OPTIONS] <local|production|ci>"
     echo ""
     echo "Deploy the SDS Gateway environment following README instructions."
@@ -141,28 +141,39 @@ function generate_secrets() {
     just generate-secrets "${env_type}" ${force_flag}
 }
 
-function build_services() {
-    log_header "Building Services"
-    log_msg "Pulling images and building services..."
+function build_stack() {
+    log_header "Building stack"
+    log_msg "Pulling images and building stack..."
     just build
 }
 
-function start_services_detached() {
-    log_header "Starting Services"
-    log_msg "Starting services in detached mode..."
+function first_start() {
+    log_header "First Stack Startup"
+
+    log_msg "Building images"
     just build
+
+    log_msg "Starting opensearch"
+    just up opensearch
+
+    log_msg "Waiting for OpenSearch to be healthy..."
+    wait_for_service "opensearch" 60 || {
+        log_warning "OpenSearch health check timed out, tearing down anyway"
+    }
     just up || true
 }
 
-function start_services_foreground() {
-    log_header "Starting Services"
-    log_msg "Starting services in foreground mode (Ctrl+C to stop)..."
-    just build
-    just up
+function start_stack() {
+    log_header "Starting SDS stack"
+    log_msg "Starting stack..."
+    {
+        just build
+        just up
+    } &>/dev/null &
 }
 
-function stop_services() {
-    log_msg "Stopping services..."
+function stop_stack() {
+    log_msg "Stopping stack..."
     just down
 }
 
@@ -198,8 +209,8 @@ function run_migrations() {
 
     log_msg "Running Django migrations..."
     # you probably don't need/want makemigrations at this stage; here for documentation
-    # just dc exec "${container_name}" uv run manage.py makemigrations
-    just dc exec "${container_name}" uv run manage.py migrate
+    # just uv run manage.py makemigrations
+    just uv run manage.py migrate
     log_success "Migrations applied"
 }
 
@@ -210,11 +221,15 @@ function create_superuser() {
     log_header "Superuser Creation"
 
     local has_superuser
-    has_superuser=$(just dc exec "${container_name}" uv run manage.py shell -c "
-from django.contrib.auth import get_user_model
-User = get_user_model()
-print('yes' if User.objects.filter(is_superuser=True).exists() else 'no')
-" 2>/dev/null | tail -n1 | tr -d '[:space:]')
+    has_superuser=$(just uv run manage.py check_superuser_exists 2>/dev/null | tail -n1 | tr -d '[:space:]')
+
+    case "${has_superuser}" in
+        yes|no) ;;
+        *)
+            log_error "Unexpected output from check_superuser_exists: '${has_superuser}'"
+            return 1
+            ;;
+    esac
 
     if [[ "${has_superuser}" == "yes" ]]; then
         log_msg "Superuser already exists, skipping creation"
@@ -223,31 +238,16 @@ print('yes' if User.objects.filter(is_superuser=True).exists() else 'no')
 
     if [[ "${env_type}" == "ci" ]]; then
         log_msg "Creating superuser for CI environment (non-interactive)..."
-        just dc exec "${container_name}" uv run manage.py shell -c "
-from django.contrib.auth import get_user_model
-User = get_user_model()
-User.objects.create_superuser('admin', 'admin@example.com', 'ci-admin-pass')
-print('Superuser created: admin / ci-admin-pass')
-"
+        just uv run manage.py create_ci_superuser
     else
         log_msg "Creating superuser (interactive)..."
         log_msg "You will be prompted for username, email, and password"
         echo ""
-        just dc exec -it "${container_name}" uv run manage.py createsuperuser || {
+        just uv run manage.py createsuperuser || {
             log_warning "Superuser creation skipped or failed"
-            log_msg "You can create it later with: just dc exec -it ${container_name} uv run manage.py createsuperuser"
+            log_msg "You can create it later with: just uv run manage.py createsuperuser"
         }
     fi
-}
-
-function init_opensearch_indices() {
-    local container_name="$1"
-
-    log_header "OpenSearch Index Initialization"
-
-    log_msg "Initializing OpenSearch indices..."
-    just dc exec "${container_name}" uv run manage.py init_indices
-    log_success "OpenSearch indices initialized"
 }
 
 function show_next_steps() {
@@ -327,7 +327,7 @@ function parse_arguments() {
                 shift
                 ;;
             -h|--help)
-                usage
+                show_usage
                 ;;
             local|production|ci)
                 args_ref[env_type]="$1"
@@ -335,14 +335,14 @@ function parse_arguments() {
                 ;;
             *)
                 log_error "Unknown argument: $1"
-                usage
+                show_usage
                 ;;
         esac
     done
 
     if [[ -z "${args_ref[env_type]}" ]]; then
         log_error "Environment type required (local, production, or ci)"
-        usage
+        show_usage
     fi
 
     # auto-detach for production unless explicitly overridden
@@ -355,10 +355,8 @@ function determine_container_name() {
     local env_type="$1"
     if [[ "${env_type}" == "production" ]]; then
         echo "sds-gateway-prod-app"
-    elif [[ "${env_type}" == "ci" ]]; then
+    else    # local and ci use "sds-gateway-local-app"
         echo "sds-gateway-local-app"
-    else
-        echo "sds-gateway-${env_type}-app"
     fi
 }
 
@@ -381,12 +379,21 @@ function setup_secrets_and_network() {
     fi
 }
 
-function setup_database_and_services() {
+function setup_database() {
+
     local container_name="$1"
     local env_type="$2"
 
+    log_header "Setting up Database"
+
     wait_for_service "${container_name}" 60 || {
         log_error "Failed to start services"
+        log_msg "Check logs with: just logs"
+        exit 1
+    }
+
+    run_migrations "${container_name}"
+    create_superuser "${container_name}" "${env_type}"
 
 }
 
@@ -415,26 +422,15 @@ function create_minio_bucket() {
 
     just dc exec -it minio mc alias set "${alias_name}" "http://localhost:9000" "${minio_user}" "${minio_password}"
     just dc exec -it minio mc mb --ignore-existing "${alias_name}/spectrumx"
-        exit 1
-    }
-
-    run_migrations "${container_name}"
-    create_superuser "${container_name}" "${env_type}"
-    init_opensearch_indices "${container_name}"
 }
 
 function finalize_deployment() {
     local env_type="$1"
     local detach="$2"
 
-    if [[ "${detach}" == "false" ]]; then
-        log_header "Restarting Services in Interactive Mode"
-        stop_services
-        show_next_steps "${env_type}"
-        start_services_foreground
-    else
-        show_next_steps "${env_type}"
-    fi
+    log_header "Finalizing Deployment"
+    start_stack
+    show_next_steps "${env_type}"
 }
 
 function main() {
@@ -462,9 +458,10 @@ function main() {
 
     setup_prod_hostnames "${SCRIPT_DIR}" "${args[env_type]}"
 
-    build_services
-    start_services_detached
+    build_stack
+    first_start
 
+    setup_database "${container_name}" "${args[env_type]}"
     create_minio_bucket "${args[env_type]}"
     finalize_deployment "${args[env_type]}" "${args[detach]}"
 }

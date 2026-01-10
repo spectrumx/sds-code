@@ -1,0 +1,407 @@
+# CI COMPOSE FILE
+# Make sure images, container names, and other assets start with "sds-gateway-local-"
+#   to underline its importance and avoid accidents.
+# Also try to keep it as close to the production
+#   file as possible to simplify the deployment process.
+
+volumes:
+    # for safety, all local volumes start with "sds-gateway-local-"
+    sds-gateway-local-app-media: {} # for Django media files
+    sds-gateway-local-temp-zips: {} # for temporary zip files
+    sds-gateway-local-uv-cache: {} # shared cache for uv
+    sds-gateway-local-uv-venv-app: {}
+    sds-gateway-local-uv-venv-worker: {}
+    sds-gateway-local-uv-venv-beat: {}
+    sds-gateway-local-uv-venv-flower: {}
+    sds-gateway-local-minio-files: {}
+    sds-gateway-local-opensearch-data: {}
+    sds-gateway-local-postgres-data-backups: {}
+    sds-gateway-local-postgres-data: {}
+    sds-gateway-local-redis-data: {}
+
+networks:
+    # for safety, all gateway local networks start with "sds-gateway-local-"
+    sds-gateway-local-minio-net:
+        driver: bridge
+    sds-gateway-local-opensearch-net:
+        driver: bridge
+    sds-network-local:
+        # external: true # make it external if running with traefik on this machine
+        # should match traefik's network name
+        name: sds-network-local
+        driver: bridge
+services:
+    sds-gateway-local-app:
+        build:
+            context: .
+            dockerfile: ./compose/local/django/Dockerfile
+        image: sds-gateway-local-app
+        container_name: sds-gateway-local-app
+        tty: true # colored logs
+        depends_on:
+            opensearch:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            minio:
+                condition: service_healthy
+        volumes:
+            - sds-gateway-local-uv-cache:/opt/uv-cache/
+            - sds-gateway-local-uv-venv-app:/opt/uv-venv/
+            - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - source: ./sds_gateway/api_methods/migrations
+              target: /app/sds_gateway/api_methods/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/users/migrations
+              target: /app/sds_gateway/users/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/visualizations/migrations
+              target: /app/sds_gateway/visualizations/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+
+            # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
+        env_file:
+            - ./.envs/ci/django.env
+            - ./.envs/ci/minio.env
+            - ./.envs/ci/postgres.env
+            - ./.envs/ci/opensearch.env
+        # remember /entrypoint runs first
+        command: "/start"
+        ports:
+            - "8000:8000" # make sure this port matches traefik's config, if used
+        networks:
+            - sds-gateway-local-minio-net
+            - sds-gateway-local-opensearch-net
+            - sds-network-local
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+        develop:
+            watch:
+                - action: sync
+                  path: .
+                  target: /app
+                  ignore:
+                      - ".venv/**/*"
+                      - "node_modules/**/*"
+                      - "staticfiles/**/*"
+
+                - action: rebuild
+                  path: ./pyproject.toml
+
+    nginx:
+        # nginx serves the static files generated for the gateway
+        image: docker.io/nginx:1-alpine
+        container_name: sds-gateway-local-nginx
+        volumes:
+            - source: ./compose/production/nginx/nginx-default.conf
+              target: /etc/nginx/conf.d/default.conf
+              type: bind
+              read_only: true
+              bind:
+                  selinux: z
+            # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
+            # this location is only used in local; prod uses 'staticfiles/'
+            - source: ./sds_gateway/static/
+              target: /usr/share/nginx/static
+              type: bind
+              read_only: true
+              bind:
+                  selinux: z
+        networks:
+            - sds-network-local
+
+    minio:
+        # main file storage for sds
+        # minio uses rolling upgrades that are non-disruptive, so we can target latest
+        # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
+        # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
+        image: minio/minio:latest
+        container_name: sds-gateway-local-minio
+        volumes:
+            - sds-gateway-local-minio-files:/files
+        ports:
+            - "9000:9000"
+            - "9001:9001"
+        env_file:
+            - ./.envs/ci/minio.env
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:9000/minio/health/live || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
+        command: 'server /files --console-address ":9001"'
+        networks:
+            - sds-gateway-local-minio-net
+
+    opensearch:
+        # used for indexing and searching documents
+        build:
+            context: .
+            dockerfile: ./compose/local/opensearch/Dockerfile
+            args:
+                UID: ${UID}
+                GID: ${GID}
+        container_name: sds-gateway-local-opensearch
+        volumes:
+            - sds-gateway-local-opensearch-data:/usr/share/opensearch/data
+            - ./compose/local/opensearch/opensearch.yaml:/usr/share/opensearch/config/opensearch.yml
+        env_file:
+            - ./.envs/ci/opensearch.env
+        ulimits:
+            memlock:
+                soft: -1
+                hard: -1
+        ports:
+            - "9200:9200"
+            - "9600:9600"
+        networks:
+            - sds-gateway-local-opensearch-net
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -u ${OPENSEARCH_USER}:${OPENSEARCH_PASSWORD} http://localhost:9200/_cluster/health?pretty | grep -q '\"status\" : \"green\"\\|\"status\" : \"yellow\"'",
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    postgres:
+        # main database for the gateway app
+        build:
+            context: .
+            dockerfile: ./compose/production/postgres/Dockerfile
+            # this dockerfile is used for both local and prod
+        image: sds-gateway-local-postgres
+        container_name: sds-gateway-local-postgres
+        volumes:
+            - sds-gateway-local-postgres-data:/var/lib/postgresql/data
+            - sds-gateway-local-postgres-data-backups:/backups
+        env_file:
+            - ./.envs/ci/postgres.env
+        networks:
+            - sds-gateway-local-minio-net
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -h localhost',
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
+
+    redis:
+        # used as caching layer for the gateway app
+        image: docker.io/redis:6
+        container_name: sds-gateway-local-redis
+        volumes:
+            - sds-gateway-local-redis-data:/data
+        networks:
+            - sds-network-local
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    # ==========================
+    # Celery services for background tasks
+    celery-worker:
+        build:
+            context: .
+            dockerfile: ./compose/local/django/Dockerfile
+        image: sds-gateway-local-app
+        container_name: sds-gateway-local-celery-worker
+        tty: true
+        depends_on:
+            sds-gateway-local-app:
+                condition: service_healthy
+        volumes:
+            - sds-gateway-local-uv-cache:/opt/uv-cache/
+            - sds-gateway-local-uv-venv-worker:/opt/uv-venv/
+            - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - source: ./sds_gateway/api_methods/migrations
+              target: /app/sds_gateway/api_methods/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/users/migrations
+              target: /app/sds_gateway/users/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/visualizations/migrations
+              target: /app/sds_gateway/visualizations/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+        env_file:
+            - ./.envs/ci/django.env
+            - ./.envs/ci/minio.env
+            - ./.envs/ci/postgres.env
+            - ./.envs/ci/opensearch.env
+        command: "/worker-start"
+        networks:
+            - sds-gateway-local-minio-net
+            - sds-gateway-local-opensearch-net
+            - sds-network-local
+
+    celery-beat:
+        # Celery Beat scheduler for periodic tasks
+        build:
+            context: .
+            dockerfile: ./compose/local/django/Dockerfile
+        image: sds-gateway-local-app
+        container_name: sds-gateway-local-celery-beat
+        tty: true
+        depends_on:
+            sds-gateway-local-app:
+                condition: service_healthy
+        volumes:
+            - sds-gateway-local-uv-cache:/opt/uv-cache/
+            - sds-gateway-local-uv-venv-beat:/opt/uv-venv/
+            - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - source: ./sds_gateway/api_methods/migrations
+              target: /app/sds_gateway/api_methods/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/users/migrations
+              target: /app/sds_gateway/users/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/visualizations/migrations
+              target: /app/sds_gateway/visualizations/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+        env_file:
+            - ./.envs/ci/django.env
+            - ./.envs/ci/minio.env
+            - ./.envs/ci/postgres.env
+            - ./.envs/ci/opensearch.env
+        command: "/beat-start"
+        networks:
+            - sds-gateway-local-minio-net
+            - sds-gateway-local-opensearch-net
+            - sds-network-local
+
+    celery-flower:
+        # Celery monitoring and administration tool
+        build:
+            context: .
+            dockerfile: ./compose/local/django/Dockerfile
+        image: sds-gateway-local-app
+        container_name: sds-gateway-local-celery-flower
+        tty: true
+        depends_on:
+            sds-gateway-local-app:
+                condition: service_healthy
+        volumes:
+            - sds-gateway-local-uv-cache:/opt/uv-cache/
+            - sds-gateway-local-uv-venv-flower:/opt/uv-venv/
+            - sds-gateway-local-app-media:/app/sds_gateway/media
+            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips
+            - source: ./sds_gateway/api_methods/migrations
+              target: /app/sds_gateway/api_methods/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/users/migrations
+              target: /app/sds_gateway/users/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+            - source: ./sds_gateway/visualizations/migrations
+              target: /app/sds_gateway/visualizations/migrations
+              type: bind
+              read_only: false
+              bind:
+                  selinux: z
+        env_file:
+            - ./.envs/ci/django.env
+            - ./.envs/ci/minio.env
+            - ./.envs/ci/postgres.env
+            - ./.envs/ci/opensearch.env
+        command: "/flower-start"
+        ports:
+            - "5555:5555" # Flower web interface
+        networks:
+            - sds-gateway-local-minio-net
+            - sds-gateway-local-opensearch-net
+            - sds-network-local
+
+    # ==========================
+    # local development services
+    node:
+        # used for frontend development and hot reloading
+        build:
+            context: .
+            dockerfile: ./compose/local/node/Dockerfile
+        image: sds-gateway-local-node
+        container_name: sds-gateway-local-node
+        networks:
+            - sds-network-local
+        depends_on:
+            - sds-gateway-local-app
+        volumes:
+            # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
+            - /app/node_modules
+            # Bind mount project directory for running tests
+            - source: .
+              target: /app/
+              type: bind
+              bind:
+                  selinux: z
+        command: "npm run dev"
+        ports:
+            - "3000:3000"
+        develop:
+            watch:
+                - action: sync
+                  path: ./
+                  target: /app/
+
+    mailhog:
+        # email testing service for local development
+        image: mailhog/mailhog:latest
+        container_name: sds-gateway-local-mailhog
+        ports:
+            - "1025:1025" # SMTP server
+            - "8025:8025" # Web UI
+        networks:
+            - sds-network-local

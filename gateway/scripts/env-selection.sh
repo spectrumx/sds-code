@@ -29,41 +29,60 @@ is_production_host() {
     return 1
 }
 
+is_ci_env() {
+    if [[ -n "${CI:-}" ]] || [[ -n "${GITHUB_ACTIONS:-}" ]] || [[ -n "${GITLAB_CI:-}" ]] || [[ -n "${BUILD_ID:-}" ]] || [[ -n "${JENKINS_URL:-}" ]]; then
+        return 0
+    fi
+    return 1
+}
+
 get_target_value() {
     local target=$1
-    local is_prod=$2
+    local env_type=$2
     local local_env_file=".envs/local/opensearch.env"
     local production_env_file=".envs/production/opensearch.env"
+    local ci_env_file=".envs/ci/opensearch.env"
     local value
 
     case "${target}" in
         env)
-            if [[ "${is_prod}" == true ]]; then
-                value='production'
-            else
-                value='local'
-            fi
+            value="${env_type}"
             ;;
         compose_file)
-            if [[ "${is_prod}" == true ]]; then
-                value='compose.production.yaml'
-            else
-                value='compose.local.yaml'
-            fi
+            case "${env_type}" in
+                production)
+                    value='compose.production.yaml'
+                    ;;
+                local)
+                    value='compose.local.yaml'
+                    ;;
+                ci)
+                    value='compose.ci.yaml'
+                    ;;
+            esac
             ;;
         app_container)
-            if [[ "${is_prod}" == true ]]; then
-                value='sds-gateway-prod-app'
-            else
-                value='sds-gateway-local-app'
-            fi
+            case "${env_type}" in
+                production)
+                    value='sds-gateway-prod-app'
+                    ;;
+                local|ci|*)    # local and ci use the same app container name
+                    value='sds-gateway-local-app'
+                    ;;
+            esac
             ;;
         env_file)
-            if [[ "${is_prod}" == true ]]; then
-                value="${production_env_file}"
-            else
-                value="${local_env_file}"
-            fi
+            case "${env_type}" in
+                production)
+                    value="${production_env_file}"
+                    ;;
+                local)
+                    value="${local_env_file}"
+                    ;;
+                ci)
+                    value="${ci_env_file}"
+                    ;;
+            esac
             ;;
         *)
             printf 'unsupported target: %s\n' "${target}" >&2
@@ -88,14 +107,16 @@ main() {
     fi
 
     local target=$1
-    local is_prod
-    if is_production_host; then
-        is_prod=true
+    local env_type
+    if is_ci_env; then
+        env_type='ci'
+    elif is_production_host; then
+        env_type='production'
     else
-        is_prod=false
+        env_type='local'
     fi
 
-    get_target_value "${target}" "${is_prod}"
+    get_target_value "${target}" "${env_type}"
 }
 
 main "$@"
