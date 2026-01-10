@@ -34,10 +34,7 @@ function usage() {
     echo "  3. Service deployment"
     echo "  4. Database migrations"
     echo "  5. Superuser creation (interactive)"
-    echo "  6. OpenSearch index initialization"
-    echo ""
-    echo -e "\e[34mSteps NOT automated (require manual action):\e[0m"
-    echo "  1. MinIO bucket creation"
+    echo "  6. MinIO bucket creation"
     echo ""
     echo -e "\e[34mOPTIONS:\e[0m"
     echo "    -f, --force         Overwrite existing env files when generating secrets"
@@ -268,26 +265,20 @@ function show_next_steps() {
     echo ""
     echo "Next steps:"
     echo ""
-    echo "  1. Create MinIO bucket:"
-    echo "     - Visit http://localhost:${port_prefix}9001"
-    echo "     - Login with credentials from .envs/${env_type}/minio.env"
-    echo "     - Create bucket named 'spectrumx'"
-    echo "     - Optionally set a storage quota"
-    echo ""
-    echo "  2. Access the web interface:"
+    echo "  1. Access the web interface:"
     echo "     - Gateway: http://localhost:${port_prefix}8000"
     echo "     - Admin panel: http://localhost:${port_prefix}8000/admin"
     echo ""
-    echo "  3. Run tests to verify installation:"
+    echo "  2. Run tests to verify installation:"
     echo "     just test"
     echo ""
-    echo "  4. For production API key generation:"
-    echo "     - Visit http://localhost:${port_prefix}8000/users/generate-api-key"
+    echo "  3. For production SDK API key generation:"
+    echo "     - Visit http://localhost:8000/users/generate-api-key-form/"
     echo "     - Copy the key to .envs/${env_type}/django.env"
     echo ""
 
     if [[ "${env_type}" == "local" ]]; then
-        echo "  5. Check webpack dev server:"
+        echo "  4. Check webpack dev server:"
         echo "     http://localhost:3000/webpack-dev-server"
         echo ""
     fi
@@ -396,7 +387,34 @@ function setup_database_and_services() {
 
     wait_for_service "${container_name}" 60 || {
         log_error "Failed to start services"
-        log_msg "Check logs with: just logs"
+
+}
+
+function create_minio_bucket() {
+    local env_type="$1"
+    local minio_env_file="${PROJECT_ROOT}/.envs/${env_type}/minio.env"
+
+    log_header "MinIO Bucket Setup"
+
+    if [[ ! -f "${minio_env_file}" ]]; then
+        log_error "MinIO environment file not found: ${minio_env_file}"
+        return 1
+    fi
+
+    local minio_user
+    local minio_password
+    minio_user=$(grep -E '^MINIO_ROOT_USER=' "${minio_env_file}" | cut -d'=' -f2)
+    minio_password=$(grep -E '^MINIO_ROOT_PASSWORD=' "${minio_env_file}" | cut -d'=' -f2)
+
+    if [[ -z "${minio_user}" || -z "${minio_password}" ]]; then
+        log_error "Failed to extract MinIO credentials from ${minio_env_file}"
+        return 1
+    fi
+
+    alias_name="local"
+
+    just dc exec -it minio mc alias set "${alias_name}" "http://localhost:9000" "${minio_user}" "${minio_password}"
+    just dc exec -it minio mc mb --ignore-existing "${alias_name}/spectrumx"
         exit 1
     }
 
@@ -447,7 +465,7 @@ function main() {
     build_services
     start_services_detached
 
-    setup_database_and_services "${container_name}" "${args[env_type]}"
+    create_minio_bucket "${args[env_type]}"
     finalize_deployment "${args[env_type]}" "${args[detach]}"
 }
 
