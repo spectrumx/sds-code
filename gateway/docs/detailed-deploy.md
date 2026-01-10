@@ -166,18 +166,18 @@ differ.
 
     This also tests the connection between the application and the OpenSearch instance.
 
+3. Create the MinIO bucket:
+
+    Go to [localhost:9001](http://localhost:9001) (or `localhost:19001` in production)
+    and create a bucket named `spectrumx` with the credentials set in `minio.env`.
+    Optionally apply a storage quota to this bucket (you can modify it later if needed).
+
 ## First deployment: not automated
 
 Steps are not covered by the `deploy.sh` script and/or items that walk you through
 accessing the Gateway for the first time.
 
-1. Create the MinIO bucket:
-
-    Go to [localhost:9001](http://localhost:9001) (or `localhost:19001` in production) and create a bucket named `spectrumx`
-    with the credentials set in `minio.env`. Optionally apply a storage quota to this
-    bucket (you can modify it later if needed).
-
-2. Access the web interface:
+1. Access the web interface:
 
     Open the web interface at [localhost:8000](http://localhost:8000) (`localhost:18000`
     in production). You can create regular users by signing up there, or:
@@ -202,7 +202,7 @@ accessing the Gateway for the first time.
     > just uv run manage.py createsuperuser
     > ```
 
-3. Run the test suite:
+2. Run the test suite:
 
     ```bash
     just test
@@ -271,17 +271,18 @@ rsync -aP ./.envs/example/ ./.envs/production
     `MINIO_ROOT_PASSWORD`**;
 + In `django.env`, the **`DJANGO_ADMIN_URL` must end with a slash `/`**.
 + In `django.env`, to generate the `API_KEY` get it running first, then navigate to
-    [localhost:18000/users/generate-api-key](http://localhost:18000/users/generate-api-key)
+    [localhost:18000/users/generate-api-key-form](http://localhost:18000/users/generate-api-key-form/)
     (or this path under your own domain).
     + **Copy the generated key to that env file**. The key is not stored in the
         database, so you will only see it at creation time.
 + In `django.env`, configure OAuth in Auth0's dashboard and **set the `CLIENT_ID`
     and `CLIENT_SECRET`** accordingly.
-+ In `django.env`, set the `SVI_SERVER_EMAIL` and `SVI_SERVER_API_KEY` to match the
-    values in the SVI's environment variables. Important: `SVI_SERVER_API_KEY` must be
-    40 characters.
 + In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user,
     password, and database name** in that file.
++ If using the Spectrum Visualization Interface (SVI) component:
+    + In `django.env`, set the `SVI_SERVER_EMAIL` and `SVI_SERVER_API_KEY` to match the
+        values in the SVI's environment variables. Important: `SVI_SERVER_API_KEY` must be
+        40 characters.
 
 Add the machine's hostname to `./scripts/prod-hostnames.env`:
 

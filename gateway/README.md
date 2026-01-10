@@ -43,20 +43,89 @@ After cloning this repo, follow the steps below:
 
 # for ci:
 ./scripts/deploy.sh ci
+# to force a CI environment, set the environment variable:
+#   export CI=1
+#   just env
 
 # for production:
 ./scripts/deploy.sh production
+# to force a production environment, list the current machine's hostname as production:
+#   cp ./scripts/prod-hostnames.env.example ./scripts/prod-hostnames.env
+#   hostname >> ./scripts/prod-hostnames.env
+#   just env
 ```
 
-Then follow the steps that are [not automated for a first-time setup](./docs/detailed-deploy.md#first-deployment-not-automated).
+> [!IMPORTANT]
+>
+> This deploy script does several tasks, and it's generally safe to run it multiple
+> times. Nonetheless, a production deployment is expected to require manual
+> configuration of items like:
+>
+> + Storage backend to match your hardware and your use case;
+> + Network configuration (reverse proxy, TLS certs, subdomains, etc);
+> + Allowed hosts, email server, and other settings in `django.env`.
+>
+> So, for a production deployment, make sure to check the [detailed deployment
+> instructions](./docs/detailed-deploy.md#production-deploy) after running the script.
 
 This _should_ leave you with the application running using default configurations. If
 that doesn't happen, feel free to open an issue or reach out for help.
 
+1. Access the web interface:
+
+    Open the web interface at [localhost:8000](http://localhost:8000) (`localhost:18000`
+    in production). You can create regular users by signing up there, or:
+
+    You can sign in with the superuser credentials at
+    [localhost:8000/admin](http://localhost:8000/admin) (or
+    `localhost:18000/<admin-path-set-in-django.env>` in production) to access the admin
+    interface.
+
+    > [!TIP]
+    > The superuser credentials are the ones provided in a step above, or during an
+    > interactive execution of the `deploy.sh` script.
+    > If the credentials were lost, you can reset the password with:
+    >
+    > ```bash
+    > just uv run manage.py changepassword <email>
+    > ```
+    >
+    > Or create one:
+    >
+    > ```bash
+    > just uv run manage.py createsuperuser
+    > ```
+
+2. Run the test suite:
+
+    ```bash
+    # run all gateway tests available for the current environment:
+    just test
+    ```
+
+Alternatively, follow the steps that are [not automated for a first-time
+setup](./docs/detailed-deploy.md#first-deployment-not-automated).
+
 ## Just recipes
 
-We are using [Just](https://github.com/casey/just#installation/) as a command runner to
-simplify common tasks. Here's a quick lookup of available commands:
+Next, you might be interested in other available `just` recipes.
+
+```bash
+# print the currently selected environment:
+just env
+
+# stream logs until interrupted, or without following it:
+just logs
+just logs-once
+
+# rebuilds and restarts services, showing logs (press Ctrl+C to exit logs):
+just redeploy
+
+# stop all gateway services:
+just down
+```
+
+Get the full list with:
 
 ```bash
 just --list

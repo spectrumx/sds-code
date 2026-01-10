@@ -27,6 +27,11 @@
         + [Workflow](#workflow)
     + [Troubleshooting](#troubleshooting)
         + [Running Postgres commands](#running-postgres-commands)
+        + [Basic PostgreSQL Commands](#basic-postgresql-commands)
+            + [List Databases](#list-databases)
+            + [List Tables in Current Database](#list-tables-in-current-database)
+            + [List Schemas in Current Database](#list-schemas-in-current-database)
+            + [List Users](#list-users)
         + [Postgres collation version mismatch](#postgres-collation-version-mismatch)
             + [Solution](#solution)
 
@@ -353,6 +358,34 @@ docker exec -it sds-gateway-local-app python manage.py migrate users
 
 ```bash
 docker exec -it sds-gateway-local-postgres bash -c "psql -U \${POSTGRES_USER}"
+```
+
+### Basic PostgreSQL Commands
+
+Here are some basic commands for interacting with PostgreSQL:
+
+#### List Databases
+
+```sql
+\l
+```
+
+#### List Tables in Current Database
+
+```sql
+\dt
+```
+
+#### List Schemas in Current Database
+
+```sql
+\dn
+```
+
+#### List Users
+
+```sql
+\du
 ```
 
 ### Postgres collation version mismatch
