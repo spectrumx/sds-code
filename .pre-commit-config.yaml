@@ -45,7 +45,7 @@ repos:
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.14.10
+      rev: v0.14.11
       hooks:
           # linter
           - id: ruff-check # runs ruff check --force-exclude
