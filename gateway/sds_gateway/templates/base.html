@@ -152,15 +152,7 @@
                 {% comment %} Django messages rendered as toasts {% endcomment %}
                 {% if messages %}
                     {% for message in messages %}
-                        {% if message.tags == "error" %}
-                            {% include "users/components/toast.html" with message=message type="error" %}
-                        {% elif message.tags == "success" %}
-                            {% include "users/components/toast.html" with message=message type="success" %}
-                        {% elif message.tags == "warning" %}
-                            {% include "users/components/toast.html" with message=message type="warning" %}
-                        {% else %}
-                            {% include "users/components/toast.html" with message=message type="info" %}
-                        {% endif %}
+                        {% include "users/components/toast.html" with message=message type=message.level_tag|default:"info" %}
                     {% endfor %}
                 {% endif %}
                 {% block body %}
