@@ -4,7 +4,7 @@ Matches the format used by showAlert for unified UI
 
 Context:
 - message: Toast message text
-- type: Toast type (success, error, warning, info) - maps to Bootstrap classes
+- type: Toast type (success, error/danger, warning, info) - maps to Bootstrap classes
 {% endcomment %}
 {% comment %} Map type to Bootstrap classes matching showAlert logic {% endcomment %}
 {% if type == "success" %}
@@ -12,7 +12,7 @@ Context:
          role="alert"
          aria-live="assertive"
          aria-atomic="true"
-         data-bs-delay="3500">
+         data-bs-delay="10000">
         <div class="d-flex">
             <div class="toast-body">{{ message }}</div>
             <button type="button"
@@ -21,12 +21,12 @@ Context:
                     aria-label="Close"></button>
         </div>
     </div>
-{% elif type == "error" %}
+{% elif type == "error" or type == "danger" %}
     <div class="toast align-items-center bg-danger text-white"
          role="alert"
          aria-live="assertive"
          aria-atomic="true"
-         data-bs-delay="3500">
+         data-bs-delay="10000">
         <div class="d-flex">
             <div class="toast-body">{{ message }}</div>
             <button type="button"
@@ -40,7 +40,7 @@ Context:
          role="alert"
          aria-live="assertive"
          aria-atomic="true"
-         data-bs-delay="3500">
+         data-bs-delay="10000">
         <div class="d-flex">
             <div class="toast-body">{{ message }}</div>
             <button type="button"
@@ -54,7 +54,7 @@ Context:
          role="alert"
          aria-live="assertive"
          aria-atomic="true"
-         data-bs-delay="3500">
+         data-bs-delay="10000">
         <div class="d-flex">
             <div class="toast-body">{{ message }}</div>
             <button type="button"
@@ -68,7 +68,7 @@ Context:
          role="alert"
          aria-live="assertive"
          aria-atomic="true"
-         data-bs-delay="3500">
+         data-bs-delay="10000">
         <div class="d-flex">
             <div class="toast-body">{{ message }}</div>
             <button type="button"
