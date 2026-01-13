@@ -29,11 +29,6 @@
         }
     </style>
 {% endblock css %}
-{% block javascript %}
-    {{ block.super }}
-    <script src="{% static 'js/permission-levels.js' %}"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
-{% endblock javascript %}
 {% block content %}
     <!-- Add noUiSlider JS -->
     <!-- CSRF Token for JavaScript -->
@@ -413,6 +408,8 @@
     <!-- Upload Capture Modal JavaScript -->
     <!-- Load the WASM library for BLAKE3 hashing -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
+    <!-- Load noUiSlider JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
     <!-- Upload modal functionality -->
     <script src="{% static 'js/file_list_upload_capture_modal.js' %}"></script>
     <!-- Pass Django context data to JavaScript -->
