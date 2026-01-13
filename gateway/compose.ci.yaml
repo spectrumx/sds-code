@@ -5,7 +5,7 @@
 #   file as possible to simplify the deployment process.
 
 volumes:
-    # for safety, all local volumes start with "sds-gateway-ci-"
+    # for safety, all CI volumes start with "sds-gateway-ci-"
     sds-gateway-ci-app-media: {} # for Django media files
     sds-gateway-ci-temp-zips: {} # for temporary zip files
     sds-gateway-ci-uv-cache: {} # shared cache for uv
@@ -20,7 +20,7 @@ volumes:
     sds-gateway-ci-redis-data: {}
 
 networks:
-    # for safety, all gateway local networks start with "sds-gateway-ci-"
+    # for safety, all gateway CI networks start with "sds-gateway-ci-"
     sds-gateway-ci-minio-net:
         driver: bridge
     sds-gateway-ci-opensearch-net:
@@ -115,7 +115,7 @@ services:
               bind:
                   selinux: z
             # e.g. curl --insecure https://sds.crc.nd.edu/static/css/project.css
-            # this location is only used in local; prod uses 'staticfiles/'
+            # this location is only used in local/CI; prod uses 'staticfiles/'
             - source: ./sds_gateway/static/
               target: /usr/share/nginx/static
               type: bind
@@ -191,7 +191,7 @@ services:
         build:
             context: .
             dockerfile: ./compose/production/postgres/Dockerfile
-            # this dockerfile is used for both local and prod
+            # this dockerfile is used for both local/CI and prod
         image: sds-gateway-ci-postgres
         container_name: sds-gateway-ci-postgres
         volumes:

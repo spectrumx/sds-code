@@ -63,14 +63,14 @@ get_target_value() {
             ;;
         app_container)
             case "${env_type}" in
-                production)
-                    value='sds-gateway-prod-app'
-                    ;;
                 ci)
                     value='sds-gateway-ci-app'
                     ;;
                 local)
                     value='sds-gateway-local-app'
+                    ;;
+                production)
+                    value='sds-gateway-prod-app'
                     ;;
                 *)
                     printf 'unsupported environment type: %s\n' "${env_type}" >&2
@@ -80,14 +80,18 @@ get_target_value() {
             ;;
         env_file)
             case "${env_type}" in
-                production)
-                    value="${production_env_file}"
+                ci)
+                    value="${ci_env_file}"
                     ;;
                 local)
                     value="${local_env_file}"
                     ;;
-                ci)
-                    value="${ci_env_file}"
+                production)
+                    value="${production_env_file}"
+                    ;;
+                *)
+                    printf 'unsupported environment type: %s\n' "${env_type}" >&2
+                    exit 1
                     ;;
             esac
             ;;

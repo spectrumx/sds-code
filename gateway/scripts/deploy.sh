@@ -273,7 +273,7 @@ function show_next_steps() {
     echo "     just test"
     echo ""
     echo "  3. For production SDK API key generation:"
-    echo "     - Visit http://localhost:8000/users/generate-api-key-form/"
+    echo "     - Visit http://localhost:${port_prefix}8000/users/generate-api-key-form/"
     echo "     - Copy the key to .envs/${env_type}/django.env"
     echo ""
 
