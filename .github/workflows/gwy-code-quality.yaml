@@ -1,0 +1,136 @@
+# Workflow to run pre-commit checks, django tests and template validations for the Gateway
+# GitHub Action Workflow validator: https://rhysd.github.io/actionlint/
+name: gateway-checks
+
+on:
+    workflow_dispatch:
+        # To manually trigger the workflow
+        # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch
+    push:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - gateway/**
+        branches:
+            - main
+            - master
+    pull_request:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - gateway/**
+        branches:
+            - main
+            - master
+        types:
+            # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#pull_request
+            - ready_for_review
+            - synchronize
+
+env:
+    DOCKER_BUILDKIT: 1
+    COMPOSE_DOCKER_CLI_BUILD: 1
+    PYTHON_VERSION: "3.13" # pre-commit and pyright don't seem to work well with 3.14 yet
+
+jobs:
+    # Run pre-commit checks on all files using the project's python version
+    gwy-pre-commit:
+        runs-on: ubuntu-latest
+        env:
+            UV_LINK_MODE: copy
+        steps:
+            - uses: actions/checkout@v4
+
+            # this ubuntu-latest version ships node 18, which was causing issues
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+
+            - name: Install rust toolchain for the 'blake3' dependency
+              uses: actions-rust-lang/setup-rust-toolchain@v1
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v5
+              # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Install Python
+              working-directory: ./sdk
+              run: uv python install ${{ env.PYTHON_VERSION }}
+
+            - name: Install pre-commit
+              working-directory: ./gateway
+              run: uv tool install -p ${{ env.PYTHON_VERSION }} pre-commit
+
+            - name: Cache pre-commit hooks
+              id: cache-pre-commit
+              uses: actions/cache@v4
+              # https://github.com/actions/cache/blob/main/examples.md#python---pip
+              with:
+                  key: pre-commit-gateway-${{ hashFiles('gateway/.pre-commit-config.yaml') }}
+                  path: ~/.cache/pre-commit/
+
+            - name: Install hooks
+              working-directory: ./gateway
+              run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit install --install-hooks
+
+            - name: Run pre-commit
+              working-directory: ./gateway
+              # make sure default_language_version in .pre-commit-config.yaml
+              # matches the one installed with uv, which is the most recent
+              # stable python version that meets project requirements.
+              run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit run --all-files
+
+    # Run static analysis with pyright
+    # DISABLED due to many false-positives in Django code
+    # gwy-pyright:
+    #     env:
+    #         UV_LINK_MODE: copy
+    #     runs-on: ubuntu-latest
+    #     steps:
+    #         - uses: actions/checkout@v4
+
+    #         - name: Install uv
+    #           uses: astral-sh/setup-uv@v5
+
+    #         - name: Install system dependencies
+    #           run: |
+    #               sudo apt-get update
+    #               sudo apt-get install -y python3-dev libpq-dev
+
+    #         - name: Install packages
+    #           working-directory: ./gateway
+    #           run: uv sync -p ${{ env.PYTHON_VERSION }} --frozen --extra local
+
+    #         - uses: jakebailey/pyright-action@v2
+    #           # https://github.com/jakebailey/pyright-action#options
+    #           with:
+    #               pylance-version: latest-release
+    #               working-directory: ./gateway
+    #               python-path: ./.venv/bin/python
+
+    # Run Django tests
+    gwy-django-tests:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                # uv will take care of installing other python versions,
+                # so we don't need a python-version matrix here.
+                # This is faster, saving some GH action minutes and dev time.
+                platform: [ubuntu-latest]
+        steps:
+            - uses: actions/checkout@v4
+
+            # - name: Install dependencies
+            #   run: sudo apt update && sudo apt install -y rsync
+
+            - name: Install just on ubuntu
+              if: matrix.platform == 'ubuntu-latest'
+              working-directory: ./sdk
+              run: |
+                  npm install -g rust-just
+
+            - name: Deploy action
+              run: ./scripts/deploy.sh ci
+              working-directory: ./gateway
+
+            - name: Run tests
+              run: just test
+              working-directory: ./gateway

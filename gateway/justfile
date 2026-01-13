@@ -14,6 +14,8 @@ compose_file := shell(env_selection_script + ' $1', "compose_file")
 env := shell(env_selection_script + ' $1', "env")
 env_file := shell(env_selection_script + ' $1', "env_file")
 docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file
+gwy_root := justfile_directory()
+git_root := gwy_root + "/.."
 uv_cmd := docker_compose + " run '" + app_container + "' uv"
 uv_runner := uv_cmd + " run"
 
@@ -131,6 +133,16 @@ env:
     @echo -e "\tCompose file: \e[34m            '{{compose_file}}'\e[0m"
     @echo -e "\tDocker compose command: \e[34m  '{{docker_compose}}'\e[0m"
     @echo -e "\tUV runner command: \e[34m       '{{uv_runner}}'\e[0m"
+
+# runs GitHub Actions locally
+gact *args:
+    @echo "Running GitHub Actions locally for {{git_root}}"
+    cd "{{git_root}}" && \
+        gh act \
+            --rm \
+            --workflows "{{git_root}}/.github/workflows" \
+            --secret-file config/secrets.env \
+            {{args}}
 
 # generates environment secrets for local/production/ci environments
 generate-secrets env_type *args:

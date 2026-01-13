@@ -66,8 +66,15 @@ get_target_value() {
                 production)
                     value='sds-gateway-prod-app'
                     ;;
-                local|ci|*)    # local and ci use the same app container name
+                ci)
+                    value='sds-gateway-ci-app'
+                    ;;
+                local)
                     value='sds-gateway-local-app'
+                    ;;
+                *)
+                    printf 'unsupported environment type: %s\n' "${env_type}" >&2
+                    exit 1
                     ;;
             esac
             ;;

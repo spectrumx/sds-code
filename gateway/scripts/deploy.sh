@@ -355,8 +355,13 @@ function determine_container_name() {
     local env_type="$1"
     if [[ "${env_type}" == "production" ]]; then
         echo "sds-gateway-prod-app"
-    else    # local and ci use "sds-gateway-local-app"
+    elif [[ "${env_type}" == "ci" ]]; then
+        echo "sds-gateway-ci-app"
+    elif [[ "${env_type}" == "local" ]]; then
         echo "sds-gateway-local-app"
+    else
+        log_error "Unknown environment type: ${env_type}"
+        return 1
     fi
 }
 

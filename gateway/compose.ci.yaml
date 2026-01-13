@@ -1,42 +1,42 @@
 # CI COMPOSE FILE
-# Make sure images, container names, and other assets start with "sds-gateway-local-"
+# Make sure images, container names, and other assets start with "sds-gateway-ci-"
 #   to underline its importance and avoid accidents.
 # Also try to keep it as close to the production
 #   file as possible to simplify the deployment process.
 
 volumes:
-    # for safety, all local volumes start with "sds-gateway-local-"
-    sds-gateway-local-app-media: {} # for Django media files
-    sds-gateway-local-temp-zips: {} # for temporary zip files
-    sds-gateway-local-uv-cache: {} # shared cache for uv
-    sds-gateway-local-uv-venv-app: {}
-    sds-gateway-local-uv-venv-worker: {}
-    sds-gateway-local-uv-venv-beat: {}
-    sds-gateway-local-uv-venv-flower: {}
-    sds-gateway-local-minio-files: {}
-    sds-gateway-local-opensearch-data: {}
-    sds-gateway-local-postgres-data-backups: {}
-    sds-gateway-local-postgres-data: {}
-    sds-gateway-local-redis-data: {}
+    # for safety, all local volumes start with "sds-gateway-ci-"
+    sds-gateway-ci-app-media: {} # for Django media files
+    sds-gateway-ci-temp-zips: {} # for temporary zip files
+    sds-gateway-ci-uv-cache: {} # shared cache for uv
+    sds-gateway-ci-uv-venv-app: {}
+    sds-gateway-ci-uv-venv-worker: {}
+    sds-gateway-ci-uv-venv-beat: {}
+    sds-gateway-ci-uv-venv-flower: {}
+    sds-gateway-ci-minio-files: {}
+    sds-gateway-ci-opensearch-data: {}
+    sds-gateway-ci-postgres-data-backups: {}
+    sds-gateway-ci-postgres-data: {}
+    sds-gateway-ci-redis-data: {}
 
 networks:
-    # for safety, all gateway local networks start with "sds-gateway-local-"
-    sds-gateway-local-minio-net:
+    # for safety, all gateway local networks start with "sds-gateway-ci-"
+    sds-gateway-ci-minio-net:
         driver: bridge
-    sds-gateway-local-opensearch-net:
+    sds-gateway-ci-opensearch-net:
         driver: bridge
-    sds-network-local:
+    sds-network-ci:
         # external: true # make it external if running with traefik on this machine
         # should match traefik's network name
-        name: sds-network-local
+        name: sds-network-ci
         driver: bridge
 services:
-    sds-gateway-local-app:
+    sds-gateway-ci-app:
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
-        image: sds-gateway-local-app
-        container_name: sds-gateway-local-app
+        image: sds-gateway-ci-app
+        container_name: sds-gateway-ci-app
         tty: true # colored logs
         depends_on:
             opensearch:
@@ -48,10 +48,10 @@ services:
             minio:
                 condition: service_healthy
         volumes:
-            - sds-gateway-local-uv-cache:/opt/uv-cache/
-            - sds-gateway-local-uv-venv-app:/opt/uv-venv/
-            - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
-            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - sds-gateway-ci-uv-cache:/opt/uv-cache/
+            - sds-gateway-ci-uv-venv-app:/opt/uv-venv/
+            - sds-gateway-ci-app-media:/app/sds_gateway/media # persistent media storage
+            - sds-gateway-ci-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
             - source: ./sds_gateway/api_methods/migrations
               target: /app/sds_gateway/api_methods/migrations
               type: bind
@@ -82,9 +82,9 @@ services:
         ports:
             - "8000:8000" # make sure this port matches traefik's config, if used
         networks:
-            - sds-gateway-local-minio-net
-            - sds-gateway-local-opensearch-net
-            - sds-network-local
+            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-opensearch-net
+            - sds-network-ci
         healthcheck:
             test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
             interval: 30s
@@ -106,7 +106,7 @@ services:
     nginx:
         # nginx serves the static files generated for the gateway
         image: docker.io/nginx:1-alpine
-        container_name: sds-gateway-local-nginx
+        container_name: sds-gateway-ci-nginx
         volumes:
             - source: ./compose/production/nginx/nginx-default.conf
               target: /etc/nginx/conf.d/default.conf
@@ -123,7 +123,7 @@ services:
               bind:
                   selinux: z
         networks:
-            - sds-network-local
+            - sds-network-ci
 
     minio:
         # main file storage for sds
@@ -131,9 +131,9 @@ services:
         # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
         # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
         image: minio/minio:latest
-        container_name: sds-gateway-local-minio
+        container_name: sds-gateway-ci-minio
         volumes:
-            - sds-gateway-local-minio-files:/files
+            - sds-gateway-ci-minio-files:/files
         ports:
             - "9000:9000"
             - "9001:9001"
@@ -151,7 +151,7 @@ services:
             start_period: 10s
         command: 'server /files --console-address ":9001"'
         networks:
-            - sds-gateway-local-minio-net
+            - sds-gateway-ci-minio-net
 
     opensearch:
         # used for indexing and searching documents
@@ -161,9 +161,9 @@ services:
             args:
                 UID: ${UID}
                 GID: ${GID}
-        container_name: sds-gateway-local-opensearch
+        container_name: sds-gateway-ci-opensearch
         volumes:
-            - sds-gateway-local-opensearch-data:/usr/share/opensearch/data
+            - sds-gateway-ci-opensearch-data:/usr/share/opensearch/data
             - ./compose/local/opensearch/opensearch.yaml:/usr/share/opensearch/config/opensearch.yml
         env_file:
             - ./.envs/ci/opensearch.env
@@ -175,7 +175,7 @@ services:
             - "9200:9200"
             - "9600:9600"
         networks:
-            - sds-gateway-local-opensearch-net
+            - sds-gateway-ci-opensearch-net
         healthcheck:
             test:
                 [
@@ -192,15 +192,15 @@ services:
             context: .
             dockerfile: ./compose/production/postgres/Dockerfile
             # this dockerfile is used for both local and prod
-        image: sds-gateway-local-postgres
-        container_name: sds-gateway-local-postgres
+        image: sds-gateway-ci-postgres
+        container_name: sds-gateway-ci-postgres
         volumes:
-            - sds-gateway-local-postgres-data:/var/lib/postgresql/data
-            - sds-gateway-local-postgres-data-backups:/backups
+            - sds-gateway-ci-postgres-data:/var/lib/postgresql/data
+            - sds-gateway-ci-postgres-data-backups:/backups
         env_file:
             - ./.envs/ci/postgres.env
         networks:
-            - sds-gateway-local-minio-net
+            - sds-gateway-ci-minio-net
         healthcheck:
             test:
                 [
@@ -215,11 +215,11 @@ services:
     redis:
         # used as caching layer for the gateway app
         image: docker.io/redis:6
-        container_name: sds-gateway-local-redis
+        container_name: sds-gateway-ci-redis
         volumes:
-            - sds-gateway-local-redis-data:/data
+            - sds-gateway-ci-redis-data:/data
         networks:
-            - sds-network-local
+            - sds-network-ci
         healthcheck:
             test: ["CMD", "redis-cli", "ping"]
             interval: 10s
@@ -233,17 +233,17 @@ services:
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
-        image: sds-gateway-local-app
-        container_name: sds-gateway-local-celery-worker
+        image: sds-gateway-ci-app
+        container_name: sds-gateway-ci-celery-worker
         tty: true
         depends_on:
-            sds-gateway-local-app:
+            sds-gateway-ci-app:
                 condition: service_healthy
         volumes:
-            - sds-gateway-local-uv-cache:/opt/uv-cache/
-            - sds-gateway-local-uv-venv-worker:/opt/uv-venv/
-            - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
-            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - sds-gateway-ci-uv-cache:/opt/uv-cache/
+            - sds-gateway-ci-uv-venv-worker:/opt/uv-venv/
+            - sds-gateway-ci-app-media:/app/sds_gateway/media # persistent media storage
+            - sds-gateway-ci-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
             - source: ./sds_gateway/api_methods/migrations
               target: /app/sds_gateway/api_methods/migrations
               type: bind
@@ -269,26 +269,26 @@ services:
             - ./.envs/ci/opensearch.env
         command: "/worker-start"
         networks:
-            - sds-gateway-local-minio-net
-            - sds-gateway-local-opensearch-net
-            - sds-network-local
+            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-opensearch-net
+            - sds-network-ci
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
-        image: sds-gateway-local-app
-        container_name: sds-gateway-local-celery-beat
+        image: sds-gateway-ci-app
+        container_name: sds-gateway-ci-celery-beat
         tty: true
         depends_on:
-            sds-gateway-local-app:
+            sds-gateway-ci-app:
                 condition: service_healthy
         volumes:
-            - sds-gateway-local-uv-cache:/opt/uv-cache/
-            - sds-gateway-local-uv-venv-beat:/opt/uv-venv/
-            - sds-gateway-local-app-media:/app/sds_gateway/media # persistent media storage
-            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
+            - sds-gateway-ci-uv-cache:/opt/uv-cache/
+            - sds-gateway-ci-uv-venv-beat:/opt/uv-venv/
+            - sds-gateway-ci-app-media:/app/sds_gateway/media # persistent media storage
+            - sds-gateway-ci-temp-zips:/app/sds_gateway/media/temp_zips # temporary zip files
             - source: ./sds_gateway/api_methods/migrations
               target: /app/sds_gateway/api_methods/migrations
               type: bind
@@ -314,26 +314,26 @@ services:
             - ./.envs/ci/opensearch.env
         command: "/beat-start"
         networks:
-            - sds-gateway-local-minio-net
-            - sds-gateway-local-opensearch-net
-            - sds-network-local
+            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-opensearch-net
+            - sds-network-ci
 
     celery-flower:
         # Celery monitoring and administration tool
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
-        image: sds-gateway-local-app
-        container_name: sds-gateway-local-celery-flower
+        image: sds-gateway-ci-app
+        container_name: sds-gateway-ci-celery-flower
         tty: true
         depends_on:
-            sds-gateway-local-app:
+            sds-gateway-ci-app:
                 condition: service_healthy
         volumes:
-            - sds-gateway-local-uv-cache:/opt/uv-cache/
-            - sds-gateway-local-uv-venv-flower:/opt/uv-venv/
-            - sds-gateway-local-app-media:/app/sds_gateway/media
-            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips
+            - sds-gateway-ci-uv-cache:/opt/uv-cache/
+            - sds-gateway-ci-uv-venv-flower:/opt/uv-venv/
+            - sds-gateway-ci-app-media:/app/sds_gateway/media
+            - sds-gateway-ci-temp-zips:/app/sds_gateway/media/temp_zips
             - source: ./sds_gateway/api_methods/migrations
               target: /app/sds_gateway/api_methods/migrations
               type: bind
@@ -361,9 +361,9 @@ services:
         ports:
             - "5555:5555" # Flower web interface
         networks:
-            - sds-gateway-local-minio-net
-            - sds-gateway-local-opensearch-net
-            - sds-network-local
+            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-opensearch-net
+            - sds-network-ci
 
     # ==========================
     # local development services
@@ -372,12 +372,12 @@ services:
         build:
             context: .
             dockerfile: ./compose/local/node/Dockerfile
-        image: sds-gateway-local-node
-        container_name: sds-gateway-local-node
+        image: sds-gateway-ci-node
+        container_name: sds-gateway-ci-node
         networks:
-            - sds-network-local
+            - sds-network-ci
         depends_on:
-            - sds-gateway-local-app
+            - sds-gateway-ci-app
         volumes:
             # http://jdlm.info/articles/2016/03/06/lessons-building-node-app-docker.html
             - /app/node_modules
@@ -399,9 +399,9 @@ services:
     mailhog:
         # email testing service for local development
         image: mailhog/mailhog:latest
-        container_name: sds-gateway-local-mailhog
+        container_name: sds-gateway-ci-mailhog
         ports:
             - "1025:1025" # SMTP server
             - "8025:8025" # Web UI
         networks:
-            - sds-network-local
+            - sds-network-ci
