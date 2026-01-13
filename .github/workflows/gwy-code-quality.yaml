@@ -52,7 +52,7 @@ jobs:
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Install Python
-              working-directory: ./sdk
+              working-directory: ./gateway
               run: uv python install ${{ env.PYTHON_VERSION }}
 
             - name: Install pre-commit
@@ -123,7 +123,7 @@ jobs:
 
             - name: Install just on ubuntu
               if: matrix.platform == 'ubuntu-latest'
-              working-directory: ./sdk
+              working-directory: ./gateway
               run: |
                   npm install -g rust-just
 

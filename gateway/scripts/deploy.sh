@@ -423,7 +423,7 @@ function create_minio_bucket() {
         return 1
     fi
 
-    alias_name="local"
+    local alias_name="local"    # always "local", doesn't depend on env_type
 
     just dc exec -it minio mc alias set "${alias_name}" "http://localhost:9000" "${minio_user}" "${minio_password}"
     just dc exec -it minio mc mb --ignore-existing "${alias_name}/spectrumx"

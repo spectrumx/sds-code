@@ -141,7 +141,6 @@ gact *args:
         gh act \
             --rm \
             --workflows "{{git_root}}/.github/workflows" \
-            --secret-file config/secrets.env \
             {{args}}
 
 # generates environment secrets for local/production/ci environments
