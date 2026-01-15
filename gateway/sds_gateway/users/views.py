@@ -2625,15 +2625,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
         """Handle GET request for dataset list."""
-        mode = request.GET.get("mode", "my")  # "my" or "search"
-        
-        if mode == "search":
-            return self._handle_search_mode(request)
-        else:
-            return self._handle_my_datasets_mode(request)
 
-    def _handle_my_datasets_mode(self, request: HttpRequest) -> HttpResponse:
-        """Handle display of user's own datasets."""
         sort_by, sort_order = self._get_sort_parameters(request)
         order_by = self._build_order_by(sort_by, sort_order)
 
@@ -2659,46 +2651,9 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 "page_obj": page_obj,
                 "sort_by": sort_by,
                 "sort_order": sort_order,
-                "mode": "my",
-                "search_form": PublishedDatasetSearchForm(),
             },
         )
 
-    def _handle_search_mode(self, request: HttpRequest) -> HttpResponse:
-        """Handle search of published datasets."""
-        from sds_gateway.users.forms import PublishedDatasetSearchForm
-
-        form = PublishedDatasetSearchForm(request.GET)
-        datasets = self._get_published_datasets()
-
-        # Apply search filters
-        if form.is_valid():
-            datasets = self._apply_search_filters(
-                datasets, form.cleaned_data, request.user
-            )
-
-        # Serialize datasets
-        serialized_datasets = self._serialize_datasets(datasets, request.user)
-
-        # Paginate results
-        paginator = Paginator(serialized_datasets, per_page=15)
-        page_number = request.GET.get("page", 1)
-        try:
-            page_obj = paginator.get_page(page_number)
-        except (PageNotAnInteger, EmptyPage):
-            page_obj = paginator.get_page(1)
-
-        return render(
-            request,
-            template_name=self.template_name,
-            context={
-                "page_obj": page_obj,
-                "mode": "search",
-                "search_form": form,
-                "sort_by": None,
-                "sort_order": None,
-            },
-        )
 
     def _get_sort_parameters(self, request: HttpRequest) -> tuple[str, str]:
         """Get sort parameters from request."""
@@ -2900,10 +2855,10 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         return datasets.filter(uuid__in=matching_dataset_uuids)
 
 
-class SearchPublishedDatasetsView(Auth0LoginRequiredMixin, View):
-    """View for searching published datasets."""
+class SearchPublishedDatasetsView(View):
+    """View for searching published datasets (public, no auth required)."""
 
-    template_name = "users/search_datasets.html"
+    template_name = "users/published_datasets_list.html"
 
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
         """Handle GET request for dataset search."""
@@ -2913,11 +2868,13 @@ class SearchPublishedDatasetsView(Auth0LoginRequiredMixin, View):
         # Apply search filters
         if form.is_valid():
             datasets = self._apply_search_filters(
-                datasets, form.cleaned_data, request.user
+                datasets, form.cleaned_data, request.user if request.user.is_authenticated else None
             )
 
         # Serialize datasets
-        serialized_datasets = self._serialize_datasets(datasets, request.user)
+        serialized_datasets = self._serialize_datasets(
+            datasets, request.user if request.user.is_authenticated else None
+        )
 
         # Paginate results
         paginator = Paginator(serialized_datasets, per_page=15)
@@ -2931,7 +2888,7 @@ class SearchPublishedDatasetsView(Auth0LoginRequiredMixin, View):
             request,
             template_name=self.template_name,
             context={
-                "form": form,
+                "search_form": form,
                 "page_obj": page_obj,
             },
         )
@@ -2952,7 +2909,7 @@ class SearchPublishedDatasetsView(Auth0LoginRequiredMixin, View):
         self,
         datasets: QuerySet[Dataset],
         form_data: dict[str, Any],
-        user: User,
+        user: User | None,
     ) -> QuerySet[Dataset]:
         """Apply search filters to the dataset queryset."""
         query = form_data.get("query", "").strip()
@@ -3070,7 +3027,7 @@ class SearchPublishedDatasetsView(Auth0LoginRequiredMixin, View):
         return datasets.filter(uuid__in=matching_dataset_uuids)
 
     def _serialize_datasets(
-        self, datasets: QuerySet[Dataset], user: User
+        self, datasets: QuerySet[Dataset], user: User | None
     ) -> list[dict[str, Any]]:
         """Serialize datasets for display."""
         result = []
@@ -3175,6 +3132,45 @@ def _apply_sorting(
 
 
 user_dataset_list_view = ListDatasetsView.as_view()
+
+
+class HomePageView(TemplateView):
+    """View for the home page with search form and latest datasets."""
+
+    template_name = "pages/home.html"
+
+    def get_context_data(self, **kwargs):
+        """Add search form and latest 5 public datasets to context."""
+        context = super().get_context_data(**kwargs)
+        from sds_gateway.users.forms import PublishedDatasetSearchForm
+
+        # Get latest 5 public published datasets (is_public=True only)
+        latest_datasets = (
+            Dataset.objects.filter(
+                is_public=True,
+                is_deleted=False,
+            )
+            .prefetch_related("keywords", "owner")
+            .distinct()
+            .order_by("-created_at")[:5]
+        )
+
+        # Serialize datasets
+        serialized_datasets = []
+        for dataset in latest_datasets:
+            context_req = {"request": type("Request", (), {"user": self.request.user if self.request.user.is_authenticated else None})()}
+            dataset_data = cast(
+                "ReturnDict", DatasetGetSerializer(dataset, context=context_req).data
+            )
+            dataset_data["dataset"] = dataset
+            serialized_datasets.append(dataset_data)
+
+        context["search_form"] = PublishedDatasetSearchForm()
+        context["latest_datasets"] = serialized_datasets
+        return context
+
+
+home_page_view = HomePageView.as_view()
 user_search_datasets_view = SearchPublishedDatasetsView.as_view()
 
 

@@ -1,54 +1,10 @@
 {% load tz %}
-<!-- Search Published Datasets Tab Content -->
+<!-- Search Published Datasets Content -->
 <!-- Search Form -->
-<div class="card mb-4">
-    <div class="card-body">
-        <form id="dataset-search-form" method="get" action="{% url 'users:dataset_list' %}">
-            <input type="hidden" name="mode" value="search" />
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label for="{{ search_form.query.id_for_label }}" class="form-label">{{ search_form.query.label }}</label>
-                    {{ search_form.query }}
-                    {% if search_form.query.help_text %}
-                        <small class="form-text text-muted">{{ search_form.query.help_text }}</small>
-                    {% endif %}
-                </div>
-                <div class="col-md-6">
-                    <label for="{{ search_form.keywords.id_for_label }}" class="form-label">{{ search_form.keywords.label }}</label>
-                    {{ search_form.keywords }}
-                    {% if search_form.keywords.help_text %}
-                        <small class="form-text text-muted">{{ search_form.keywords.help_text }}</small>
-                    {% endif %}
-                </div>
-                <div class="col-md-6">
-                    <label for="{{ search_form.min_frequency.id_for_label }}" class="form-label">{{ search_form.min_frequency.label }}</label>
-                    {{ search_form.min_frequency }}
-                    {% if search_form.min_frequency.help_text %}
-                        <small class="form-text text-muted">{{ search_form.min_frequency.help_text }}</small>
-                    {% endif %}
-                </div>
-                <div class="col-md-6">
-                    <label for="{{ search_form.max_frequency.id_for_label }}" class="form-label">{{ search_form.max_frequency.label }}</label>
-                    {{ search_form.max_frequency }}
-                    {% if search_form.max_frequency.help_text %}
-                        <small class="form-text text-muted">{{ search_form.max_frequency.help_text }}</small>
-                    {% endif %}
-                </div>
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary" id="search-button">
-                        <i class="bi bi-search me-2"></i>Search
-                    </button>
-                    <a href="{% url 'users:dataset_list' %}?mode=search" class="btn btn-secondary ms-2" id="clear-button">
-                        <i class="bi bi-x-circle me-2"></i>Clear
-                    </a>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
+{% include "users/partials/dataset_search_form.html" with show_clear_button=True %}
 
 <!-- Results count display -->
-{% if mode == 'search' and page_obj.object_list %}
+{% if page_obj.object_list %}
     <div class="d-flex justify-content-end mb-3">
         <span id="search-results-count" aria-live="polite" class="text-muted">
             {{ page_obj.paginator.count }} dataset{{ page_obj.paginator.count|pluralize }} found
@@ -60,13 +16,12 @@
 <div id="search-results-container" class="table-and-pagination">
     <div class="table-container">
         <div class="table-responsive">
-            {% if mode == 'search' %}
-                {% if not page_obj or not page_obj.object_list %}
+            {% if not page_obj or not page_obj.object_list %}
                     <div class="alert alert-info" role="alert">
                         <h4 class="alert-heading">No datasets found</h4>
                         <p>
                             {% if search_form.query.value or search_form.keywords.value or search_form.min_frequency.value or search_form.max_frequency.value %}
-                                Try adjusting your search criteria or <a href="{% url 'users:dataset_list' %}?mode=search" class="alert-link">clear the filters</a> to see all published datasets.
+                                Try adjusting your search criteria or <a href="{% url 'users:search_datasets' %}" class="alert-link">clear the filters</a> to see all published datasets.
                             {% else %}
                                 There are no published datasets available yet.
                             {% endif %}
@@ -129,10 +84,10 @@
                                     </td>
                                     <td class="text-break">
                                         {% if dataset.keywords %}
-                                            {% for keyword in dataset.keywords.all|slice:":3" %}
-                                                <span class="badge bg-secondary me-1">{{ keyword.name }}</span>
+                                            {% for keyword in dataset.keywords|slice:":3" %}
+                                                <span class="badge bg-secondary me-1">{{ keyword }}</span>
                                             {% endfor %}
-                                            {% if dataset.keywords.count > 3 %}<span class="text-muted">...</span>{% endif %}
+                                            {% if dataset.keywords|length > 3 %}<span class="text-muted">...</span>{% endif %}
                                         {% else %}
                                             -
                                         {% endif %}
@@ -149,34 +104,52 @@
                                             -
                                         {% endif %}
                                     </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-primary dataset-name-link"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#datasetDetailsModal"
-                                                data-dataset-uuid="{{ dataset.uuid }}"
-                                                aria-label="View details for {{ dataset.name }}">
-                                            <i class="bi bi-eye"></i> View
-                                        </button>
+                                    <td class="text-center">
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                    type="button"
+                                                    data-bs-toggle="dropdown"
+                                                    data-bs-boundary="viewport"
+                                                    aria-expanded="false"
+                                                    aria-label="Actions for {{ dataset.name }}">
+                                                <i class="bi bi-three-dots-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <button class="dropdown-item"
+                                                            type="button"
+                                                            onclick="showWebDownloadModal('{{ dataset.uuid }}', '{{ dataset.name }}')">
+                                                        <i class="bi bi-download me-2"></i>Web Download
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item"
+                                                            type="button"
+                                                            onclick="showSDKDownloadModal('{{ dataset.uuid }}')">
+                                                        <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
                                     </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 {% endif %}
-            {% endif %}
         </div>
     </div>
 
     <!-- Pagination for Search Results -->
-    {% if mode == 'search' and page_obj and page_obj.has_other_pages %}
+    {% if page_obj and page_obj.has_other_pages %}
         <nav aria-label="Search results pagination" class="mt-4">
             <ul class="pagination justify-content-center">
                 {% if page_obj.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?mode=search&page=1{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">First</a>
+                        <a class="page-link" href="?page=1{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">First</a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?mode=search&page={{ page_obj.previous_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Previous</a>
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Previous</a>
                     </li>
                 {% else %}
                     <li class="page-item disabled">
@@ -195,10 +168,10 @@
 
                 {% if page_obj.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?mode=search&page={{ page_obj.next_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Next</a>
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Next</a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?mode=search&page={{ page_obj.paginator.num_pages }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Last</a>
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Last</a>
                     </li>
                 {% else %}
                     <li class="page-item disabled">

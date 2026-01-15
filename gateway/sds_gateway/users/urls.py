@@ -17,6 +17,7 @@ from .views import user_api_key_view
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
+from .views import home_page_view
 from .views import user_search_datasets_view
 from .views import user_detail_view
 from .views import user_download_item_view
@@ -46,6 +47,7 @@ urlpatterns = [
     path("files/<uuid:uuid>/content/", FileContentView.as_view(), name="file_content"),
     path("files/<uuid:uuid>/h5info/", FileH5InfoView.as_view(), name="file_h5info"),
     path("dataset-list/", user_dataset_list_view, name="dataset_list"),
+    path("search-datasets/", user_search_datasets_view, name="search_datasets"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
     path(
         "api/keyword-autocomplete/",
