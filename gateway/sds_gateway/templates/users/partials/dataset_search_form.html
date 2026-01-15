@@ -1,0 +1,65 @@
+{% load static %}
+<!-- Dataset Search Form Partial -->
+<div class="card mb-4 w-100 h-90">
+    <div class="card-body d-flex flex-column">
+        <h2 class="card-title h4 mb-5">Search Published Datasets</h2>
+        <form id="dataset-search-form mt-5" method="get" action="{% url 'users:search_datasets' %}" class="flex-grow-1 d-flex flex-column">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="{{ search_form.query.id_for_label }}" class="form-label">{{ search_form.query.label }}</label>
+                    {{ search_form.query }}
+                    {% if search_form.query.help_text %}
+                        <small class="form-text text-muted">{{ search_form.query.help_text }}</small>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="{{ search_form.keywords.id_for_label }}" class="form-label">{{ search_form.keywords.label }}</label>
+                    <div class="keyword-chips-container position-relative">
+                        <div class="keyword-chips-wrapper d-flex flex-wrap align-items-center gap-1 p-2 border rounded form-control" style="min-height: 38px;">
+                            <!-- Chips will be inserted here -->
+                            <input type="text"
+                                   id="{{ search_form.keywords.id_for_label }}" 
+                                   name="{{ search_form.keywords.html_name }}"
+                                   class="keyword-input border-0 flex-grow-1" 
+                                   style="min-width: 120px; outline: none;"
+                                   placeholder="Type keywords and press comma"
+                                   autocomplete="off">
+                        </div>
+                        <!-- Hidden input to store comma-separated values for form submission -->
+                        <input type="hidden" 
+                               id="keywords-hidden" 
+                               name="{{ search_form.keywords.html_name }}" 
+                               value="{{ search_form.keywords.value|default:'' }}">
+                    </div>
+                    {% if search_form.keywords.help_text %}
+                        <small class="form-text text-muted">{{ search_form.keywords.help_text }}</small>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="{{ search_form.min_frequency.id_for_label }}" class="form-label">{{ search_form.min_frequency.label }}</label>
+                    {{ search_form.min_frequency }}
+                    {% if search_form.min_frequency.help_text %}
+                        <small class="form-text text-muted">{{ search_form.min_frequency.help_text }}</small>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="{{ search_form.max_frequency.id_for_label }}" class="form-label">{{ search_form.max_frequency.label }}</label>
+                    {{ search_form.max_frequency }}
+                    {% if search_form.max_frequency.help_text %}
+                        <small class="form-text text-muted">{{ search_form.max_frequency.help_text }}</small>
+                    {% endif %}
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary" id="search-button">
+                        <i class="bi bi-search me-2"></i>Search
+                    </button>
+                    {% if show_clear_button %}
+                        <a href="{% url 'users:search_datasets' %}" class="btn btn-secondary ms-2" id="clear-button">
+                            <i class="bi bi-x-circle me-2"></i>Clear
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
