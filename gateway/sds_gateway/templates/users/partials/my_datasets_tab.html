@@ -1,8 +1,8 @@
 {% load tz %}
-<!-- My Datasets Tab Content -->
+<!-- My Datasets Content -->
 <hr />
 <!-- Results count display -->
-{% if mode != 'search' and page_obj.object_list %}
+{% if page_obj.object_list %}
     <div class="d-flex justify-content-end mb-3">
         <span id="results-count" aria-live="polite" class="text-muted">
             {{ page_obj.paginator.count }} dataset{{ page_obj.paginator.count|pluralize }} found
@@ -194,7 +194,7 @@
 </div>
 
 <!-- Pagination for My Datasets -->
-{% if mode != 'search' and page_obj and page_obj.has_other_pages %}
+{% if page_obj and page_obj.has_other_pages %}
     <nav aria-label="Dataset pagination">
         <ul class="pagination justify-content-center" id="pagination-controls">
             {% if page_obj.has_previous %}

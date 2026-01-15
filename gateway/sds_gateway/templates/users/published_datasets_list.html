@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% load custom_filters %}
+{% load tz %}
+
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
+{% endblock css %}
+{% block bodyclass %}
+    hero-white-page
+{% endblock bodyclass %}
+{% block content %}
+    {% csrf_token %}
+    <!-- Add Bootstrap Icons for sort arrows -->
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+    <div class="content-wrapper">
+        <div class="main-content-area">
+            <div class="container mt-4">
+                <h1 class="page-title mb-4">Search Published Datasets</h1>
+                
+                <!-- Search Form -->
+                {% include "users/partials/search_published_datasets_tab.html" %}
+            </div>
+        </div>
+    </div>
+<!-- Modals to reveal on click -->
+{% include "users/partials/web_download_modal.html" %}
+{% include "users/partials/dataset_details_modal.html" %}
+{% if page_obj %}
+    {% for dataset in page_obj %}
+        {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
+    {% endfor %}
+{% endif %}
+{% endblock content %}
+{% block javascript %}
+    {# djlint:off #}
+    {{ block.super }}
+    <!-- Action components -->
+    <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
+    <!-- Keyword chip input component -->
+    <script src="{% static 'js/search/KeywordChipInput.js' %}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize PageLifecycleManager for published datasets page
+            const pageConfig = {
+                pageType: 'published-datasets-list',
+                permissions: {
+                    userPermissionLevel: 'viewer',
+                    currentUserId: {{ request.user.id|default:"null" }},
+                    isOwner: false,
+                    datasetPermissions: {
+                        canEditMetadata: false,
+                        canAddAssets: false,
+                        canRemoveAnyAssets: false,
+                        canRemoveOwnAssets: false,
+                        canShare: false,
+                        canDownload: true,
+                        canDelete: false
+                    }
+                }
+            };
+
+            // Initialize the page lifecycle manager
+            window.pageLifecycleManager = new PageLifecycleManager(pageConfig);
+
+            // Initialize keyword chip input
+            if (typeof KeywordChipInputInitializer !== 'undefined') {
+                KeywordChipInputInitializer.autoInitialize();
+            }
+        });
+    </script>
+    {# djlint:on #}
+{% endblock javascript %}
+

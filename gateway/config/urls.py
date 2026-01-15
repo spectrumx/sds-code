@@ -11,10 +11,11 @@ from drf_spectacular.views import SpectacularSwaggerView
 from loguru import logger as log
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.permissions import AllowAny
+from sds_gateway.users.views import home_page_view
 from sds_gateway.users.views import spx_dac_dataset_alt_view
 
 urlpatterns = [
-    path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
+    path("", home_page_view, name="home"),
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
     # User management
