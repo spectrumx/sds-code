@@ -14,7 +14,6 @@ from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from loguru import logger
 
-from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 
 from .models import User
@@ -168,15 +167,6 @@ class DatasetInfoForm(forms.Form):
             "Add authors to the dataset. The first author should be the primary author."
         ),
     )
-    status = forms.ChoiceField(
-        label="Status",
-        required=True,
-        choices=Dataset.STATUS_CHOICES,
-        initial="draft",
-        widget=forms.HiddenInput(),
-        help_text="Draft: Work in progress, Final: Complete and ready for use",
-    )
-
     is_public = forms.BooleanField(
         label="Is Public",
         required=False,
