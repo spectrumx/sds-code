@@ -56,7 +56,12 @@
                                 <button type="button"
                                         class="btn btn-outline-primary inactive-tab"
                                         id="step4-tab">
-                                    <span class="step-number">4</span>
+                                    <span class="step-number">4</span> Publishing Info
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-primary inactive-tab"
+                                        id="step5-tab">
+                                    <span class="step-number">5</span>
                                     {% if existing_dataset %}
                                         Review and Update
                                     {% else %}
@@ -86,6 +91,7 @@
                                 {% include "users/partials/step_2.html" %}
                                 {% include "users/partials/step_3.html" %}
                                 {% include "users/partials/step_4.html" %}
+                                {% include "users/partials/step_5.html" %}
                             </div>
                         </div>
                     </div>
@@ -93,7 +99,7 @@
                         <div class="d-flex justify-content-end">
                             <button type="button" class="btn btn-secondary me-2" id="prevStep">Previous</button>
                             <button type="button" class="btn btn-primary me-2" id="nextStep">Next</button>
-                            <button type="submit" class="btn btn-success" id="submitForm">
+                            <button type="submit" class="btn btn-success d-none" id="submitForm">
                                 {% if existing_dataset %}
                                     Update Dataset
                                 {% else %}
@@ -311,7 +317,9 @@
                     initialFiles: {{ selected_files|safe }},
                     initialCaptureDetails: {{ selected_captures_details_json|safe }},
                     initialFileDetails: {{ selected_files_details_json|safe }},
-                    initialAuthors: {{ existing_dataset.authors|safe|default:"[]" }}
+                    initialAuthors: {{ existing_dataset.authors|safe|default:"[]" }},
+                    existingDatasetStatus: {% if existing_dataset %}'{{ existing_dataset.status }}'{% else %}null{% endif %},
+                    existingDatasetIsPublic: {% if existing_dataset %}{{ existing_dataset.is_public|yesno:"true,false" }}{% else %}false{% endif %}
                 });
 
                 // Make it globally available

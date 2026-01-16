@@ -24,6 +24,9 @@ class DatasetCreationHandler {
 		this.authorsField = document.getElementById("id_authors");
 		this.statusField = document.getElementById("id_status");
 		this.descriptionField = document.getElementById("id_description");
+		this.visibilityField = document.querySelector(
+			'input[name="is_public"]:checked',
+		);
 
 		// Hidden fields
 		this.selectedCapturesField = document.getElementById("selected_captures");
@@ -191,7 +194,7 @@ class DatasetCreationHandler {
 
 		// Initialize captures table on review step with placeholder (will be updated later)
 		const capturesTable = document.querySelector(
-			"#step4 .captures-table tbody",
+			"#step5 .captures-table tbody",
 		);
 		if (capturesTable && capturesTable.innerHTML.trim() === "") {
 			capturesTable.innerHTML =
@@ -199,7 +202,7 @@ class DatasetCreationHandler {
 		}
 
 		// Initialize files table on review step with placeholder (will be updated later)
-		const filesTable = document.querySelector("#step4 .files-table tbody");
+		const filesTable = document.querySelector("#step5 .files-table tbody");
 		if (filesTable && filesTable.innerHTML.trim() === "") {
 			filesTable.innerHTML =
 				'<tr><td colspan="5" class="text-center text-muted">No files selected</td></tr>';
@@ -464,8 +467,8 @@ class DatasetCreationHandler {
 		if (direction < 0 || this.validateCurrentStep()) {
 			const nextStep = this.currentStep + direction;
 
-			// Update review step if moving to it
-			if (nextStep === 3) {
+			// Update review step if moving to it (step 5 = index 4)
+			if (nextStep === 4) {
 				this.updateReviewStep();
 			}
 
@@ -484,7 +487,7 @@ class DatasetCreationHandler {
 	 */
 	updateReviewStep() {
 		// Update dataset name
-		const nameDisplay = document.querySelector("#step4 .dataset-name");
+		const nameDisplay = document.querySelector("#step5 .dataset-name");
 		if (nameDisplay) {
 			nameDisplay.textContent = this.nameField ? this.nameField.value : "";
 		}
@@ -496,20 +499,11 @@ class DatasetCreationHandler {
 			this.updateAuthorsDisplayFallback();
 		}
 
-		// Update status display
-		const statusDisplay = document.querySelector("#step4 .dataset-status");
-		if (statusDisplay) {
-			if (this.statusField?.options && this.statusField.selectedIndex >= 0) {
-				statusDisplay.textContent =
-					this.statusField.options[this.statusField.selectedIndex].text;
-			} else {
-				statusDisplay.textContent = "";
-			}
-		}
+		// Status and visibility are now handled in publishing info panel by DatasetModeManager
 
 		// Update description display
 		const descriptionDisplay = document.querySelector(
-			"#step4 .dataset-description",
+			"#step5 .dataset-description",
 		);
 		if (descriptionDisplay) {
 			descriptionDisplay.textContent = this.descriptionField
@@ -526,7 +520,7 @@ class DatasetCreationHandler {
 	 */
 	updateAuthorsDisplayFallback() {
 		const authorsField = document.getElementById("id_authors");
-		const authorsDisplay = document.querySelector("#step4 .dataset-authors");
+		const authorsDisplay = document.querySelector("#step5 .dataset-authors");
 
 		if (authorsField?.value && authorsDisplay) {
 			try {
@@ -617,12 +611,12 @@ class DatasetCreationHandler {
 		}
 
 		if (this.submitBtn) {
-			const isLastStep = this.currentStep === this.steps.length - 1;
-			if (isLastStep) {
-				window.DOMUtils.show(this.submitBtn);
+			// Only show submit button on final step (step 5, index 4)
+			if (this.currentStep === 4) {
+				window.DOMUtils.show(this.submitBtn, "display-inline-block");
 				this.submitBtn.disabled = !isValid;
 			} else {
-				window.DOMUtils.hide(this.submitBtn);
+				window.DOMUtils.hide(this.submitBtn, "display-inline-block");
 			}
 		}
 	}
@@ -652,7 +646,7 @@ class DatasetCreationHandler {
 		if (this.nextBtn) {
 			this.nextBtn.disabled = !isValid;
 		}
-		if (this.submitBtn && this.currentStep === this.steps.length - 1) {
+		if (this.submitBtn && this.currentStep === 4) {
 			this.submitBtn.disabled = !isValid;
 		}
 
@@ -847,7 +841,7 @@ class DatasetCreationHandler {
 	 */
 	async updateSelectedCapturesTable() {
 		const capturesTableBody = document.querySelector(
-			"#step4 .captures-table tbody",
+			"#step5 .captures-table tbody",
 		);
 
 		if (!capturesTableBody) return;
@@ -1000,7 +994,7 @@ class DatasetCreationHandler {
 	 * Update selected files table
 	 */
 	async updateSelectedFilesTable() {
-		const filesTableBody = document.querySelector("#step4 .files-table tbody");
+		const filesTableBody = document.querySelector("#step5 .files-table tbody");
 
 		if (!filesTableBody) return;
 
@@ -1060,9 +1054,9 @@ class DatasetCreationHandler {
 		const filesCount = this.selectedFiles.size;
 
 		const capturesCountElement = document.querySelector(
-			"#step4 .captures-count",
+			"#step5 .captures-count",
 		);
-		const filesCountElement = document.querySelector("#step4 .files-count");
+		const filesCountElement = document.querySelector("#step5 .files-count");
 
 		if (capturesCountElement) {
 			capturesCountElement.textContent = `${capturesCount} selected`;
