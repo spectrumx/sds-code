@@ -9,6 +9,7 @@ from typing import cast
 from django.db import transaction
 from django.db.models import QuerySet
 from django.http import FileResponse
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample
@@ -33,6 +34,7 @@ from sds_gateway.api_methods.helpers.extract_drf_metadata import (
 )
 from sds_gateway.api_methods.helpers.index_handling import UnknownIndexError
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
+from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import find_rh_metadata_file
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tree
 from sds_gateway.api_methods.helpers.rh_schema_generator import load_rh_file
@@ -57,9 +59,77 @@ from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_clien
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
+from sds_gateway.visualizations.models import PostProcessedData
+from sds_gateway.visualizations.models import ProcessingStatus
+from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
+from sds_gateway.visualizations.processing.waterfall import FFT_SIZE
+from sds_gateway.visualizations.processing.waterfall import SAMPLES_PER_SLICE
+from sds_gateway.visualizations.processing.waterfall import compute_slices_on_demand
 from sds_gateway.visualizations.serializers import PostProcessedDataSerializer
 
 MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
+MAX_SLICE_BATCH_SIZE = 100  # Maximum number of slices that can be requested at once
+UNIX_TIMESTAMP_THRESHOLD = (
+    1_000_000_000  # Year 2000 in seconds (for timestamp detection)
+)
+
+
+def _validate_slice_indices(
+    start_index_str: str | None, end_index_str: str | None
+) -> tuple[int, int] | Response:
+    """Validate and parse slice index parameters.
+
+    Args:
+        start_index_str: Start index as string from query params
+        end_index_str: End index as string from query params
+
+    Returns:
+        Tuple of (start_index, end_index) if valid, or Response with error if invalid
+    """
+    # Validate required parameters
+    if start_index_str is None or end_index_str is None:
+        return Response(
+            {"error": ("Both start_index and end_index query parameters are required")},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Validate and convert indices to integers
+    try:
+        start_index = int(start_index_str)
+        end_index = int(end_index_str)
+    except ValueError:
+        return Response(
+            {"error": "start_index and end_index must be integers"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Validate index range
+    if start_index < 0:
+        return Response(
+            {"error": "start_index must be non-negative"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if end_index <= start_index:
+        return Response(
+            {"error": "end_index must be greater than start_index"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Validate batch size to prevent excessive memory usage
+    batch_size = end_index - start_index
+    if batch_size > MAX_SLICE_BATCH_SIZE:
+        return Response(
+            {
+                "error": (
+                    f"Cannot request more than {MAX_SLICE_BATCH_SIZE} slices "
+                    f"at once. Requested: {batch_size}"
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return (start_index, end_index)
 
 
 class CapturePagination(PageNumberPagination):
@@ -234,6 +304,53 @@ class CaptureViewSet(viewsets.ViewSet):
                 f"Failed to launch visualization processing task for capture "
                 f"{capture.uuid}: {e}"
             )
+
+    def _get_processed_data_for_capture(
+        self,
+        request: Request,
+        pk: str | None,
+        processing_type: str,
+    ) -> tuple[Capture, PostProcessedData]:
+        """Get the capture and its completed processed data.
+
+        Args:
+            request: The DRF request object
+            pk: The capture primary key (UUID)
+            processing_type: Type of processing (e.g., 'waterfall', 'spectrogram')
+
+        Returns:
+            Tuple of (Capture, PostProcessedData)
+
+        Raises:
+            Http404: If capture not found, no completed processed data exists,
+                     or data file is missing
+        """
+        capture = get_object_or_404(
+            Capture,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        # Get the most recent completed post-processed data
+        processed_data = (
+            capture.visualization_post_processed_data.filter(
+                processing_type=processing_type,
+                processing_status=ProcessingStatus.Completed.value,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not processed_data:
+            msg = f"No completed {processing_type} data found for this capture"
+            raise Http404(msg)
+
+        if not processed_data.data_file:
+            msg = f"Post-processed data file not found for {processing_type}"
+            raise Http404(msg)
+
+        return capture, processed_data
 
     @extend_schema(
         request=CapturePostSerializer,
@@ -938,55 +1055,22 @@ class CaptureViewSet(viewsets.ViewSet):
         summary="Download post-processed data",
         description="Download a post-processed data file for a capture",
     )
-    def download_post_processed_data(self, request, pk=None):
+    def download_post_processed_data(
+        self, request: Request, pk: str | None = None
+    ) -> Response | FileResponse:
         """Download post-processed data file for a capture."""
+        processing_type = request.query_params.get("processing_type")
+
+        if not processing_type:
+            return Response(
+                {"error": "processing_type parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            capture = get_object_or_404(
-                Capture,
-                pk=pk,
-                owner=request.user,
-                is_deleted=False,
+            _, processed_data = self._get_processed_data_for_capture(
+                request, pk, processing_type
             )
-
-            processing_type = request.query_params.get("processing_type")
-
-            if not processing_type:
-                return Response(
-                    {"error": "processing_type parameter is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Get the most recent post-processed data for this capture and
-            # processing type
-            processed_data = (
-                capture.visualization_post_processed_data.filter(
-                    processing_type=processing_type,
-                    processing_status="completed",
-                )
-                .order_by("-created_at")
-                .first()
-            )
-
-            if not processed_data:
-                return Response(
-                    {
-                        "error": (
-                            f"No completed {processing_type} data found for this "
-                            "capture"
-                        )
-                    },
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            if not processed_data.data_file:
-                return Response(
-                    {
-                        "error": (
-                            f"Post-processed data file not found for {processing_type}"
-                        )
-                    },
-                    status=status.HTTP_404_NOT_FOUND,
-                )
 
             # Return the file as a download response
             response = FileResponse(
@@ -997,10 +1081,132 @@ class CaptureViewSet(viewsets.ViewSet):
             )
             return response  # noqa: TRY300
 
-        except Capture.DoesNotExist:
+        except Http404 as e:
             return Response(
-                {"error": "Capture not found"},
+                {"error": str(e)},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="start_index",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Starting slice index (0-based)",
+            ),
+            OpenApiParameter(
+                name="end_index",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Ending slice index (exclusive)",
+            ),
+            OpenApiParameter(
+                name="processing_type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Type of post-processing (default: 'waterfall')",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Waterfall slices data"),
+            400: OpenApiResponse(description="Bad Request"),
+            404: OpenApiResponse(
+                description="Capture or post-processed data not found"
+            ),
+        },
+        summary="Get waterfall slices by range",
+        description=(
+            "Get a range of waterfall slices for streaming. "
+            "Returns slices from start_index (inclusive) to end_index (exclusive)."
+        ),
+    )
+    @action(detail=True, methods=["get"])
+    def waterfall_slices(  # noqa: PLR0911
+        self, request: Request, pk: str | None = None
+    ) -> Response:
+        """Get waterfall slices by index range for streaming."""
+        # Get query parameters
+        processing_type = request.query_params.get("processing_type", "waterfall")
+        start_index_str = request.query_params.get("start_index")
+        end_index_str = request.query_params.get("end_index")
+
+        # Validate slice indices using shared helper
+        validation_result = _validate_slice_indices(start_index_str, end_index_str)
+        if isinstance(validation_result, Response):
+            return validation_result
+        start_index, end_index = validation_result
+
+        try:
+            _, processed_data = self._get_processed_data_for_capture(
+                request, pk, processing_type
+            )
+
+            # Read and parse the JSON file
+            try:
+                processed_data.data_file.seek(0)
+                waterfall_json = json.load(processed_data.data_file)
+            except (OSError, json.JSONDecodeError) as e:
+                log.error(f"Failed to read waterfall JSON file for capture {pk}: {e}")
+                return Response(
+                    {"error": "Failed to read waterfall data file"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            # Validate that waterfall_json is a list
+            if not isinstance(waterfall_json, list):
+                return Response(
+                    {"error": "Invalid waterfall data format"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            total_slices = len(waterfall_json)
+
+            # Validate indices against total slices
+            if start_index >= total_slices:
+                return Response(
+                    {
+                        "error": (
+                            f"start_index ({start_index}) exceeds total slices "
+                            f"({total_slices})"
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Clamp end_index to total_slices if it exceeds
+            end_index = min(end_index, total_slices)
+
+            # Extract the requested slice range
+            requested_slices = waterfall_json[start_index:end_index]
+
+            # Get metadata from processed_data
+            metadata = processed_data.metadata or {}
+
+            # Build response
+            response_data = {
+                "slices": requested_slices,
+                "total_slices": total_slices,
+                "start_index": start_index,
+                "end_index": end_index,
+                "metadata": metadata,
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Http404 as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except (ValueError, OSError, KeyError) as e:
+            log.error(f"Unexpected error in waterfall_slices endpoint: {e}")
+            return Response(
+                {"error": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -1078,6 +1284,242 @@ class CaptureViewSet(viewsets.ViewSet):
             return Response(
                 {"error": "Capture not found"},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(
+                description="Waterfall metadata for streaming visualization"
+            ),
+            400: OpenApiResponse(description="Bad Request - not a DRF capture"),
+            404: OpenApiResponse(description="Capture not found"),
+            500: OpenApiResponse(description="Internal Server Error"),
+        },
+        summary="Get waterfall metadata for streaming (no preprocessing required)",
+        description=(
+            "Get metadata for waterfall visualization without triggering "
+            "preprocessing. Returns total_slices, frequency bounds, and other "
+            "metadata immediately. Use this endpoint to initialize the streaming "
+            "waterfall visualization."
+        ),
+    )
+    @action(detail=True, methods=["get"], url_path="waterfall_metadata_stream")
+    def waterfall_metadata_stream(self, request, pk=None):
+        """Get waterfall metadata without preprocessing for streaming visualization.
+
+        This endpoint computes metadata from capture properties stored in OpenSearch,
+        avoiding the need to download files from MinIO. This makes it very fast.
+        """
+
+        try:
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
+
+            # Verify this is a DRF capture
+            if capture.capture_type != CaptureType.DigitalRF:
+                return Response(
+                    {"error": "Streaming waterfall only supports DigitalRF captures"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get metadata from OpenSearch (fast - no file downloads)
+            capture_props_dict = retrieve_indexed_metadata([capture])
+            capture_props = capture_props_dict.get(str(capture.uuid), {})
+
+            log.debug(
+                f"Streaming metadata - capture_props keys: {list(capture_props.keys())}"
+            )
+
+            if not capture_props:
+                return Response(
+                    {"error": "Capture metadata not found in index"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            samples_per_second = capture_props.get("samples_per_second", 0)
+            # Bounds can be stored as timestamps (seconds) or as sample indices
+            # If values look like UNIX timestamps (> 1000000000), they're in seconds
+            start_bound = capture_props.get("start_bound", 0)
+            end_bound = capture_props.get("end_bound", 0)
+            center_frequencies = capture_props.get("center_frequencies", [0])
+            center_freq = center_frequencies[0] if center_frequencies else 0
+
+            if not samples_per_second or not end_bound:
+                return Response(
+                    {
+                        "error": (
+                            "Capture missing required metadata "
+                            "(samples_per_second, bounds)"
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Calculate duration - bounds may be in seconds (timestamps) or samples
+            # If bounds look like UNIX timestamps (> year 2000), convert to duration
+            if start_bound > UNIX_TIMESTAMP_THRESHOLD:  # Likely a UNIX timestamp
+                duration_seconds = end_bound - start_bound
+                total_samples = int(duration_seconds * samples_per_second)
+                log.debug(
+                    f"Using timestamp mode: duration={duration_seconds}s, "
+                    f"total_samples={total_samples}"
+                )
+            else:
+                # Bounds are already in samples
+                total_samples = end_bound - start_bound
+                log.debug(f"Using sample mode: total_samples={total_samples}")
+            # Use constants from waterfall module to ensure consistency
+            samples_per_slice = SAMPLES_PER_SLICE
+            fft_size = FFT_SIZE
+            total_slices = total_samples // samples_per_slice
+
+            sample_rate = float(samples_per_second)
+            min_frequency = center_freq - sample_rate / 2
+            max_frequency = center_freq + sample_rate / 2
+
+            metadata = {
+                "center_frequency": center_freq,
+                "sample_rate": sample_rate,
+                "min_frequency": min_frequency,
+                "max_frequency": max_frequency,
+                "total_slices": total_slices,
+                "slices_processed": 0,
+                "fft_size": fft_size,
+                "samples_per_slice": samples_per_slice,
+                "channel": capture.channel,
+            }
+
+            log.info(
+                f"Streaming metadata for capture {pk}: {total_slices} total slices, "
+                f"sample_rate={sample_rate}"
+            )
+
+            return Response(
+                {
+                    "capture_uuid": str(capture.uuid),
+                    "capture_name": capture.name,
+                    "channel": capture.channel,
+                    "metadata": metadata,
+                    "streaming_enabled": True,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except (ValueError, OSError, KeyError, UnknownIndexError) as e:
+            log.error(f"Error getting waterfall metadata for capture {pk}: {e}")
+            return Response(
+                {"error": f"Failed to get waterfall metadata: {e!s}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="start_index",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Starting slice index (inclusive)",
+            ),
+            OpenApiParameter(
+                name="end_index",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Ending slice index (exclusive)",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Waterfall slices computed on-demand",
+                examples=[
+                    OpenApiExample(
+                        name="Success",
+                        value={
+                            "slices": [{"data": "base64...", "timestamp": "..."}],
+                            "total_slices": 12000000,
+                            "start_index": 0,
+                            "end_index": 100,
+                            "metadata": {},
+                        },
+                    )
+                ],
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            404: OpenApiResponse(description="Capture not found"),
+            500: OpenApiResponse(description="Internal Server Error"),
+        },
+        summary="Get waterfall slices computed on-demand (streaming)",
+        description=(
+            "Compute and return waterfall slices on-demand without preprocessing. "
+            "This endpoint computes FFTs in real-time for the requested slice range. "
+            "Maximum batch size is 100 slices per request."
+        ),
+    )
+    @action(detail=True, methods=["get"], url_path="waterfall_slices_stream")
+    def waterfall_slices_stream(self, request, pk=None):
+        """Compute and return waterfall slices on-demand for streaming visualization."""
+        try:
+            capture = get_object_or_404(
+                Capture,
+                pk=pk,
+                owner=request.user,
+                is_deleted=False,
+            )
+
+            # Verify this is a DRF capture
+            if capture.capture_type != CaptureType.DigitalRF:
+                return Response(
+                    {"error": "Streaming waterfall only supports DigitalRF captures"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validate slice indices using shared helper
+            start_index_str = request.query_params.get("start_index")
+            end_index_str = request.query_params.get("end_index")
+            validation_result = _validate_slice_indices(start_index_str, end_index_str)
+            if isinstance(validation_result, Response):
+                return validation_result
+            start_index, end_index = validation_result
+
+            # Get capture files
+            capture_files = capture.files.filter(is_deleted=False)
+            if not capture_files.exists():
+                return Response(
+                    {"error": "No files found for this capture"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Reconstruct DRF files and compute slices on-demand
+            # Note: reconstruct_drf_files uses persistent cache, but temp_path parameter
+            # is required for API compatibility. We pass a dummy path since it's unused.
+            dummy_temp_path = Path(tempfile.gettempdir()) / "unused"
+            drf_path = reconstruct_drf_files(capture, capture_files, dummy_temp_path)
+            result = compute_slices_on_demand(
+                drf_path, capture.channel, start_index, end_index
+            )
+
+            return Response(result, status=status.HTTP_200_OK)
+
+        except Capture.DoesNotExist:
+            return Response(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except (ValueError, OSError, KeyError) as e:
+            log.error(f"Error computing waterfall slices for capture {pk}: {e}")
+            return Response(
+                {"error": f"Failed to compute waterfall slices: {e!s}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
