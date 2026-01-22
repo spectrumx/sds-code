@@ -17,14 +17,13 @@ from .views import user_api_key_view
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
-from .views import home_page_view
-from .views import user_search_datasets_view
 from .views import user_detail_view
 from .views import user_download_item_view
 from .views import user_file_detail_view
 from .views import user_group_captures_view
 from .views import user_publish_dataset_view
 from .views import user_redirect_view
+from .views import user_search_datasets_view
 from .views import user_share_group_list_view
 from .views import user_share_item_view
 from .views import user_temporary_zip_download_view

@@ -25,26 +25,24 @@
                         <i class="bi bi-plus-lg"></i> Add Dataset
                     </a>
                 </div>
-                
-                        {% include "users/partials/my_datasets_tab.html" %}
+                {% include "users/partials/my_datasets_tab.html" %}
             </div>
         </div>
     </div>
-</div>
-<!-- Modals to reveal on click -->
-{% include "users/partials/web_download_modal.html" %}
-{% include "users/partials/dataset_details_modal.html" %}
-{% if page_obj %}
-    {% for dataset in page_obj %}
-        {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
-        {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
-        {% if dataset.is_owner or dataset.permission_level == 'co-owner' %}
-            {% if not dataset.dataset.status == 'final' or not dataset.is_public %}
-                {% include "users/partials/publish_dataset_modal.html" with dataset=dataset %}
+    <!-- Modals to reveal on click -->
+    {% include "users/partials/web_download_modal.html" %}
+    {% include "users/partials/dataset_details_modal.html" %}
+    {% if page_obj %}
+        {% for dataset in page_obj %}
+            {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
+            {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
+            {% if dataset.is_owner or dataset.permission_level == 'co-owner' %}
+                {% if not dataset.dataset.status == 'final' or not dataset.is_public %}
+                    {% include "users/partials/publish_dataset_modal.html" with dataset=dataset %}
+                {% endif %}
             {% endif %}
-        {% endif %}
-    {% endfor %}
-{% endif %}
+        {% endfor %}
+    {% endif %}
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}
