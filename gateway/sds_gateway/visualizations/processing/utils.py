@@ -153,17 +153,74 @@ def validate_digitalrf_data(
     )
 
 
+def _get_drf_cache_dir() -> Path:
+    """Get the directory for caching reconstructed DRF files."""
+    cache_dir = Path(settings.MEDIA_ROOT) / "drf_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
+def _find_drf_root(directory: Path) -> Path | None:
+    """Find DigitalRF root directory by locating drf_properties.h5.
+
+    Args:
+        directory: Directory to search in
+
+    Returns:
+        Path to DRF root directory (parent of channel directory) if found,
+        None otherwise.
+    """
+    if not directory.exists():
+        return None
+
+    # Check if drf_properties.h5 exists (indicates valid DRF structure)
+    for root, _dirs, files in os.walk(directory):
+        if "drf_properties.h5" in files:
+            # The DigitalRF root is the parent of the channel directory
+            return Path(root).parent
+
+    return None
+
+
+def get_cached_drf_path(capture_uuid: str) -> Path | None:
+    """Check if reconstructed DRF files are already cached.
+
+    Returns:
+        Path to cached DRF root directory if it exists and is valid, None otherwise.
+    """
+    cache_dir = _get_drf_cache_dir()
+    capture_cache = cache_dir / str(capture_uuid)
+
+    drf_root = _find_drf_root(capture_cache)
+    if drf_root:
+        logger.info(f"Using cached DRF files at: {drf_root}")
+    return drf_root
+
+
 def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
     """Reconstruct DigitalRF directory structure from SDS files.
+
+    This function now supports persistent caching - if files are already cached,
+    returns the cached path immediately. The temp_path parameter is kept for
+    backward compatibility but is no longer used (files are cached persistently).
+
+    Args:
+        capture: Capture model instance
+        capture_files: QuerySet of File objects for this capture
+        temp_path: Temporary directory path (unused, kept for API compatibility)
 
     Returns:
         Path: Path to the DigitalRF root directory
 
     Raises:
-        DigitalRFReconstructionError: If reconstruction fails due to data issues
-        DigitalRFInternalError: If there's an internal logic error
+        SourceDataError: If reconstruction fails due to data issues
     """
-    logger.info("Reconstructing DigitalRF directory structure")
+    # Check cache first
+    cached_path = get_cached_drf_path(capture.uuid)
+    if cached_path:
+        return cached_path
+
+    logger.info("Reconstructing DigitalRF directory structure (not cached)")
 
     # First, check if we have the required drf_properties.h5 file
     has_properties_file = any(
@@ -179,41 +236,43 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
 
     minio_client = get_minio_client()
 
-    # Create the capture directory structure
-    capture_dir = temp_path / str(capture.uuid)
+    # Use persistent cache directory instead of temp directory
+    cache_dir = _get_drf_cache_dir()
+    capture_dir = cache_dir / str(capture.uuid)
     capture_dir.mkdir(parents=True, exist_ok=True)
 
     # Download and place files in the correct structure
-    for file_obj in capture_files:
-        # Create the directory structure
-        file_path = Path(
-            f"{capture_dir}/{file_obj.directory}/{file_obj.name}"
-        ).resolve()
-        assert file_path.is_relative_to(temp_path), (
-            f"'{file_path=}' must be a subdirectory of '{temp_path=}'"
+    # Use count() to avoid materializing entire queryset
+    total_files = capture_files.count()
+    for idx, file_obj in enumerate(capture_files):
+        # Create the directory structure using Path operations for safety
+        file_path = (capture_dir / file_obj.directory / file_obj.name).resolve()
+        assert file_path.is_relative_to(cache_dir), (
+            f"'{file_path=}' must be a subdirectory of '{cache_dir=}'"
         )
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Skip if file already exists (partial cache recovery)
+        if file_path.exists():
+            continue
+
         # Download the file from MinIO
+        logger.debug(f"Downloading file {idx + 1}/{total_files}: {file_obj.name}")
         minio_client.fget_object(
             bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
             object_name=file_obj.file.name,
             file_path=str(file_path),
         )
 
-    # Find the DigitalRF root directory
-    drf_root = None
-    for root, _dirs, files in os.walk(capture_dir):
-        if "drf_properties.h5" in files:
-            # The DigitalRF root is the parent of the channel directory
-            drf_root = Path(root).parent
-            logger.info(f"Found DigitalRF root at: {drf_root}")
-            break
+    # Find the DigitalRF root directory using shared helper
+    drf_root = _find_drf_root(capture_dir)
+    if drf_root is None:
+        # This should never happen since we checked for the file above
+        error_msg = "DigitalRF root directory not found after reconstruction"
+        logger.error(error_msg)
+        raise SourceDataError(error_msg)
 
-    # This should never happen since we checked for the file above
-    assert drf_root is not None, (
-        "DigitalRF root directory not found after reconstruction"
-    )
+    logger.info(f"Found DigitalRF root at: {drf_root}")
     return drf_root
 
 

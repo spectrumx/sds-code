@@ -105,9 +105,12 @@ class WaterfallRenderer {
 
 	/**
 	 * Render the waterfall plot
+	 * @param {Array} waterfallData - Array of slice data (may be sparse in streaming mode)
+	 * @param {number} totalSlices - Total number of slices
+	 * @param {number} startIndex - Starting index of the data array (for streaming mode)
 	 */
-	renderWaterfall(waterfallData, totalSlices) {
-		if (!this.ctx || !this.canvas || waterfallData.length === 0) return;
+	renderWaterfall(waterfallData, totalSlices, startIndex = 0) {
+		if (!this.ctx || !this.canvas) return;
 
 		// Store total slices for overlay updates
 		this.totalSlices = totalSlices;
@@ -122,19 +125,31 @@ class WaterfallRenderer {
 		const sliceHeight = plotHeight / maxVisibleSlices;
 
 		// Calculate which slices to display
-		const startSliceIndex = this.waterfallWindowStart;
+		const windowStart = this.waterfallWindowStart;
 
 		// Draw waterfall slices from bottom to top
 		for (let i = 0; i < this.WATERFALL_WINDOW_SIZE; i++) {
-			const sliceIndex = startSliceIndex + i;
+			const sliceIndex = windowStart + i;
 			if (sliceIndex >= totalSlices) break;
 
-			const slice = waterfallData[sliceIndex];
-			if (slice?.data) {
-				// Calculate Y position
-				const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
+			// In streaming mode, data array may start at startIndex
+			// waterfallData is an array that may contain nulls for missing slices
+			const slice = i < waterfallData.length ? waterfallData[i] : null;
 
+			// Calculate Y position
+			const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
+
+			if (slice?.data) {
+				// Draw the slice
 				this.drawWaterfallSlice(slice.data, y, sliceHeight, this.canvas.width);
+			} else {
+				// Draw loading placeholder for missing slice
+				this.drawLoadingPlaceholder(
+					sliceIndex,
+					y,
+					sliceHeight,
+					this.canvas.width,
+				);
 			}
 		}
 
@@ -174,6 +189,33 @@ class WaterfallRenderer {
 				height,
 			);
 		}
+	}
+
+	/**
+	 * Draw a loading placeholder for a missing slice
+	 * @param {number} sliceIndex - The slice index
+	 * @param {number} y - Y position
+	 * @param {number} height - Slice height
+	 * @param {number} width - Canvas width
+	 */
+	drawLoadingPlaceholder(sliceIndex, y, height, width) {
+		if (!this.ctx) return;
+
+		const plotWidth = width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
+
+		// Draw a subtle loading pattern (diagonal stripes)
+		this.ctx.fillStyle = "rgba(200, 200, 200, 0.3)";
+		this.ctx.fillRect(this.PLOTS_LEFT_MARGIN, y, plotWidth, height);
+
+		// Draw loading text
+		this.ctx.fillStyle = "rgba(100, 100, 100, 0.6)";
+		this.ctx.font = "12px Arial";
+		this.ctx.textAlign = "center";
+		this.ctx.fillText(
+			"Loading...",
+			this.PLOTS_LEFT_MARGIN + plotWidth / 2,
+			y + height / 2,
+		);
 	}
 
 	/**

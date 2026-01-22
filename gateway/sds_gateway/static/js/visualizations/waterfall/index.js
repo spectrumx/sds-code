@@ -7,6 +7,8 @@
 import "./constants.js";
 
 // Import all waterfall components in dependency order
+import "./WaterfallSliceCache.js";
+import "./WaterfallSliceLoader.js";
 import "./WaterfallRenderer.js";
 import "./PeriodogramChart.js";
 import "./WaterfallControls.js";

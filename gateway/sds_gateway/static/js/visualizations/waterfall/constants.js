@@ -25,6 +25,16 @@ export const WATERFALL_BOTTOM_MARGIN = 5;
 // Window size constants
 export const WATERFALL_WINDOW_SIZE = 100;
 
+// Cache and loading constants
+export const CACHE_SIZE = 800; // Maximum cached slices for seamless navigation
+export const BATCH_SIZE = 100; // Slices to request per API call (must match backend MAX_SLICE_BATCH_SIZE)
+
+// Prefetch strategy constants
+// PREFETCH_TRIGGER: Only start prefetching when within this distance of unfetched data
+// PREFETCH_DISTANCE: Once triggered, load this many slices ahead/behind
+export const PREFETCH_TRIGGER = 2 * WATERFALL_WINDOW_SIZE; // 200 slices
+export const PREFETCH_DISTANCE = 6 * WATERFALL_WINDOW_SIZE; // 600 slices - loads 700 total on init
+
 // API endpoints
 export const get_create_waterfall_endpoint = (capture_uuid) => {
 	return `/api/v1/visualizations/${capture_uuid}/create_waterfall/`;
@@ -36,6 +46,28 @@ export const get_waterfall_status_endpoint = (capture_uuid, job_id) => {
 
 export const get_waterfall_result_endpoint = (capture_uuid, job_id) => {
 	return `/api/v1/visualizations/${capture_uuid}/download_waterfall/?job_id=${job_id}`;
+};
+
+export const get_waterfall_slices_endpoint = (
+	capture_uuid,
+	start_index,
+	end_index,
+	processing_type = "waterfall",
+) => {
+	return `/api/latest/assets/captures/${capture_uuid}/waterfall_slices/?start_index=${start_index}&end_index=${end_index}&processing_type=${processing_type}`;
+};
+
+// Streaming endpoints - compute FFT on-demand without preprocessing
+export const get_waterfall_metadata_stream_endpoint = (capture_uuid) => {
+	return `/api/latest/assets/captures/${capture_uuid}/waterfall_metadata_stream/`;
+};
+
+export const get_waterfall_slices_stream_endpoint = (
+	capture_uuid,
+	start_index,
+	end_index,
+) => {
+	return `/api/latest/assets/captures/${capture_uuid}/waterfall_slices_stream/?start_index=${start_index}&end_index=${end_index}`;
 };
 
 export const ERROR_MESSAGES = {
