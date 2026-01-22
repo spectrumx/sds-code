@@ -50,7 +50,9 @@ class DatasetSearchHandler {
 			return;
 		}
 
-		const searchInputs = this.searchForm.querySelectorAll("input[type='text'], input[type='number']");
+		const searchInputs = this.searchForm.querySelectorAll(
+			"input[type='text'], input[type='number']",
+		);
 		for (const input of searchInputs) {
 			input.addEventListener("keypress", (e) => {
 				if (e.key === "Enter") {
@@ -114,4 +116,3 @@ class DatasetSearchHandler {
 if (typeof window !== "undefined") {
 	window.DatasetSearchHandler = DatasetSearchHandler;
 }
-

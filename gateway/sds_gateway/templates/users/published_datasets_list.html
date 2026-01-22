@@ -20,20 +20,19 @@
         <div class="main-content-area">
             <div class="container mt-4">
                 <h1 class="page-title mb-4">Search Published Datasets</h1>
-                
                 <!-- Search Form -->
                 {% include "users/partials/search_published_datasets_tab.html" %}
             </div>
         </div>
     </div>
-<!-- Modals to reveal on click -->
-{% include "users/partials/web_download_modal.html" %}
-{% include "users/partials/dataset_details_modal.html" %}
-{% if page_obj %}
-    {% for dataset in page_obj %}
-        {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
-    {% endfor %}
-{% endif %}
+    <!-- Modals to reveal on click -->
+    {% include "users/partials/web_download_modal.html" %}
+    {% include "users/partials/dataset_details_modal.html" %}
+    {% if page_obj %}
+        {% for dataset in page_obj %}
+            {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
+        {% endfor %}
+    {% endif %}
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}
@@ -72,7 +71,6 @@
                 KeywordChipInputInitializer.autoInitialize();
             }
         });
-    </script>
+</script>
     {# djlint:on #}
 {% endblock javascript %}
-

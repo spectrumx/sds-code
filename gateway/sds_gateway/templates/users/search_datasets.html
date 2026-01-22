@@ -23,25 +23,22 @@
                     <h1 class="page-title">Search Published Datasets</h1>
                 </div>
                 <hr />
-
                 <!-- Search Form -->
                 <div class="card mb-4">
                     <div class="card-body">
-                        <form id="dataset-search-form" method="get" action="{% url 'users:search_datasets' %}">
+                        <form id="dataset-search-form"
+                              method="get"
+                              action="{% url 'users:search_datasets' %}">
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label for="{{ form.query.id_for_label }}" class="form-label">{{ form.query.label }}</label>
                                     {{ form.query }}
-                                    {% if form.query.help_text %}
-                                        <small class="form-text text-muted">{{ form.query.help_text }}</small>
-                                    {% endif %}
+                                    {% if form.query.help_text %}<small class="form-text text-muted">{{ form.query.help_text }}</small>{% endif %}
                                 </div>
                                 <div class="col-md-6">
                                     <label for="{{ form.keywords.id_for_label }}" class="form-label">{{ form.keywords.label }}</label>
                                     {{ form.keywords }}
-                                    {% if form.keywords.help_text %}
-                                        <small class="form-text text-muted">{{ form.keywords.help_text }}</small>
-                                    {% endif %}
+                                    {% if form.keywords.help_text %}<small class="form-text text-muted">{{ form.keywords.help_text }}</small>{% endif %}
                                 </div>
                                 <div class="col-md-6">
                                     <label for="{{ form.min_frequency.id_for_label }}" class="form-label">{{ form.min_frequency.label }}</label>
@@ -61,7 +58,9 @@
                                     <button type="submit" class="btn btn-primary" id="search-button">
                                         <i class="bi bi-search me-2"></i>Search
                                     </button>
-                                    <a href="{% url 'users:search_datasets' %}" class="btn btn-secondary ms-2" id="clear-button">
+                                    <a href="{% url 'users:search_datasets' %}"
+                                       class="btn btn-secondary ms-2"
+                                       id="clear-button">
                                         <i class="bi bi-x-circle me-2"></i>Clear
                                     </a>
                                 </div>
@@ -69,7 +68,6 @@
                         </form>
                     </div>
                 </div>
-
                 <!-- Results count display -->
                 {% if page_obj.object_list %}
                     <div class="d-flex justify-content-end mb-3">
@@ -78,7 +76,6 @@
                         </span>
                     </div>
                 {% endif %}
-
                 <!-- Results Table -->
                 <div id="search-results-container" class="table-and-pagination">
                     <div class="table-container">
@@ -166,98 +163,94 @@
                                                             <span class="bg-transparent pe-2">{{ dataset.dataset.created_at|date:"Y-m-d" }}</span>
                                                             <span class="text-muted bg-transparent">{{ dataset.dataset.created_at|date:"H:i:s T" }}</span>
                                                         </div>
-                                                        {% endlocaltime %}
-                                                    {% else %}
-                                                        -
-                                                    {% endif %}
-                                                </td>
-                                                <td>
-                                                    <button class="btn btn-sm btn-outline-primary dataset-name-link"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#datasetDetailsModal"
-                                                            data-dataset-uuid="{{ dataset.uuid }}"
-                                                            aria-label="View details for {{ dataset.name }}">
-                                                        <i class="bi bi-eye"></i> View
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            {% endif %}
-                        </div>
+                                                    {% endlocaltime %}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-primary dataset-name-link"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#datasetDetailsModal"
+                                                        data-dataset-uuid="{{ dataset.uuid }}"
+                                                        aria-label="View details for {{ dataset.name }}">
+                                                    <i class="bi bi-eye"></i> View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% endif %}
                     </div>
-
-                    <!-- Pagination -->
-                    {% if page_obj and page_obj.has_other_pages %}
-                        <nav aria-label="Search results pagination" class="mt-4">
-                            <ul class="pagination justify-content-center">
-                                {% if page_obj.has_previous %}
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page=1{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">First</a>
-                                    </li>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Previous</a>
-                                    </li>
-                                {% else %}
-                                    <li class="page-item disabled">
-                                        <span class="page-link">First</span>
-                                    </li>
-                                    <li class="page-item disabled">
-                                        <span class="page-link">Previous</span>
-                                    </li>
-                                {% endif %}
-
-                                <li class="page-item active">
-                                    <span class="page-link">
-                                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-                                    </span>
-                                </li>
-
-                                {% if page_obj.has_next %}
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Next</a>
-                                    </li>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Last</a>
-                                    </li>
-                                {% else %}
-                                    <li class="page-item disabled">
-                                        <span class="page-link">Next</span>
-                                    </li>
-                                    <li class="page-item disabled">
-                                        <span class="page-link">Last</span>
-                                    </li>
-                                {% endif %}
-                            </ul>
-                        </nav>
-                    {% endif %}
                 </div>
+                <!-- Pagination -->
+                {% if page_obj and page_obj.has_other_pages %}
+                    <nav aria-label="Search results pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?page=1{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?page={{ page_obj.previous_page_number }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Previous</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">First</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">Previous</span>
+                                </li>
+                            {% endif %}
+                            <li class="page-item active">
+                                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?page={{ page_obj.next_page_number }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?page={{ page_obj.paginator.num_pages }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Last</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">Next</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">Last</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
             </div>
         </div>
     </div>
-
-    <!-- Dataset Details Modal (reuse from dataset_list) -->
-    {% include "users/partials/dataset_details_modal.html" %}
-
-    {% block javascript %}
-        {{ block.super }}
-        <script src="{% static 'js/search/DatasetSearchHandler.js' %}"></script>
-        <script>
-            // Initialize search handler when DOM is ready
-            document.addEventListener('DOMContentLoaded', function() {
-                if (typeof DatasetSearchHandler !== 'undefined') {
-                    window.datasetSearchHandler = new DatasetSearchHandler({
-                        searchFormId: 'dataset-search-form',
-                        searchButtonId: 'search-button',
-                        clearButtonId: 'clear-button',
-                        resultsContainerId: 'search-results-container',
-                        resultsTbodyId: 'search-results-tbody',
-                        resultsCountId: 'results-count'
-                    });
-                }
-            });
-        </script>
-    {% endblock javascript %}
+</div>
+<!-- Dataset Details Modal (reuse from dataset_list) -->
+{% include "users/partials/dataset_details_modal.html" %}
+{% block javascript %}
+    {{ block.super }}
+    <script src="{% static 'js/search/DatasetSearchHandler.js' %}"></script>
+    <script>
+        // Initialize search handler when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof DatasetSearchHandler !== 'undefined') {
+                window.datasetSearchHandler = new DatasetSearchHandler({
+                    searchFormId: 'dataset-search-form',
+                    searchButtonId: 'search-button',
+                    clearButtonId: 'clear-button',
+                    resultsContainerId: 'search-results-container',
+                    resultsTbodyId: 'search-results-tbody',
+                    resultsCountId: 'results-count'
+                });
+            }
+        });
+    </script>
+{% endblock javascript %}
 {% endblock content %}
-

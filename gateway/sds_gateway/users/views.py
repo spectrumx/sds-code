@@ -2642,8 +2642,6 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
 
-        from sds_gateway.users.forms import PublishedDatasetSearchForm
-
         return render(
             request,
             template_name=self.template_name,
@@ -2653,7 +2651,6 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 "sort_order": sort_order,
             },
         )
-
 
     def _get_sort_parameters(self, request: HttpRequest) -> tuple[str, str]:
         """Get sort parameters from request."""
@@ -2768,11 +2765,67 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
         # Apply frequency range filter
         if min_freq is not None or max_freq is not None:
-            datasets = self._filter_by_frequency_range(
-                datasets, min_freq, max_freq
-            )
+            datasets = self._filter_by_frequency_range(datasets, min_freq, max_freq)
 
         return datasets
+
+    def _check_center_frequency_match(
+        self,
+        center_freq_hz: float,
+        min_freq_hz: float | None,
+        max_freq_hz: float | None,
+    ) -> bool:
+        """Check if center frequency is within the search range."""
+        return not (
+            (min_freq_hz is not None and center_freq_hz < min_freq_hz)
+            or (max_freq_hz is not None and center_freq_hz > max_freq_hz)
+        )
+
+    def _check_frequency_range_overlap(
+        self,
+        capture_min_hz: float,
+        capture_max_hz: float,
+        min_freq_hz: float | None,
+        max_freq_hz: float | None,
+    ) -> bool:
+        """Check if capture frequency range overlaps with search range."""
+        # Overlap occurs if: capture_min <= search_max AND capture_max >= search_min
+        return not (
+            (min_freq_hz is not None and capture_max_hz < min_freq_hz)
+            or (max_freq_hz is not None and capture_min_hz > max_freq_hz)
+        )
+
+    def _process_capture_for_frequency_match(
+        self,
+        capture: Capture,
+        freq_info: dict[str, Any],
+        min_freq_hz: float | None,
+        max_freq_hz: float | None,
+    ) -> bool:
+        """Check if a capture matches the frequency range."""
+        center_freq_hz = freq_info.get("center_frequency")
+        freq_min_hz = freq_info.get("frequency_min")
+        freq_max_hz = freq_info.get("frequency_max")
+
+        if center_freq_hz is None and freq_min_hz is None and freq_max_hz is None:
+            return False
+
+        # Check if we have explicit min/max range
+        if freq_min_hz is not None and freq_max_hz is not None:
+            capture_min_hz = float(freq_min_hz)
+            capture_max_hz = float(freq_max_hz)
+            return self._check_frequency_range_overlap(
+                capture_min_hz, capture_max_hz, min_freq_hz, max_freq_hz
+            )
+
+        # If we only have center frequency, check if it's in range
+        if center_freq_hz is not None:
+            center_freq = float(center_freq_hz)
+            return self._check_center_frequency_match(
+                center_freq, min_freq_hz, max_freq_hz
+            )
+
+        return False
 
     def _filter_by_frequency_range(
         self,
@@ -2796,7 +2849,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         # Bulk load frequency metadata
         try:
             frequency_data = Capture.bulk_load_frequency_metadata(captures)
-        except Exception as e:
+        except (DatabaseError, AttributeError) as e:
             log.warning(f"Error loading frequency metadata: {e}", exc_info=True)
             return datasets
 
@@ -2809,45 +2862,13 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         for capture in captures:
             capture_uuid = str(capture.uuid)
             freq_info = frequency_data.get(capture_uuid, {})
-            center_freq_hz = freq_info.get("center_frequency")
-            freq_min_hz = freq_info.get("frequency_min")
-            freq_max_hz = freq_info.get("frequency_max")
-
-            if center_freq_hz is None and freq_min_hz is None and freq_max_hz is None:
-                continue
-
-            # Determine the capture's frequency range
-            # Use explicit min/max if available, otherwise use center frequency
-            capture_min_hz = None
-            capture_max_hz = None
-
-            if freq_min_hz is not None and freq_max_hz is not None:
-                capture_min_hz = float(freq_min_hz)
-                capture_max_hz = float(freq_max_hz)
-            elif center_freq_hz is not None:
-                # If we only have center frequency, we can't determine the range
-                # So we check if center frequency is within the search range
-                center_freq = float(center_freq_hz)
-                if min_freq_hz is not None and center_freq < min_freq_hz:
-                    continue
-                if max_freq_hz is not None and center_freq > max_freq_hz:
-                    continue
-                # Center frequency is in range
-                if capture.dataset_id:
-                    matching_dataset_uuids.add(capture.dataset_id)
-                continue
-
-            # Check if capture frequency range overlaps with search range
-            # Overlap occurs if: capture_min <= search_max AND capture_max >= search_min
-            if capture_min_hz is not None and capture_max_hz is not None:
-                overlaps = True
-                if min_freq_hz is not None and capture_max_hz < min_freq_hz:
-                    overlaps = False
-                if max_freq_hz is not None and capture_min_hz > max_freq_hz:
-                    overlaps = False
-
-                if overlaps and capture.dataset_id:
-                    matching_dataset_uuids.add(capture.dataset_id)
+            if (
+                self._process_capture_for_frequency_match(
+                    capture, freq_info, min_freq_hz, max_freq_hz
+                )
+                and capture.dataset_id
+            ):
+                matching_dataset_uuids.add(capture.dataset_id)
 
         if not matching_dataset_uuids:
             return datasets.none()
@@ -2868,7 +2889,9 @@ class SearchPublishedDatasetsView(View):
         # Apply search filters
         if form.is_valid():
             datasets = self._apply_search_filters(
-                datasets, form.cleaned_data, request.user if request.user.is_authenticated else None
+                datasets,
+                form.cleaned_data,
+                request.user if request.user.is_authenticated else None,
             )
 
         # Serialize datasets
@@ -2940,11 +2963,67 @@ class SearchPublishedDatasetsView(View):
 
         # Apply frequency range filter
         if min_freq is not None or max_freq is not None:
-            datasets = self._filter_by_frequency_range(
-                datasets, min_freq, max_freq
-            )
+            datasets = self._filter_by_frequency_range(datasets, min_freq, max_freq)
 
         return datasets
+
+    def _check_center_frequency_match(
+        self,
+        center_freq_hz: float,
+        min_freq_hz: float | None,
+        max_freq_hz: float | None,
+    ) -> bool:
+        """Check if center frequency is within the search range."""
+        return not (
+            (min_freq_hz is not None and center_freq_hz < min_freq_hz)
+            or (max_freq_hz is not None and center_freq_hz > max_freq_hz)
+        )
+
+    def _check_frequency_range_overlap(
+        self,
+        capture_min_hz: float,
+        capture_max_hz: float,
+        min_freq_hz: float | None,
+        max_freq_hz: float | None,
+    ) -> bool:
+        """Check if capture frequency range overlaps with search range."""
+        # Overlap occurs if: capture_min <= search_max AND capture_max >= search_min
+        return not (
+            (min_freq_hz is not None and capture_max_hz < min_freq_hz)
+            or (max_freq_hz is not None and capture_min_hz > max_freq_hz)
+        )
+
+    def _process_capture_for_frequency_match(
+        self,
+        capture: Capture,
+        freq_info: dict[str, Any],
+        min_freq_hz: float | None,
+        max_freq_hz: float | None,
+    ) -> bool:
+        """Check if a capture matches the frequency range."""
+        center_freq_hz = freq_info.get("center_frequency")
+        freq_min_hz = freq_info.get("frequency_min")
+        freq_max_hz = freq_info.get("frequency_max")
+
+        if center_freq_hz is None and freq_min_hz is None and freq_max_hz is None:
+            return False
+
+        # Check if we have explicit min/max range
+        if freq_min_hz is not None and freq_max_hz is not None:
+            capture_min_hz = float(freq_min_hz)
+            capture_max_hz = float(freq_max_hz)
+            return self._check_frequency_range_overlap(
+                capture_min_hz, capture_max_hz, min_freq_hz, max_freq_hz
+            )
+
+        # If we only have center frequency, check if it's in range
+        if center_freq_hz is not None:
+            center_freq = float(center_freq_hz)
+            return self._check_center_frequency_match(
+                center_freq, min_freq_hz, max_freq_hz
+            )
+
+        return False
 
     def _filter_by_frequency_range(
         self,
@@ -2968,7 +3047,7 @@ class SearchPublishedDatasetsView(View):
         # Bulk load frequency metadata
         try:
             frequency_data = Capture.bulk_load_frequency_metadata(captures)
-        except Exception as e:
+        except (DatabaseError, AttributeError) as e:
             log.warning(f"Error loading frequency metadata: {e}", exc_info=True)
             return datasets
 
@@ -2981,45 +3060,13 @@ class SearchPublishedDatasetsView(View):
         for capture in captures:
             capture_uuid = str(capture.uuid)
             freq_info = frequency_data.get(capture_uuid, {})
-            center_freq_hz = freq_info.get("center_frequency")
-            freq_min_hz = freq_info.get("frequency_min")
-            freq_max_hz = freq_info.get("frequency_max")
-
-            if center_freq_hz is None and freq_min_hz is None and freq_max_hz is None:
-                continue
-
-            # Determine the capture's frequency range
-            # Use explicit min/max if available, otherwise use center frequency
-            capture_min_hz = None
-            capture_max_hz = None
-
-            if freq_min_hz is not None and freq_max_hz is not None:
-                capture_min_hz = float(freq_min_hz)
-                capture_max_hz = float(freq_max_hz)
-            elif center_freq_hz is not None:
-                # If we only have center frequency, we can't determine the range
-                # So we check if center frequency is within the search range
-                center_freq = float(center_freq_hz)
-                if min_freq_hz is not None and center_freq < min_freq_hz:
-                    continue
-                if max_freq_hz is not None and center_freq > max_freq_hz:
-                    continue
-                # Center frequency is in range
-                if capture.dataset_id:
-                    matching_dataset_uuids.add(capture.dataset_id)
-                continue
-
-            # Check if capture frequency range overlaps with search range
-            # Overlap occurs if: capture_min <= search_max AND capture_max >= search_min
-            if capture_min_hz is not None and capture_max_hz is not None:
-                overlaps = True
-                if min_freq_hz is not None and capture_max_hz < min_freq_hz:
-                    overlaps = False
-                if max_freq_hz is not None and capture_min_hz > max_freq_hz:
-                    overlaps = False
-
-                if overlaps and capture.dataset_id:
-                    matching_dataset_uuids.add(capture.dataset_id)
+            if (
+                self._process_capture_for_frequency_match(
+                    capture, freq_info, min_freq_hz, max_freq_hz
+                )
+                and capture.dataset_id
+            ):
+                matching_dataset_uuids.add(capture.dataset_id)
 
         if not matching_dataset_uuids:
             return datasets.none()
@@ -3158,7 +3205,17 @@ class HomePageView(TemplateView):
         # Serialize datasets
         serialized_datasets = []
         for dataset in latest_datasets:
-            context_req = {"request": type("Request", (), {"user": self.request.user if self.request.user.is_authenticated else None})()}
+            context_req = {
+                "request": type(
+                    "Request",
+                    (),
+                    {
+                        "user": self.request.user
+                        if self.request.user.is_authenticated
+                        else None
+                    },
+                )()
+            }
             dataset_data = cast(
                 "ReturnDict", DatasetGetSerializer(dataset, context=context_req).data
             )
