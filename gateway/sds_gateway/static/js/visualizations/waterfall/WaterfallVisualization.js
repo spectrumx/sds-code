@@ -4,10 +4,16 @@
  */
 
 import { generateErrorMessage, setupErrorDisplay } from "../errorHandler.js";
+import WaterfallSliceCache from "./WaterfallSliceCache.js";
+import WaterfallSliceLoader from "./WaterfallSliceLoader.js";
 import {
 	DEFAULT_COLOR_MAP,
 	ERROR_MESSAGES,
+	PREFETCH_DISTANCE,
+	PREFETCH_TRIGGER,
+	WATERFALL_WINDOW_SIZE,
 	get_create_waterfall_endpoint,
+	get_waterfall_metadata_stream_endpoint,
 	get_waterfall_result_endpoint,
 	get_waterfall_status_endpoint,
 } from "./constants.js";
@@ -21,18 +27,28 @@ class WaterfallVisualization {
 		this.periodogramChart = null;
 		this.controls = null;
 
+		// Cache and loader for streaming
+		this.sliceCache = null;
+		this.sliceLoader = null;
+
 		// Data state
 		this.waterfallData = [];
-		this.parsedWaterfallData = []; // Cache parsed data to avoid re-parsing
+		this.parsedWaterfallData = []; // Cache parsed data to avoid re-parsing (legacy, will be phased out)
 		this.totalSlices = 0;
 		this.scaleMin = null;
 		this.scaleMax = null;
 		this.isLoading = false;
+		this.isStreamingMode = false; // Flag to indicate streaming mode
+		this._isLoadingWindow = false; // Flag to prevent redundant loads during render
+		this._pendingRender = false; // Flag to batch renders via requestAnimationFrame
+		this._pendingWindowRender = false; // Flag to re-render after load completes
 
 		// Processing state
 		this.isGenerating = false;
 		this.currentJobId = null;
 		this.pollingInterval = null;
+		this._isLoadingPeriodogram = false; // Flag to prevent re-entrant periodogram loads
+		this._loadingPeriodogramSlice = null; // Track which slice is being loaded
 
 		// Visualization state
 		this.currentSliceIndex = 0;
@@ -76,6 +92,19 @@ class WaterfallVisualization {
 	 * Initialize all component instances
 	 */
 	initializeComponents() {
+		// Initialize cache and loader for streaming
+		this.sliceCache = new WaterfallSliceCache();
+		this.sliceLoader = new WaterfallSliceLoader(
+			this.captureUuid,
+			this.sliceCache,
+			(slices, startIndex, endIndex) => {
+				// Guard against destroyed state (request completed after destroy)
+				if (!this.sliceCache) return;
+				// Callback when slices are loaded - trigger re-render
+				this.onSlicesLoaded(slices, startIndex, endIndex);
+			},
+		);
+
 		// Initialize canvas and renderer
 		this.initializeCanvas();
 		this.waterfallRenderer = new WaterfallRenderer(
@@ -103,6 +132,8 @@ class WaterfallVisualization {
 
 				if (windowChanged) {
 					this.renderWaterfall();
+					// Prefetch ahead when window changes
+					this.prefetchAhead();
 				}
 
 				if (sliceChanged) {
@@ -196,9 +227,23 @@ class WaterfallVisualization {
 	/**
 	 * Render the waterfall visualization
 	 */
-	render() {
-		if (!this.parsedWaterfallData || this.parsedWaterfallData.length === 0) {
-			return;
+	async render() {
+		if (this.isStreamingMode) {
+			// Check if we have any slices in the visible window
+			const startIndex = this.waterfallWindowStart;
+			const endIndex = Math.min(
+				startIndex + this.waterfallRenderer.WATERFALL_WINDOW_SIZE,
+				this.totalSlices,
+			);
+
+			if (this.totalSlices === 0) {
+				return;
+			}
+		} else {
+			// Legacy mode
+			if (!this.parsedWaterfallData || this.parsedWaterfallData.length === 0) {
+				return;
+			}
 		}
 
 		// Hide error display if it exists
@@ -208,35 +253,173 @@ class WaterfallVisualization {
 		this.showVisualizationComponents();
 
 		// Render waterfall with cached parsed data
-		this.renderWaterfall();
+		await this.renderWaterfall();
 
 		// Render periodogram
-		this.renderPeriodogram();
+		await this.renderPeriodogram();
 	}
 
 	/**
 	 * Render the periodogram chart
 	 */
-	renderPeriodogram() {
-		if (!this.periodogramChart || this.parsedWaterfallData.length === 0) return;
-		this.periodogramChart.renderPeriodogram(
-			this.parsedWaterfallData[this.currentSliceIndex],
-		);
+	async renderPeriodogram() {
+		if (!this.periodogramChart) return;
+
+		if (this.isStreamingMode) {
+			// Get slice from cache
+			const slice = this.sliceCache.getSlice(this.currentSliceIndex);
+			if (slice) {
+				// Parse if needed
+				const parsedSlice = {
+					...slice,
+					data: this.parseWaterfallData(slice.data),
+				};
+				this.periodogramChart.renderPeriodogram(parsedSlice);
+				// Hide loading in case it was shown
+				if (this.periodogramChart.showLoading) {
+					this.periodogramChart.showLoading(false);
+				}
+			} else {
+				// Slice not loaded yet - request it and show loading
+				// Guard against re-entrant calls to prevent loading flicker
+				// But allow if we're loading a different slice than requested
+				if (
+					this._isLoadingPeriodogram &&
+					this._loadingPeriodogramSlice === this.currentSliceIndex
+				) {
+					return;
+				}
+				this._isLoadingPeriodogram = true;
+				this._loadingPeriodogramSlice = this.currentSliceIndex;
+				const targetSliceIndex = this.currentSliceIndex;
+
+				if (this.periodogramChart.showLoading) {
+					this.periodogramChart.showLoading(true);
+				}
+				try {
+					await this.loadSliceRange(targetSliceIndex, targetSliceIndex + 1);
+					// Only render if we're still on the same slice
+					if (this.currentSliceIndex === targetSliceIndex) {
+						const loadedSlice = this.sliceCache.getSlice(targetSliceIndex);
+						if (loadedSlice) {
+							const parsedSlice = {
+								...loadedSlice,
+								data: this.parseWaterfallData(loadedSlice.data),
+							};
+							this.periodogramChart.renderPeriodogram(parsedSlice);
+						}
+						if (this.periodogramChart.showLoading) {
+							this.periodogramChart.showLoading(false);
+						}
+					}
+					// If slice changed during load, trigger another render
+					else if (this.currentSliceIndex !== targetSliceIndex) {
+						this._isLoadingPeriodogram = false;
+						this._loadingPeriodogramSlice = null;
+						this.renderPeriodogram();
+						return;
+					}
+				} catch (error) {
+					console.error("Failed to load slice for periodogram:", error);
+				} finally {
+					this._isLoadingPeriodogram = false;
+					this._loadingPeriodogramSlice = null;
+				}
+			}
+		} else {
+			// Legacy mode - use parsedWaterfallData
+			if (this.parsedWaterfallData.length === 0) return;
+			this.periodogramChart.renderPeriodogram(
+				this.parsedWaterfallData[this.currentSliceIndex],
+			);
+		}
 	}
 
 	/**
 	 * Render only the waterfall plot (for color map changes)
 	 */
-	renderWaterfall() {
-		if (!this.parsedWaterfallData || this.parsedWaterfallData.length === 0) {
-			return;
-		}
+	async renderWaterfall() {
+		if (this.isStreamingMode) {
+			// Calculate visible slice range
+			const startIndex = this.waterfallWindowStart;
+			const endIndex = Math.min(
+				startIndex + this.waterfallRenderer.WATERFALL_WINDOW_SIZE,
+				this.totalSlices,
+			);
 
-		// Render waterfall with cached parsed data - let renderer handle slicing
-		this.waterfallRenderer.renderWaterfall(
-			this.parsedWaterfallData,
-			this.totalSlices,
-		);
+			// Get slices from cache (may include nulls for missing slices)
+			const slices = this.sliceCache.getSliceRange(startIndex, endIndex);
+
+			// Check for missing slices and load them
+			const missing = this.sliceCache.getMissingSlices(startIndex, endIndex);
+			if (missing.length > 0) {
+				// If already loading, schedule a re-render after load completes
+				if (this._isLoadingWindow) {
+					// Mark that we need a re-render after current load completes
+					this._pendingWindowRender = true;
+					// Don't render with incomplete data - wait for load to complete
+					return;
+				}
+
+				this._isLoadingWindow = true;
+
+				// Always wait for missing slices to load before rendering
+				// This ensures seamless display without gray areas
+				try {
+					await this.loadSliceRange(startIndex, endIndex);
+				} catch (error) {
+					console.error("Failed to load slices for waterfall:", error);
+				} finally {
+					this._isLoadingWindow = false;
+				}
+
+				// Check if another render was requested while we were loading
+				if (this._pendingWindowRender) {
+					this._pendingWindowRender = false;
+					// Schedule re-render for the new window position
+					requestAnimationFrame(() => {
+						this.renderWaterfall();
+					});
+					return;
+				}
+
+				// Re-get slices after loading and render
+				const loadedSlices = this.sliceCache.getSliceRange(
+					startIndex,
+					endIndex,
+				);
+				const parsedSlices = this._parseSlicesForRender(
+					loadedSlices,
+					endIndex - startIndex,
+				);
+				this.waterfallRenderer.renderWaterfall(
+					parsedSlices,
+					this.totalSlices,
+					startIndex,
+				);
+				return;
+			}
+
+			// All slices are cached - render immediately
+			const parsedSlices = this._parseSlicesForRender(
+				slices,
+				endIndex - startIndex,
+			);
+			this.waterfallRenderer.renderWaterfall(
+				parsedSlices,
+				this.totalSlices,
+				startIndex,
+			);
+		} else {
+			// Legacy mode
+			if (!this.parsedWaterfallData || this.parsedWaterfallData.length === 0) {
+				return;
+			}
+			this.waterfallRenderer.renderWaterfall(
+				this.parsedWaterfallData,
+				this.totalSlices,
+			);
+		}
 	}
 
 	/**
@@ -397,68 +580,22 @@ class WaterfallVisualization {
 
 	/**
 	 * Load waterfall data from the SDS API
+	 * Tries on-demand streaming first (no preprocessing), falls back to preprocessed data
 	 */
 	async loadWaterfallData() {
 		try {
 			this.isLoading = true;
 			this.showLoading(true);
 
-			// First, get the post-processing status to check if waterfall data is available
-			const statusResponse = await fetch(
-				`/api/latest/assets/captures/${this.captureUuid}/post_processing_status/`,
-			);
-			if (!statusResponse.ok) {
-				throw new Error(
-					`Failed to get post-processing status: ${statusResponse.status}`,
-				);
-			}
-
-			const statusData = await statusResponse.json();
-			const waterfallData = statusData.post_processed_data.find(
-				(data) =>
-					data.processing_type === "waterfall" &&
-					data.processing_status === "completed",
-			);
-
-			if (!waterfallData) {
-				// No waterfall data available, trigger processing
-				await this.triggerWaterfallProcessing();
+			// Try on-demand streaming first (fastest - no preprocessing required)
+			const streamingSuccess = await this.tryLoadStreamingMode();
+			if (streamingSuccess) {
 				return;
 			}
 
-			// Get the waterfall data file
-			const dataResponse = await fetch(
-				`/api/latest/assets/captures/${this.captureUuid}/download_post_processed_data/?processing_type=waterfall`,
-			);
-
-			if (!dataResponse.ok) {
-				throw new Error(
-					`Failed to download waterfall data: ${dataResponse.status}`,
-				);
-			}
-
-			const waterfallJson = await dataResponse.json();
-			this.waterfallData = waterfallJson;
-			this.totalSlices = waterfallJson.length;
-
-			// Parse all waterfall data once and cache it
-			this.parsedWaterfallData = this.waterfallData.map((slice) => ({
-				...slice,
-				data: this.parseWaterfallData(slice.data),
-			}));
-
-			// Calculate power bounds from all data
-			this.calculatePowerBounds();
-
-			this.isLoading = false;
-			this.showLoading(false);
-
-			this.controls.setTotalSlices(this.totalSlices);
-			this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
-			this.periodogramChart.updateYAxisBounds(this.scaleMin, this.scaleMax);
-			this.updateColorLegend();
-
-			this.render();
+			// Fall back to preprocessed data flow
+			console.log("Streaming not available, falling back to preprocessed data");
+			await this.loadPreprocessedData();
 		} catch (error) {
 			console.error("Failed to load waterfall data:", error);
 			this.isLoading = false;
@@ -477,6 +614,180 @@ class WaterfallVisualization {
 
 			this.showError(userMessage);
 		}
+	}
+
+	/**
+	 * Try to load waterfall using on-demand streaming (no preprocessing required)
+	 * Returns true if successful, false if should fall back to preprocessed
+	 */
+	async tryLoadStreamingMode() {
+		try {
+			// Get metadata from streaming endpoint - this is instant, no preprocessing
+			const metadataUrl = get_waterfall_metadata_stream_endpoint(
+				this.captureUuid,
+			);
+			const metadataResponse = await fetch(metadataUrl, {
+				headers: {
+					"X-CSRFToken": this.getCSRFToken(),
+				},
+			});
+
+			if (!metadataResponse.ok) {
+				// Streaming not available for this capture (e.g., not DRF)
+				console.log(`Streaming metadata returned ${metadataResponse.status}`);
+				return false;
+			}
+
+			const metadataData = await metadataResponse.json();
+			const metadata = metadataData.metadata;
+
+			if (!metadata || !metadata.total_slices) {
+				console.warn("Streaming metadata missing total_slices");
+				return false;
+			}
+
+			// Streaming is available! Configure for streaming mode
+			this.totalSlices = metadata.total_slices;
+			this.isStreamingMode = true;
+
+			// Enable streaming mode in the loader
+			if (this.sliceLoader) {
+				this.sliceLoader.setStreamingMode(true);
+			}
+
+			console.log(
+				`Streaming mode enabled: ${this.totalSlices} total slices (on-demand FFT)`,
+			);
+
+			// Load initial visible window
+			const initialStart = 0;
+			const initialEnd = Math.min(WATERFALL_WINDOW_SIZE, this.totalSlices);
+
+			await this.loadSliceRange(initialStart, initialEnd);
+
+			// Calculate power bounds from initial slices
+			await this.calculatePowerBoundsFromSamples();
+
+			// Prefetch additional data for smooth scrolling
+			const prefetchEnd = Math.min(
+				initialEnd + PREFETCH_DISTANCE,
+				this.totalSlices,
+			);
+			if (prefetchEnd > initialEnd) {
+				await this.loadSliceRange(initialEnd, prefetchEnd);
+			}
+
+			this.isLoading = false;
+			this.showLoading(false);
+
+			this.controls.setTotalSlices(this.totalSlices);
+			this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
+			this.periodogramChart.updateYAxisBounds(this.scaleMin, this.scaleMax);
+			this.updateColorLegend();
+
+			this.render();
+			this.prefetchAhead();
+
+			return true;
+		} catch (error) {
+			console.warn("Streaming mode failed, will try preprocessed:", error);
+			return false;
+		}
+	}
+
+	/**
+	 * Load waterfall data from preprocessed files (legacy flow)
+	 */
+	async loadPreprocessedData() {
+		// Get the post-processing status to check if waterfall data is available
+		const statusResponse = await fetch(
+			`/api/latest/assets/captures/${this.captureUuid}/post_processing_status/`,
+		);
+		if (!statusResponse.ok) {
+			throw new Error(
+				`Failed to get post-processing status: ${statusResponse.status}`,
+			);
+		}
+
+		const statusData = await statusResponse.json();
+		const waterfallData = statusData.post_processed_data.find(
+			(data) =>
+				data.processing_type === "waterfall" &&
+				data.processing_status === "completed",
+		);
+
+		if (!waterfallData) {
+			// No waterfall data available, trigger processing
+			await this.triggerWaterfallProcessing();
+			return;
+		}
+
+		// Get total slices from waterfall_slices endpoint with a small range
+		try {
+			const testResponse = await fetch(
+				`/api/latest/assets/captures/${this.captureUuid}/waterfall_slices/?start_index=0&end_index=1&processing_type=waterfall`,
+			);
+			if (testResponse.ok) {
+				const testData = await testResponse.json();
+				this.totalSlices = testData.total_slices || 0;
+
+				// Try to get power bounds from metadata if available
+				if (testData.metadata?.power_bounds) {
+					this.scaleMin = testData.metadata.power_bounds.min;
+					this.scaleMax = testData.metadata.power_bounds.max;
+				}
+			} else {
+				throw new Error(
+					`Failed to get waterfall metadata: ${testResponse.status}`,
+				);
+			}
+		} catch (e) {
+			console.warn("Could not determine total slices:", e);
+			throw e;
+		}
+
+		if (this.totalSlices === 0) {
+			throw new Error("No waterfall slices found");
+		}
+
+		// Enable streaming mode (using preprocessed slices)
+		this.isStreamingMode = true;
+
+		// Ensure loader uses preprocessed endpoint
+		if (this.sliceLoader) {
+			this.sliceLoader.setStreamingMode(false);
+		}
+
+		// Load initial visible window
+		const initialStart = 0;
+		const initialEnd = Math.min(WATERFALL_WINDOW_SIZE, this.totalSlices);
+
+		await this.loadSliceRange(initialStart, initialEnd);
+
+		// Calculate power bounds from initial slices if not in metadata
+		if (this.scaleMin === null || this.scaleMax === null) {
+			await this.calculatePowerBoundsFromSamples();
+		}
+
+		// Prefetch additional data
+		const prefetchEnd = Math.min(
+			initialEnd + PREFETCH_DISTANCE,
+			this.totalSlices,
+		);
+		if (prefetchEnd > initialEnd) {
+			await this.loadSliceRange(initialEnd, prefetchEnd);
+		}
+
+		this.isLoading = false;
+		this.showLoading(false);
+
+		this.controls.setTotalSlices(this.totalSlices);
+		this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
+		this.periodogramChart.updateYAxisBounds(this.scaleMin, this.scaleMax);
+		this.updateColorLegend();
+
+		this.render();
+		this.prefetchAhead();
 	}
 
 	/**
@@ -601,6 +912,13 @@ class WaterfallVisualization {
 	 */
 	async fetchWaterfallResult() {
 		try {
+			// In streaming mode, reload data using streaming endpoint
+			if (this.isStreamingMode) {
+				await this.loadWaterfallData();
+				return;
+			}
+
+			// Legacy mode: load all data at once
 			const response = await fetch(
 				get_waterfall_result_endpoint(this.captureUuid, this.currentJobId),
 				{
@@ -644,6 +962,195 @@ class WaterfallVisualization {
 	}
 
 	/**
+	 * Load a range of slices using the streaming endpoint
+	 * @param {number} startIndex - Starting slice index (inclusive)
+	 * @param {number} endIndex - Ending slice index (exclusive)
+	 * @returns {Promise<Array>} Promise resolving to loaded slices
+	 */
+	async loadSliceRange(startIndex, endIndex) {
+		if (!this.sliceLoader) {
+			throw new Error("Slice loader not initialized");
+		}
+
+		try {
+			const slices = await this.sliceLoader.loadSliceRange(
+				startIndex,
+				endIndex,
+				"waterfall",
+			);
+			return slices;
+		} catch (error) {
+			console.error(
+				`Failed to load slice range ${startIndex}-${endIndex}:`,
+				error,
+			);
+			throw error;
+		}
+	}
+
+	/**
+	 * Callback when slices are loaded
+	 * @param {Array} slices - The loaded slices
+	 * @param {number} startIndex - Starting index
+	 * @param {number} endIndex - Ending index
+	 */
+	onSlicesLoaded(slices, startIndex, endIndex) {
+		// Skip callback renders during initial load - the initial render() will handle it
+		if (this.isLoading) {
+			return;
+		}
+
+		// Check if loaded slices are in the current visible window
+		const currentStart = this.waterfallWindowStart;
+		const currentEnd = Math.min(
+			currentStart + this.waterfallRenderer.WATERFALL_WINDOW_SIZE,
+			this.totalSlices,
+		);
+
+		// If loaded slices overlap with visible window, re-render
+		// Use requestAnimationFrame to batch renders and avoid flickering
+		if (startIndex < currentEnd && endIndex > currentStart) {
+			if (!this._pendingRender) {
+				this._pendingRender = true;
+				requestAnimationFrame(() => {
+					this._pendingRender = false;
+					this.renderWaterfall();
+				});
+			}
+		}
+
+		// If loaded slice is the current slice, update periodogram
+		if (
+			this.currentSliceIndex >= startIndex &&
+			this.currentSliceIndex < endIndex
+		) {
+			this.renderPeriodogram();
+		}
+	}
+
+	/**
+	 * Prefetch slices around the current window using a smart trigger-based strategy.
+	 *
+	 * Strategy:
+	 * - PREFETCH_TRIGGER: Only start prefetching when within this distance of unfetched data
+	 * - PREFETCH_DISTANCE: Once triggered, load this many slices ahead/behind
+	 *
+	 * This reduces unnecessary API calls while ensuring smooth scrolling.
+	 */
+	prefetchAhead() {
+		if (!this.sliceLoader || !this.isStreamingMode) return;
+
+		const windowStart = this.waterfallWindowStart;
+		const windowEnd = Math.min(
+			windowStart + WATERFALL_WINDOW_SIZE,
+			this.totalSlices,
+		);
+
+		// Define trigger zone around the window
+		const triggerStart = Math.max(windowStart - PREFETCH_TRIGGER, 0);
+		const triggerEnd = Math.min(windowEnd + PREFETCH_TRIGGER, this.totalSlices);
+
+		// Check if there's any missing data within the trigger zone
+		const missingInTriggerZone = this.sliceCache.getMissingSlices(
+			triggerStart,
+			triggerEnd,
+		);
+
+		// Only prefetch if we're approaching unfetched data
+		if (missingInTriggerZone.length === 0) {
+			// No missing data within trigger zone, no need to prefetch
+			return;
+		}
+
+		// Define the full prefetch range (larger than trigger zone)
+		const prefetchStart = Math.max(windowStart - PREFETCH_DISTANCE, 0);
+		const prefetchEnd = Math.min(
+			windowEnd + PREFETCH_DISTANCE,
+			this.totalSlices,
+		);
+
+		// Get all missing slices in the prefetch range
+		const missingSlices = this.sliceCache.getMissingSlices(
+			prefetchStart,
+			prefetchEnd,
+		);
+
+		if (missingSlices.length > 0) {
+			// Load missing slices in the background
+			this.sliceLoader
+				.loadSliceRange(prefetchStart, prefetchEnd, "waterfall")
+				.catch((error) => {
+					console.warn("Prefetch failed:", error);
+				});
+		}
+
+		// Evict distant slices to keep cache size manageable
+		const centerIndex = Math.floor((windowStart + windowEnd) / 2);
+		const keepRange = WATERFALL_WINDOW_SIZE + PREFETCH_DISTANCE;
+		this.sliceCache.evictDistantSlices(centerIndex, keepRange);
+	}
+
+	/**
+	 * Calculate power bounds from sample slices (first, middle, last)
+	 */
+	async calculatePowerBoundsFromSamples() {
+		if (this.totalSlices === 0) {
+			this.scaleMin = -130;
+			this.scaleMax = 0;
+			return;
+		}
+
+		// Sample slices: first, middle, last
+		const sampleIndices = [
+			0,
+			Math.floor(this.totalSlices / 2),
+			this.totalSlices - 1,
+		].filter((idx) => idx >= 0 && idx < this.totalSlices);
+
+		// Load sample slices if not cached
+		for (const idx of sampleIndices) {
+			if (!this.sliceCache.hasSlice(idx)) {
+				try {
+					await this.loadSliceRange(idx, idx + 1);
+				} catch (error) {
+					console.warn(`Failed to load sample slice ${idx}:`, error);
+				}
+			}
+		}
+
+		// Calculate bounds from samples
+		let globalMin = Number.POSITIVE_INFINITY;
+		let globalMax = Number.NEGATIVE_INFINITY;
+
+		for (const idx of sampleIndices) {
+			const slice = this.sliceCache.getSlice(idx);
+			if (slice?.data) {
+				const parsedData = this.parseWaterfallData(slice.data);
+				if (parsedData && parsedData.length > 0) {
+					const sliceMin = Math.min(...parsedData);
+					const sliceMax = Math.max(...parsedData);
+					globalMin = Math.min(globalMin, sliceMin);
+					globalMax = Math.max(globalMax, sliceMax);
+				}
+			}
+		}
+
+		// Set bounds with margin
+		if (
+			globalMin !== Number.POSITIVE_INFINITY &&
+			globalMax !== Number.NEGATIVE_INFINITY
+		) {
+			const margin = (globalMax - globalMin) * 0.05;
+			this.scaleMin = globalMin - margin;
+			this.scaleMax = globalMax + margin;
+		} else {
+			// Fallback to defaults
+			this.scaleMin = -130;
+			this.scaleMax = 0;
+		}
+	}
+
+	/**
 	 * Set the generating state (loading indicators, button states)
 	 */
 	setGeneratingState(isGenerating) {
@@ -679,6 +1186,33 @@ class WaterfallVisualization {
 			console.error("Failed to parse waterfall data:", error);
 			return null;
 		}
+	}
+
+	/**
+	 * Parse an array of slices for rendering
+	 * @param {Array} slices - Array of slice objects (may contain nulls)
+	 * @param {number} windowSize - Expected window size
+	 * @returns {Array} Array of parsed slices (with nulls for missing/failed)
+	 */
+	_parseSlicesForRender(slices, windowSize) {
+		const parsedSlices = [];
+		for (let i = 0; i < windowSize; i++) {
+			const slice = slices[i];
+			if (slice?.data) {
+				const parsedData = this.parseWaterfallData(slice.data);
+				if (parsedData && parsedData.length > 0) {
+					parsedSlices.push({
+						...slice,
+						data: parsedData,
+					});
+				} else {
+					parsedSlices.push(null);
+				}
+			} else {
+				parsedSlices.push(null);
+			}
+		}
+		return parsedSlices;
 	}
 
 	/**
@@ -745,6 +1279,10 @@ class WaterfallVisualization {
 			} else {
 				overlay.classList.add("d-none");
 			}
+		}
+		// Disable scroll buttons during loading
+		if (this.controls) {
+			this.controls.setLoading(show);
 		}
 	}
 
@@ -866,6 +1404,16 @@ class WaterfallVisualization {
 		// Stop polling
 		this.stopStatusPolling();
 
+		// Cleanup loader
+		if (this.sliceLoader) {
+			this.sliceLoader.destroy();
+		}
+
+		// Cleanup cache
+		if (this.sliceCache) {
+			this.sliceCache.clear();
+		}
+
 		// Cleanup components
 		if (this.waterfallRenderer) {
 			this.waterfallRenderer.destroy();
@@ -891,6 +1439,8 @@ class WaterfallVisualization {
 		// Clear references
 		this.canvas = null;
 		this.overlayCanvas = null;
+		this.sliceCache = null;
+		this.sliceLoader = null;
 	}
 }
 
