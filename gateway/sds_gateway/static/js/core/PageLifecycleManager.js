@@ -269,6 +269,30 @@ class PageLifecycleManager {
 	 * Initialize dataset modals
 	 */
 	initializeDatasetModals() {
+		// Pre-initialize all modals on the page with proper config to prevent Bootstrap auto-initialization errors
+		const allModals = document.querySelectorAll('.modal');
+		for (const modal of allModals) {
+			if (window.bootstrap) {
+				// Dispose any existing instance that might be in a bad state
+				const existingInstance = bootstrap.Modal.getInstance(modal);
+				if (existingInstance) {
+					try {
+						existingInstance.dispose();
+					} catch (e) {
+						// If disposal fails, the instance is already broken - continue
+						console.warn('Failed to dispose modal instance:', e);
+					}
+				}
+				
+				// Create a new instance with proper config
+				new bootstrap.Modal(modal, {
+					backdrop: true,
+					keyboard: true,
+					focus: true,
+				});
+			}
+		}
+
 		const datasetModals = document.querySelectorAll(
 			".modal[data-item-type='dataset']",
 		);
@@ -296,14 +320,17 @@ class PageLifecycleManager {
 			}
 
 			if (window.VersioningActionManager) {
-				const versioningManager = new window.VersioningActionManager({
-					datasetUuid: itemUuid,
-					permissions: this.permissions,
-				});
-				this.managers.push(versioningManager);
+				// Check if manager already exists to prevent duplicate initialization
+				if (!modal.versioningActionManager) {
+					const versioningManager = new window.VersioningActionManager({
+						datasetUuid: itemUuid,
+						permissions: this.permissions,
+					});
+					this.managers.push(versioningManager);
 
-				// Store reference on modal
-				modal.versioningActionManager = versioningManager;
+					// Store reference on modal
+					modal.versioningActionManager = versioningManager;
+				}
 			}
 
 			if (window.DownloadActionManager) {
@@ -468,6 +495,22 @@ class PageLifecycleManager {
 					manager.cleanup();
 				} catch (error) {
 					console.error("Error cleaning up manager:", error);
+				}
+			}
+		}
+
+		// Dispose all Bootstrap modal instances to prevent bad state
+		if (window.bootstrap && bootstrap.Modal) {
+			const allModals = document.querySelectorAll('.modal');
+			for (const modal of allModals) {
+				const instance = bootstrap.Modal.getInstance(modal);
+				if (instance) {
+					try {
+						instance.dispose();
+					} catch (error) {
+						// If disposal fails, the instance is already broken - continue
+						console.warn('Failed to dispose modal during cleanup:', error);
+					}
 				}
 			}
 		}

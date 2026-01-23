@@ -192,7 +192,29 @@ class DOMUtils {
 		const modal = document.getElementById(modalId);
 		if (!modal) return;
 
-		const bootstrapModal = new bootstrap.Modal(modal);
+		// Check if modal instance already exists
+		let bootstrapModal = bootstrap.Modal.getInstance(modal);
+		
+		// If instance exists but is in a bad state (no _config), dispose and recreate
+		if (bootstrapModal && (!bootstrapModal._config || !bootstrapModal._config.backdrop)) {
+			try {
+				bootstrapModal.dispose();
+				bootstrapModal = null;
+			} catch (e) {
+				// If disposal fails, force remove the instance
+				bootstrapModal = null;
+			}
+		}
+		
+		// If no instance exists, create one with default config
+		if (!bootstrapModal) {
+			bootstrapModal = new bootstrap.Modal(modal, {
+				backdrop: true,
+				keyboard: true,
+				focus: true,
+			});
+		}
+		
 		bootstrapModal.show();
 	}
 

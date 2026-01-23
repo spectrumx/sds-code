@@ -2,12 +2,12 @@
 <div class="modal fade"
      id="webDownloadModal-{{ dataset.uuid }}"
      tabindex="-1"
-     aria-labelledby="webDownloadModalLabel"
+     aria-labelledby="webDownloadModalLabel-{{ dataset.uuid }}"
      aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="webDownloadModalLabel">
+                <h5 class="modal-title" id="webDownloadModalLabel-{{ dataset.uuid }}">
                     <i class="bi bi-download"></i> Download Dataset
                 </h5>
                 <button type="button"

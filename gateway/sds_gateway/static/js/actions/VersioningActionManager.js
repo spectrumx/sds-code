@@ -27,6 +27,12 @@ class VersioningActionManager {
 			`createVersionBtn-${this.datasetUuid}`,
 		);
 		if (versionCreationButton) {
+			// Prevent duplicate event listeners
+			if (versionCreationButton.dataset.versionSetup === "true") {
+				return;
+			}
+			
+			versionCreationButton.dataset.versionSetup = "true";
 			versionCreationButton.addEventListener("click", (event) =>
 				this.handleVersionCreation(event, versionCreationButton),
 			);
@@ -36,6 +42,14 @@ class VersioningActionManager {
 	handleVersionCreation(event, versionCreationButton) {
 		event.preventDefault();
 		event.stopPropagation();
+
+		// Prevent double-submission
+		if (versionCreationButton.dataset.processing === "true") {
+			return;
+		}
+
+		// Mark as processing
+		versionCreationButton.dataset.processing = "true";
 
 		// show loading state
 		window.DOMUtils.showModalLoading(this.modalId);
@@ -57,7 +71,13 @@ class VersioningActionManager {
 						"success",
 					);
 					// refresh dataset list
-					window.ListRefreshManager.loadTable();
+					if (window.listRefreshManager && typeof window.listRefreshManager.loadTable === 'function') {
+						window.listRefreshManager.loadTable();
+					} else {
+						// Fallback: reload the page if listRefreshManager is not available
+						console.warn('listRefreshManager not available, reloading page');
+						window.location.reload();
+					}
 				} else {
 					// show error message and error message from response
 					window.DOMUtils.showAlert(
@@ -72,6 +92,11 @@ class VersioningActionManager {
 					error.message || "Failed to create dataset version",
 					"error",
 				);
+			})
+			.finally(() => {
+				// Re-enable button and clear processing flag
+				versionCreationButton.disabled = false;
+				versionCreationButton.dataset.processing = "false";
 			});
 	}
 }

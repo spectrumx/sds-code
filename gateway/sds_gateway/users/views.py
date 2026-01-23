@@ -18,6 +18,7 @@ from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
+from django.db import transaction
 from django.db.models import Q
 from django.db.models import Sum
 from django.db.models.query import QuerySet
@@ -3513,39 +3514,80 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
 
         Args:
             original_dataset: The dataset to copy
+            request_user: The user creating the new version
 
         Returns:
             The new dataset with copied related objects
         """
         new_version = original_dataset.version + 1
 
-        preserve_fields = {
-            "uuid",
-            "created_at",
-            "updated_at",
-            "status",
-            "is_public",
-            "shared_with",
-        }
-        dataset_data = {
-            field.name: getattr(original_dataset, field.name)
-            for field in original_dataset._meta.get_fields()  # noqa: SLF001
-            if hasattr(field, "name")
-            and field.name not in preserve_fields
-            and not field.many_to_many
-            and not field.one_to_many
-        }
+        # Use database transaction with locking to prevent race conditions
+        # when multiple requests try to create the same version simultaneously
+        with transaction.atomic():
+            # Lock the original dataset to prevent concurrent version creation
+            locked_dataset = Dataset.objects.select_for_update().get(
+                uuid=original_dataset.uuid
+            )
+            
+            # Check again for existing version within the locked transaction
+            existing_version = Dataset.objects.filter(
+                previous_version=locked_dataset,
+                version=new_version,
+                owner=request_user,
+                is_deleted=False
+            ).first()
+            
+            if existing_version:
+                # Return existing version if it was already created
+                return existing_version
 
-        dataset_data["owner"] = request_user
-        dataset_data["version"] = new_version
-        dataset_data["previous_version"] = original_dataset
+            preserve_fields = {
+                "uuid",
+                "created_at",
+                "updated_at",
+                "status",
+                "is_public",
+                "shared_with",
+            }
+            dataset_data = {
+                field.name: getattr(locked_dataset, field.name)
+                for field in locked_dataset._meta.get_fields()  # noqa: SLF001
+                if hasattr(field, "name")
+                and field.name not in preserve_fields
+                and not field.many_to_many
+                and not field.one_to_many
+                and not field.one_to_one
+            }
+            dataset_data["owner"] = request_user
+            dataset_data["version"] = new_version
+            dataset_data["previous_version"] = locked_dataset
+            
+            # Ensure status is draft for new version
+            dataset_data["status"] = DatasetStatus.DRAFT.value
+            dataset_data["is_public"] = False
 
-        # create new dataset
-        new_dataset = Dataset(**dataset_data)
-        new_dataset.save()  # Must save before setting ManyToMany relationships
-
-        new_dataset.captures.set(original_dataset.captures.all())
-        new_dataset.files.set(original_dataset.files.all())
+            # Create the new dataset within the transaction
+            # Catch IntegrityError in case of race condition (safety net)
+            try:
+                new_dataset = Dataset.objects.create(**dataset_data)
+            except IntegrityError:
+                # If we get an IntegrityError, another request may have created it
+                # Fetch the existing version and return it
+                existing_version = Dataset.objects.filter(
+                    previous_version=locked_dataset,
+                    version=new_version,
+                    owner=request_user,
+                    is_deleted=False
+                ).first()
+                if existing_version:
+                    return existing_version
+                # Re-raise if we can't find it (unexpected error)
+                raise
+            
+            # Set the relationships on the new dataset
+            new_dataset.captures.set(locked_dataset.captures.all())
+            new_dataset.files.set(locked_dataset.files.all())
+            new_dataset.keywords.set(locked_dataset.keywords.all())
 
         return new_dataset
 
