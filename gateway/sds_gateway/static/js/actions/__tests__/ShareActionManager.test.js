@@ -43,6 +43,11 @@ describe("ShareActionManager", () => {
 			renderLoading: jest.fn().mockResolvedValue(true),
 			renderContent: jest.fn().mockResolvedValue(true),
 			renderTable: jest.fn().mockResolvedValue(true),
+			showModalLoading: jest.fn().mockResolvedValue(true),
+			clearModalLoading: jest.fn(),
+			showModalError: jest.fn().mockResolvedValue(true),
+			openModal: jest.fn(),
+			closeModal: jest.fn(),
 		};
 
 		// Mock window.showAlert
