@@ -232,4 +232,264 @@ describe("PageLifecycleManager", () => {
 			expect(managerPromise).toBeInstanceOf(Promise);
 		});
 	});
+
+	describe("Modal Initialization", () => {
+		let mockModal;
+		let mockBootstrapModal;
+
+		beforeEach(() => {
+			// Mock Bootstrap
+			mockBootstrapModal = {
+				dispose: jest.fn(),
+				show: jest.fn(),
+				hide: jest.fn(),
+				_config: {
+					backdrop: true,
+					keyboard: true,
+					focus: true,
+				},
+			};
+
+			global.window.bootstrap = {
+				Modal: jest.fn().mockImplementation(() => mockBootstrapModal),
+			};
+			global.window.bootstrap.Modal.getInstance = jest.fn(() => null);
+
+			// Mock modal element
+			mockModal = {
+				getAttribute: jest.fn((attr) => {
+					if (attr === "data-item-uuid") return "test-dataset-uuid";
+					if (attr === "data-item-type") return "dataset";
+					return null;
+				}),
+				setAttribute: jest.fn(),
+			};
+
+			// Mock document methods
+			document.querySelectorAll = jest.fn((selector) => {
+				if (selector === ".modal") return [mockModal];
+				if (selector === ".modal[data-item-type='dataset']") return [mockModal];
+				if (selector === ".modal[data-item-type='capture']") return [];
+				return [];
+			});
+
+			// Mock action manager classes
+			global.window.ShareActionManager = jest.fn().mockImplementation(() => ({}));
+			global.window.VersioningActionManager = jest
+				.fn()
+				.mockImplementation(() => ({}));
+			global.window.DownloadActionManager = jest
+				.fn()
+				.mockImplementation(() => ({}));
+			global.window.DetailsActionManager = jest
+				.fn()
+				.mockImplementation(() => ({}));
+		});
+
+		test("should pre-initialize all modals with proper Bootstrap config", () => {
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
+
+			// Call initializeDatasetModals directly
+			lifecycleManager.initializeDatasetModals();
+
+			expect(document.querySelectorAll).toHaveBeenCalledWith(".modal");
+			expect(global.window.bootstrap.Modal).toHaveBeenCalledWith(mockModal, {
+				backdrop: true,
+				keyboard: true,
+				focus: true,
+			});
+		});
+
+		test("should dispose existing modal instances before creating new ones", () => {
+			const existingInstance = {
+				dispose: jest.fn(),
+				_config: { backdrop: true },
+			};
+			global.window.bootstrap.Modal.getInstance = jest.fn(
+				() => existingInstance,
+			);
+
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
+
+			lifecycleManager.initializeDatasetModals();
+
+			expect(existingInstance.dispose).toHaveBeenCalled();
+		});
+
+		test("should handle disposal failures gracefully", () => {
+			const existingInstance = {
+				dispose: jest.fn(() => {
+					throw new Error("Disposal failed");
+				}),
+			};
+			global.window.bootstrap.Modal.getInstance = jest.fn(
+				() => existingInstance,
+			);
+			console.warn = jest.fn();
+
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
+
+			expect(() => {
+				lifecycleManager.initializeDatasetModals();
+			}).not.toThrow();
+		});
+
+		test("should initialize VersioningActionManager for dataset modals", () => {
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
+
+			lifecycleManager.initializeDatasetModals();
+
+			expect(global.window.VersioningActionManager).toHaveBeenCalledWith({
+				datasetUuid: "test-dataset-uuid",
+				permissions: lifecycleManager.permissions,
+			});
+			expect(mockModal.versioningActionManager).toBeDefined();
+		});
+
+		test("should prevent duplicate VersioningActionManager initialization", () => {
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
+
+			// Set existing manager
+			mockModal.versioningActionManager = { existing: true };
+
+			lifecycleManager.initializeDatasetModals();
+
+			// Should not create a new instance
+			expect(global.window.VersioningActionManager).not.toHaveBeenCalled();
+		});
+
+		test("should initialize ShareActionManager for dataset modals", () => {
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
+
+			lifecycleManager.initializeDatasetModals();
+
+			expect(global.window.ShareActionManager).toHaveBeenCalledWith({
+				itemUuid: "test-dataset-uuid",
+				itemType: "dataset",
+				permissions: lifecycleManager.permissions,
+			});
+		});
+
+		test("should initialize DownloadActionManager for dataset modals", () => {
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
+
+			lifecycleManager.initializeDatasetModals();
+
+			expect(global.window.DownloadActionManager).toHaveBeenCalledWith({
+				permissions: lifecycleManager.permissions,
+			});
+		});
+
+		test("should initialize DetailsActionManager for dataset modals", () => {
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
+
+			lifecycleManager.initializeDatasetModals();
+
+			expect(global.window.DetailsActionManager).toHaveBeenCalledWith({
+				permissions: lifecycleManager.permissions,
+				itemUuid: "test-dataset-uuid",
+				itemType: "dataset",
+			});
+		});
+
+		test("should initialize capture modals", () => {
+			const captureModal = {
+				getAttribute: jest.fn((attr) => {
+					if (attr === "data-item-uuid") return "test-capture-uuid";
+					if (attr === "data-item-type") return "capture";
+					return null;
+				}),
+			};
+
+			document.querySelectorAll = jest.fn((selector) => {
+				if (selector === ".modal[data-item-type='capture']")
+					return [captureModal];
+				return [];
+			});
+
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "capture-list",
+			});
+
+			lifecycleManager.initializeCaptureModals();
+
+			expect(global.window.ShareActionManager).toHaveBeenCalledWith({
+				itemUuid: "test-capture-uuid",
+				itemType: "capture",
+				permissions: lifecycleManager.permissions,
+			});
+		});
+	});
+
+	describe("Modal Cleanup", () => {
+		let mockModal;
+		let mockBootstrapModal;
+
+		beforeEach(() => {
+			mockBootstrapModal = {
+				dispose: jest.fn(),
+			};
+
+			global.window.bootstrap = {
+				Modal: {
+					getInstance: jest.fn(() => mockBootstrapModal),
+				},
+			};
+
+			mockModal = {
+				id: "test-modal",
+			};
+
+			document.querySelectorAll = jest.fn(() => [mockModal]);
+		});
+
+		test("should dispose all modal instances during cleanup", () => {
+			lifecycleManager = new PageLifecycleManager(mockConfig);
+
+			lifecycleManager.cleanup();
+
+			expect(global.window.bootstrap.Modal.getInstance).toHaveBeenCalledWith(
+				mockModal,
+			);
+			expect(mockBootstrapModal.dispose).toHaveBeenCalled();
+		});
+
+		test("should handle disposal failures gracefully", () => {
+			mockBootstrapModal.dispose = jest.fn(() => {
+				throw new Error("Disposal failed");
+			});
+			console.warn = jest.fn();
+
+			lifecycleManager = new PageLifecycleManager(mockConfig);
+
+			expect(() => {
+				lifecycleManager.cleanup();
+			}).not.toThrow();
+		});
+	});
 });
