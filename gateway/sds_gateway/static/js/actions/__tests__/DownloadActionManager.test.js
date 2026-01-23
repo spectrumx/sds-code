@@ -92,6 +92,11 @@ describe("DownloadActionManager", () => {
 				renderLoading: jest.fn().mockResolvedValue(true),
 				renderContent: jest.fn().mockResolvedValue(true),
 				renderTable: jest.fn().mockResolvedValue(true),
+				showModalLoading: jest.fn().mockResolvedValue(true),
+				clearModalLoading: jest.fn(),
+				showModalError: jest.fn().mockResolvedValue(true),
+				openModal: jest.fn(),
+				closeModal: jest.fn(),
 			},
 			APIClient: {
 				post: jest.fn().mockResolvedValue({
@@ -359,14 +364,27 @@ describe("DownloadActionManager", () => {
 			});
 		});
 
-		test("should have openCustomModal method", () => {
-			expect(downloadManager.openCustomModal).toBeDefined();
-			expect(typeof downloadManager.openCustomModal).toBe("function");
+		test("should have openWebDownloadModal method", () => {
+			expect(downloadManager.openWebDownloadModal).toBeDefined();
+			expect(typeof downloadManager.openWebDownloadModal).toBe("function");
 		});
 
-		test("should have closeCustomModal method", () => {
-			expect(downloadManager.closeCustomModal).toBeDefined();
-			expect(typeof downloadManager.closeCustomModal).toBe("function");
+		test("should have openSDKDownloadModal method", () => {
+			expect(downloadManager.openSDKDownloadModal).toBeDefined();
+			expect(typeof downloadManager.openSDKDownloadModal).toBe("function");
+		});
+
+		test("should use DOMUtils.openModal for opening modals", () => {
+			const modalId = "webDownloadModal-test-uuid";
+			document.getElementById = jest.fn(() => ({
+				id: modalId,
+				querySelector: jest.fn(() => ({ textContent: "" })),
+				addEventListener: jest.fn(),
+			}));
+
+			downloadManager.openWebDownloadModal("test-uuid", "Test Dataset");
+
+			expect(global.window.DOMUtils.openModal).toHaveBeenCalledWith(modalId);
 		});
 	});
 
