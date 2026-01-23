@@ -9,6 +9,9 @@ class DetailsActionManager {
 	 */
 	constructor(config) {
 		this.permissions = config.permissions;
+		this.itemUuid = config.itemUuid;
+		this.itemType = config.itemType;
+		this.modalId = `${this.itemType}DetailsModal-${this.itemUuid}`;
 		this.initializeEventListeners();
 	}
 
@@ -95,7 +98,7 @@ class DetailsActionManager {
 		// Handle modal show events
 		document.addEventListener("show.bs.modal", (e) => {
 			const modal = e.target;
-			if (modal.id === "datasetDetailsModal") {
+			if (modal.id === this.modalId) {
 				this.handleDatasetDetailsModalShow(modal, e);
 			}
 		});
@@ -108,7 +111,7 @@ class DetailsActionManager {
 	async handleDatasetDetails(datasetUuid) {
 		try {
 			// Show loading state
-			this.showModalLoading("datasetDetailsModal");
+			window.DOMUtils.showModalLoading(this.modalId);
 
 			// Fetch dataset details
 			const datasetData = await window.APIClient.get(
@@ -119,11 +122,11 @@ class DetailsActionManager {
 			this.populateDatasetDetailsModal(datasetData);
 
 			// Show modal
-			this.openModal("datasetDetailsModal");
+			window.DOMUtils.openModal(this.modalId);
 		} catch (error) {
 			console.error("Error loading dataset details:", error);
-			this.showModalError(
-				"datasetDetailsModal",
+			window.DOMUtils.showModalError(
+				this.modalId,
 				"Failed to load dataset details",
 			);
 		}
@@ -136,7 +139,7 @@ class DetailsActionManager {
 	async handleCaptureDetails(captureUuid) {
 		try {
 			// Show loading state
-			this.showModalLoading("captureDetailsModal");
+			window.DOMUtils.showModalLoading(this.modalId);
 
 			// Fetch capture details
 			const captureData = await window.APIClient.get(
@@ -147,11 +150,11 @@ class DetailsActionManager {
 			this.populateCaptureDetailsModal(captureData);
 
 			// Show modal
-			this.openModal("captureDetailsModal");
+			window.DOMUtils.openModal(this.modalId);
 		} catch (error) {
 			console.error("Error loading capture details:", error);
-			this.showModalError(
-				"captureDetailsModal",
+			window.DOMUtils.showModalError(
+				this.modalId,
 				"Failed to load capture details",
 			);
 		}
@@ -164,17 +167,17 @@ class DetailsActionManager {
 	 * @param {Object} tree - File tree data
 	 */
 	populateDatasetDetailsModal(datasetData, statistics, tree) {
-		const modal = document.getElementById("datasetDetailsModal");
+		const modal = document.getElementById(this.modalId);
 		if (!modal) return;
 
 		// Clear loading state and restore original modal content
-		this.clearModalLoading("datasetDetailsModal");
+		window.DOMUtils.clearModalLoading(this.modalId);
 
 		// Update basic information using the correct selectors from the template
 		this.updateElementText(
 			modal,
 			".dataset-details-name",
-			datasetData.name || "Untitled Dataset",
+			`${datasetData.name} (v${datasetData.version})` || "Untitled Dataset",
 		);
 		this.updateElementText(
 			modal,
@@ -240,7 +243,7 @@ class DetailsActionManager {
 	 * @param {Object} captureData - Capture data
 	 */
 	populateCaptureDetailsModal(captureData) {
-		const modal = document.getElementById("captureDetailsModal");
+		const modal = document.getElementById(this.modalId);
 		if (!modal) return;
 
 		// Update basic information
@@ -744,71 +747,6 @@ class DetailsActionManager {
 	}
 
 	/**
-	 * Clear modal loading state and restore original content
-	 * @param {string} modalId - Modal ID
-	 */
-	clearModalLoading(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const modalBody = modal.querySelector(".modal-body");
-		if (modalBody?.dataset.originalContent) {
-			// Restore original content
-			modalBody.innerHTML = modalBody.dataset.originalContent;
-			// Clean up the stored content
-			delete modalBody.dataset.originalContent;
-		}
-	}
-
-	/**
-	 * Show modal error
-	 * @param {string} modalId - Modal ID
-	 * @param {string} message - Error message
-	 */
-	async showModalError(modalId, message) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const modalBody = modal.querySelector(".modal-body");
-		if (modalBody) {
-			await window.DOMUtils.renderError(modalBody, message, {
-				format: "alert",
-				alert_type: "danger",
-				icon: "exclamation-triangle",
-			});
-		}
-
-		// Show modal even with error
-		this.openModal(modalId);
-	}
-
-	/**
-	 * Open modal
-	 * @param {string} modalId - Modal ID
-	 */
-	openModal(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const bootstrapModal = new bootstrap.Modal(modal);
-		bootstrapModal.show();
-	}
-
-	/**
-	 * Close modal
-	 * @param {string} modalId - Modal ID
-	 */
-	closeModal(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const bootstrapModal = bootstrap.Modal.getInstance(modal);
-		if (!bootstrapModal) return;
-
-		bootstrapModal.hide();
-	}
-
-	/**
 	 * Handle dataset details modal show
 	 * @param {Element} modal - Modal element
 	 * @param {Event} event - Bootstrap modal event
@@ -819,8 +757,8 @@ class DetailsActionManager {
 
 		if (!triggerElement) {
 			console.warn("No trigger element found for dataset details modal");
-			this.showModalError(
-				"datasetDetailsModal",
+			window.DOMUtils.showModalError(
+				this.modalId,
 				"Unable to load dataset details",
 			);
 			return;
@@ -831,7 +769,7 @@ class DetailsActionManager {
 
 		if (!datasetUuid) {
 			console.warn("No dataset UUID found on trigger element:", triggerElement);
-			this.showModalError("datasetDetailsModal", "Dataset UUID not found");
+			window.DOMUtils.showModalError(this.modalId, "Dataset UUID not found");
 			return;
 		}
 
@@ -846,7 +784,7 @@ class DetailsActionManager {
 	async loadDatasetDetailsForModal(datasetUuid) {
 		try {
 			// Show loading state
-			this.showModalLoading("datasetDetailsModal");
+			window.DOMUtils.showModalLoading(this.modalId);
 
 			// Fetch dataset details
 			const response = await window.APIClient.get(
@@ -862,8 +800,8 @@ class DetailsActionManager {
 			this.populateDatasetDetailsModal(datasetData, statistics, tree);
 		} catch (error) {
 			console.error("Error loading dataset details:", error);
-			this.showModalError(
-				"datasetDetailsModal",
+			window.DOMUtils.showModalError(
+				this.modalId,
 				"Failed to load dataset details",
 			);
 		}

@@ -1,13 +1,13 @@
 <!-- Web Download Modal -->
 <div class="modal fade"
-     id="webDownloadModal"
+     id="webDownloadModal-{{ dataset.uuid }}"
      tabindex="-1"
-     aria-labelledby="webDownloadModalLabel"
+     aria-labelledby="webDownloadModalLabel-{{ dataset.uuid }}"
      aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="webDownloadModalLabel">
+                <h5 class="modal-title" id="webDownloadModalLabel-{{ dataset.uuid }}">
                     <i class="bi bi-download"></i> Download Dataset
                 </h5>
                 <button type="button"
@@ -37,88 +37,3 @@
         </div>
     </div>
 </div>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const webDownloadModal = document.getElementById('webDownloadModal');
-        const confirmWebDownloadBtn = document.getElementById('confirmWebDownloadBtn');
-
-        // Handle download confirmation
-        confirmWebDownloadBtn.addEventListener('click', function() {
-            const datasetUuid = this.dataset.datasetUuid;
-            const datasetName = this.dataset.datasetName;
-
-            if (datasetUuid) {
-                // Show loading state
-                this.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
-                this.disabled = true;
-
-                // Make the download request
-                fetch(`/users/download-item/dataset/${datasetUuid}/`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                        }
-                    })
-                    .then(response => {
-                        // Check if response is JSON
-                        const contentType = response.headers.get("content-type");
-                        if (contentType?.includes("application/json")) {
-                            return response.json();
-                        }
-                        // If not JSON, throw an error with the response text
-                        return response.text().then((text) => {
-                            throw new Error(`Server returned non-JSON response: ${text}`);
-                        });
-                    })
-                    .then(data => {
-                        if (data.success === true) {
-                            // Show success message
-                            showAlert(data.message || 'Download request submitted successfully! You will receive an email when ready.', 'success');
-
-                            // Close the modal
-                            const modal = bootstrap.Modal.getInstance(webDownloadModal);
-                            modal.hide();
-                        } else {
-                            showAlert('Error requesting download: ' + (data.message || 'Unknown error'), 'error');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Download error:', error);
-                        showAlert(error.message || 'An error occurred while processing your request.', 'error');
-                    })
-                    .finally(() => {
-                        // Reset button state
-                        this.innerHTML = '<i class="bi bi-download"></i> Yes, Download Dataset';
-                        this.disabled = false;
-                    });
-            }
-        });
-
-        // Reset modal state when hidden
-        webDownloadModal.addEventListener('hidden.bs.modal', function() {
-            // Clear dataset info from download button
-            confirmWebDownloadBtn.dataset.datasetUuid = '';
-            confirmWebDownloadBtn.dataset.datasetName = '';
-            document.getElementById('webDownloadDatasetName').textContent = '';
-        });
-    });
-
-    // Function to show web download modal
-    function showWebDownloadModal(datasetUuid, datasetName) {
-        // Set the dataset name in the modal
-        document.getElementById('webDownloadDatasetName').textContent = datasetName;
-
-        // Store dataset info in the download button
-        const confirmBtn = document.getElementById('confirmWebDownloadBtn');
-        confirmBtn.dataset.datasetUuid = datasetUuid;
-        confirmBtn.dataset.datasetName = datasetName;
-
-        // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('webDownloadModal'));
-        modal.show();
-    }
-
-    // Make the function globally available
-    window.showWebDownloadModal = showWebDownloadModal;
-</script>

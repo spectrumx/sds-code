@@ -116,6 +116,12 @@ describe("DetailsActionManager", () => {
 			renderError: jest.fn().mockResolvedValue(true),
 			renderLoading: jest.fn().mockResolvedValue(true),
 			renderContent: jest.fn().mockResolvedValue(true),
+			showModalLoading: jest.fn().mockResolvedValue(true),
+			clearModalLoading: jest.fn(),
+			showModalError: jest.fn().mockResolvedValue(true),
+			openModal: jest.fn(),
+			closeModal: jest.fn(),
+			formatFileSize: jest.fn((bytes) => `${bytes} bytes`),
 		};
 
 		// Mock window.APIClient (what the actual code uses)
@@ -275,20 +281,15 @@ describe("DetailsActionManager", () => {
 			detailsManager = new DetailsActionManager({ permissions });
 		});
 
-		test("should show modal loading state", () => {
-			// DOMUtils.renderLoading should be called instead of HTMLInjectionManager
-			const renderLoadingSpy = jest.spyOn(
-				global.window.DOMUtils,
-				"renderLoading",
+		test("should show modal loading state using DOMUtils", async () => {
+			// The showModalLoading method in DetailsActionManager is a wrapper
+			// that calls DOMUtils.showModalLoading
+			await detailsManager.showModalLoading("test-modal");
+
+			// Verify DOMUtils.showModalLoading was called
+			expect(global.window.DOMUtils.showModalLoading).toHaveBeenCalledWith(
+				"test-modal",
 			);
-
-			// The method exists but requires a modalId parameter
-			detailsManager.showModalLoading("test-modal");
-
-			// Verify the appropriate DOMUtils method was called
-			expect(renderLoadingSpy).toHaveBeenCalled();
-
-			renderLoadingSpy.mockRestore();
 		});
 
 		test("should handle modal event handlers", () => {
