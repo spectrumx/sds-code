@@ -31,19 +31,18 @@
             </div>
         </div>
     </div>
-    <!-- Modals to reveal on click -->
-    {% include "users/partials/web_download_modal.html" %}
-    {% include "users/partials/dataset_details_modal.html" %}
-    {% if page_obj %}
-        {% for dataset in page_obj %}
-            {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
-            {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
-            {% if dataset.is_owner or dataset.permission_level == 'co-owner' %}
-                {% if not dataset.dataset.status == 'final' or not dataset.is_public %}
-                    {% include "users/partials/publish_dataset_modal.html" with dataset=dataset %}
-                {% endif %}
-            {% endif %}
-        {% endfor %}
+</div>
+<!-- Modals to reveal on click -->
+{% for dataset in page_obj %}
+{% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
+    {% include "users/partials/web_download_modal.html" with dataset=dataset %}
+    {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
+    {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
+    {% if dataset.is_owner or dataset.permission_level == 'co-owner' %}
+        {% include "users/partials/dataset_version_control.html" with dataset=dataset %}
+        {% if not dataset.dataset.status == 'final' or not dataset.is_public %}
+            {% include "users/partials/publish_dataset_modal.html" with dataset=dataset %}
+        {% endif %}
     {% endif %}
 {% endblock content %}
 {% block javascript %}
@@ -61,6 +60,7 @@
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <script src="{% static 'js/actions/PublishActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.btn-icon-dropdown').forEach(function(toggle) {
@@ -108,6 +108,14 @@
             // Initialize the page lifecycle manager
             // This will automatically handle all modal initialization including share modals
             window.pageLifecycleManager = new PageLifecycleManager(pageConfig);
+
+
+            // Initialize ListRefreshManager for dataset list
+            window.listRefreshManager = new ListRefreshManager({
+                containerSelector: '#dynamic-table-container',
+                url: '/users/dataset-list/',
+                itemType: 'dataset'
+            });
 
             // Initialize PublishActionManager for publish modals
             if (typeof PublishActionManager !== 'undefined') {
