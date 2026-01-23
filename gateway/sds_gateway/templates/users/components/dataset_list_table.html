@@ -179,16 +179,17 @@ Context:
                                                 </li>
                                             {% endif %}
                                         <li>
-                                            <button class="dropdown-item"
+                                            <button class="dropdown-item web-download-btn"
                                                     type="button"
-                                                    onclick="window.DOMUtils.openModal('webDownloadModal-{{ dataset.uuid }}')">
+                                                    data-dataset-uuid="{{ dataset.uuid }}"
+                                                    data-dataset-name="{{ dataset.name }}">
                                                 <i class="bi bi-download me-2"></i>Web Download
                                             </button>
                                         </li>
                                         <li>
-                                            <button class="dropdown-item"
+                                            <button class="dropdown-item sdk-download-btn"
                                                     type="button"
-                                                    onclick="window.DOMUtils.openModal('sdkDownloadModal-{{ dataset.uuid }}')">
+                                                    data-dataset-uuid="{{ dataset.uuid }}">
                                                 <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
                                             </button>
                                         </li>
