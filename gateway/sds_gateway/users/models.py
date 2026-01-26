@@ -40,7 +40,7 @@ class User(AbstractUser):
         ),
     )
 
-    # https://docs.djangoproject.com/en/dev/topics/auth/customizing/#django.contrib.auth.models.CustomUser.USERNAME_FIELD
+    # https://docs.djangoproject.com/en/4.2/topics/auth/customizing/#django.contrib.auth.models.CustomUser.USERNAME_FIELD
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: list[str] = []
 

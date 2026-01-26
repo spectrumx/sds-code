@@ -7,22 +7,22 @@ from .base import env
 
 # GENERAL
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
+# https://docs.djangoproject.com/en/4.2/ref/settings/#secret-key
 SECRET_KEY: str = env(
     "DJANGO_SECRET_KEY",
     default="i7lLKZqZCyqDkR4pxy8AmfYg2Jw5DWqJ92YdglKYZGchZQnm5icgqft16OWw8Cf5",
 )
-# https://docs.djangoproject.com/en/dev/ref/settings/#test-runner
+# https://docs.djangoproject.com/en/4.2/ref/settings/#test-runner
 TEST_RUNNER: str = "django.test.runner.DiscoverRunner"
 
 # PASSWORDS
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#password-hashers
+# https://docs.djangoproject.com/en/4.2/ref/settings/#password-hashers
 PASSWORD_HASHERS: list[str] = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 # EMAIL
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
+# https://docs.djangoproject.com/en/4.2/ref/settings/#email-backend
 EMAIL_BACKEND: str = "django.core.mail.backends.locmem.EmailBackend"
 
 # DEBUGGING FOR TEMPLATES
@@ -31,7 +31,7 @@ TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
 
 # MEDIA
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#media-url
+# https://docs.djangoproject.com/en/4.2/ref/settings/#media-url
 MEDIA_URL: str = "http://media.testserver"
 # django-webpack-loader
 # ------------------------------------------------------------------------------

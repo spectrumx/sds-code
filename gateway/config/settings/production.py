@@ -16,11 +16,11 @@ from .utils import guess_best_sentry_env
 
 # GENERAL
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#debug
+# https://docs.djangoproject.com/en/4.2/ref/settings/#debug
 # DEBUG: bool = True
-# https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
+# https://docs.djangoproject.com/en/4.2/ref/settings/#secret-key
 SECRET_KEY: str = env("DJANGO_SECRET_KEY")
-# https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
+# https://docs.djangoproject.com/en/4.2/ref/settings/#allowed-hosts
 ALLOWED_HOSTS: list[str] = env.list(
     "DJANGO_ALLOWED_HOSTS",
     default=[
@@ -53,31 +53,31 @@ CACHES = {
 
 # SECURITY
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#secure-proxy-ssl-header
+# https://docs.djangoproject.com/en/4.2/ref/settings/#secure-proxy-ssl-header
 SECURE_PROXY_SSL_HEADER: tuple[str, ...] = ("HTTP_X_FORWARDED_PROTO", "https")
-# https://docs.djangoproject.com/en/dev/ref/settings/#secure-ssl-redirect
+# https://docs.djangoproject.com/en/4.2/ref/settings/#secure-ssl-redirect
 SECURE_SSL_REDIRECT: bool = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
-# https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-secure
+# https://docs.djangoproject.com/en/4.2/ref/settings/#session-cookie-secure
 SESSION_COOKIE_SECURE: bool = True
-# https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-name
+# https://docs.djangoproject.com/en/4.2/ref/settings/#session-cookie-name
 SESSION_COOKIE_NAME: str = "__Secure-sessionid"
-# https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-secure
+# https://docs.djangoproject.com/en/4.2/ref/settings/#csrf-cookie-secure
 CSRF_COOKIE_SECURE: bool = True
-# https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-name
+# https://docs.djangoproject.com/en/4.2/ref/settings/#csrf-cookie-name
 CSRF_COOKIE_NAME: str = "__Secure-csrftoken"
-# https://docs.djangoproject.com/en/dev/topics/security/#ssl-https
-# https://docs.djangoproject.com/en/dev/ref/settings/#secure-hsts-seconds
+# https://docs.djangoproject.com/en/4.2/topics/security/#ssl-https
+# https://docs.djangoproject.com/en/4.2/ref/settings/#secure-hsts-seconds
 # TODO: set this to 60 seconds first and then to 518400 once you prove the former works
 # !!! Setting this incorrectly can irreversibly (for some time) break your site !!!
 SECURE_HSTS_SECONDS: int = 60
-# https://docs.djangoproject.com/en/dev/ref/settings/#secure-hsts-include-subdomains
+# https://docs.djangoproject.com/en/4.2/ref/settings/#secure-hsts-include-subdomains
 SECURE_HSTS_INCLUDE_SUBDOMAINS: bool = env.bool(
     "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS",
     default=True,
 )
-# https://docs.djangoproject.com/en/dev/ref/settings/#secure-hsts-preload
+# https://docs.djangoproject.com/en/4.2/ref/settings/#secure-hsts-preload
 SECURE_HSTS_PRELOAD: bool = env.bool("DJANGO_SECURE_HSTS_PRELOAD", default=True)
-# https://docs.djangoproject.com/en/dev/ref/middleware/#x-content-type-options-nosniff
+# https://docs.djangoproject.com/en/4.2/ref/middleware/#x-content-type-options-nosniff
 SECURE_CONTENT_TYPE_NOSNIFF: bool = env.bool(
     "DJANGO_SECURE_CONTENT_TYPE_NOSNIFF",
     default=True,
@@ -87,14 +87,14 @@ SECURE_CONTENT_TYPE_NOSNIFF: bool = env.bool(
 
 # EMAIL
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#default-from-email
+# https://docs.djangoproject.com/en/4.2/ref/settings/#default-from-email
 DEFAULT_FROM_EMAIL: str = env(
     "DJANGO_DEFAULT_FROM_EMAIL",
     default="SpectrumX Data System Gateway <noreply@sds.crc.nd.edu>",
 )
-# https://docs.djangoproject.com/en/dev/ref/settings/#server-email
+# https://docs.djangoproject.com/en/4.2/ref/settings/#server-email
 SERVER_EMAIL: str = env("DJANGO_SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-subject-prefix
+# https://docs.djangoproject.com/en/4.2/ref/settings/#email-subject-prefix
 EMAIL_SUBJECT_PREFIX: str = env(
     "DJANGO_EMAIL_SUBJECT_PREFIX",
     default="[SpectrumX Data System Gateway] ",
@@ -111,7 +111,7 @@ ADMIN_URL: str = env("DJANGO_ADMIN_URL")
 # ------------------------------------------------------------------------------
 # https://anymail.readthedocs.io/en/stable/installation/#installing-anymail
 # INSTALLED_APPS.extend(["anymail"])
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
+# https://docs.djangoproject.com/en/4.2/ref/settings/#email-backend
 # https://anymail.readthedocs.io/en/stable/installation/#anymail-settings-reference
 # https://anymail.readthedocs.io/en/stable/esps/mailgun/
 # EMAIL_BACKEND: str = "anymail.backends.mailgun.EmailBackend"
@@ -129,8 +129,8 @@ ADMIN_URL: str = env("DJANGO_ADMIN_URL")
 #   check ADMINS' email addresses in base.py if re-enabling this handler.
 DEFAULT_LOGGING["handlers"]["mail_admins"]["class"] = "logging.NullHandler"
 
-# https://docs.djangoproject.com/en/dev/ref/settings/#logging
-# See https://docs.djangoproject.com/en/dev/topics/logging for
+# https://docs.djangoproject.com/en/4.2/ref/settings/#logging
+# See https://docs.djangoproject.com/en/4.2/topics/logging for
 # more details on how to customize your logging configuration.
 LOGGING: dict[str, Any] = {
     "version": 1,

@@ -15,14 +15,14 @@ django_stubs_ext.monkeypatch()
 
 # GENERAL
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#debug
+# https://docs.djangoproject.com/en/4.2/ref/settings/#debug
 DEBUG: bool = True
-# https://docs.djangoproject.com/en/dev/ref/settings/#secret-key
+# https://docs.djangoproject.com/en/4.2/ref/settings/#secret-key
 SECRET_KEY: str = env(
     "DJANGO_SECRET_KEY",
     default="7SGPiDXuHen3CinEGQ4GjOnzHVgcS28Mpbf6zTuHWJtELgpo1FyWs25IeaCR5Sfn",
 )
-# https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
+# https://docs.djangoproject.com/en/4.2/ref/settings/#allowed-hosts
 ALLOWED_HOSTS: list[str] = env.list(
     "DJANGO_ALLOWED_HOSTS",
     default=[
@@ -36,7 +36,7 @@ ALLOWED_HOSTS: list[str] = env.list(
 
 # CACHES
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#caches
+# https://docs.djangoproject.com/en/4.2/ref/settings/#caches
 CACHES: dict[str, Any] = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
