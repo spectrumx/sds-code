@@ -59,6 +59,10 @@ dc +args:
     @echo "Running docker compose command: {{args}}"
     {{docker_compose}} {{args}}
 
+# runs deptry to check for missing and unused python dependencies
+deptry:
+    uv run --extra local deptry .
+
 # sets up the development environment
 dev-setup:
     #!/usr/bin/env bash

@@ -15,6 +15,7 @@ repos:
           - id: check-xml
           - id: check-yaml
           - id: debug-statements
+          - id: check-added-large-files
           - id: check-builtin-literals
           - id: check-case-conflict
           - id: check-docstring-first
@@ -45,7 +46,7 @@ repos:
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.14.11
+      rev: v0.14.14
       hooks:
           # linter
           - id: ruff-check # runs ruff check --force-exclude
@@ -84,6 +85,17 @@ repos:
           - id: markdownlint
             args: ["-f"]
             stages: [pre-commit]
+
+    - repo: local
+      # add deptry rule exceptions to pyproject.toml [tool.deptry.ignore_rules]
+      # instead of using arguments here.
+      hooks:
+          - id: deptry
+            name: deptry
+            entry: bash -c "cd sdk && uv run deptry .; cd ../gateway && uv run deptry ."
+            language: system
+            pass_filenames: false # run once per commit, not per file
+            types: [python]
 
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:

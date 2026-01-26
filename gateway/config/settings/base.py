@@ -88,38 +88,38 @@ if READ_DOT_ENV_FILE:
 
 # GENERAL
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#debug
+# https://docs.djangoproject.com/en/4.2/ref/settings/#debug
 DEBUG: bool = env.bool("DJANGO_DEBUG", False)
 # Local time zone. Choices are
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # though not all of them may be available with every OS.
 # In Windows, this must be set to your system time zone.
 TIME_ZONE: str = "America/New_York"
-# https://docs.djangoproject.com/en/dev/ref/settings/#language-code
+# https://docs.djangoproject.com/en/4.2/ref/settings/#language-code
 LANGUAGE_CODE: str = "en-us"
-# https://docs.djangoproject.com/en/dev/ref/settings/#languages
+# https://docs.djangoproject.com/en/4.2/ref/settings/#languages
 # from django.utils.translation import gettext_lazy as _
 # LANGUAGES = [
 #     ('en', _('English')),
 #     ('fr-fr', _('French')),
 #     ('pt-br', _('Portuguese')),
 # ]
-# https://docs.djangoproject.com/en/dev/ref/settings/#site-id
+# https://docs.djangoproject.com/en/4.2/ref/settings/#site-id
 SITE_ID: int = 1
-# https://docs.djangoproject.com/en/dev/ref/settings/#use-i18n
+# https://docs.djangoproject.com/en/4.2/ref/settings/#use-i18n
 USE_I18N: bool = True
-# https://docs.djangoproject.com/en/dev/ref/settings/#use-tz
+# https://docs.djangoproject.com/en/4.2/ref/settings/#use-tz
 USE_TZ: bool = True
-# https://docs.djangoproject.com/en/dev/ref/settings/#locale-paths
+# https://docs.djangoproject.com/en/4.2/ref/settings/#locale-paths
 LOCALE_PATHS: list[str] = [str(BASE_DIR / "locale")]
 
 # DATABASES
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#databases
+# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 DATABASES: dict[str, Any] = {"default": env.dj_db_url("DATABASE_URL")}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # TODO: enable connection pools when upgrading to Django 5.1+ and psycopg3
-# https://docs.djangoproject.com/en/dev/ref/databases/#connection-pool
+# https://docs.djangoproject.com/en/4.2/ref/databases/#connection-pool
 # DATABASES["default"]["OPTIONS"] = {
 #     "pool": True,
 # }
@@ -128,9 +128,9 @@ DEFAULT_AUTO_FIELD: str = "django.db.models.BigAutoField"
 
 # URLS
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#root-urlconf
+# https://docs.djangoproject.com/en/4.2/ref/settings/#root-urlconf
 ROOT_URLCONF: str = "config.urls"
-# https://docs.djangoproject.com/en/dev/ref/settings/#wsgi-application
+# https://docs.djangoproject.com/en/4.2/ref/settings/#wsgi-application
 WSGI_APPLICATION: str = "config.wsgi.application"
 
 # APPS
@@ -173,40 +173,44 @@ LOCAL_APPS: list[str] = [
     "sds_gateway.visualizations",
     # Your stuff: custom apps go here
 ]
-# https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
+# https://docs.djangoproject.com/en/4.2/ref/settings/#installed-apps
 INSTALLED_APPS: list[str] = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 # MIGRATIONS
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#migration-modules
+# https://docs.djangoproject.com/en/4.2/ref/settings/#migration-modules
 MIGRATION_MODULES: dict[str, str] = {"sites": "sds_gateway.contrib.sites.migrations"}
 
 # AUTHENTICATION
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#authentication-backends
+# https://docs.djangoproject.com/en/4.2/ref/settings/#authentication-backends
 AUTHENTICATION_BACKENDS: list[str] = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
-# https://docs.djangoproject.com/en/dev/ref/settings/#auth-user-model
+# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-user-model
 # see sds_gateway/users/models.py
 AUTH_USER_MODEL: str = "users.User"
-# https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
+# https://docs.djangoproject.com/en/4.2/ref/settings/#login-redirect-url
 LOGIN_REDIRECT_URL: str = "users:redirect"
-# https://docs.djangoproject.com/en/dev/ref/settings/#login-url
+# https://docs.djangoproject.com/en/4.2/ref/settings/#login-url
 LOGIN_URL: str = "account_login"
 
 # PASSWORDS
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#password-hashers
+# https://docs.djangoproject.com/en/4.2/ref/settings/#password-hashers
+# For storing passwords, Django will use the first hasher in PASSWORD_HASHERS.
+# To store new passwords with a different algorithm, put
+# your preferred algorithm first in PASSWORD_HASHERS.
 PASSWORD_HASHERS: list[str] = [
-    # https://docs.djangoproject.com/en/dev/topics/auth/passwords/#using-argon2-with-django
+    # https://docs.djangoproject.com/en/4.2/topics/auth/passwords/#using-argon2-with-django
+    # requires 'argon2-cffi' package
     "django.contrib.auth.hashers.Argon2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
     "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
 ]
-# https://docs.djangoproject.com/en/dev/ref/settings/#auth-password-validators
+# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS: list[dict[str, str]] = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",  # noqa: E501
@@ -218,7 +222,7 @@ AUTH_PASSWORD_VALIDATORS: list[dict[str, str]] = [
 
 # MIDDLEWARE
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#middleware
+# https://docs.djangoproject.com/en/4.2/ref/settings/#middleware
 MIDDLEWARE: list[str] = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -235,13 +239,13 @@ MIDDLEWARE: list[str] = [
 
 # STATIC
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#static-root
+# https://docs.djangoproject.com/en/4.2/ref/settings/#static-root
 STATIC_ROOT: str = str(BASE_DIR / "staticfiles")
-# https://docs.djangoproject.com/en/dev/ref/settings/#static-url
+# https://docs.djangoproject.com/en/4.2/ref/settings/#static-url
 STATIC_URL: str = "/static/"
-# https://docs.djangoproject.com/en/dev/ref/contrib/staticfiles/#std:setting-STATICFILES_DIRS
+# https://docs.djangoproject.com/en/4.2/ref/contrib/staticfiles/#std:setting-STATICFILES_DIRS
 STATICFILES_DIRS: list[str] = [str(APPS_DIR / "static")]
-# https://docs.djangoproject.com/en/dev/ref/contrib/staticfiles/#staticfiles-finders
+# https://docs.djangoproject.com/en/4.2/ref/contrib/staticfiles/#staticfiles-finders
 STATICFILES_FINDERS: list[str] = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
     "django.contrib.staticfiles.finders.AppDirectoriesFinder",
@@ -249,24 +253,24 @@ STATICFILES_FINDERS: list[str] = [
 
 # MEDIA
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#media-root
+# https://docs.djangoproject.com/en/4.2/ref/settings/#media-root
 MEDIA_ROOT: str = str(APPS_DIR / "media")
-# https://docs.djangoproject.com/en/dev/ref/settings/#media-url
+# https://docs.djangoproject.com/en/4.2/ref/settings/#media-url
 MEDIA_URL: str = "/media/"
 
 # TEMPLATES
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#templates
+# https://docs.djangoproject.com/en/4.2/ref/settings/#templates
 TEMPLATES: list[dict[str, Any]] = [
     {
-        # https://docs.djangoproject.com/en/dev/ref/settings/#std:setting-TEMPLATES-BACKEND
+        # https://docs.djangoproject.com/en/4.2/ref/settings/#std:setting-TEMPLATES-BACKEND
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        # https://docs.djangoproject.com/en/dev/ref/settings/#dirs
+        # https://docs.djangoproject.com/en/4.2/ref/settings/#dirs
         "DIRS": [str(APPS_DIR / "templates")],
-        # https://docs.djangoproject.com/en/dev/ref/settings/#app-dirs
+        # https://docs.djangoproject.com/en/4.2/ref/settings/#app-dirs
         "APP_DIRS": True,
         "OPTIONS": {
-            # https://docs.djangoproject.com/en/dev/topics/templates/#module-django.template.backends.django
+            # https://docs.djangoproject.com/en/4.2/topics/templates/#module-django.template.backends.django
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
@@ -283,7 +287,7 @@ TEMPLATES: list[dict[str, Any]] = [
     },
 ]
 
-# https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
+# https://docs.djangoproject.com/en/4.2/ref/settings/#form-renderer
 FORM_RENDERER: str = "django.forms.renderers.TemplatesSetting"
 
 # http://django-crispy-forms.readthedocs.io/en/latest/install.html#template-packs
@@ -292,21 +296,21 @@ CRISPY_ALLOWED_TEMPLATE_PACKS: str = "bootstrap5"
 
 # FIXTURES
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#fixture-dirs
+# https://docs.djangoproject.com/en/4.2/ref/settings/#fixture-dirs
 FIXTURE_DIRS: tuple[str] = (str(APPS_DIR / "fixtures"),)
 
 # SECURITY
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-httponly
+# https://docs.djangoproject.com/en/4.2/ref/settings/#session-cookie-httponly
 SESSION_COOKIE_HTTPONLY: bool = True
-# https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-httponly
+# https://docs.djangoproject.com/en/4.2/ref/settings/#csrf-cookie-httponly
 CSRF_COOKIE_HTTPONLY: bool = True
-# https://docs.djangoproject.com/en/dev/ref/settings/#x-frame-options
+# https://docs.djangoproject.com/en/4.2/ref/settings/#x-frame-options
 X_FRAME_OPTIONS: str = "DENY"
 
 # EMAIL
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-backend
+# https://docs.djangoproject.com/en/4.2/ref/settings/#email-backend
 EMAIL_BACKEND: str = env(
     "DJANGO_EMAIL_BACKEND",
     default="django.core.mail.backends.smtp.EmailBackend",
@@ -318,21 +322,21 @@ EMAIL_HOST_PASSWORD: str = env("DJANGO_EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS: bool = env("DJANGO_EMAIL_USE_TLS", default=False)
 EMAIL_USE_SSL: bool = env("DJANGO_EMAIL_USE_SSL", default=False)
 
-# https://docs.djangoproject.com/en/dev/ref/settings/#email-timeout
+# https://docs.djangoproject.com/en/4.2/ref/settings/#email-timeout
 EMAIL_TIMEOUT: int = 5
 
 # ADMIN
 # ------------------------------------------------------------------------------
 # Django Admin URL.
 ADMIN_URL: str = "admin/"
-# https://docs.djangoproject.com/en/dev/ref/settings/#admins
+# https://docs.djangoproject.com/en/4.2/ref/settings/#admins
 ADMINS: list[tuple[str, ...]] = [
     (
         """Center for Research Computing | University of Notre Dame""",
         "crc-sds-list@nd.edu",
     ),
 ]
-# https://docs.djangoproject.com/en/dev/ref/settings/#managers
+# https://docs.djangoproject.com/en/4.2/ref/settings/#managers
 MANAGERS: list[tuple[str, ...]] = ADMINS
 # https://cookiecutter-django.readthedocs.io/en/latest/settings.html#other-environment-settings
 # Force the `admin` sign in process to go through the `django-allauth` workflow
@@ -340,8 +344,8 @@ DJANGO_ADMIN_FORCE_ALLAUTH: bool = env.bool("DJANGO_ADMIN_FORCE_ALLAUTH", defaul
 
 # LOGGING
 # ------------------------------------------------------------------------------
-# https://docs.djangoproject.com/en/dev/ref/settings/#logging
-# See https://docs.djangoproject.com/en/dev/topics/logging for
+# https://docs.djangoproject.com/en/4.2/ref/settings/#logging
+# See https://docs.djangoproject.com/en/4.2/topics/logging for
 # more details on how to customize your logging configuration.
 LOGGING: dict[str, Any] = {
     "version": 1,
