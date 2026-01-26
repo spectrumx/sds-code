@@ -101,7 +101,7 @@ class Unset:
 
     _instance: None | Self = None
 
-    def __new__(cls, *args, **kwargs) -> "Unset":
+    def __new__(cls, *args, **kwargs) -> "Self":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
