@@ -1,11 +1,12 @@
 [project]
     authors = [{ name = "Center for Research Computing | UND", email = "crc-sds-list@nd.edu" }]
     dependencies = [
-        "argon2-cffi>=23.1.0",                   # for argon2-hashed passwords in django
+        "argon2-cffi>=23.1.0",
         "blake3>=0.4.1",
         "celery==5.5.2",
         "coverage>=7.6",
         "crispy-bootstrap5>=2024.10",
+        "deptry>=0.24.0",
         "digital-rf>=2.6.11",
         "django-allauth[socialaccount]>=64.2.1",
         "django-allauth>=65.1",
@@ -28,6 +29,7 @@
         "drf-spectacular>=0.27.2",
         "environs[django]>=14.1.1",
         "factory-boy>=3.3.1",
+        "fido2>=2.1.1",
         "flower>=2.0.1",
         "h5py>=3.12.1",
         "loguru>=0.7.2",
@@ -43,15 +45,13 @@
         "pytest>=8.3",
         "python-slugify>=8.0.4",
         "redis>=5.2.0",
+        "requests>=2.32.5",
         "rich>=13.9.3",
         "scipy>=1.16.1",
         "sentry-sdk[django]>=2.25.1",
         "uvicorn-worker>=0.2.0",
         "uvicorn>=0.32.0",
         "whitenoise>=6.7.0",
-        "deptry[local]>=0.24.0",
-        "requests>=2.32.5",
-        "fido2>=2.1.1",
     ]
     description = "Gateway for SpectrumX Data System"
     name = "sds_gateway"
