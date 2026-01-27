@@ -397,14 +397,10 @@ class PublishActionManager {
 	 * @param {string} type - Type of notification (success, error, info)
 	 */
 	showNotification(message, type = "info") {
-		// Use existing notification system if available
-		if (typeof showAlert === "function") {
-			showAlert(message, type);
-		} else if (typeof window.showAlert === "function") {
-			window.showAlert(message, type);
+		if (window.DOMUtils?.showAlert) {
+			window.DOMUtils.showAlert(message, type);
 		} else {
-			// Fallback to alert
-			alert(message);
+			console.error("DOMUtils not available");
 		}
 	}
 }
