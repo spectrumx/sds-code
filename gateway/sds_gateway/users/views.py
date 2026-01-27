@@ -2620,6 +2620,138 @@ class GroupCapturesView(
 user_group_captures_view = GroupCapturesView.as_view()
 
 
+def filter_by_frequency_range(
+    datasets: QuerySet[Dataset],
+    min_freq: float | None,
+    max_freq: float | None,
+) -> QuerySet[Dataset]:
+    """Filter datasets by frequency range of their captures.
+
+    Reuses the existing _apply_frequency_filters_to_list function
+    to filter captures, then maps back to datasets.
+    """
+    if min_freq is None and max_freq is None:
+        return datasets
+
+    # Get dataset UUIDs
+    dataset_uuids = list(datasets.values_list("uuid", flat=True))
+    if not dataset_uuids:
+        return datasets.none()
+
+    # Get all captures for these datasets and convert to list
+    captures_qs = Capture.objects.filter(
+        dataset__uuid__in=dataset_uuids, is_deleted=False
+    )
+    captures_list = list(captures_qs.iterator(chunk_size=1000))
+    if not captures_list:
+        return datasets.none()
+
+    # Use existing frequency filter function
+    filtered_captures = _apply_frequency_filters_to_list(
+        captures_list=captures_list,
+        min_freq=min_freq,
+        max_freq=max_freq,
+    )
+
+    # Get dataset IDs from filtered captures
+    matching_dataset_ids = {
+        capture.dataset_id
+        for capture in filtered_captures
+        if capture.dataset_id is not None
+    }
+    if not matching_dataset_ids:
+        return datasets.none()
+
+    # Get dataset UUIDs from IDs and filter the queryset
+    matching_dataset_uuids = set(
+        Dataset.objects.filter(id__in=matching_dataset_ids).values_list(
+            "uuid", flat=True
+        )
+    )
+    return datasets.filter(uuid__in=matching_dataset_uuids)
+
+
+def serialize_datasets_for_user(
+    datasets: QuerySet[Dataset], user: User | None
+) -> list[dict[str, Any]]:
+    """Serialize datasets for display with user context.
+
+    Args:
+        datasets: QuerySet of Dataset objects to serialize
+        user: User object or None for anonymous users
+
+    Returns:
+        List of serialized dataset dictionaries
+    """
+    serialized_datasets = []
+    for dataset in datasets:
+        # Create a mock request object for the serializer context
+        context_req = {
+            "request": type(
+                "Request",
+                (),
+                {"user": user if user and user.is_authenticated else None},
+            )()
+        }
+        dataset_data = cast(
+            "ReturnDict", DatasetGetSerializer(dataset, context=context_req).data
+        )
+        dataset_data["dataset"] = dataset
+        serialized_datasets.append(dataset_data)
+    return serialized_datasets
+
+
+def get_published_datasets() -> QuerySet[Dataset]:
+    """Get all published datasets (status=FINAL or is_public=True)."""
+    return (
+        Dataset.objects.filter(
+            Q(status=DatasetStatus.FINAL) | Q(is_public=True),
+            is_deleted=False,
+        )
+        .prefetch_related("keywords", "owner")
+        .distinct()
+        .order_by("-created_at")
+    )
+
+
+def apply_search_filters(
+    datasets: QuerySet[Dataset],
+    form_data: dict[str, Any],
+) -> QuerySet[Dataset]:
+    """Apply search filters to the dataset queryset."""
+    query = form_data.get("query", "").strip()
+    keywords_str = form_data.get("keywords", "").strip()
+    min_freq = form_data.get("min_frequency")
+    max_freq = form_data.get("max_frequency")
+
+    # Apply text search
+    if query:
+        datasets = datasets.filter(
+            Q(name__icontains=query)
+            | Q(abstract__icontains=query)
+            | Q(description__icontains=query)
+            | Q(authors__icontains=query)
+            | Q(doi__icontains=query)
+        )
+
+    # Apply keyword filter
+    if keywords_str:
+        # Split and slugify keywords
+        keyword_slugs = {
+            slugify(k.strip())
+            for k in keywords_str.split(",")
+            if k.strip() and slugify(k.strip())
+        }
+        if keyword_slugs:
+            datasets = datasets.filter(keywords__name__in=keyword_slugs).distinct()
+
+    # Apply frequency range filter
+    if min_freq is not None or max_freq is not None:
+        datasets = filter_by_frequency_range(datasets, min_freq, max_freq)
+
+    return datasets
+
+
 class ListDatasetsView(Auth0LoginRequiredMixin, View):
     template_name = "users/dataset_list.html"
 
@@ -2634,10 +2766,10 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
         datasets_with_shared_users: list[dict] = []  # pyright: ignore[reportMissingTypeArgument]
         datasets_with_shared_users.extend(
-            self._serialize_datasets(owned_datasets, request.user)
+            serialize_datasets_for_user(owned_datasets, request.user)
         )
         datasets_with_shared_users.extend(
-            self._serialize_datasets(shared_datasets, request.user)
+            serialize_datasets_for_user(shared_datasets, request.user)
         )
 
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
@@ -2693,23 +2825,6 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             .order_by(order_by)
         )
 
-    def _serialize_datasets(
-        self, datasets: QuerySet[Dataset], user: User
-    ) -> list[dict[str, Any]]:
-        """Prepare serialized datasets."""
-        result = []
-        for dataset in datasets:
-            # Use serializer with request context for proper field calculation
-            context = {"request": type("Request", (), {"user": user})()}
-            dataset_data = cast(
-                "ReturnDict", DatasetGetSerializer(dataset, context=context).data
-            )
-
-            # Add the original model for template access
-            dataset_data["dataset"] = dataset
-            result.append(dataset_data)
-        return result
-
     def _paginate_datasets(
         self, datasets: list[dict[str, Any]], request: HttpRequest
     ) -> Any:
@@ -2717,163 +2832,6 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         paginator = Paginator(datasets, per_page=15)
         page_number = request.GET.get("page")
         return paginator.get_page(page_number)
-
-    def _get_published_datasets(self) -> QuerySet[Dataset]:
-        """Get all published datasets (status=FINAL or is_public=True)."""
-        return (
-            Dataset.objects.filter(
-                Q(status=DatasetStatus.FINAL) | Q(is_public=True),
-                is_deleted=False,
-            )
-            .prefetch_related("keywords", "owner")
-            .distinct()
-            .order_by("-created_at")
-        )
-
-    def _apply_search_filters(
-        self,
-        datasets: QuerySet[Dataset],
-        form_data: dict[str, Any],
-        user: User,
-    ) -> QuerySet[Dataset]:
-        """Apply search filters to the dataset queryset."""
-        query = form_data.get("query", "").strip()
-        keywords_str = form_data.get("keywords", "").strip()
-        min_freq = form_data.get("min_frequency")
-        max_freq = form_data.get("max_frequency")
-
-        # Apply text search
-        if query:
-            datasets = datasets.filter(
-                Q(name__icontains=query)
-                | Q(abstract__icontains=query)
-                | Q(description__icontains=query)
-                | Q(authors__icontains=query)
-                | Q(doi__icontains=query)
-            )
-
-        # Apply keyword filter
-        if keywords_str:
-            # Split and slugify keywords
-            keyword_slugs = {
-                slugify(k.strip())
-                for k in keywords_str.split(",")
-                if k.strip() and slugify(k.strip())
-            }
-            if keyword_slugs:
-                datasets = datasets.filter(keywords__name__in=keyword_slugs).distinct()
-
-        # Apply frequency range filter
-        if min_freq is not None or max_freq is not None:
-            datasets = self._filter_by_frequency_range(datasets, min_freq, max_freq)
-
-        return datasets
-
-    def _check_center_frequency_match(
-        self,
-        center_freq_hz: float,
-        min_freq_hz: float | None,
-        max_freq_hz: float | None,
-    ) -> bool:
-        """Check if center frequency is within the search range."""
-        return not (
-            (min_freq_hz is not None and center_freq_hz < min_freq_hz)
-            or (max_freq_hz is not None and center_freq_hz > max_freq_hz)
-        )
-
-    def _check_frequency_range_overlap(
-        self,
-        capture_min_hz: float,
-        capture_max_hz: float,
-        min_freq_hz: float | None,
-        max_freq_hz: float | None,
-    ) -> bool:
-        """Check if capture frequency range overlaps with search range."""
-        # Overlap occurs if: capture_min <= search_max AND capture_max >= search_min
-        return not (
-            (min_freq_hz is not None and capture_max_hz < min_freq_hz)
-            or (max_freq_hz is not None and capture_min_hz > max_freq_hz)
-        )
-
-    def _process_capture_for_frequency_match(
-        self,
-        capture: Capture,
-        freq_info: dict[str, Any],
-        min_freq_hz: float | None,
-        max_freq_hz: float | None,
-    ) -> bool:
-        """Check if a capture matches the frequency range."""
-        center_freq_hz = freq_info.get("center_frequency")
-        freq_min_hz = freq_info.get("frequency_min")
-        freq_max_hz = freq_info.get("frequency_max")
-
-        if center_freq_hz is None and freq_min_hz is None and freq_max_hz is None:
-            return False
-
-        # Check if we have explicit min/max range
-        if freq_min_hz is not None and freq_max_hz is not None:
-            capture_min_hz = float(freq_min_hz)
-            capture_max_hz = float(freq_max_hz)
-            return self._check_frequency_range_overlap(
-                capture_min_hz, capture_max_hz, min_freq_hz, max_freq_hz
-            )
-
-        # If we only have center frequency, check if it's in range
-        if center_freq_hz is not None:
-            center_freq = float(center_freq_hz)
-            return self._check_center_frequency_match(
-                center_freq, min_freq_hz, max_freq_hz
-            )
-
-        return False
-
-    def _filter_by_frequency_range(
-        self,
-        datasets: QuerySet[Dataset],
-        min_freq: float | None,
-        max_freq: float | None,
-    ) -> QuerySet[Dataset]:
-        """Filter datasets by frequency range of their captures."""
-        if min_freq is None and max_freq is None:
-            return datasets
-
-        # Get all captures for these datasets
-        dataset_uuids = list(datasets.values_list("uuid", flat=True))
-        captures = Capture.objects.filter(
-            dataset__uuid__in=dataset_uuids, is_deleted=False
-        )
-
-        if not captures.exists():
-            return datasets.none()
-
-        # Bulk load frequency metadata
-        try:
-            frequency_data = Capture.bulk_load_frequency_metadata(captures)
-        except (DatabaseError, AttributeError) as e:
-            log.warning(f"Error loading frequency metadata: {e}", exc_info=True)
-            return datasets
-
-        # Convert frequency to Hz for comparison
-        min_freq_hz = min_freq * 1e9 if min_freq is not None else None
-        max_freq_hz = max_freq * 1e9 if max_freq is not None else None
-
-        # Find datasets with captures in the frequency range
-        matching_dataset_uuids = set()
-        for capture in captures:
-            capture_uuid = str(capture.uuid)
-            freq_info = frequency_data.get(capture_uuid, {})
-            if (
-                self._process_capture_for_frequency_match(
-                    capture, freq_info, min_freq_hz, max_freq_hz
-                )
-                and capture.dataset_id
-            ):
-                matching_dataset_uuids.add(capture.dataset_id)
-
-        if not matching_dataset_uuids:
-            return datasets.none()
-
-        return datasets.filter(uuid__in=matching_dataset_uuids)
 
 
 class SearchPublishedDatasetsView(View):
@@ -2884,18 +2842,17 @@ class SearchPublishedDatasetsView(View):
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
         """Handle GET request for dataset search."""
         form = PublishedDatasetSearchForm(request.GET)
-        datasets = self._get_published_datasets()
+        datasets = get_published_datasets()
 
         # Apply search filters
         if form.is_valid():
-            datasets = self._apply_search_filters(
+            datasets = apply_search_filters(
                 datasets,
                 form.cleaned_data,
-                request.user if request.user.is_authenticated else None,
             )
 
         # Serialize datasets
-        serialized_datasets = self._serialize_datasets(
+        serialized_datasets = serialize_datasets_for_user(
             datasets, request.user if request.user.is_authenticated else None
         )
 
@@ -2915,177 +2872,6 @@ class SearchPublishedDatasetsView(View):
                 "page_obj": page_obj,
             },
         )
-
-    def _get_published_datasets(self) -> QuerySet[Dataset]:
-        """Get all published datasets (status=FINAL or is_public=True)."""
-        return (
-            Dataset.objects.filter(
-                Q(status=DatasetStatus.FINAL) | Q(is_public=True),
-                is_deleted=False,
-            )
-            .prefetch_related("keywords", "owner")
-            .distinct()
-            .order_by("-created_at")
-        )
-
-    def _apply_search_filters(
-        self,
-        datasets: QuerySet[Dataset],
-        form_data: dict[str, Any],
-        user: User | None,
-    ) -> QuerySet[Dataset]:
-        """Apply search filters to the dataset queryset."""
-        query = form_data.get("query", "").strip()
-        keywords_str = form_data.get("keywords", "").strip()
-        min_freq = form_data.get("min_frequency")
-        max_freq = form_data.get("max_frequency")
-
-        # Apply text search
-        if query:
-            datasets = datasets.filter(
-                Q(name__icontains=query)
-                | Q(abstract__icontains=query)
-                | Q(description__icontains=query)
-                | Q(authors__icontains=query)
-                | Q(doi__icontains=query)
-            )
-
-        # Apply keyword filter
-        if keywords_str:
-            # Split and slugify keywords
-            keyword_slugs = {
-                slugify(k.strip())
-                for k in keywords_str.split(",")
-                if k.strip() and slugify(k.strip())
-            }
-            if keyword_slugs:
-                datasets = datasets.filter(keywords__name__in=keyword_slugs).distinct()
-
-        # Apply frequency range filter
-        if min_freq is not None or max_freq is not None:
-            datasets = self._filter_by_frequency_range(datasets, min_freq, max_freq)
-
-        return datasets
-
-    def _check_center_frequency_match(
-        self,
-        center_freq_hz: float,
-        min_freq_hz: float | None,
-        max_freq_hz: float | None,
-    ) -> bool:
-        """Check if center frequency is within the search range."""
-        return not (
-            (min_freq_hz is not None and center_freq_hz < min_freq_hz)
-            or (max_freq_hz is not None and center_freq_hz > max_freq_hz)
-        )
-
-    def _check_frequency_range_overlap(
-        self,
-        capture_min_hz: float,
-        capture_max_hz: float,
-        min_freq_hz: float | None,
-        max_freq_hz: float | None,
-    ) -> bool:
-        """Check if capture frequency range overlaps with search range."""
-        # Overlap occurs if: capture_min <= search_max AND capture_max >= search_min
-        return not (
-            (min_freq_hz is not None and capture_max_hz < min_freq_hz)
-            or (max_freq_hz is not None and capture_min_hz > max_freq_hz)
-        )
-
-    def _process_capture_for_frequency_match(
-        self,
-        capture: Capture,
-        freq_info: dict[str, Any],
-        min_freq_hz: float | None,
-        max_freq_hz: float | None,
-    ) -> bool:
-        """Check if a capture matches the frequency range."""
-        center_freq_hz = freq_info.get("center_frequency")
-        freq_min_hz = freq_info.get("frequency_min")
-        freq_max_hz = freq_info.get("frequency_max")
-
-        if center_freq_hz is None and freq_min_hz is None and freq_max_hz is None:
-            return False
-
-        # Check if we have explicit min/max range
-        if freq_min_hz is not None and freq_max_hz is not None:
-            capture_min_hz = float(freq_min_hz)
-            capture_max_hz = float(freq_max_hz)
-            return self._check_frequency_range_overlap(
-                capture_min_hz, capture_max_hz, min_freq_hz, max_freq_hz
-            )
-
-        # If we only have center frequency, check if it's in range
-        if center_freq_hz is not None:
-            center_freq = float(center_freq_hz)
-            return self._check_center_frequency_match(
-                center_freq, min_freq_hz, max_freq_hz
-            )
-
-        return False
-
-    def _filter_by_frequency_range(
-        self,
-        datasets: QuerySet[Dataset],
-        min_freq: float | None,
-        max_freq: float | None,
-    ) -> QuerySet[Dataset]:
-        """Filter datasets by frequency range of their captures."""
-        if min_freq is None and max_freq is None:
-            return datasets
-
-        # Get all captures for these datasets
-        dataset_uuids = list(datasets.values_list("uuid", flat=True))
-        captures = Capture.objects.filter(
-            dataset__uuid__in=dataset_uuids, is_deleted=False
-        )
-
-        if not captures.exists():
-            return datasets.none()
-
-        # Bulk load frequency metadata
-        try:
-            frequency_data = Capture.bulk_load_frequency_metadata(captures)
-        except (DatabaseError, AttributeError) as e:
-            log.warning(f"Error loading frequency metadata: {e}", exc_info=True)
-            return datasets
-
-        # Convert frequency to Hz for comparison
-        min_freq_hz = min_freq * 1e9 if min_freq is not None else None
-        max_freq_hz = max_freq * 1e9 if max_freq is not None else None
-
-        # Find datasets with captures in the frequency range
-        matching_dataset_uuids = set()
-        for capture in captures:
-            capture_uuid = str(capture.uuid)
-            freq_info = frequency_data.get(capture_uuid, {})
-            if (
-                self._process_capture_for_frequency_match(
-                    capture, freq_info, min_freq_hz, max_freq_hz
-                )
-                and capture.dataset_id
-            ):
-                matching_dataset_uuids.add(capture.dataset_id)
-
-        if not matching_dataset_uuids:
-            return datasets.none()
-
-        return datasets.filter(uuid__in=matching_dataset_uuids)
-
-    def _serialize_datasets(
-        self, datasets: QuerySet[Dataset], user: User | None
-    ) -> list[dict[str, Any]]:
-        """Serialize datasets for display."""
-        result = []
-        for dataset in datasets:
-            context = {"request": type("Request", (), {"user": user})()}
-            dataset_data = cast(
-                "ReturnDict", DatasetGetSerializer(dataset, context=context).data
-            )
-            dataset_data["dataset"] = dataset
-            result.append(dataset_data)
-        return result
 
 
 def _apply_basic_filters(
@@ -3189,7 +2975,6 @@ class HomePageView(TemplateView):
     def get_context_data(self, **kwargs):
         """Add search form and latest 5 public datasets to context."""
         context = super().get_context_data(**kwargs)
-        from sds_gateway.users.forms import PublishedDatasetSearchForm
 
         # Get latest 5 public published datasets (is_public=True only)
         latest_datasets = (
