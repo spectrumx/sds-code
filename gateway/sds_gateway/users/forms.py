@@ -14,6 +14,7 @@ from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from loguru import logger
 
+from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 
 from .models import User
@@ -167,6 +168,12 @@ class DatasetInfoForm(forms.Form):
             "Add authors to the dataset. The first author should be the primary author."
         ),
     )
+    status = forms.ChoiceField(
+        label="Status",
+        required=False,
+        choices=[],
+        widget=forms.Select(attrs={"class": "form-select d-none"}),
+    )
     is_public = forms.BooleanField(
         label="Is Public",
         required=False,
@@ -178,6 +185,7 @@ class DatasetInfoForm(forms.Form):
         user = kwargs.pop("user", None)
         self.dataset_uuid = kwargs.pop("dataset_uuid", None)
         super().__init__(*args, **kwargs)
+        self.fields["status"].choices = Dataset.STATUS_CHOICES
         initial_authors = self.initial.get("authors")
         # Check if authors is empty (None, empty string, or "[]")
         is_authors_empty = not initial_authors or initial_authors in ["", "[]"]
