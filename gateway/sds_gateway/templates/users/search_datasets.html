@@ -13,9 +13,6 @@
 {% endblock bodyclass %}
 {% block content %}
     {% csrf_token %}
-    <!-- Add Bootstrap Icons for sort arrows -->
-    <link rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
     <div class="content-wrapper">
         <div class="main-content-area">
             <div class="container mt-4">
@@ -31,27 +28,35 @@
                               action="{% url 'users:search_datasets' %}">
                             <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label for="{{ form.query.id_for_label }}" class="form-label">{{ form.query.label }}</label>
-                                    {{ form.query }}
-                                    {% if form.query.help_text %}<small class="form-text text-muted">{{ form.query.help_text }}</small>{% endif %}
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="{{ form.keywords.id_for_label }}" class="form-label">{{ form.keywords.label }}</label>
-                                    {{ form.keywords }}
-                                    {% if form.keywords.help_text %}<small class="form-text text-muted">{{ form.keywords.help_text }}</small>{% endif %}
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="{{ form.min_frequency.id_for_label }}" class="form-label">{{ form.min_frequency.label }}</label>
-                                    {{ form.min_frequency }}
-                                    {% if form.min_frequency.help_text %}
-                                        <small class="form-text text-muted">{{ form.min_frequency.help_text }}</small>
+                                    <label for="{{ search_form.query.id_for_label }}" class="form-label">{{ search_form.query.label }}</label>
+                                    {{ search_form.query }}
+                                    {% if search_form.query.help_text %}
+                                        <small class="form-text text-muted">{{ search_form.query.help_text }}</small>
                                     {% endif %}
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="{{ form.max_frequency.id_for_label }}" class="form-label">{{ form.max_frequency.label }}</label>
-                                    {{ form.max_frequency }}
-                                    {% if form.max_frequency.help_text %}
-                                        <small class="form-text text-muted">{{ form.max_frequency.help_text }}</small>
+                                    <label for="{{ search_form.keywords.id_for_label }}" class="form-label">{{ search_form.keywords.label }}</label>
+                                    {{ search_form.keywords }}
+                                    {% if search_form.keywords.help_text %}
+                                        <small class="form-text text-muted">{{ search_form.keywords.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ search_form.min_frequency.id_for_label }}" class="form-label">
+                                        {{ search_form.min_frequency.label }}
+                                    </label>
+                                    {{ search_form.min_frequency }}
+                                    {% if search_form.min_frequency.help_text %}
+                                        <small class="form-text text-muted">{{ search_form.min_frequency.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="{{ search_form.max_frequency.id_for_label }}" class="form-label">
+                                        {{ search_form.max_frequency.label }}
+                                    </label>
+                                    {{ search_form.max_frequency }}
+                                    {% if search_form.max_frequency.help_text %}
+                                        <small class="form-text text-muted">{{ search_form.max_frequency.help_text }}</small>
                                     {% endif %}
                                 </div>
                                 <div class="col-12">
@@ -84,7 +89,7 @@
                                 <div class="alert alert-info" role="alert">
                                     <h4 class="alert-heading">No datasets found</h4>
                                     <p>
-                                        {% if form.query.value or form.keywords.value or form.min_frequency.value or form.max_frequency.value %}
+                                        {% if search_form.query.value or search_form.keywords.value or search_form.min_frequency.value or search_form.max_frequency.value %}
                                             Try adjusting your search criteria or <a href="{% url 'users:search_datasets' %}" class="alert-link">clear the filters</a> to see all published datasets.
                                         {% else %}
                                             There are no published datasets available yet.
@@ -191,11 +196,11 @@
                             {% if page_obj.has_previous %}
                                 <li class="page-item">
                                     <a class="page-link"
-                                       href="?page=1{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">First</a>
+                                       href="?page=1{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">First</a>
                                 </li>
                                 <li class="page-item">
                                     <a class="page-link"
-                                       href="?page={{ page_obj.previous_page_number }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Previous</a>
+                                       href="?page={{ page_obj.previous_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Previous</a>
                                 </li>
                             {% else %}
                                 <li class="page-item disabled">
@@ -211,11 +216,11 @@
                             {% if page_obj.has_next %}
                                 <li class="page-item">
                                     <a class="page-link"
-                                       href="?page={{ page_obj.next_page_number }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Next</a>
+                                       href="?page={{ page_obj.next_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Next</a>
                                 </li>
                                 <li class="page-item">
                                     <a class="page-link"
-                                       href="?page={{ page_obj.paginator.num_pages }}{% if form.query.value %}&query={{ form.query.value|urlencode }}{% endif %}{% if form.keywords.value %}&keywords={{ form.keywords.value|urlencode }}{% endif %}{% if form.min_frequency.value %}&min_frequency={{ form.min_frequency.value }}{% endif %}{% if form.max_frequency.value %}&max_frequency={{ form.max_frequency.value }}{% endif %}">Last</a>
+                                       href="?page={{ page_obj.paginator.num_pages }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Last</a>
                                 </li>
                             {% else %}
                                 <li class="page-item disabled">
