@@ -248,20 +248,20 @@ class DownloadActionManager {
 
 		for (const button of webDownloadButtons) {
 			// Prevent duplicate event listener attachment
-			if (button.dataset.downloadSetup === 'true') {
+			if (button.dataset.downloadSetup === "true") {
 				continue;
 			}
-			button.dataset.downloadSetup = 'true';
+			button.dataset.downloadSetup = "true";
 
-			button.addEventListener('click', (e) => {
+			button.addEventListener("click", (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 
-				const datasetUuid = button.getAttribute('data-dataset-uuid');
-				const datasetName = button.getAttribute('data-dataset-name');
+				const datasetUuid = button.getAttribute("data-dataset-uuid");
+				const datasetName = button.getAttribute("data-dataset-name");
 
 				if (!datasetUuid) {
-					console.warn('Web download button missing dataset-uuid attribute');
+					console.warn("Web download button missing dataset-uuid attribute");
 					return;
 				}
 
@@ -281,19 +281,19 @@ class DownloadActionManager {
 
 		for (const button of sdkDownloadButtons) {
 			// Prevent duplicate event listener attachment
-			if (button.dataset.downloadSetup === 'true') {
+			if (button.dataset.downloadSetup === "true") {
 				continue;
 			}
-			button.dataset.downloadSetup = 'true';
+			button.dataset.downloadSetup = "true";
 
-			button.addEventListener('click', (e) => {
+			button.addEventListener("click", (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 
-				const datasetUuid = button.getAttribute('data-dataset-uuid');
+				const datasetUuid = button.getAttribute("data-dataset-uuid");
 
 				if (!datasetUuid) {
-					console.warn('SDK download button missing dataset-uuid attribute');
+					console.warn("SDK download button missing dataset-uuid attribute");
 					return;
 				}
 
@@ -316,82 +316,86 @@ class DownloadActionManager {
 		}
 
 		// Set the dataset name in the modal (find within this specific modal)
-		const nameElement = modal.querySelector('#webDownloadDatasetName');
+		const nameElement = modal.querySelector("#webDownloadDatasetName");
 		if (nameElement) {
-			nameElement.textContent = datasetName || 'this dataset';
+			nameElement.textContent = datasetName || "this dataset";
 		}
 
 		// Store dataset info in the download button (find within this specific modal)
-		const confirmBtn = modal.querySelector('#confirmWebDownloadBtn');
-		if (confirmBtn) {
-			confirmBtn.dataset.datasetUuid = datasetUuid;
-			confirmBtn.dataset.datasetName = datasetName;
+		const confirmBtn = modal.querySelector("#confirmWebDownloadBtn");
 
-			// Remove any existing event listeners by cloning
-			const newConfirmBtn = confirmBtn.cloneNode(true);
-			confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+		if (!confirmBtn) {
+			console.warn(`Confirm button not found for dataset ${datasetUuid}`);
+			return;
+		}
 
-			// Attach download handler
-			newConfirmBtn.onclick = async () => {
-				// Close modal first
-				window.DOMUtils.closeModal(modalId);
+		confirmBtn.dataset.datasetUuid = datasetUuid;
+		confirmBtn.dataset.datasetName = datasetName;
 
-				// Show loading state
-				const originalContent = newConfirmBtn.innerHTML;
-				await window.DOMUtils.renderLoading(newConfirmBtn, 'Processing...', {
-					format: 'spinner',
-					size: 'sm',
-				});
-				newConfirmBtn.disabled = true;
+		// Remove any existing event listeners by cloning
+		const newConfirmBtn = confirmBtn.cloneNode(true);
+		confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
-				try {
-					const response = await window.APIClient.post(
-						`/users/download-item/dataset/${datasetUuid}/`,
-						{},
-					);
+		// Attach download handler
+		newConfirmBtn.onclick = async () => {
+			// Close modal first
+			window.DOMUtils.closeModal(modalId);
 
-					if (response.success === true) {
-						await window.DOMUtils.renderContent(newConfirmBtn, {
-							icon: 'check-circle',
-							color: 'success',
-							text: 'Download Requested',
-						});
-						this.showToast(
-							response.message ||
-								'Download request submitted successfully! You will receive an email when ready.',
-							'success',
-						);
-					} else {
-						await window.DOMUtils.renderContent(newConfirmBtn, {
-							icon: 'exclamation-triangle',
-							color: 'danger',
-							text: 'Request Failed',
-						});
-						this.showToast(
-							response.message || 'Download request failed. Please try again.',
-							'danger',
-						);
-					}
-				} catch (error) {
-					console.error('Download error:', error);
+			// Show loading state
+			const originalContent = newConfirmBtn.innerHTML;
+			await window.DOMUtils.renderLoading(newConfirmBtn, "Processing...", {
+				format: "spinner",
+				size: "sm",
+			});
+			newConfirmBtn.disabled = true;
+
+			try {
+				const response = await window.APIClient.post(
+					`/users/download-item/dataset/${datasetUuid}/`,
+					{},
+				);
+
+				if (response.success === true) {
 					await window.DOMUtils.renderContent(newConfirmBtn, {
-						icon: 'exclamation-triangle',
-						color: 'danger',
-						text: 'Request Failed',
+						icon: "check-circle",
+						color: "success",
+						text: "Download Requested",
 					});
 					this.showToast(
-						error.message || 'An error occurred while processing your request.',
-						'danger',
+						response.message ||
+							"Download request submitted successfully! You will receive an email when ready.",
+						"success",
 					);
-				} finally {
-					// Reset button after 3 seconds
-					setTimeout(() => {
-						newConfirmBtn.innerHTML = originalContent;
-						newConfirmBtn.disabled = false;
-					}, 3000);
+				} else {
+					await window.DOMUtils.renderContent(newConfirmBtn, {
+						icon: "exclamation-triangle",
+						color: "danger",
+						text: "Request Failed",
+					});
+					this.showToast(
+						response.message || "Download request failed. Please try again.",
+						"danger",
+					);
 				}
-			};
-		}
+			} catch (error) {
+				console.error("Download error:", error);
+				await window.DOMUtils.renderContent(newConfirmBtn, {
+					icon: "exclamation-triangle",
+					color: "danger",
+					text: "Request Failed",
+				});
+				this.showToast(
+					error.message || "An error occurred while processing your request.",
+					"danger",
+				);
+			} finally {
+				// Reset button after 3 seconds
+				setTimeout(() => {
+					newConfirmBtn.innerHTML = originalContent;
+					newConfirmBtn.disabled = false;
+				}, 3000);
+			}
+		};
 
 		// Use centralized openModal method
 		window.DOMUtils.openModal(modalId);
@@ -411,9 +415,9 @@ class DownloadActionManager {
 
 		// Re-initialize Prism syntax highlighting when modal is shown
 		modal.addEventListener(
-			'shown.bs.modal',
-			function () {
-				if (typeof Prism !== 'undefined') {
+			"shown.bs.modal",
+			() => {
+				if (typeof Prism !== "undefined") {
 					// Highlight only within this modal
 					Prism.highlightAllUnder(modal);
 				}

@@ -182,7 +182,10 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
             is_deleted=False,
         ).first()
 
-        return permission.permission_level in ["co-owner"]
+        if permission:
+            return permission.permission_level in ["co-owner"]
+
+        return False
 
     class Meta:
         model = Dataset

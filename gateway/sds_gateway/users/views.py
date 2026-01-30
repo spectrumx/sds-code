@@ -3528,32 +3528,35 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
             locked_dataset = Dataset.objects.select_for_update().get(
                 uuid=original_dataset.uuid
             )
-            
+
             # Check again for existing version within the locked transaction
             existing_version = Dataset.objects.filter(
                 previous_version=locked_dataset,
                 version=new_version,
                 owner=request_user,
-                is_deleted=False
+                is_deleted=False,
             ).first()
-            
+
             if existing_version:
                 # Return existing version if it was already created
                 return existing_version
 
-            preserve_fields = {
+            # Fields that should not be copied from the original dataset
+            # These fields will be reset for the new version
+            no_copy_fields = [
                 "uuid",
                 "created_at",
                 "updated_at",
                 "status",
                 "is_public",
                 "shared_with",
-            }
+            ]
+
             dataset_data = {
                 field.name: getattr(locked_dataset, field.name)
                 for field in locked_dataset._meta.get_fields()  # noqa: SLF001
                 if hasattr(field, "name")
-                and field.name not in preserve_fields
+                and field.name not in no_copy_fields
                 and not field.many_to_many
                 and not field.one_to_many
                 and not field.one_to_one
@@ -3561,7 +3564,7 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
             dataset_data["owner"] = request_user
             dataset_data["version"] = new_version
             dataset_data["previous_version"] = locked_dataset
-            
+
             # Ensure status is draft for new version
             dataset_data["status"] = DatasetStatus.DRAFT.value
             dataset_data["is_public"] = False
@@ -3577,13 +3580,13 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
                     previous_version=locked_dataset,
                     version=new_version,
                     owner=request_user,
-                    is_deleted=False
+                    is_deleted=False,
                 ).first()
                 if existing_version:
                     return existing_version
                 # Re-raise if we can't find it (unexpected error)
                 raise
-            
+
             # Set the relationships on the new dataset
             new_dataset.captures.set(locked_dataset.captures.all())
             new_dataset.files.set(locked_dataset.files.all())
