@@ -290,6 +290,186 @@ function autoInitializeKeywordChipInput(options = {}) {
 	}
 }
 
+class KeywordAutocomplete {
+	constructor(inputElement, apiUrl = "/users/api/keyword-autocomplete/") {
+		this.input = inputElement;
+		this.apiUrl = apiUrl;
+		this.minChars = 1;
+		this.debounceMs = 300;
+		this.debounceTimer = null;
+		this.suggestionsContainer = null;
+		this.currentFocus = -1;
+		this.init();
+	}
+
+	init() {
+		this.createSuggestionsContainer();
+		this.input.addEventListener("input", this.handleInput.bind(this));
+		this.input.addEventListener("keydown", this.handleKeydown.bind(this));
+		this.input.addEventListener("blur", this.handleBlur.bind(this));
+		document.addEventListener("click", (e) => {
+			if (e.target !== this.input) this.closeSuggestions();
+		});
+	}
+
+	createSuggestionsContainer() {
+		this.suggestionsContainer = document.createElement("div");
+		this.suggestionsContainer.className = "keyword-autocomplete-suggestions";
+		this.suggestionsContainer.style.cssText =
+			"position: absolute; border: 1px solid #ddd; border-top: none; z-index: 1000; background: white; max-height: 200px; overflow-y: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: none;";
+		this.input.parentNode.style.position = "relative";
+		this.input.parentNode.appendChild(this.suggestionsContainer);
+	}
+
+	handleInput() {
+		const value = this.getCurrentWord();
+		if (this.debounceTimer) clearTimeout(this.debounceTimer);
+		if (value.length < this.minChars) {
+			this.closeSuggestions();
+			return;
+		}
+		this.debounceTimer = setTimeout(
+			() => this.fetchSuggestions(value),
+			this.debounceMs,
+		);
+	}
+
+	getCurrentWord() {
+		const fullValue = this.input.value;
+		const cursorPos = this.input.selectionStart;
+		const textBeforeCursor = fullValue.substring(0, cursorPos);
+		const lastCommaIndex = textBeforeCursor.lastIndexOf(",");
+		return lastCommaIndex >= 0
+			? textBeforeCursor.substring(lastCommaIndex + 1).trim()
+			: textBeforeCursor.trim();
+	}
+
+	async fetchSuggestions(query) {
+		try {
+			const response = await fetch(
+				`${this.apiUrl}?q=${encodeURIComponent(query)}`,
+			);
+			const data = await response.json();
+			if (data.suggestions && data.suggestions.length > 0) {
+				this.showSuggestions(data.suggestions);
+			} else {
+				this.closeSuggestions();
+			}
+		} catch (error) {
+			console.error("Error fetching keyword suggestions:", error);
+			this.closeSuggestions();
+		}
+	}
+
+	showSuggestions(suggestions) {
+		this.suggestionsContainer.innerHTML = "";
+		this.currentFocus = -1;
+		suggestions.forEach((suggestion) => {
+			const item = document.createElement("div");
+			item.className = "keyword-autocomplete-item";
+			item.textContent = suggestion;
+			item.style.cssText =
+				"padding: 10px; cursor: pointer; border-bottom: 1px solid #f0f0f0;";
+			item.addEventListener("mouseenter", () => {
+				this.removeActiveClass();
+				item.classList.add("keyword-autocomplete-active");
+				item.style.backgroundColor = "#e9ecef";
+			});
+			item.addEventListener("mouseleave", () => {
+				item.classList.remove("keyword-autocomplete-active");
+				item.style.backgroundColor = "";
+			});
+			item.addEventListener("mousedown", (e) => {
+				e.preventDefault();
+				this.selectSuggestion(suggestion);
+			});
+			this.suggestionsContainer.appendChild(item);
+		});
+		const rect = this.input.getBoundingClientRect();
+		this.suggestionsContainer.style.width = `${rect.width}px`;
+		this.suggestionsContainer.style.top = `${this.input.offsetTop + this.input.offsetHeight}px`;
+		this.suggestionsContainer.style.left = `${this.input.offsetLeft}px`;
+		this.suggestionsContainer.style.display = "block";
+	}
+
+	selectSuggestion(suggestion) {
+		const fullValue = this.input.value;
+		const cursorPos = this.input.selectionStart;
+		const textBeforeCursor = fullValue.substring(0, cursorPos);
+		const textAfterCursor = fullValue.substring(cursorPos);
+		const lastCommaIndex = textBeforeCursor.lastIndexOf(",");
+		let newValue;
+		if (lastCommaIndex >= 0) {
+			const beforeComma = fullValue.substring(0, lastCommaIndex + 1);
+			newValue = beforeComma + " " + suggestion + textAfterCursor;
+		} else {
+			newValue = suggestion + textAfterCursor;
+		}
+		this.input.value = newValue;
+		this.input.focus();
+		const newCursorPos =
+			lastCommaIndex >= 0
+				? lastCommaIndex + 2 + suggestion.length
+				: suggestion.length;
+		this.input.setSelectionRange(newCursorPos, newCursorPos);
+		this.closeSuggestions();
+	}
+
+	handleKeydown(e) {
+		const items = this.suggestionsContainer.querySelectorAll(
+			".keyword-autocomplete-item",
+		);
+		if (!items.length) return;
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			this.currentFocus++;
+			if (this.currentFocus >= items.length) this.currentFocus = 0;
+			this.addActiveClass(items);
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			this.currentFocus--;
+			if (this.currentFocus < 0) this.currentFocus = items.length - 1;
+			this.addActiveClass(items);
+		} else if (e.key === "Enter") {
+			if (this.currentFocus > -1 && items[this.currentFocus]) {
+				e.preventDefault();
+				items[this.currentFocus].click();
+			}
+		} else if (e.key === "Escape") {
+			this.closeSuggestions();
+		}
+	}
+
+	addActiveClass(items) {
+		this.removeActiveClass();
+		if (this.currentFocus >= items.length) this.currentFocus = 0;
+		if (this.currentFocus < 0) this.currentFocus = items.length - 1;
+		items[this.currentFocus].classList.add("keyword-autocomplete-active");
+		items[this.currentFocus].style.backgroundColor = "#e9ecef";
+		items[this.currentFocus].scrollIntoView({ block: "nearest" });
+	}
+
+	removeActiveClass() {
+		const items = this.suggestionsContainer.querySelectorAll(
+			".keyword-autocomplete-item",
+		);
+		items.forEach((item) => {
+			item.classList.remove("keyword-autocomplete-active");
+			item.style.backgroundColor = "";
+		});
+	}
+
+	handleBlur() {
+		setTimeout(() => this.closeSuggestions(), 200);
+	}
+
+	closeSuggestions() {
+		this.suggestionsContainer.style.display = "none";
+		this.suggestionsContainer.innerHTML = "";
+		this.currentFocus = -1;
+	}
+}
+
 // Export for use in other scripts
 if (typeof window !== "undefined") {
 	window.KeywordChipInput = KeywordChipInput;
@@ -299,4 +479,5 @@ if (typeof window !== "undefined") {
 		initializeOnCollapseShow: initializeKeywordChipInputOnCollapseShow,
 		autoInitialize: autoInitializeKeywordChipInput,
 	};
+	window.KeywordAutocomplete = KeywordAutocomplete;
 }
