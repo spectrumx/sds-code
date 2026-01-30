@@ -470,7 +470,7 @@ class KeywordAutocomplete {
 	}
 }
 
-// Export for use in other scripts
+// Make classes and functions available globally
 if (typeof window !== "undefined") {
 	window.KeywordChipInput = KeywordChipInput;
 	// Maintain backward compatibility with class-based API
@@ -480,4 +480,15 @@ if (typeof window !== "undefined") {
 		autoInitialize: autoInitializeKeywordChipInput,
 	};
 	window.KeywordAutocomplete = KeywordAutocomplete;
+}
+
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = {
+		KeywordChipInput,
+		KeywordAutocomplete,
+		initializeKeywordChipInput,
+		initializeKeywordChipInputOnCollapseShow,
+		autoInitializeKeywordChipInput,
+	};
 }
