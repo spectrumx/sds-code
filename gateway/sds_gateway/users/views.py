@@ -18,6 +18,7 @@ from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
+from django.db import transaction
 from django.db.models import Q
 from django.db.models import Sum
 from django.db.models.query import QuerySet
@@ -2774,6 +2775,22 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
 
+        # Check if this is an AJAX request
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            # Return just the table container HTML for AJAX updates
+            from django.template.loader import render_to_string
+
+            html = render_to_string(
+                "users/components/dataset_list_table.html",
+                {
+                    "page_obj": page_obj,
+                    "sort_by": sort_by,
+                    "sort_order": sort_order,
+                },
+                request=request,
+            )
+            return HttpResponse(html)
+
         return render(
             request,
             template_name=self.template_name,
@@ -3459,6 +3476,127 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 
 
 user_dataset_details_view = DatasetDetailsView.as_view()
+
+
+class DatasetVersioningView(Auth0LoginRequiredMixin, View):
+    """View to handle dataset versioning updates."""
+
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        dataset_uuid = request.POST.get("dataset_uuid")
+        if not dataset_uuid:
+            return JsonResponse({"error": "Dataset UUID is required"}, status=400)
+
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
+
+        # check if user has access to the dataset
+        if not UserSharePermission.user_can_advance_version(
+            request.user, dataset_uuid, ItemType.DATASET
+        ):
+            return JsonResponse(
+                {
+                    "error": (
+                        "You do not have permission to advance "
+                        "the version of this dataset"
+                    )
+                },
+                status=403,
+            )
+
+        # copy dataset with relations
+        new_dataset = self._copy_dataset_with_relations(dataset, request.user)
+
+        return JsonResponse({"success": True, "version": new_dataset.version})
+
+    def _copy_dataset_with_relations(
+        self, original_dataset: Dataset, request_user: User
+    ) -> Dataset:
+        """
+        Copy a dataset along with all its related files and captures.
+
+        Args:
+            original_dataset: The dataset to copy
+            request_user: The user creating the new version
+
+        Returns:
+            The new dataset with copied related objects
+        """
+        new_version = original_dataset.version + 1
+
+        # Use database transaction with locking to prevent race conditions
+        # when multiple requests try to create the same version simultaneously
+        with transaction.atomic():
+            # Lock the original dataset to prevent concurrent version creation
+            locked_dataset = Dataset.objects.select_for_update().get(
+                uuid=original_dataset.uuid
+            )
+
+            # Check again for existing version within the locked transaction
+            existing_version = Dataset.objects.filter(
+                previous_version=locked_dataset,
+                version=new_version,
+                owner=request_user,
+                is_deleted=False,
+            ).first()
+
+            if existing_version:
+                # Return existing version if it was already created
+                return existing_version
+
+            # Fields that should not be copied from the original dataset
+            # These fields will be reset for the new version
+            no_copy_fields = [
+                "uuid",
+                "created_at",
+                "updated_at",
+                "status",
+                "is_public",
+                "shared_with",
+            ]
+
+            dataset_data = {
+                field.name: getattr(locked_dataset, field.name)
+                for field in locked_dataset._meta.get_fields()  # noqa: SLF001
+                if hasattr(field, "name")
+                and field.name not in no_copy_fields
+                and not field.many_to_many
+                and not field.one_to_many
+                and not field.one_to_one
+            }
+            dataset_data["owner"] = request_user
+            dataset_data["version"] = new_version
+            dataset_data["previous_version"] = locked_dataset
+
+            # Ensure status is draft for new version
+            dataset_data["status"] = DatasetStatus.DRAFT.value
+            dataset_data["is_public"] = False
+
+            # Create the new dataset within the transaction
+            # Catch IntegrityError in case of race condition (safety net)
+            try:
+                new_dataset = Dataset.objects.create(**dataset_data)
+            except IntegrityError:
+                # If we get an IntegrityError, another request may have created it
+                # Fetch the existing version and return it
+                existing_version = Dataset.objects.filter(
+                    previous_version=locked_dataset,
+                    version=new_version,
+                    owner=request_user,
+                    is_deleted=False,
+                ).first()
+                if existing_version:
+                    return existing_version
+                # Re-raise if we can't find it (unexpected error)
+                raise
+
+            # Set the relationships on the new dataset
+            new_dataset.captures.set(locked_dataset.captures.all())
+            new_dataset.files.set(locked_dataset.files.all())
+            new_dataset.keywords.set(locked_dataset.keywords.all())
+
+        return new_dataset
+
+
+user_dataset_versioning_view = DatasetVersioningView.as_view()
 
 
 class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):

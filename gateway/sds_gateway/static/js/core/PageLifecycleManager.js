@@ -63,22 +63,6 @@ class PageLifecycleManager {
 			this.permissions = new window.PermissionsManager(this.config.permissions);
 			this.managers.push(this.permissions);
 		}
-
-		// Initialize download action manager
-		if (this.permissions && window.DownloadActionManager) {
-			this.downloadActionManager = new window.DownloadActionManager({
-				permissions: this.permissions,
-			});
-			this.managers.push(this.downloadActionManager);
-		}
-
-		// Initialize details action manager
-		if (this.permissions && window.DetailsActionManager) {
-			this.detailsActionManager = new window.DetailsActionManager({
-				permissions: this.permissions,
-			});
-			this.managers.push(this.detailsActionManager);
-		}
 	}
 
 	/**
@@ -285,6 +269,30 @@ class PageLifecycleManager {
 	 * Initialize dataset modals
 	 */
 	initializeDatasetModals() {
+		// Pre-initialize all modals on the page with proper config to prevent Bootstrap auto-initialization errors
+		const allModals = document.querySelectorAll('.modal');
+		for (const modal of allModals) {
+			if (window.bootstrap) {
+				// Dispose any existing instance that might be in a bad state
+				const existingInstance = bootstrap.Modal.getInstance(modal);
+				if (existingInstance) {
+					try {
+						existingInstance.dispose();
+					} catch (e) {
+						// If disposal fails, the instance is already broken - continue
+						console.warn('Failed to dispose modal instance:', e);
+					}
+				}
+				
+				// Create a new instance with proper config
+				new bootstrap.Modal(modal, {
+					backdrop: true,
+					keyboard: true,
+					focus: true,
+				});
+			}
+		}
+
 		const datasetModals = document.querySelectorAll(
 			".modal[data-item-type='dataset']",
 		);
@@ -292,8 +300,14 @@ class PageLifecycleManager {
 		for (const modal of datasetModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
 
-			// Initialize share action manager for this dataset
-			if (itemUuid && this.permissions && window.ShareActionManager) {
+			if (!itemUuid || !this.permissions) {
+				console.warn(
+					`No item UUID or permissions found for dataset modal: ${modal}`,
+				);
+				continue;
+			}
+
+			if (window.ShareActionManager) {
 				const shareManager = new window.ShareActionManager({
 					itemUuid: itemUuid,
 					itemType: "dataset",
@@ -303,6 +317,42 @@ class PageLifecycleManager {
 
 				// Store reference on modal
 				modal.shareActionManager = shareManager;
+			}
+
+			if (window.VersioningActionManager) {
+				// Check if manager already exists to prevent duplicate initialization
+				if (!modal.versioningActionManager) {
+					const versioningManager = new window.VersioningActionManager({
+						datasetUuid: itemUuid,
+						permissions: this.permissions,
+					});
+					this.managers.push(versioningManager);
+
+					// Store reference on modal
+					modal.versioningActionManager = versioningManager;
+				}
+			}
+
+			if (window.DownloadActionManager) {
+				const downloadManager = new window.DownloadActionManager({
+					permissions: this.permissions,
+				});
+				this.managers.push(downloadManager);
+
+				// Store reference on modal
+				modal.downloadActionManager = downloadManager;
+			}
+
+			if (window.DetailsActionManager) {
+				const detailsManager = new window.DetailsActionManager({
+					permissions: this.permissions,
+					itemUuid: itemUuid,
+					itemType: "dataset",
+				});
+				this.managers.push(detailsManager);
+
+				// Store reference on modal
+				modal.detailsActionManager = detailsManager;
 			}
 		}
 	}
@@ -318,8 +368,14 @@ class PageLifecycleManager {
 		for (const modal of captureModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
 
-			// Initialize share action manager for this capture
-			if (itemUuid && this.permissions && window.ShareActionManager) {
+			if (!itemUuid || !this.permissions) {
+				console.warn(
+					`No item UUID or permissions found for capture modal: ${modal}`,
+				);
+				continue;
+			}
+
+			if (window.ShareActionManager) {
 				const shareManager = new window.ShareActionManager({
 					itemUuid: itemUuid,
 					itemType: "capture",
@@ -329,6 +385,18 @@ class PageLifecycleManager {
 
 				// Store reference on modal
 				modal.shareActionManager = shareManager;
+			}
+
+			if (window.DownloadActionManager) {
+				const downloadManager = new window.DownloadActionManager({
+					itemUuid: itemUuid,
+					itemType: "capture",
+					permissions: this.permissions,
+				});
+				this.managers.push(downloadManager);
+
+				// Store reference on modal
+				modal.downloadActionManager = downloadManager;
 			}
 		}
 	}
@@ -427,6 +495,22 @@ class PageLifecycleManager {
 					manager.cleanup();
 				} catch (error) {
 					console.error("Error cleaning up manager:", error);
+				}
+			}
+		}
+
+		// Dispose all Bootstrap modal instances to prevent bad state
+		if (window.bootstrap && bootstrap.Modal) {
+			const allModals = document.querySelectorAll('.modal');
+			for (const modal of allModals) {
+				const instance = bootstrap.Modal.getInstance(modal);
+				if (instance) {
+					try {
+						instance.dispose();
+					} catch (error) {
+						// If disposal fails, the instance is already broken - continue
+						console.warn('Failed to dispose modal during cleanup:', error);
+					}
 				}
 			}
 		}
