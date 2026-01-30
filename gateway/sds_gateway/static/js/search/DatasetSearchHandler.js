@@ -112,7 +112,12 @@ class DatasetSearchHandler {
 	}
 }
 
-// Export for use in other scripts
+// Make class available globally
 if (typeof window !== "undefined") {
 	window.DatasetSearchHandler = DatasetSearchHandler;
+}
+
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { DatasetSearchHandler };
 }
