@@ -7,26 +7,29 @@ test_marker_integration := "integration"
 sdk_root := justfile_directory()
 git_root := sdk_root + "/.."
 
-
 alias install := dev-setup
 alias serve := serve-coverage
 
 # builds the package and runs smoke tests on the built artifact
+[group('packaging')]
 build *args:
-    uv build --no-cache {{args}}
+    uv build --no-cache {{ args }}
     echo -e "\n\t\033[32mRunning smoke tests on the built package\033[0m\n"
-    uv run --no-cache --isolated --no-project -p {{python_version}} --with dist/*.tar.gz "tests/e2e_examples/check_build_acceptance.py"
+    uv run --no-cache --isolated --no-project -p {{ python_version }} --with dist/*.tar.gz "tests/e2e_examples/check_build_acceptance.py"
     rm my_spectrum_files/rf_run_*.csv && rmdir "my_spectrum_files"
     echo -e "\n\t\033[32mBuilt package:\033[0m\n"
     tar -tvf dist/*.tar.gz | sort -k6
     echo -e "\n\t\033[34mTo publish it, run 'just publish'.\033[0m\n\n"
 
 # checks the built package acceptance tests
+[group('packaging')]
+[group('qa')]
 check-acceptance:
     echo -e "\n\t\033[34mRunning acceptance checks using current environment \033[33m(NOT BUILT ARTIFACT)\033[0m\n"
-    uv run --no-cache -p {{python_version}} "tests/e2e_examples/check_build_acceptance.py"
+    uv run --no-cache -p {{ python_version }} "tests/e2e_examples/check_build_acceptance.py"
 
 # removes temporary and build files
+[group('packaging')]
 clean:
     @rm -rvf \
         .tox .coverage \
@@ -36,76 +39,90 @@ clean:
         *.egg-info *.egg-info/
 
 # build SDK documentation
-[working-directory: 'docs']
+[group('documentation')]
+[working-directory('docs')]
 docs-build:
     @echo -e "\n\t\033[34mBuilding SDK documentation...\033[0m\n"
     uv run mkdocs build
     @echo -e "\n\t\033[32mSDK documentation built at 'docs/site/'\033[0m\n"
 
 # serve SDK documentation locally
-[working-directory: 'docs']
+[group('documentation')]
+[working-directory('docs')]
 docs-serve port="1314" *args="": docs-build
-    @echo -e "\n\t\033[34mServing SDK documentation at http://localhost:{{port}}\033[0m\n"
-    uv run mkdocs serve --dev-addr "0.0.0.0:{{port}}" {{args}}
+    @echo -e "\n\t\033[34mServing SDK documentation at http://localhost:{{ port }}\033[0m\n"
+    uv run mkdocs serve --dev-addr "0.0.0.0:{{ port }}" {{ args }}
 
 # builds and serves SDK documentation via nginx in docker compose
+[group('documentation')]
+[working-directory('docs')]
 docs-serve-compose *args: docs-build
     @echo -e "\n\t\033[34mStarting SDK documentation service"
-    docker compose up -d {{args}}
+    docker compose up -d {{ args }}
     @echo -e "\n\t\033[32mSDK documentation is running:\033[0m " \
         $(docker ps --all --format "table {{{{.Names}},{{{{.Ports}}" | grep sds-sdk-docs | cut -d, -f2 || true)
     @echo -e "\t\033[34mTo view logs, run:      docker compose logs -f\033[0m"
     @echo -e "\t\033[34mTo stop, run:           docker compose down\033[0m\n"
 
 # runs GitHub Actions locally
+[group('development')]
+[group('qa')]
 gact *args:
-    @echo "Running GitHub Actions locally for {{git_root}}"
-    cd "{{git_root}}" && \
+    @echo "Running GitHub Actions locally for {{ git_root }}"
+    cd "{{ git_root }}" && \
         gh act \
             --rm \
-            --workflows "{{git_root}}/.github/workflows" \
+            --workflows "{{ git_root }}/.github/workflows" \
             --secret-file config/secrets.env \
-            {{args}}
+            {{ args }}
 
 # installs the development environment with pre-commit hooks and synced deps
+[group('development')]
 dev-setup:
     uv sync --dev --frozen
     uv run pre-commit install --install-hooks
 
-# runs pre-commit checks locally
+# runs pre-commit checks locally, incl. deptry for dependency issues
+[group('development')]
+[group('qa')]
 pre-commit:
     uv run deptry .
     uv run pre-commit install --install-hooks
     uv run --dev pre-commit run --all-files
 
 # runs Pyright checks locally
+[group('development')]
+[group('qa')]
 pyright *args:
-    @echo "Running Pyright locally for {{git_root}}"
-    cd "{{git_root}}" && \
-        gh act --rm --workflows "{{git_root}}/.github/workflows" --job sdk-pyright {{args}}
+    @echo "Running Pyright locally for {{ git_root }}"
+    cd "{{ git_root }}" && \
+        gh act --rm --workflows "{{ git_root }}/.github/workflows" --job sdk-pyright {{ args }}
 
 # runs the Pyrefly type checker
+[group('development')]
+[group('qa')]
 pyrefly *args:
     @echo "Running Pyrefly"
-    uv run pyrefly check {{args}}
+    uv run pyrefly check {{ args }}
 
 # runs tests using the default dependency resolution
+[group('qa')]
 test python=python_version *pytest_args:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo -e "\n\t\033[34mRunning tests against Python {{python}}\033[0m\n"
+    echo -e "\n\t\033[34mRunning tests against Python {{ python }}\033[0m\n"
 
     # no coverage if -k is used (likely a focused test run)
-    if [[ "{{pytest_args}}" =~ -k ]]; then
+    if [[ "{{ pytest_args }}" =~ -k ]]; then
         # -rA   | always show test names when using -k
-        uv run --resolution highest -p '{{python}}' pytest \
-            -m '{{test_marker_default}}' \
+        uv run --resolution highest -p '{{ python }}' pytest \
+            -m '{{ test_marker_default }}' \
             -rA \
-            {{pytest_args}} \
+            {{ pytest_args }} \
             tests
     else
-        uv run --resolution highest -p '{{python}}' pytest \
-            -m '{{test_marker_default}}' \
+        uv run --resolution highest -p '{{ python }}' pytest \
+            -m '{{ test_marker_default }}' \
             --cov=src \
             --cov-config=pyproject.toml \
             --cov-report=term-missing:skip-covered \
@@ -113,11 +130,12 @@ test python=python_version *pytest_args:
             --cov-report=html:tests/htmlcov \
             --cov-fail-under=75 \
             --no-cov-on-fail \
-            {{pytest_args}} \
+            {{ pytest_args }} \
             tests
     fi
 
 # tests against all supported python versions and dep lower bounds (no integration tests)
+[group('qa')]
 test-all *args:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -125,12 +143,12 @@ test-all *args:
 
     # run higher bound tests against default python version
     echo -e "\n\t\033[34mRunning tests against the highest dep versions and generating reports\033[0m\n"
-    just test {{python_version}} {{args}}
+    just test {{ python_version }} {{ args }}
 
     # lower bound tests
     echo -e "\n\t\033[34mRunning tests against the lowest dep versions vs. all supported python versions\033[0m\n"
-    echo -e "\tall supported python versions: '{{supported_python_versions}}'"
-    for version in {{supported_python_versions}}; do
+    echo -e "\tall supported python versions: '{{ supported_python_versions }}'"
+    for version in {{ supported_python_versions }}; do
         echo -e "\n\t\033[34mRunning lower bound tests against Python ${version}\033[0m\n";
         just test-lowest ${version}
     done
@@ -140,50 +158,56 @@ test-all *args:
     uv sync --resolution highest --dev
 
 # runs integration tests using the default dependency resolution
+[group('qa')]
 test-integration python=python_version *pytest_args:
     @echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"
     @echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
-    uv run --resolution highest -p '{{python}}' pytest \
-        -m '{{test_marker_integration}}' \
-        {{pytest_args}} \
+    uv run --resolution highest -p '{{ python }}' pytest \
+        -m '{{ test_marker_integration }}' \
+        {{ pytest_args }} \
         tests
 
 # runs tests against the lowest dependency versions
+[group('qa')]
 test-lowest python=python_version *pytest_args:
-    @echo "Running lowest dep resolution tests for Python '{{python}}'"
-    uv run --resolution lowest-direct -p '{{python}}' pytest \
-        -m '{{test_marker_default}}' \
-        {{pytest_args}} \
+    @echo "Running lowest dep resolution tests for Python '{{ python }}'"
+    uv run --resolution lowest-direct -p '{{ python }}' pytest \
+        -m '{{ test_marker_default }}' \
+        {{ pytest_args }} \
         tests
 
 # runs local tests in verbose mode with stdout capture; useful for debugging test failures
+[group('qa')]
 test-verbose python=python_version *pytest_args:
-    uv run --resolution highest -p '{{python}}' pytest \
+    uv run --resolution highest -p '{{ python }}' pytest \
         -vvv \
-        -m '{{test_marker_default}}' \
+        -m '{{ test_marker_default }}' \
         --show-capture=stdout \
         -o log_cli=true \
         --log-cli-level=DEBUG \
         --capture=no \
-        {{pytest_args}} \
+        {{ pytest_args }} \
         tests
 
 # runs integration tests in verbose mode with stdout capture; useful for debugging test failures
+[group('qa')]
 test-integration-verbose python=python_version *pytest_args:
     @echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"
     @echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
-    uv run --resolution highest -p '{{python}}' pytest \
-        -m '{{test_marker_integration}}' \
+    uv run --resolution highest -p '{{ python }}' pytest \
+        -m '{{ test_marker_integration }}' \
         -vvv \
         --capture=no \
-        {{pytest_args}} \
+        {{ pytest_args }} \
         tests
 
 # serves the HTML coverage report at http://localhost:1313
+[group('qa')]
 serve-coverage:
     uv run -m http.server 1313 -d tests/htmlcov
 
 # publishes the built package to PyPI (prefer the trusted publishers method in GitHub)
+[group('packaging')]
 publish:
     if [ ! -d dist ]; then \
       echo "Run 'just build' first."; \
@@ -198,6 +222,7 @@ publish:
     unset UV_PUBLISH_TOKEN
 
 # updates development dependencies and pre-commit hooks
+[group('development')]
 update:
     uv sync --upgrade --dev
     uv run pre-commit autoupdate

@@ -2,13 +2,14 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 # TIP: Looking into running a production setting?
 #   Add your machine hostname to ./scripts/prod-hostnames.env
-
 # constants
+
 env_selection_script := "./scripts/env-selection.sh"
 snapshot_log_dir := "./logs/snapshots"
 secrets_generator := "./scripts/generate-secrets.sh"
 
 # variables | run `just env` to see current values
+
 app_container := shell(env_selection_script + ' $1', "app_container")
 compose_file := shell(env_selection_script + ' $1', "compose_file")
 env := shell(env_selection_script + ' $1', "env")
@@ -23,18 +24,21 @@ alias run := up
 alias upgrade := update
 
 # pulls and rebuild the compose services with optional args
+[group('setup')]
 build *args:
     @echo "Pulling and building sds-gateway"
-    {{docker_compose}} pull --ignore-buildable
-    {{docker_compose}} build {{args}}
+    {{ docker_compose }} pull --ignore-buildable
+    {{ docker_compose }} build {{ args }}
 
 # pulls and rebuilds from scratch without cache
+[group('setup')]
 build-full *args:
     @echo "Pulling and building sds-gateway WITHOUT CACHE"
-    {{docker_compose}} pull --ignore-buildable
-    {{docker_compose}} build --no-cache {{args}}
+    {{ docker_compose }} pull --ignore-buildable
+    {{ docker_compose }} build --no-cache {{ args }}
 
 # removes ephemeral files, like python caches and test coverage reports
+[group('utilities')]
 clean:
     #!/usr/bin/env bash
     declare -a recursive_directories
@@ -55,15 +59,18 @@ clean:
     echo "Removed ephemeral files"
 
 # runs a generic docker compose command e.g. `just dc ps`
+[group('utilities')]
 dc +args:
-    @echo "Running docker compose command: {{args}}"
-    {{docker_compose}} {{args}}
+    @echo "Running docker compose command: {{ args }}"
+    {{ docker_compose }} {{ args }}
 
 # runs deptry to check for missing and unused python dependencies
+[group('qa')]
 deptry:
     uv run --extra local deptry .
 
 # sets up the development environment
+[group('development')]
 dev-setup:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -130,122 +137,139 @@ dev-setup:
     echo -e "\nFor recommended VS Code extensions, see ../sds-code.code-workspace"
 
 # prints currently selected environment, for debugging and validation purposes
+[group('utilities')]
 env:
     @echo -e "\nSelected env:\n"
-    @echo -e "\tEnvironment: \e[34m             '{{env}}'\e[0m"
-    @echo -e "\tEnvironment file: \e[34m        '{{env_file}}'\e[0m"
-    @echo -e "\tCompose file: \e[34m            '{{compose_file}}'\e[0m"
-    @echo -e "\tDocker compose command: \e[34m  '{{docker_compose}}'\e[0m"
-    @echo -e "\tUV runner command: \e[34m       '{{uv_runner}}'\e[0m"
+    @echo -e "\tEnvironment: \e[34m             '{{ env }}'\e[0m"
+    @echo -e "\tEnvironment file: \e[34m        '{{ env_file }}'\e[0m"
+    @echo -e "\tCompose file: \e[34m            '{{ compose_file }}'\e[0m"
+    @echo -e "\tDocker compose command: \e[34m  '{{ docker_compose }}'\e[0m"
+    @echo -e "\tUV runner command: \e[34m       '{{ uv_runner }}'\e[0m"
 
 # runs GitHub Actions locally
+[group('development')]
+[group('qa')]
 gact *args:
-    @echo "Running GitHub Actions locally for {{git_root}}"
-    cd "{{git_root}}" && \
+    @echo "Running GitHub Actions locally for {{ git_root }}"
+    cd "{{ git_root }}" && \
         gh act \
             --rm \
-            --workflows "{{git_root}}/.github/workflows" \
-            {{args}}
+            --workflows "{{ git_root }}/.github/workflows" \
+            {{ args }}
 
 # generates environment secrets for local/production/ci environments
+[group('setup')]
 generate-secrets env_type *args:
-    @echo "Generating secrets for '{{env_type}}' environment..."
-    {{secrets_generator}} {{args}} {{env_type}}
+    @echo "Generating secrets for '{{ env_type }}' environment..."
+    {{ secrets_generator }} {{ args }} {{ env_type }}
 
 # streams logs until interrupted (tails 10k lines); args are passed to compose logs
+[group('monitoring')]
 logs *args:
     @echo "Showing sds-gateway logs..."
-    {{docker_compose}} logs --tail 10000 -f {{args}} || true
+    {{ docker_compose }} logs --tail 10000 -f {{ args }} || true
 
 # prints all recent logs once; args are passed to compose logs
+[group('monitoring')]
 logs-once *args:
     @echo "Showing gateway logs once..."
-    {{docker_compose}} logs {{args}}
+    {{ docker_compose }} logs {{ args }}
 
 # stops and remove compose services; args are passed to compose down
+[group('service')]
 down *args:
     @echo "Stopping sds-gateway"
-    {{docker_compose}} down {{args}}
+    {{ docker_compose }} down {{ args }}
 
 # runs the pre-commit hooks with dev dependencies
+[group('development')]
 pre-commit:
     uv run pre-commit install
     uv run --dev pre-commit run --all-files
 
 # rebuilds then restarts services and shows logs
+[group('service')]
 redeploy services='':
-    just build {{services}}
-    just down {{services}}
-    just up {{services}}
-    just logs {{services}}
+    just build {{ services }}
+    just down {{ services }}
+    just up {{ services }}
+    just logs {{ services }}
 
 # restarts running compose services
+[group('service')]
 restart *args:
     @echo "Restarting sds-gateway"
-    {{docker_compose}} restart {{args}}
+    {{ docker_compose }} restart {{ args }}
 
 # serves pytest coverage HTML locally
+[group('qa')]
 serve-coverage:
     @echo "Serving coverage reports"
-    COMPOSE_FILE={{compose_file}} uv run -m http.server 1313 -d "./htmlcov"
+    COMPOSE_FILE={{ compose_file }} uv run -m http.server 1313 -d "./htmlcov"
 
 # captures a snapshot of the configured environment
+[group('monitoring')]
 snapshot:
     #!/usr/bin/env bash
-    echo "Creating a snapshot of '{{env}}' data"
-    mkdir -p {{snapshot_log_dir}}
-    log_file="{{snapshot_log_dir}}/{{env}}-snapshot-$(date +%Y-%m-%d_%H-%M-%S).log"
-    ./scripts/create-snapshot.sh {{env}} 2>&1 | tee "${log_file}"
+    echo "Creating a snapshot of '{{ env }}' data"
+    mkdir -p {{ snapshot_log_dir }}
+    log_file="{{ snapshot_log_dir }}/{{ env }}-snapshot-$(date +%Y-%m-%d_%H-%M-%S).log"
+    ./scripts/create-snapshot.sh {{ env }} 2>&1 | tee "${log_file}"
     echo "See logs at '${log_file}'"
 
 # runs all tests (python and javascript); args are passed to pytest
+[group('qa')]
 test *args:
     #!/usr/bin/env bash
     echo "Running all tests"
-    just test-py {{args}}
-    if [[ "{{env}}" = "production" ]]; then
+    just test-py {{ args }}
+    if [[ "{{ env }}" = "production" ]]; then
         echo "Skipping JavaScript tests in production environment"
     else
         just test-js
     fi
 
 # validates templates and runs pytest inside the app container
+[group('qa')]
 test-py *args:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Validating templates"
-    {{uv_runner}} manage.py validate_templates
+    {{ uv_runner }} manage.py validate_templates
     echo "Running Python tests"
     # show test names if -k is used (focused test run)
-    if [[ "{{args}}" =~ -k ]]; then
-        {{uv_runner}} pytest \
+    if [[ "{{ args }}" =~ -k ]]; then
+        {{ uv_runner }} pytest \
             -rA \
-            {{args}}
+            {{ args }}
     else
-        {{uv_runner}} pytest {{args}}
+        {{ uv_runner }} pytest {{ args }}
     fi
 
 # runs javascript tests inside the app container
+[group('qa')]
 test-js *args:
     @echo "Running JavaScript tests"
-    {{docker_compose}} run node npm run test {{args}}
+    {{ docker_compose }} run node npm run test {{ args }}
 
 # starts services in detached mode; if env is local, starts process to watch files
+[group('service')]
 up *args:
     #!/usr/bin/env bash
     echo "Starting sds-gateway in detached mode"
-    echo "Environment: '{{env}}'"
-    echo "Compose file: '{{compose_file}}'"
-    {{docker_compose}} up --detach --remove-orphans {{args}}
+    echo "Environment: '{{ env }}'"
+    echo "Compose file: '{{ compose_file }}'"
+    {{ docker_compose }} up --detach --remove-orphans {{ args }}
 
     # this watcher is not working as intended today, and
     # there's no easy way to stop it, so it's disabled for now:
 
-    # if [ "{{env}}" = "local" ]; then
+    # if [ "{{ env }}" = "local" ]; then
     #     just watch &
     # fi
 
 # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions
+[group('development')]
 update:
     # these run on the host machine, so uv_runner is not used
     @echo "Upgrading pre-commit hooks"
@@ -253,20 +277,23 @@ update:
     @echo "Upgrading gateway dependencies"
     uv sync --upgrade --all-extras
     @echo "Upgrading node dependencies"
-    {{docker_compose}} run node npm update
+    {{ docker_compose }} run node npm update
 
 # shorthand for 'uv' commands (e.g. `just uv run manage.py migrate`)
+[group('utilities')]
 uv +args:
-    @echo "Running uv command: {{args}}"
-    @echo "app_container: '{{app_container}}'"
-    {{uv_cmd}} {{args}}
+    @echo "Running uv command: {{ args }}"
+    @echo "app_container: '{{ app_container }}'"
+    {{ uv_cmd }} {{ args }}
 
 # watch file changes when in local env mode
+[group('development')]
+[group('service')]
 watch *args:
     #!/usr/bin/env bash
-    if [ "{{env}}" != "local" ]; then
+    if [ "{{ env }}" != "local" ]; then
         echo "The 'watch' command is only available in the 'local' environment"
         exit 1
     fi
     echo "Watching for file changes..."
-    {{docker_compose}} watch {{args}}
+    {{ docker_compose }} watch {{ args }}
