@@ -2705,7 +2705,8 @@ def get_published_datasets() -> QuerySet[Dataset]:
     """Get all published datasets (status=FINAL or is_public=True)."""
     return (
         Dataset.objects.filter(
-            Q(status=DatasetStatus.FINAL) | Q(is_public=True),
+            status=DatasetStatus.FINAL,
+            is_public=True,
             is_deleted=False,
         )
         .prefetch_related("keywords", "owner")
@@ -2834,7 +2835,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         return paginator.get_page(page_number)
 
 
-class SearchPublishedDatasetsView(View):
+class SearchPublishedDatasetsView(Auth0LoginRequiredMixin, View):
     """View for searching published datasets (public, no auth required)."""
 
     template_name = "users/published_datasets_list.html"
