@@ -27,7 +27,15 @@ export const WATERFALL_WINDOW_SIZE = 100;
 
 // Cache and loading constants
 export const CACHE_SIZE = 800; // Maximum cached slices for seamless navigation
-export const BATCH_SIZE = 100; // Slices to request per API call (must match backend MAX_SLICE_BATCH_SIZE)
+// Default slices to request per API call.
+// The backend may override this value by defining `window.MAX_SLICE_BATCH_SIZE`
+// to keep it in sync with the backend MAX_SLICE_BATCH_SIZE setting.
+const DEFAULT_BATCH_SIZE = 100;
+export const BATCH_SIZE =
+	typeof window !== "undefined" &&
+	typeof window.MAX_SLICE_BATCH_SIZE === "number"
+		? window.MAX_SLICE_BATCH_SIZE
+		: DEFAULT_BATCH_SIZE;
 
 // Prefetch strategy constants
 // PREFETCH_TRIGGER: Only start prefetching when within this distance of unfetched data

@@ -231,10 +231,7 @@ class WaterfallVisualization {
 		if (this.isStreamingMode) {
 			// Check if we have any slices in the visible window
 			const startIndex = this.waterfallWindowStart;
-			const endIndex = Math.min(
-				startIndex + this.waterfallRenderer.WATERFALL_WINDOW_SIZE,
-				this.totalSlices,
-			);
+
 
 			if (this.totalSlices === 0) {
 				return;
@@ -380,6 +377,16 @@ class WaterfallVisualization {
 					requestAnimationFrame(() => {
 						this.renderWaterfall();
 					});
+					return;
+				}
+
+				// Verify slices were actually loaded (load may have failed)
+				const stillMissing = this.sliceCache.getMissingSlices(
+					startIndex,
+					endIndex,
+				);
+				if (stillMissing.length > 0) {
+					// Don't render with nulls - would show "Loading..." indefinitely
 					return;
 				}
 
