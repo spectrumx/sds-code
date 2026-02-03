@@ -59,22 +59,38 @@ just --list
 
 ```bash
 Available recipes:
-    build                                           # builds the package and runs smoke tests on the built artifact
+    [development]
+    dev-setup                                       # installs the development environment with pre-commit hooks and synced deps [alias: install]
+    gact *args                                      # runs GitHub Actions locally
+    pre-commit                                      # runs pre-commit checks locally, incl. deptry for dependency issues
+    pyrefly *args                                   # runs the Pyrefly type checker
+    pyright *args                                   # runs Pyright checks locally
+    update                                          # updates development dependencies and pre-commit hooks
+
+    [documentation]
+    docs-build                                      # build SDK documentation
+    docs-serve port="1314" *args=""                 # serve SDK documentation locally
+    docs-serve-compose *args                        # builds and serves SDK documentation via nginx in docker compose
+
+    [packaging]
+    build *args                                     # builds the package and runs smoke tests on the built artifact
     check-acceptance                                # checks the built package acceptance tests
     clean                                           # removes temporary and build files
-    dev-setup                                       # installs the development environment with pre-commit hooks and synced deps [alias: install]
-    gact                                            # runs GitHub Actions locally
-    pre-commit                                      # runs pre-commit checks locally
     publish                                         # publishes the built package to PyPI (prefer the trusted publishers method in GitHub)
-    pyright                                         # runs Pyright checks locally
+
+    [qa]
+    check-acceptance                                # checks the built package acceptance tests
+    gact *args                                      # runs GitHub Actions locally
+    pre-commit                                      # runs pre-commit checks locally, incl. deptry for dependency issues
+    pyrefly *args                                   # runs the Pyrefly type checker
+    pyright *args                                   # runs Pyright checks locally
     serve-coverage                                  # serves the HTML coverage report at http://localhost:1313 [alias: serve]
     test python=python_version *pytest_args         # runs tests using the default dependency resolution
-    test-all                                        # tests against all supported python versions and dep lower bounds (no integration tests)
+    test-all *args                                  # tests against all supported python versions and dep lower bounds (no integration tests)
     test-integration python=python_version *pytest_args # runs integration tests using the default dependency resolution
     test-integration-verbose python=python_version *pytest_args # runs integration tests in verbose mode with stdout capture; useful for debugging test failures
     test-lowest python=python_version *pytest_args  # runs tests against the lowest dependency versions
     test-verbose python=python_version *pytest_args # runs local tests in verbose mode with stdout capture; useful for debugging test failures
-    update                                          # updates development dependencies and pre-commit hooks
 ```
 
 Examples:

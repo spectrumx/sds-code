@@ -133,28 +133,43 @@ just --list
 
 ```bash
 Available recipes:
-    build *args                     # pulls and rebuild the compose services with optional args
-    build-full *args                # pulls and rebuilds from scratch without cache
-    clean                           # removes ephemeral files, like python caches and test coverage reports
-    dc +args                        # runs a generic docker compose command e.g. `just dc ps`
+    [development]
     dev-setup                       # sets up the development environment
-    down *args                      # stops and remove compose services; args are passed to compose down
-    env                             # prints currently selected environment, for debugging and validation purposes
-    generate-secrets env_type *args # generates environment secrets for local/production/ci environments
+    gact *args                      # runs GitHub Actions locally
+    pre-commit                      # runs the pre-commit hooks with dev dependencies
+    update                          # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
+    watch *args                     # watch file changes when in local env mode
+
+    [monitoring]
     logs *args                      # streams logs until interrupted (tails 10k lines); args are passed to compose logs
     logs-once *args                 # prints all recent logs once; args are passed to compose logs
-    pre-commit                      # runs the pre-commit hooks with dev dependencies
-    redeploy services=''            # rebuilds then restarts services and shows logs
-    restart *args                   # restarts running compose services
-    serve-coverage                  # serves pytest coverage HTML locally
     snapshot                        # captures a snapshot of the configured environment
+
+    [qa]
+    deptry                          # runs deptry to check for missing and unused python dependencies
+    gact *args                      # runs GitHub Actions locally
+    serve-coverage                  # serves pytest coverage HTML locally
     test *args                      # runs all tests (python and javascript); args are passed to pytest
     test-js *args                   # runs javascript tests inside the app container
     test-py *args                   # validates templates and runs pytest inside the app container
+
+    [service]
+    down *args                      # stops and remove compose services; args are passed to compose down
+    redeploy services=''            # rebuilds then restarts services and shows logs
+    restart *args                   # restarts running compose services
     up *args                        # starts services in detached mode; if env is local, starts process to watch files [alias: run]
-    update                          # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
-    uv +args                        # shorthand for 'uv' commands (e.g. `just uv run manage.py migrate`)
     watch *args                     # watch file changes when in local env mode
+
+    [setup]
+    build *args                     # pulls and rebuild the compose services with optional args
+    build-full *args                # pulls and rebuilds from scratch without cache
+    generate-secrets env_type *args # generates environment secrets for local/production/ci environments
+
+    [utilities]
+    clean                           # removes ephemeral files, like python caches and test coverage reports
+    dc +args                        # runs a generic docker compose command e.g. `just dc ps`
+    env                             # prints currently selected environment, for debugging and validation purposes
+    uv +args                        # shorthand for 'uv' commands (e.g. `just uv run manage.py migrate`)
 ```
 
 ## More SDS Gateway docs
