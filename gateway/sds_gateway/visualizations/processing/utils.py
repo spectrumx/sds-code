@@ -201,14 +201,19 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
     """Reconstruct DigitalRF directory structure from SDS files.
 
     This function now supports persistent caching - if files are already cached,
-    returns the cached path immediately. The temp_path parameter is kept for
-    backward compatibility but is no longer used (files are cached persistently).
+    it returns the cached path immediately.
 
+    Note:
+        The ``temp_path`` parameter is **intentionally ignored**. It is retained
+        solely for backward API compatibility with older callers that still pass
+        a temporary directory path. Callers may pass any ``Path`` value; it will
+        not affect the behavior of this function. This parameter is considered
+        deprecated and may be removed in a future major release.
     Args:
         capture: Capture model instance
         capture_files: QuerySet of File objects for this capture
-        temp_path: Temporary directory path (unused, kept for API compatibility)
-
+        temp_path: Deprecated; ignored temporary directory path kept for API
+            compatibility. Its value is not used.
     Returns:
         Path: Path to the DigitalRF root directory
 
@@ -247,9 +252,13 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
     for idx, file_obj in enumerate(capture_files):
         # Create the directory structure using Path operations for safety
         file_path = (capture_dir / file_obj.directory / file_obj.name).resolve()
-        assert file_path.is_relative_to(cache_dir), (
-            f"'{file_path=}' must be a subdirectory of '{cache_dir=}'"
-        )
+        if not file_path.is_relative_to(cache_dir):
+            error_msg = (
+                f"Invalid file path during reconstruction: "
+                f"'{file_path=}' must be a subdirectory of '{cache_dir=}'"
+            )
+            logger.error(error_msg)
+            raise SourceDataError(error_msg)
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Skip if file already exists (partial cache recovery)

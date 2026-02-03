@@ -148,8 +148,6 @@ describe("WaterfallSliceLoader", () => {
 		});
 
 		test("should batch large requests", async () => {
-			// Request 250 slices, should be batched into 3 requests (100, 100, 50)
-			const missingIndices = Array.from({ length: 250 }, (_, i) => i);
 
 			// Mock 3 API responses
 			for (let i = 0; i < 3; i++) {

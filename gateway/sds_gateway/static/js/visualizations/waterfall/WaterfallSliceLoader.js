@@ -335,7 +335,14 @@ class WaterfallSliceLoader {
 	 */
 	_getCSRFToken() {
 		const token = document.querySelector("[name=csrfmiddlewaretoken]");
-		return token ? token.value : "";
+		if (!token) {
+			console.warn(
+				"WaterfallSliceLoader: CSRF token element '[name=csrfmiddlewaretoken]' not found. " +
+					"API requests may fail due to missing CSRF token.",
+			);
+			return "";
+		}
+		return token.value;
 	}
 
 	/**

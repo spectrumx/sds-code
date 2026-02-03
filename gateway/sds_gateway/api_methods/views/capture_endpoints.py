@@ -1491,8 +1491,8 @@ class CaptureViewSet(viewsets.ViewSet):
                 return validation_result
             start_index, end_index = validation_result
 
-            # Get capture files
-            capture_files = capture.files.filter(is_deleted=False)
+            # Get capture files (M2M + FK so both current and legacy links work)
+            capture_files = get_capture_files(capture, include_deleted=False)
             if not capture_files.exists():
                 return Response(
                     {"error": "No files found for this capture"},
