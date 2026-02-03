@@ -1,3 +1,5 @@
+import json
+
 from django.contrib import admin
 
 from sds_gateway.api_methods import models
@@ -33,6 +35,42 @@ class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
         if keywords.exists():
             return ", ".join([kw.name for kw in keywords[:5]])
         return "-"
+
+    def save_model(self, request, obj, form, change):
+        """Override save_model to handle list fields."""
+        for field_name in models.Dataset.list_fields:
+            field_value = getattr(obj, field_name, None)
+
+            if field_value is None or field_value == "":
+                setattr(obj, field_name, [])
+            elif isinstance(field_value, str):
+                try:
+                    parsed_value = json.loads(field_value)
+                    if isinstance(parsed_value, list):
+                        setattr(obj, field_name, parsed_value)
+                    else:
+                        setattr(obj, field_name, [parsed_value])
+                except (json.JSONDecodeError, TypeError):
+                    if "," in field_value:
+                        # Split by comma and strip whitespace
+                        setattr(
+                            obj,
+                            field_name,
+                            [
+                                item.strip()
+                                for item in field_value.split(",")
+                                if item.strip()
+                            ],
+                        )
+                    else:
+                        # Single value, wrap in list
+                        setattr(
+                            obj,
+                            field_name,
+                            [field_value.strip()] if field_value.strip() else [],
+                        )
+
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(models.TemporaryZipFile)
