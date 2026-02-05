@@ -586,22 +586,38 @@ class WaterfallVisualization {
 	}
 
 	/**
-	 * Load waterfall data from the SDS API
-	 * Tries on-demand streaming first (no preprocessing), falls back to preprocessed data
+	 * Load waterfall data from the SDS API.
+	 * Uses preprocessed data when available (same scale as master); otherwise streaming.
 	 */
 	async loadWaterfallData() {
 		try {
 			this.isLoading = true;
 			this.showLoading(true);
 
-			// Try on-demand streaming first (fastest - no preprocessing required)
+			// When preprocessed waterfall exists, use it first so scale matches master (stored power_bounds)
+			const statusResponse = await fetch(
+				`/api/latest/assets/captures/${this.captureUuid}/post_processing_status/`,
+			);
+			if (statusResponse.ok) {
+				const statusData = await statusResponse.json();
+				const hasPreprocessed = statusData.post_processed_data?.some(
+					(d) =>
+						d.processing_type === "waterfall" &&
+						d.processing_status === "completed",
+				);
+				if (hasPreprocessed) {
+					await this.loadPreprocessedData();
+					return;
+				}
+			}
+
+			// No preprocessed data: use on-demand streaming
 			const streamingSuccess = await this.tryLoadStreamingMode();
 			if (streamingSuccess) {
 				return;
 			}
 
-			// Fall back to preprocessed data flow
-			console.log("Streaming not available, falling back to preprocessed data");
+			// Streaming not available (e.g. not DRF), try preprocessed again for edge cases
 			await this.loadPreprocessedData();
 		} catch (error) {
 			console.error("Failed to load waterfall data:", error);
