@@ -105,12 +105,23 @@ class WaterfallRenderer {
 
 	/**
 	 * Render the waterfall plot
+	 * waterfallData: Array of slices
+	 * totalSlices: Total number of slices in the dataset
+	 * startSliceIndex: The actual slice index of the first slice in waterfallData
 	 */
-	renderWaterfall(waterfallData, totalSlices) {
-		if (!this.ctx || !this.canvas || waterfallData.length === 0) return;
+	renderWaterfall(waterfallData, totalSlices, startSliceIndex) {
+		if (
+			!this.ctx ||
+			!this.canvas ||
+			!waterfallData ||
+			waterfallData.length === 0
+		) {
+			return;
+		}
 
-		// Store total slices for overlay updates
+		// Store total slices and starting index for overlay updates
 		this.totalSlices = totalSlices;
+		this.waterfallWindowStart = startSliceIndex;
 
 		// Clear canvas
 		this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -118,24 +129,23 @@ class WaterfallRenderer {
 		// Calculate dimensions with margins
 		const plotHeight =
 			this.canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN;
-		const maxVisibleSlices = Math.min(totalSlices, this.WATERFALL_WINDOW_SIZE);
+		const maxVisibleSlices = Math.min(
+			waterfallData.length,
+			this.WATERFALL_WINDOW_SIZE,
+		);
 		const sliceHeight = plotHeight / maxVisibleSlices;
 
-		// Calculate which slices to display
-		const startSliceIndex = this.waterfallWindowStart;
-
 		// Draw waterfall slices from bottom to top
-		for (let i = 0; i < this.WATERFALL_WINDOW_SIZE; i++) {
-			const sliceIndex = startSliceIndex + i;
-			if (sliceIndex >= totalSlices) break;
-
-			const slice = waterfallData[sliceIndex];
-			if (slice?.data) {
-				// Calculate Y position
-				const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
-
-				this.drawWaterfallSlice(slice.data, y, sliceHeight, this.canvas.width);
+		for (let i = 0; i < waterfallData.length && i < maxVisibleSlices; i++) {
+			const slice = waterfallData[i];
+			if (!slice || !slice.data) {
+				continue;
 			}
+
+			// Calculate Y position
+			const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
+
+			this.drawWaterfallSlice(slice.data, y, sliceHeight, this.canvas.width);
 		}
 
 		// Update the overlay with highlights and index legend
