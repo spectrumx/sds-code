@@ -50,17 +50,20 @@ class PeriodogramChart {
 					margin: 0,
 				},
 				axisX2: {
-					interval: 0.1,
 					title: "Frequency (MHz)",
-					titlePadding: 15,
-					titleFontSize: 16,
+					titlePadding: 10,
+					titleFontSize: 14,
 					titleFontWeight: "bold",
-					labelFontWeight: "bold",
-					labelAngle: 90,
+					labelFontSize: 11,
+					labelAngle: 0,
 					minimum: -1,
 					maximum: 1,
 					gridThickness: 1,
 					gridColor: "#e9ecef",
+					labelFormatter: (e) => {
+						// Format large frequencies nicely (e.g., 2400.5 instead of 2400.500000)
+						return e.value.toFixed(1);
+					},
 				},
 				axisY: {
 					interval: 20,
@@ -127,11 +130,15 @@ class PeriodogramChart {
 				return;
 			}
 
-			// Create data points for the chart - convert frequencies to MHz for better display
+			const sampleRate = currentSlice.sample_rate || 0;
+			const centerFreq = currentSlice.center_frequency || 0;
+			const freqStep = sampleRate / dataArray.length;
+
+			// Create data points for the chart - include center frequency offset
 			const dataPoints = dataArray.map((power, index) => {
-				const frequency =
-					(index - dataArray.length / 2) *
-					(currentSlice.sample_rate / dataArray.length);
+				// Calculate frequency relative to center frequency
+				const offsetFromCenter = (index - dataArray.length / 2) * freqStep;
+				const frequency = centerFreq + offsetFromCenter;
 				const freqMHz = frequency / 1000000;
 
 				return { x: freqMHz, y: power };
@@ -139,13 +146,7 @@ class PeriodogramChart {
 
 			this.chart.options.data[0].dataPoints = dataPoints;
 
-			if (
-				dataPoints.length > 0 &&
-				currentSlice.sample_rate &&
-				Number.isFinite(currentSlice.sample_rate)
-			) {
-				const freqStep = currentSlice.sample_rate / dataArray.length;
-				const centerFreq = currentSlice.center_frequency || 0;
+			if (dataPoints.length > 0 && sampleRate && Number.isFinite(sampleRate)) {
 				const minFreq = centerFreq - (dataArray.length / 2) * freqStep;
 				const maxFreq = centerFreq + (dataArray.length / 2) * freqStep;
 
@@ -155,10 +156,17 @@ class PeriodogramChart {
 				if (minFreqMHz < maxFreqMHz) {
 					this.chart.options.axisX2.minimum = minFreqMHz;
 					this.chart.options.axisX2.maximum = maxFreqMHz;
+
+					// Set a sensible interval based on the frequency range
+					const rangeMHz = maxFreqMHz - minFreqMHz;
+					// Aim for roughly 5-8 labels
+					const interval = Math.ceil(rangeMHz / 6);
+					this.chart.options.axisX2.interval = interval;
 				} else {
 					console.warn("Frequency bounds not valid, using defaults");
 					this.chart.options.axisX2.minimum = -1;
 					this.chart.options.axisX2.maximum = 1;
+					this.chart.options.axisX2.interval = 0.5;
 				}
 			}
 
