@@ -8,6 +8,8 @@ import WaterfallSliceCache from "./WaterfallSliceCache.js";
 import WaterfallSliceLoader from "./WaterfallSliceLoader.js";
 import {
 	DEFAULT_COLOR_MAP,
+	DEFAULT_SCALE_MAX,
+	DEFAULT_SCALE_MIN,
 	ERROR_MESSAGES,
 	PREFETCH_DISTANCE,
 	PREFETCH_TRIGGER,
@@ -560,8 +562,8 @@ class WaterfallVisualization {
 		if (!legendGradient || !legendLabels) return;
 
 		// Create CSS gradient based on selected color map
-		const scaleMin = this.scaleMin || -130;
-		const scaleMax = this.scaleMax || 0;
+		const scaleMin = this.scaleMin ?? DEFAULT_SCALE_MIN;
+		const scaleMax = this.scaleMax ?? DEFAULT_SCALE_MAX;
 
 		// Generate gradient stops for the selected color map
 		const gradientStops = this.waterfallRenderer.generateColorMapGradient();
@@ -657,12 +659,16 @@ class WaterfallVisualization {
 
 			if (!metadataResponse.ok) {
 				// Streaming not available for this capture (e.g., not DRF)
-				console.log(`Streaming metadata returned ${metadataResponse.status}`);
 				return false;
 			}
 
-			const metadataData = await metadataResponse.json();
-			const metadata = metadataData.metadata;
+			let metadataData;
+			try {
+				metadataData = await metadataResponse.json();
+			} catch (_) {
+				return false;
+			}
+			const metadata = metadataData?.metadata;
 
 			if (!metadata || !metadata.total_slices) {
 				console.warn("Streaming metadata missing total_slices");
@@ -678,18 +684,24 @@ class WaterfallVisualization {
 				this.sliceLoader.setStreamingMode(true);
 			}
 
-			console.log(
-				`Streaming mode enabled: ${this.totalSlices} total slices (on-demand FFT)`,
-			);
-
 			// Load initial visible window
 			const initialStart = 0;
 			const initialEnd = Math.min(WATERFALL_WINDOW_SIZE, this.totalSlices);
 
 			await this.loadSliceRange(initialStart, initialEnd);
 
-			// Calculate power bounds from initial slices
-			await this.calculatePowerBoundsFromSamples();
+			// Use server-provided power_bounds when available for consistent scale
+			const bounds = metadata.power_bounds;
+			if (
+				typeof bounds?.min === "number" &&
+				typeof bounds?.max === "number" &&
+				bounds.min < bounds.max
+			) {
+				this.scaleMin = bounds.min;
+				this.scaleMax = bounds.max;
+			} else {
+				await this.calculatePowerBoundsFromSamples();
+			}
 
 			// Prefetch additional data for smooth scrolling
 			const prefetchEnd = Math.min(
@@ -1118,8 +1130,8 @@ class WaterfallVisualization {
 	 */
 	async calculatePowerBoundsFromSamples() {
 		if (this.totalSlices === 0) {
-			this.scaleMin = -130;
-			this.scaleMax = 0;
+			this.scaleMin = DEFAULT_SCALE_MIN;
+			this.scaleMax = DEFAULT_SCALE_MAX;
 			return;
 		}
 
@@ -1168,8 +1180,8 @@ class WaterfallVisualization {
 			this.scaleMax = globalMax + margin;
 		} else {
 			// Fallback to defaults
-			this.scaleMin = -130;
-			this.scaleMax = 0;
+			this.scaleMin = DEFAULT_SCALE_MIN;
+			this.scaleMax = DEFAULT_SCALE_MAX;
 		}
 	}
 
