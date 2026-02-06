@@ -11,6 +11,7 @@ import {
 	DEFAULT_SCALE_MAX,
 	DEFAULT_SCALE_MIN,
 	ERROR_MESSAGES,
+	LARGE_CAPTURE_THRESHOLD,
 	PREFETCH_DISTANCE,
 	PREFETCH_TRIGGER,
 	WATERFALL_WINDOW_SIZE,
@@ -589,14 +590,37 @@ class WaterfallVisualization {
 
 	/**
 	 * Load waterfall data from the SDS API.
-	 * Uses preprocessed data when available (same scale as master); otherwise streaming.
+	 * Large captures use streaming (on-demand); smaller ones use preprocessed when available.
 	 */
 	async loadWaterfallData() {
 		try {
 			this.isLoading = true;
 			this.showLoading(true);
 
-			// When preprocessed waterfall exists, use it first so scale matches master (stored power_bounds)
+			// For large captures, prefer streaming (no full preprocessed file load)
+			const metadataUrl = get_waterfall_metadata_stream_endpoint(
+				this.captureUuid,
+			);
+			const metadataResponse = await fetch(metadataUrl, {
+				headers: { "X-CSRFToken": this.getCSRFToken() },
+			});
+			if (metadataResponse.ok) {
+				try {
+					const metadataData = await metadataResponse.json();
+					const total = metadataData?.metadata?.total_slices;
+					if (
+						typeof total === "number" &&
+						total >= LARGE_CAPTURE_THRESHOLD
+					) {
+						const streamingSuccess = await this.tryLoadStreamingMode();
+						if (streamingSuccess) return;
+					}
+				} catch (_) {
+					// Fall through to preprocessed/streaming logic below
+				}
+			}
+
+			// When preprocessed waterfall exists (and not large), use it first
 			const statusResponse = await fetch(
 				`/api/latest/assets/captures/${this.captureUuid}/post_processing_status/`,
 			);
@@ -608,7 +632,7 @@ class WaterfallVisualization {
 						d.processing_status === "completed",
 				);
 				if (hasPreprocessed) {
-					await this.loadPreprocessedData();
+					await this.loadFullPreprocessedDataLikeMaster();
 					return;
 				}
 			}
@@ -639,6 +663,37 @@ class WaterfallVisualization {
 
 			this.showError(userMessage);
 		}
+	}
+
+	/**
+	 * Load preprocessed waterfall exactly like master: full file download, parse all, calculatePowerBounds().
+	 * Guarantees scale matches master (76 to -4 etc).
+	 */
+	async loadFullPreprocessedDataLikeMaster() {
+		const dataResponse = await fetch(
+			`/api/latest/assets/captures/${this.captureUuid}/download_post_processed_data/?processing_type=waterfall`,
+		);
+		if (!dataResponse.ok) {
+			throw new Error(
+				`Failed to download waterfall data: ${dataResponse.status}`,
+			);
+		}
+		const waterfallJson = await dataResponse.json();
+		this.waterfallData = waterfallJson;
+		this.totalSlices = waterfallJson.length;
+		this.parsedWaterfallData = this.waterfallData.map((slice) => ({
+			...slice,
+			data: this.parseWaterfallData(slice.data),
+		}));
+		this.calculatePowerBounds();
+		this.isStreamingMode = false;
+		this.isLoading = false;
+		this.showLoading(false);
+		this.controls.setTotalSlices(this.totalSlices);
+		this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
+		this.periodogramChart.updateYAxisBounds(this.scaleMin, this.scaleMax);
+		this.updateColorLegend();
+		this.render();
 	}
 
 	/**
@@ -684,14 +739,29 @@ class WaterfallVisualization {
 				this.sliceLoader.setStreamingMode(true);
 			}
 
+			// Scale: same as master (min/max over data + 5%). Prefer stored preprocessed bounds, then backend sample.
+			await this.setScaleFromPostProcessedMetadata();
+			if (this.scaleMin === null || this.scaleMax === null) {
+				const streamBounds = metadata.power_bounds;
+				if (
+					typeof streamBounds?.min === "number" &&
+					typeof streamBounds?.max === "number" &&
+					streamBounds.min < streamBounds.max
+				) {
+					this.scaleMin = streamBounds.min;
+					this.scaleMax = streamBounds.max;
+				}
+			}
+
 			// Load initial visible window
 			const initialStart = 0;
 			const initialEnd = Math.min(WATERFALL_WINDOW_SIZE, this.totalSlices);
 
 			await this.loadSliceRange(initialStart, initialEnd);
 
-			// Scale from initial visible window (same data we're about to draw) so it matches master
-			this.calculatePowerBoundsFromLoadedSlices(initialStart, initialEnd);
+			if (this.scaleMin === null || this.scaleMax === null) {
+				await this.calculatePowerBoundsFromSamples();
+			}
 
 			// Prefetch additional data for smooth scrolling
 			const prefetchEnd = Math.min(
@@ -747,6 +817,9 @@ class WaterfallVisualization {
 			return;
 		}
 
+		// Scale from stored metadata (same as master: min/max over all slices + 5% margin)
+		await this.setScaleFromPostProcessedMetadata();
+
 		// Get total slices from waterfall_slices endpoint with a small range
 		try {
 			const testResponse = await fetch(
@@ -755,11 +828,20 @@ class WaterfallVisualization {
 			if (testResponse.ok) {
 				const testData = await testResponse.json();
 				this.totalSlices = testData.total_slices || 0;
-
-				// Try to get power bounds from metadata if available
-				if (testData.metadata?.power_bounds) {
-					this.scaleMin = testData.metadata.power_bounds.min;
-					this.scaleMax = testData.metadata.power_bounds.max;
+				// Use power_bounds from slices response if we didn't get them from metadata
+				if (
+					(this.scaleMin === null || this.scaleMax === null) &&
+					testData.metadata?.power_bounds
+				) {
+					const bounds = testData.metadata.power_bounds;
+					if (
+						typeof bounds.min === "number" &&
+						typeof bounds.max === "number" &&
+						bounds.min < bounds.max
+					) {
+						this.scaleMin = bounds.min;
+						this.scaleMax = bounds.max;
+					}
 				}
 			} else {
 				throw new Error(
@@ -1113,6 +1195,32 @@ class WaterfallVisualization {
 		const centerIndex = Math.floor((windowStart + windowEnd) / 2);
 		const keepRange = WATERFALL_WINDOW_SIZE + PREFETCH_DISTANCE;
 		this.sliceCache.evictDistantSlices(centerIndex, keepRange);
+	}
+
+	/**
+	 * Set scale from stored post-processed metadata when available (matches master range e.g. 76 to -4).
+	 * Fetches get_post_processed_metadata and uses power_bounds.min/max if present.
+	 */
+	async setScaleFromPostProcessedMetadata() {
+		try {
+			const url = `/api/latest/assets/captures/${this.captureUuid}/get_post_processed_metadata/?processing_type=waterfall`;
+			const response = await fetch(url, {
+				headers: { "X-CSRFToken": this.getCSRFToken() },
+			});
+			if (!response.ok) return;
+			const data = await response.json();
+			const bounds = data?.metadata?.power_bounds;
+			if (
+				typeof bounds?.min === "number" &&
+				typeof bounds?.max === "number" &&
+				bounds.min < bounds.max
+			) {
+				this.scaleMin = bounds.min;
+				this.scaleMax = bounds.max;
+			}
+		} catch (_) {
+			// Fall back to computed bounds
+		}
 	}
 
 	/**

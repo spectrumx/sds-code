@@ -25,6 +25,9 @@ export const WATERFALL_BOTTOM_MARGIN = 5;
 // Window size constants
 export const WATERFALL_WINDOW_SIZE = 100;
 
+// Above this many slices we prefer streaming (on-demand) over preprocessed
+export const LARGE_CAPTURE_THRESHOLD = 50_000;
+
 // Cache and loading constants
 export const CACHE_SIZE = 800; // Maximum cached slices for seamless navigation
 // Default slices to request per API call.
