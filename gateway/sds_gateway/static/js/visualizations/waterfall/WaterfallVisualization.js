@@ -690,18 +690,8 @@ class WaterfallVisualization {
 
 			await this.loadSliceRange(initialStart, initialEnd);
 
-			// Use server-provided power_bounds when available for consistent scale
-			const bounds = metadata.power_bounds;
-			if (
-				typeof bounds?.min === "number" &&
-				typeof bounds?.max === "number" &&
-				bounds.min < bounds.max
-			) {
-				this.scaleMin = bounds.min;
-				this.scaleMax = bounds.max;
-			} else {
-				await this.calculatePowerBoundsFromSamples();
-			}
+			// Scale from initial visible window (same data we're about to draw) so it matches master
+			this.calculatePowerBoundsFromLoadedSlices(initialStart, initialEnd);
 
 			// Prefetch additional data for smooth scrolling
 			const prefetchEnd = Math.min(
@@ -1126,7 +1116,52 @@ class WaterfallVisualization {
 	}
 
 	/**
-	 * Calculate power bounds from sample slices (first, middle, last)
+	 * Set scale from min/max with 5% margin, or defaults if no valid data.
+	 * @private
+	 */
+	_setScaleFromBounds(globalMin, globalMax) {
+		if (
+			globalMin !== Number.POSITIVE_INFINITY &&
+			globalMax !== Number.NEGATIVE_INFINITY
+		) {
+			const margin = (globalMax - globalMin) * 0.05;
+			this.scaleMin = globalMin - margin;
+			this.scaleMax = globalMax + margin;
+		} else {
+			this.scaleMin = DEFAULT_SCALE_MIN;
+			this.scaleMax = DEFAULT_SCALE_MAX;
+		}
+	}
+
+	/**
+	 * Calculate power bounds from slices already in cache (no loading).
+	 * Use when the initial window is loaded so scale matches the first screen (master behavior).
+	 * @param {number} startIndex - Start of range (inclusive)
+	 * @param {number} endIndex - End of range (exclusive)
+	 */
+	calculatePowerBoundsFromLoadedSlices(startIndex, endIndex) {
+		let globalMin = Number.POSITIVE_INFINITY;
+		let globalMax = Number.NEGATIVE_INFINITY;
+
+		for (let i = startIndex; i < endIndex; i++) {
+			const slice = this.sliceCache.getSlice(i);
+			if (slice?.data) {
+				const parsedData = this.parseWaterfallData(slice.data);
+				if (parsedData && parsedData.length > 0) {
+					const sliceMin = Math.min(...parsedData);
+					const sliceMax = Math.max(...parsedData);
+					globalMin = Math.min(globalMin, sliceMin);
+					globalMax = Math.max(globalMax, sliceMax);
+				}
+			}
+		}
+
+		this._setScaleFromBounds(globalMin, globalMax);
+	}
+
+	/**
+	 * Calculate power bounds from sample slices (first, middle, last).
+	 * Loads those slices if not cached. Used when we don't have a full window in cache.
 	 */
 	async calculatePowerBoundsFromSamples() {
 		if (this.totalSlices === 0) {
@@ -1153,36 +1188,19 @@ class WaterfallVisualization {
 			}
 		}
 
-		// Calculate bounds from samples
 		let globalMin = Number.POSITIVE_INFINITY;
 		let globalMax = Number.NEGATIVE_INFINITY;
-
 		for (const idx of sampleIndices) {
 			const slice = this.sliceCache.getSlice(idx);
 			if (slice?.data) {
 				const parsedData = this.parseWaterfallData(slice.data);
 				if (parsedData && parsedData.length > 0) {
-					const sliceMin = Math.min(...parsedData);
-					const sliceMax = Math.max(...parsedData);
-					globalMin = Math.min(globalMin, sliceMin);
-					globalMax = Math.max(globalMax, sliceMax);
+					globalMin = Math.min(globalMin, Math.min(...parsedData));
+					globalMax = Math.max(globalMax, Math.max(...parsedData));
 				}
 			}
 		}
-
-		// Set bounds with margin
-		if (
-			globalMin !== Number.POSITIVE_INFINITY &&
-			globalMax !== Number.NEGATIVE_INFINITY
-		) {
-			const margin = (globalMax - globalMin) * 0.05;
-			this.scaleMin = globalMin - margin;
-			this.scaleMax = globalMax + margin;
-		} else {
-			// Fallback to defaults
-			this.scaleMin = DEFAULT_SCALE_MIN;
-			this.scaleMax = DEFAULT_SCALE_MAX;
-		}
+		this._setScaleFromBounds(globalMin, globalMax);
 	}
 
 	/**
