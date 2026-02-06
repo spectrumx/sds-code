@@ -123,9 +123,13 @@
                 <div class="card h-100 shadow-sm">
                     <div class="card-body text-center">
                         <i class="bi bi-book text-warning mb-3 fs-1" aria-hidden="true"></i>
-                        <h2 class="card-title h5">Gateway API Documentation</h2>
+                        <h2 class="card-title h5">SDK Documentation</h2>
                         <p class="card-text mb-0">
-                            <a href="{% url 'api-docs' %}" class="capture-link external-link">Complete API reference and examples</a>
+                            <!-- NOTE: this points outside the Django application, so we're
+                            using the full URL for it to work in other Gateway deployments -->
+                            {# djlint:off D018 #}
+                            <a href="https://sds.crc.nd.edu/sdk/" class="capture-link external-link">Python SDK reference, examples, and FAQ</a>
+                            {# djlint:on D018 #}
                         </p>
                     </div>
                 </div>
