@@ -216,6 +216,64 @@ def compute_slices_on_demand(
     }
 
 
+def get_waterfall_power_bounds(
+    drf_path: Path, channel: str, low_pct: float = 5.0, high_pct: float = 95.0
+) -> dict[str, float] | None:
+    """Compute power bounds from a small sample of slices for consistent color scale.
+
+    Samples 3 slices (start, middle, end) and uses percentile over all pixels
+    to avoid outlier-driven scale (e.g. single hot pixel making everything blue).
+
+    Args:
+        drf_path: Path to DigitalRF data directory
+        channel: Channel name to process
+        low_pct: Lower percentile (default 5)
+        high_pct: Upper percentile (default 95)
+
+    Returns:
+        {"min": float, "max": float} or None if data is flat (span < 1 dB) or unavailable
+    """
+    base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
+    total_slices = base_params.total_samples // SAMPLES_PER_SLICE
+    if total_slices == 0:
+        return None
+
+    # Sample 3 slices: start, middle, end
+    indices = [0, total_slices // 2, total_slices - 1]
+    indices = [i for i in indices if i < total_slices]
+    if not indices:
+        return None
+
+    all_values: list[float] = []
+    for slice_idx in indices:
+        slice_params = base_params.model_copy(update={"slice_idx": slice_idx})
+        slice_data = _process_waterfall_slice(slice_params)
+        if slice_data is None:
+            continue
+        try:
+            data_bytes = base64.b64decode(slice_data["data"])
+            power_db = np.frombuffer(data_bytes, dtype=np.float32)
+            # Filter out inf/nan from log(0) edge cases
+            finite = power_db[np.isfinite(power_db)]
+            if finite.size > 0:
+                all_values.extend(finite.tolist())
+        except (ValueError, TypeError) as e:
+            logger.debug("Skipping slice %s for power bounds: %s", slice_idx, e)
+            continue
+
+    if len(all_values) < 2:
+        return None
+
+    arr = np.array(all_values, dtype=np.float64)
+    p_low = float(np.percentile(arr, low_pct))
+    p_high = float(np.percentile(arr, high_pct))
+    span = p_high - p_low
+    if span < 1.0:
+        # Flat or nearly flat data - avoid forcing a scale
+        return None
+    return {"min": p_low, "max": p_high}
+
+
 def get_waterfall_metadata(drf_path: Path, channel: str) -> dict[str, Any]:
     """Get waterfall metadata without processing any slices.
 
