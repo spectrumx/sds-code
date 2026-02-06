@@ -217,34 +217,34 @@ def compute_slices_on_demand(
 
 
 def get_waterfall_power_bounds(
-    drf_path: Path, channel: str, low_pct: float = 5.0, high_pct: float = 95.0
+    drf_path: Path, channel: str, margin_fraction: float = 0.05
 ) -> dict[str, float] | None:
     """Compute power bounds from a small sample of slices for consistent color scale.
 
-    Samples 3 slices (start, middle, end) and uses percentile over all pixels
-    to avoid outlier-driven scale (e.g. single hot pixel making everything blue).
+    Uses the same formula as the frontend calculatePowerBoundsFromSamples(): min/max
+    over 3 slices (start, middle, end) plus a margin, so streaming and master match.
 
     Args:
         drf_path: Path to DigitalRF data directory
         channel: Channel name to process
-        low_pct: Lower percentile (default 5)
-        high_pct: Upper percentile (default 95)
+        margin_fraction: Fraction of range to add as margin (default 0.05 = 5%)
 
     Returns:
-        {"min": float, "max": float} or None if data is flat (span < 1 dB) or unavailable
+        {"min": float, "max": float} or None if no valid data
     """
     base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
     total_slices = base_params.total_samples // SAMPLES_PER_SLICE
     if total_slices == 0:
         return None
 
-    # Sample 3 slices: start, middle, end
+    # Same 3 slices as frontend: first, middle, last
     indices = [0, total_slices // 2, total_slices - 1]
     indices = [i for i in indices if i < total_slices]
     if not indices:
         return None
 
-    all_values: list[float] = []
+    global_min = float("inf")
+    global_max = float("-inf")
     for slice_idx in indices:
         slice_params = base_params.model_copy(update={"slice_idx": slice_idx})
         slice_data = _process_waterfall_slice(slice_params)
@@ -253,25 +253,19 @@ def get_waterfall_power_bounds(
         try:
             data_bytes = base64.b64decode(slice_data["data"])
             power_db = np.frombuffer(data_bytes, dtype=np.float32)
-            # Filter out inf/nan from log(0) edge cases
             finite = power_db[np.isfinite(power_db)]
             if finite.size > 0:
-                all_values.extend(finite.tolist())
+                global_min = min(global_min, float(np.min(finite)))
+                global_max = max(global_max, float(np.max(finite)))
         except (ValueError, TypeError) as e:
             logger.debug("Skipping slice %s for power bounds: %s", slice_idx, e)
             continue
 
-    if len(all_values) < 2:
+    if global_min == float("inf") or global_max == float("-inf"):
         return None
-
-    arr = np.array(all_values, dtype=np.float64)
-    p_low = float(np.percentile(arr, low_pct))
-    p_high = float(np.percentile(arr, high_pct))
-    span = p_high - p_low
-    if span < 1.0:
-        # Flat or nearly flat data - avoid forcing a scale
-        return None
-    return {"min": p_low, "max": p_high}
+    span = global_max - global_min
+    margin = span * margin_fraction
+    return {"min": global_min - margin, "max": global_max + margin}
 
 
 def get_waterfall_metadata(drf_path: Path, channel: str) -> dict[str, Any]:
